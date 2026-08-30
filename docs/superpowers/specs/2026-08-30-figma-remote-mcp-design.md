@@ -65,7 +65,7 @@ devup-mcp/
 │  │  ├─ upstream.rs
 │  │  ├─ oauth.rs
 │  │  ├─ credentials.rs
-│  │  ├─ projection.rs
+│  │  ├─ snapshot.rs
 │  │  └─ errors.rs
 │  ├─ codegen/
 │  │  ├─ mod.rs
@@ -173,20 +173,20 @@ Figma mode 이름은 안정적인 JSON key로 정규화하되 원래 이름을 d
 
 - `get_metadata`: 파일의 페이지와 큰 노드의 구조 탐색
 - `get_variable_defs`: 선택 범위에서 사용된 로컬·외부 변수 및 스타일 조회
-- `get_design_context`: projection이 지원하지 않는 컴포넌트 정보와 Code Connect 보조 정보
+- `get_design_context`: snapshot만으로 부족한 컴포넌트 의미와 Code Connect 보조 정보
 - `get_code_connect_map`: 연결된 코드 컴포넌트 확인
 - `get_screenshot`: 선택적 시각 검증 자료
-- `use_figma`: 고정된 읽기 전용 projection script 실행
+- `use_figma`: 고정된 읽기 전용 전체 snapshot script 실행
 
 `use_figma`, `generate_figma_design`, `upload_assets`, `add_code_connect_map` 등 쓰기 가능 도구를 일반적으로 노출하지 않는다. `use_figma`는 예외적으로 호출하지만 Devup이 빌드 시 내장한 읽기 전용 script template만 실행한다.
 
-## Figma 데이터 projection
+## Figma 전체 데이터 snapshot
 
 실제 검증 결과 Remote `use_figma`에서는 Plugin API typings에 존재하는 `node.exportAsync({ format: "JSON_REST_V1" })`가 `JSON_REST_V1 export format is not supported in this context`로 거부됐다. 따라서 REST JSON을 그대로 요청하지 않는다.
 
-대신 고정된 읽기 전용 Plugin API script가 Devup 코드생성에 필요한 속성만 compact JSON으로 투영한다.
+대신 고정된 읽기 전용 Plugin API script가 Figma Plugin API에서 공개되고 읽을 수 있는 디자인 필드를 손실 최소화 snapshot으로 직렬화한다. 현재 코드생성이 사용하지 않는 필드도 버리지 않고 raw JSON field로 보존한다.
 
-projection은 다음 데이터를 포함한다.
+snapshot은 Figma Plugin API typings에서 node type과 mixin별 데이터 property manifest를 생성해 다음 데이터를 포함한다.
 
 - 공통: id, type, name, visible, opacity, rotation
 - 트리: parent id, child ids 및 순서
@@ -197,6 +197,20 @@ projection은 다음 데이터를 포함한다.
 - Text: characters, styled segments, font family, size, weight, line height, letter spacing, alignment
 - Component: instance, main component, variant properties, Code Connect key
 - Variable: bound variable ids, explicit mode ids, resolved current value
+- 확장 데이터: Dev resources, annotations, measurements, reactions, export settings
+- 미지원 신규 데이터: `extra` map과 `fieldErrors`에 원본 값 또는 읽기 실패 정보
+
+Rust는 node의 모든 field를 `serde_json::Map<String, Value>`로 먼저 보존하고, DevupUI codegen에서 필요한 property만 typed view로 해석한다. 새 Figma field를 Rust codegen이 아직 이해하지 못하더라도 snapshot에서는 소실되지 않는다.
+
+전체 snapshot에서도 다음 항목은 JSON으로 직접 표현하지 않는다.
+
+- 함수와 메서드
+- 순환 참조 객체: `parent`는 `parentId`, node 참조는 node id로 치환
+- 원본 이미지·동영상 bytes: asset id와 metadata를 보존하고 별도 asset 도구로 조회
+- 접근할 수 없는 타 plugin의 private data
+- 읽기 자체가 오류를 일으키는 getter: 오류 문자열을 `fieldErrors`에 기록
+
+공식 Plugin API typings가 갱신됐는데 serializer manifest에 없는 공개 data property가 생기면 CI contract test를 실패시킨다. runtime에서 열거 가능한 미지의 property는 `extra`에 보존한다.
 
 임의 JavaScript를 사용자 입력으로 받지 않는다. file key와 node id는 파싱·검증한 후 JSON literal로만 script에 삽입한다.
 
@@ -205,9 +219,9 @@ projection은 다음 데이터를 포함한다.
 Figma MCP 응답과 대형 선택 영역의 한계를 피하기 위해 다음 순서를 사용한다.
 
 1. `get_metadata`로 대상 구조를 얻는다.
-2. 작은 노드는 한 번에 projection한다.
+2. 작은 노드는 한 번에 전체 snapshot을 수집한다.
 3. 예상 크기가 큰 Frame, Section 또는 Page는 직계 자식 단위로 분할한다.
-4. bounded concurrency로 projection tool call을 실행한다.
+4. bounded concurrency로 snapshot tool call을 실행한다.
 5. Rust에서 node id와 child order를 기준으로 재조립한다.
 6. 동일 파일 version 내 결과만 병합한다. version이 달라지면 일관성 오류로 재시도를 요청한다.
 
@@ -242,7 +256,7 @@ Devup은 누락된 정보를 추측해 토큰을 만들지 않고 diagnostics에
 5. 절대 배치, mask, vector, image 및 미지원 effect는 명시적 fallback과 diagnostics를 남긴다.
 6. 결과는 formatter를 거쳐 결정적인 문자열로 만든다.
 
-`get_design_context`가 반환한 React/Tailwind 코드를 다시 파싱해 주 데이터로 사용하지 않는다. projection이 지원하지 않는 의미 정보와 Code Connect 보조 자료로만 사용한다.
+`get_design_context`가 반환한 React/Tailwind 코드를 다시 파싱해 주 데이터로 사용하지 않는다. snapshot만으로 부족한 의미 정보와 Code Connect 보조 자료로만 사용한다.
 
 ## 오류 모델
 
@@ -257,11 +271,11 @@ Devup은 누락된 정보를 추측해 토큰을 만들지 않고 diagnostics에
 - `DEVUP_FIGMA_UNSUPPORTED_FILE`
 - `DEVUP_FIGMA_RESPONSE_TOO_LARGE`
 - `DEVUP_FIGMA_VERSION_CHANGED`
-- `DEVUP_PROJECTION_UNSUPPORTED`
+- `DEVUP_SNAPSHOT_UNSUPPORTED`
 - `DEVUP_CODEGEN_FAILED`
 - `DEVUP_THEME_CONFLICT`
 
-401은 refresh 후 한 번만 재시도한다. 429는 upstream retry hint가 있을 때만 bounded retry한다. projection 오류는 더 작은 subtree로 한 단계 분할한 뒤 한 번 재시도하고, 반복 실패하면 해당 node id를 diagnostics에 남긴다.
+401은 refresh 후 한 번만 재시도한다. 429는 upstream retry hint가 있을 때만 bounded retry한다. snapshot 오류는 더 작은 subtree로 한 단계 분할한 뒤 한 번 재시도하고, 반복 실패하면 해당 node id와 field 오류를 diagnostics에 남긴다.
 
 ## 보안과 개인정보
 
@@ -283,7 +297,8 @@ Devup은 누락된 정보를 추측해 토큰을 만들지 않고 diagnostics에
 - Figma URL parser 및 branch URL 처리
 - OAuth discovery, DCR, PKCE, state, refresh 및 timeout
 - credential redaction
-- projection JSON deserialize와 청크 재조립
+- 전체 snapshot JSON deserialize, unknown field 보존과 청크 재조립
+- Plugin API typings와 serializer property manifest의 누락 검출
 - 색상, 길이, typography, shadow 및 mode의 `devup.json` 매핑
 - component identifier 정규화
 - Auto Layout, text, fills, effects 및 token fallback 코드생성
@@ -317,7 +332,7 @@ Devup은 누락된 정보를 추측해 토큰을 만들지 않고 diagnostics에
 1. Rust package, CI, tracing 및 stdio MCP skeleton
 2. upstream Streamable HTTP MCP client와 OAuth discovery/DCR/PKCE/keyring
 3. URL parser와 Figma read-only tool allowlist
-4. compact projection protocol과 청크 재조립
+4. 전체 snapshot protocol, typings 기반 property manifest와 청크 재조립
 5. `devup_figma_to_ui` Rust codegen
 6. 변수 수집과 `devup_figma_to_json`
 7. 실제 Figma OAuth 및 제공 노드 통합 검증
