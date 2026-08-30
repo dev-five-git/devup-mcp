@@ -1,6 +1,6 @@
 use devup_mcp_figma::{
-    CollectedParts, CollectedPayload, CollectionScope, FigmaTarget, PayloadCompleteness,
-    PayloadStructure, SnapshotChunk, UpstreamResult,
+    CollectedParts, CollectedPayload, CollectionScope, ErrorCode, FigmaTarget, PayloadCompleteness,
+    PayloadStructure, SnapshotChunk, UpstreamResult, validate_payload_context,
 };
 use serde_json::json;
 
@@ -78,4 +78,15 @@ fn structure_report_contains_shapes_but_no_design_values() {
     ] {
         assert!(!serialized.contains(private), "leaked {private}");
     }
+}
+
+#[test]
+fn payload_context_rejects_a_different_figma_target() {
+    let payload = CollectedPayload::try_from(synthetic_parts()).unwrap();
+    let expected =
+        FigmaTarget::parse("https://www.figma.com/design/DifferentFile/Fixture?node-id=9-9")
+            .unwrap();
+
+    let error = validate_payload_context(&payload, &expected).unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
 }

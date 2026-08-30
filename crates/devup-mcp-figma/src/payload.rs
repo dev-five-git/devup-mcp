@@ -53,6 +53,26 @@ impl TryFrom<CollectedParts> for CollectedPayload {
     }
 }
 
+pub fn validate_payload_context(
+    payload: &CollectedPayload,
+    expected_target: &FigmaTarget,
+) -> Result<(), DevupError> {
+    if &payload.target != expected_target
+        || payload.snapshot.file_key != expected_target.file_key
+        || expected_target
+            .node_id
+            .as_ref()
+            .is_some_and(|node_id| !payload.snapshot.roots.iter().any(|root| root == node_id))
+    {
+        return Err(DevupError::new(
+            crate::ErrorCode::DevupFigmaHandoffInvalid,
+            "Figma payload가 요청한 파일 또는 node와 일치하지 않습니다.",
+            false,
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PayloadStructure {

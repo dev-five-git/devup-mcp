@@ -68,6 +68,7 @@ pub enum CollectorStep {
 enum CallKind {
     Metadata,
     Snapshot,
+    Variables,
 }
 
 #[derive(Debug, Clone)]
@@ -84,8 +85,10 @@ pub struct CollectorSession {
     pending: BTreeMap<String, PendingCall>,
     consumed: BTreeSet<String>,
     metadata: Option<Value>,
+    root_node_id: Option<String>,
     source_version: Option<String>,
     snapshot_chunks: BTreeMap<usize, SnapshotChunk>,
+    variables: Option<UpstreamResult>,
     next_id: usize,
     completed: bool,
 }
@@ -98,8 +101,10 @@ impl CollectorSession {
             pending: BTreeMap::new(),
             consumed: BTreeSet::new(),
             metadata: None,
+            root_node_id: None,
             source_version: None,
             snapshot_chunks: BTreeMap::new(),
+            variables: None,
             next_id: 0,
             completed: false,
         }
@@ -126,6 +131,26 @@ impl CollectorSession {
         if !self.pending.is_empty() {
             return Ok(CollectorStep::AwaitingResults);
         }
+        if self.metadata.is_some()
+            && self.request.include_variables
+            && self.variables.is_none()
+            && self.queued.is_empty()
+        {
+            let node_id = self
+                .root_node_id
+                .clone()
+                .ok_or_else(|| invalid_call("Figma 변수 수집에 사용할 root node ID가 없습니다."))?;
+            self.enqueue(
+                ReadToolCall::snapshot(
+                    &self.request.target.file_key,
+                    &node_id,
+                    BuiltinScript::LocalVariables,
+                ),
+                Some(node_id),
+                CallKind::Variables,
+            );
+            return self.advance();
+        }
         if self.metadata.is_some() && self.queued.is_empty() {
             self.completed = true;
             return Ok(CollectorStep::Complete(Box::new(CollectedParts {
@@ -135,8 +160,8 @@ impl CollectorSession {
                 snapshot_chunks: std::mem::take(&mut self.snapshot_chunks)
                     .into_values()
                     .collect(),
-                variables: None,
-                styles: None,
+                variables: self.variables.clone(),
+                styles: self.variables.clone(),
                 source_version: self.source_version.clone(),
             })));
         }
@@ -152,6 +177,10 @@ impl CollectorSession {
         match pending.kind {
             CallKind::Metadata => self.accept_metadata(result),
             CallKind::Snapshot => self.accept_snapshot(&pending.planned, pending.order, result),
+            CallKind::Variables => {
+                self.variables = Some(result);
+                Ok(())
+            }
         }
     }
 
@@ -161,6 +190,7 @@ impl CollectorSession {
             return Err(invalid_call("Figma metadata의 file key가 요청과 다릅니다."));
         }
         self.source_version = document.version.clone();
+        self.root_node_id = Some(document.root_id.clone());
         self.metadata = Some(result.raw);
         let root = document.root().ok_or_else(|| {
             DevupError::new(

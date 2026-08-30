@@ -52,3 +52,43 @@ fn snapshot_accepts_only_compiled_in_scripts() {
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
 }
+
+#[test]
+fn snapshot_manifest_covers_current_official_node_properties() {
+    let call = ReadToolCall::snapshot("file-key", "1:2", BuiltinScript::NodeSnapshot);
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    for property in [
+        "\"maskType\"",
+        "\"overflowDirection\"",
+        "\"primaryAxisAlignItems\"",
+        "\"componentPropertyReferences\"",
+        "\"detachedInfo\"",
+        "\"exposedInstances\"",
+        "\"isExposedInstance\"",
+    ] {
+        assert!(code.contains(property), "manifest omitted {property}");
+    }
+}
+
+#[test]
+fn built_in_scripts_expose_only_read_operations() {
+    for script in [BuiltinScript::NodeSnapshot, BuiltinScript::LocalVariables] {
+        let call = ReadToolCall::snapshot("file-key", "1:2", script);
+        let code = call.arguments()["code"].as_str().unwrap().to_owned();
+        for write_operation in [
+            "figma.create",
+            ".setPluginData(",
+            ".setSharedPluginData(",
+            ".remove(",
+            ".appendChild(",
+            ".insertChild(",
+            "deleteAsync(",
+        ] {
+            assert!(
+                !code.contains(write_operation),
+                "built-in script exposed {write_operation}"
+            );
+        }
+    }
+}

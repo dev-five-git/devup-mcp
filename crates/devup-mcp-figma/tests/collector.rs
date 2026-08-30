@@ -188,3 +188,44 @@ fn rejects_unknown_or_replayed_call_ids() {
         .unwrap_err();
     assert_eq!(replayed.code, ErrorCode::DevupFigmaHandoffInvalid);
 }
+
+#[test]
+fn variable_collection_runs_after_snapshot_and_preserves_the_raw_result() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.include_variables = true;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&snapshot_call.id, snapshot("1:2"))
+        .unwrap();
+
+    let CollectorStep::Call(variable_call) = collector.advance().unwrap() else {
+        panic!("variable/style read should follow the snapshot")
+    };
+    assert_eq!(variable_call.call.tool_name(), "use_figma");
+    assert_eq!(variable_call.expected_node_id.as_deref(), Some("1:2"));
+    let raw = UpstreamResult {
+        raw: json!({
+            "content": [{
+                "type": "text",
+                "text": "{\"collections\":[],\"variables\":[],\"styles\":[],\"localComplete\":true,\"usedRemoteComplete\":false}"
+            }]
+        }),
+    };
+    collector.accept(&variable_call.id, raw.clone()).unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("collection should finish after variables")
+    };
+    assert_eq!(parts.variables, Some(raw.clone()));
+    assert_eq!(parts.styles, Some(raw));
+}

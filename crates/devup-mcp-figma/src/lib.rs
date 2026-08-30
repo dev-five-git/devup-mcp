@@ -13,7 +13,9 @@ pub use credentials::{
 };
 pub use errors::{DevupError, ErrorCode};
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
-pub use payload::{CollectedPayload, PayloadCompleteness, PayloadStructure};
+pub use payload::{
+    CollectedPayload, PayloadCompleteness, PayloadStructure, validate_payload_context,
+};
 pub use snapshot::{
     Diagnostic, RawNode, Snapshot, SnapshotChunk, TypedNode, merge_chunks,
     snapshot_chunk_from_result,
