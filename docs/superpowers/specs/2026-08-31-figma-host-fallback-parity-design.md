@@ -46,12 +46,16 @@ devup-mcp/
 │  ├─ devup-mcp/                 # stdio MCP, source 선택, handoff session, export
 │  ├─ devup-mcp-figma/           # URL, direct OAuth, upstream, collector, raw snapshot
 │  └─ devup-mcp-devup-ui/        # NodeTree, codegen, responsive, theme projection
-├─ compat/devup-figma-plugin/    # pinned corpus, manifest, coverage ledger
-└─ scripts/compat/               # 개발/CI 전용 corpus 생성과 drift 확인
+└─ compat/devup-figma-plugin/    # pinned corpus, manifest, coverage ledger
 ```
 
-프로덕션 바이너리는 Bun, Node.js 또는 JavaScript runtime에 의존하지 않는다. Bun은
-고정된 원본 저장소에서 호환성 corpus를 생성·검증하는 개발/CI 과정에서만 사용한다.
+`devup-mcp` 저장소는 Cargo만으로 build/test하며 `package.json`, Bun lockfile, Node/Bun
+script 또는 JavaScript test runtime을 두지 않는다. 고정 fixture corpus의 생성은 이미
+Bun을 사용하는 원본 `devup-figma-plugin` 저장소가 담당하고, 이 저장소에는 검토된
+JSON/snapshot artifact만 import한다. Figma `use_figma`가 요구하는 고정 읽기 전용
+JavaScript 문자열은 Rust binary에 resource로 포함되어 Figma sandbox에서 실행될 뿐,
+로컬 JavaScript runtime 의존성이 아니다.
+
 OAuth는 계속 `devup-mcp-figma` 내부에 둔다. 별도 `devup-auth`, `devup-ir`,
 `devup-mcp-server` crate는 만들지 않는다.
 
@@ -261,11 +265,10 @@ compat/devup-figma-plugin/
 모든 test ID는 `source-file + full suite path + parameterized case index`로 안정적으로
 식별한다. 이름이 같은 parameterized test도 index와 input checksum으로 구분한다.
 
-### 생성 방식
+### 생성 방식과 저장소 경계
 
-`scripts/compat/generate`는 별도 임시 디렉터리에 기준 SHA를 checkout하고 frozen Bun
-install을 수행한다. 원본 파일은 수정하지 않는다. 생성기는 임시 checkout에 계측
-adapter를 적용해 실제 JavaScript 구현과 테스트를 실행하고 다음을 기록한다.
+corpus exporter는 `devup-figma-plugin`의 test-only 도구로 구현한다. 해당 저장소의 기존
+Bun test 환경에서 실제 JavaScript 구현과 테스트를 계측해 다음을 기록한다.
 
 - 테스트 러너가 발견·실행한 전체 test ID와 pass/fail/skip
 - Codegen/ResponsiveCodegen 진입 시 직렬화 가능한 Figma node graph, variables,
@@ -274,13 +277,20 @@ adapter를 적용해 실제 JavaScript 구현과 테스트를 실행하고 다�
 - download/UI/plugin API 경계에 전달된 payload
 - 기존 `.snap`의 이름과 원문 기대값
 
-계측은 fixture 생성 전용이며 생성 결과에 JavaScript 함수나 executable code를 넣지
-않는다. 함수형 Figma mock은 호출 결과와 오류를 data로 펼치고, parent/child/main
-component 참조는 ID graph로 정규화한다. key와 배열 순서가 계약인 곳은 보존하고,
-비결정적인 시간·임시 경로만 명시적으로 정규화한다.
+계측은 원본 저장소의 fixture 생성 전용이며 생성 결과에 JavaScript 함수나 executable
+code를 넣지 않는다. 함수형 Figma mock은 호출 결과와 오류를 data로 펼치고,
+parent/child/main component 참조는 ID graph로 정규화한다. key와 배열 순서가 계약인
+곳은 보존하고, 비결정적인 시간·임시 경로만 명시적으로 정규화한다.
 
-생성 후 동일 SHA에서 원본 `bun run test`가 다시 0 fail인지 검증한다. 계측 때문에
-원본 동작이 변하거나 같은 입력의 결과가 달라지면 corpus 생성을 실패시킨다.
+exporter는 생성 후 동일 SHA에서 원본 `bun run test`가 다시 0 fail인지 검증하고,
+source commit, exporter version, test ID 집합 및 파일 checksum을 포함한 archive를 만든다.
+계측 때문에 원본 동작이 변하거나 같은 입력의 결과가 달라지면 export를 실패시킨다.
+
+`devup-mcp`에서는 Rust로 작성한 import/verify test만 이 archive를 다룬다. 검토자가
+archive의 source commit과 변경 diff를 확인한 뒤 `compat/devup-figma-plugin`에
+commit한다. Cargo test는 JSON을 deserialize하고 checksum, ID 전수성, snapshot 참조를
+검증한다. 따라서 `devup-mcp` 개발자와 CI는 Bun 설치나 원본 repository checkout 없이
+모든 호환성 테스트를 실행한다.
 
 ### ledger 분류
 
@@ -320,12 +330,12 @@ assertion도 실제 JavaScript 반환값을 golden으로 저장해 Rust snapshot
 
 ### drift 관리
 
-- manifest에 원본 repository URL, commit SHA, Bun lockfile checksum과 generator version 저장
-- `compat verify`는 pinned SHA, case count, test ID set, snapshot count와 모든 checksum 검증
-- `compat regenerate --source <path|url> --rev <sha>`로 의도적 업데이트
-- CI의 일반 job은 network 없이 committed corpus를 실행
-- 수동/정기 drift job은 원본 최신 SHA와 차이를 보고하되 자동 승인하지 않음
-- production package에는 corpus generator와 Bun dependency를 포함하지 않음
+- manifest에 원본 repository URL, commit SHA, upstream lockfile checksum과 exporter version 저장
+- Cargo integration test는 pinned SHA, case count, test ID set, snapshot count와 모든 checksum 검증
+- corpus 갱신은 원본 plugin 저장소의 exporter가 만든 archive를 명시적으로 import
+- `devup-mcp` CI는 network와 JavaScript runtime 없이 committed corpus만 실행
+- 원본 plugin CI의 수동/정기 job이 최신 source와 corpus 차이를 보고하되 자동 승인하지 않음
+- production package와 `devup-mcp` 개발 의존성에 corpus generator/Bun/Node를 포함하지 않음
 
 ## 테스트 게이트
 
@@ -341,7 +351,7 @@ assertion도 실제 JavaScript 반환값을 golden으로 저장해 Rust snapshot
 
 ### 호환성 테스트
 
-- `compat verify`
+- Rust corpus manifest/checksum verifier
 - manifest/ledger 전수성 테스트
 - 모든 `rust_snapshot`, `rust_assertion`, `contract` case
 - 기준 SHA의 원본 268개 snapshot 전부 대응과 `cargo insta test`
@@ -377,9 +387,9 @@ verifier, Figma 사용자 정보, 원본 node 내용은 오류와 tracing에서 
 
 ## 구현 순서와 완료 기준
 
-1. pinned source manifest, test discovery와 coverage ledger validator
-2. corpus generator 계측 adapter, 원본 978/268 기준 재현
-3. `insta` compatibility runner와 최소 대표 corpus
+1. 원본 plugin 저장소의 corpus exporter와 978/268 기준 재현
+2. pinned source manifest, Rust coverage ledger/checksum validator
+3. `insta` compatibility runner와 최소 대표 corpus import
 4. Rust NodeTree/prop/render/devup.json 규칙을 corpus 기반 TDD로 전수 이식
 5. 완전 collector와 direct source 오류 분류
 6. memory-only handoff session과 `devup_figma_continue`
