@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515"
+  },
+  "baseline": {
+    "testFiles": 54,
+    "passed": 978,
+    "failed": 0,
+    "snapshots": 268,
+    "assertions": 1974
+  },
+  "counts": {
+    "cases": 1,
+    "snapshots": 1,
+    "ledgerEntries": 978
+  },
+  "sourceTestFiles": [
+    "src/__tests__/code-responsive.test.ts",
+    "src/__tests__/code.test.ts",
+    "src/__tests__/utils.test.ts",
+    "src/codegen/__tests__/codegen-viewport.test.ts",
+    "src/codegen/__tests__/codegen.test.ts",
+    "src/codegen/__tests__/render.test.ts",
+    "src/codegen/props/__tests__/bound-variables.test.ts",
+    "src/codegen/props/__tests__/cursor.test.ts",
+    "src/codegen/props/__tests__/effect.test.ts",
+    "src/codegen/props/__tests__/position.test.ts",
+    "src/codegen/props/__tests__/reaction.test.ts",
+    "src/codegen/props/__tests__/selector.test.ts",
+    "src/codegen/responsive/__tests__/index.test.ts",
+    "src/codegen/responsive/__tests__/mergePropsToResponsive.test.ts",
+    "src/codegen/responsive/__tests__/mergePropsToVariant.test.ts",
+    "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts",
+    "src/codegen/utils/__tests__/assemble-node-tree.test.ts",
+    "src/codegen/utils/__tests__/check-asset-node.test.ts",
+    "src/codegen/utils/__tests__/check-same-color.test.ts",
+    "src/codegen/utils/__tests__/collect-import-metadata.test.ts",
+    "src/codegen/utils/__tests__/extract-instance-variant-props.test.ts",
+    "src/codegen/utils/__tests__/get-component-property-definitions.test.ts",
+    "src/codegen/utils/__tests__/node-proxy.test.ts",
+    "src/codegen/utils/__tests__/optimize-space.test.ts",
+    "src/codegen/utils/__tests__/paint-to-css.test.ts",
+    "src/codegen/utils/__tests__/props-to-str.test.ts",
+    "src/codegen/utils/__tests__/resolve-bound-variable.test.ts",
+    "src/codegen/utils/__tests__/solid-to-string.test.ts",
+    "src/codegen/utils/__tests__/wrap-url.test.ts",
+    "src/commands/__tests__/exportAssets.test.ts",
+    "src/commands/__tests__/exportComponents.test.ts",
+    "src/commands/__tests__/exportPagesAndComponents.test.ts",
+    "src/commands/devup/__tests__/apply-typography.test.ts",
+    "src/commands/devup/__tests__/export-devup.coverage.test.ts",
+    "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
+    "src/commands/devup/__tests__/import-devup.length-shadow.test.ts",
+    "src/commands/devup/__tests__/import-devup.test.ts",
+    "src/commands/devup/__tests__/index.test.ts",
+    "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
+    "src/commands/devup/utils/__tests__/get-devup-color-collection.test.ts",
+    "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
+    "src/utils/__tests__/download-file.test.ts",
+    "src/utils/__tests__/extract-key-value-from-css-var.test.ts",
+    "src/utils/__tests__/is-variable-alias.test.ts",
+    "src/utils/__tests__/optimize-rgba-func.test.ts",
+    "src/utils/__tests__/resolve-text-style-bound-variable.test.ts",
+    "src/utils/__tests__/rgba-to-hex.test.ts",
+    "src/utils/__tests__/style-name-to-typography.test.ts",
+    "src/utils/__tests__/text-segment-to-typography.test.ts",
+    "src/utils/__tests__/text-style-to-typography.test.ts",
+    "src/utils/__tests__/to-camel.test.ts",
+    "src/utils/__tests__/to-pascal.test.ts",
+    "src/utils/__tests__/upload-file.test.ts",
+    "src/utils/__tests__/variable-alias-to-value.test.ts"
+  ],
+  "files": [
+    {
+      "path": "cases/codegen/live-shape-smoke.json",
+      "sha256": "9497dfe8dd396bd5680c39cc04c526b6993d2d244136491f5593258c0e71faa7"
+    },
+    {
+      "path": "snapshots/codegen/live-shape-smoke.snap",
+      "sha256": "e02a4e2bec9f689a134befb2cb19ddb896fbc90ac0cab8227a91f1584ffbdc81"
+    }
+  ]
+}

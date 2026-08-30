@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
-use std::{fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::{Path, PathBuf},
+};
 
 use devup_mcp_devup_ui::{
     codegen::{CodegenOptions, generate_component},
@@ -9,6 +13,7 @@ use devup_mcp_devup_ui::{
 use devup_mcp_figma::{CollectedPayload, DevupError};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -163,4 +168,292 @@ pub fn run_case(case: &FixtureCase) -> Result<Value, DevupError> {
             }),
         },
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FixtureManifest {
+    pub schema_version: u32,
+    pub source: CorpusSource,
+    pub baseline: CorpusBaseline,
+    pub counts: CorpusCounts,
+    pub source_test_files: Vec<String>,
+    pub files: Vec<ManifestFile>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CorpusSource {
+    pub repository: String,
+    pub commit: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CorpusBaseline {
+    pub test_files: usize,
+    pub passed: usize,
+    pub failed: usize,
+    pub snapshots: usize,
+    pub assertions: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CorpusCounts {
+    pub cases: usize,
+    pub snapshots: usize,
+    pub ledger_entries: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManifestFile {
+    pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FixtureLedger {
+    pub schema_version: u32,
+    pub entries: Vec<LedgerEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LedgerEntry {
+    pub test_id: String,
+    pub source_file: String,
+    pub classification: LedgerClassification,
+    #[serde(default)]
+    pub fixture_ids: Vec<String>,
+    pub rust_test: String,
+    #[serde(default)]
+    pub rationale: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LedgerClassification {
+    RustSnapshot,
+    RustAssertion,
+    Contract,
+    OutOfScopeWrite,
+    UpstreamRuntimeOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorpusSummary {
+    pub source_files: usize,
+    pub ledger_entries: usize,
+    pub cases: usize,
+    pub snapshots: usize,
+}
+
+pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
+    let mut violations = Vec::new();
+    let manifest = match read_json::<FixtureManifest>(&root.join("manifest.json")) {
+        Ok(value) => value,
+        Err(error) => return Err(vec![error]),
+    };
+    let ledger = match read_json::<FixtureLedger>(&root.join("ledger.json")) {
+        Ok(value) => value,
+        Err(error) => return Err(vec![error]),
+    };
+    if manifest.schema_version != 1 || ledger.schema_version != 1 {
+        violations.push("manifest와 ledger schemaVersion은 1이어야 합니다.".to_owned());
+    }
+    if manifest.source.commit.len() != 40
+        || !manifest
+            .source
+            .commit
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        violations.push("manifest source.commit이 40자리 git SHA가 아닙니다.".to_owned());
+    }
+    if manifest.baseline.test_files != 54
+        || manifest.baseline.passed != 978
+        || manifest.baseline.failed != 0
+        || manifest.baseline.snapshots != 268
+        || manifest.baseline.assertions != 1_974
+    {
+        violations.push("고정 upstream baseline 수치가 일치하지 않습니다.".to_owned());
+    }
+    if manifest.source_test_files.len() != manifest.baseline.test_files {
+        violations.push("source test file 수가 baseline과 일치하지 않습니다.".to_owned());
+    }
+    duplicate_values(
+        manifest.source_test_files.iter().map(String::as_str),
+        "source test file",
+        &mut violations,
+    );
+
+    let case_files = discover(root.join("cases"), "json", root, &mut violations);
+    let snapshot_files = discover(root.join("snapshots"), "snap", root, &mut violations);
+    let discovered = case_files
+        .iter()
+        .chain(snapshot_files.iter())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let declared = manifest
+        .files
+        .iter()
+        .map(|file| file.path.clone())
+        .collect::<BTreeSet<_>>();
+    for path in discovered.difference(&declared) {
+        violations.push(format!("manifest에 없는 orphan 파일: {path}"));
+    }
+    for path in declared.difference(&discovered) {
+        violations.push(format!("실제로 존재하지 않는 manifest 파일: {path}"));
+    }
+    for file in &manifest.files {
+        let path = root.join(file.path.replace('/', std::path::MAIN_SEPARATOR_STR));
+        match fs::read(&path) {
+            Ok(bytes) => {
+                let actual = hex_sha256(&bytes);
+                if actual != file.sha256 {
+                    violations.push(format!("checksum 불일치: {}", file.path));
+                }
+            }
+            Err(error) => violations.push(format!("{} 읽기 실패: {error}", file.path)),
+        }
+    }
+
+    let mut case_ids = BTreeMap::<String, String>::new();
+    for relative in &case_files {
+        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        match load_case(&path) {
+            Ok(case) => {
+                if let Some(first) = case_ids.insert(case.id.clone(), relative.clone()) {
+                    violations.push(format!(
+                        "중복 fixture id '{}': {first}, {relative}",
+                        case.id
+                    ));
+                }
+            }
+            Err(error) => violations.push(format!("{relative}: {error}")),
+        }
+    }
+
+    let mut ledger_ids = BTreeSet::new();
+    for entry in &ledger.entries {
+        if !ledger_ids.insert(entry.test_id.as_str()) {
+            violations.push(format!("중복 ledger test id: {}", entry.test_id));
+        }
+        if entry.source_file.trim().is_empty() || entry.rust_test.trim().is_empty() {
+            violations.push(format!("ledger 경로가 비어 있습니다: {}", entry.test_id));
+        }
+        for fixture_id in &entry.fixture_ids {
+            if !case_ids.contains_key(fixture_id) {
+                violations.push(format!(
+                    "ledger가 없는 fixture를 참조합니다: {} -> {fixture_id}",
+                    entry.test_id
+                ));
+            }
+        }
+        match entry.classification {
+            LedgerClassification::RustSnapshot if entry.fixture_ids.is_empty() => {
+                violations.push(format!(
+                    "rust_snapshot ledger에 fixture가 없습니다: {}",
+                    entry.test_id
+                ))
+            }
+            LedgerClassification::OutOfScopeWrite | LedgerClassification::UpstreamRuntimeOnly
+                if entry
+                    .rationale
+                    .as_deref()
+                    .is_none_or(|value| value.trim().is_empty()) =>
+            {
+                violations.push(format!("분류 근거가 없습니다: {}", entry.test_id));
+            }
+            _ => {}
+        }
+    }
+
+    if manifest.counts.cases != case_files.len()
+        || manifest.counts.snapshots != snapshot_files.len()
+        || manifest.counts.ledger_entries != ledger.entries.len()
+    {
+        violations.push("manifest counts가 발견된 corpus와 일치하지 않습니다.".to_owned());
+    }
+    if ledger.entries.len() != manifest.baseline.passed {
+        violations
+            .push("ledger entry 수가 upstream passing test 수와 일치하지 않습니다.".to_owned());
+    }
+
+    if violations.is_empty() {
+        Ok(CorpusSummary {
+            source_files: manifest.source_test_files.len(),
+            ledger_entries: ledger.entries.len(),
+            cases: case_files.len(),
+            snapshots: snapshot_files.len(),
+        })
+    } else {
+        Err(violations)
+    }
+}
+
+fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
+    let bytes = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    serde_json::from_slice(&bytes).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+fn discover(
+    directory: PathBuf,
+    extension: &str,
+    root: &Path,
+    violations: &mut Vec<String>,
+) -> Vec<String> {
+    let mut files = Vec::new();
+    discover_inner(&directory, extension, root, &mut files, violations);
+    files.sort();
+    files
+}
+
+fn discover_inner(
+    directory: &Path,
+    extension: &str,
+    root: &Path,
+    files: &mut Vec<String>,
+    violations: &mut Vec<String>,
+) {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) => {
+            violations.push(format!("{}: {error}", directory.display()));
+            return;
+        }
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            discover_inner(&path, extension, root, files, violations);
+        } else if path.extension().and_then(|value| value.to_str()) == Some(extension)
+            && let Ok(relative) = path.strip_prefix(root)
+        {
+            files.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
+
+fn duplicate_values<'a>(
+    values: impl Iterator<Item = &'a str>,
+    label: &str,
+    violations: &mut Vec<String>,
+) {
+    let mut seen = BTreeSet::new();
+    for value in values {
+        if !seen.insert(value) {
+            violations.push(format!("중복 {label}: {value}"));
+        }
+    }
+}
+
+pub fn hex_sha256(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
