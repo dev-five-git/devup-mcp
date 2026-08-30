@@ -3,6 +3,7 @@ mod credentials;
 mod errors;
 mod oauth;
 mod payload;
+mod search;
 mod snapshot;
 mod source;
 mod upstream;
@@ -17,6 +18,7 @@ pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBro
 pub use payload::{
     CollectedPayload, PayloadCompleteness, PayloadStructure, validate_payload_context,
 };
+pub use search::{SearchOptions, SearchResult, search_snapshot};
 pub use snapshot::{
     Diagnostic, RawNode, Snapshot, SnapshotChunk, TypedNode, merge_chunks,
     snapshot_chunk_from_result,

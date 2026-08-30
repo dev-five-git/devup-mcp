@@ -2,7 +2,7 @@ use devup_mcp::server::DevupServer;
 use rmcp::ServiceExt;
 
 #[tokio::test]
-async fn exposes_only_the_four_devup_figma_tools() -> anyhow::Result<()> {
+async fn exposes_the_five_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
     let server = tokio::spawn(async move {
         DevupServer::default()
@@ -26,6 +26,7 @@ async fn exposes_only_the_four_devup_figma_tools() -> anyhow::Result<()> {
         [
             "devup_figma_auth",
             "devup_figma_continue",
+            "devup_figma_search",
             "devup_figma_to_json",
             "devup_figma_to_ui",
         ]

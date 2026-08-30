@@ -92,6 +92,15 @@ async fn call_tool(
     upstream: Arc<dyn FigmaUpstream>,
     arguments: Value,
 ) -> anyhow::Result<CallToolResult> {
+    call_named_tool(auth, upstream, "devup_figma_to_ui", arguments).await
+}
+
+async fn call_named_tool(
+    auth: Arc<dyn DevupAuth>,
+    upstream: Arc<dyn FigmaUpstream>,
+    tool: &str,
+    arguments: Value,
+) -> anyhow::Result<CallToolResult> {
     let server = DevupServer::new(Services::new(auth, upstream));
     let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
     let task = tokio::spawn(async move {
@@ -101,11 +110,69 @@ async fn call_tool(
     let client = ().serve(client_transport).await?;
     let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
     let result = client
-        .call_tool(CallToolRequestParams::new("devup_figma_to_ui").with_arguments(arguments))
+        .call_tool(CallToolRequestParams::new(tool.to_owned()).with_arguments(arguments))
         .await?;
     client.cancel().await?;
     task.await??;
     Ok(result)
+}
+
+#[tokio::test]
+async fn search_collects_the_file_and_returns_replayable_node_urls() -> anyhow::Result<()> {
+    let result = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Connected,
+            logins: AtomicUsize::new(0),
+        }),
+        Arc::new(FixtureUpstream::default()),
+        "devup_figma_search",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture",
+            "query": "syntheticframe",
+            "sourcePolicy": "direct"
+        }),
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+    assert_eq!(output["status"], "complete");
+    assert_eq!(output["count"], 1);
+    assert_eq!(output["matches"][0]["nodeId"], "1:2");
+    assert_eq!(output["matches"][0]["matchKind"], "normalized-exact");
+    assert_eq!(
+        output["matches"][0]["canonicalUrl"],
+        "https://www.figma.com/design/FileKey123/devup?node-id=1-2"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn ui_output_path_writes_the_generated_artifact_only_when_requested() -> anyhow::Result<()> {
+    let path = std::env::temp_dir().join(format!(
+        "devup-mcp-output-{}-{}.tsx",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    let result = call_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Connected,
+            logins: AtomicUsize::new(0),
+        }),
+        Arc::new(FixtureUpstream::default()),
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "sourcePolicy": "direct",
+            "outputPath": path
+        }),
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+    let written = std::fs::read_to_string(&path)?;
+    assert_eq!(written, output["tsx"].as_str().unwrap());
+    assert!(output["outputPath"].as_str().is_some());
+    std::fs::remove_file(path)?;
+    Ok(())
 }
 
 fn input(policy: &str) -> Value {

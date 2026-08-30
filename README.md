@@ -9,6 +9,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 - `devup_figma_auth`: Figma 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃
 - `devup_figma_to_ui`: Figma node 링크를 `@devup-ui/react` TSX로 변환
 - `devup_figma_to_json`: Figma 변수와 로컬 스타일을 `devup.json`으로 변환
+- `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
 - `devup_figma_continue`: host가 실행한 공식 Figma MCP read 결과로 중단된 변환을 재개
 - Figma Plugin API의 readable data property를 raw JSON으로 보존하고, 알려지지 않은 runtime field는 `extra`, 실패한 getter는 `fieldErrors`로 유지
 
@@ -63,7 +64,8 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
   "componentName": "OptionalComponentName",
   "includeDiagnostics": true,
   "sourcePolicy": "auto",
-  "scope": "node"
+  "scope": "node",
+  "outputPath": "optional/path/Component.tsx"
 }
 ```
 
@@ -76,11 +78,29 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
   "scope": "file",
   "includeDiagnostics": true,
-  "sourcePolicy": "auto"
+  "sourcePolicy": "auto",
+  "outputPath": "optional/path/devup.json"
 }
 ```
 
 결과는 `theme.colors`, `theme.typography`, `theme.length`, `theme.shadow`를 포함하는 결정적 JSON 문자열과 counts, completeness를 반환합니다.
+
+`outputPath`를 생략하면 결과를 메모리와 MCP 응답에만 유지합니다. 명시하면 생성된 TSX 또는 `devup.json`만 해당 경로에 기록하고 실제 절대 경로를 응답합니다.
+
+### Figma 이름 검색
+
+```json
+{
+  "url": "https://www.figma.com/design/<file-key>/<name>",
+  "query": "A : STORY-F-PROOFREAD",
+  "nodeTypes": ["PAGE", "SECTION", "FRAME", "COMPONENT_SET"],
+  "match": "normalized",
+  "limit": 20,
+  "sourcePolicy": "auto"
+}
+```
+
+검색은 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬합니다. `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, 각 결과는 node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_to_ui`에 그대로 전달할 canonical URL을 포함합니다.
 
 `sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다.
 
@@ -97,7 +117,11 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
-- test fixture는 합성 데이터만 사용합니다.
+- test fixture는 고정한 JavaScript 플러그인의 268개 synthetic test 입력을 실제 `CollectedPayload` JSON 형태로 직렬화한 corpus이며 사용자 Figma payload는 포함하지 않습니다.
+
+### 플러그인 호환성 corpus
+
+`fixtures/devup-figma-plugin`은 `dev-five-git/devup-figma-plugin`의 고정 commit `243db650f1d635ab5385546a2a297eae4ea93515`에서 수집한 54개 test file, 978개 passing test, 268개 snapshot을 추적합니다. 모든 fixture는 Rust serde 경로로 읽고 JSON → TSX/operation 결과를 원본 snapshot과 byte 단위로 대조하며, manifest는 fixture와 snapshot 538개 파일의 SHA-256을 검증합니다.
 
 ### 실제 Figma JSON contract gate
 

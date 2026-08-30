@@ -4,6 +4,6 @@
     "crates/devup-mcp-figma/Cargo.toml": "Minor",
     "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
   },
-  "note": "Add private Figma Remote MCP OAuth, exhaustive snapshots, DevupUI TSX, and devup.json generation",
+  "note": "Add private Figma Remote MCP OAuth and host fallback, exhaustive snapshots, full plugin fixture parity, name search, DevupUI TSX, and devup.json export",
   "date": "2026-08-31T00:30:00+09:00"
 }

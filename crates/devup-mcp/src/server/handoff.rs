@@ -19,10 +19,18 @@ pub enum PendingOperation {
     ToUi {
         component_name: Option<String>,
         include_diagnostics: bool,
+        output_path: Option<String>,
     },
     ToJson {
         scope: String,
         include_diagnostics: bool,
+        output_path: Option<String>,
+    },
+    Search {
+        query: String,
+        node_types: Vec<String>,
+        match_kind: String,
+        limit: usize,
     },
 }
 

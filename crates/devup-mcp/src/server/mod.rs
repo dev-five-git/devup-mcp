@@ -22,13 +22,13 @@ use devup_mcp_devup_ui::{
 use devup_mcp_figma::{
     AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
     CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, FigmaTarget,
-    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, SourcePolicy,
-    SystemBrowser, fallback_allowed_for_error,
+    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, SearchOptions,
+    SourcePolicy, SystemBrowser, fallback_allowed_for_error, search_snapshot,
 };
 
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 
-pub use tools::{AuthInput, ContinueInput, FigmaToJsonInput, FigmaToUiInput};
+pub use tools::{AuthInput, ContinueInput, FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput};
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 
@@ -202,6 +202,7 @@ impl DevupServer {
                 PendingOperation::ToUi {
                     component_name: input.component_name,
                     include_diagnostics: input.include_diagnostics,
+                    output_path: input.output_path,
                 },
                 request,
                 policy,
@@ -227,6 +228,31 @@ impl DevupServer {
                 PendingOperation::ToJson {
                     scope: input.scope,
                     include_diagnostics: input.include_diagnostics,
+                    output_path: input.output_path,
+                },
+                request,
+                policy,
+            )
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(Json(result))
+    }
+
+    #[tool(description = "Search Figma pages, sections, frames, and components by name")]
+    async fn devup_figma_search(
+        &self,
+        Parameters(input): Parameters<FigmaSearchInput>,
+    ) -> Result<Json<Value>, ErrorData> {
+        let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
+        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+        let request = CollectionRequest::new(target, CollectionScope::File);
+        let result = self
+            .start_operation(
+                PendingOperation::Search {
+                    query: input.query,
+                    node_types: input.node_types,
+                    match_kind: input.match_kind,
+                    limit: input.limit,
                 },
                 request,
                 policy,
@@ -283,6 +309,7 @@ fn complete_operation(
         PendingOperation::ToUi {
             component_name,
             include_diagnostics,
+            output_path,
         } => {
             let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                 DevupError::new(
@@ -297,19 +324,26 @@ fn complete_operation(
                 &CodegenOptions {
                     component_name,
                     include_diagnostics,
-                },
+                    ..CodegenOptions::default()
+                }
+                .with_payload_tokens(&payload),
             )?;
             let diagnostics = if include_diagnostics {
                 output.diagnostics
             } else {
                 Vec::new()
             };
+            let written_path = output_path
+                .as_deref()
+                .map(|path| write_output(path, &output.tsx))
+                .transpose()?;
             Ok(json!({
                 "status": "complete",
                 "tsx": output.tsx,
                 "imports": output.imports,
                 "usedTokens": output.used_tokens,
                 "diagnostics": diagnostics,
+                "outputPath": written_path,
                 "completeness": payload.completeness,
                 "source": {
                     "kind": source_kind,
@@ -327,6 +361,7 @@ fn complete_operation(
         PendingOperation::ToJson {
             scope,
             include_diagnostics,
+            output_path,
         } => {
             let result = payload.variables.as_ref().ok_or_else(|| {
                 DevupError::new(
@@ -342,16 +377,50 @@ fn complete_operation(
             } else {
                 Vec::new()
             };
+            let written_path = output_path
+                .as_deref()
+                .map(|path| write_output(path, &output.json))
+                .transpose()?;
             Ok(json!({
                 "status": "complete",
                 "devupJson": output.json,
                 "counts": output.counts,
                 "completeness": output.completeness,
                 "diagnostics": diagnostics,
+                "outputPath": written_path,
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
                     "nodeId": payload.target.node_id,
+                    "version": payload.snapshot.version
+                }
+            }))
+        }
+        PendingOperation::Search {
+            query,
+            node_types,
+            match_kind,
+            limit,
+        } => {
+            let matches = search_snapshot(
+                &payload.snapshot,
+                &payload.target,
+                &SearchOptions {
+                    query: query.clone(),
+                    node_types,
+                    match_kind,
+                    limit,
+                },
+            )?;
+            Ok(json!({
+                "status": "complete",
+                "query": query,
+                "count": matches.len(),
+                "matches": matches,
+                "completeness": payload.completeness,
+                "source": {
+                    "kind": source_kind,
+                    "fileKey": payload.target.file_key,
                     "version": payload.snapshot.version
                 }
             }))
@@ -375,6 +444,46 @@ fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupError> {
             false,
         )),
     }
+}
+
+fn write_output(path: &str, contents: &str) -> Result<String, DevupError> {
+    let path = std::path::PathBuf::from(path);
+    if path.as_os_str().is_empty() || path.file_name().is_none() {
+        return Err(DevupError::new(
+            ErrorCode::DevupCodegenFailed,
+            "outputPath는 파일 경로여야 합니다.",
+            false,
+        ));
+    }
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            DevupError::new(
+                ErrorCode::DevupCodegenFailed,
+                format!("outputPath 상위 폴더를 만들 수 없습니다: {error}"),
+                false,
+            )
+        })?;
+    }
+    std::fs::write(&path, contents).map_err(|error| {
+        DevupError::new(
+            ErrorCode::DevupCodegenFailed,
+            format!("artifact를 outputPath에 쓸 수 없습니다: {error}"),
+            false,
+        )
+    })?;
+    path.canonicalize()
+        .unwrap_or(path)
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupCodegenFailed,
+                "outputPath를 UTF-8 경로로 반환할 수 없습니다.",
+                false,
+            )
+        })
 }
 
 fn parse_collection_scope(scope: &str) -> Result<CollectionScope, DevupError> {

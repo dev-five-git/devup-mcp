@@ -19,6 +19,8 @@ pub struct FigmaToUiInput {
     pub source_policy: String,
     #[serde(default = "default_scope")]
     pub scope: String,
+    #[serde(default)]
+    pub output_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -31,6 +33,8 @@ pub struct FigmaToJsonInput {
     pub include_diagnostics: bool,
     #[serde(default = "default_source_policy")]
     pub source_policy: String,
+    #[serde(default)]
+    pub output_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -41,10 +45,33 @@ pub struct ContinueInput {
     pub result: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FigmaSearchInput {
+    pub url: String,
+    pub query: String,
+    #[serde(default)]
+    pub node_types: Vec<String>,
+    #[serde(default = "default_match", rename = "match")]
+    pub match_kind: String,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default = "default_source_policy")]
+    pub source_policy: String,
+}
+
 fn default_scope() -> String {
     "node".to_owned()
 }
 
 fn default_source_policy() -> String {
     "auto".to_owned()
+}
+
+fn default_match() -> String {
+    "normalized".to_owned()
+}
+
+fn default_limit() -> usize {
+    20
 }

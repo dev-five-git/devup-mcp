@@ -187,12 +187,20 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<()> {
+    let output_path = std::env::temp_dir().join(format!(
+        "devup-mcp-output-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
     let result = call_tool(
         "devup_figma_to_json",
         json!({
             "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
             "scope": "file",
-            "includeDiagnostics": true
+            "includeDiagnostics": true,
+            "outputPath": output_path
         }),
     )
     .await?;
@@ -205,5 +213,11 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
             .contains("\"primary\"")
     );
     assert_eq!(result["completeness"], "used-tokens");
+    assert_eq!(
+        std::fs::read_to_string(&output_path)?,
+        result["devupJson"].as_str().unwrap()
+    );
+    assert!(result["outputPath"].as_str().is_some());
+    std::fs::remove_file(output_path)?;
     Ok(())
 }
