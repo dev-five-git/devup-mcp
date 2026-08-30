@@ -1,3 +1,4 @@
+pub mod figma;
 pub mod server;
 
 pub async fn run_stdio() -> anyhow::Result<()> {
