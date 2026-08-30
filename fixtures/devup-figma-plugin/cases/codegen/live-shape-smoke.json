@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "live-shape-smoke",
+  "operation": "tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "synthetic live payload contract smoke"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "componentName": "Fixture Card"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "fixtureFileKey",
+      "nodeId": "1:1",
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "document": {
+        "id": "fixture:root",
+        "name": "Fixture Card",
+        "type": "FRAME"
+      }
+    },
+    "snapshot": {
+      "fileKey": "fixtureFileKey",
+      "version": "fixture-version-1",
+      "roots": ["fixture:root"],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "FRAME",
+          "fields": {
+            "name": "Fixture Card",
+            "childrenIds": ["fixture:text"],
+            "layoutMode": "VERTICAL",
+            "width": 320,
+            "height": 120,
+            "itemSpacing": 8,
+            "paddingTop": 16,
+            "paddingRight": 16,
+            "paddingBottom": 16,
+            "paddingLeft": 16,
+            "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}, "opacity": 1}]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "fixture:text": {
+          "id": "fixture:text",
+          "type": "TEXT",
+          "fields": {
+            "name": "Title",
+            "childrenIds": [],
+            "characters": "Fixture",
+            "fontSize": 16,
+            "lineHeight": {"unit": "PIXELS", "value": 24}
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "fixture-version-1"
+  }
+}
