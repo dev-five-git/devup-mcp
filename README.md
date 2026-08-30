@@ -18,7 +18,7 @@ Figma PAT, 사용자가 만든 OAuth app, 내장 client secret은 필요하지 �
 Rust 1.88 이상이 필요합니다.
 
 ```bash
-cargo install --git https://github.com/dev-five-git/devup-mcp.git --branch owjs3901/figma-remote-mcp --package devup-mcp
+cargo install --git https://github.com/dev-five-git/devup-mcp.git --branch owjs3901/figma-remote-mcp devup-mcp
 ```
 
 소스에서 검증하려면 다음을 실행합니다.
