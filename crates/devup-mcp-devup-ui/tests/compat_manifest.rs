@@ -12,3 +12,11 @@ fn pinned_plugin_corpus_is_complete_and_self_consistent() {
     assert_eq!(summary.cases, 268);
     assert_eq!(summary.snapshots, 268);
 }
+
+#[test]
+fn manifest_hashes_are_stable_across_checkout_line_endings() {
+    assert_eq!(
+        support::hex_sha256(b"{\r\n  \"value\": true\r\n}\r\n"),
+        support::hex_sha256(b"{\n  \"value\": true\n}\n")
+    );
+}

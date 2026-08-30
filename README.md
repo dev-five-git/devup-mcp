@@ -121,7 +121,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 ### 플러그인 호환성 corpus
 
-`fixtures/devup-figma-plugin`은 `dev-five-git/devup-figma-plugin`의 고정 commit `243db650f1d635ab5385546a2a297eae4ea93515`에서 수집한 54개 test file, 978개 passing test, 268개 snapshot을 추적합니다. 모든 fixture는 Rust serde 경로로 읽고 JSON → TSX/operation 결과를 원본 snapshot과 byte 단위로 대조하며, manifest는 fixture와 snapshot 538개 파일의 SHA-256을 검증합니다.
+`fixtures/devup-figma-plugin`은 `dev-five-git/devup-figma-plugin`의 고정 commit `243db650f1d635ab5385546a2a297eae4ea93515`에서 수집한 54개 test file, 978개 passing test, 268개 snapshot을 추적합니다. 모든 fixture는 Rust serde 경로로 읽고 JSON → TSX/operation 결과를 원본 snapshot과 byte 단위로 대조하며, manifest는 운영체제별 checkout 차이가 없도록 LF로 정규화한 fixture와 snapshot 536개 파일의 SHA-256을 검증합니다.
 
 ### 실제 Figma JSON contract gate
 

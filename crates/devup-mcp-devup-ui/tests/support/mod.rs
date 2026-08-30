@@ -577,7 +577,18 @@ fn duplicate_values<'a>(
 }
 
 pub fn hex_sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
+    let mut canonical = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'\r' && bytes.get(index + 1) == Some(&b'\n') {
+            canonical.push(b'\n');
+            index += 2;
+        } else {
+            canonical.push(bytes[index]);
+            index += 1;
+        }
+    }
+    Sha256::digest(&canonical)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
