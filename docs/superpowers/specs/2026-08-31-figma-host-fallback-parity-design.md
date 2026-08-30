@@ -46,15 +46,15 @@ devup-mcp/
 │  ├─ devup-mcp/                 # stdio MCP, source 선택, handoff session, export
 │  ├─ devup-mcp-figma/           # URL, direct OAuth, upstream, collector, raw snapshot
 │  └─ devup-mcp-devup-ui/        # NodeTree, codegen, responsive, theme projection
-└─ compat/devup-figma-plugin/    # pinned corpus, manifest, coverage ledger
+└─ fixtures/devup-figma-plugin/  # JSON inputs, insta snapshots, manifest/ledger
 ```
 
 `devup-mcp` 저장소는 Cargo만으로 build/test하며 `package.json`, Bun lockfile, Node/Bun
-script 또는 JavaScript test runtime을 두지 않는다. 고정 fixture corpus의 생성은 이미
-Bun을 사용하는 원본 `devup-figma-plugin` 저장소가 담당하고, 이 저장소에는 검토된
-JSON/snapshot artifact만 import한다. Figma `use_figma`가 요구하는 고정 읽기 전용
-JavaScript 문자열은 Rust binary에 resource로 포함되어 Figma sandbox에서 실행될 뿐,
-로컬 JavaScript runtime 의존성이 아니다.
+script 또는 JavaScript test runtime을 두지 않는다. 기존 `devup-figma-plugin`의 inline
+test input은 한 번 JSON으로 이전하고, 이후 fixture는 JSON을 단일 진실 공급원으로
+관리한다. Figma `use_figma`가 요구하는 고정 읽기 전용 JavaScript 문자열은 Rust
+binary에 resource로 포함되어 Figma sandbox에서 실행될 뿐, 로컬 JavaScript runtime
+의존성이 아니다.
 
 OAuth는 계속 `devup-mcp-figma` 내부에 둔다. 별도 `devup-auth`, `devup-ir`,
 `devup-mcp-server` crate는 만들지 않는다.
@@ -110,7 +110,7 @@ agent/host <── needs_figma + calls ────┘
 
 ## MCP 도구 계약
 
-기존 세 도구를 유지하고 continuation을 추가한다.
+기존 세 도구를 유지하고 검색과 continuation을 추가한다.
 
 ### `devup_figma_auth`
 
@@ -144,6 +144,43 @@ agent/host <── needs_figma + calls ────┘
   "outputPath": "optional/workspace/devup.json"
 }
 ```
+
+### `devup_figma_search`
+
+파일 전체에서 사용자가 말한 화면·캔버스를 이름으로 찾는다. Figma UI 용어와 사용자의
+표현이 항상 일치하지 않으므로 기본 검색 대상은 `PAGE`, `SECTION`, `FRAME`,
+`COMPONENT_SET`, `COMPONENT`다. `nodeTypes`를 지정하면 제한할 수 있다.
+
+```json
+{
+  "url": "https://www.figma.com/design/<fileKey>/<name>",
+  "query": "A : STORY-F-PROOFREAD",
+  "nodeTypes": ["PAGE", "SECTION", "FRAME", "COMPONENT_SET"],
+  "match": "normalized",
+  "limit": 20,
+  "sourcePolicy": "auto | direct | host"
+}
+```
+
+매칭 우선순위는 원문 exact, Unicode NFC·공백·대소문자 normalized exact, prefix,
+contains 순이다. `fuzzy`는 요청에서 명시한 경우에만 적용한다. 결과는 score만 주지 않고
+node ID, type, page 이름, 전체 breadcrumb와 해당 node를 가리키는 canonical Figma URL을
+반환한다. 동일 이름이 여러 개면 조용히 하나를 선택하지 않는다.
+
+대표 agent 흐름은 다음과 같다.
+
+```text
+사용자: "~를 구현하려는데 그런 화면이 있니?"
+agent: devup_figma_search → 후보 이름/type/breadcrumb 목록 제시
+사용자: "맞아, 그 목록 다 구현해줘"
+agent: 이전 응답의 canonical URL마다 devup_figma_to_ui 호출 → 전체 artifact 반환
+```
+
+검색 결과 집합을 server session에 저장하거나 자연어 후속 발화를 MCP가 직접 해석하지
+않는다. agent가 대화 문맥의 구조화된 검색 결과를 유지하고 정확한 URL을 다시 전달한다.
+따라서 여러 후보를 구현하는 경우도 숨은 상태 없이 재현할 수 있다. 첫 구현은 기존
+`devup_figma_to_ui`를 후보별로 bounded concurrency 호출하며 별도 batch API는 실제
+호출 비용이 문제로 확인되기 전에는 추가하지 않는다.
 
 ### `devup_figma_continue`
 
@@ -200,6 +237,10 @@ collector는 source와 무관한 계획/병합 계층이다. direct transport와
 5. 모든 chunk의 file key와 version이 같아야 한다. 도중 version 변경은 전체 결과를 폐기한다.
 6. 같은 ID의 내용이 충돌하면 추측하지 않고 오류로 반환한다.
 
+이름 검색은 같은 collector가 만든 metadata/snapshot index를 순회한다. source가 direct든
+host handoff든 정규화와 정렬 결과가 같아야 하며, 검색을 위해 원본 node data를 별도로
+disk cache하지 않는다.
+
 고정 `use_figma` serializer는 공개된 모든 data property를 우선 raw JSON으로 보존한다.
 함수, 순환 참조와 binary는 ID/metadata로 치환하고 읽기 실패 getter는 `fieldErrors`,
 typed projection이 모르는 새 값은 `extra`에 둔다. Plugin API typings와 serializer
@@ -242,55 +283,107 @@ Rust 변환기는 JavaScript `Codegen.buildTree()`의 NodeTree 의미와 render 
 원본 JavaScript가 내는 의미 있는 문자열은 줄바꿈을 LF로 정규화한 뒤 byte-identical을
 목표로 한다. Rust formatter 취향으로 출력 계약을 임의 변경하지 않는다.
 
-## JavaScript 전수 호환성 corpus
+## JSON fixture 및 JavaScript 전수 호환성
 
 ### 원칙
 
-`cargo insta`는 출력 snapshot gate로 사용하되 전수성 자체는 manifest/ledger가
-보장한다. snapshot을 승인하거나 갱신하는 행위는 호환성 변경이며 일반 테스트 실행이
-자동으로 기대값을 덮어쓰지 않는다.
+모든 변환 입력은 실행 가능한 TypeScript mock이 아니라 순수 JSON fixture다. Rust는 이
+JSON을 production과 같은 `serde_json` 경로로 읽고 TSX, `devup.json`, NodeTree 또는
+구조화 오류를 생성한다. `cargo insta`는 출력 snapshot gate로 사용하고 전수성은
+manifest/ledger가 보장한다. 일반 테스트 실행은 기대값을 자동으로 덮어쓰지 않는다.
 
 ```text
-compat/devup-figma-plugin/
-├─ manifest.json          # 원본 URL/SHA, generator, 파일·케이스·snapshot 수, checksum
-├─ ledger.json            # 모든 upstream test ID와 분류/fixture/snapshot/rationale
+fixtures/devup-figma-plugin/
+├─ manifest.json                # source SHA, schema, case/snapshot 수, checksum
+├─ ledger.json                  # 모든 upstream test ID와 fixture/분류/rationale
 ├─ cases/
-│  ├─ codegen/*.json      # normalized SceneNode/variables/options/expected metadata
-│  ├─ responsive/*.json
-│  ├─ devup-json/*.json
-│  └─ helpers/*.json
-└─ upstream-snapshots/    # 원본 268개 snapshot의 LF-normalized golden
+│  ├─ codegen/*.json            # JSON -> TSX/component output
+│  ├─ responsive/*.json         # JSON -> responsive TSX
+│  ├─ devup-json/*.json         # JSON -> devup.json
+│  ├─ snapshot/*.json           # JSON -> merge/normalization result
+│  └─ errors/*.json             # JSON -> structured error
+└─ snapshots/
+   ├─ codegen/*.snap
+   ├─ responsive/*.snap
+   ├─ devup-json/*.snap
+   ├─ snapshot/*.snap
+   └─ errors/*.snap
 ```
 
 모든 test ID는 `source-file + full suite path + parameterized case index`로 안정적으로
-식별한다. 이름이 같은 parameterized test도 index와 input checksum으로 구분한다.
+식별한다. 이름이 같은 parameterized test도 index와 input checksum으로 구분한다. case
+파일명은 사람이 읽을 수 있는 kebab-case이고 JSON의 `id`는 전체 corpus에서 유일하다.
 
-### 생성 방식과 저장소 경계
+### fixture schema
 
-corpus exporter는 `devup-figma-plugin`의 test-only 도구로 구현한다. 해당 저장소의 기존
-Bun test 환경에서 실제 JavaScript 구현과 테스트를 계측해 다음을 기록한다.
+각 fixture는 자기완결적이며 다음 envelope를 사용한다.
 
-- 테스트 러너가 발견·실행한 전체 test ID와 pass/fail/skip
-- Codegen/ResponsiveCodegen 진입 시 직렬화 가능한 Figma node graph, variables,
-  styles, options 및 Figma API stub 결과
-- `getProps`, renderer, devup exporter 같은 순수 경계의 입력과 실제 반환/오류
-- download/UI/plugin API 경계에 전달된 payload
-- 기존 `.snap`의 이름과 원문 기대값
+```json
+{
+  "schemaVersion": 1,
+  "id": "codegen.simple-frame",
+  "operation": "tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "test": "src/codegen/__tests__/codegen.test.ts > Codegen > renders simple component",
+    "parameterIndex": 0
+  },
+  "request": {
+    "rootId": "1:1",
+    "componentName": "SimpleFrame",
+    "options": {}
+  },
+  "snapshot": {
+    "fileKey": "fixture",
+    "version": "1",
+    "roots": ["1:1"],
+    "nodes": {
+      "1:1": {
+        "id": "1:1",
+        "type": "FRAME",
+        "fields": { "name": "Frame", "childrenIds": [] },
+        "extra": {},
+        "fieldErrors": {}
+      }
+    }
+  },
+  "variables": [],
+  "styles": []
+}
+```
 
-계측은 원본 저장소의 fixture 생성 전용이며 생성 결과에 JavaScript 함수나 executable
-code를 넣지 않는다. 함수형 Figma mock은 호출 결과와 오류를 data로 펼치고,
-parent/child/main component 참조는 ID graph로 정규화한다. key와 배열 순서가 계약인
-곳은 보존하고, 비결정적인 시간·임시 경로만 명시적으로 정규화한다.
+`operation`은 `tsx`, `responsive-tsx`, `devup-json`, `snapshot` 또는 `error` 중 하나다.
+expected output은 JSON에 중복 저장하지 않고 같은 `id`의 insta snapshot 한 곳에만 둔다.
 
-exporter는 생성 후 동일 SHA에서 원본 `bun run test`가 다시 0 fail인지 검증하고,
-source commit, exporter version, test ID 집합 및 파일 checksum을 포함한 archive를 만든다.
-계측 때문에 원본 동작이 변하거나 같은 입력의 결과가 달라지면 export를 실패시킨다.
+fixture의 `snapshot`은 별도 test mock 형식이 아니라 실제 collector의 정규화 출력
+schema와 동일하다. TypeScript test에서 함수로 표현했던 값은 이전 시 다음처럼 data로
+평탄화한다.
 
-`devup-mcp`에서는 Rust로 작성한 import/verify test만 이 archive를 다룬다. 검토자가
-archive의 source commit과 변경 diff를 확인한 뒤 `compat/devup-figma-plugin`에
-commit한다. Cargo test는 JSON을 deserialize하고 checksum, ID 전수성, snapshot 참조를
-검증한다. 따라서 `devup-mcp` 개발자와 CI는 Bun 설치나 원본 repository checkout 없이
-모든 호환성 테스트를 실행한다.
+- `getMainComponentAsync()` 결과 → `mainComponentId`
+- `getStyledTextSegments()` 결과 → `styledTextSegments`
+- `getVariableByIdAsync()` 결과 → `variables`의 ID-indexed data
+- `getStyleByIdAsync()` 결과 → `styles`의 ID-indexed data
+- getter throw/rejection → 해당 node의 `fieldErrors`
+- parent, child, default variant와 node 참조 → node ID
+- `figma.mixed` → schema가 정의한 tagged JSON sentinel
+
+JSON에는 함수, Symbol, 순환 object 또는 executable code가 들어갈 수 없다. fixture
+loader는 unknown field를 보존하지만 잘못된 참조, 중복 ID와 지원하지 않는 schema
+version은 변환 전에 실패시킨다.
+
+### 최초 이전
+
+기준 commit의 inline TypeScript 입력을 `cases/**/*.json`으로 이전한다. 기존 268개
+JavaScript snapshot은 LF로만 정규화해 동일 ID의 최초 insta golden으로 사용한다.
+snapshot이 없던 변환 assertion은 기준 JavaScript 테스트의 실제 기대값을 snapshot으로
+옮긴다. 이전 완료 후 모든 변환 fixture는 JSON이 기준이며, Rust 프로젝트에는 변환용
+JavaScript exporter나 runner를 남기지 않는다.
+
+원본 54개 파일과 978개 test ID는 ledger에 전부 기록한다. 변환과 관련된 항목은 반드시
+fixture ID와 snapshot 또는 Rust assertion에 연결한다. plugin bootstrap, browser iframe,
+Figma 쓰기처럼 JSON 변환 pipeline 자체가 아닌 항목만 근거와 대응 안전성 test를 가진
+범위 외 분류를 허용한다.
 
 ### ledger 분류
 
@@ -307,35 +400,34 @@ commit한다. Cargo test는 JSON을 deserialize하고 checksum, ID 전수성, sn
 읽기 전용 allowlist가 해당 동작을 불가능하게 한다는 테스트에 연결한다.
 `upstream_runtime_only`는 가능한 경우 MCP/파일 export의 동등한 경계 테스트에 연결한다.
 
-ledger에는 분류별 최소 목표 수를 하드코딩하지 않는다. 대신 발견한 test ID 집합과
-ledger ID 집합의 완전 일치, 모든 항목의 fixture 또는 rationale/test reference 존재,
-중복 없음, referenced file/checksum 존재를 검증한다. 이 규칙으로 불편한 테스트를
-숫자 맞추기 없이 제외하는 것을 막는다.
+ledger에는 분류별 최소 목표 수를 하드코딩하지 않는다. 대신 manifest에 기록한 기준
+commit의 upstream test ID 집합과 ledger ID 집합의 완전 일치, 모든 항목의 fixture 또는
+rationale/test reference 존재, 중복 없음, referenced file/checksum 존재를 검증한다.
+이 규칙으로 불편한 테스트를 숫자 맞추기 없이 제외하는 것을 막는다.
 
 ### insta 사용
 
-`devup-mcp-devup-ui`의 compatibility integration test가 manifest를 읽어 모든
-`rust_snapshot` case를 변환한다.
+`devup-mcp-devup-ui`의 compatibility integration test는 `cases/**/*.json`을 재귀적으로
+발견하고 manifest 순서와 무관하게 모든 case를 변환한다.
 
 - TSX, component definitions, imports: `insta::assert_snapshot!`
 - NodeTree, devup.json, diagnostics: `insta::assert_json_snapshot!`
-- case ID를 snapshot name으로 사용해 원본 test까지 역추적
+- case ID를 snapshot name과 상대 경로로 사용해 JSON과 원본 test까지 역추적
 - JSON은 object key 정렬, 문자열은 LF만 정규화
 - snapshot update는 `cargo insta review` 후 manifest checksum 재생성 필요
 - CI는 `cargo insta test`로 `.snap.new` 파일 존재와 unreviewed snapshot을 실패로 처리
 
-기존 268개 upstream snapshot은 첫 corpus에서 전부 보존한다. snapshot이 없던 변환
-assertion도 실제 JavaScript 반환값을 golden으로 저장해 Rust snapshot 또는 assertion으로
-옮긴다.
+테스트는 glob으로 발견한 JSON 집합, manifest case 집합과 snapshot 집합의 일대일 대응을
+검증한다. orphan JSON, orphan snapshot, 중복 ID, 잘못된 source test 또는 ledger에서
+분류되지 않은 upstream test가 하나라도 있으면 실패한다.
 
 ### drift 관리
 
-- manifest에 원본 repository URL, commit SHA, upstream lockfile checksum과 exporter version 저장
-- Cargo integration test는 pinned SHA, case count, test ID set, snapshot count와 모든 checksum 검증
-- corpus 갱신은 원본 plugin 저장소의 exporter가 만든 archive를 명시적으로 import
-- `devup-mcp` CI는 network와 JavaScript runtime 없이 committed corpus만 실행
-- 원본 plugin CI의 수동/정기 job이 최신 source와 corpus 차이를 보고하되 자동 승인하지 않음
-- production package와 `devup-mcp` 개발 의존성에 corpus generator/Bun/Node를 포함하지 않음
+- manifest에 원본 repository URL, commit SHA, schema version, case count와 checksum 저장
+- Cargo integration test가 case ID, source test ID, snapshot과 모든 checksum 검증
+- fixture 갱신은 JSON과 insta snapshot diff를 함께 review하고 source commit을 명시적으로 갱신
+- `devup-mcp` CI는 network와 JavaScript runtime 없이 committed JSON/snapshot만 실행
+- production package와 개발 의존성에 corpus generator/Bun/Node를 포함하지 않음
 
 ## 테스트 게이트
 
@@ -345,6 +437,7 @@ assertion도 실제 JavaScript 반환값을 golden으로 저장해 Rust snapshot
 - handoff session TTL, 크기/동시성, 중복 call, schema/file/version 검증
 - direct와 host input이 같은 `SnapshotChunk`와 최종 artifact를 만드는지 검증
 - 전체 node field 보존, 청크 분할/병합, version 충돌
+- 이름 검색의 Unicode NFC, 공백/대소문자, exact/prefix/contains 우선순위와 동명 node
 - variable/style alias, mode, scope, completeness
 - read-only allowlist와 고정 script hash
 - outputPath traversal/symlink 방지와 원자적 기록
@@ -355,10 +448,11 @@ assertion도 실제 JavaScript 반환값을 golden으로 저장해 Rust snapshot
 - manifest/ledger 전수성 테스트
 - 모든 `rust_snapshot`, `rust_assertion`, `contract` case
 - 기준 SHA의 원본 268개 snapshot 전부 대응과 `cargo insta test`
-- 원본 기준 SHA에서 978 pass / 0 fail 재현
+- manifest에 기록한 원본 기준 실행 결과 978 pass / 0 fail과 source SHA 검증
 
 기준 SHA의 숫자는 baseline이지 영구 상수는 아니다. SHA를 갱신하면 원본 test discovery
-결과와 ledger/corpus를 함께 갱신하며, 새 테스트가 분류되지 않으면 CI가 실패한다.
+결과와 ledger/corpus를 함께 갱신한다. Rust CI는 원격 source를 실행하지 않지만, 갱신
+commit에 기록된 ID가 ledger/fixture/snapshot과 일치하지 않으면 실패한다.
 
 ### 통합 및 live 테스트
 
@@ -387,15 +481,17 @@ verifier, Figma 사용자 정보, 원본 node 내용은 오류와 tracing에서 
 
 ## 구현 순서와 완료 기준
 
-1. 원본 plugin 저장소의 corpus exporter와 978/268 기준 재현
-2. pinned source manifest, Rust coverage ledger/checksum validator
-3. `insta` compatibility runner와 최소 대표 corpus import
+1. fixture envelope/schema와 Rust JSON loader/validator
+2. 기준 plugin의 inline input을 JSON으로 이전하고 978개 ledger/268개 golden 연결
+3. `insta` compatibility runner와 JSON/snapshot 일대일 검증
 4. Rust NodeTree/prop/render/devup.json 규칙을 corpus 기반 TDD로 전수 이식
-5. 완전 collector와 direct source 오류 분류
-6. memory-only handoff session과 `devup_figma_continue`
-7. node/page/file, variables/styles/assets와 workspace export 완성
-8. direct/host mock 계약, 실제 공식 MCP와 opt-in live 검증
-9. 전체 corpus, lint/test/build, changepack, 문서와 배포
+5. JSON fixture 전체 gate 통과. 이 단계 전에는 검색 기능으로 넘어가지 않음
+6. 완전 collector와 direct source 오류 분류
+7. memory-only handoff session과 `devup_figma_continue`
+8. `devup_figma_search`와 검색 결과별 `devup_figma_to_ui` 흐름
+9. node/page/file, variables/styles/assets와 workspace export 완성
+10. direct/host mock 계약, 실제 공식 MCP와 opt-in live 검증
+11. 전체 corpus, lint/test/build, changepack, 문서와 배포
 
 완료는 단순히 Rust test가 green인 상태가 아니다. pinned 원본의 모든 test ID가 ledger에
 있고, 모든 읽기/변환 케이스가 Rust snapshot/assertion/contract로 통과하며, 범위 밖
@@ -411,8 +507,8 @@ verifier, Figma 사용자 정보, 원본 node 내용은 오류와 tracing에서 
 - Figma write tool은 direct allowlist와 host handoff 모두에서 생성하지 않는다.
 - host가 반환한 result는 신뢰 경계 밖 입력으로 보고 크기/schema/context를 검증한다.
 
-가장 큰 남은 위험은 JavaScript의 Figma mock 함수와 plugin side effect를 완전한 data
-fixture로 정규화하는 계측 난이도, Remote MCP의 beta contract 변화, 대형 파일의 호출
-수와 quota다. 첫 corpus 생성 단계에서 직렬화할 수 없는 경계를 ledger에 드러내고
-대표 adapter를 검증한 뒤 codegen 대량 이식을 진행한다. 이 단계가 원본 테스트를
-손상 없이 발견·재생할 수 없으면 변환 구현을 계속하지 않고 corpus 설계를 먼저 수정한다.
+가장 큰 남은 위험은 JavaScript의 Figma mock 함수와 plugin side effect를 손실 없이
+정규화된 JSON data로 이전하는 난이도, Remote MCP의 beta contract 변화, 대형 파일의
+호출 수와 quota다. 최초 이전에서 함수의 의미를 추측하지 않고 실제 기대값과 대조하며,
+직렬화할 수 없는 경계는 ledger에 드러낸다. 대표 fixture가 기존 golden을 재현하지
+못하면 codegen 대량 이식을 계속하지 않고 fixture schema를 먼저 수정한다.
