@@ -51,5 +51,6 @@ return {
   variables,
   styles,
   usedRemoteVariables: [],
-  localComplete: true
+  localComplete: true,
+  usedRemoteComplete: false
 };

@@ -42,7 +42,8 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
             {"id": "style:effect", "name": "Elevation/Card", "styleType": "EFFECT", "value": "0 4px 12px #0000001a"}
         ],
         "usedRemoteVariables": [],
-        "localComplete": true
+        "localComplete": true,
+        "usedRemoteComplete": true
     }))
     .expect("variable snapshot");
 
@@ -100,7 +101,7 @@ fn reports_alias_cycles_instead_of_inventing_values() {
             {"id": "a", "name": "A", "resolvedType": "COLOR", "variableCollectionId": "c", "valuesByMode": {"m": {"type": "VARIABLE_ALIAS", "id": "b"}}},
             {"id": "b", "name": "B", "resolvedType": "COLOR", "variableCollectionId": "c", "valuesByMode": {"m": {"type": "VARIABLE_ALIAS", "id": "a"}}}
         ],
-        "styles": [], "usedRemoteVariables": [], "localComplete": true
+        "styles": [], "usedRemoteVariables": [], "localComplete": true, "usedRemoteComplete": true
     }))
     .unwrap();
 

@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::figma::{DevupError, Diagnostic, ErrorCode};
+use crate::figma::{DevupError, Diagnostic, ErrorCode, UpstreamResult};
 
 use super::tokens::{normalize_token, variable_token};
 
@@ -83,6 +83,8 @@ pub struct VariableSnapshot {
     pub used_remote_variables: Vec<VariableDefinition>,
     #[serde(default)]
     pub local_complete: bool,
+    #[serde(default)]
+    pub used_remote_complete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,7 +196,7 @@ pub fn generate_devup_json(
     })?;
     output.push('\n');
 
-    let completeness = if snapshot.local_complete {
+    let completeness = if snapshot.local_complete && snapshot.used_remote_complete {
         Completeness::FullLocalPlusUsedRemote
     } else if !snapshot.variables.is_empty() || !snapshot.used_remote_variables.is_empty() {
         Completeness::UsedTokens
@@ -216,6 +218,44 @@ pub fn generate_devup_json(
         completeness,
         diagnostics,
     })
+}
+
+pub fn variable_snapshot_from_result(
+    result: &UpstreamResult,
+) -> Result<VariableSnapshot, DevupError> {
+    find_variable_snapshot(&result.raw).ok_or_else(|| {
+        DevupError::new(
+            ErrorCode::DevupThemeConflict,
+            "Figma MCP 응답에서 변수 snapshot을 찾지 못했습니다.",
+            false,
+        )
+    })
+}
+
+fn find_variable_snapshot(value: &Value) -> Option<VariableSnapshot> {
+    if let Ok(snapshot) = serde_json::from_value::<VariableSnapshot>(value.clone())
+        && (!snapshot.collections.is_empty()
+            || !snapshot.variables.is_empty()
+            || !snapshot.styles.is_empty())
+    {
+        return Some(snapshot);
+    }
+    match value {
+        Value::Object(object) => {
+            if let Some(Value::String(text)) = object.get("text")
+                && let Ok(value) = serde_json::from_str::<Value>(text)
+                && let Some(snapshot) = find_variable_snapshot(&value)
+            {
+                return Some(snapshot);
+            }
+            object.values().find_map(find_variable_snapshot)
+        }
+        Value::Array(values) => values.iter().find_map(find_variable_snapshot),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|value| find_variable_snapshot(&value)),
+        _ => None,
+    }
 }
 
 fn resolve_value<'a>(
