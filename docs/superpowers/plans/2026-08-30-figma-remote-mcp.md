@@ -1,5 +1,9 @@
 # Figma Remote MCP Implementation Plan
 
+> 이 최초 계획은 현재 구현 이후의 fallback·live contract·fixture parity·검색 범위를
+> 포함하지 않는다. 후속 작업은 `2026-08-31-figma-collection-live-contract.md`,
+> `2026-08-31-json-fixture-parity.md`, `2026-08-31-figma-search-and-export.md` 순서로 실행한다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Rust Cargo workspace that ships one `devup-mcp` binary, authenticates to Figma Remote MCP, reads a linked design without modifying it, preserves an exhaustive node snapshot, and emits DevupUI TSX or `devup.json`.
