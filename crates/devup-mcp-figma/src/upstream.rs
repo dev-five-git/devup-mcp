@@ -6,6 +6,7 @@ use rmcp::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::{
@@ -149,7 +150,7 @@ impl ReadToolCall {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpstreamResult {
     pub raw: Value,
 }

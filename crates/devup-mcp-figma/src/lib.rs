@@ -2,6 +2,7 @@ mod collector;
 mod credentials;
 mod errors;
 mod oauth;
+mod payload;
 mod snapshot;
 mod source;
 mod upstream;
@@ -12,6 +13,7 @@ pub use credentials::{
 };
 pub use errors::{DevupError, ErrorCode};
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
+pub use payload::{CollectedPayload, PayloadCompleteness, PayloadStructure};
 pub use snapshot::{
     Diagnostic, RawNode, Snapshot, SnapshotChunk, TypedNode, merge_chunks,
     snapshot_chunk_from_result,

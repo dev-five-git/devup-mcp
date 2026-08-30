@@ -1,8 +1,11 @@
 use url::Url;
 
+use serde::{Deserialize, Serialize};
+
 use super::DevupError;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FigmaTarget {
     pub file_key: String,
     pub node_id: Option<String>,
