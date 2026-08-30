@@ -1,6 +1,7 @@
 mod credentials;
 mod errors;
 mod oauth;
+mod snapshot;
 mod upstream;
 mod url;
 
@@ -9,5 +10,9 @@ pub use credentials::{
 };
 pub use errors::{DevupError, ErrorCode};
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
+pub use snapshot::{
+    Diagnostic, RawNode, Snapshot, SnapshotChunk, TypedNode, merge_chunks,
+    snapshot_chunk_from_result,
+};
 pub use upstream::{BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, UpstreamResult};
 pub use url::FigmaTarget;

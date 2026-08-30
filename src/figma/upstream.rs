@@ -22,11 +22,14 @@ pub enum BuiltinScript {
 impl BuiltinScript {
     fn source(self, node_id: &str) -> String {
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
-        match self {
+        let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
             Self::LocalVariables => include_str!("scripts/variables.js"),
-        }
-        .replace("\"__DEVUP_NODE_ID__\"", &node_id)
+        };
+        source.replace("\"__DEVUP_NODE_ID__\"", &node_id).replace(
+            "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
+            include_str!("plugin_api_manifest.json"),
+        )
     }
 }
 
