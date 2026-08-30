@@ -8,6 +8,11 @@ pub enum ErrorCode {
     DevupAuthStateMismatch,
     DevupFigmaPermissionDenied,
     DevupFigmaRateLimited,
+    DevupFigmaDirectUnavailable,
+    DevupFigmaCatalogRejected,
+    DevupFigmaHostRequired,
+    DevupFigmaHandoffExpired,
+    DevupFigmaHandoffInvalid,
     DevupFigmaNodeNotFound,
     DevupFigmaUnsupportedFile,
     DevupFigmaResponseTooLarge,
@@ -15,6 +20,7 @@ pub enum ErrorCode {
     DevupSnapshotUnsupported,
     DevupCodegenFailed,
     DevupThemeConflict,
+    DevupCompatCorpusDrift,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -37,6 +43,20 @@ impl DevupError {
 
     pub fn unsupported_file(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::DevupFigmaUnsupportedFile, message, false)
+    }
+
+    pub fn with_details(
+        code: ErrorCode,
+        message: impl Into<String>,
+        retryable: bool,
+        details: serde_json::Value,
+    ) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            retryable,
+            details,
+        }
     }
 }
 

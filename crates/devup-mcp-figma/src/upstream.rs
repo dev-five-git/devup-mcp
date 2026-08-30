@@ -8,7 +8,10 @@ use rmcp::{
 };
 use serde_json::{Map, Value, json};
 
-use super::{CredentialStore, DevupError, ErrorCode, OAuthManager};
+use super::{
+    CredentialStore, DevupError, OAuthManager, UpstreamFailureContext, UpstreamFailureKind,
+    upstream_failure_error,
+};
 
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
@@ -188,7 +191,7 @@ impl<S: CredentialStore> RemoteFigmaClient<S> {
             .reinit_on_expired_session(true);
         ().serve(StreamableHttpClientTransport::from_config(config))
             .await
-            .map_err(upstream_error)
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))
     }
 }
 
@@ -199,48 +202,50 @@ impl<S: CredentialStore> FigmaUpstream for RemoteFigmaClient<S> {
         let mut names = client
             .list_all_tools()
             .await
-            .map_err(upstream_error)?
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?
             .into_iter()
             .map(|tool| tool.name.to_string())
             .collect::<Vec<_>>();
         names.sort();
-        client.cancel().await.map_err(upstream_error)?;
+        client
+            .cancel()
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))?;
         Ok(names)
     }
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         let client = self.connect().await?;
-        let available = client.list_all_tools().await.map_err(upstream_error)?;
+        let available = client
+            .list_all_tools()
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?;
         if !available.iter().any(|tool| tool.name == call.tool_name()) {
-            client.cancel().await.map_err(upstream_error)?;
-            return Err(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "Figma Remote MCP가 필요한 읽기 도구를 제공하지 않습니다.",
-                false,
-            ));
+            client
+                .cancel()
+                .await
+                .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))?;
+            return Err(UpstreamFailureKind::CapabilityUnavailable.into_devup_error(None));
         }
         let result = client
             .call_tool(
                 CallToolRequestParams::new(call.tool_name()).with_arguments(call.arguments()),
             )
             .await
-            .map_err(upstream_error)?;
-        client.cancel().await.map_err(upstream_error)?;
-        let raw = serde_json::to_value(result).map_err(|_| {
-            DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "Figma MCP 응답을 안전하게 해석하지 못했습니다.",
-                false,
-            )
-        })?;
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::CallTool, error))?;
+        client
+            .cancel()
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))?;
+        let raw = serde_json::to_value(result)
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Decode, error))?;
         Ok(UpstreamResult { raw })
     }
 }
 
-fn upstream_error<E: std::fmt::Display>(_error: E) -> DevupError {
-    DevupError::new(
-        ErrorCode::DevupSnapshotUnsupported,
-        "Figma Remote MCP 요청을 완료하지 못했습니다.",
-        true,
-    )
+fn map_upstream_error<E: std::fmt::Display>(
+    context: UpstreamFailureContext,
+    error: E,
+) -> DevupError {
+    upstream_failure_error(context, None, &error.to_string())
 }

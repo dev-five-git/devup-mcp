@@ -2,6 +2,7 @@ mod credentials;
 mod errors;
 mod oauth;
 mod snapshot;
+mod source;
 mod upstream;
 mod url;
 
@@ -13,6 +14,11 @@ pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBro
 pub use snapshot::{
     Diagnostic, RawNode, Snapshot, SnapshotChunk, TypedNode, merge_chunks,
     snapshot_chunk_from_result,
+};
+pub use source::{
+    SelectedSource, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,
+    classify_upstream_failure, fallback_allowed, fallback_allowed_for_error,
+    upstream_failure_error,
 };
 pub use upstream::{BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, UpstreamResult};
 pub use url::FigmaTarget;
