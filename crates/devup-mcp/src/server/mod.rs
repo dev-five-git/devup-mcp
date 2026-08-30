@@ -20,12 +20,15 @@ use devup_mcp_devup_ui::{
     theme::{ThemeScope, generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AuthStatus, BuiltinScript, CredentialStore, DevupError, ErrorCode, FigmaTarget, FigmaUpstream,
-    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, SystemBrowser,
-    merge_chunks, snapshot_chunk_from_result,
+    AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
+    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, FigmaTarget,
+    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, SourcePolicy,
+    SystemBrowser, fallback_allowed_for_error,
 };
 
-pub use tools::{AuthInput, FigmaToJsonInput, FigmaToUiInput};
+use handoff::{HandoffStep, HandoffStore, PendingOperation};
+
+pub use tools::{AuthInput, ContinueInput, FigmaToJsonInput, FigmaToUiInput};
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 
@@ -75,6 +78,7 @@ impl Services {
 pub struct DevupServer {
     tool_router: ToolRouter<Self>,
     services: Services,
+    handoffs: HandoffStore,
 }
 
 impl DevupServer {
@@ -82,20 +86,75 @@ impl DevupServer {
         Self {
             tool_router: Self::tool_router(),
             services,
+            handoffs: HandoffStore::default(),
         }
-    }
-
-    async fn ensure_authenticated(&self) -> Result<(), ErrorData> {
-        if self.services.auth.status().await.map_err(to_mcp_error)? == AuthStatus::Disconnected {
-            self.services.auth.login().await.map_err(to_mcp_error)?;
-        }
-        Ok(())
     }
 }
 
 impl Default for DevupServer {
     fn default() -> Self {
         Self::new(Services::production())
+    }
+}
+
+impl DevupServer {
+    async fn start_operation(
+        &self,
+        operation: PendingOperation,
+        request: CollectionRequest,
+        policy: SourcePolicy,
+    ) -> Result<Value, DevupError> {
+        if policy == SourcePolicy::Host {
+            return self.begin_handoff(operation, request).await;
+        }
+
+        let auth_status = self.services.auth.status().await?;
+        if auth_status == AuthStatus::Disconnected {
+            if policy == SourcePolicy::Auto {
+                return self.begin_handoff(operation, request).await;
+            }
+            return Err(DevupError::with_details(
+                ErrorCode::DevupAuthRequired,
+                "Figma direct 연결을 사용하려면 devup_figma_auth login이 필요합니다.",
+                false,
+                json!({"source": "direct"}),
+            ));
+        }
+
+        match self.run_direct(request.clone()).await {
+            Ok(parts) => complete_operation(operation, parts, "direct"),
+            Err(error) if fallback_allowed_for_error(policy, &error) => {
+                self.begin_handoff(operation, request).await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn run_direct(&self, request: CollectionRequest) -> Result<CollectedParts, DevupError> {
+        let mut collector = CollectorSession::new(request);
+        loop {
+            match collector.advance()? {
+                CollectorStep::Call(planned) => {
+                    let result = self.services.upstream.call_read_tool(planned.call).await?;
+                    collector.accept(&planned.id, result)?;
+                }
+                CollectorStep::AwaitingResults => continue,
+                CollectorStep::Complete(parts) => return Ok(*parts),
+            }
+        }
+    }
+
+    async fn begin_handoff(
+        &self,
+        operation: PendingOperation,
+        request: CollectionRequest,
+    ) -> Result<Value, DevupError> {
+        let session_id = self
+            .handoffs
+            .begin(operation, CollectorSession::new(request))
+            .await?;
+        let step = self.handoffs.next(&session_id).await?;
+        handoff_step_to_value(step, "host")
     }
 }
 
@@ -128,51 +187,28 @@ impl DevupServer {
         Parameters(input): Parameters<FigmaToUiInput>,
     ) -> Result<Json<Value>, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
-        let node_id = target.node_id.clone().ok_or_else(|| {
+        target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
                 "UI 변환 링크에는 node-id가 필요합니다.",
                 false,
             ))
         })?;
-        self.ensure_authenticated().await?;
+        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+        let scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+        let request = CollectionRequest::new(target, scope);
         let result = self
-            .services
-            .upstream
-            .call_read_tool(ReadToolCall::snapshot(
-                &target.file_key,
-                &node_id,
-                BuiltinScript::NodeSnapshot,
-            ))
+            .start_operation(
+                PendingOperation::ToUi {
+                    component_name: input.component_name,
+                    include_diagnostics: input.include_diagnostics,
+                },
+                request,
+                policy,
+            )
             .await
             .map_err(to_mcp_error)?;
-        let chunk = snapshot_chunk_from_result(&result).map_err(to_mcp_error)?;
-        let snapshot = merge_chunks(vec![chunk]).map_err(to_mcp_error)?;
-        let output = generate_component(
-            &snapshot,
-            &node_id,
-            &CodegenOptions {
-                component_name: input.component_name,
-                include_diagnostics: input.include_diagnostics,
-            },
-        )
-        .map_err(to_mcp_error)?;
-        let diagnostics = if input.include_diagnostics {
-            output.diagnostics
-        } else {
-            Vec::new()
-        };
-        Ok(Json(json!({
-            "tsx": output.tsx,
-            "imports": output.imports,
-            "usedTokens": output.used_tokens,
-            "diagnostics": diagnostics,
-            "source": { "fileKey": target.file_key, "nodeId": node_id, "version": snapshot.version },
-            "snapshot": {
-                "preservedNodeCount": snapshot.nodes.len(),
-                "fieldErrorCount": snapshot.nodes.values().map(|node| node.field_errors.len()).sum::<usize>()
-            }
-        })))
+        Ok(Json(result))
     }
 
     #[tool(description = "Convert Figma variables and styles to deterministic devup.json")]
@@ -181,33 +217,202 @@ impl DevupServer {
         Parameters(input): Parameters<FigmaToJsonInput>,
     ) -> Result<Json<Value>, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
-        let scope = parse_scope(&input.scope).map_err(to_mcp_error)?;
-        self.ensure_authenticated().await?;
+        parse_scope(&input.scope).map_err(to_mcp_error)?;
+        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+        let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+        let mut request = CollectionRequest::new(target, collection_scope);
+        request.include_variables = true;
         let result = self
-            .services
-            .upstream
-            .call_read_tool(ReadToolCall::snapshot(
-                &target.file_key,
-                target.node_id.as_deref().unwrap_or("0:0"),
-                BuiltinScript::LocalVariables,
-            ))
+            .start_operation(
+                PendingOperation::ToJson {
+                    scope: input.scope,
+                    include_diagnostics: input.include_diagnostics,
+                },
+                request,
+                policy,
+            )
             .await
             .map_err(to_mcp_error)?;
-        let variables = variable_snapshot_from_result(&result).map_err(to_mcp_error)?;
-        let output = generate_devup_json(&variables, scope).map_err(to_mcp_error)?;
-        let diagnostics = if input.include_diagnostics {
-            output.diagnostics
-        } else {
-            Vec::new()
-        };
-        Ok(Json(json!({
-            "devupJson": output.json,
-            "counts": output.counts,
-            "completeness": output.completeness,
-            "diagnostics": diagnostics,
-            "source": { "fileKey": target.file_key, "nodeId": target.node_id }
-        })))
+        Ok(Json(result))
     }
+
+    #[tool(description = "Continue a read-only Figma host handoff with an official MCP result")]
+    async fn devup_figma_continue(
+        &self,
+        Parameters(input): Parameters<ContinueInput>,
+    ) -> Result<Json<Value>, ErrorData> {
+        self.handoffs
+            .accept(&input.session_id, &input.call_id, input.result)
+            .await
+            .map_err(to_mcp_error)?;
+        let step = self
+            .handoffs
+            .next(&input.session_id)
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(Json(
+            handoff_step_to_value(step, "host").map_err(to_mcp_error)?,
+        ))
+    }
+}
+
+fn handoff_step_to_value(step: HandoffStep, source: &str) -> Result<Value, DevupError> {
+    match step {
+        HandoffStep::NeedsFigma {
+            session_id,
+            expires_at_epoch_seconds,
+            calls,
+        } => Ok(json!({
+            "status": "needs_figma",
+            "sessionId": session_id,
+            "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
+            "calls": calls,
+            "resumeTool": "devup_figma_continue"
+        })),
+        HandoffStep::Complete { operation, parts } => complete_operation(operation, *parts, source),
+    }
+}
+
+fn complete_operation(
+    operation: PendingOperation,
+    parts: CollectedParts,
+    source_kind: &str,
+) -> Result<Value, DevupError> {
+    let payload = CollectedPayload::try_from(parts)?;
+    match operation {
+        PendingOperation::ToUi {
+            component_name,
+            include_diagnostics,
+        } => {
+            let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupFigmaNodeNotFound,
+                    "UI 변환 payload에는 node ID가 필요합니다.",
+                    false,
+                )
+            })?;
+            let output = generate_component(
+                &payload.snapshot,
+                node_id,
+                &CodegenOptions {
+                    component_name,
+                    include_diagnostics,
+                },
+            )?;
+            let diagnostics = if include_diagnostics {
+                output.diagnostics
+            } else {
+                Vec::new()
+            };
+            Ok(json!({
+                "status": "complete",
+                "tsx": output.tsx,
+                "imports": output.imports,
+                "usedTokens": output.used_tokens,
+                "diagnostics": diagnostics,
+                "completeness": payload.completeness,
+                "source": {
+                    "kind": source_kind,
+                    "fileKey": payload.target.file_key,
+                    "nodeId": node_id,
+                    "version": payload.snapshot.version
+                },
+                "snapshot": {
+                    "preservedNodeCount": payload.snapshot.nodes.len(),
+                    "fieldErrorCount": payload.snapshot.nodes.values()
+                        .map(|node| node.field_errors.len()).sum::<usize>()
+                }
+            }))
+        }
+        PendingOperation::ToJson {
+            scope,
+            include_diagnostics,
+        } => {
+            let result = payload.variables.as_ref().ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "Figma 변수/style 수집 결과가 없습니다.",
+                    false,
+                )
+            })?;
+            let variables = variable_snapshot_from_result(result)?;
+            let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+            let diagnostics = if include_diagnostics {
+                output.diagnostics
+            } else {
+                Vec::new()
+            };
+            Ok(json!({
+                "status": "complete",
+                "devupJson": output.json,
+                "counts": output.counts,
+                "completeness": output.completeness,
+                "diagnostics": diagnostics,
+                "source": {
+                    "kind": source_kind,
+                    "fileKey": payload.target.file_key,
+                    "nodeId": payload.target.node_id,
+                    "version": payload.snapshot.version
+                }
+            }))
+        }
+        PendingOperation::Collect => Err(DevupError::new(
+            ErrorCode::DevupFigmaHandoffInvalid,
+            "내부 수집 operation은 MCP artifact로 완료할 수 없습니다.",
+            false,
+        )),
+    }
+}
+
+fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupError> {
+    match policy {
+        "auto" => Ok(SourcePolicy::Auto),
+        "direct" => Ok(SourcePolicy::Direct),
+        "host" => Ok(SourcePolicy::Host),
+        _ => Err(DevupError::new(
+            ErrorCode::DevupFigmaHostRequired,
+            "sourcePolicy는 auto, direct 또는 host여야 합니다.",
+            false,
+        )),
+    }
+}
+
+fn parse_collection_scope(scope: &str) -> Result<CollectionScope, DevupError> {
+    match scope {
+        "node" => Ok(CollectionScope::Node),
+        "page" => Ok(CollectionScope::Page),
+        "file" => Ok(CollectionScope::File),
+        _ => Err(DevupError::new(
+            ErrorCode::DevupThemeConflict,
+            "scope는 node, page 또는 file이어야 합니다.",
+            false,
+        )),
+    }
+}
+
+fn format_epoch_rfc3339(epoch_seconds: u64) -> String {
+    let days = (epoch_seconds / 86_400) as i64;
+    let seconds = epoch_seconds % 86_400;
+    let (year, month, day) = civil_from_days(days);
+    let hour = seconds / 3_600;
+    let minute = (seconds % 3_600) / 60;
+    let second = seconds % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
+fn civil_from_days(days_since_epoch: i64) -> (i64, i64, i64) {
+    let days = days_since_epoch + 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let day_of_era = days - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    year += i64::from(month <= 2);
+    (year, month, day)
 }
 
 fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {

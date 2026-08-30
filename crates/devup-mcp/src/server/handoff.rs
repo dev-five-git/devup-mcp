@@ -9,6 +9,7 @@ use devup_mcp_figma::{
     CollectedParts, CollectorSession, CollectorStep, DevupError, ErrorCode, UpstreamResult,
 };
 use rand::RngCore;
+use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
@@ -25,7 +26,8 @@ pub enum PendingOperation {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HandoffCall {
     pub call_id: String,
     pub server: &'static str,

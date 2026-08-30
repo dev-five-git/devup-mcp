@@ -38,6 +38,21 @@ impl FigmaUpstream for FixtureUpstream {
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         let payload = match call {
+            ReadToolCall::Metadata { .. } => {
+                json!({
+                    "devupMetadata": {
+                        "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+                        "version": "1",
+                        "rootId": "3879:35481",
+                        "nodes": [{
+                            "id": "3879:35481",
+                            "type": "FRAME",
+                            "childrenIds": [],
+                            "descendantCount": 1
+                        }]
+                    }
+                })
+            }
             ReadToolCall::Snapshot {
                 script: devup_mcp_figma::BuiltinScript::NodeSnapshot,
                 ..
@@ -120,16 +135,17 @@ impl DevupAuth for LoginAuth {
 }
 
 #[tokio::test]
-async fn conversion_starts_oauth_when_credentials_are_missing() -> anyhow::Result<()> {
+async fn conversion_returns_host_handoff_without_starting_oauth() -> anyhow::Result<()> {
     let auth = Arc::new(LoginAuth::default());
-    call_tool_with_auth(
+    let output = call_tool_with_auth(
         auth.clone(),
         "devup_figma_to_ui",
         json!({"url": "https://figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481"}),
     )
     .await?;
 
-    assert_eq!(auth.logins.load(Ordering::SeqCst), 1);
+    assert_eq!(output["status"], "needs_figma");
+    assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
     Ok(())
 }
 
@@ -144,6 +160,7 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     )
     .await?;
 
+    assert_eq!(result["status"], "complete");
     assert!(
         result["tsx"]
             .as_str()
@@ -167,6 +184,7 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
     )
     .await?;
 
+    assert_eq!(result["status"], "complete");
     assert!(
         result["devupJson"]
             .as_str()
