@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-135-e00e826755",
-  "operation": "snapshot",
+  "operation": "component-registration",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen renders simple component without variants: component: Icon 1"
   },
   "request": {
-    "rootId": "captured:166"
+    "rootId": "captured:166",
+    "operationInput": { "targetComponent": "Icon" }
   },
   "payload": {
     "target": {

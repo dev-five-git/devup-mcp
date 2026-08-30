@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-220-5980153f26",
-  "operation": "snapshot",
+  "operation": "tsx",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",

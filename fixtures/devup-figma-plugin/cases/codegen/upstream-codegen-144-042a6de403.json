@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-144-042a6de403",
-  "operation": "snapshot",
+  "operation": "tsx",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with INSTANCE_SWAP + BOOLEAN combined: INSTANCE_SWAP+BOOLEAN: Icon 1"
   },
   "request": {
-    "rootId": "captured:191"
+    "rootId": "captured:191",
+    "operationInput": { "targetComponent": "Icon" }
   },
   "payload": {
     "target": {

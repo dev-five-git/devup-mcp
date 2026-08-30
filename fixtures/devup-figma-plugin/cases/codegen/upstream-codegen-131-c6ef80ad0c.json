@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-131-c6ef80ad0c",
-  "operation": "snapshot",
+  "operation": "component-registration",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen renders component with parent component set: component: Hover 1"
   },
   "request": {
-    "rootId": "captured:159"
+    "rootId": "captured:159",
+    "operationInput": { "targetComponent": "Hover" }
   },
   "payload": {
     "target": {

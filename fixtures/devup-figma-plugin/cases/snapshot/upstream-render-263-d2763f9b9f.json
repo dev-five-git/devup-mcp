@@ -12,7 +12,8 @@
     "operationInput": {
       "code": "<Center gap=\"10px\" px=\"24px\">\n  {leftIcon}\n  <Text fontSize=\"16px\">buttonLg</Text>\n  {rightIcon}\n</Center>",
       "name": "Button",
-      "variants": {
+        "variantOrder": ["leftIcon", "showLeftIcon", "rightIcon", "showRightIcon", "size", "variant"],
+        "variants": {
         "leftIcon": "React.ReactNode",
         "rightIcon": "React.ReactNode",
         "showLeftIcon": "boolean",

@@ -8,7 +8,10 @@
     "testId": "Codegen Tree Methods buildTree preserves extracted component declaration while inlining commented asset instance usage: inline instance usage keeps commented reference 1"
   },
   "request": {
-    "rootId": "captured:169"
+    "rootId": "captured:169",
+    "operationInput": {
+      "inlineComponentInstance": "toast-status-instance"
+    }
   },
   "payload": {
     "target": {

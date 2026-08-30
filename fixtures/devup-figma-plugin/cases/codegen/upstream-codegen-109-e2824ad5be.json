@@ -89,7 +89,17 @@
       "diagnostics": []
     },
     "variables": null,
-    "styles": null,
+    "styles": {
+      "raw": {
+        "styles": [
+          {
+            "id": "text-style-1",
+            "name": "Typography/Heading",
+            "styleType": "TEXT"
+          }
+        ]
+      }
+    },
     "completeness": "resolved-values-only",
     "sourceVersion": "243db650"
   }

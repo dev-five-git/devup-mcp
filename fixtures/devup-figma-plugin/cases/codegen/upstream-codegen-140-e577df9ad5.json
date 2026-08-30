@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-140-e577df9ad5",
-  "operation": "snapshot",
+  "operation": "tsx",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with BOOLEAN conditional: BOOLEAN conditional: AlertCard 1"
   },
   "request": {
-    "rootId": "captured:178"
+    "rootId": "captured:178",
+    "operationInput": { "targetComponent": "AlertCard" }
   },
   "payload": {
     "target": {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-216-465422d47b",
-  "operation": "snapshot",
+  "operation": "tsx",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
@@ -193,7 +193,28 @@
       },
       "diagnostics": []
     },
-    "variables": null,
+    "variables": {
+      "raw": {
+        "variables": [
+          {
+            "id": "VariableID:a41981510611520a1c47fa7ab84eb8fc2ae29df4/38:20",
+            "name": "containerBackground"
+          },
+          {
+            "id": "VariableID:7b0c74af99b6b0b15148212c8340b286b4f12630/38:82",
+            "name": "text"
+          },
+          {
+            "id": "VariableID:4be0713ea9f483833095fc5a0baa288fccc81e47/90:29",
+            "name": "primary"
+          },
+          {
+            "id": "VariableID:1060bad3592be247585df7163f204873508facae/90:51",
+            "name": "primaryBold"
+          }
+        ]
+      }
+    },
     "styles": null,
     "completeness": "resolved-values-only",
     "sourceVersion": "243db650"

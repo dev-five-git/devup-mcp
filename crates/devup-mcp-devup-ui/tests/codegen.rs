@@ -13,7 +13,9 @@ fn snapshot() -> devup_mcp_figma::Snapshot {
                 "id": "1:1", "type": "FRAME",
                 "fields": {
                     "name": "[FR-026] 본연체", "childrenIds": ["1:2"],
-                    "layoutMode": "HORIZONTAL", "width": 320, "height": 80,
+                    "layoutMode": "HORIZONTAL", "inferredAutoLayout": {"layoutMode": "HORIZONTAL", "itemSpacing": 8},
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 320, "height": 80,
                     "itemSpacing": 8, "paddingTop": 16, "paddingRight": 16,
                     "paddingBottom": 16, "paddingLeft": 16,
                     "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}, "opacity": 1}]
@@ -24,6 +26,7 @@ fn snapshot() -> devup_mcp_figma::Snapshot {
                 "id": "1:2", "type": "TEXT",
                 "fields": {
                     "name": "Label", "childrenIds": [], "characters": "안녕 <Devup>",
+                    "textTruncation": "DISABLED",
                     "fontSize": 16, "lineHeight": {"unit": "PIXELS", "value": 24},
                     "devupTokens": {"fills": "primary"}
                 },
@@ -44,6 +47,7 @@ fn generates_deterministic_devup_ui_tsx() {
         &CodegenOptions {
             component_name: None,
             include_diagnostics: true,
+            ..CodegenOptions::default()
         },
     )
     .expect("codegen");
@@ -54,8 +58,10 @@ fn generates_deterministic_devup_ui_tsx() {
             "import { Flex, Text } from \"@devup-ui/react\";\n\n",
             "export function Fr026본연체() {\n",
             "  return (\n",
-            "    <Flex w=\"320px\" h=\"80px\" flexDir=\"row\" gap=\"8px\" p=\"16px\" bg=\"#ffffff\">\n",
-            "      <Text color=\"$primary\" fontSize=\"16px\" lineHeight=\"24px\">안녕 &lt;Devup&gt;</Text>\n",
+            "    <Flex bg=\"#FFF\" h=\"80px\" p=\"16px\" w=\"320px\">\n",
+            "      <Text boxSize=\"100%\" color=\"$primary\" fontSize=\"16px\" lineHeight=\"24px\">\n",
+            "        안녕 {\"<\"}Devup{\">\"}\n",
+            "      </Text>\n",
             "    </Flex>\n",
             "  );\n",
             "}\n"

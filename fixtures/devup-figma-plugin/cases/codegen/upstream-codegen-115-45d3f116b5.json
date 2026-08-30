@@ -60,6 +60,19 @@
           },
           "extra": {},
           "fieldErrors": {}
+        },
+        "pattern-node-id": {
+          "id": "pattern-node-id",
+          "type": "VECTOR",
+          "fields": {
+            "name": "PatternIcon",
+            "isAsset": true,
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
         }
       },
       "diagnostics": []

@@ -1,14 +1,17 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-256-baf32cc08e",
-  "operation": "snapshot",
+  "operation": "tsx",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen Tree Methods buildTree preserves extracted component declaration while inlining commented asset instance usage: inline instance usage keeps extracted Status declaration 1"
   },
   "request": {
-    "rootId": "captured:169"
+    "rootId": "captured:169",
+    "operationInput": {
+      "targetComponent": "Status"
+    }
   },
   "payload": {
     "target": {

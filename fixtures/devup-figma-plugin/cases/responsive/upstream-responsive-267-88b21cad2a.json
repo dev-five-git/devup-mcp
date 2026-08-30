@@ -10,6 +10,25 @@
   "request": {
     "rootId": "fixture:root",
     "operationInput": {
+      "mockTree": {
+        "component": "Box",
+        "props": {
+          "id": "RootTablet"
+        },
+        "children": [
+          {
+            "component": "Box",
+            "props": {
+              "id": "Shared"
+            },
+            "children": [],
+            "nodeType": "FRAME",
+            "nodeName": "Shared"
+          }
+        ],
+        "nodeType": "FRAME",
+        "nodeName": "RootTablet"
+      },
       "children": [
         {
           "children": [],

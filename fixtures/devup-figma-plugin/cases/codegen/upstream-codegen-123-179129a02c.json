@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-123-179129a02c",
-  "operation": "snapshot",
+  "operation": "component-registration",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen renders component set with variants: component: Default 1"
   },
   "request": {
-    "rootId": "captured:149"
+    "rootId": "captured:149",
+    "operationInput": { "targetComponent": "Default" }
   },
   "payload": {
     "target": {

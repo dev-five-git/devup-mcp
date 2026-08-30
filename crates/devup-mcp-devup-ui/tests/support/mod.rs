@@ -7,7 +7,12 @@ use std::{
 };
 
 use devup_mcp_devup_ui::{
-    codegen::{CodegenOptions, generate_component},
+    codegen::{
+        CodegenOptions, generate_component, generate_component_set_target,
+        generate_inlined_component_instance, generate_legacy_component, generate_node,
+        render_codegen_provider, render_component_registration_snapshot, render_component_source,
+        render_responsive_component_mock, render_variant_tree_merge, render_viewport_component,
+    },
     theme::{ThemeScope, generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{CollectedPayload, DevupError};
@@ -33,6 +38,7 @@ pub enum FixtureOperation {
     ResponsiveTsx,
     DevupJson,
     Snapshot,
+    ComponentRegistration,
     Error,
 }
 
@@ -124,14 +130,19 @@ fn validate_case(case: &FixtureCase) -> Result<(), FixtureError> {
 
 pub fn run_case(case: &FixtureCase) -> Result<Value, DevupError> {
     match case.operation {
-        FixtureOperation::Tsx | FixtureOperation::ResponsiveTsx | FixtureOperation::Snapshot => {
+        FixtureOperation::Tsx
+        | FixtureOperation::ResponsiveTsx
+        | FixtureOperation::Snapshot
+        | FixtureOperation::ComponentRegistration => {
             let output = generate_component(
                 &case.payload.snapshot,
                 &case.request.root_id,
                 &CodegenOptions {
                     component_name: case.request.component_name.clone(),
                     include_diagnostics: true,
-                },
+                    ..CodegenOptions::default()
+                }
+                .with_payload_tokens(&case.payload),
             )?;
             Ok(json!({
                 "tsx": output.tsx,
@@ -173,6 +184,115 @@ pub fn run_case(case: &FixtureCase) -> Result<Value, DevupError> {
             }),
         },
     }
+}
+
+pub fn run_upstream_snapshot(case: &FixtureCase) -> Result<String, DevupError> {
+    let options = CodegenOptions {
+        component_name: case.request.component_name.clone(),
+        include_diagnostics: true,
+        ..CodegenOptions::default()
+    }
+    .with_payload_tokens(&case.payload);
+    if let Some(input) = case.request.operation_input.as_ref() {
+        if let Some(instance) = input.get("inlineComponentInstance").and_then(Value::as_str) {
+            let output = generate_inlined_component_instance(
+                &case.payload.snapshot,
+                &case.request.root_id,
+                instance,
+                &options,
+            )?;
+            return Ok(format!("\"{}\"", output.tsx));
+        }
+        if input.get("treesByVariant").is_some()
+            && let Some(output) = render_variant_tree_merge(input)
+        {
+            return Ok(output);
+        }
+        if input.get("mockTree").is_some()
+            && let Some(output) = render_responsive_component_mock(input)
+        {
+            return Ok(output);
+        }
+        if input.get("type").and_then(Value::as_str) == Some("COMPONENT_SET")
+            && let Some(output) = render_viewport_component(input)
+        {
+            return Ok(output);
+        }
+        if input.get("language").is_some()
+            || input.get("type").and_then(Value::as_str) == Some("SECTION")
+        {
+            let pure = generate_node(&case.payload.snapshot, &case.request.root_id, &options)?;
+            if let Some(output) = render_codegen_provider(input, &pure.tsx) {
+                return Ok(output);
+            }
+        }
+        if let Some(target) = input.get("targetComponent").and_then(Value::as_str)
+            && matches!(case.operation, FixtureOperation::Tsx)
+        {
+            let output = generate_component_set_target(
+                &case.payload.snapshot,
+                &case.request.root_id,
+                target,
+                &options,
+            )?;
+            return Ok(format!("\"{}\"", output.tsx));
+        }
+        if let Some(target) = input.get("targetComponent").and_then(Value::as_str)
+            && matches!(case.operation, FixtureOperation::ComponentRegistration)
+        {
+            return render_component_registration_snapshot(
+                &case.payload.snapshot,
+                &case.request.root_id,
+                target,
+            );
+        }
+        if let (Some(name), Some(code), Some(variants)) = (
+            input.get("name").and_then(Value::as_str),
+            input.get("code").and_then(Value::as_str),
+            input.get("variants").and_then(Value::as_object),
+        ) {
+            let variant_order = input
+                .get("variantOrder")
+                .and_then(Value::as_array)
+                .map(|order| order.iter().filter_map(Value::as_str).collect::<Vec<_>>());
+            let variants = variant_order
+                .map(|order| {
+                    order
+                        .into_iter()
+                        .filter_map(|key| {
+                            variants
+                                .get(key)
+                                .and_then(Value::as_str)
+                                .map(|value| (key.to_owned(), value.to_owned()))
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| {
+                    variants
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            value
+                                .as_str()
+                                .map(|value| (key.to_owned(), value.to_owned()))
+                        })
+                        .collect::<Vec<_>>()
+                });
+            return Ok(format!(
+                "\"{}\"",
+                render_component_source(name, code, &variants)
+            ));
+        }
+        return Ok("DEVUP_OPERATION_INPUT_NOT_IMPLEMENTED".to_owned());
+    }
+    if matches!(case.operation, FixtureOperation::ComponentRegistration) {
+        return Ok("DEVUP_COMPONENT_REGISTRATION_NOT_IMPLEMENTED".to_owned());
+    }
+    let output = if matches!(case.operation, FixtureOperation::Tsx) {
+        generate_legacy_component(&case.payload.snapshot, &case.request.root_id, &options)?
+    } else {
+        generate_node(&case.payload.snapshot, &case.request.root_id, &options)?
+    };
+    Ok(format!("\"{}\"", output.tsx))
 }
 
 #[derive(Debug, Clone, Deserialize)]

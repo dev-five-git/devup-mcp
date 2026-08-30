@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "upstream-codegen-141-48307df49b",
-  "operation": "snapshot",
+  "operation": "tsx",
   "source": {
     "repository": "dev-five-git/devup-figma-plugin",
     "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
     "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with nested BOOLEAN conditionals (grandchildren): nested BOOLEAN conditional: CurriculumCard 1"
   },
   "request": {
-    "rootId": "captured:182"
+    "rootId": "captured:182",
+    "operationInput": { "targetComponent": "CurriculumCard" }
   },
   "payload": {
     "target": {
