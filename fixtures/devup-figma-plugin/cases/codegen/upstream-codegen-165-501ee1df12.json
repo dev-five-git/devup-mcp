@@ -1,0 +1,636 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-165-501ee1df12",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 20"
+  },
+  "request": {
+    "rootId": "71:123"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"71:123\" name=\"Component 1\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "71:123"
+      ],
+      "nodes": {
+        "71:123": {
+          "id": "71:123",
+          "type": "SECTION",
+          "fields": {
+            "name": "Component 1",
+            "childrenIds": [
+              "1:13"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:13": {
+          "id": "1:13",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 30,
+            "bottomRightRadius": 30,
+            "clipsContent": false,
+            "cornerRadius": 30,
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:15f2b5c6b66588df2b6463e5084ce0334621dcd6/3584:11"
+                  }
+                },
+                "color": {
+                  "b": 0.9855769276618958,
+                  "g": 0.9732044339179993,
+                  "r": 0.9697822332382202
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 318,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "MIN",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 20,
+              "layoutAlign": "STRETCH",
+              "layoutGrow": 1,
+              "layoutMode": "VERTICAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 40,
+              "paddingLeft": 40,
+              "paddingRight": 40,
+              "paddingTop": 40,
+              "primaryAxisAlignItems": "MIN",
+              "primaryAxisSizingMode": "AUTO"
+            },
+            "isAsset": false,
+            "itemSpacing": 20,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 1,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "HUG",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Card",
+            "opacity": 1,
+            "paddingBottom": 40,
+            "paddingLeft": 40,
+            "paddingRight": 40,
+            "paddingTop": 40,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 30,
+            "topRightRadius": 30,
+            "visible": true,
+            "width": 420,
+            "childrenIds": [
+              "1:14",
+              "1:17",
+              "1:18"
+            ],
+            "parentId": "71:123"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:14": {
+          "id": "1:14",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "clipsContent": true,
+            "cornerRadius": 0,
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": false
+              }
+            ],
+            "height": 64,
+            "isAsset": true,
+            "itemSpacing": 0,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "NONE",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "puzzle-piece",
+            "opacity": 1,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 64,
+            "childrenIds": [
+              "1:15",
+              "1:16"
+            ],
+            "parentId": "1:13"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:17": {
+          "id": "1:17",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "자사 솔루션과의 연계를 통해\n서비스 확장성과 성장 가능성을 높입니다.",
+            "effects": [],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "ExtraBold"
+            },
+            "fontSize": 20,
+            "fontWeight": 800,
+            "height": 56,
+            "isAsset": false,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -4
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 139.9999976158142
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "자사 솔루션과의 연계를 통해 서비스 확장성과 성장 가능성을 높입니다.",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "자사 솔루션과의 연계",
+                "end": 11,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {
+                      "color": {
+                        "id": "VariableID:0b96ad7095bac52695a42f130ba1e6823e711569/3589:313"
+                      }
+                    },
+                    "color": {
+                      "b": 0.9686274528503418,
+                      "g": 0.20392157137393951,
+                      "r": 0.35686275362968445
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "ExtraBold"
+                },
+                "fontSize": 20,
+                "fontWeight": 800,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -4
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 139.9999976158142
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "S:42aa610b2125d507c89cd19b737e1c07835c76cd,4987:43"
+              },
+              {
+                "characters": "를 통해\n서비스 확장성과 성장 가능성을 높입니다.",
+                "end": 38,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {
+                      "color": {
+                        "id": "VariableID:a8911963a3ddc27e66ce960494a4683d9c4b1cab/1851:41"
+                      }
+                    },
+                    "color": {
+                      "b": 0.10196078568696976,
+                      "g": 0.10196078568696976,
+                      "r": 0.10196078568696976
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "ExtraBold"
+                },
+                "fontSize": 20,
+                "fontWeight": 800,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -4
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 139.9999976158142
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 11,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "S:42aa610b2125d507c89cd19b737e1c07835c76cd,4987:43"
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 340,
+            "childrenIds": [],
+            "parentId": "1:13"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:18": {
+          "id": "1:18",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "웹앱팩토리와 Presskit 등 자체 운영 중인 \n솔루션과의 연계를 통해 프로젝트의 서비스 범위 확장, \n운영 효율화, 성장 기회까지 제안드립니다.",
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:a8911963a3ddc27e66ce960494a4683d9c4b1cab/1851:41"
+                  }
+                },
+                "color": {
+                  "b": 0.10196078568696976,
+                  "g": 0.10196078568696976,
+                  "r": 0.10196078568696976
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "Medium"
+            },
+            "fontSize": 16,
+            "fontWeight": 500,
+            "height": 78,
+            "isAsset": false,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -6
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 160.0000023841858
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "웹앱팩토리와 Presskit 등 자체 운영 중인 솔루션과의 연계를 통해 프로젝트의 서비스 범위 확장, 운영 효율화, 성장 기회까지 제안드립니다.",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "웹앱팩토리와 Presskit 등 자체 운영 중인 \n솔루션과의 연계를 통해 프로젝트의 서비스 범위 확장, \n운영 효율화, 성장 기회까지 제안드립니다.",
+                "end": 82,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {
+                      "color": {
+                        "id": "VariableID:a8911963a3ddc27e66ce960494a4683d9c4b1cab/1851:41"
+                      }
+                    },
+                    "color": {
+                      "b": 0.10196078568696976,
+                      "g": 0.10196078568696976,
+                      "r": 0.10196078568696976
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Medium"
+                },
+                "fontSize": 16,
+                "fontWeight": 500,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -6
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 160.0000023841858
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "S:f416ab13d47ad55393b3cf3c7e2a45e33c6eec40,4987:46"
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 340,
+            "childrenIds": [],
+            "parentId": "1:13"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:15": {
+          "id": "1:15",
+          "type": "VECTOR",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "cornerRadius": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 0.686274528503418,
+                  "g": 0.6901960968971252,
+                  "r": 0.6901960968971252
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 53.89710235595703,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Vector",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "visible": true,
+            "width": 57.96072006225586,
+            "childrenIds": [],
+            "parentId": "1:14"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:16": {
+          "id": "1:16",
+          "type": "VECTOR",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "cornerRadius": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "gradientStops": [
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.0941176488995552,
+                      "g": 0.8196078538894653,
+                      "r": 0.7176470756530762
+                    },
+                    "position": 0.5080000162124634
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.09803921729326248,
+                      "g": 0.8156862854957581,
+                      "r": 0.6980392336845398
+                    },
+                    "position": 0.5720000267028809
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.11372549086809158,
+                      "g": 0.8039215803146362,
+                      "r": 0.6470588445663452
+                    },
+                    "position": 0.6430000066757202
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.13333334028720856,
+                      "g": 0.7882353067398071,
+                      "r": 0.5607843399047852
+                    },
+                    "position": 0.7170000076293945
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.16470588743686676,
+                      "g": 0.7607843279838562,
+                      "r": 0.43921568989753723
+                    },
+                    "position": 0.7929999828338623
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.20392157137393951,
+                      "g": 0.729411780834198,
+                      "r": 0.2823529541492462
+                    },
+                    "position": 0.8709999918937683
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.250980406999588,
+                      "g": 0.6901960968971252,
+                      "r": 0.0941176488995552
+                    },
+                    "position": 0.9490000009536743
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 0.27450981736183167,
+                      "g": 0.6705882549285889,
+                      "r": 0.007843137718737125
+                    },
+                    "position": 0.9810000061988831
+                  }
+                ],
+                "gradientTransform": [
+                  [
+                    0.4799879491329193,
+                    0,
+                    0.26639416813850403
+                  ],
+                  [
+                    0,
+                    0.48956596851348877,
+                    0.6352904438972473
+                  ]
+                ],
+                "opacity": 1,
+                "type": "GRADIENT_RADIAL",
+                "visible": true
+              }
+            ],
+            "height": 58.36850357055664,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Vector",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "visible": true,
+            "width": 57.2265625,
+            "childrenIds": [],
+            "parentId": "1:14"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

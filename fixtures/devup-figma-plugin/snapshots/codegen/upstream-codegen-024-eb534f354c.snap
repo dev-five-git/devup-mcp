@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Flex boxSize="100%" pos="relative">
+  <Box bottom="0px" h="100%" left="50px" pos="absolute" />
+</Flex>"

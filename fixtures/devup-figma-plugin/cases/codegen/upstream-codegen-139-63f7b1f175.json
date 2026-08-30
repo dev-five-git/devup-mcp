@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-139-63f7b1f175",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with INSTANCE_SWAP slot: INSTANCE_SWAP slot: Icon 1"
+  },
+  "request": {
+    "rootId": "captured:171"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:171\" name=\"IconButton\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:171"
+      ],
+      "nodes": {
+        "captured:171": {
+          "id": "captured:171",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "leftIcon#60:1": {
+                "defaultValue": "1:1",
+                "preferredValues": [],
+                "type": "INSTANCE_SWAP"
+              },
+              "size": {
+                "type": "VARIANT",
+                "variantOptions": [
+                  "sm",
+                  "md",
+                  "lg"
+                ]
+              }
+            },
+            "defaultVariant": {
+              "name": "size=md",
+              "reactions": [],
+              "type": "COMPONENT",
+              "variantProperties": {
+                "size": "md"
+              },
+              "visible": true
+            },
+            "name": "IconButton",
+            "visible": true,
+            "childrenIds": [
+              "captured:170"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:170": {
+          "id": "captured:170",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "size=md",
+            "reactions": [],
+            "variantProperties": {
+              "size": "md"
+            },
+            "visible": true,
+            "childrenIds": [
+              "captured:172",
+              "captured:173"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:172": {
+          "id": "captured:172",
+          "type": "INSTANCE",
+          "fields": {
+            "componentPropertyReferences": {
+              "mainComponent": "leftIcon#60:1"
+            },
+            "name": "IconInstance",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "mainComponentId": "captured:174"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:173": {
+          "id": "captured:173",
+          "type": "TEXT",
+          "fields": {
+            "characters": "Click",
+            "effects": [],
+            "name": "Label",
+            "reactions": [],
+            "strokes": [],
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "Click",
+                "end": 5,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "style1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:174": {
+          "id": "captured:174",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Icon",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function MixBlendMode() {
+  return <Image aspectRatio="1" mixBlendMode="overlay" opacity="0.8" src="/images/image.png" />
+}"

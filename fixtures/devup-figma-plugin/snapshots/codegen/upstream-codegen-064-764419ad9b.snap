@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"<Box boxShadow="inset -2px 3px 5px 0 #0F0" h="70px" w="90px" />"

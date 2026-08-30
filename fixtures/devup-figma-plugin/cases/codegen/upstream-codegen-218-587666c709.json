@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-218-587666c709",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 73"
+  },
+  "request": {
+    "rootId": "245:1608"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"245:1608\" name=\"Mix Blend Mode\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "245:1608"
+      ],
+      "nodes": {
+        "245:1608": {
+          "id": "245:1608",
+          "type": "SECTION",
+          "fields": {
+            "name": "Mix Blend Mode",
+            "childrenIds": [
+              "245:1595"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "245:1595": {
+          "id": "245:1595",
+          "type": "RECTANGLE",
+          "fields": {
+            "blendMode": "OVERLAY",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "cornerRadius": 0,
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "filters": {
+                  "contrast": 0,
+                  "exposure": 0,
+                  "highlights": 0,
+                  "saturation": 0,
+                  "shadows": 0,
+                  "temperature": 0,
+                  "tint": 0
+                },
+                "imageHash": "5cee49483aa40d5cbf1764b2d584efc365723714",
+                "imageTransform": [
+                  [
+                    1,
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1,
+                    0
+                  ]
+                ],
+                "opacity": 1,
+                "rotation": 0,
+                "scaleMode": "FILL",
+                "scalingFactor": 0.5,
+                "type": "IMAGE",
+                "visible": true
+              }
+            ],
+            "gridColumnAnchorIndex": -1,
+            "gridRowAnchorIndex": -1,
+            "height": 413,
+            "isAsset": true,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "image",
+            "opacity": 0.800000011920929,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "INSIDE",
+            "strokeBottomWeight": 1,
+            "strokeLeftWeight": 1,
+            "strokeRightWeight": 1,
+            "strokeTopWeight": 1,
+            "strokeWeight": 1,
+            "strokes": [],
+            "targetAspectRatio": {
+              "x": 4096,
+              "y": 4096
+            },
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 413,
+            "childrenIds": [],
+            "parentId": "245:1608"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

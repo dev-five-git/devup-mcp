@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-059-0b07052901",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders grid auto layout props 1"
+  },
+  "request": {
+    "rootId": "captured:80"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:80\" name=\"GridAutoLayout\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:80"
+      ],
+      "nodes": {
+        "captured:80": {
+          "id": "captured:80",
+          "type": "FRAME",
+          "fields": {
+            "gridColumnCount": 3,
+            "gridColumnGap": 8,
+            "gridRowCount": 2,
+            "gridRowGap": 12,
+            "inferredAutoLayout": {
+              "layoutMode": "GRID"
+            },
+            "name": "GridAutoLayout",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

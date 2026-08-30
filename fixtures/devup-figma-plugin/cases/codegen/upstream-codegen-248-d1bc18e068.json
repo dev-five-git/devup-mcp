@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-248-d1bc18e068",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 103"
+  },
+  "request": {
+    "rootId": "520:2035"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"520:2035\" name=\"List\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "520:2035"
+      ],
+      "nodes": {
+        "520:2035": {
+          "id": "520:2035",
+          "type": "SECTION",
+          "fields": {
+            "name": "List",
+            "childrenIds": [
+              "387:1575"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "387:1575": {
+          "id": "387:1575",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "어떤 증상이 가장 힘들고 일상생활에 영향을 주나요?\n증상이 언제부터 시작되었나요?\n증상이 시간이 지나면서 어떻게 변했나요?\n스트레스나 상황에 따라 증상이 달라지나요?",
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:1500634352fc7d420979f2b85b3736d4b0a410de/14:65"
+                  }
+                },
+                "color": {
+                  "b": 0.3176470696926117,
+                  "g": 0.2549019753932953,
+                  "r": 0.21568627655506134
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "Regular"
+            },
+            "fontSize": 15,
+            "fontWeight": 400,
+            "gridColumnAnchorIndex": -1,
+            "gridRowAnchorIndex": -1,
+            "height": 120,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -4
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 200
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "어떤 증상이 가장 힘들고 일상생활에 영향을 주나요? 증상이 언제부터 시작되었나요? 증상이 시간이 지나면서 어떻게 변했나요? 스트레스나 상황에 따라 증상이 달라지나요?",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "OUTSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "어떤 증상이 가장 힘들고 일상생활에 영향을 주나요?\n증상이 언제부터 시작되었나요?\n증상이 시간이 지나면서 어떻게 변했나요?\n스트레스나 상황에 따라 증상이 달라지나요?",
+                "end": 95,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {
+                      "color": {
+                        "id": "VariableID:1500634352fc7d420979f2b85b3736d4b0a410de/14:65"
+                      }
+                    },
+                    "color": {
+                      "b": 0.3176470696926117,
+                      "g": 0.2549019753932953,
+                      "r": 0.21568627655506134
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Regular"
+                },
+                "fontSize": 15,
+                "fontWeight": 400,
+                "hyperlink": null,
+                "indentation": 1,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -4
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 200
+                },
+                "listOptions": {
+                  "type": "UNORDERED"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "S:52e722002759e248c2864a7e8ac3a317bda530d6,723:121"
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "CENTER",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 312,
+            "childrenIds": [],
+            "parentId": "520:2035"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

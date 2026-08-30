@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-root-260-2dfc3ae054",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "registerCodegen should generate responsive code when root node is SECTION 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "children": [
+        {
+          "children": [],
+          "height": 200,
+          "layoutMode": "VERTICAL",
+          "name": "MobileFrame",
+          "type": "FRAME",
+          "visible": true,
+          "width": 375
+        },
+        {
+          "children": [],
+          "height": 200,
+          "layoutMode": "HORIZONTAL",
+          "name": "DesktopFrame",
+          "type": "FRAME",
+          "visible": true,
+          "width": 1440
+        }
+      ],
+      "name": "ResponsiveSection",
+      "type": "SECTION",
+      "visible": true
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"fixture:root\" name=\"ResponsiveSection\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "SECTION",
+          "fields": {
+            "name": "ResponsiveSection",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

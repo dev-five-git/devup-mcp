@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-017-44cff97cec",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders svg asset with non-solid fill 1"
+  },
+  "request": {
+    "rootId": "captured:22"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<vector id=\"captured:22\" name=\"GradientIcon\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:22"
+      ],
+      "nodes": {
+        "captured:22": {
+          "id": "captured:22",
+          "type": "VECTOR",
+          "fields": {
+            "fills": [
+              {
+                "gradientStops": [
+                  {
+                    "color": {
+                      "a": 1,
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "position": 0
+                  },
+                  {
+                    "color": {
+                      "a": 1,
+                      "b": 1,
+                      "g": 0,
+                      "r": 0
+                    },
+                    "position": 1
+                  }
+                ],
+                "gradientTransform": [
+                  [
+                    1,
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1,
+                    0
+                  ]
+                ],
+                "opacity": 1,
+                "type": "GRADIENT_LINEAR",
+                "visible": true
+              }
+            ],
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "GradientIcon",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

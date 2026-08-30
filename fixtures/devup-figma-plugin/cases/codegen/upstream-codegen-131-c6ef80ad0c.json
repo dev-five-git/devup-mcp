@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-131-c6ef80ad0c",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders component with parent component set: component: Hover 1"
+  },
+  "request": {
+    "rootId": "captured:159"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component id=\"captured:159\" name=\"Hover\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:159"
+      ],
+      "nodes": {
+        "captured:159": {
+          "id": "captured:159",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Hover",
+            "reactions": [
+              {
+                "actions": [],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {
+              "state": "hover"
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:162": {
+          "id": "captured:162",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "state": {
+                "type": "VARIANT",
+                "variantOptions": [
+                  "default",
+                  "hover"
+                ]
+              }
+            },
+            "defaultVariant": {
+              "name": "Default",
+              "reactions": [],
+              "type": "COMPONENT",
+              "variantProperties": {
+                "state": "default"
+              },
+              "visible": true
+            },
+            "name": "Button",
+            "visible": true,
+            "childrenIds": [
+              "captured:160",
+              "captured:161"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:160": {
+          "id": "captured:160",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Default",
+            "reactions": [],
+            "variantProperties": {
+              "state": "default"
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:161": {
+          "id": "captured:161",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Hover",
+            "reactions": [
+              {
+                "actions": [],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {
+              "state": "hover"
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

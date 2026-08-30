@@ -1,0 +1,86 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Case1MaskImage() {
+  return (
+    <VStack
+      bg="$innerBg"
+      gap="16px"
+      outline="solid 1px $border"
+      outlineOffset="-0.5px"
+      p="20px"
+    >
+      <Flex alignItems="center" gap="8px">
+        <Text
+          color="$caption"
+          fontFamily="SUIT"
+          fontSize="16px"
+          fontWeight="600"
+          letterSpacing="-1px"
+          lineHeight="1.5"
+          wordBreak="keep-all"
+        >
+          플레이 제목
+        </Text>
+        <Box
+          aspectRatio="1"
+          bg="$caption"
+          borderRadius="50%"
+          boxSize="6px"
+          opacity="0.2"
+        />
+        <Text
+          color="$caption"
+          fontFamily="SUIT"
+          fontSize="15px"
+          fontWeight="400"
+          letterSpacing="-0.5px"
+          lineHeight="1.5"
+        >
+          2025.03.03 18:00
+        </Text>
+        <Box
+          aspectRatio="1"
+          bg="$caption"
+          borderRadius="50%"
+          boxSize="6px"
+          opacity="0.2"
+        />
+        <Flex alignItems="center" gap="4px">
+          <Box
+            aspectRatio="1"
+            bg="$caption"
+            boxSize="20px"
+            maskImage="url(/icons/recommend.svg)"
+            maskPos="center"
+            maskRepeat="no-repeat"
+            maskSize="contain"
+          />
+          <Text
+            color="$caption"
+            fontFamily="SUIT"
+            fontSize="15px"
+            fontWeight="600"
+            letterSpacing="-0.5px"
+            lineHeight="1.5"
+          >
+            2
+          </Text>
+        </Flex>
+      </Flex>
+      <Text
+        color="$text"
+        fontFamily="SUIT"
+        fontSize="16px"
+        fontWeight="400"
+        letterSpacing="-1px"
+        lineHeight="1.5"
+        wordBreak="keep-all"
+      >
+        댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력
+      </Text>
+    </VStack>
+  )
+}"

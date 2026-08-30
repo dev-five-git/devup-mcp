@@ -1,0 +1,769 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-responsive-267-88b21cad2a",
+  "operation": "responsive-tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "ResponsiveCodegen generateVariantResponsiveComponents handles effect + viewport + size + variant (4 dimensions) 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "children": [
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.17,
+                "g": 0.25,
+                "r": 0.35
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 64,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Desktop, size=Md, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Md",
+            "variant": "primary",
+            "viewport": "Desktop"
+          },
+          "width": 191
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.12,
+                "g": 0.17,
+                "r": 0.24
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 64,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Desktop, size=Md, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Md",
+            "variant": "primary",
+            "viewport": "Desktop"
+          },
+          "width": 191
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.1,
+                "g": 0.14,
+                "r": 0.19
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 64,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Desktop, size=Md, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Md",
+            "variant": "primary",
+            "viewport": "Desktop"
+          },
+          "width": 191
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.17,
+                "g": 0.25,
+                "r": 0.35
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Mobile, size=Md, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Md",
+            "variant": "primary",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.12,
+                "g": 0.17,
+                "r": 0.24
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Mobile, size=Md, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Md",
+            "variant": "primary",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.1,
+                "g": 0.14,
+                "r": 0.19
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Mobile, size=Md, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Md",
+            "variant": "primary",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.17,
+                "g": 0.25,
+                "r": 0.35
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 46,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Desktop, size=Sm, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Sm",
+            "variant": "primary",
+            "viewport": "Desktop"
+          },
+          "width": 123
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.12,
+                "g": 0.17,
+                "r": 0.24
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 46,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Desktop, size=Sm, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Sm",
+            "variant": "primary",
+            "viewport": "Desktop"
+          },
+          "width": 123
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.1,
+                "g": 0.14,
+                "r": 0.19
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 46,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Desktop, size=Sm, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Sm",
+            "variant": "primary",
+            "viewport": "Desktop"
+          },
+          "width": 123
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.17,
+                "g": 0.25,
+                "r": 0.35
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Mobile, size=Sm, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Sm",
+            "variant": "primary",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.12,
+                "g": 0.17,
+                "r": 0.24
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Mobile, size=Sm, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Sm",
+            "variant": "primary",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.1,
+                "g": 0.14,
+                "r": 0.19
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Mobile, size=Sm, variant=primary",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Sm",
+            "variant": "primary",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 1,
+                "g": 1,
+                "r": 1
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 64,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Desktop, size=Md, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Md",
+            "variant": "white",
+            "viewport": "Desktop"
+          },
+          "width": 191
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.95,
+                "g": 0.95,
+                "r": 0.95
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 64,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Desktop, size=Md, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Md",
+            "variant": "white",
+            "viewport": "Desktop"
+          },
+          "width": 191
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.9,
+                "g": 0.9,
+                "r": 0.9
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 64,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Desktop, size=Md, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Md",
+            "variant": "white",
+            "viewport": "Desktop"
+          },
+          "width": 191
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 1,
+                "g": 1,
+                "r": 1
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Mobile, size=Md, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Md",
+            "variant": "white",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.95,
+                "g": 0.95,
+                "r": 0.95
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Mobile, size=Md, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Md",
+            "variant": "white",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.9,
+                "g": 0.9,
+                "r": 0.9
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Mobile, size=Md, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Md",
+            "variant": "white",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 1,
+                "g": 1,
+                "r": 1
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 46,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Desktop, size=Sm, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Sm",
+            "variant": "white",
+            "viewport": "Desktop"
+          },
+          "width": 123
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.95,
+                "g": 0.95,
+                "r": 0.95
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 46,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Desktop, size=Sm, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Sm",
+            "variant": "white",
+            "viewport": "Desktop"
+          },
+          "width": 123
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.9,
+                "g": 0.9,
+                "r": 0.9
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 46,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Desktop, size=Sm, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Sm",
+            "variant": "white",
+            "viewport": "Desktop"
+          },
+          "width": 123
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 1,
+                "g": 1,
+                "r": 1
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=default, viewport=Mobile, size=Sm, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "default",
+            "size": "Sm",
+            "variant": "white",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.95,
+                "g": 0.95,
+                "r": 0.95
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=hover, viewport=Mobile, size=Sm, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "hover",
+            "size": "Sm",
+            "variant": "white",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        },
+        {
+          "children": [],
+          "fills": [
+            {
+              "color": {
+                "b": 0.9,
+                "g": 0.9,
+                "r": 0.9
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "height": 51,
+          "layoutMode": "HORIZONTAL",
+          "name": "effect=active, viewport=Mobile, size=Sm, variant=white",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "effect": "active",
+            "size": "Sm",
+            "variant": "white",
+            "viewport": "Mobile"
+          },
+          "width": 149
+        }
+      ],
+      "componentPropertyDefinitions": {
+        "effect": {
+          "defaultValue": "default",
+          "type": "VARIANT",
+          "variantOptions": [
+            "active",
+            "default",
+            "hover"
+          ]
+        },
+        "size": {
+          "defaultValue": "Md",
+          "type": "VARIANT",
+          "variantOptions": [
+            "Md",
+            "Sm"
+          ]
+        },
+        "variant": {
+          "defaultValue": "primary",
+          "type": "VARIANT",
+          "variantOptions": [
+            "primary",
+            "white"
+          ]
+        },
+        "viewport": {
+          "defaultValue": "Desktop",
+          "type": "VARIANT",
+          "variantOptions": [
+            "Desktop",
+            "Mobile"
+          ]
+        }
+      },
+      "defaultVariant": {
+        "children": [],
+        "fills": [
+          {
+            "color": {
+              "b": 0.17,
+              "g": 0.25,
+              "r": 0.35
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 64,
+        "layoutMode": "HORIZONTAL",
+        "name": "effect=default, viewport=Desktop, size=Md, variant=primary",
+        "reactions": [],
+        "type": "COMPONENT",
+        "variantProperties": {
+          "effect": "default",
+          "size": "Md",
+          "variant": "primary",
+          "viewport": "Desktop"
+        },
+        "width": 191
+      },
+      "name": "Button",
+      "type": "COMPONENT_SET"
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"fixture:root\" name=\"Button\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "name": "Button",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

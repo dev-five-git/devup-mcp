@@ -1,0 +1,22 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function AutoLayout&Box() {
+  return (
+    <VStack alignItems="center" bg="#50F" gap="10px" p="10px">
+      <Text
+        color="#FFF"
+        fontFamily="Inter"
+        fontSize="16px"
+        fontWeight="400"
+        letterSpacing="0em"
+        lineHeight="1.6"
+      >
+        Hello World
+      </Text>
+      <Box bg="#FFF" borderRadius="1000px" boxSize="12px" overflow="hidden" />
+    </VStack>
+  )
+}"

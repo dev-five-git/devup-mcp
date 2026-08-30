@@ -9,6 +9,7 @@ fn pinned_plugin_corpus_is_complete_and_self_consistent() {
         .unwrap_or_else(|violations| panic!("compat corpus 위반:\n{}", violations.join("\n")));
     assert_eq!(summary.source_files, 54);
     assert_eq!(summary.ledger_entries, 978);
-    assert_eq!(summary.cases, 1);
-    assert_eq!(summary.snapshots, 1);
+    // 268 pinned upstream snapshots plus one production-shape smoke case.
+    assert_eq!(summary.cases, 269);
+    assert_eq!(summary.snapshots, 269);
 }

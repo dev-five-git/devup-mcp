@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-responsive-266-4cd888ffd0",
+  "operation": "responsive-tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "ResponsiveCodegen generateVariantOnlyMergedCode renders OR conditional for child existing in multiple but not all variants 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "treesByVariant": [
+        [
+          "scroll",
+          {
+            "children": [
+              {
+                "children": [],
+                "component": "Box",
+                "nodeName": "PartialChild",
+                "nodeType": "FRAME",
+                "props": {
+                  "id": "PartialChild"
+                }
+              }
+            ],
+            "component": "Flex",
+            "nodeName": "Root",
+            "nodeType": "FRAME",
+            "props": {}
+          }
+        ],
+        [
+          "hover",
+          {
+            "children": [
+              {
+                "children": [],
+                "component": "Box",
+                "nodeName": "PartialChild",
+                "nodeType": "FRAME",
+                "props": {
+                  "id": "PartialChildHover"
+                }
+              }
+            ],
+            "component": "Flex",
+            "nodeName": "Root",
+            "nodeType": "FRAME",
+            "props": {}
+          }
+        ],
+        [
+          "default",
+          {
+            "children": [],
+            "component": "Flex",
+            "nodeName": "Root",
+            "nodeType": "FRAME",
+            "props": {}
+          }
+        ]
+      ],
+      "variantKey": "status"
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"fixture:root\" name=\"responsive-or-condition\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "FRAME",
+          "fields": {
+            "name": "responsive-or-condition",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

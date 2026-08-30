@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-126-14073e1999",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders component set with transition 1"
+  },
+  "request": {
+    "rootId": "captured:155"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:155\" name=\"Button\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:155"
+      ],
+      "nodes": {
+        "captured:155": {
+          "id": "captured:155",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {},
+            "defaultVariant": {
+              "name": "Default",
+              "reactions": [
+                {
+                  "actions": [
+                    {
+                      "transition": {
+                        "duration": 0.3,
+                        "easing": {
+                          "type": "EASE_IN_OUT"
+                        },
+                        "type": "SMART_ANIMATE"
+                      },
+                      "type": "NODE"
+                    }
+                  ],
+                  "trigger": {
+                    "type": "ON_HOVER"
+                  }
+                }
+              ],
+              "type": "COMPONENT",
+              "variantProperties": {},
+              "visible": true
+            },
+            "name": "Button",
+            "visible": true,
+            "childrenIds": [
+              "captured:153",
+              "captured:154"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:153": {
+          "id": "captured:153",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Default",
+            "reactions": [
+              {
+                "actions": [
+                  {
+                    "transition": {
+                      "duration": 0.3,
+                      "easing": {
+                        "type": "EASE_IN_OUT"
+                      },
+                      "type": "SMART_ANIMATE"
+                    },
+                    "type": "NODE"
+                  }
+                ],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {},
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:154": {
+          "id": "captured:154",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Hover",
+            "reactions": [
+              {
+                "actions": [
+                  {
+                    "transition": {
+                      "duration": 0.3,
+                      "easing": {
+                        "type": "EASE_IN_OUT"
+                      },
+                      "type": "SMART_ANIMATE"
+                    },
+                    "type": "NODE"
+                  }
+                ],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {},
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

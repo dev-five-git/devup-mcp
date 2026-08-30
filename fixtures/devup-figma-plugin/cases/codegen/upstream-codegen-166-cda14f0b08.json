@@ -1,0 +1,670 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-166-cda14f0b08",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 21"
+  },
+  "request": {
+    "rootId": "71:123"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"71:123\" name=\"Component 1\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "71:123"
+      ],
+      "nodes": {
+        "71:123": {
+          "id": "71:123",
+          "type": "SECTION",
+          "fields": {
+            "name": "Component 1",
+            "childrenIds": [
+              "43:20"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:20": {
+          "id": "43:20",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "clipsContent": false,
+            "cornerRadius": 0,
+            "counterAxisAlignItems": "CENTER",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [],
+            "height": 280,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 20,
+              "layoutAlign": "INHERIT",
+              "layoutGrow": 0,
+              "layoutMode": "HORIZONTAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "paddingRight": 0,
+              "paddingTop": 0,
+              "primaryAxisAlignItems": "MIN",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": false,
+            "itemSpacing": 20,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "HORIZONTAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "CardContainer",
+            "opacity": 1,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 1200,
+            "childrenIds": [
+              "43:2",
+              "43:21",
+              "43:23"
+            ],
+            "parentId": "71:123"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:2": {
+          "id": "43:2",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 30,
+            "bottomRightRadius": 30,
+            "clipsContent": false,
+            "cornerRadius": 30,
+            "counterAxisAlignItems": "CENTER",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 280,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 20,
+              "layoutAlign": "STRETCH",
+              "layoutGrow": 1,
+              "layoutMode": "VERTICAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 40,
+              "paddingLeft": 40,
+              "paddingRight": 40,
+              "paddingTop": 40,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": false,
+            "itemSpacing": 20,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 1,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "FILL",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Card",
+            "opacity": 1,
+            "paddingBottom": 40,
+            "paddingLeft": 40,
+            "paddingRight": 40,
+            "paddingTop": 40,
+            "primaryAxisAlignItems": "CENTER",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 30,
+            "topRightRadius": 30,
+            "visible": true,
+            "width": 386.6666564941406,
+            "childrenIds": [
+              "43:7"
+            ],
+            "parentId": "43:20"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:21": {
+          "id": "43:21",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 30,
+            "bottomRightRadius": 30,
+            "clipsContent": false,
+            "cornerRadius": 30,
+            "counterAxisAlignItems": "CENTER",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 280,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 20,
+              "layoutAlign": "STRETCH",
+              "layoutGrow": 1,
+              "layoutMode": "VERTICAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 40,
+              "paddingLeft": 40,
+              "paddingRight": 40,
+              "paddingTop": 40,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": false,
+            "itemSpacing": 20,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 1,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "FILL",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Card",
+            "opacity": 1,
+            "paddingBottom": 40,
+            "paddingLeft": 40,
+            "paddingRight": 40,
+            "paddingTop": 40,
+            "primaryAxisAlignItems": "CENTER",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 30,
+            "topRightRadius": 30,
+            "visible": true,
+            "width": 386.66668701171875,
+            "childrenIds": [
+              "43:22"
+            ],
+            "parentId": "43:20"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:23": {
+          "id": "43:23",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 30,
+            "bottomRightRadius": 30,
+            "clipsContent": false,
+            "cornerRadius": 30,
+            "counterAxisAlignItems": "CENTER",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 280,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 20,
+              "layoutAlign": "STRETCH",
+              "layoutGrow": 1,
+              "layoutMode": "VERTICAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 40,
+              "paddingLeft": 40,
+              "paddingRight": 40,
+              "paddingTop": 40,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": false,
+            "itemSpacing": 20,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 1,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "FILL",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Card",
+            "opacity": 1,
+            "paddingBottom": 40,
+            "paddingLeft": 40,
+            "paddingRight": 40,
+            "paddingTop": 40,
+            "primaryAxisAlignItems": "CENTER",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 30,
+            "topRightRadius": 30,
+            "visible": true,
+            "width": 386.66668701171875,
+            "childrenIds": [
+              "43:24"
+            ],
+            "parentId": "43:20"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:7": {
+          "id": "43:7",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "CARD 1",
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 0.10196078568696976,
+                  "g": 0.10196078568696976,
+                  "r": 0.10196078568696976
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "Medium"
+            },
+            "fontSize": 36,
+            "fontWeight": 500,
+            "height": 58,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -6
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 160.0000023841858
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "CARD 1",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "CARD 1",
+                "end": 6,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 0.10196078568696976,
+                      "g": 0.10196078568696976,
+                      "r": 0.10196078568696976
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Medium"
+                },
+                "fontSize": 36,
+                "fontWeight": 500,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -6
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 160.0000023841858
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 111,
+            "childrenIds": [],
+            "parentId": "43:2"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:22": {
+          "id": "43:22",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "CARD 2",
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 0.10196078568696976,
+                  "g": 0.10196078568696976,
+                  "r": 0.10196078568696976
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "Medium"
+            },
+            "fontSize": 36,
+            "fontWeight": 500,
+            "height": 58,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -6
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 160.0000023841858
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "CARD 2",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "CARD 2",
+                "end": 6,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 0.10196078568696976,
+                      "g": 0.10196078568696976,
+                      "r": 0.10196078568696976
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Medium"
+                },
+                "fontSize": 36,
+                "fontWeight": 500,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -6
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 160.0000023841858
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 116,
+            "childrenIds": [],
+            "parentId": "43:21"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "43:24": {
+          "id": "43:24",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "CARD 3",
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 0.10196078568696976,
+                  "g": 0.10196078568696976,
+                  "r": 0.10196078568696976
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "Medium"
+            },
+            "fontSize": 36,
+            "fontWeight": 500,
+            "height": 58,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -6
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 160.0000023841858
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "CARD 3",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "CARD 3",
+                "end": 6,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 0.10196078568696976,
+                      "g": 0.10196078568696976,
+                      "r": 0.10196078568696976
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Medium"
+                },
+                "fontSize": 36,
+                "fontWeight": 500,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -6
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 160.0000023841858
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 117,
+            "childrenIds": [],
+            "parentId": "43:23"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,44 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Component1() {
+  return (
+    <VStack
+      alignItems="flex-end"
+      backdropFilter="blur(4px)"
+      bg="#FFFFFF0F"
+      gap="10px"
+      justifyContent="center"
+      px="20px"
+      py="10px"
+    >
+      <Text
+        color="#FFF"
+        fontFamily="Inter"
+        fontSize="24px"
+        fontStyle="italic"
+        fontWeight="600"
+        letterSpacing="0em"
+        lineHeight="normal"
+      >
+        Hello World
+      </Text>
+      <Text
+        color="#FFF"
+        fontFamily="Inter"
+        fontSize="12px"
+        fontWeight="400"
+        letterSpacing="0em"
+        lineHeight="normal"
+      >
+        Lorem ipsum dolor sit amet,{" "}
+        <Text fontWeight="900">
+          consectetur
+        </Text>
+        {" "}adipiscing elit.
+      </Text>
+    </VStack>
+  )
+}"

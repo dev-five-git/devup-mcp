@@ -1,0 +1,23 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface PrivacyProps {
+  property1?: boolean
+}
+
+export function Privacy({ property1 }: PrivacyProps) {
+  return (
+    <Box
+      bg="#6B7080"
+      maskImage={{
+        false: "url('/icons/속성 1=false.svg')",
+        true: "url('/icons/속성 1=true.svg')"
+      }[property1 ?? false]}
+      maskPos="center"
+      maskRepeat="no-repeat"
+      maskSize="contain"
+    />
+  )
+}"

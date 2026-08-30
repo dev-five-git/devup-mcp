@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-004-8ec61c5bb5",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders objectFit cover for image asset 1"
+  },
+  "request": {
+    "rootId": "captured:4"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<rectangle id=\"captured:4\" name=\"ObjectFitCover\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:4"
+      ],
+      "nodes": {
+        "captured:4": {
+          "id": "captured:4",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "scaleMode": "CROP",
+                "type": "IMAGE",
+                "visible": true
+              }
+            ],
+            "height": 90,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "ObjectFitCover",
+            "visible": true,
+            "width": 120,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

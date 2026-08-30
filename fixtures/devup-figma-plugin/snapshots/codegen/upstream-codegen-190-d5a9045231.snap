@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Effect() {
+  return <Box backdropFilter="blur(10px)" bg="#FFF3" borderRadius="20px" overflow="hidden" />
+}"

@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-141-48307df49b",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with nested BOOLEAN conditionals (grandchildren): nested BOOLEAN conditional: CurriculumCard 1"
+  },
+  "request": {
+    "rootId": "captured:182"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:182\" name=\"CurriculumCard\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:182"
+      ],
+      "nodes": {
+        "captured:182": {
+          "id": "captured:182",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "_1st#80:1": {
+                "defaultValue": true,
+                "type": "BOOLEAN"
+              },
+              "_2nd#80:2": {
+                "defaultValue": true,
+                "type": "BOOLEAN"
+              }
+            },
+            "defaultVariant": {
+              "name": "State=Default",
+              "reactions": [],
+              "type": "COMPONENT",
+              "visible": true
+            },
+            "name": "CurriculumCard",
+            "visible": true,
+            "childrenIds": [
+              "captured:181"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:181": {
+          "id": "captured:181",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "State=Default",
+            "reactions": [],
+            "visible": true,
+            "childrenIds": [
+              "captured:183"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:183": {
+          "id": "captured:183",
+          "type": "FRAME",
+          "fields": {
+            "effects": [],
+            "name": "ContentWrapper",
+            "reactions": [],
+            "strokes": [],
+            "visible": true,
+            "childrenIds": [
+              "captured:184",
+              "captured:185"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:184": {
+          "id": "captured:184",
+          "type": "INSTANCE",
+          "fields": {
+            "componentPropertyReferences": {
+              "visible": "_1st#80:1"
+            },
+            "name": "CurriculumSubTitle1",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "mainComponentId": "captured:188"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:185": {
+          "id": "captured:185",
+          "type": "INSTANCE",
+          "fields": {
+            "componentPropertyReferences": {
+              "visible": "_2nd#80:2"
+            },
+            "name": "CurriculumSubTitle2",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "mainComponentId": "captured:189"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:188": {
+          "id": "captured:188",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "CurriculumSubTitle",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:189": {
+          "id": "captured:189",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "CurriculumSubTitle",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-146-56be99e864",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 1"
+  },
+  "request": {
+    "rootId": "7:7"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"7:7\" name=\"BorderRadius\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "7:7"
+      ],
+      "nodes": {
+        "7:7": {
+          "id": "7:7",
+          "type": "SECTION",
+          "fields": {
+            "name": "BorderRadius",
+            "childrenIds": [
+              "7:3"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "7:3": {
+          "id": "7:3",
+          "type": "RECTANGLE",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 20,
+            "bottomRightRadius": 20,
+            "cornerRadius": 20,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 0.8509804010391235,
+                  "g": 0.8509804010391235,
+                  "r": 0.8509804010391235
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 150,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Rectangle 2",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 20,
+            "topRightRadius": 20,
+            "visible": true,
+            "width": 150,
+            "childrenIds": [],
+            "parentId": "7:7"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

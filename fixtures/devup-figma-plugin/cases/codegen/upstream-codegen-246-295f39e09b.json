@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-246-295f39e09b",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 101"
+  },
+  "request": {
+    "rootId": "244:1553"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"244:1553\" name=\"Decorative Text\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "244:1553"
+      ],
+      "nodes": {
+        "244:1553": {
+          "id": "244:1553",
+          "type": "SECTION",
+          "fields": {
+            "name": "Decorative Text",
+            "childrenIds": [
+              "244:1573"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "244:1573": {
+          "id": "244:1573",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "데브파이브",
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "filters": {
+                  "contrast": 0,
+                  "exposure": 0,
+                  "highlights": 0,
+                  "saturation": 0,
+                  "shadows": 0,
+                  "temperature": 0,
+                  "tint": 0
+                },
+                "imageHash": "501cbd2c326417bbe006176f93aa0d7429d935b2",
+                "imageTransform": [
+                  [
+                    1,
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1,
+                    0
+                  ]
+                ],
+                "opacity": 1,
+                "rotation": 0,
+                "scaleMode": "FILL",
+                "scalingFactor": 0.5,
+                "type": "IMAGE",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Jalnan Gothic TTF",
+              "style": "Regular"
+            },
+            "fontSize": 64,
+            "fontWeight": 400,
+            "gridColumnAnchorIndex": -1,
+            "gridRowAnchorIndex": -1,
+            "height": 90,
+            "isAsset": true,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -5
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 139.9999976158142
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "데브파이브",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "OUTSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "데브파이브",
+                "end": 5,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "filters": {
+                      "contrast": 0,
+                      "exposure": 0,
+                      "highlights": 0,
+                      "saturation": 0,
+                      "shadows": 0,
+                      "temperature": 0,
+                      "tint": 0
+                    },
+                    "imageHash": "501cbd2c326417bbe006176f93aa0d7429d935b2",
+                    "imageTransform": [
+                      [
+                        1,
+                        0,
+                        0
+                      ],
+                      [
+                        0,
+                        1,
+                        0
+                      ]
+                    ],
+                    "opacity": 1,
+                    "rotation": 0,
+                    "scaleMode": "FILL",
+                    "scalingFactor": 0.5,
+                    "type": "IMAGE",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Jalnan Gothic TTF",
+                  "style": "Regular"
+                },
+                "fontSize": 64,
+                "fontWeight": 400,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -5
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 139.9999976158142
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 308,
+            "childrenIds": [],
+            "parentId": "244:1553"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

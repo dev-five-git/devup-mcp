@@ -52,6 +52,11 @@ pub struct FixtureRequest {
     pub component_name: Option<String>,
     #[serde(default)]
     pub scope: Option<ThemeScope>,
+    /// Exact non-node input used by legacy renderer/registration unit snapshots.
+    /// It is kept outside `payload` so internal JavaScript test shapes are never
+    /// misrepresented as fields returned by the Figma Plugin API.
+    #[serde(default)]
+    pub operation_input: Option<Value>,
 }
 
 #[derive(Debug)]

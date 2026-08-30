@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-194-17922977f6",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 49"
+  },
+  "request": {
+    "rootId": "189:1752"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"189:1752\" name=\"SVG\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "189:1752"
+      ],
+      "nodes": {
+        "189:1752": {
+          "id": "189:1752",
+          "type": "SECTION",
+          "fields": {
+            "name": "SVG",
+            "childrenIds": [
+              "171:1561"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "171:1561": {
+          "id": "171:1561",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "clipsContent": true,
+            "cornerRadius": 0,
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSpacing": 0,
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": false
+              }
+            ],
+            "height": 34.032958984375,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "MIN",
+              "counterAxisSizingMode": "AUTO",
+              "itemSpacing": 0,
+              "layoutAlign": "INHERIT",
+              "layoutGrow": 0,
+              "layoutMode": "VERTICAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 2,
+              "paddingLeft": 3,
+              "paddingRight": 3,
+              "paddingTop": 2,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "AUTO"
+            },
+            "isAsset": false,
+            "itemSpacing": 0,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "recommend",
+            "opacity": 1,
+            "paddingBottom": 2,
+            "paddingLeft": 3,
+            "paddingRight": 3,
+            "paddingTop": 2,
+            "primaryAxisAlignItems": "CENTER",
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "INSIDE",
+            "strokeBottomWeight": 1,
+            "strokeLeftWeight": 1,
+            "strokeRightWeight": 1,
+            "strokeTopWeight": 1,
+            "strokeWeight": 1,
+            "strokes": [],
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 19.611032485961914,
+            "childrenIds": [
+              "171:1565",
+              "171:1563"
+            ],
+            "parentId": "189:1752"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "171:1565": {
+          "id": "171:1565",
+          "type": "GROUP",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "effects": [],
+            "height": 15.0164794921875,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 0,
+              "layoutAlign": "MIN",
+              "layoutGrow": 0,
+              "layoutMode": "VERTICAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "paddingRight": 0,
+              "paddingTop": 0,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": true,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Group 2",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "visible": true,
+            "width": 13.611032485961914,
+            "childrenIds": [
+              "171:1562"
+            ],
+            "parentId": "171:1561"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "171:1563": {
+          "id": "171:1563",
+          "type": "VECTOR",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "cornerRadius": 0,
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:041286802cda2ac64dfa81669076d76d0b63e802/2:146"
+                  }
+                },
+                "color": {
+                  "b": 0.4941176474094391,
+                  "g": 0.4941176474094391,
+                  "r": 0.4941176474094391
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 15.0164794921875,
+            "isAsset": true,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Vector",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "INSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "visible": true,
+            "width": 13.611032485961914,
+            "childrenIds": [],
+            "parentId": "171:1561"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "171:1562": {
+          "id": "171:1562",
+          "type": "VECTOR",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "cornerRadius": 0,
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:041286802cda2ac64dfa81669076d76d0b63e802/2:146"
+                  }
+                },
+                "color": {
+                  "b": 0.4941176474094391,
+                  "g": 0.4941176474094391,
+                  "r": 0.4941176474094391
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 15.0164794921875,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Vector",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": -180,
+            "strokeAlign": "INSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "visible": true,
+            "width": 13.611032485961914,
+            "childrenIds": [],
+            "parentId": "171:1565"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

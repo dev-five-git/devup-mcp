@@ -1,0 +1,25 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Clamp() {
+  return (
+    <Flex alignItems="center" bg="#FFF" p="10px">
+      <Text
+        color="#000"
+        flex="1"
+        fontFamily="Inter"
+        fontSize="16px"
+        fontWeight="400"
+        letterSpacing="0em"
+        lineHeight="1.6"
+        overflow="hidden"
+        textOverflow="ellipsis"
+        whiteSpace="nowrap"
+      >
+        Getting into life {"'"}Cause I found that it{"'"}s not so boring Not anymore.
+      </Text>
+    </Flex>
+  )
+}"

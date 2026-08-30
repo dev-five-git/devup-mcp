@@ -1,0 +1,19 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Text() {
+  return (
+    <Text
+      color="#FFF"
+      fontFamily="Inter"
+      fontSize="12px"
+      fontWeight="400"
+      letterSpacing="0em"
+      lineHeight="normal"
+    >
+      Hello World
+    </Text>
+  )
+}"

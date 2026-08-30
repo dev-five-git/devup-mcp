@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Border() {
+  return <Image borderTop="solid 1px #000" src="/icons/border.svg" />
+}"

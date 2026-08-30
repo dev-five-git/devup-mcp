@@ -1,0 +1,16 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Border() {
+  return (
+    <Box
+      bg="#FFF"
+      borderRadius="20px"
+      outline="dashed 1px #000"
+      outlineOffset="-0.5px"
+      overflow="hidden"
+    />
+  )
+}"

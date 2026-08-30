@@ -1,0 +1,341 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-164-33e4c6591c",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 19"
+  },
+  "request": {
+    "rootId": "71:123"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"71:123\" name=\"Component 1\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "71:123"
+      ],
+      "nodes": {
+        "71:123": {
+          "id": "71:123",
+          "type": "SECTION",
+          "fields": {
+            "name": "Component 1",
+            "childrenIds": [
+              "1:5"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:5": {
+          "id": "1:5",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 100,
+            "bottomRightRadius": 100,
+            "clipsContent": false,
+            "cornerRadius": 100,
+            "counterAxisAlignItems": "CENTER",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:0b96ad7095bac52695a42f130ba1e6823e711569/3589:313"
+                  }
+                },
+                "color": {
+                  "b": 0.9686274528503418,
+                  "g": 0.20392157137393951,
+                  "r": 0.35686275362968445
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 53,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "AUTO",
+              "itemSpacing": 20,
+              "layoutAlign": "INHERIT",
+              "layoutGrow": 0,
+              "layoutMode": "HORIZONTAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 12,
+              "paddingLeft": 60,
+              "paddingRight": 60,
+              "paddingTop": 12,
+              "primaryAxisAlignItems": "MIN",
+              "primaryAxisSizingMode": "AUTO"
+            },
+            "isAsset": false,
+            "itemSpacing": 20,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "HORIZONTAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Button",
+            "opacity": 1,
+            "paddingBottom": 12,
+            "paddingLeft": 60,
+            "paddingRight": 60,
+            "paddingTop": 12,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 100,
+            "topRightRadius": 100,
+            "visible": true,
+            "width": 287,
+            "childrenIds": [
+              "1:6",
+              "2:11"
+            ],
+            "parentId": "71:123"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:6": {
+          "id": "1:6",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "더 자세히 알아보기",
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Pretendard",
+              "style": "Bold"
+            },
+            "fontSize": 18,
+            "fontWeight": 700,
+            "height": 29,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -4
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 160.0000023841858
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "더 자세히 알아보기",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 127,
+            "childrenIds": [],
+            "parentId": "1:5",
+            "styledTextSegments": [
+              {
+                "characters": "더 자세히 알아보기",
+                "end": 10,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 1,
+                      "g": 1,
+                      "r": 1
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Bold"
+                },
+                "fontSize": 18,
+                "fontWeight": 700,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -4
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 160.0000023841858
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "2:11": {
+          "id": "2:11",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "clipsContent": false,
+            "cornerRadius": 0,
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [],
+            "height": 20,
+            "isAsset": true,
+            "itemSpacing": 0,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "NONE",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "arrow",
+            "opacity": 1,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 20,
+            "childrenIds": [
+              "1:7"
+            ],
+            "parentId": "1:5"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "1:7": {
+          "id": "1:7",
+          "type": "VECTOR",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "cornerRadius": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 20,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Stroke",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "targetAspectRatio": {
+              "x": 24,
+              "y": 24
+            },
+            "visible": true,
+            "width": 20,
+            "childrenIds": [],
+            "parentId": "2:11"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

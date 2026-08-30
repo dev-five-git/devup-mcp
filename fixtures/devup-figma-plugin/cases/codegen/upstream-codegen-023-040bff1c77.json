@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-023-040bff1c77",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders absolute child with horizontal CENTER constraint 1"
+  },
+  "request": {
+    "rootId": "captured:37"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:37\" name=\"ParentWithAutoLayout2\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:37"
+      ],
+      "nodes": {
+        "captured:37": {
+          "id": "captured:37",
+          "type": "FRAME",
+          "fields": {
+            "height": 400,
+            "inferredAutoLayout": {
+              "layoutMode": "VERTICAL"
+            },
+            "name": "ParentWithAutoLayout2",
+            "visible": true,
+            "width": 500,
+            "childrenIds": [
+              "captured:36"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:36": {
+          "id": "captured:36",
+          "type": "RECTANGLE",
+          "fields": {
+            "constraints": {
+              "horizontal": "CENTER",
+              "vertical": "CENTER"
+            },
+            "height": 100,
+            "layoutPositioning": "ABSOLUTE",
+            "name": "CenterChild",
+            "visible": true,
+            "width": 100,
+            "x": 200,
+            "y": 150,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

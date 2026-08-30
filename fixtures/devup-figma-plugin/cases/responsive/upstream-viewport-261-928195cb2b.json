@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-viewport-261-928195cb2b",
+  "operation": "responsive-tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen effect-only COMPONENT_SET generates snapshot for asset-like Status ComponentSet as Image src variants 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "children": [
+        {
+          "children": [
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 0.4705882353,
+                    "g": 0.6352941176,
+                    "r": 0.0549019608
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "height": 20,
+              "id": "status-success-bg",
+              "isAsset": true,
+              "name": "Ellipse 128",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true,
+              "width": 20
+            },
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 1,
+                    "g": 1,
+                    "r": 1
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "height": 20,
+              "id": "status-success-fg",
+              "isAsset": true,
+              "name": "Glyph",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true,
+              "width": 20
+            }
+          ],
+          "cornerRadius": 0,
+          "counterAxisAlignItems": "MIN",
+          "effects": [],
+          "fills": [],
+          "height": 24,
+          "id": "status-success",
+          "itemSpacing": 0,
+          "layoutMode": "NONE",
+          "name": "status=success",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "reactions": [],
+          "strokes": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "status": "success"
+          },
+          "visible": true,
+          "width": 24
+        },
+        {
+          "children": [
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 0.1411764706,
+                    "g": 0.7137254902,
+                    "r": 1
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "height": 20,
+              "id": "status-warning-bg",
+              "isAsset": true,
+              "name": "Ellipse 128",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true,
+              "width": 20
+            },
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 1,
+                    "g": 1,
+                    "r": 1
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "height": 20,
+              "id": "status-warning-fg",
+              "isAsset": true,
+              "name": "Glyph",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true,
+              "width": 20
+            }
+          ],
+          "cornerRadius": 0,
+          "counterAxisAlignItems": "MIN",
+          "effects": [],
+          "fills": [],
+          "height": 24,
+          "id": "status-warning",
+          "itemSpacing": 0,
+          "layoutMode": "NONE",
+          "name": "status=warning",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "reactions": [],
+          "strokes": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "status": "warning"
+          },
+          "visible": true,
+          "width": 24
+        },
+        {
+          "children": [
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 0.2666666667,
+                    "g": 0.0784313725,
+                    "r": 0.8784313725
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "height": 20,
+              "id": "status-error-bg",
+              "isAsset": true,
+              "name": "Ellipse 128",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true,
+              "width": 20
+            },
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 1,
+                    "g": 1,
+                    "r": 1
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "height": 20,
+              "id": "status-error-fg",
+              "isAsset": true,
+              "name": "Glyph",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true,
+              "width": 20
+            }
+          ],
+          "cornerRadius": 0,
+          "counterAxisAlignItems": "MIN",
+          "effects": [],
+          "fills": [],
+          "height": 24,
+          "id": "status-error",
+          "itemSpacing": 0,
+          "layoutMode": "NONE",
+          "name": "status=error",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "reactions": [],
+          "strokes": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "status": "error"
+          },
+          "visible": true,
+          "width": 24
+        }
+      ],
+      "componentPropertyDefinitions": {
+        "status": {
+          "defaultValue": "success",
+          "type": "VARIANT",
+          "variantOptions": [
+            "success",
+            "warning",
+            "error"
+          ]
+        }
+      },
+      "defaultVariant": {
+        "children": [
+          {
+            "effects": [],
+            "fills": [
+              {
+                "color": {
+                  "b": 0.4705882353,
+                  "g": 0.6352941176,
+                  "r": 0.0549019608
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 20,
+            "id": "status-success-bg",
+            "isAsset": true,
+            "name": "Ellipse 128",
+            "reactions": [],
+            "strokes": [],
+            "type": "VECTOR",
+            "visible": true,
+            "width": 20
+          },
+          {
+            "effects": [],
+            "fills": [
+              {
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 20,
+            "id": "status-success-fg",
+            "isAsset": true,
+            "name": "Glyph",
+            "reactions": [],
+            "strokes": [],
+            "type": "VECTOR",
+            "visible": true,
+            "width": 20
+          }
+        ],
+        "cornerRadius": 0,
+        "counterAxisAlignItems": "MIN",
+        "effects": [],
+        "fills": [],
+        "height": 24,
+        "id": "status-success",
+        "itemSpacing": 0,
+        "layoutMode": "NONE",
+        "name": "status=success",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "primaryAxisAlignItems": "MIN",
+        "reactions": [],
+        "strokes": [],
+        "type": "COMPONENT",
+        "variantProperties": {
+          "status": "success"
+        },
+        "visible": true,
+        "width": 24
+      },
+      "effects": [],
+      "fills": [],
+      "height": 500,
+      "name": "Status",
+      "reactions": [],
+      "strokes": [],
+      "type": "COMPONENT_SET",
+      "visible": true,
+      "width": 500
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"fixture:root\" name=\"Status\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "name": "Status",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

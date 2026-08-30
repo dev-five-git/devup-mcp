@@ -1,0 +1,23 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function DecorativeText() {
+  return (
+    <Text
+      WebkitTextStroke="2px #FFF"
+      color="transparent"
+      fontFamily="Jalnan Gothic TTF"
+      fontSize="64px"
+      fontWeight="400"
+      letterSpacing="-0.05em"
+      lineHeight="1.4"
+      paintOrder="stroke fill"
+      textShadow="0 0 12px #7C70FF, 0 10px 24px #FFC9FE66"
+      wordBreak="keep-all"
+    >
+      데브파이브
+    </Text>
+  )
+}"

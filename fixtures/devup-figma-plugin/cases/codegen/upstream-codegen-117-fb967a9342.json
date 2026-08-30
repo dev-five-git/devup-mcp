@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-117-fb967a9342",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with pattern fill vertical alignment 1"
+  },
+  "request": {
+    "rootId": "captured:142"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:142\" name=\"PatternVerticalFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:142"
+      ],
+      "nodes": {
+        "captured:142": {
+          "id": "captured:142",
+          "type": "FRAME",
+          "fields": {
+            "fills": [
+              {
+                "horizontalAlignment": "CENTER",
+                "opacity": 1,
+                "sourceNodeId": "pattern-node-id",
+                "spacing": {
+                  "x": 0.1,
+                  "y": 0.2
+                },
+                "type": "PATTERN",
+                "verticalAlignment": "END",
+                "visible": true
+              }
+            ],
+            "height": 50,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "PatternVerticalFrame",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

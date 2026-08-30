@@ -1,0 +1,37 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Component1() {
+  return (
+    <Flex
+      alignItems="center"
+      bg="$primary"
+      borderRadius="100px"
+      gap="20px"
+      px="60px"
+      py="12px"
+    >
+      <Text
+        color="#FFF"
+        fontFamily="Pretendard"
+        fontSize="18px"
+        fontWeight="700"
+        letterSpacing="-0.04em"
+        lineHeight="1.6"
+        wordBreak="keep-all"
+      >
+        더 자세히 알아보기
+      </Text>
+      <Box
+        bg="#FFF"
+        boxSize="20px"
+        maskImage="url(/icons/arrow.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+      />
+    </Flex>
+  )
+}"

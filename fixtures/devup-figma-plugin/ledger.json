@@ -83,9 +83,13 @@
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen > should register codegen [case 1]",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "upstream_runtime_only",
-      "fixtureIds": [],
-      "rustTest": "upstream_contract::built_in_scripts_only_use_read_operations",
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-root-257-f23261dd4f",
+        "upstream-root-258-5cfe8baba5",
+        "upstream-root-259-0ae0aa9528"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens",
       "rationale": "Figma plugin iframe 또는 JavaScript 런타임 수명주기 동작으로 Rust MCP transport 계약에서 검증한다."
     },
     {
@@ -107,9 +111,11 @@
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen > should generate responsive code when root node is SECTION",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "contract",
-      "fixtureIds": [],
-      "rustTest": "compat_manifest::pinned_plugin_corpus_is_complete_and_self_consistent"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-root-260-2dfc3ae054"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/__tests__/code.test.ts >  > should not register codegen if figma is not defined",
@@ -620,16 +626,20 @@
     {
       "testId": "src/codegen/__tests__/codegen-viewport.test.ts > Codegen effect-only COMPONENT_SET > generates snapshot for asset-like Status ComponentSet as Image src variants",
       "sourceFile": "src/codegen/__tests__/codegen-viewport.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-viewport-261-928195cb2b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen-viewport.test.ts > Codegen effect-only COMPONENT_SET > generates boolean prop for true/false variant component sets",
       "sourceFile": "src/codegen/__tests__/codegen-viewport.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-viewport-262-0f19b3123e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen-viewport.test.ts > Codegen effect-only COMPONENT_SET > generates boolean prop for on/off variant component sets",
@@ -662,891 +672,1153 @@
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders simple component without variants [case 1]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-001-4410624749",
+        "upstream-codegen-134-f80fffb8b4",
+        "upstream-codegen-135-e00e826755"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders overflow hidden when clipsContent is true",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-002-c1ac954cb6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders objectFit contain for image asset",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-003-c855738695"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders objectFit cover for image asset",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-004-8ec61c5bb5"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > omits objectFit when image scale mode is FILL",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-005-bcc6ca7dbf"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with vector node",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-006-86c21dc8ce"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with star node",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-007-c1c1afa5d7"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with polygon node",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-008-8ea06a6c88"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with ellipse inner radius",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-009-008aac1a2c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with non-solid fills",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-010-8454d22acd"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders asset with single child and fills",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-011-72709aab82"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders null for asset with only solid fills",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-012-92c671c0e8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with bound variable color",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-013-351e69a13b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with same color mask",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-014-828c466260"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with children same color",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-015-eaef178e47"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with different color children",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-016-3f1fb1569b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with non-solid fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-017-44cff97cec"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders svg asset with invisible fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-018-bc5eb21a9e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders nested svg asset with 3 solid fill boxes in frame",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-019-4988f86e5e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders nested svg asset with different colors as image",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-020-a9d569be7a"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders layout for absolute child same size as parent",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-021-6cae93b843"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders absolute child with horizontal MAX constraint",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-022-8dce1fe15f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders absolute child with horizontal CENTER constraint",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-023-040bff1c77"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders absolute child with vertical MAX constraint",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-024-eb534f354c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders absolute child with vertical CENTER constraint",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-025-74cf3c3463"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders flex=1 when parent is horizontal auto layout",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-026-e6df42a1c0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders aspect ratio when provided",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-027-2373d0fb1b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text with width_and_height auto resize returning no size props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-028-0dcf04d5ca"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text with special characters",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-029-dd01228f04"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text with leading and trailing spaces",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-030-f4528f2a74"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders single-line max line props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-031-5d6f0a82e3"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders multi-line max line props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-032-be85ad69d0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders fixed size frame",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-033-4f42f0cabb"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with padding",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-034-e25e34d3de"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders padding shorthand when all sides equal",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-035-1d66b429cf"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders padding with top equals bottom but left right different",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-036-6803ff59e6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders padding with left equals right but top bottom different",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-037-e576c2fba9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders padding with all sides different",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-038-280770f34d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders padding from inferredAutoLayout",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-039-84e4037075"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with border radius",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-040-e2a36763a6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders mixed border radius frame",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-041-7c9175487c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders ellipse with 50% border radius",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-042-246e72e17a"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with stroke outline CENTER alignment",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-043-50fac72de7"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with stroke outline OUTSIDE alignment",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-044-a9f4c5ba13"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with stroke border INSIDE alignment",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-045-958507518d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders line with stroke outline",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-046-82a07e3ec3"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with dashed stroke",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-047-d524fcd6c3"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with page parent and width 1920",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-048-fa3442e264"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with section parent",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-049-b3bbd32960"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with vertical center align child width shrinker",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-050-fda399bfe0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with horizontal center align child height shrinker",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-051-53df7b9474"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with maxWidth child width shrinker",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-052-e6195ba5a2"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with maxHeight child height shrinker",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-053-5fbe283840"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with individual stroke weights",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-054-e536c17528"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders group as Box with full size",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-055-1539142ffd"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders boxSize when width equals height",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-056-834fa66895"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders min/max width/height with px",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-057-595a483b50"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders flex auto layout props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-058-a5bed8edb7"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders grid auto layout props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-059-0b07052901"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders grid child positioning props when out of order",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-060-b58a7535c7"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders vstack auto layout props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-061-1c44313e59"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders center auto layout props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-062-4fdcb21c9d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders drop shadow effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-063-a8231002de"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders inner shadow effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-064-764419ad9b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders layer blur effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-065-6c1be61067"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders background blur effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-066-6525a64377"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders noise effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-067-3ffe06a1a9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders texture effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-068-0d86452528"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders glass effect props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-069-0fa1145f4c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with content",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-070-a01830c33f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders another text node with content",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-071-3a132a6b4d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with ellipsis props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-072-df70a74728"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with single drop shadow",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-073-ef0cdd87cf"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with multiple drop shadows",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-074-57a24a2690"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with stroke",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-075-fb8db22bb9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with multiple segments",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-076-3d2d4543bb"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with unordered list",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-077-a65991a745"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with ordered list",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-078-d6b1085274"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with list and multiple lines",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-079-9e7f3ee9e4"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with multiple segments without props",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-080-f6233dd6a0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with rotation transform",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-081-ed3fa48802"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with negative rotation transform",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-082-db0d8839e8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with decimal rotation transform",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-083-1820110e8a"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with opacity less than 1",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-084-3d01c94f87"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with darken blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-085-1f274ec7a6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with multiply blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-086-a44a580f30"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with screen blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-087-e95c0eccc2"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with overlay blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-088-f9ca312d49"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with linear burn blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-089-1d28dfdd93"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with color burn blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-090-e8878c5cbf"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with lighten blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-091-dc61cb2277"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with linear dodge blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-092-96adc16d0c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with color dodge blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-093-4573f32903"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with soft light blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-094-e0d0f3bfe1"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with hard light blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-095-af3315e549"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with difference blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-096-f8978e56ee"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with exclusion blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-097-da58ebc1a5"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with hue blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-098-7c2267436f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with saturation blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-099-a2f954e973"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with color blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-100-a546e9e784"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with luminosity blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-101-394e6d9bf6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with pass through blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-102-cbff7d3da9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with opacity and blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-103-246809daea"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with solid fill and blend mode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-104-d68998542b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-105-0137b6735e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with HEIGHT auto resize and fixed sizing",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-106-6d687083cc"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with NONE auto resize and fixed sizing",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-107-f624c65fa8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with TRUNCATE auto resize and fixed sizing",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-108-c6c4dabf49"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders text node with textStyleId and typography",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-109-e2824ad5be"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with linear gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-110-f2505cce4b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with radial gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-111-72c9d38832"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with angular gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-112-b5443c63a4"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with diamond gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-113-702dadab11"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with image fill TILE scaleMode",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-114-855686da78"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with pattern fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-115-45d3f116b5"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with pattern fill START alignment",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-116-23097e86ce"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with pattern fill vertical alignment",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-117-fb967a9342"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with multiple fills including non-last solid",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-118-b5cba733fa"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with invisible gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-119-882c2abd91"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with zero opacity gradient fill",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-120-7634e1ee10"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders frame with solid fill opacity 0",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-121-0536a2e75b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component set with variants",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-122-7ddad74cc1",
+        "upstream-codegen-123-179129a02c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component set with effect property",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-124-bdedf14335",
+        "upstream-codegen-125-4a4a93c4c9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component set with transition",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-126-14073e1999",
+        "upstream-codegen-127-1d5ead088d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component set with different props and transition",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-128-2222304a14",
+        "upstream-codegen-129-7c97156f7f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component with parent component set",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-130-bbd4e9a97a",
+        "upstream-codegen-131-c6ef80ad0c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component set with press trigger",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-132-9a7b0243b6",
+        "upstream-codegen-133-f425fa006c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders simple component without variants [case 2]",
@@ -1558,9 +1830,12 @@
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders component with parent component set name",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-136-b68bd43ea7",
+        "upstream-codegen-137-83b2706e92"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > Codegen > renders instance with page root width and sets width to 100%",
@@ -1649,9 +1924,12 @@
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > buildTree > Codegen Tree Methods > preserves extracted component declaration while inlining commented asset instance usage",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-255-d01d8c7de6",
+        "upstream-codegen-256-baf32cc08e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > buildTree > Codegen Tree Methods > infers boolean props for extracted component declarations from tree conditions",
@@ -1880,30 +2158,42 @@
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > INSTANCE_SWAP / BOOLEAN snapshot > Codegen Tree Methods > renders component with INSTANCE_SWAP slot",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-138-9cccfcb552",
+        "upstream-codegen-139-63f7b1f175"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > INSTANCE_SWAP / BOOLEAN snapshot > Codegen Tree Methods > renders component with BOOLEAN conditional",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-140-e577df9ad5"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > INSTANCE_SWAP / BOOLEAN snapshot > Codegen Tree Methods > renders component with nested BOOLEAN conditionals (grandchildren)",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-141-48307df49b",
+        "upstream-codegen-142-ac82229282"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > INSTANCE_SWAP / BOOLEAN snapshot > Codegen Tree Methods > renders component with INSTANCE_SWAP + BOOLEAN combined",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-143-52b441f9f4",
+        "upstream-codegen-144-042a6de403",
+        "upstream-codegen-145-f7001b5648"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > collectComponentProps > Codegen Tree Methods > collects boolean, text, and slot props from structured tree metadata",
@@ -1922,765 +2212,983 @@
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 1]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-146-56be99e864"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 2]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-147-bb7df0f2f1"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 3]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-148-62e9137131"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 4]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-149-2491f4c5a5"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 5]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-150-ecb5bb4337"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 6]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-151-7993d252dc"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 7]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-152-a05026a9db"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 8]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-153-fb5205fc52"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 9]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-154-1409376769"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 10]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-155-557eb84a98"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 11]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-156-bec8be9b99"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 12]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-157-4cb71f2863"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 13]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-158-8e4821dcbc"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 14]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-159-30962241b1"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 15]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-160-db5d3ac9d8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 16]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-161-5b230821f2"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 17]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-162-51e1254b4c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 18]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-163-2a9f9a056a"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 19]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-164-33e4c6591c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 20]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-165-501ee1df12"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 21]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-166-cda14f0b08"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 22]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-167-114a88771f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 23]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-168-4211bd8279"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 24]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-169-796132e0cf"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 25]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-170-eab2ed7d4c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 26]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-171-7e33e2b6a9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 27]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-172-99028c85ce"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 28]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-173-64dbd7a102"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 29]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-174-68dd47d3f8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 30]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-175-ec3fd45731"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 31]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-176-653a030fdc"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 32]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-177-c147e7dd39"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 33]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-178-d69d60d688"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 34]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-179-80620f6587"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 35]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-180-ad1a31fd03"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 36]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-181-5afa626d49"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 37]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-182-c45d19171b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 38]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-183-7ede517e99"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 39]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-184-0c09788bb7"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 40]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-185-e79c2ae189"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 41]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-186-0988e78887"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 42]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-187-8b30b935a4"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 43]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-188-ea2a1af6a1"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 44]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-189-75736e48e0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 45]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-190-d5a9045231"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 46]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-191-2021d398f8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 47]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-192-dd2c3f0c1c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 48]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-193-bd488a5710"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 49]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-194-17922977f6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 50]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-195-1a6efe22a8"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 51]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-196-d14f03afcd"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 52]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-197-026402bf2e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 53]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-198-a9ea7ba9c3"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 54]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-199-829a5c949d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 55]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-200-3313d92719"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 56]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-201-8207a4008e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 57]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-202-2786eda075"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 58]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-203-8af03217a3"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 59]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-204-2b2967c8c4"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 60]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-205-cc3ea5202a"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 61]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-206-b5c5dc97eb"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 62]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-207-b0e134acf4"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 63]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-208-1a343e45db"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 64]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-209-0514b0990f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 65]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-210-1b24060767"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 66]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-211-2e15c55701"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 67]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-212-2a8f7b4a99"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 68]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-213-aa53408d2f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 69]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-214-6dc49544c0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 70]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-215-39e86f8f53"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 71]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-216-465422d47b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 72]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-217-2d887b2a8b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 73]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-218-587666c709"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 74]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-219-c6446b7b2e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 75]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-220-5980153f26"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 76]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-221-d003bdb336"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 77]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-222-f2d780c847"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 78]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-223-4dc8092992"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 79]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-224-075a41e65c"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 80]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-225-00fb8a129e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 81]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-226-b2c28bcc8f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 82]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-227-bebc4e7262"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 83]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-228-221bd0c553"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 84]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-229-9f57002cd6"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 85]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-230-2af59fd9fa"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 86]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-231-117d816fb9"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 87]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-232-8e875ce9e3"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 88]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-233-0a60be5fbc"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 89]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-234-01ad9a0db0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 90]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-235-8a3992468b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 91]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-236-621c6d6a9e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 92]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-237-01ee478666"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 93]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-238-1a8cf8c870"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 94]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-239-a6dada3682"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 95]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-240-77d56a1585"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 96]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-241-e171ef72ce"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 97]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-242-5c198a8490"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 98]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-243-14366a47ff"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 99]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-244-4ccea91f13"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 100]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-245-537356bcf4"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 101]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-246-295f39e09b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 102]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-247-39d6959685"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 103]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-248-d1bc18e068"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 104]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-249-6b8a42981d"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 105]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-250-935ccdb80f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 106]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-251-50acddfb96"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 107]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-252-49e979239e"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 108]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-253-347a2e5fb2"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/codegen.test.ts > render real world component > real world $ [case 109]",
       "sourceFile": "src/codegen/__tests__/codegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-codegen-254-9f340b6a10"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/render.test.ts > renderNode > removes component specific defaults for Flex",
@@ -2818,23 +3326,29 @@
     {
       "testId": "src/codegen/__tests__/render.test.ts > renderComponent interface snapshot > VARIANT + BOOLEAN + INSTANCE_SWAP mixed interface",
       "sourceFile": "src/codegen/__tests__/render.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-render-263-d2763f9b9f"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/render.test.ts > renderComponent interface snapshot > BOOLEAN-only interface (all optional)",
       "sourceFile": "src/codegen/__tests__/render.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-render-264-51e29ada52"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/__tests__/render.test.ts > renderComponent interface snapshot > INSTANCE_SWAP-only interface (all required)",
       "sourceFile": "src/codegen/__tests__/render.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-render-265-94e906e79b"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/commands/__tests__/exportAssets.test.ts > exportAssets > runs Codegen for each selected node",
@@ -4745,9 +5259,11 @@
     {
       "testId": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts > generateVariantOnlyMergedCode > ResponsiveCodegen > renders OR conditional for child existing in multiple but not all variants",
       "sourceFile": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-responsive-266-4cd888ffd0"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts > generateVariantOnlyMergedCode > ResponsiveCodegen > prepends BOOLEAN condition on partial children (single variant, single value)",
@@ -4878,9 +5394,11 @@
     {
       "testId": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts > generateVariantResponsiveComponents > ResponsiveCodegen > handles effect + viewport + size + variant (4 dimensions)",
       "sourceFile": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-responsive-267-88b21cad2a"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts > generateVariantResponsiveComponents > ResponsiveCodegen > handles responsive pseudo-selector props (different hover colors per viewport)",
@@ -5060,9 +5578,11 @@
     {
       "testId": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts > generateVariantOnlyMergedCode with structurally equivalent asset children > ResponsiveCodegen > merges asset-like children even when node names differ",
       "sourceFile": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts",
-      "classification": "rust_assertion",
-      "fixtureIds": [],
-      "rustTest": "compat_fixtures::upstream_ledger_mapping"
+      "classification": "rust_snapshot",
+      "fixtureIds": [
+        "upstream-responsive-268-7dd1d5c323"
+      ],
+      "rustTest": "compat_fixtures::upstream_json_goldens"
     },
     {
       "testId": "src/codegen/responsive/__tests__/ResponsiveCodegen.test.ts > private helper coverage > ResponsiveCodegen > covers parseCompositeKey, getSharedCondition, mergeChildrenAcrossBreakpoints, and mergePropsAcrossComposites",

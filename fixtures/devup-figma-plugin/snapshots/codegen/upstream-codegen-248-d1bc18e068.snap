@@ -1,0 +1,34 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function List() {
+  return (
+    <Text
+      as="ul"
+      color="$text"
+      fontFamily="Pretendard"
+      fontSize="15px"
+      fontWeight="400"
+      letterSpacing="-0.04em"
+      lineHeight="2"
+      my="0px"
+      pl="1.5em"
+      wordBreak="keep-all"
+    >
+      <li>
+        어떤 증상이 가장 힘들고 일상생활에 영향을 주나요?
+      </li>
+      <li>
+        증상이 언제부터 시작되었나요?
+      </li>
+      <li>
+        증상이 시간이 지나면서 어떻게 변했나요?
+      </li>
+      <li>
+        스트레스나 상황에 따라 증상이 달라지나요?
+      </li>
+    </Text>
+  )
+}"

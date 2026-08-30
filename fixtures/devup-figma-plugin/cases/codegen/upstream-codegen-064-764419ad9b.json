@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-064-764419ad9b",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders inner shadow effect props 1"
+  },
+  "request": {
+    "rootId": "captured:89"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:89\" name=\"InnerShadowFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:89"
+      ],
+      "nodes": {
+        "captured:89": {
+          "id": "captured:89",
+          "type": "FRAME",
+          "fields": {
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "color": {
+                  "a": 1,
+                  "b": 0,
+                  "g": 1,
+                  "r": 0
+                },
+                "offset": {
+                  "x": -2,
+                  "y": 3
+                },
+                "radius": 5,
+                "spread": 0,
+                "type": "INNER_SHADOW",
+                "visible": true
+              }
+            ],
+            "height": 70,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "InnerShadowFrame",
+            "visible": true,
+            "width": 90,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

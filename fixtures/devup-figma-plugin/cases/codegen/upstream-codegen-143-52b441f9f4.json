@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-143-52b441f9f4",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with INSTANCE_SWAP + BOOLEAN combined: INSTANCE_SWAP+BOOLEAN: Button 1"
+  },
+  "request": {
+    "rootId": "captured:191"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:191\" name=\"Button\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:191"
+      ],
+      "nodes": {
+        "captured:191": {
+          "id": "captured:191",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "leftIcon#60:1": {
+                "defaultValue": "1:1",
+                "preferredValues": [],
+                "type": "INSTANCE_SWAP"
+              },
+              "rightIcon#60:2": {
+                "defaultValue": "1:2",
+                "preferredValues": [],
+                "type": "INSTANCE_SWAP"
+              },
+              "showLeftIcon#70:1": {
+                "defaultValue": true,
+                "type": "BOOLEAN"
+              },
+              "showRightIcon#70:2": {
+                "defaultValue": true,
+                "type": "BOOLEAN"
+              },
+              "size": {
+                "type": "VARIANT",
+                "variantOptions": [
+                  "sm",
+                  "md",
+                  "lg"
+                ]
+              }
+            },
+            "defaultVariant": {
+              "name": "size=md",
+              "reactions": [],
+              "type": "COMPONENT",
+              "variantProperties": {
+                "size": "md"
+              },
+              "visible": true
+            },
+            "name": "Button",
+            "visible": true,
+            "childrenIds": [
+              "captured:190"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:190": {
+          "id": "captured:190",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "size=md",
+            "reactions": [],
+            "variantProperties": {
+              "size": "md"
+            },
+            "visible": true,
+            "childrenIds": [
+              "captured:192",
+              "captured:193",
+              "captured:194"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:192": {
+          "id": "captured:192",
+          "type": "INSTANCE",
+          "fields": {
+            "componentPropertyReferences": {
+              "mainComponent": "leftIcon#60:1",
+              "visible": "showLeftIcon#70:1"
+            },
+            "name": "LeftIconInstance",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "mainComponentId": "captured:199"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:193": {
+          "id": "captured:193",
+          "type": "TEXT",
+          "fields": {
+            "characters": "Submit",
+            "effects": [],
+            "name": "Label",
+            "reactions": [],
+            "strokes": [],
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "Submit",
+                "end": 6,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "style1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:194": {
+          "id": "captured:194",
+          "type": "INSTANCE",
+          "fields": {
+            "componentPropertyReferences": {
+              "mainComponent": "rightIcon#60:2",
+              "visible": "showRightIcon#70:2"
+            },
+            "name": "RightIconInstance",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "mainComponentId": "captured:200"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:199": {
+          "id": "captured:199",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Icon",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:200": {
+          "id": "captured:200",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "ArrowIcon",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-140-e577df9ad5",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen Tree Methods INSTANCE_SWAP / BOOLEAN snapshot renders component with BOOLEAN conditional: BOOLEAN conditional: AlertCard 1"
+  },
+  "request": {
+    "rootId": "captured:178"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:178\" name=\"AlertCard\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:178"
+      ],
+      "nodes": {
+        "captured:178": {
+          "id": "captured:178",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "State": {
+                "type": "VARIANT",
+                "variantOptions": [
+                  "Default",
+                  "Hover"
+                ]
+              },
+              "showBadge#70:1": {
+                "defaultValue": true,
+                "type": "BOOLEAN"
+              }
+            },
+            "defaultVariant": {
+              "name": "State=Default",
+              "reactions": [],
+              "type": "COMPONENT",
+              "variantProperties": {
+                "State": "Default"
+              },
+              "visible": true
+            },
+            "name": "AlertCard",
+            "visible": true,
+            "childrenIds": [
+              "captured:176",
+              "captured:177"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:176": {
+          "id": "captured:176",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "State=Default",
+            "reactions": [],
+            "variantProperties": {
+              "State": "Default"
+            },
+            "visible": true,
+            "childrenIds": [
+              "captured:179",
+              "captured:180"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:177": {
+          "id": "captured:177",
+          "type": "COMPONENT",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 0.9,
+                  "g": 0.9,
+                  "r": 0.9
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "name": "State=Hover",
+            "reactions": [],
+            "variantProperties": {
+              "State": "Hover"
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:179": {
+          "id": "captured:179",
+          "type": "FRAME",
+          "fields": {
+            "componentPropertyReferences": {
+              "visible": "showBadge#70:1"
+            },
+            "effects": [],
+            "name": "Badge",
+            "reactions": [],
+            "strokes": [],
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:180": {
+          "id": "captured:180",
+          "type": "TEXT",
+          "fields": {
+            "characters": "Hello",
+            "effects": [],
+            "name": "Label",
+            "reactions": [],
+            "strokes": [],
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "Hello",
+                "end": 5,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "style1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

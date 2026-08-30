@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"component:Button:{"size":"'Md' | 'Sm'","variant":"'primary' | 'white'"}|render:Box:depth=0:{"id":"RootTablet","_hover":{"bg":{"__variantProp":true,"variantKey":"variant","values":{"primary":"#3D2B1F","white":"#F2F2F2"}}},"_active":{"bg":{"__variantProp":true,"variantKey":"variant","values":{"primary":"#30241A","white":"#E6E6E6"}}}}|render:Box:depth=0:{"id":"Shared"}|"

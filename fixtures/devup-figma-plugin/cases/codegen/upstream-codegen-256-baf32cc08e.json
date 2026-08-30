@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-256-baf32cc08e",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen Tree Methods buildTree preserves extracted component declaration while inlining commented asset instance usage: inline instance usage keeps extracted Status declaration 1"
+  },
+  "request": {
+    "rootId": "captured:169"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:169\" name=\"Toast\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:169"
+      ],
+      "nodes": {
+        "captured:169": {
+          "id": "captured:169",
+          "type": "FRAME",
+          "fields": {
+            "effects": [],
+            "fills": [],
+            "height": 48,
+            "itemSpacing": 12,
+            "layoutMode": "HORIZONTAL",
+            "name": "Toast",
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "reactions": [],
+            "strokes": [],
+            "visible": true,
+            "width": 580,
+            "childrenIds": [
+              "toast-status-instance"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "toast-status-instance": {
+          "id": "toast-status-instance",
+          "type": "INSTANCE",
+          "fields": {
+            "componentProperties": {
+              "status": {
+                "type": "VARIANT",
+                "value": "error"
+              }
+            },
+            "height": 24,
+            "name": "Status",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [],
+            "parentId": null,
+            "mainComponentId": "status-error"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "status-error": {
+          "id": "status-error",
+          "type": "COMPONENT",
+          "fields": {
+            "effects": [],
+            "fills": [],
+            "height": 24,
+            "layoutMode": "NONE",
+            "name": "status=error",
+            "reactions": [],
+            "strokes": [],
+            "variantProperties": {
+              "status": "error"
+            },
+            "visible": true,
+            "width": 24,
+            "childrenIds": [
+              "status-success-glyph"
+            ],
+            "parentId": "status-set"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "status-set": {
+          "id": "status-set",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "status": {
+                "defaultValue": "success",
+                "type": "VARIANT",
+                "variantOptions": [
+                  "success",
+                  "warning",
+                  "error"
+                ]
+              }
+            },
+            "defaultVariant": {
+              "effects": [],
+              "fills": [],
+              "height": 24,
+              "id": "status-success",
+              "layoutMode": "NONE",
+              "name": "status=success",
+              "reactions": [],
+              "strokes": [],
+              "type": "COMPONENT",
+              "variantProperties": {
+                "status": "success"
+              },
+              "visible": true,
+              "width": 24
+            },
+            "name": "Status",
+            "childrenIds": [
+              "status-success",
+              "status-warning",
+              "status-error"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "status-success-glyph": {
+          "id": "status-success-glyph",
+          "type": "VECTOR",
+          "fields": {
+            "effects": [],
+            "fills": [
+              {
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "isAsset": true,
+            "name": "Glyph",
+            "reactions": [],
+            "strokes": [],
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "status-success": {
+          "id": "status-success",
+          "type": "COMPONENT",
+          "fields": {
+            "effects": [],
+            "fills": [],
+            "height": 24,
+            "layoutMode": "NONE",
+            "name": "status=success",
+            "reactions": [],
+            "strokes": [],
+            "variantProperties": {
+              "status": "success"
+            },
+            "visible": true,
+            "width": 24,
+            "childrenIds": [
+              "status-success-glyph"
+            ],
+            "parentId": "status-set"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "status-warning": {
+          "id": "status-warning",
+          "type": "COMPONENT",
+          "fields": {
+            "effects": [],
+            "fills": [],
+            "height": 24,
+            "layoutMode": "NONE",
+            "name": "status=warning",
+            "reactions": [],
+            "strokes": [],
+            "variantProperties": {
+              "status": "warning"
+            },
+            "visible": true,
+            "width": 24,
+            "childrenIds": [
+              "status-success-glyph"
+            ],
+            "parentId": "status-set"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

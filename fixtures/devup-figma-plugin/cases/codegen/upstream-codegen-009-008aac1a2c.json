@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-009-008aac1a2c",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders svg asset with ellipse inner radius 1"
+  },
+  "request": {
+    "rootId": "captured:9"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<ellipse id=\"captured:9\" name=\"EllipseIcon\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:9"
+      ],
+      "nodes": {
+        "captured:9": {
+          "id": "captured:9",
+          "type": "ELLIPSE",
+          "fields": {
+            "arcData": {
+              "innerRadius": 0.5
+            },
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "EllipseIcon",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

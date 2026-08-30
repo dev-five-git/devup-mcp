@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-root-258-5cfe8baba5",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "registerCodegen should register codegen 2"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "language": "devup-ui",
+      "node": {
+        "name": "Main",
+        "type": "FRAME",
+        "visible": true
+      }
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"fixture:root\" name=\"Main\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "FRAME",
+          "fields": {
+            "name": "Main",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

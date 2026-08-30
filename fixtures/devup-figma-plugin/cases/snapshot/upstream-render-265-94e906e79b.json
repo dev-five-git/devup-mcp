@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-render-265-94e906e79b",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "renderComponent interface snapshot INSTANCE_SWAP-only interface (all required) 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "code": "<Flex>\n  {leftIcon}\n  <Text>label</Text>\n  {rightIcon}\n</Flex>",
+      "name": "IconButton",
+      "variants": {
+        "leftIcon": "React.ReactNode",
+        "rightIcon": "React.ReactNode"
+      }
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"fixture:root\" name=\"IconButton\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "FRAME",
+          "fields": {
+            "name": "IconButton",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

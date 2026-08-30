@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-042-246e72e17a",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders ellipse with 50% border radius 1"
+  },
+  "request": {
+    "rootId": "captured:59"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<ellipse id=\"captured:59\" name=\"Circle\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:59"
+      ],
+      "nodes": {
+        "captured:59": {
+          "id": "captured:59",
+          "type": "ELLIPSE",
+          "fields": {
+            "arcData": {
+              "innerRadius": 0
+            },
+            "height": 100,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "Circle",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

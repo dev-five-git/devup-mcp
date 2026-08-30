@@ -1,0 +1,20 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface CurriculumCardProps {
+  _1st?: boolean
+  _2nd?: boolean
+}
+
+export function CurriculumCard({ _1st, _2nd }: CurriculumCardProps) {
+  return (
+    <Box>
+      <Box boxSize="100%">
+        {_1st && <CurriculumSubTitle />}
+        {_2nd && <CurriculumSubTitle />}
+      </Box>
+    </Box>
+  )
+}"

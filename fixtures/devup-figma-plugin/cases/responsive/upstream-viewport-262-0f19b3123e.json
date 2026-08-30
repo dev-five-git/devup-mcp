@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-viewport-262-0f19b3123e",
+  "operation": "responsive-tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen effect-only COMPONENT_SET generates boolean prop for true/false variant component sets 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "children": [
+        {
+          "children": [
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 0.5,
+                    "g": 0.44,
+                    "r": 0.42
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "id": "속성 1=false-vector",
+              "isAsset": true,
+              "name": "Vector",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true
+            }
+          ],
+          "cornerRadius": 0,
+          "counterAxisAlignItems": "MIN",
+          "effects": [],
+          "fills": [],
+          "height": 20,
+          "id": "privacy-false",
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutMode": "NONE",
+          "name": "속성 1=false",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "reactions": [],
+          "strokes": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "속성 1": "false"
+          },
+          "visible": true,
+          "width": 20
+        },
+        {
+          "children": [
+            {
+              "effects": [],
+              "fills": [
+                {
+                  "color": {
+                    "b": 0.5,
+                    "g": 0.44,
+                    "r": 0.42
+                  },
+                  "opacity": 1,
+                  "type": "SOLID",
+                  "visible": true
+                }
+              ],
+              "id": "속성 1=true-vector",
+              "isAsset": true,
+              "name": "Vector",
+              "reactions": [],
+              "strokes": [],
+              "type": "VECTOR",
+              "visible": true
+            }
+          ],
+          "cornerRadius": 0,
+          "counterAxisAlignItems": "MIN",
+          "effects": [],
+          "fills": [],
+          "height": 20,
+          "id": "privacy-true",
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutMode": "NONE",
+          "name": "속성 1=true",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "primaryAxisAlignItems": "MIN",
+          "reactions": [],
+          "strokes": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "속성 1": "true"
+          },
+          "visible": true,
+          "width": 20
+        }
+      ],
+      "componentPropertyDefinitions": {
+        "속성 1": {
+          "defaultValue": "false",
+          "type": "VARIANT",
+          "variantOptions": [
+            "false",
+            "true"
+          ]
+        }
+      },
+      "defaultVariant": {
+        "children": [
+          {
+            "effects": [],
+            "fills": [
+              {
+                "color": {
+                  "b": 0.5,
+                  "g": 0.44,
+                  "r": 0.42
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "id": "속성 1=false-vector",
+            "isAsset": true,
+            "name": "Vector",
+            "reactions": [],
+            "strokes": [],
+            "type": "VECTOR",
+            "visible": true
+          }
+        ],
+        "cornerRadius": 0,
+        "counterAxisAlignItems": "MIN",
+        "effects": [],
+        "fills": [],
+        "height": 20,
+        "id": "privacy-false",
+        "isAsset": true,
+        "itemSpacing": 0,
+        "layoutMode": "NONE",
+        "name": "속성 1=false",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "primaryAxisAlignItems": "MIN",
+        "reactions": [],
+        "strokes": [],
+        "type": "COMPONENT",
+        "variantProperties": {
+          "속성 1": "false"
+        },
+        "visible": true,
+        "width": 20
+      },
+      "effects": [],
+      "fills": [],
+      "height": 500,
+      "name": "Privacy",
+      "reactions": [],
+      "strokes": [],
+      "type": "COMPONENT_SET",
+      "visible": true,
+      "width": 500
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"fixture:root\" name=\"Privacy\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "name": "Privacy",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

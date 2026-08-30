@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-247-39d6959685",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 102"
+  },
+  "request": {
+    "rootId": "244:1553"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"244:1553\" name=\"Decorative Text\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "244:1553"
+      ],
+      "nodes": {
+        "244:1553": {
+          "id": "244:1553",
+          "type": "SECTION",
+          "fields": {
+            "name": "Decorative Text",
+            "childrenIds": [
+              "244:1578"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "244:1578": {
+          "id": "244:1578",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "데브파이브",
+            "dashPattern": [],
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "a": 1,
+                  "b": 1,
+                  "g": 0.43921568989753723,
+                  "r": 0.48627451062202454
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 0
+                },
+                "radius": 12,
+                "showShadowBehindNode": false,
+                "spread": 0,
+                "type": "DROP_SHADOW",
+                "visible": true
+              },
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "a": 0.4000000059604645,
+                  "b": 0.9964476227760315,
+                  "g": 0.7868587970733643,
+                  "r": 1
+                },
+                "offset": {
+                  "x": 0,
+                  "y": 10
+                },
+                "radius": 24,
+                "showShadowBehindNode": false,
+                "spread": 0,
+                "type": "DROP_SHADOW",
+                "visible": true
+              }
+            ],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 0,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Jalnan Gothic TTF",
+              "style": "Regular"
+            },
+            "fontSize": 64,
+            "fontWeight": 400,
+            "gridColumnAnchorIndex": -1,
+            "gridRowAnchorIndex": -1,
+            "height": 90,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -5
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 139.9999976158142
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "데브파이브",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "OUTSIDE",
+            "strokeWeight": 2,
+            "strokes": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "styledTextSegments": [
+              {
+                "characters": "데브파이브",
+                "end": 5,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 1,
+                      "g": 1,
+                      "r": 1
+                    },
+                    "opacity": 0,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Jalnan Gothic TTF",
+                  "style": "Regular"
+                },
+                "fontSize": 64,
+                "fontWeight": 400,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -5
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 139.9999976158142
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 308,
+            "childrenIds": [],
+            "parentId": "244:1553"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

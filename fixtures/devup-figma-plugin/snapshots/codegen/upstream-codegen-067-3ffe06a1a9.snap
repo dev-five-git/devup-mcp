@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"<Box filter="contrast(100%) brightness(100%)" h="70px" w="140px" />"

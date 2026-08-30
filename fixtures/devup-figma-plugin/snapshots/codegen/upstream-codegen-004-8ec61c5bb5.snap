@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"<Image h="90px" objectFit="cover" src="/images/ObjectFitCover.png" w="120px" />"

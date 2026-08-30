@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-129-7c97156f7f",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders component set with different props and transition: component: Default 1"
+  },
+  "request": {
+    "rootId": "captured:158"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:158\" name=\"Card\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:158"
+      ],
+      "nodes": {
+        "captured:158": {
+          "id": "captured:158",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {},
+            "defaultVariant": {
+              "name": "Default",
+              "reactions": [
+                {
+                  "actions": [
+                    {
+                      "transition": {
+                        "duration": 0.3,
+                        "easing": {
+                          "type": "EASE_IN_OUT"
+                        },
+                        "type": "SMART_ANIMATE"
+                      },
+                      "type": "NODE"
+                    }
+                  ],
+                  "trigger": {
+                    "type": "ON_HOVER"
+                  }
+                }
+              ],
+              "type": "COMPONENT",
+              "variantProperties": {},
+              "visible": true
+            },
+            "name": "Card",
+            "visible": true,
+            "childrenIds": [
+              "captured:156",
+              "captured:157"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:156": {
+          "id": "captured:156",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Default",
+            "reactions": [
+              {
+                "actions": [
+                  {
+                    "transition": {
+                      "duration": 0.3,
+                      "easing": {
+                        "type": "EASE_IN_OUT"
+                      },
+                      "type": "SMART_ANIMATE"
+                    },
+                    "type": "NODE"
+                  }
+                ],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {},
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:157": {
+          "id": "captured:157",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Hover",
+            "opacity": 0.8,
+            "reactions": [
+              {
+                "actions": [
+                  {
+                    "transition": {
+                      "duration": 0.3,
+                      "easing": {
+                        "type": "EASE_IN_OUT"
+                      },
+                      "type": "SMART_ANIMATE"
+                    },
+                    "type": "NODE"
+                  }
+                ],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {},
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

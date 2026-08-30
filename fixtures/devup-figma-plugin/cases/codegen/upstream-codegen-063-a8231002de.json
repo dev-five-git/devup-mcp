@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-063-a8231002de",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders drop shadow effect props 1"
+  },
+  "request": {
+    "rootId": "captured:88"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:88\" name=\"EffectFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:88"
+      ],
+      "nodes": {
+        "captured:88": {
+          "id": "captured:88",
+          "type": "FRAME",
+          "fields": {
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "color": {
+                  "a": 0.5,
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "offset": {
+                  "x": 2,
+                  "y": 4
+                },
+                "radius": 6,
+                "spread": 1,
+                "type": "DROP_SHADOW",
+                "visible": true
+              }
+            ],
+            "height": 60,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "EffectFrame",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

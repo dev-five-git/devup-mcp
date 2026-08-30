@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-116-23097e86ce",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with pattern fill START alignment 1"
+  },
+  "request": {
+    "rootId": "captured:141"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:141\" name=\"PatternStartFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:141"
+      ],
+      "nodes": {
+        "captured:141": {
+          "id": "captured:141",
+          "type": "FRAME",
+          "fields": {
+            "fills": [
+              {
+                "horizontalAlignment": "START",
+                "opacity": 1,
+                "sourceNodeId": "pattern-node-id",
+                "spacing": {
+                  "x": 0,
+                  "y": 0
+                },
+                "type": "PATTERN",
+                "visible": true
+              }
+            ],
+            "height": 50,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "PatternStartFrame",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

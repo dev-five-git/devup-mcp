@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-041-7c9175487c",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders mixed border radius frame 1"
+  },
+  "request": {
+    "rootId": "captured:58"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:58\" name=\"MixedRadius\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:58"
+      ],
+      "nodes": {
+        "captured:58": {
+          "id": "captured:58",
+          "type": "FRAME",
+          "fields": {
+            "bottomLeftRadius": 1,
+            "bottomRightRadius": 2,
+            "name": "MixedRadius",
+            "topLeftRadius": 8,
+            "topRightRadius": 4,
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

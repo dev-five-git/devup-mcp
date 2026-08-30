@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function 다양한도형() {
+  return <Box maxW="calc(150px - 2px)" outline="solid 1px #F00" transform="rotate(-15deg)" />
+}"

@@ -1,0 +1,13 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Box
+  borderBottom="solid 3px #F00"
+  borderLeft="solid 4px #F00"
+  borderRight="solid 2px #F00"
+  borderTop="solid 1px #F00"
+  h="80px"
+  w="120px"
+/>"

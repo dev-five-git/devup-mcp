@@ -1,0 +1,12 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function ObjectFit() {
+  return (
+    <VStack p="10px">
+      <Image h="500px" src="/images/image.png" />
+    </VStack>
+  )
+}"

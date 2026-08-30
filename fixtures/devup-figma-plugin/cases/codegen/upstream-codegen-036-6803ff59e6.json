@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-036-6803ff59e6",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders padding with top equals bottom but left right different 1"
+  },
+  "request": {
+    "rootId": "captured:53"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:53\" name=\"TopBottomEqualPaddingFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:53"
+      ],
+      "nodes": {
+        "captured:53": {
+          "id": "captured:53",
+          "type": "FRAME",
+          "fields": {
+            "height": 60,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "TopBottomEqualPaddingFrame",
+            "paddingBottom": 10,
+            "paddingLeft": 30,
+            "paddingRight": 20,
+            "paddingTop": 10,
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

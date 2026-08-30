@@ -1,0 +1,31 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+{
+  "name": "Icon",
+  "node": {
+    "children": [],
+    "name": "Icon",
+    "type": "COMPONENT",
+    "visible": true,
+  },
+  "tree": {
+    "children": [],
+    "component": "Box",
+    "nodeName": "Icon",
+    "nodeType": "COMPONENT",
+    "props": {
+      "aspectRatio": undefined,
+      "boxSize": "100%",
+      "flex": undefined,
+      "maxH": undefined,
+      "maxW": undefined,
+      "minH": undefined,
+      "minW": undefined,
+    },
+  },
+  "variantComments": {},
+  "variants": {},
+}

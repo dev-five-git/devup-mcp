@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-151-7993d252dc",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 6"
+  },
+  "request": {
+    "rootId": "10:14"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"10:14\" name=\"Gradient\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "10:14"
+      ],
+      "nodes": {
+        "10:14": {
+          "id": "10:14",
+          "type": "SECTION",
+          "fields": {
+            "name": "Gradient",
+            "childrenIds": [
+              "496:2051"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "496:2051": {
+          "id": "496:2051",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "clipsContent": true,
+            "cornerRadius": 0,
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 254,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "AUTO",
+              "itemSpacing": 0,
+              "layoutAlign": "MIN",
+              "layoutGrow": 0,
+              "layoutMode": "HORIZONTAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 34,
+              "paddingLeft": 102,
+              "paddingRight": 110,
+              "paddingTop": 70,
+              "primaryAxisAlignItems": "MIN",
+              "primaryAxisSizingMode": "AUTO"
+            },
+            "isAsset": false,
+            "itemSpacing": 0,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "NONE",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Frame 1597884475",
+            "opacity": 1,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 362,
+            "childrenIds": [
+              "8:6"
+            ],
+            "parentId": "10:14"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "8:6": {
+          "id": "8:6",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 1000,
+            "bottomRightRadius": 1000,
+            "clipsContent": true,
+            "cornerRadius": 1000,
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSpacing": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "gradientStops": [
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 1,
+                      "g": 0.8548610210418701,
+                      "r": 0.5416664481163025
+                    },
+                    "position": 0
+                  },
+                  {
+                    "boundVariables": {},
+                    "color": {
+                      "a": 1,
+                      "b": 1,
+                      "g": 0.9192305207252502,
+                      "r": 0.8653846383094788
+                    },
+                    "position": 1
+                  }
+                ],
+                "gradientTransform": [
+                  [
+                    6.123234262925839E-17,
+                    1,
+                    0
+                  ],
+                  [
+                    -1,
+                    6.123234262925839E-17,
+                    1
+                  ]
+                ],
+                "opacity": 1,
+                "type": "GRADIENT_RADIAL",
+                "visible": true
+              }
+            ],
+            "height": 150,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "MIN",
+              "counterAxisSizingMode": "FIXED",
+              "itemSpacing": 0,
+              "layoutAlign": "MIN",
+              "layoutGrow": 0,
+              "layoutMode": "NONE",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 0,
+              "paddingLeft": 0,
+              "paddingRight": 0,
+              "paddingTop": 0,
+              "primaryAxisAlignItems": "MIN",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": false,
+            "itemSpacing": 0,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "NONE",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Radial",
+            "opacity": 1,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "topLeftRadius": 1000,
+            "topRightRadius": 1000,
+            "visible": true,
+            "width": 150,
+            "childrenIds": [],
+            "parentId": "496:2051"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-123-179129a02c",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders component set with variants: component: Default 1"
+  },
+  "request": {
+    "rootId": "captured:149"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:149\" name=\"Button\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:149"
+      ],
+      "nodes": {
+        "captured:149": {
+          "id": "captured:149",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {
+              "state": {
+                "type": "VARIANT",
+                "variantOptions": [
+                  "default",
+                  "hover"
+                ]
+              }
+            },
+            "defaultVariant": {
+              "name": "Default",
+              "reactions": [],
+              "type": "COMPONENT",
+              "variantProperties": {
+                "state": "default"
+              },
+              "visible": true
+            },
+            "name": "Button",
+            "visible": true,
+            "childrenIds": [
+              "captured:147",
+              "captured:148"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:147": {
+          "id": "captured:147",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Default",
+            "reactions": [],
+            "variantProperties": {
+              "state": "default"
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:148": {
+          "id": "captured:148",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Hover",
+            "reactions": [
+              {
+                "actions": [],
+                "trigger": {
+                  "type": "ON_HOVER"
+                }
+              }
+            ],
+            "variantProperties": {
+              "state": "hover"
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

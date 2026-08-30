@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-046-82a07e3ec3",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders line with stroke outline 1"
+  },
+  "request": {
+    "rootId": "captured:63"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<line id=\"captured:63\" name=\"StrokeLine\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:63"
+      ],
+      "nodes": {
+        "captured:63": {
+          "id": "captured:63",
+          "type": "LINE",
+          "fields": {
+            "name": "StrokeLine",
+            "strokeAlign": "CENTER",
+            "strokeWeight": 2,
+            "strokes": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-061-1c44313e59",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders vstack auto layout props 1"
+  },
+  "request": {
+    "rootId": "captured:86"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:86\" name=\"VStackAutoLayout\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:86"
+      ],
+      "nodes": {
+        "captured:86": {
+          "id": "captured:86",
+          "type": "FRAME",
+          "fields": {
+            "counterAxisAlignItems": "CENTER",
+            "height": 200,
+            "inferredAutoLayout": {
+              "itemSpacing": 16,
+              "layoutMode": "VERTICAL"
+            },
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "VStackAutoLayout",
+            "primaryAxisAlignItems": "SPACE_BETWEEN",
+            "visible": true,
+            "width": 120,
+            "childrenIds": [
+              "captured:84",
+              "captured:85"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:84": {
+          "id": "captured:84",
+          "type": "FRAME",
+          "fields": {
+            "name": "Fixture Child 1",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:85": {
+          "id": "captured:85",
+          "type": "FRAME",
+          "fields": {
+            "name": "Fixture Child 2",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}
