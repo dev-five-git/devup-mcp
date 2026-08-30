@@ -21,7 +21,7 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
   if (typeof value === "bigint") return { $bigint: value.toString() };
   if (["function", "symbol"].includes(typeof value)) return { $unsupported: typeof value };
   if (depth > 12) return { $truncated: "max-depth" };
-  if (typeof value === "object" && typeof value.id === "string" && typeof value.type === "string") {
+  if (typeof value === "object" && "parent" in value && typeof value.id === "string" && typeof value.type === "string") {
     return { $nodeId: value.id, $nodeType: value.type };
   }
   if (Array.isArray(value)) return value.map((item) => serialize(item, seen, depth + 1));

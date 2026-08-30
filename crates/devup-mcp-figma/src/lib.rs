@@ -7,6 +7,7 @@ mod snapshot;
 mod source;
 mod upstream;
 mod url;
+mod variables;
 
 pub use credentials::{
     CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
@@ -27,6 +28,7 @@ pub use source::{
 };
 pub use upstream::{BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, UpstreamResult};
 pub use url::FigmaTarget;
+pub use variables::{ResourceBatch, ResourceStyleRef};
 mod metadata;
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,

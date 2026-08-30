@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::{
-    CredentialStore, DevupError, OAuthManager, UpstreamFailureContext, UpstreamFailureKind,
-    upstream_failure_error,
+    CredentialStore, DevupError, OAuthManager, ResourceBatch, UpstreamFailureContext,
+    UpstreamFailureKind, upstream_failure_error,
 };
 
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -20,20 +20,31 @@ const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinScript {
     NodeSnapshot,
+    VariableCatalog,
     LocalVariables,
 }
 
 impl BuiltinScript {
-    fn source(self, node_id: &str) -> String {
+    fn source(self, node_id: &str, resources: Option<&ResourceBatch>) -> String {
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
+            Self::VariableCatalog => include_str!("scripts/variable_catalog.js"),
             Self::LocalVariables => include_str!("scripts/variables.js"),
         };
-        source.replace("\"__DEVUP_NODE_ID__\"", &node_id).replace(
-            "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
-            include_str!("plugin_api_manifest.json"),
-        )
+        let empty_resources = ResourceBatch {
+            variable_ids: Vec::new(),
+            styles: Vec::new(),
+        };
+        let resources = serde_json::to_string(resources.unwrap_or(&empty_resources))
+            .expect("resource batch serializes");
+        source
+            .replace("\"__DEVUP_NODE_ID__\"", &node_id)
+            .replace(
+                "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
+                include_str!("plugin_api_manifest.json"),
+            )
+            .replace("\"__DEVUP_RESOURCE_BATCH__\"", &resources)
     }
 }
 
@@ -63,6 +74,7 @@ pub enum ReadToolCall {
         file_key: String,
         node_id: String,
         script: BuiltinScript,
+        resources: Option<ResourceBatch>,
     },
 }
 
@@ -111,6 +123,20 @@ impl ReadToolCall {
             file_key: file_key.into(),
             node_id: node_id.into(),
             script,
+            resources: None,
+        }
+    }
+
+    pub fn resource_batch(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        resources: ResourceBatch,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::LocalVariables,
+            resources: Some(resources),
         }
     }
 
@@ -140,10 +166,11 @@ impl ReadToolCall {
                 file_key,
                 node_id,
                 script,
+                resources,
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": script.source(node_id)
+                "code": script.source(node_id, resources.as_ref())
             }),
         };
         value.as_object().cloned().unwrap_or_default()

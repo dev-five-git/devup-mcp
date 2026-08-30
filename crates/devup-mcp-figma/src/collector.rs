@@ -4,12 +4,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    BuiltinScript, DevupError, ErrorCode, FigmaTarget, ReadToolCall, SnapshotChunk, UpstreamResult,
-    metadata::metadata_from_result, snapshot_chunk_from_result,
+    BuiltinScript, DevupError, ErrorCode, FigmaTarget, ReadToolCall, ResourceBatch,
+    ResourceStyleRef, SnapshotChunk, UpstreamResult,
+    metadata::metadata_from_result_for_target,
+    snapshot_chunk_from_result,
+    variables::{
+        VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
+        merge_variable_results,
+    },
 };
 
 const LARGE_SUBTREE_THRESHOLD: usize = 200;
 const MAX_PENDING_CALLS: usize = 4;
+const VARIABLE_BATCH_SIZE: usize = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,7 +75,8 @@ pub enum CollectorStep {
 enum CallKind {
     Metadata,
     Snapshot,
-    Variables,
+    VariableCatalog,
+    VariableBatch,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +96,8 @@ pub struct CollectorSession {
     root_node_id: Option<String>,
     source_version: Option<String>,
     snapshot_chunks: BTreeMap<usize, SnapshotChunk>,
+    variable_catalog: Option<VariableCatalog>,
+    variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
     next_id: usize,
     completed: bool,
@@ -104,6 +114,8 @@ impl CollectorSession {
             root_node_id: None,
             source_version: None,
             snapshot_chunks: BTreeMap::new(),
+            variable_catalog: None,
+            variable_batches: BTreeMap::new(),
             variables: None,
             next_id: 0,
             completed: false,
@@ -133,6 +145,7 @@ impl CollectorSession {
         }
         if self.metadata.is_some()
             && self.request.include_variables
+            && self.variable_catalog.is_none()
             && self.variables.is_none()
             && self.queued.is_empty()
         {
@@ -144,12 +157,27 @@ impl CollectorSession {
                 ReadToolCall::snapshot(
                     &self.request.target.file_key,
                     &node_id,
-                    BuiltinScript::LocalVariables,
+                    BuiltinScript::VariableCatalog,
                 ),
                 Some(node_id),
-                CallKind::Variables,
+                CallKind::VariableCatalog,
             );
             return self.advance();
+        }
+        if self.metadata.is_some()
+            && self.request.include_variables
+            && self.variable_catalog.is_some()
+            && self.variables.is_none()
+            && self.queued.is_empty()
+        {
+            let catalog = self
+                .variable_catalog
+                .take()
+                .ok_or_else(|| invalid_call("Figma 변수 catalog가 없습니다."))?;
+            self.variables = Some(merge_variable_results(
+                catalog,
+                std::mem::take(&mut self.variable_batches).into_values(),
+            ));
         }
         if self.metadata.is_some() && self.queued.is_empty() {
             self.completed = true;
@@ -177,15 +205,21 @@ impl CollectorSession {
         match pending.kind {
             CallKind::Metadata => self.accept_metadata(result),
             CallKind::Snapshot => self.accept_snapshot(&pending.planned, pending.order, result),
-            CallKind::Variables => {
-                self.variables = Some(result);
+            CallKind::VariableCatalog => self.accept_variable_catalog(result),
+            CallKind::VariableBatch => {
+                self.variable_batches
+                    .insert(pending.order, batch_from_result(&result)?);
                 Ok(())
             }
         }
     }
 
     fn accept_metadata(&mut self, result: UpstreamResult) -> Result<(), DevupError> {
-        let document = metadata_from_result(&result)?;
+        let document = metadata_from_result_for_target(
+            &result,
+            &self.request.target.file_key,
+            self.request.target.node_id.as_deref(),
+        )?;
         if document.file_key != self.request.target.file_key {
             return Err(invalid_call("Figma metadata의 file key가 요청과 다릅니다."));
         }
@@ -245,6 +279,40 @@ impl CollectorSession {
         Ok(())
     }
 
+    fn accept_variable_catalog(&mut self, result: UpstreamResult) -> Result<(), DevupError> {
+        let catalog = catalog_from_result(&result)?;
+        let node_id = self
+            .root_node_id
+            .clone()
+            .ok_or_else(|| invalid_call("Figma 변수 batch에 사용할 root node ID가 없습니다."))?;
+        let resources = catalog
+            .variable_ids
+            .iter()
+            .cloned()
+            .map(ResourceItem::Variable)
+            .chain(catalog.styles.iter().cloned().map(ResourceItem::Style))
+            .collect::<Vec<_>>();
+        for chunk in resources.chunks(VARIABLE_BATCH_SIZE) {
+            let mut batch = ResourceBatch {
+                variable_ids: Vec::new(),
+                styles: Vec::new(),
+            };
+            for resource in chunk {
+                match resource {
+                    ResourceItem::Variable(id) => batch.variable_ids.push(id.clone()),
+                    ResourceItem::Style(style) => batch.styles.push(style.clone()),
+                }
+            }
+            self.enqueue(
+                ReadToolCall::resource_batch(&self.request.target.file_key, &node_id, batch),
+                Some(node_id.clone()),
+                CallKind::VariableBatch,
+            );
+        }
+        self.variable_catalog = Some(catalog);
+        Ok(())
+    }
+
     fn enqueue(&mut self, call: ReadToolCall, expected_node_id: Option<String>, kind: CallKind) {
         let order = self.next_id;
         let id = format!("call-{order}");
@@ -260,6 +328,12 @@ impl CollectorSession {
             order,
         });
     }
+}
+
+#[derive(Debug, Clone)]
+enum ResourceItem {
+    Variable(String),
+    Style(ResourceStyleRef),
 }
 
 fn invalid_call(message: &str) -> DevupError {

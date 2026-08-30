@@ -20,6 +20,7 @@ axum = "0.8"
 base64 = "0.22"
 keyring = "4.2"
 rand = "0.9"
+quick-xml = "0.38"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 rmcp = { version = "3.1", features = ["server", "transport-io", "client", "transport-streamable-http-client-reqwest", "auth", "reqwest"] }
 schemars = "1"

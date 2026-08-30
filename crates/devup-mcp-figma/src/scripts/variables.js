@@ -1,9 +1,17 @@
+const resources = "__DEVUP_RESOURCE_BATCH__";
+
 function serialize(value, seen = new WeakSet(), depth = 0) {
   if (value === null || ["string", "number", "boolean"].includes(typeof value)) return value;
-  if (typeof value === "undefined") return null;
-  if (["function", "symbol"].includes(typeof value)) return undefined;
+  if (typeof value === "undefined") return { $undefined: true };
+  if (typeof value === "bigint") return { $bigint: value.toString() };
+  if (["function", "symbol"].includes(typeof value)) return { $unsupported: typeof value };
   if (depth > 12) return { $truncated: "max-depth" };
+  if (typeof value === "object" && "parent" in value && typeof value.id === "string" && typeof value.type === "string") {
+    return { $nodeId: value.id, $nodeType: value.type };
+  }
   if (Array.isArray(value)) return value.map((item) => serialize(item, seen, depth + 1));
+  if (ArrayBuffer.isView(value)) return { $binary: value.constructor.name, byteLength: value.byteLength };
+  if (value instanceof ArrayBuffer) return { $binary: "ArrayBuffer", byteLength: value.byteLength };
   if (seen.has(value)) return { $circular: true };
   seen.add(value);
   const result = {};
@@ -17,7 +25,7 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
     if (name.startsWith("_") || ["parent", "children"].includes(name)) continue;
     try {
       const serialized = serialize(value[name], seen, depth + 1);
-      if (typeof serialized !== "undefined") result[name] = serialized;
+      if (!(serialized && serialized.$unsupported === "function")) result[name] = serialized;
     } catch (error) {
       result[name] = { $error: String(error && error.message ? error.message : error) };
     }
@@ -26,31 +34,25 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
   return result;
 }
 
-const collections = (await figma.variables.getLocalVariableCollectionsAsync()).map(serialize);
-const variables = (await figma.variables.getLocalVariablesAsync()).map(serialize);
-const styleGroups = await Promise.all([
-  figma.getLocalPaintStylesAsync(),
-  figma.getLocalTextStylesAsync(),
-  figma.getLocalEffectStylesAsync(),
-  figma.getLocalGridStylesAsync()
+const [variableValues, styleValues] = await Promise.all([
+  Promise.all(resources.variableIds.map((id) => figma.variables.getVariableByIdAsync(id))),
+  Promise.all(resources.styles.map((style) => figma.getStyleByIdAsync(style.id)))
 ]);
-const styleTypes = ["PAINT", "TEXT", "EFFECT", "GRID"];
-const styles = styleGroups.flatMap((group, index) => group.map((style) => ({
-  ...serialize(style),
-  styleType: styleTypes[index],
-  value: serialize(
-    styleTypes[index] === "PAINT" ? style.paints
-      : styleTypes[index] === "EFFECT" ? style.effects
-        : styleTypes[index] === "GRID" ? style.layoutGrids
-          : style
-  )
-})));
+const styleTypes = new Map(resources.styles.map((style) => [style.id, style.styleType]));
 
 return {
-  collections,
-  variables,
-  styles,
-  usedRemoteVariables: [],
-  localComplete: true,
-  usedRemoteComplete: false
+  variables: variableValues.filter(Boolean).map((value) => serialize(value)),
+  styles: styleValues.filter(Boolean).map((style) => {
+    const styleType = styleTypes.get(style.id);
+    return {
+      ...serialize(style),
+      styleType,
+      value: serialize(
+        styleType === "PAINT" ? style.paints
+          : styleType === "EFFECT" ? style.effects
+            : styleType === "GRID" ? style.layoutGrids
+              : style
+      )
+    };
+  })
 };

@@ -49,6 +49,23 @@ fn snapshot(root_id: &str) -> UpstreamResult {
     }
 }
 
+fn official_xml_metadata() -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "content": [
+                {
+                    "type": "text",
+                    "text": "<frame id=\"1:2\" name=\"Synthetic Root\" x=\"0\" y=\"0\" width=\"320\" height=\"240\"><text id=\"1:3\" name=\"Synthetic Child\" x=\"8\" y=\"8\" width=\"100\" height=\"20\" /></frame>"
+                },
+                {
+                    "type": "text",
+                    "text": "Synthetic guidance that is not metadata"
+                }
+            ]
+        }),
+    }
+}
+
 #[test]
 fn node_collection_advances_from_metadata_to_snapshot_to_complete() {
     let request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
@@ -190,7 +207,7 @@ fn rejects_unknown_or_replayed_call_ids() {
 }
 
 #[test]
-fn variable_collection_runs_after_snapshot_and_preserves_the_raw_result() {
+fn variable_collection_uses_catalog_then_batched_resources() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
     request.include_variables = true;
     let mut collector = CollectorSession::new(request);
@@ -208,24 +225,158 @@ fn variable_collection_runs_after_snapshot_and_preserves_the_raw_result() {
         .accept(&snapshot_call.id, snapshot("1:2"))
         .unwrap();
 
-    let CollectorStep::Call(variable_call) = collector.advance().unwrap() else {
-        panic!("variable/style read should follow the snapshot")
+    let CollectorStep::Call(catalog_call) = collector.advance().unwrap() else {
+        panic!("variable/style catalog should follow the snapshot")
     };
-    assert_eq!(variable_call.call.tool_name(), "use_figma");
-    assert_eq!(variable_call.expected_node_id.as_deref(), Some("1:2"));
-    let raw = UpstreamResult {
+    let catalog_code = catalog_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(catalog_code.contains("getLocalVariableCollectionsAsync"));
+    assert!(!catalog_code.contains("getLocalVariablesAsync"));
+    let catalog = UpstreamResult {
         raw: json!({
             "content": [{
                 "type": "text",
-                "text": "{\"collections\":[],\"variables\":[],\"styles\":[],\"localComplete\":true,\"usedRemoteComplete\":false}"
+                "text": "{\"collections\":[{\"id\":\"c1\",\"name\":\"Synthetic\",\"defaultModeId\":\"m1\",\"modes\":[]}],\"variableIds\":[\"v1\"],\"styles\":[{\"id\":\"s1\",\"styleType\":\"TEXT\"}],\"localComplete\":true,\"usedRemoteComplete\":false}"
             }]
         }),
     };
-    collector.accept(&variable_call.id, raw.clone()).unwrap();
+    collector.accept(&catalog_call.id, catalog).unwrap();
+
+    let CollectorStep::Call(batch_call) = collector.advance().unwrap() else {
+        panic!("resource batch should follow the catalog")
+    };
+    let batch_code = batch_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(batch_code.contains("getVariableByIdAsync"));
+    assert!(batch_code.contains("getStyleByIdAsync"));
+    let variable_batch = UpstreamResult {
+        raw: json!({
+            "content": [{
+                "type": "text",
+                "text": "{\"variables\":[{\"id\":\"v1\",\"name\":\"Synthetic Variable\"}],\"styles\":[]}"
+            }]
+        }),
+    };
+    collector.accept(&batch_call.id, variable_batch).unwrap();
+    let CollectorStep::Call(style_call) = collector.advance().unwrap() else {
+        panic!("style batch should be separate")
+    };
+    collector
+        .accept(
+            &style_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "variables": [],
+                    "styles": [{"id": "s1", "name": "Synthetic Style", "styleType": "TEXT", "value": {}}]
+                }),
+            },
+        )
+        .unwrap();
 
     let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
         panic!("collection should finish after variables")
     };
-    assert_eq!(parts.variables, Some(raw.clone()));
-    assert_eq!(parts.styles, Some(raw));
+    let merged = &parts.variables.as_ref().unwrap().raw;
+    assert_eq!(merged["collections"][0]["id"], "c1");
+    assert_eq!(merged["variables"][0]["id"], "v1");
+    assert_eq!(merged["styles"][0]["id"], "s1");
+    assert_eq!(parts.styles.as_ref().unwrap().raw, *merged);
+}
+
+#[test]
+fn accepts_the_official_xml_metadata_envelope_without_inventing_values() {
+    let request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+
+    collector
+        .accept(&metadata_call.id, official_xml_metadata())
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    assert_eq!(snapshot_call.expected_file_key, "FileKey123");
+    assert_eq!(snapshot_call.expected_node_id.as_deref(), Some("1:2"));
+}
+
+#[test]
+fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.include_variables = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&snapshot_call.id, snapshot("1:2"))
+        .unwrap();
+    let CollectorStep::Call(catalog_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let variable_ids = (0..2)
+        .map(|index| format!("v{index:02}"))
+        .collect::<Vec<_>>();
+    collector
+        .accept(
+            &catalog_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "collections": [],
+                    "variableIds": variable_ids,
+                    "styles": [],
+                    "localComplete": true,
+                    "usedRemoteComplete": false
+                }),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &second.id,
+            UpstreamResult {
+                raw: json!({"variables": [{"id": "v01"}], "styles": []}),
+            },
+        )
+        .unwrap();
+    collector
+        .accept(
+            &first.id,
+            UpstreamResult {
+                raw: json!({
+                    "variables": [{"id": "v00"}],
+                    "styles": []
+                }),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let variables = parts.variables.unwrap();
+    let ids = variables.raw["variables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|variable| variable["id"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(ids.first().copied(), Some("v00"));
+    assert_eq!(ids.last().copied(), Some("v01"));
 }

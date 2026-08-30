@@ -66,13 +66,26 @@ impl FigmaUpstream for FixtureUpstream {
                     }], "diagnostics": []
                 })
             }
-            ReadToolCall::Snapshot { .. } => json!({
-                "collections": [{"id": "c", "name": "Theme", "defaultModeId": "m", "modes": [{"modeId": "m", "name": "Default"}]}],
+            ReadToolCall::Snapshot {
+                script: devup_mcp_figma::BuiltinScript::VariableCatalog,
+                ..
+            } => json!({
+                "collections": [{
+                    "id": "c", "name": "Theme", "defaultModeId": "m",
+                    "modes": [{"modeId": "m", "name": "Default"}]
+                }],
+                "variableIds": ["v"], "styles": [],
+                "localComplete": true, "usedRemoteComplete": false
+            }),
+            ReadToolCall::Snapshot {
+                script: devup_mcp_figma::BuiltinScript::LocalVariables,
+                ..
+            } => json!({
                 "variables": [{
                     "id": "v", "name": "Color/Primary", "resolvedType": "COLOR", "variableCollectionId": "c",
                     "codeSyntax": {"WEB": "primary"}, "valuesByMode": {"m": {"r": 0, "g": 0.4, "b": 1, "a": 1}}
                 }],
-                "styles": [], "usedRemoteVariables": [], "localComplete": true, "usedRemoteComplete": false
+                "styles": []
             }),
             _ => {
                 return Err(devup_mcp_figma::DevupError::new(

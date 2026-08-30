@@ -1,3 +1,4 @@
+use quick_xml::{Reader, events::Event};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -21,6 +22,8 @@ pub struct MetadataNode {
     #[serde(rename = "type")]
     pub node_type: String,
     #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
     pub children_ids: Vec<String>,
     #[serde(default)]
     pub descendant_count: usize,
@@ -32,14 +35,163 @@ impl MetadataDocument {
     }
 }
 
-pub fn metadata_from_result(result: &UpstreamResult) -> Result<MetadataDocument, DevupError> {
-    find_metadata(&result.raw).ok_or_else(|| {
-        DevupError::new(
-            ErrorCode::DevupSnapshotUnsupported,
-            "Figma MCP 응답에서 metadata를 찾지 못했습니다.",
-            false,
-        )
+pub fn metadata_from_result_for_target(
+    result: &UpstreamResult,
+    expected_file_key: &str,
+    expected_root_id: Option<&str>,
+) -> Result<MetadataDocument, DevupError> {
+    find_metadata(&result.raw)
+        .or_else(|| find_xml_metadata(&result.raw, expected_file_key, expected_root_id))
+        .ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "Figma MCP 응답에서 metadata를 찾지 못했습니다.",
+                false,
+            )
+        })
+}
+
+#[derive(Debug)]
+struct XmlNode {
+    id: String,
+    node_type: String,
+    name: Option<String>,
+    children: Vec<usize>,
+}
+
+fn find_xml_metadata(
+    value: &Value,
+    expected_file_key: &str,
+    expected_root_id: Option<&str>,
+) -> Option<MetadataDocument> {
+    match value {
+        Value::Object(object) => object
+            .values()
+            .find_map(|value| find_xml_metadata(value, expected_file_key, expected_root_id)),
+        Value::Array(values) => values
+            .iter()
+            .find_map(|value| find_xml_metadata(value, expected_file_key, expected_root_id)),
+        Value::String(text) if text.trim_start().starts_with('<') => {
+            parse_xml_metadata(text, expected_file_key, expected_root_id)
+        }
+        _ => None,
+    }
+}
+
+fn parse_xml_metadata(
+    text: &str,
+    expected_file_key: &str,
+    expected_root_id: Option<&str>,
+) -> Option<MetadataDocument> {
+    if expected_file_key.is_empty() {
+        return None;
+    }
+    let mut reader = Reader::from_str(text);
+    reader.config_mut().trim_text(true);
+    let mut nodes = Vec::<XmlNode>::new();
+    let mut stack = Vec::<Option<usize>>::new();
+
+    loop {
+        match reader.read_event().ok()? {
+            Event::Start(element) => {
+                let index = push_xml_node(
+                    &reader,
+                    &element,
+                    &mut nodes,
+                    stack.last().copied().flatten(),
+                );
+                stack.push(index);
+            }
+            Event::Empty(element) => {
+                push_xml_node(
+                    &reader,
+                    &element,
+                    &mut nodes,
+                    stack.last().copied().flatten(),
+                );
+            }
+            Event::End(_) => {
+                stack.pop();
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+
+    if nodes.is_empty() {
+        return None;
+    }
+    let root_index = expected_root_id
+        .and_then(|expected| nodes.iter().position(|node| node.id == expected))
+        .unwrap_or(0);
+    let root_id = nodes[root_index].id.clone();
+    let metadata_nodes = nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| MetadataNode {
+            id: node.id.clone(),
+            node_type: node.node_type.clone(),
+            name: node.name.clone(),
+            children_ids: node
+                .children
+                .iter()
+                .map(|child| nodes[*child].id.clone())
+                .collect(),
+            descendant_count: descendant_count(index, &nodes),
+        })
+        .collect();
+    Some(MetadataDocument {
+        file_key: expected_file_key.to_owned(),
+        version: None,
+        root_id,
+        nodes: metadata_nodes,
     })
+}
+
+fn push_xml_node(
+    reader: &Reader<&[u8]>,
+    element: &quick_xml::events::BytesStart<'_>,
+    nodes: &mut Vec<XmlNode>,
+    parent: Option<usize>,
+) -> Option<usize> {
+    let mut id = None;
+    let mut name = None;
+    for attribute in element.attributes().flatten() {
+        let key = attribute.key.as_ref();
+        if key == b"id" || key == b"name" {
+            let value = attribute
+                .decode_and_unescape_value(reader.decoder())
+                .ok()?
+                .into_owned();
+            if key == b"id" {
+                id = Some(value);
+            } else {
+                name = Some(value);
+            }
+        }
+    }
+    let id = id?;
+    let index = nodes.len();
+    nodes.push(XmlNode {
+        id,
+        node_type: String::from_utf8_lossy(element.name().as_ref())
+            .replace('-', "_")
+            .to_ascii_uppercase(),
+        name,
+        children: Vec::new(),
+    });
+    if let Some(parent) = parent {
+        nodes[parent].children.push(index);
+    }
+    Some(index)
+}
+
+fn descendant_count(index: usize, nodes: &[XmlNode]) -> usize {
+    1 + nodes[index]
+        .children
+        .iter()
+        .map(|child| descendant_count(*child, nodes))
+        .sum::<usize>()
 }
 
 fn find_metadata(value: &Value) -> Option<MetadataDocument> {

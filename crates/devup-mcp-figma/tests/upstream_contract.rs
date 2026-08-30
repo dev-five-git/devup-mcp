@@ -73,7 +73,11 @@ fn snapshot_manifest_covers_current_official_node_properties() {
 
 #[test]
 fn built_in_scripts_expose_only_read_operations() {
-    for script in [BuiltinScript::NodeSnapshot, BuiltinScript::LocalVariables] {
+    for script in [
+        BuiltinScript::NodeSnapshot,
+        BuiltinScript::VariableCatalog,
+        BuiltinScript::LocalVariables,
+    ] {
         let call = ReadToolCall::snapshot("file-key", "1:2", script);
         let code = call.arguments()["code"].as_str().unwrap().to_owned();
         for write_operation in [
