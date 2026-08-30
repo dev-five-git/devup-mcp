@@ -1,3 +1,4 @@
+pub mod codegen;
 pub mod figma;
 pub mod server;
 
