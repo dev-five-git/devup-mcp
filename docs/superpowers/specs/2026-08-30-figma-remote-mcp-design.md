@@ -1,5 +1,9 @@
 # devup-mcp Figma Remote MCP 설계
 
+> 이 문서는 최초 직접 연결 설계를 기록한 역사 문서다. Catalog 제약 대응과
+> `devup-figma-plugin` 전수 호환성 설계는
+> `2026-08-31-figma-host-fallback-parity-design.md`가 대체한다.
+
 ## 상태
 
 - 작성일: 2026-08-30
