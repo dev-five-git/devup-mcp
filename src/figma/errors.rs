@@ -26,13 +26,17 @@ pub struct DevupError {
 }
 
 impl DevupError {
-    pub fn unsupported_file(message: impl Into<String>) -> Self {
+    pub fn new(code: ErrorCode, message: impl Into<String>, retryable: bool) -> Self {
         Self {
-            code: ErrorCode::DevupFigmaUnsupportedFile,
+            code,
             message: message.into(),
-            retryable: false,
+            retryable,
             details: serde_json::Value::Null,
         }
+    }
+
+    pub fn unsupported_file(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::DevupFigmaUnsupportedFile, message, false)
     }
 }
 
