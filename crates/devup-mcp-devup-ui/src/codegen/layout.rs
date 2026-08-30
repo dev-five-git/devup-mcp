@@ -1,4 +1,4 @@
-use crate::figma::TypedNode;
+use devup_mcp_figma::TypedNode;
 
 pub(super) fn push_layout_props(view: &TypedNode<'_>, props: &mut Vec<String>) {
     push_px(view, props, "width", "w");

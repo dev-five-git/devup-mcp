@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::figma::{DevupError, Diagnostic, ErrorCode, UpstreamResult};
+use devup_mcp_figma::{DevupError, Diagnostic, ErrorCode, UpstreamResult};
 
 use super::tokens::{normalize_token, variable_token};
 

@@ -1,4 +1,4 @@
-use devup_mcp::figma::{ErrorCode, FigmaTarget};
+use devup_mcp_figma::{ErrorCode, FigmaTarget};
 
 #[test]
 fn parses_design_link_and_normalizes_dash_node_id() {

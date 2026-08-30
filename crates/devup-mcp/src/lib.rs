@@ -1,7 +1,4 @@
-pub mod codegen;
-pub mod figma;
 pub mod server;
-pub mod theme;
 
 pub async fn run_stdio() -> anyhow::Result<()> {
     use rmcp::ServiceExt;

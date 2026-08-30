@@ -46,43 +46,25 @@ https://mcp.figma.com/mcp
 - REST Variables API의 Enterprise 플랜 제한
 - Figma Desktop과 현재 열린 파일에 의존하는 문제
 
-### 단일 Rust package로 시작한다
+### Cargo workspace와 책임별 crate로 구성한다
 
-별도의 `devup-figma`, `devup-auth`, `devup-ir`, `devup-mcp-server` crate를 만들지 않는다. 현재 공개 단위와 실행 단위는 하나이므로 `devup-mcp` package 내부 모듈로 경계를 유지한다.
+제품과 설치 이름은 계속 `devup-mcp` 하나로 유지하되, Figma 연동과 DevupUI 변환은 독립적으로 발전할 수 있도록 Cargo workspace로 나눈다. OAuth는 Figma 외에는 쓸모가 없으므로 별도 `devup-auth` crate로 분리하지 않고 `devup-mcp-figma`에 포함한다. 원본 보존 모델도 Figma snapshot 계약의 일부이므로 별도 `devup-ir` crate를 만들지 않으며, stdio 서버만을 위한 `devup-mcp-server` 이름도 만들지 않는다.
 
 ```text
 devup-mcp/
 ├─ Cargo.toml
-├─ src/
-│  ├─ main.rs
-│  ├─ lib.rs
-│  ├─ server/
-│  │  ├─ mod.rs
-│  │  └─ tools.rs
-│  ├─ figma/
-│  │  ├─ mod.rs
-│  │  ├─ url.rs
-│  │  ├─ upstream.rs
-│  │  ├─ oauth.rs
-│  │  ├─ credentials.rs
-│  │  ├─ snapshot.rs
-│  │  └─ errors.rs
-│  ├─ codegen/
-│  │  ├─ mod.rs
-│  │  ├─ component.rs
-│  │  ├─ layout.rs
-│  │  ├─ style.rs
-│  │  └─ text.rs
-│  └─ theme/
-│     ├─ mod.rs
-│     ├─ tokens.rs
-│     └─ devup_json.rs
-└─ tests/
-   ├─ fixtures/
-   └─ integration/
+└─ crates/
+   ├─ devup-mcp/
+   │  └─ src/                  # stdio MCP executable와 tool orchestration
+   ├─ devup-mcp-figma/
+   │  └─ src/                  # URL, OAuth, keyring, upstream MCP, raw snapshot
+   └─ devup-mcp-devup-ui/
+      └─ src/
+         ├─ codegen/           # DevupUI TSX projection
+         └─ theme/             # devup.json projection
 ```
 
-모듈 간 타입이 독립적으로 재사용되거나 빌드 feature 분리가 실제로 필요해질 때만 crate로 추출한다.
+의존 방향은 `devup-mcp -> devup-mcp-devup-ui -> devup-mcp-figma`이며 실행 crate도 `devup-mcp-figma`를 직접 조합한다. 세 crate 사이에 순환 의존은 없다.
 
 ## OAuth 설계
 

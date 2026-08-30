@@ -14,14 +14,14 @@ use rmcp::{
 };
 use serde_json::{Value, json};
 
-use crate::{
+use devup_mcp_devup_ui::{
     codegen::{CodegenOptions, generate_component},
-    figma::{
-        AuthStatus, BuiltinScript, CredentialStore, DevupError, FigmaTarget, FigmaUpstream,
-        KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, SystemBrowser,
-        merge_chunks, snapshot_chunk_from_result,
-    },
     theme::{ThemeScope, generate_devup_json, variable_snapshot_from_result},
+};
+use devup_mcp_figma::{
+    AuthStatus, BuiltinScript, CredentialStore, DevupError, ErrorCode, FigmaTarget, FigmaUpstream,
+    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, SystemBrowser,
+    merge_chunks, snapshot_chunk_from_result,
 };
 
 pub use tools::{AuthInput, FigmaToJsonInput, FigmaToUiInput};
@@ -83,6 +83,13 @@ impl DevupServer {
             services,
         }
     }
+
+    async fn ensure_authenticated(&self) -> Result<(), ErrorData> {
+        if self.services.auth.status().await.map_err(to_mcp_error)? == AuthStatus::Disconnected {
+            self.services.auth.login().await.map_err(to_mcp_error)?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for DevupServer {
@@ -104,7 +111,7 @@ impl DevupServer {
             "logout" => self.services.auth.logout().await,
             _ => {
                 return Err(to_mcp_error(DevupError::new(
-                    crate::figma::ErrorCode::DevupAuthRequired,
+                    ErrorCode::DevupAuthRequired,
                     "action은 status, login 또는 logout이어야 합니다.",
                     false,
                 )));
@@ -122,11 +129,12 @@ impl DevupServer {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         let node_id = target.node_id.clone().ok_or_else(|| {
             to_mcp_error(DevupError::new(
-                crate::figma::ErrorCode::DevupFigmaNodeNotFound,
+                ErrorCode::DevupFigmaNodeNotFound,
                 "UI 변환 링크에는 node-id가 필요합니다.",
                 false,
             ))
         })?;
+        self.ensure_authenticated().await?;
         let result = self
             .services
             .upstream
@@ -173,6 +181,7 @@ impl DevupServer {
     ) -> Result<Json<Value>, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         let scope = parse_scope(&input.scope).map_err(to_mcp_error)?;
+        self.ensure_authenticated().await?;
         let result = self
             .services
             .upstream
@@ -206,7 +215,7 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
         "page" => Ok(ThemeScope::Page),
         "file" => Ok(ThemeScope::File),
         _ => Err(DevupError::new(
-            crate::figma::ErrorCode::DevupThemeConflict,
+            ErrorCode::DevupThemeConflict,
             "scope는 node, page 또는 file이어야 합니다.",
             false,
         )),

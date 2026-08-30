@@ -1,4 +1,4 @@
-use devup_mcp::theme::{Completeness, ThemeScope, VariableSnapshot, generate_devup_json};
+use devup_mcp_devup_ui::theme::{Completeness, ThemeScope, VariableSnapshot, generate_devup_json};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

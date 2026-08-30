@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::figma::TypedNode;
+use devup_mcp_figma::TypedNode;
 
 use super::layout::px;
 

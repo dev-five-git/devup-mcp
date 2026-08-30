@@ -5,7 +5,7 @@ use axum::{
     extract::{Form, State},
     routing::{get, post},
 };
-use devup_mcp::figma::{
+use devup_mcp_figma::{
     AuthStatus, BrowserOpener, CredentialStore, MemoryCredentialStore, OAuthManager,
 };
 use serde_json::{Value, json};
@@ -67,7 +67,7 @@ async fn token(
 struct CallbackOpener;
 
 impl BrowserOpener for CallbackOpener {
-    fn open(&self, authorization_url: &str) -> Result<(), devup_mcp::figma::DevupError> {
+    fn open(&self, authorization_url: &str) -> Result<(), devup_mcp_figma::DevupError> {
         let url = url::Url::parse(authorization_url).expect("authorization URL");
         let values = url.query_pairs().into_owned().collect::<HashMap<_, _>>();
         let redirect = values.get("redirect_uri").expect("redirect_uri").clone();

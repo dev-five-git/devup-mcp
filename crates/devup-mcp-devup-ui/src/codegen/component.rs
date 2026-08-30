@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 
-use crate::figma::{DevupError, Diagnostic, ErrorCode, RawNode, Snapshot};
+use devup_mcp_figma::{DevupError, Diagnostic, ErrorCode, RawNode, Snapshot};
 
 use super::{layout, style, text};
 

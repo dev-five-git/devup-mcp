@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor",
+    "crates/devup-mcp-figma/Cargo.toml": "Minor",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
+  },
+  "note": "Add private Figma Remote MCP OAuth, exhaustive snapshots, DevupUI TSX, and devup.json generation",
+  "date": "2026-08-31T00:30:00+09:00"
+}

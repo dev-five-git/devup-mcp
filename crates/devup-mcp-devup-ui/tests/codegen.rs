@@ -1,11 +1,9 @@
-use devup_mcp::{
-    codegen::{CodegenOptions, generate_component, normalize_component_name},
-    figma::{SnapshotChunk, merge_chunks},
-};
+use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component, normalize_component_name};
+use devup_mcp_figma::{SnapshotChunk, merge_chunks};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-fn snapshot() -> devup_mcp::figma::Snapshot {
+fn snapshot() -> devup_mcp_figma::Snapshot {
     let chunk: SnapshotChunk = serde_json::from_value(json!({
         "fileKey": "file-key",
         "version": "1",

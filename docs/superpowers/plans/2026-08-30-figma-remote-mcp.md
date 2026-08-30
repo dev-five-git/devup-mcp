@@ -2,13 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a single Rust `devup-mcp` binary that authenticates to Figma Remote MCP, reads a linked design without modifying it, preserves an exhaustive node snapshot, and emits DevupUI TSX or `devup.json`.
+**Goal:** Build a Rust Cargo workspace that ships one `devup-mcp` binary, authenticates to Figma Remote MCP, reads a linked design without modifying it, preserves an exhaustive node snapshot, and emits DevupUI TSX or `devup.json`.
 
-**Architecture:** `devup-mcp` is a downstream stdio MCP server and an upstream Streamable HTTP MCP client. A narrow Figma adapter owns OAuth, the read-only tool allowlist, snapshot collection and credential storage; deterministic codegen and theme modules consume raw-preserving snapshots without depending on a separate IR crate.
+**Architecture:** `crates/devup-mcp` is the downstream stdio MCP binary, `crates/devup-mcp-figma` owns OAuth, the read-only upstream MCP allowlist, credential storage and raw-preserving snapshots, and `crates/devup-mcp-devup-ui` owns deterministic TSX/theme projection. There is no separate IR, auth, or server crate.
 
 **Tech Stack:** Rust 1.88+, edition 2024, Tokio, rmcp 3.1, reqwest/rustls, serde/schemars, keyring 4, axum loopback callback, oauth2/PKCE helpers, tracing, cargo-nextest-compatible tests.
 
 **Spec:** `docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md`
+
+> Workspace correction: the task-by-task paths below record the original implementation order. Their final locations are `src/figma/* -> crates/devup-mcp-figma/src/*`, `src/codegen/*` and `src/theme/* -> crates/devup-mcp-devup-ui/src/*`, and `src/server/*`, `src/main.rs`, `src/lib.rs` -> `crates/devup-mcp/src/*`.
 
 ## Global Constraints
 

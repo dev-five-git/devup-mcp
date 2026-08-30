@@ -1,4 +1,4 @@
-use devup_mcp::figma::{
+use devup_mcp_figma::{
     ErrorCode, RawNode, Snapshot, SnapshotChunk, UpstreamResult, merge_chunks,
     snapshot_chunk_from_result,
 };

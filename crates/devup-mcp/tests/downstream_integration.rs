@@ -1,10 +1,11 @@
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use async_trait::async_trait;
-use devup_mcp::{
-    figma::{AuthStatus, DevupError, FigmaUpstream, ReadToolCall, UpstreamResult},
-    server::{DevupAuth, DevupServer, Services},
-};
+use devup_mcp::server::{DevupAuth, DevupServer, Services};
+use devup_mcp_figma::{AuthStatus, DevupError, FigmaUpstream, ReadToolCall, UpstreamResult};
 use rmcp::{ServiceExt, model::CallToolRequestParams};
 use serde_json::{Map, Value, json};
 
@@ -38,7 +39,7 @@ impl FigmaUpstream for FixtureUpstream {
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         let payload = match call {
             ReadToolCall::Snapshot {
-                script: devup_mcp::figma::BuiltinScript::NodeSnapshot,
+                script: devup_mcp_figma::BuiltinScript::NodeSnapshot,
                 ..
             } => {
                 json!({
@@ -59,8 +60,8 @@ impl FigmaUpstream for FixtureUpstream {
                 "styles": [], "usedRemoteVariables": [], "localComplete": true, "usedRemoteComplete": false
             }),
             _ => {
-                return Err(devup_mcp::figma::DevupError::new(
-                    devup_mcp::figma::ErrorCode::DevupSnapshotUnsupported,
+                return Err(devup_mcp_figma::DevupError::new(
+                    devup_mcp_figma::ErrorCode::DevupSnapshotUnsupported,
                     "unexpected test call",
                     false,
                 ));
@@ -73,10 +74,15 @@ impl FigmaUpstream for FixtureUpstream {
 }
 
 async fn call_tool(name: &str, arguments: Value) -> anyhow::Result<Value> {
-    let server = DevupServer::new(Services::new(
-        Arc::new(ConnectedAuth),
-        Arc::new(FixtureUpstream),
-    ));
+    call_tool_with_auth(Arc::new(ConnectedAuth), name, arguments).await
+}
+
+async fn call_tool_with_auth(
+    auth: Arc<dyn DevupAuth>,
+    name: &str,
+    arguments: Value,
+) -> anyhow::Result<Value> {
+    let server = DevupServer::new(Services::new(auth, Arc::new(FixtureUpstream)));
     let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
     let task = tokio::spawn(async move {
         server.serve(server_transport).await?.waiting().await?;
@@ -90,6 +96,41 @@ async fn call_tool(name: &str, arguments: Value) -> anyhow::Result<Value> {
     client.cancel().await?;
     task.await??;
     Ok(result.structured_content.expect("structured tool output"))
+}
+
+#[derive(Debug, Default)]
+struct LoginAuth {
+    logins: AtomicUsize,
+}
+
+#[async_trait]
+impl DevupAuth for LoginAuth {
+    async fn status(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Disconnected)
+    }
+
+    async fn login(&self) -> Result<AuthStatus, DevupError> {
+        self.logins.fetch_add(1, Ordering::SeqCst);
+        Ok(AuthStatus::Connected)
+    }
+
+    async fn logout(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Disconnected)
+    }
+}
+
+#[tokio::test]
+async fn conversion_starts_oauth_when_credentials_are_missing() -> anyhow::Result<()> {
+    let auth = Arc::new(LoginAuth::default());
+    call_tool_with_auth(
+        auth.clone(),
+        "devup_figma_to_ui",
+        json!({"url": "https://figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481"}),
+    )
+    .await?;
+
+    assert_eq!(auth.logins.load(Ordering::SeqCst), 1);
+    Ok(())
 }
 
 #[tokio::test]

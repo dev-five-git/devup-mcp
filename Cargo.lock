@@ -565,23 +565,45 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
- "base64 0.22.1",
- "keyring",
- "oauth2",
- "pretty_assertions",
- "rand 0.9.5",
+ "devup-mcp-devup-ui",
+ "devup-mcp-figma",
  "reqwest 0.12.28",
  "rmcp",
  "schemars",
  "serde",
  "serde_json",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "devup-mcp-devup-ui"
+version = "0.1.0"
+dependencies = [
+ "devup-mcp-figma",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "devup-mcp-figma"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "keyring",
+ "rand 0.9.5",
+ "reqwest 0.12.28",
+ "rmcp",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "subtle",
  "tempfile",
- "thiserror 2.0.20",
  "tokio",
- "tracing",
- "tracing-subscriber",
  "url",
  "webbrowser",
 ]
@@ -1486,7 +1508,6 @@ dependencies = [
  "getrandom 0.2.17",
  "http",
  "rand 0.8.8",
- "reqwest 0.12.28",
  "serde",
  "serde_json",
  "serde_path_to_error",

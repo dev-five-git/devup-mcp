@@ -1,4 +1,4 @@
-use devup_mcp::figma::{BuiltinScript, ReadToolCall};
+use devup_mcp_figma::{BuiltinScript, ReadToolCall};
 
 #[test]
 fn maps_every_read_call_to_the_fixed_figma_tool_contract() {
