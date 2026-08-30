@@ -241,6 +241,26 @@ collector는 source와 무관한 계획/병합 계층이다. direct transport와
 host handoff든 정규화와 정렬 결과가 같아야 하며, 검색을 위해 원본 node data를 별도로
 disk cache하지 않는다.
 
+### 실제 JSON 계약 고정 gate
+
+fixture schema를 collector보다 먼저 가정하지 않는다. direct transport, host handoff,
+고정 serializer, chunk 병합과 변수/style 수집을 먼저 구현한 뒤 제공된 실제 Figma
+file/node로 다음을 검증한다.
+
+- 공식 Figma MCP가 반환하는 tool result envelope와 structured/text content 형태
+- serializer가 만드는 node field, `extra`, `fieldErrors`, reference ID와 child order
+- 변수 collection/mode/alias와 style의 실제 JSON 표현
+- 큰 subtree 분할 전후의 병합 shape와 version 정보
+- Rust deserialize → serialize round trip에서 unknown field가 보존되는지
+
+Catalog 승인으로 direct live 연결이 불가능한 환경에서는 host fallback live 결과와 direct
+mock contract를 대조한다. direct live 성공을 fixture 설계의 전제 조건으로 삼지 않는다.
+
+live 응답은 메모리에서만 검사하고 실제 이름, 텍스트, 디자인 값이나 전체 payload를
+repository에 저장하지 않는다. 검증된 key/type/reference 구조를 사용해 비식별 synthetic
+sample을 만들고, 그 sample이 동일 Rust collector/parser를 통과한 뒤에만 fixture
+schema version 1을 고정한다.
+
 고정 `use_figma` serializer는 공개된 모든 data property를 우선 raw JSON으로 보존한다.
 함수, 순환 참조와 binary는 ID/metadata로 치환하고 읽기 실패 getter는 `fieldErrors`,
 typed projection이 모르는 새 값은 `extra`에 둔다. Plugin API typings와 serializer
@@ -316,42 +336,10 @@ fixtures/devup-figma-plugin/
 
 ### fixture schema
 
-각 fixture는 자기완결적이며 다음 envelope를 사용한다.
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "codegen.simple-frame",
-  "operation": "tsx",
-  "source": {
-    "repository": "dev-five-git/devup-figma-plugin",
-    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
-    "test": "src/codegen/__tests__/codegen.test.ts > Codegen > renders simple component",
-    "parameterIndex": 0
-  },
-  "request": {
-    "rootId": "1:1",
-    "componentName": "SimpleFrame",
-    "options": {}
-  },
-  "snapshot": {
-    "fileKey": "fixture",
-    "version": "1",
-    "roots": ["1:1"],
-    "nodes": {
-      "1:1": {
-        "id": "1:1",
-        "type": "FRAME",
-        "fields": { "name": "Frame", "childrenIds": [] },
-        "extra": {},
-        "fieldErrors": {}
-      }
-    }
-  },
-  "variables": [],
-  "styles": []
-}
-```
+각 fixture는 자기완결적이며 `schemaVersion`, 전역 고유 `id`, `operation`, 원본 test
+provenance, 변환 request와 실제 collector가 반환하는 payload를 가진다. payload 내부
+node/variable/style의 구체 JSON 표현은 앞 절의 실제 JSON 계약 고정 gate를 통과한 Rust
+serde type에서 생성하며 이 설계 문서가 임의의 예시 값을 선행 정의하지 않는다.
 
 `operation`은 `tsx`, `responsive-tsx`, `devup-json`, `snapshot` 또는 `error` 중 하나다.
 expected output은 JSON에 중복 저장하지 않고 같은 `id`의 insta snapshot 한 곳에만 둔다.
@@ -374,8 +362,9 @@ version은 변환 전에 실패시킨다.
 
 ### 최초 이전
 
-기준 commit의 inline TypeScript 입력을 `cases/**/*.json`으로 이전한다. 기존 268개
-JavaScript snapshot은 LF로만 정규화해 동일 ID의 최초 insta golden으로 사용한다.
+실제 JSON 계약 고정 gate가 끝난 후 기준 commit의 inline TypeScript 입력을 같은 serde
+type의 `cases/**/*.json`으로 이전한다. 기존 268개 JavaScript snapshot은 LF로만
+정규화해 동일 ID의 최초 insta golden으로 사용한다.
 snapshot이 없던 변환 assertion은 기준 JavaScript 테스트의 실제 기대값을 snapshot으로
 옮긴다. 이전 완료 후 모든 변환 fixture는 JSON이 기준이며, Rust 프로젝트에는 변환용
 JavaScript exporter나 runner를 남기지 않는다.
@@ -481,17 +470,17 @@ verifier, Figma 사용자 정보, 원본 node 내용은 오류와 tracing에서 
 
 ## 구현 순서와 완료 기준
 
-1. fixture envelope/schema와 Rust JSON loader/validator
-2. 기준 plugin의 inline input을 JSON으로 이전하고 978개 ledger/268개 golden 연결
-3. `insta` compatibility runner와 JSON/snapshot 일대일 검증
-4. Rust NodeTree/prop/render/devup.json 규칙을 corpus 기반 TDD로 전수 이식
-5. JSON fixture 전체 gate 통과. 이 단계 전에는 검색 기능으로 넘어가지 않음
-6. 완전 collector와 direct source 오류 분류
-7. memory-only handoff session과 `devup_figma_continue`
-8. `devup_figma_search`와 검색 결과별 `devup_figma_to_ui` 흐름
-9. node/page/file, variables/styles/assets와 workspace export 완성
-10. direct/host mock 계약, 실제 공식 MCP와 opt-in live 검증
-11. 전체 corpus, lint/test/build, changepack, 문서와 배포
+1. direct source 오류 분류, host handoff session과 `devup_figma_continue`
+2. 완전 collector, 고정 serializer, chunk 병합과 node/page/file 수집
+3. variables/styles/assets 수집과 direct/host mock 계약
+4. 실제 공식 MCP live payload를 메모리에서 검증하고 JSON 계약 고정 gate 통과
+5. 검증된 serde type 기반 fixture envelope/schema와 Rust JSON loader/validator
+6. 기준 plugin의 inline input을 JSON으로 이전하고 978개 ledger/268개 golden 연결
+7. `insta` compatibility runner와 JSON/snapshot 일대일 검증
+8. Rust NodeTree/prop/render/devup.json 규칙을 corpus 기반 TDD로 전수 이식
+9. JSON fixture 전체 gate 통과. 이 단계 전에는 검색 기능으로 넘어가지 않음
+10. `devup_figma_search`와 검색 결과별 `devup_figma_to_ui` 흐름
+11. workspace export, 전체 live 검증, lint/test/build, changepack, 문서와 배포
 
 완료는 단순히 Rust test가 green인 상태가 아니다. pinned 원본의 모든 test ID가 ledger에
 있고, 모든 읽기/변환 케이스가 Rust snapshot/assertion/contract로 통과하며, 범위 밖
