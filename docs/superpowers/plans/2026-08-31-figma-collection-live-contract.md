@@ -142,6 +142,7 @@ git commit -m "feat: classify figma source failures"
 - Produces: `CollectionRequest { target: FigmaTarget, scope: CollectionScope, include_variables: bool, include_context: bool }`.
 - Produces: `CollectorSession::new(request)`, `advance(&mut self) -> Result<CollectorStep, DevupError>`, and `accept(&mut self, call_id: &str, result: UpstreamResult) -> Result<(), DevupError>`.
 - Produces: `PlannedCall { id: String, call: ReadToolCall, expected_file_key: String, expected_node_id: Option<String> }`.
+- Produces: `CollectedParts { target, scope, metadata, snapshot_chunks, variables, styles, source_version }`; this is transport output, not the fixture contract.
 
 - [ ] **Step 1: Write failing state-machine tests**
 
@@ -169,7 +170,7 @@ Expected: compile failure for the collector types.
 ```rust
 pub enum CollectorStep {
     Call(PlannedCall),
-    Complete(CollectedPayload),
+    Complete(Box<CollectedParts>),
 }
 
 pub fn advance(&mut self) -> Result<CollectorStep, DevupError>;
@@ -204,6 +205,7 @@ git commit -m "feat: add resumable figma collector"
 - Modify: `crates/devup-mcp-figma/src/lib.rs`
 
 **Interfaces:**
+- Consumes: `CollectedParts` from Task 2.
 - Produces: `CollectedPayload { target, scope, metadata, snapshot, variables, styles, completeness, source_version }` with serde round-trip.
 - Produces: `PayloadCompleteness::{FullLocalPlusUsedRemote, UsedTokens, ResolvedValuesOnly}`.
 - Produces: `PayloadStructure::from_payload(&CollectedPayload)` containing field names, JSON kinds, counts and a schema-only hash but no design values or hashes derived from design values.

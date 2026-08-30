@@ -1,3 +1,4 @@
+mod collector;
 mod credentials;
 mod errors;
 mod oauth;
@@ -22,3 +23,8 @@ pub use source::{
 };
 pub use upstream::{BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, UpstreamResult};
 pub use url::FigmaTarget;
+mod metadata;
+pub use collector::{
+    CollectedParts, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
+    PlannedCall,
+};
