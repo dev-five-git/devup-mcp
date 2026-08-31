@@ -1,4 +1,4 @@
-use quick_xml::{Reader, events::Event};
+use quick_xml::{Reader, XmlVersion, events::Event};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -145,21 +145,11 @@ fn parse_xml_metadata(
     loop {
         match reader.read_event().ok()? {
             Event::Start(element) => {
-                let index = push_xml_node(
-                    &reader,
-                    &element,
-                    &mut nodes,
-                    stack.last().copied().flatten(),
-                );
+                let index = push_xml_node(&element, &mut nodes, stack.last().copied().flatten());
                 stack.push(index);
             }
             Event::Empty(element) => {
-                push_xml_node(
-                    &reader,
-                    &element,
-                    &mut nodes,
-                    stack.last().copied().flatten(),
-                );
+                push_xml_node(&element, &mut nodes, stack.last().copied().flatten());
             }
             Event::End(_) => {
                 stack.pop();
@@ -200,7 +190,6 @@ fn parse_xml_metadata(
 }
 
 fn push_xml_node(
-    reader: &Reader<&[u8]>,
     element: &quick_xml::events::BytesStart<'_>,
     nodes: &mut Vec<XmlNode>,
     parent: Option<usize>,
@@ -209,12 +198,12 @@ fn push_xml_node(
     let mut name = None;
     for attribute in element.attributes().flatten() {
         let key = attribute.key.as_ref();
-        if key == b"id" || key == b"name" {
+        if key == "id" || key == "name" {
             let value = attribute
-                .decode_and_unescape_value(reader.decoder())
+                .normalized_value(XmlVersion::Implicit1_0)
                 .ok()?
                 .into_owned();
-            if key == b"id" {
+            if key == "id" {
                 id = Some(value);
             } else {
                 name = Some(value);
@@ -225,7 +214,9 @@ fn push_xml_node(
     let index = nodes.len();
     nodes.push(XmlNode {
         id,
-        node_type: String::from_utf8_lossy(element.name().as_ref())
+        node_type: element
+            .name()
+            .as_ref()
             .replace('-', "_")
             .to_ascii_uppercase(),
         name,

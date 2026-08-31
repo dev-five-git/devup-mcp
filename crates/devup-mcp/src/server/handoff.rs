@@ -8,7 +8,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use devup_mcp_figma::{
     CollectedParts, CollectorSession, CollectorStep, DevupError, ErrorCode, UpstreamResult,
 };
-use rand::RngCore;
+use rand::Rng;
 use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
