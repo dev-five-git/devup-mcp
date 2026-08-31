@@ -1107,7 +1107,12 @@ fn render_node(
 
     let (opening_props, multiline_props) = render_props(&props, depth);
     let rendered = if component == "Text" {
-        let children = text::render_text_children(&view, &context.variable_tokens, depth + 1);
+        let children = text::render_text_children(
+            &view,
+            &context.text_style_tokens,
+            &context.variable_tokens,
+            depth + 1,
+        );
         let close_open = if multiline_props {
             format!("{opening_props}\n{indent}>")
         } else {

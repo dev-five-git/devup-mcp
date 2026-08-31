@@ -101,3 +101,98 @@ fn records_explicit_diagnostics_for_unsupported_visuals() {
     assert!(codes.contains(&"DEVUP_CODEGEN_ABSOLUTE_FALLBACK"));
     assert!(codes.contains(&"DEVUP_CODEGEN_EFFECT_FALLBACK"));
 }
+
+#[test]
+fn nested_text_style_uses_typography() {
+    let chunk: SnapshotChunk = serde_json::from_value(json!({
+        "fileKey": "file-key",
+        "version": "1",
+        "rootIds": ["2:1"],
+        "nodes": [{
+            "id": "2:1",
+            "type": "TEXT",
+            "fields": {
+                "name": "Mixed story",
+                "childrenIds": [],
+                "characters": "우리 [1. 이름] 왔어?\n다음 줄",
+                "textTruncation": "DISABLED",
+                "styledTextSegments": [
+                    {
+                        "characters": "우리 ",
+                        "start": 0,
+                        "end": 3,
+                        "textStyleId": "S:body",
+                        "fontName": {"family": "Pretendard", "style": "Regular"},
+                        "fontSize": 16,
+                        "fontWeight": 400,
+                        "fills": [{
+                            "type": "SOLID",
+                            "color": {"r": 0, "g": 0, "b": 0},
+                            "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "VariableID:text"}}
+                        }]
+                    },
+                    {
+                        "characters": "[1. 이름]",
+                        "start": 3,
+                        "end": 10,
+                        "textStyleId": "S:bodySemibold",
+                        "fontName": {"family": "Pretendard", "style": "SemiBold"},
+                        "fontSize": 16,
+                        "fontWeight": 600,
+                        "fills": [{
+                            "type": "SOLID",
+                            "color": {"r": 0.2, "g": 0.4, "b": 1},
+                            "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "VariableID:primaryLight"}}
+                        }]
+                    },
+                    {
+                        "characters": " 왔어?\n다음 줄",
+                        "start": 10,
+                        "end": 20,
+                        "textStyleId": "S:body",
+                        "fontName": {"family": "Pretendard", "style": "Regular"},
+                        "fontSize": 16,
+                        "fontWeight": 400,
+                        "fills": [{
+                            "type": "SOLID",
+                            "color": {"r": 0, "g": 0, "b": 0},
+                            "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "VariableID:text"}}
+                        }]
+                    }
+                ]
+            },
+            "extra": {},
+            "fieldErrors": {}
+        }],
+        "diagnostics": []
+    }))
+    .unwrap();
+    let snapshot = merge_chunks(vec![chunk]).unwrap();
+    let options = CodegenOptions {
+        text_style_tokens: [
+            ("S:body".to_owned(), "body".to_owned()),
+            ("S:bodySemibold".to_owned(), "bodySemibold".to_owned()),
+        ]
+        .into_iter()
+        .collect(),
+        variable_tokens: [
+            ("VariableID:text".to_owned(), "text".to_owned()),
+            (
+                "VariableID:primaryLight".to_owned(),
+                "primaryLight".to_owned(),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        ..CodegenOptions::default()
+    };
+
+    let output = generate_component(&snapshot, "2:1", &options).unwrap();
+
+    assert!(output.tsx.contains("typography=\"body\""));
+    assert!(output.tsx.contains("typography=\"bodySemibold\""));
+    assert!(output.tsx.contains("color=\"$primaryLight\""));
+    assert!(output.tsx.contains("{\" \"}왔어?<br />다음 줄"));
+    assert!(!output.tsx.contains("fontSize=\"16px\""));
+    assert!(!output.tsx.contains("fontWeight=\"600\""));
+}

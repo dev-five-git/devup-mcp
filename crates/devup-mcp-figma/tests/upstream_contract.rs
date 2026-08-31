@@ -83,6 +83,32 @@ fn snapshot_reads_only_manifest_properties_supported_by_the_runtime_node() {
 }
 
 #[test]
+fn snapshot_collects_styled_text_segments_from_the_compiled_manifest() {
+    let call = ReadToolCall::snapshot("file-key", "1:2", BuiltinScript::NodeSnapshot);
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(code.contains("getStyledTextSegments(textSegmentManifest)"));
+    assert!(code.contains("fields.styledTextSegments"));
+    for field in [
+        "fontName",
+        "fontWeight",
+        "fontSize",
+        "textDecoration",
+        "textCase",
+        "lineHeight",
+        "letterSpacing",
+        "fills",
+        "textStyleId",
+        "fillStyleId",
+        "listOptions",
+        "indentation",
+        "hyperlink",
+    ] {
+        assert!(code.contains(&format!("\"{field}\"")), "missing {field}");
+    }
+}
+
+#[test]
 fn search_uses_a_compiled_read_only_page_projection() {
     let call = ReadToolCall::search_snapshot(
         "file-key",

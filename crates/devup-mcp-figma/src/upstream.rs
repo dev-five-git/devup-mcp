@@ -57,6 +57,10 @@ impl BuiltinScript {
                 "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
                 include_str!("plugin_api_manifest.json"),
             )
+            .replace(
+                "\"__DEVUP_TEXT_SEGMENT_MANIFEST__\"",
+                include_str!("text_segment_manifest.json"),
+            )
             .replace("\"__DEVUP_RESOURCE_BATCH__\"", &resources)
             .replace("\"__DEVUP_SEARCH__\"", &search)
     }

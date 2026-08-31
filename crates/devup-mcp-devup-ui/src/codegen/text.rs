@@ -234,6 +234,7 @@ fn replace_prop(props: &mut Vec<Prop>, name: &str, value: String) {
 
 pub(super) fn render_text_children(
     view: &TypedNode<'_>,
+    text_style_tokens: &BTreeMap<String, String>,
     variable_tokens: &BTreeMap<String, String>,
     depth: usize,
 ) -> String {
@@ -248,7 +249,7 @@ pub(super) fn render_text_children(
         return indent;
     }
     let default = default_segment(view).expect("non-empty styledTextSegments");
-    let default_props = typography_props(default, variable_tokens);
+    let default_props = typography_props(default, text_style_tokens, variable_tokens);
     let mut rendered = Vec::new();
     for segment in segments {
         let value = segment
@@ -272,7 +273,7 @@ pub(super) fn render_text_children(
             continue;
         }
 
-        let mut segment_props = typography_props(segment, variable_tokens);
+        let mut segment_props = typography_props(segment, text_style_tokens, variable_tokens);
         segment_props.retain(|(name, value)| {
             !default_props
                 .iter()
@@ -300,14 +301,24 @@ pub(super) fn render_text_children(
     rendered.join("\n")
 }
 
-fn typography_props(segment: &Value, variable_tokens: &BTreeMap<String, String>) -> Vec<Prop> {
+fn typography_props(
+    segment: &Value,
+    text_style_tokens: &BTreeMap<String, String>,
+    variable_tokens: &BTreeMap<String, String>,
+) -> Vec<Prop> {
     let mut props = Vec::new();
     if let Some(color) = bound_segment_color(segment.get("fills"), variable_tokens)
         .or_else(|| first_solid_color(segment.get("fills")))
     {
         string_prop(&mut props, "color", color);
     }
-    if let Some(family) = segment
+    let typography = segment
+        .get("textStyleId")
+        .and_then(Value::as_str)
+        .and_then(|id| text_style_tokens.get(id));
+    if let Some(typography) = typography {
+        string_prop(&mut props, "typography", typography);
+    } else if let Some(family) = segment
         .get("fontName")
         .and_then(Value::as_object)
         .and_then(|font| font.get("family"))
@@ -315,36 +326,47 @@ fn typography_props(segment: &Value, variable_tokens: &BTreeMap<String, String>)
     {
         string_prop(&mut props, "fontFamily", family);
     }
-    if segment
-        .get("fontName")
-        .and_then(Value::as_object)
-        .and_then(|font| font.get("style"))
-        .and_then(Value::as_str)
-        .is_some_and(|style| style.contains("Italic"))
+    if typography.is_none()
+        && segment
+            .get("fontName")
+            .and_then(Value::as_object)
+            .and_then(|font| font.get("style"))
+            .and_then(Value::as_str)
+            .is_some_and(|style| style.contains("Italic"))
     {
         string_prop(&mut props, "fontStyle", "italic");
     }
-    if let Some(value) = segment.get("fontSize").and_then(Value::as_f64) {
+    if typography.is_none()
+        && let Some(value) = segment.get("fontSize").and_then(Value::as_f64)
+    {
         string_prop(&mut props, "fontSize", px(value));
     }
-    if let Some(value) = segment.get("fontWeight").and_then(Value::as_f64) {
+    if typography.is_none()
+        && let Some(value) = segment.get("fontWeight").and_then(Value::as_f64)
+    {
         string_prop(&mut props, "fontWeight", format_number(value));
     }
-    if let Some(value) = letter_spacing(segment.get("letterSpacing")) {
+    if typography.is_none()
+        && let Some(value) = letter_spacing(segment.get("letterSpacing"))
+    {
         string_prop(&mut props, "letterSpacing", value);
     }
-    if let Some(value) = line_height(segment.get("lineHeight")) {
+    if typography.is_none()
+        && let Some(value) = line_height(segment.get("lineHeight"))
+    {
         string_prop(&mut props, "lineHeight", value);
     }
-    match segment.get("textDecoration").and_then(Value::as_str) {
-        Some("UNDERLINE") => string_prop(&mut props, "textDecoration", "underline"),
-        Some("STRIKETHROUGH") => string_prop(&mut props, "textDecoration", "line-through"),
-        _ => {}
-    }
-    if let Some(case) = segment.get("textCase").and_then(Value::as_str)
-        && case != "ORIGINAL"
-    {
-        string_prop(&mut props, "textTransform", case.to_ascii_lowercase());
+    if typography.is_none() {
+        match segment.get("textDecoration").and_then(Value::as_str) {
+            Some("UNDERLINE") => string_prop(&mut props, "textDecoration", "underline"),
+            Some("STRIKETHROUGH") => string_prop(&mut props, "textDecoration", "line-through"),
+            _ => {}
+        }
+        if let Some(case) = segment.get("textCase").and_then(Value::as_str)
+            && case != "ORIGINAL"
+        {
+            string_prop(&mut props, "textTransform", case.to_ascii_lowercase());
+        }
     }
     props
 }

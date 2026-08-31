@@ -3,6 +3,7 @@ if (!root) throw new Error("DEVUP_NODE_NOT_FOUND");
 
 const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
 const manifestSet = new Set(manifest);
+const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
 const skipped = new Set(["id", "type", "parent", "children"]);
 
 function propertyNames(value) {
@@ -63,6 +64,13 @@ function snapshotNode(node) {
       (manifestSet.has(name) ? fields : extra)[name] = serialized;
     } catch (error) {
       fieldErrors[name] = String(error && error.message ? error.message : error);
+    }
+  }
+  if (node.type === "TEXT" && typeof node.getStyledTextSegments === "function") {
+    try {
+      fields.styledTextSegments = serialize(node.getStyledTextSegments(textSegmentManifest));
+    } catch (error) {
+      fieldErrors.styledTextSegments = String(error && error.message ? error.message : error);
     }
   }
   return { id: node.id, type: node.type, fields, extra, fieldErrors };

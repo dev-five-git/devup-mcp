@@ -291,8 +291,14 @@ fn project_tree(
             .map(|child| project_tree(snapshot, child, options))
             .collect::<Result<Vec<_>, _>>()?
     };
-    let content = (view.node_type() == "TEXT")
-        .then(|| text::render_text_children(&view, &options.variable_tokens, 0));
+    let content = (view.node_type() == "TEXT").then(|| {
+        text::render_text_children(
+            &view,
+            &options.text_style_tokens,
+            &options.variable_tokens,
+            0,
+        )
+    });
     Ok(Tree {
         component,
         props,
