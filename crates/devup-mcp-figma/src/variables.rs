@@ -42,6 +42,8 @@ pub(crate) struct VariableCatalog {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct VariableBatchResult {
     #[serde(default)]
+    pub collections: Vec<Value>,
+    #[serde(default)]
     pub variables: Vec<Value>,
     #[serde(default)]
     pub styles: Vec<Value>,
@@ -160,12 +162,17 @@ pub(crate) fn merge_used_resource_results(
     refs: &UsedResourceRefs,
     batches: impl IntoIterator<Item = VariableBatchResult>,
 ) -> Result<UsedResourceMerge, DevupError> {
+    let mut collections_by_id = std::collections::BTreeMap::<String, Value>::new();
     let mut variables_by_id = std::collections::BTreeMap::<String, Value>::new();
     let mut styles_by_id = std::collections::BTreeMap::<String, Value>::new();
     let mut unresolved_by_key =
         std::collections::BTreeMap::<(ResourceKind, String), UnresolvedResource>::new();
 
     for batch in batches {
+        for collection in batch.collections {
+            let id = resource_value_id(&collection)?;
+            collections_by_id.insert(id, collection);
+        }
         for variable in batch.variables {
             let id = resource_value_id(&variable)?;
             variables_by_id.insert(id, variable);
@@ -210,22 +217,30 @@ pub(crate) fn merge_used_resource_results(
     }
 
     let unresolved = unresolved_by_key.into_values().collect::<Vec<_>>();
+    let collections = collections_by_id.into_values().collect::<Vec<_>>();
     let used_remote_variables = variables
         .iter()
         .filter(|variable| variable.get("remote").and_then(Value::as_bool) == Some(true))
         .cloned()
         .collect::<Vec<_>>();
+    let used_style_ids = refs
+        .styles
+        .iter()
+        .map(|style| style.id.as_str())
+        .collect::<Vec<_>>();
     let used_remote_complete = unresolved.is_empty();
     Ok(UsedResourceMerge {
         result: UpstreamResult {
             raw: json!({
-                "collections": [],
+                "collections": collections,
                 "variables": variables,
                 "styles": styles,
                 "usedRemoteVariables": used_remote_variables,
                 "localComplete": false,
                 "usedRemoteComplete": used_remote_complete,
-                "unresolved": &unresolved
+                "unresolved": &unresolved,
+                "usedVariableIds": &refs.variable_ids,
+                "usedStyleIds": used_style_ids
             }),
         },
         unresolved,
@@ -317,6 +332,7 @@ mod tests {
         };
         let batches = vec![
             VariableBatchResult {
+                collections: Vec::new(),
                 variables: Vec::new(),
                 styles: vec![json!({
                     "id": "s1",
@@ -328,6 +344,7 @@ mod tests {
                 unresolved: Vec::new(),
             },
             VariableBatchResult {
+                collections: Vec::new(),
                 variables: Vec::new(),
                 styles: vec![json!({
                     "id": "s1",
@@ -338,6 +355,7 @@ mod tests {
                 unresolved: Vec::new(),
             },
             VariableBatchResult {
+                collections: Vec::new(),
                 variables: Vec::new(),
                 styles: vec![json!({
                     "id": "s1",

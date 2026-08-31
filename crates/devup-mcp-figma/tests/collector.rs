@@ -924,7 +924,20 @@ fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
             &resource_call.id,
             UpstreamResult {
                 raw: json!({
-                    "variables": [{"id": "VariableID:1:2", "name": "primary", "remote": true}],
+                    "collections": [{
+                        "id": "collection:1",
+                        "name": "Foundation",
+                        "defaultModeId": "mode:1",
+                        "modes": [{"modeId": "mode:1", "name": "Default"}]
+                    }],
+                    "variables": [{
+                        "id": "VariableID:1:2",
+                        "name": "primary",
+                        "remote": true,
+                        "variableCollectionId": "collection:1",
+                        "resolvedType": "COLOR",
+                        "valuesByMode": {"mode:1": {"r": 1, "g": 0, "b": 0, "a": 1}}
+                    }],
                     "styles": [],
                     "unresolved": [{"id": "S:text", "kind": "style", "reason": "notFoundOrUnavailable"}]
                 }),
@@ -936,10 +949,13 @@ fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
         panic!("used resource collection should complete")
     };
     let resources = &parts.variables.as_ref().unwrap().raw;
+    assert_eq!(resources["collections"][0]["id"], "collection:1");
     assert_eq!(resources["variables"][0]["name"], "primary");
     assert_eq!(resources["styles"], json!([]));
     assert_eq!(resources["usedRemoteComplete"], false);
     assert_eq!(resources["unresolved"][0]["id"], "S:text");
+    assert_eq!(resources["usedVariableIds"], json!(["VariableID:1:2"]));
+    assert_eq!(resources["usedStyleIds"], json!(["S:text"]));
     let diagnostic = parts.snapshot_chunks[0]
         .diagnostics
         .iter()

@@ -61,7 +61,16 @@ impl FigmaUpstream for FixtureUpstream {
                     "fileKey": "85CgSws3o5XsLv7aAwWJyS", "version": "1", "rootIds": ["3879:35481"],
                     "nodes": [{
                         "id": "3879:35481", "type": "FRAME",
-                        "fields": {"name": "Proofread", "childrenIds": [], "layoutMode": "VERTICAL", "width": 320, "height": 240},
+                        "fields": {
+                            "name": "Proofread",
+                            "childrenIds": [],
+                            "layoutMode": "VERTICAL",
+                            "width": 320,
+                            "height": 240,
+                            "boundVariables": {
+                                "fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]
+                            }
+                        },
                         "extra": {"futureField": true}, "fieldErrors": {}
                     }], "diagnostics": []
                 })
@@ -74,7 +83,7 @@ impl FigmaUpstream for FixtureUpstream {
                     "id": "c", "name": "Theme", "defaultModeId": "m",
                     "modes": [{"modeId": "m", "name": "Default"}]
                 }],
-                "variableIds": ["v"], "styles": [],
+                "variableIds": ["v", "unused", "v-alt"], "styles": [],
                 "localComplete": true, "usedRemoteComplete": false
             }),
             ReadToolCall::Snapshot {
@@ -84,8 +93,29 @@ impl FigmaUpstream for FixtureUpstream {
                 "variables": [{
                     "id": "v", "name": "Color/Primary", "resolvedType": "COLOR", "variableCollectionId": "c",
                     "codeSyntax": {"WEB": "primary"}, "valuesByMode": {"m": {"r": 0, "g": 0.4, "b": 1, "a": 1}}
+                }, {
+                    "id": "unused", "name": "Color/Unused", "resolvedType": "COLOR", "variableCollectionId": "c",
+                    "codeSyntax": {"WEB": "unused"}, "valuesByMode": {"m": {"r": 1, "g": 0, "b": 0, "a": 1}}
+                }, {
+                    "id": "v-alt", "name": "Color/PrimaryAlt", "resolvedType": "COLOR", "variableCollectionId": "c",
+                    "codeSyntax": {"WEB": "primary"}, "valuesByMode": {"m": {"r": 1, "g": 0, "b": 0, "a": 1}}
                 }],
                 "styles": []
+            }),
+            ReadToolCall::Snapshot {
+                script: devup_mcp_figma::BuiltinScript::UsedResources,
+                ..
+            } => json!({
+                "collections": [{
+                    "id": "c", "name": "Theme", "defaultModeId": "m",
+                    "modes": [{"modeId": "m", "name": "Default"}]
+                }],
+                "variables": [{
+                    "id": "v", "name": "Color/Primary", "resolvedType": "COLOR", "variableCollectionId": "c",
+                    "codeSyntax": {"WEB": "primary"}, "valuesByMode": {"m": {"r": 0, "g": 0.4, "b": 1, "a": 1}}
+                }],
+                "styles": [],
+                "unresolved": []
             }),
             _ => {
                 return Err(devup_mcp_figma::DevupError::new(
@@ -285,11 +315,38 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
             .contains("\"primary\"")
     );
     assert_eq!(result["completeness"], "used-tokens");
+    assert_eq!(result["conflicts"][0]["token"], "primary");
+    assert_eq!(result["conflicts"][0]["winnerVariableId"], "v");
+    assert_eq!(result["unresolvedVariables"], json!([]));
     assert_eq!(
         std::fs::read_to_string(&output_path)?,
         result["devupJson"].as_str().unwrap()
     );
     assert!(result["outputPath"].as_str().is_some());
     std::fs::remove_file(output_path)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn node_theme_scope_excludes_file_variables_not_used_by_the_node() -> anyhow::Result<()> {
+    let result = call_tool(
+        "devup_figma_to_json",
+        json!({
+            "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "scope": "node",
+            "includeDiagnostics": true
+        }),
+    )
+    .await?;
+
+    assert_eq!(result["status"], "complete");
+    assert!(
+        result["devupJson"]
+            .as_str()
+            .unwrap()
+            .contains("\"primary\"")
+    );
+    assert!(!result["devupJson"].as_str().unwrap().contains("\"unused\""));
+    assert_eq!(result["completeness"], "used-tokens");
     Ok(())
 }

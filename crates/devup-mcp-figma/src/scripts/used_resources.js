@@ -38,10 +38,21 @@ const variableResults = await Promise.all(resources.variableIds.map(async (id) =
   try {
     const value = await figma.variables.getVariableByIdAsync(id);
     return value
-      ? { value: serialize(value) }
+      ? { value: serialize(value), collectionId: value.variableCollectionId }
       : { unresolved: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
   } catch (_error) {
     return { unresolved: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+  }
+}));
+
+const collectionIds = [...new Set(variableResults
+  .flatMap((result) => result.collectionId ? [result.collectionId] : []))].sort();
+const collectionResults = await Promise.all(collectionIds.map(async (id) => {
+  try {
+    const collection = await figma.variables.getVariableCollectionByIdAsync(id);
+    return collection ? [serialize(collection)] : [];
+  } catch (_error) {
+    return [];
   }
 }));
 
@@ -69,8 +80,11 @@ const styleResults = await Promise.all(resources.styles.map(async (styleRef) => 
 }));
 
 return {
+  collections: collectionResults.flat(),
   variables: variableResults.flatMap((result) => result.value ? [result.value] : []),
   styles: styleResults.flatMap((result) => result.value ? [result.value] : []),
+  usedVariableIds: resources.variableIds,
+  usedStyleIds: resources.styles.map((style) => style.id),
   unresolved: [...variableResults, ...styleResults]
     .flatMap((result) => result.unresolved ? [result.unresolved] : [])
 };

@@ -190,7 +190,11 @@ const variableJobs = sortedVariableIds.map(async (id) => {
   try {
     const variable = await figma.variables.getVariableByIdAsync(id);
     return variable
-      ? { kind: "variable", value: serializeResource(variable) }
+      ? {
+          kind: "variable",
+          value: serializeResource(variable),
+          collectionId: variable.variableCollectionId,
+        }
       : { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
   } catch (_) {
     return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
@@ -223,6 +227,18 @@ const styleJobs = sortedStyles.map(async ({ id, styleType }) => {
   }
 });
 const resourceResults = await Promise.all([...variableJobs, ...styleJobs]);
+const collectionIds = [...new Set(resourceResults
+  .filter((result) => result.kind === "variable" && result.collectionId)
+  .map((result) => result.collectionId))].sort();
+const collectionJobs = collectionIds.map(async (id) => {
+  try {
+    const collection = await figma.variables.getVariableCollectionByIdAsync(id);
+    return collection ? serializeResource(collection) : null;
+  } catch (_) {
+    return null;
+  }
+});
+const collections = (await Promise.all(collectionJobs)).filter((collection) => collection !== null);
 const variables = resourceResults
   .filter((result) => result.kind === "variable")
   .map((result) => result.value);
@@ -282,10 +298,12 @@ const envelope = {
     diagnostics: [],
   },
   resources: {
-    collections: [],
+    collections,
     variables,
     styles,
     usedRemoteVariables: variables.filter((variable) => variable.remote === true),
+    usedVariableIds: sortedVariableIds,
+    usedStyleIds: sortedStyles.map((style) => style.id),
     localComplete: false,
     usedRemoteComplete: unresolved.length === 0,
     unresolved,

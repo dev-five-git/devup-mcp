@@ -220,7 +220,10 @@ fn used_resources_use_exact_ids_without_file_catalog_or_consumers() {
 
     assert_eq!(call.tool_name(), "use_figma");
     assert!(code.contains("getVariableByIdAsync"));
+    assert!(code.contains("getVariableCollectionByIdAsync"));
     assert!(code.contains("getStyleByIdAsync"));
+    assert!(code.contains("usedVariableIds"));
+    assert!(code.contains("usedStyleIds"));
     assert!(!code.contains("getLocalVariableCollectionsAsync"));
     assert!(!code.contains("getStyleConsumersAsync"));
 }
@@ -243,8 +246,11 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
         assert!(code.contains(&format!("\"{field}\"")), "missing {field}");
     }
     assert!(code.contains("getVariableByIdAsync"));
+    assert!(code.contains("getVariableCollectionByIdAsync"));
     assert!(code.contains("getStyleByIdAsync"));
     assert!(code.contains("Promise.all([...variableJobs, ...styleJobs])"));
+    assert!(code.contains("usedVariableIds"));
+    assert!(code.contains("usedStyleIds"));
     assert!(code.contains("duVp"));
     assert!(code.contains("figma.io.write"));
     assert!(code.contains("devup-fast-snapshot-${sequence + 1}-of-${chunkCount}.png"));

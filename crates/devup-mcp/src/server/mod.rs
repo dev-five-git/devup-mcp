@@ -232,8 +232,12 @@ impl DevupServer {
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
-        request.resource_scope = ResourceScope::File;
-        request.variables_only = true;
+        if collection_scope == CollectionScope::File {
+            request.resource_scope = ResourceScope::File;
+            request.variables_only = true;
+        } else {
+            request.resource_scope = ResourceScope::Used;
+        }
         let result = self
             .start_operation(
                 PendingOperation::ToJson {
@@ -455,6 +459,8 @@ fn complete_operation(
                 "counts": output.counts,
                 "completeness": output.completeness,
                 "completenessReport": &completeness_report,
+                "conflicts": output.conflicts,
+                "unresolvedVariables": output.unresolved_variables,
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "collection": collection,

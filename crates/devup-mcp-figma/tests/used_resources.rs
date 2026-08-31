@@ -32,6 +32,7 @@ fn exact_id_script_fetches_used_resources_without_style_consumers() {
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
     assert!(code.contains("getVariableByIdAsync"));
+    assert!(code.contains("getVariableCollectionByIdAsync"));
     assert!(code.contains("getStyleByIdAsync"));
     assert!(code.contains("unresolved"));
     assert!(!code.contains("getLocalVariablesAsync"));

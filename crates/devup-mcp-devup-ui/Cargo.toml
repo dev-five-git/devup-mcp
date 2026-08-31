@@ -11,8 +11,8 @@ repository.workspace = true
 devup-mcp-figma = { path = "../devup-mcp-figma" }
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions = "1"
-sha2.workspace = true
