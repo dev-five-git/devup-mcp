@@ -250,6 +250,69 @@ fn standalone_instance_inlining_uses_resolved_children_not_component_props() {
 }
 
 #[test]
+fn standalone_instance_inlining_resolves_descendant_boolean_properties() {
+    fn generate(visible: bool) -> String {
+        let chunk: SnapshotChunk = serde_json::from_value(json!({
+            "fileKey": "file-key",
+            "version": "1",
+            "rootIds": ["3:10"],
+            "nodes": [
+                {
+                    "id": "3:10", "type": "FRAME",
+                    "fields": {"name": "Screen", "childrenIds": ["3:11"], "layoutMode": "VERTICAL"},
+                    "extra": {}, "fieldErrors": {}
+                },
+                {
+                    "id": "3:11", "type": "INSTANCE",
+                    "fields": {
+                        "name": "Header", "childrenIds": ["3:12"], "layoutMode": "HORIZONTAL",
+                        "componentProperties": {
+                            "button#98:0": {"type": "BOOLEAN", "value": visible}
+                        }
+                    },
+                    "extra": {}, "fieldErrors": {}
+                },
+                {
+                    "id": "3:12", "type": "SLOT",
+                    "fields": {
+                        "name": "Button slot", "childrenIds": ["3:13"],
+                        "componentPropertyReferences": {"visible": "button#98:0"}
+                    },
+                    "extra": {}, "fieldErrors": {}
+                },
+                {
+                    "id": "3:13", "type": "TEXT",
+                    "fields": {"name": "Resolved button", "childrenIds": [], "characters": "초기화"},
+                    "extra": {}, "fieldErrors": {}
+                }
+            ],
+            "diagnostics": []
+        }))
+        .unwrap();
+        let snapshot = merge_chunks(vec![chunk]).unwrap();
+
+        generate_component(
+            &snapshot,
+            "3:10",
+            &CodegenOptions {
+                inline_instances: true,
+                ..CodegenOptions::default()
+            },
+        )
+        .unwrap()
+        .tsx
+    }
+
+    let visible = generate(true);
+    assert!(visible.contains("초기화"));
+    assert!(!visible.contains("button &&"));
+
+    let hidden = generate(false);
+    assert!(!hidden.contains("초기화"));
+    assert!(!hidden.contains("button &&"));
+}
+
+#[test]
 fn mixed_individual_stroke_emits_only_nonzero_sides() {
     let snapshot = stroke_snapshot(true);
 

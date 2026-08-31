@@ -79,6 +79,10 @@ fn official_mcp_payload_round_trips_without_value_logging() {
     for typography in ["h3", "body", "bodySemibold"] {
         assert!(output.tsx.contains(&format!("typography=\"{typography}\"")));
     }
+    assert!(
+        !output.tsx.contains(" && "),
+        "a concrete live frame must not emit undeclared component-property expressions"
+    );
 
     let stats = serde_json::to_value(&payload.stats).expect("safe stats");
     let keys = stats

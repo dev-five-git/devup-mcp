@@ -84,6 +84,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
     assert_eq!(selection["status"], "selection_required");
     assert_eq!(selection["targetKind"], "section");
     assert!(selection.get("tsx").is_none());
+    assert_eq!(selection["collection"]["figmaToolCalls"], 1);
     assert_eq!(
         selection["selection"]["candidates"]
             .as_array()
@@ -130,6 +131,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
                 .any(|entry| entry["nodeId"] == "10:2" && entry["property"] == "type"))
     );
     assert_eq!(selected["cache"]["cacheHit"], true);
+    assert_eq!(selected["collection"]["figmaToolCalls"], 1);
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
 
     let all = call(
@@ -151,6 +153,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
         ["10:3", "10:2"]
     );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
+    assert_eq!(all["collection"]["figmaToolCalls"], 1);
 
     let invalid = client
         .call_tool(
@@ -171,6 +174,38 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
     client.cancel().await?;
     task.await??;
     Ok(())
+}
+
+#[test]
+fn actual_wquw_151_section_fixture_preserves_the_ten_screen_index() {
+    let fixture: Value = serde_json::from_str(include_str!("fixtures/wquw-151-section.json"))
+        .expect("actual WQUW-151 Section fixture");
+    assert_eq!(fixture["source"]["fileKey"], "85CgSws3o5XsLv7aAwWJyS");
+    assert_eq!(fixture["source"]["nodeId"], "4217:7743");
+    assert_eq!(fixture["section"]["name"], "[FR-026] 본연체");
+    assert_eq!(fixture["proofreadTargetId"], "3879:35518");
+    let candidates = fixture["screenCandidates"]
+        .as_array()
+        .expect("screen candidates");
+    assert_eq!(candidates.len(), 10);
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|candidate| candidate["id"].as_str().expect("candidate id"))
+            .collect::<Vec<_>>(),
+        [
+            "3879:36108",
+            "3879:36059",
+            "3879:35503",
+            "3879:35518",
+            "3879:35569",
+            "3879:36144",
+            "3879:35729",
+            "3879:35887",
+            "3879:35973",
+            "3879:35652",
+        ]
+    );
 }
 
 fn section_envelope() -> UpstreamResult {

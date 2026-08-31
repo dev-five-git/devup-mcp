@@ -1,0 +1,116 @@
+---
+source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
+expression: output.tsx
+---
+import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
+
+export function Wquw151Frame387936108() {
+  return (
+    <VStack bg="$backgroundLight" h="740px" overflow="hidden" w="360px">
+      <Flex
+        alignItems="center"
+        h="66px"
+        justifyContent="space-between"
+        overflow="hidden"
+        px="0px"
+        py="8px"
+        w="360px"
+      >
+        <Center aspectRatio="1" h="100%" w="50px">
+          <Box
+            aspectRatio="1"
+            bg="$caption"
+            boxSize="32px"
+            maskImage="url(/icons/Icons.svg)"
+            maskPos="center"
+            maskRepeat="no-repeat"
+            maskSize="contain"
+            transform="rotate(180deg)"
+          />
+        </Center>
+        <Center h="100%" px="20px" py="0px">
+          <Flex alignItems="center" gap="6px">
+            <Box
+              aspectRatio="1"
+              bg="$captionLight"
+              boxSize="20px"
+              maskImage="url('/icons/arrow_7134700 1.svg')"
+              maskPos="center"
+              maskRepeat="no-repeat"
+              maskSize="contain"
+            />
+            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+              초기화
+            </Text>
+          </Flex>
+        </Center>
+      </Flex>
+      <VStack alignItems="center" gap="20px" px="30px" py="20px">
+        <Text
+          color="$text"
+          overflow="hidden"
+          textOverflow="ellipsis"
+          typography="h4"
+          w="100%"
+          wordBreak="keep-all"
+        >
+          주말 아침, 늦잠을 자는 편인지 부지런히 움직이는 편인지 주말 풍경에 대해 이야기해주세요
+        </Text>
+        <Center
+          bg="$dustyMintBg"
+          borderRadius="12px"
+          gap="8px"
+          px="16px"
+          py="10px"
+          w="100%"
+        >
+          <Box
+            aspectRatio="1"
+            bg="$secondary"
+            boxSize="16px"
+            maskImage="url('/icons/information-button_1176 1.svg')"
+            maskPos="center"
+            maskRepeat="no-repeat"
+            maskSize="contain"
+          />
+          <Text color="$secondary" typography="bodyXsSemibold" wordBreak="keep-all">
+            이야기가 막힐 때 눌러보세요
+          </Text>
+        </Center>
+        <Text
+          color="$textLight"
+          overflow="hidden"
+          textOverflow="ellipsis"
+          typography="recordText"
+          w="100%"
+          wordBreak="keep-all"
+        >
+          그건 어느 추운 겨울날이었어. 바깥에는 <br />첫눈이 내려 온통 세상이 하얗고 거리의 소음마저 눈에 묻혀 조용한 오후였지. 나는 버스 정류장에서 잔뜩 움츠린 채 서 있었어.
+        </Text>
+        <Flex alignItems="center" gap="30px">
+          <Center flexDir="column" gap="8px">
+            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+              직접 입력
+            </Text>
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
+          </Center>
+          <Center flexDir="column" gap="8px">
+            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+              녹음하기
+            </Text>
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/플레이 버튼.svg" />
+          </Center>
+          <Center flexDir="column" gap="8px">
+            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+              작성 완료
+            </Text>
+            <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
+          </Center>
+        </Flex>
+        <Text color="$caption" typography="bodyXsSemibold" wordBreak="keep-all">
+          임시 저장하고 다음에 이어서 하기
+        </Text>
+      </VStack>
+    </VStack>
+  );
+}

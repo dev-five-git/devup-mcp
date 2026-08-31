@@ -1,0 +1,69 @@
+---
+source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
+expression: output.tsx
+---
+import { Box, Center, Image, Text, VStack } from "@devup-ui/react";
+
+export function Wquw151Frame387935503() {
+  return (
+    <VStack
+      alignItems="center"
+      backdropFilter="blur(12px)"
+      bg="$background"
+      h="740px"
+      overflow="hidden"
+      w="360px"
+    >
+      <Center
+        flexDir="column"
+        gap="40px"
+        px="0px"
+        py="80px"
+        w="100%"
+      >
+        <Box
+          aspectRatio="1.9"
+          bg="#752E2E"
+          h="34px"
+          maskImage="url('/icons/BI - 아이콘.svg')"
+          maskPos="center"
+          maskRepeat="no-repeat"
+          maskSize="contain"
+          w="64px"
+        />
+        <Text color="$text" textAlign="center" typography="bodySemibold" wordBreak="keep-all">
+          기록해주신 이야기를<br />정리하고 있어요<br />잠시만 기다려주세요
+        </Text>
+      </Center>
+      <VStack
+        alignItems="flex-end"
+        gap="10px"
+        justifyContent="flex-end"
+        px="40px"
+        py="30px"
+        w="100%"
+      >
+        <Center bg="$mainBeige" borderRadius="20px 20px 0px" p="20px">
+          <Text
+            color="$text"
+            flex="1"
+            overflow="hidden"
+            textAlign="center"
+            textOverflow="ellipsis"
+            typography="mainPraiseXs"
+            wordBreak="keep-all"
+          >
+            기억을 더듬어 기록하는 시간은 <br />그 자체로 훌륭한 여행이랍니다.
+          </Text>
+        </Center>
+        <Image
+          aspectRatio="1"
+          border="solid 1px $mainBeige"
+          borderRadius="2000px"
+          boxSize="48px"
+          src="/images/Frame 26086022.png"
+        />
+      </VStack>
+    </VStack>
+  );
+}

@@ -1,0 +1,28 @@
+{
+  "source": {
+    "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+    "nodeId": "4217:7743",
+    "capture": "official Figma MCP get_metadata read-only projection"
+  },
+  "section": {
+    "id": "4217:7743",
+    "name": "[FR-026] 본연체",
+    "x": 6858,
+    "y": 9742,
+    "width": 4589,
+    "height": 2429
+  },
+  "screenCandidates": [
+    { "id": "3879:36108", "name": "A : STORY-F-RECORD #recording", "x": 655, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:36059", "name": "A : STORY-F-RECORD #recording", "x": 1179, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35503", "name": "Loading", "x": 1702, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35518", "name": "A : STORY-F-PROOFREAD", "x": 2088, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35569", "name": "A : STORY-F-PROOFREAD", "x": 2458, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:36144", "name": "A : STORY-PROOFREAD", "x": 2871, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35729", "name": "A : STORY-F-PROOFREAD", "x": 3241, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35887", "name": "A : STORY-F-PROOFREAD", "x": 3663, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35973", "name": "A : STORY-F-PROOFREAD", "x": 4052, "y": 458, "width": 360, "height": 740 },
+    { "id": "3879:35652", "name": "A : STORY-F-PROOFREAD", "x": 2088, "y": 1622, "width": 360, "height": 740 }
+  ],
+  "proofreadTargetId": "3879:35518"
+}

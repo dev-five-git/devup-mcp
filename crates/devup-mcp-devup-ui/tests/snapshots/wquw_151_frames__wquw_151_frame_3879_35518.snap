@@ -1,0 +1,354 @@
+---
+source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
+expression: output.tsx
+---
+import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
+
+export function Wquw151Frame387935518() {
+  return (
+    <VStack
+      bg="$backgroundLight"
+      h="740px"
+      overflow="hidden"
+      pos="relative"
+      w="360px"
+    >
+      <VStack
+        alignItems="center"
+        bg="$containerBackground"
+        gap="30px"
+        pb="40px"
+        pt="50px"
+        px="16px"
+      >
+        <Text
+          color="$text"
+          overflow="hidden"
+          textAlign="center"
+          textOverflow="ellipsis"
+          typography="h3"
+          w="100%"
+          wordBreak="keep-all"
+        >
+          이야기가 글로 <br />정리되었어요
+        </Text>
+        <VStack gap="8px" w="100%">
+          <Center borderRadius="12px" gap="12px" p="12px">
+            <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+              현재 적용된 문체 :
+            </Text>
+            <Text color="$primary" typography="bodySmSemibold" wordBreak="keep-all">
+              담담체
+            </Text>
+            <Image aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
+          </Center>
+          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="12px">
+            <Flex alignItems="center" gap="12px">
+              <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+                공개 설정 :
+              </Text>
+              <Text color="$primary" typography="bodySmSemibold" wordBreak="keep-all">
+                나만 보기
+              </Text>
+              <Box
+                aspectRatio="1"
+                bg="$caption"
+                boxSize="16px"
+                maskImage="url(/icons/Icons.svg)"
+                maskPos="center"
+                maskRepeat="no-repeat"
+                maskSize="contain"
+                transform="rotate(90deg)"
+              />
+            </Flex>
+          </Center>
+        </VStack>
+        <VStack gap="12px" w="100%">
+          <Center
+            bg="$backgroundLight"
+            border="dashed 2px $gray300"
+            borderRadius="12px"
+            flexDir="column"
+            gap="8px"
+            h="185px"
+            px="16px"
+            py="24px"
+          >
+            <Box
+              aspectRatio="1"
+              bg="$captionLight"
+              boxSize="40px"
+              maskImage="url(/icons/icons.svg)"
+              maskPos="center"
+              maskRepeat="no-repeat"
+              maskSize="contain"
+            />
+            <Text
+              color="$textLight"
+              overflow="hidden"
+              textAlign="center"
+              textOverflow="ellipsis"
+              typography="caption"
+              w="100%"
+              wordBreak="keep-all"
+            >
+              <Text color="$primary" typography="captionSemibold">
+                [여기]
+              </Text>
+              를 눌러 이야기에 <br />어울리는 사진을 추가해보세요.<br />사진은 선택사항이며, <br />나중에 천천히 추가하셔도 괜찮습니다.
+            </Text>
+          </Center>
+          <Text
+            color="$textLight"
+            overflow="hidden"
+            textOverflow="ellipsis"
+            typography="captionSm"
+            wordBreak="keep-all"
+          >
+            사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요.
+          </Text>
+        </VStack>
+        <VStack
+          bg="$background"
+          borderRadius="12px"
+          gap="8px"
+          p="16px"
+          pos="relative"
+          w="100%"
+        >
+          <Text color="$text" typography="bodyXsSemibold">
+            TIP
+          </Text>
+          <Text
+            color="$text"
+            overflow="hidden"
+            textOverflow="ellipsis"
+            typography="bodyXs"
+            wordBreak="keep-all"
+          >
+            각 단락을 선택해서 고유명사를 수정하거나, <br />의도와 다르게 작성된 이야기를 원하는 내용으로 직접 바꿀 수 있습니다.{" "}
+          </Text>
+          <Flex
+            alignItems="center"
+            borderRadius="1000px"
+            p="10px"
+            pos="absolute"
+            right="8px"
+            top="8px"
+          >
+            <Box
+              aspectRatio="1"
+              bg="$text"
+              boxSize="20px"
+              maskImage="url(/icons/Icons.svg)"
+              maskPos="center"
+              maskRepeat="no-repeat"
+              maskSize="contain"
+              transform="rotate(180deg)"
+            />
+          </Flex>
+        </VStack>
+      </VStack>
+      <VStack>
+        <VStack>
+          <Flex
+            alignItems="center"
+            bg="$backgroundLight"
+            justifyContent="space-between"
+            px="20px"
+            py="10px"
+            w="360px"
+          >
+            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+              제목
+            </Text>
+            <Flex alignItems="center" gap="6px">
+              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+                수정
+              </Text>
+            </Flex>
+          </Flex>
+          <Center bg="$containerBackground" px="20px" py="24px">
+            <Text
+              color="$primary"
+              flex="1"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              typography="h5"
+              wordBreak="keep-all"
+            >
+              작은 시장, 큰 사랑
+            </Text>
+          </Center>
+        </VStack>
+        <VStack>
+          <Flex
+            alignItems="center"
+            bg="$backgroundLight"
+            justifyContent="space-between"
+            px="20px"
+            py="10px"
+            w="360px"
+          >
+            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+              1단락
+            </Text>
+            <Flex alignItems="center" gap="6px">
+              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+                수정
+              </Text>
+            </Flex>
+          </Flex>
+          <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
+            <Text
+              color="$text"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              typography="body"
+              w="100%"
+              wordBreak="keep-all"
+            >
+              학교를 마치고 집으로 돌아오던 늦은 오후였다. 가방을 메고 좁은 골목길을 따라 시장 쪽으로 걸어가는데, 어디선가 군밤 굽는 냄새가 솔솔 풍겨왔다. 구수하고 달큰한 향이 코끝을 간질이자, 학교 끝나고 집에 가는 길이 조금은 설레였다.<br /><br />겨울이 다가오고 있었고, 해는 이미 많이 기울어 있었다. 시장 입구에 들어서자, 늘 그렇듯 분주한 풍경이 눈에 들어왔다. 가게 앞에 나란히 놓인 귤 상자, 손님을 부르는 상인들의 목소리, 생선 비린내와 튀김 기름 냄새가 뒤섞인 공기. 그때 나는 사람들 사이로 장을 보고 계신 어머니의 모습을 발견했다.
+            </Text>
+          </Center>
+        </VStack>
+        <VStack>
+          <Flex
+            alignItems="center"
+            bg="$backgroundLight"
+            justifyContent="space-between"
+            px="20px"
+            py="10px"
+            w="360px"
+          >
+            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+              2단락
+            </Text>
+            <Flex alignItems="center" gap="6px">
+              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+                수정
+              </Text>
+            </Flex>
+          </Flex>
+          <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
+            <Text
+              color="$text"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              typography="body"
+              w="100%"
+              wordBreak="keep-all"
+            >
+              “엄마!”<br /><br />나는 반가운 마음에 큰 소리로 어머니를 불렀다. 어머니는 미역이 담긴 비닐봉지를 고르고 계셨는데, 내 목소리에 깜짝 놀라시더니 고개를 돌려 나를 보셨다. 순간 어머니의 얼굴에 번져가는 웃음이 얼마나 따뜻하고 아름다웠는지 모른다. 놀라움이 가득한 표정에서 환한 미소로 변해가는 그 표정을, 나는 아직도 잊을 수 없다.<br /><br />“우리{" "}
+              <Text color="$primaryLight" typography="bodySemibold">
+                [1. 이름]
+              </Text>
+              {" "}왔어?”<br /><br />어머니는 장바구니를 들어 올리며 내 앞까지 걸어오셨다. 얼굴에는 하루의 피로가 묻어 있었지만, 나를 보는 눈빛은 그 어떤 보석보다 반짝였다. 나는 어머니가 드신 장바구니를 대신 들어드리려고 손을 뻗었지만, 어머니는 살짝 웃으며 고개를 저으셨다.<br /><br />“괜찮아. 엄마가 들 수 있어.{" "}
+              <Text color="$primaryLight" typography="bodySemibold">
+                [1. 이름]
+              </Text>
+              {" "}학교 끝났어? 배고프지?”
+            </Text>
+          </Center>
+        </VStack>
+        <VStack>
+          <Flex
+            alignItems="center"
+            bg="$backgroundLight"
+            justifyContent="space-between"
+            px="20px"
+            py="10px"
+            w="360px"
+          >
+            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+              3단락
+            </Text>
+            <Flex alignItems="center" gap="6px">
+              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+                수정
+              </Text>
+            </Flex>
+          </Flex>
+          <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
+            <Text
+              color="$text"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              typography="body"
+              w="100%"
+              wordBreak="keep-all"
+            >
+              나는 고개를 끄덕였다. 사실 점심을 먹고도 오후 수업 내내 배가 고팠다. 그날 따라 학교 급식으로 나온 미역국은 너무 싱거웠고, 반찬도 입에 잘 맞지 않았다. 그래서인지 방과 후의 시장은 더욱 풍요롭게 느껴졌다. 시장 어귀에 있는 떡볶이 가게에서는 매콤달콤한 양념 냄새가 풍겨왔고, 튀김 옆에서는 순대와 오뎅 국물이 모락모락 김을 피우고 있었다.<br /><br />어머니는 내 손을 잡고 떡볶이 집 앞에 멈추셨다.<br /><br />“오늘은 떡볶이 먹고 갈까?”<br /><br />나는 두 눈을 반짝이며 고개를 끄덕였다. 어머니는 웃으며 천 원짜리 두 장을 떡볶이 아줌마에게 내셨고, 우리는 떡볶이와 오뎅 두 개를 받았다. 김이 모락모락 나는 떡볶이를 한 입 베어무는 순간, 달고 맵고 뜨거운 맛이 입안 가득 번졌다. 혀끝이 얼얼했지만, 너무 맛있어서 눈물이 날 뻔했다.<br /><br />어머니는 내 옆에서 오뎅 국물을 후후 불어 드셨다. 그 모습이 참 편안하고 따뜻해 보였다. 시장의 소음 속에서, 우리는 그렇게 둘만의 시간을 보냈다. 어머니는 가끔씩 내 머리를 쓰다듬어 주셨다. 손끝에서 전해지는 온기가 내 마음을 간질이며, 이상하게도 울고 싶어졌다.
+            </Text>
+          </Center>
+        </VStack>
+        <VStack>
+          <Flex
+            alignItems="center"
+            bg="$backgroundLight"
+            justifyContent="space-between"
+            px="20px"
+            py="10px"
+            w="360px"
+          >
+            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+              4단락
+            </Text>
+            <Flex alignItems="center" gap="6px">
+              <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
+              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+                수정
+              </Text>
+            </Flex>
+          </Flex>
+          <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
+            <Text
+              color="$text"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              typography="body"
+              w="100%"
+              wordBreak="keep-all"
+            >
+              그때 나는 몰랐다. 어머니가 그날 장바구니에 담았던 미역과 두부, 콩나물과 달걀을 가지고 집에 가셔서, 얼마나 정성스럽게 저녁상을 차리셨는지. 나중에야 알았다. 하루 종일 서서 일하고, 시장까지 들렀다가도 내 얼굴을 보며 웃어주던 그 미소 뒤에, 얼마나 큰 사랑과 노력이 숨어 있었는지를.<br /><br />집으로 돌아오는 길, 어머니와 나는 나란히 걸었다. 어머니의 코트 깃에는 생선 비린내와 미역 냄새가 살짝 묻어 있었지만, 나는 그 냄새가 좋았다. 왠지 모르게 든든했고, 집에 간다는 느낌이 들어서 마음이 편안해졌다.<br /><br />그날 저녁, 어머니는 미역국을 끓여주셨다. 따뜻한 국물 한 숟가락을 떠먹는 순간, 학교 급식으로 먹었던 싱거운 미역국은 잊혀지고, 어머니의 국물이야말로 진짜 미역국이라는 생각이 들었다. 부드럽고 고소하면서도, 뱃속까지 따뜻해지는 그 맛. 나는 밥그릇을 비우고 나서야, 배가 부른 게 아니라 마음이 든든해진다는 것을 알았다.<br /><br />그리고 지금도, 살아가는 일이 힘들고 지칠 때면 그날의 기억이 떠오른다. 시장에서 나를 보고 환하게 웃으시던 어머니의 얼굴, 따뜻한 떡볶이와 오뎅 국물의 맛, 그리고 겨울 저녁집으로 돌아오던 길의 포근한 공기. 그 모든 것들이 내 안에서 작은 등불처럼 빛나며, 다시 일어설 힘을 준다.
+            </Text>
+          </Center>
+        </VStack>
+      </VStack>
+      <Flex
+        alignItems="center"
+        bg="$containerBackground"
+        borderTop="solid 1px $border"
+        bottom="0px"
+        justifyContent="space-between"
+        left="0px"
+        overflow="hidden"
+        pos="absolute"
+        px="10px"
+        py="8px"
+        w="100%"
+      >
+        <Center
+          bg="$innerBg"
+          border="solid 1px $borderBold"
+          borderRadius="10px"
+          px="20px"
+          py="10px"
+        >
+          <Text color="$text" typography="bodySemibold" wordBreak="keep-all">
+            편집 설정
+          </Text>
+        </Center>
+        <Center bg="$primary" borderRadius="10px" px="20px" py="10px">
+          <Text color="#FFF" typography="bodySemibold" wordBreak="keep-all">
+            검토 완료
+          </Text>
+        </Center>
+      </Flex>
+    </VStack>
+  );
+}

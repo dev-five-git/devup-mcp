@@ -976,6 +976,7 @@ struct Context {
     used_tokens: BTreeSet<String>,
     diagnostics: Vec<Diagnostic>,
     inline_instances: bool,
+    instance_boolean_properties: Vec<BTreeMap<String, bool>>,
     text_style_tokens: std::collections::BTreeMap<String, String>,
     variable_tokens: std::collections::BTreeMap<String, String>,
     root_layout: RootLayout,
@@ -1004,6 +1005,25 @@ fn render_node(
     }
     add_fallback_diagnostics(node, context);
     let view = node.typed_view();
+    let concrete_visibility = if context.inline_instances {
+        view.value("componentPropertyReferences")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|references| references.get("visible"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|property| {
+                context
+                    .instance_boolean_properties
+                    .iter()
+                    .rev()
+                    .find_map(|properties| properties.get(property).copied())
+            })
+    } else {
+        None
+    };
+    if concrete_visibility == Some(false) {
+        visiting.remove(&node.id);
+        return Ok(mark_node(&node.id, String::new()));
+    }
     if view.node_type() == "INSTANCE" && !context.inline_instances {
         let references = view
             .value("componentPropertyReferences")
@@ -1172,14 +1192,43 @@ fn render_node(
         });
     }
     let indent = "  ".repeat(depth);
-    let children = if asset.is_some() {
-        Vec::new()
+    let instance_properties =
+        (context.inline_instances && view.node_type() == "INSTANCE").then(|| {
+            view.value("componentProperties")
+                .and_then(serde_json::Value::as_object)
+                .map(|properties| {
+                    properties
+                        .iter()
+                        .filter_map(|(key, property)| {
+                            (property.get("type").and_then(serde_json::Value::as_str)
+                                == Some("BOOLEAN"))
+                            .then(|| {
+                                property
+                                    .get("value")
+                                    .and_then(serde_json::Value::as_bool)
+                                    .map(|value| (key.clone(), value))
+                            })
+                            .flatten()
+                        })
+                        .collect::<BTreeMap<_, _>>()
+                })
+                .unwrap_or_default()
+        });
+    if let Some(properties) = instance_properties {
+        context.instance_boolean_properties.push(properties);
+    }
+    let children_result = if asset.is_some() {
+        Ok(Vec::new())
     } else {
         view.child_ids()
             .filter_map(|id| snapshot.nodes.get(id))
             .map(|child| render_node(snapshot, child, depth + 1, context, visiting))
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()
     };
+    if context.inline_instances && view.node_type() == "INSTANCE" {
+        context.instance_boolean_properties.pop();
+    }
+    let children = children_result?;
 
     let (opening_props, multiline_props) = render_props(&props, depth);
     let rendered = if component == "Text" {
@@ -1213,7 +1262,9 @@ fn render_node(
             children.join("\n")
         )
     };
-    let rendered = if view.node_type() == "INSTANCE" && context.inline_instances {
+    let rendered = if concrete_visibility == Some(true)
+        || (view.node_type() == "INSTANCE" && context.inline_instances)
+    {
         rendered
     } else {
         view.value("componentPropertyReferences")
