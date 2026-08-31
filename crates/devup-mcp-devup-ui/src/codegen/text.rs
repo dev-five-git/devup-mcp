@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use devup_mcp_figma::TypedNode;
 use serde_json::Value;
@@ -13,6 +13,7 @@ pub(super) fn push_text_props(
     view: &TypedNode<'_>,
     text_style_tokens: &BTreeMap<String, String>,
     variable_tokens: &BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
     props: &mut Vec<Prop>,
 ) {
     if view.node_type() != "TEXT" {
@@ -25,11 +26,13 @@ pub(super) fn push_text_props(
         .and_then(|id| text_style_tokens.get(id));
     let value = |field: &str| {
         view.value(field)
+            .filter(|value| is_resolved_value(value))
             .or_else(|| segment.and_then(|value| value.get(field)))
     };
     if let Some(color) = bound_segment_color(value("fills"), variable_tokens)
         .or_else(|| first_solid_color(value("fills")))
     {
+        record_used_color(&color, used_tokens);
         replace_prop(props, "color", color);
     }
     if let Some(typography) = typography {
@@ -153,6 +156,14 @@ pub(super) fn push_text_props(
     }
 }
 
+fn is_resolved_value(value: &Value) -> bool {
+    !value.as_object().is_some_and(|object| {
+        ["$unsupported", "$undefined", "$truncated", "$error"]
+            .iter()
+            .any(|marker| object.contains_key(*marker))
+    })
+}
+
 fn default_segment<'a>(view: &'a TypedNode<'a>) -> Option<&'a Value> {
     let segments = view.value("styledTextSegments")?.as_array()?;
     let mut selected = segments.first()?;
@@ -236,6 +247,7 @@ pub(super) fn render_text_children(
     view: &TypedNode<'_>,
     text_style_tokens: &BTreeMap<String, String>,
     variable_tokens: &BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
     depth: usize,
 ) -> String {
     let indent = "  ".repeat(depth);
@@ -249,7 +261,7 @@ pub(super) fn render_text_children(
         return indent;
     }
     let default = default_segment(view).expect("non-empty styledTextSegments");
-    let default_props = typography_props(default, text_style_tokens, variable_tokens);
+    let default_props = typography_props(default, text_style_tokens, variable_tokens, used_tokens);
     let mut rendered = Vec::new();
     for segment in segments {
         let value = segment
@@ -273,7 +285,8 @@ pub(super) fn render_text_children(
             continue;
         }
 
-        let mut segment_props = typography_props(segment, text_style_tokens, variable_tokens);
+        let mut segment_props =
+            typography_props(segment, text_style_tokens, variable_tokens, used_tokens);
         segment_props.retain(|(name, value)| {
             !default_props
                 .iter()
@@ -305,11 +318,13 @@ fn typography_props(
     segment: &Value,
     text_style_tokens: &BTreeMap<String, String>,
     variable_tokens: &BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
 ) -> Vec<Prop> {
     let mut props = Vec::new();
     if let Some(color) = bound_segment_color(segment.get("fills"), variable_tokens)
         .or_else(|| first_solid_color(segment.get("fills")))
     {
+        record_used_color(&color, used_tokens);
         string_prop(&mut props, "color", color);
     }
     let typography = segment
@@ -369,6 +384,12 @@ fn typography_props(
         }
     }
     props
+}
+
+fn record_used_color(color: &str, used_tokens: &mut BTreeSet<String>) {
+    if let Some(token) = color.strip_prefix('$') {
+        used_tokens.insert(token.to_owned());
+    }
 }
 
 fn bound_segment_color(

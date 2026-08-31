@@ -254,6 +254,7 @@ fn project_tree(
         &view,
         &options.text_style_tokens,
         &options.variable_tokens,
+        &mut used_tokens,
         &mut props,
     );
     if asset.is_some() {
@@ -296,6 +297,7 @@ fn project_tree(
             &view,
             &options.text_style_tokens,
             &options.variable_tokens,
+            &mut used_tokens,
             0,
         )
     });

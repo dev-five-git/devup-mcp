@@ -116,6 +116,7 @@ fn nested_text_style_uses_typography() {
                 "childrenIds": [],
                 "characters": "우리 [1. 이름] 왔어?\n다음 줄",
                 "textTruncation": "DISABLED",
+                "fills": {"$unsupported": "symbol"},
                 "styledTextSegments": [
                     {
                         "characters": "우리 ",
@@ -190,9 +191,58 @@ fn nested_text_style_uses_typography() {
     let output = generate_component(&snapshot, "2:1", &options).unwrap();
 
     assert!(output.tsx.contains("typography=\"body\""));
+    assert!(output.tsx.contains("color=\"$text\""));
     assert!(output.tsx.contains("typography=\"bodySemibold\""));
     assert!(output.tsx.contains("color=\"$primaryLight\""));
+    assert!(output.used_tokens.contains("text"));
+    assert!(output.used_tokens.contains("primaryLight"));
     assert!(output.tsx.contains("{\" \"}왔어?<br />다음 줄"));
     assert!(!output.tsx.contains("fontSize=\"16px\""));
     assert!(!output.tsx.contains("fontWeight=\"600\""));
+}
+
+#[test]
+fn standalone_instance_inlining_uses_resolved_children_not_component_props() {
+    let chunk: SnapshotChunk = serde_json::from_value(json!({
+        "fileKey": "file-key",
+        "version": "1",
+        "rootIds": ["3:1"],
+        "nodes": [
+            {
+                "id": "3:1", "type": "FRAME",
+                "fields": {"name": "Screen", "childrenIds": ["3:2"], "layoutMode": "VERTICAL"},
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "3:2", "type": "INSTANCE",
+                "fields": {
+                    "name": "SectionTitle", "childrenIds": ["3:3"], "layoutMode": "HORIZONTAL",
+                    "componentPropertyReferences": {"visible": "Visible#1:2"}
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "3:3", "type": "TEXT",
+                "fields": {"name": "Resolved label", "childrenIds": [], "characters": "실제 자식"},
+                "extra": {}, "fieldErrors": {}
+            }
+        ],
+        "diagnostics": []
+    }))
+    .unwrap();
+    let snapshot = merge_chunks(vec![chunk]).unwrap();
+
+    let output = generate_component(
+        &snapshot,
+        "3:1",
+        &CodegenOptions {
+            inline_instances: true,
+            ..CodegenOptions::default()
+        },
+    )
+    .unwrap();
+
+    assert!(output.tsx.contains("실제 자식"));
+    assert!(!output.tsx.contains("Visible"));
+    assert!(!output.tsx.contains("<SectionTitle"));
 }

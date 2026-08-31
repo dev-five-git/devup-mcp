@@ -373,6 +373,7 @@ fn complete_operation(
                 &CodegenOptions {
                     component_name,
                     include_diagnostics,
+                    inline_instances: true,
                     ..CodegenOptions::default()
                 }
                 .with_payload_tokens(&payload),

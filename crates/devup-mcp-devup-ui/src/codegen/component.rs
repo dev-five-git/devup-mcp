@@ -10,6 +10,7 @@ use super::{layout, style, text, variant};
 pub struct CodegenOptions {
     pub component_name: Option<String>,
     pub include_diagnostics: bool,
+    pub inline_instances: bool,
     pub text_style_tokens: std::collections::BTreeMap<String, String>,
     pub variable_tokens: std::collections::BTreeMap<String, String>,
 }
@@ -904,6 +905,7 @@ pub fn generate_node(
         root
     };
     let mut context = Context {
+        inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
         variable_tokens: options.variable_tokens.clone(),
         ..Context::default()
@@ -923,6 +925,7 @@ struct Context {
     imports: BTreeSet<String>,
     used_tokens: BTreeSet<String>,
     diagnostics: Vec<Diagnostic>,
+    inline_instances: bool,
     text_style_tokens: std::collections::BTreeMap<String, String>,
     variable_tokens: std::collections::BTreeMap<String, String>,
 }
@@ -950,7 +953,7 @@ fn render_node(
     }
     add_fallback_diagnostics(node, context);
     let view = node.typed_view();
-    if view.node_type() == "INSTANCE" {
+    if view.node_type() == "INSTANCE" && !context.inline_instances {
         let references = view
             .value("componentPropertyReferences")
             .and_then(serde_json::Value::as_object);
@@ -1072,6 +1075,7 @@ fn render_node(
         &view,
         &context.text_style_tokens,
         &context.variable_tokens,
+        &mut context.used_tokens,
         &mut props,
     );
     if asset.is_some() {
@@ -1111,6 +1115,7 @@ fn render_node(
             &view,
             &context.text_style_tokens,
             &context.variable_tokens,
+            &mut context.used_tokens,
             depth + 1,
         );
         let close_open = if multiline_props {
@@ -1136,17 +1141,20 @@ fn render_node(
             children.join("\n")
         )
     };
-    let rendered = view
-        .value("componentPropertyReferences")
-        .and_then(serde_json::Value::as_object)
-        .and_then(|references| references.get("visible"))
-        .and_then(serde_json::Value::as_str)
-        .map(component_property_name)
-        .map(|property| {
-            let content = rendered.strip_prefix(&indent).unwrap_or(&rendered);
-            format!("{indent}{{{property} && {content}}}")
-        })
-        .unwrap_or(rendered);
+    let rendered = if view.node_type() == "INSTANCE" && context.inline_instances {
+        rendered
+    } else {
+        view.value("componentPropertyReferences")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|references| references.get("visible"))
+            .and_then(serde_json::Value::as_str)
+            .map(component_property_name)
+            .map(|property| {
+                let content = rendered.strip_prefix(&indent).unwrap_or(&rendered);
+                format!("{indent}{{{property} && {content}}}")
+            })
+            .unwrap_or(rendered)
+    };
     visiting.remove(&node.id);
     Ok(rendered)
 }
