@@ -210,7 +210,7 @@
 - Modify: `crates/devup-mcp-figma/src/server/handoff.rs`
 - Modify: `crates/devup-mcp-figma/src/server/mod.rs`
 
-- [ ] **Step 1: Write failing mixed-stroke unit tests**
+- [x] **Step 1: Write failing mixed-stroke unit tests**
 
   A node with mixed `strokeWeight` plus top/right/bottom/left values `1/0/0/0` must emit only `borderTop="solid 1px $border"`. A mixed/unsupported weight without individual side data must not guess `border="solid 1px ..."`.
 
@@ -218,19 +218,19 @@
 
   Expected: first case lacks `borderTop` or second case emits a guessed all-side border.
 
-- [ ] **Step 2: Fix stroke selection without changing uniform strokes**
+- [x] **Step 2: Fix stroke selection without changing uniform strokes**
 
   Prefer explicit individual side fields whenever uniform weight is non-numeric/mixed. Preserve current inside/center/outside handling for genuinely numeric uniform weights. Omit the guessed border when neither form is trustworthy.
 
-- [ ] **Step 3: Write failing standalone/embedded root tests**
+- [x] **Step 3: Write failing standalone/embedded root tests**
 
   Add `RootLayout::{Standalone, Embedded}` to the planned options assertions. Standalone must retain selected-frame width, height, and relative containing block; embedded must omit only root fixed width/height/position while preserving descendants and all other root props.
 
-- [ ] **Step 4: Implement root layout through every API boundary**
+- [x] **Step 4: Implement root layout through every API boundary**
 
   Add `root_layout` to `CodegenOptions`, default it to standalone, parse optional MCP input `rootLayout` as `standalone|embedded`, preserve it through pending handoff state, and pass it into root layout property generation. Return the selected mode in the tool result.
 
-- [ ] **Step 5: Correct the WQUW live fixture and snapshots**
+- [x] **Step 5: Correct the WQUW live fixture and snapshots**
 
   Add the four observed individual weights for node `3879:35564` without changing its 144-node graph, 13 variable names, or 11 typography names. Regenerate standalone and embedded snapshots and assert `borderTop`, all children, variable tokens, and typography tokens.
 
@@ -243,7 +243,7 @@
   cargo insta test -p devup-mcp-devup-ui --check
   ```
 
-- [ ] **Step 6: Re-run all imported compatibility fixtures**
+- [x] **Step 6: Re-run all imported compatibility fixtures**
 
   Run:
 

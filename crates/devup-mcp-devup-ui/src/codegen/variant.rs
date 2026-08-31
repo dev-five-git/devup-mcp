@@ -76,7 +76,7 @@ pub(super) fn generate_variant_component_set(
         .map(|(node, values)| {
             Ok(Record {
                 values,
-                tree: project_tree(snapshot, node, options)?,
+                tree: project_tree(snapshot, node, options, true)?,
                 node_id: node.id.clone(),
             })
         })
@@ -201,6 +201,7 @@ fn project_tree(
     snapshot: &Snapshot,
     node: &RawNode,
     options: &CodegenOptions,
+    is_render_root: bool,
 ) -> Result<Tree, DevupError> {
     let view = node.typed_view();
     let asset = style::asset_kind(snapshot, node);
@@ -239,7 +240,14 @@ fn project_tree(
     }
     .to_owned();
     let mut props = Vec::new();
-    layout::push_layout_props(snapshot, node, &component, &mut props);
+    layout::push_layout_props(
+        snapshot,
+        node,
+        &component,
+        &mut props,
+        options.root_layout,
+        is_render_root,
+    );
     let mut used_tokens = BTreeSet::new();
     style::push_style_props(
         snapshot,
@@ -289,7 +297,7 @@ fn project_tree(
     } else {
         view.child_ids()
             .filter_map(|id| snapshot.nodes.get(id))
-            .map(|child| project_tree(snapshot, child, options))
+            .map(|child| project_tree(snapshot, child, options, false))
             .collect::<Result<Vec<_>, _>>()?
     };
     let content = (view.node_type() == "TEXT").then(|| {

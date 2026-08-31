@@ -5,6 +5,7 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use devup_mcp_devup_ui::codegen::RootLayout;
 use devup_mcp_figma::{
     CollectedParts, CollectorSession, CollectorStep, DevupError, ErrorCode, UpstreamResult,
 };
@@ -19,6 +20,7 @@ pub enum PendingOperation {
     ToUi {
         component_name: Option<String>,
         include_diagnostics: bool,
+        root_layout: RootLayout,
         output_path: Option<String>,
     },
     ToJson {

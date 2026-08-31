@@ -3,8 +3,17 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use devup_mcp_figma::{
     CollectedPayload, DevupError, Diagnostic, ErrorCode, RawNode, Snapshot, UpstreamResult,
 };
+use serde::{Deserialize, Serialize};
 
 use super::{layout, style, text, variant};
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RootLayout {
+    #[default]
+    Standalone,
+    Embedded,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct CodegenOptions {
@@ -13,6 +22,7 @@ pub struct CodegenOptions {
     pub inline_instances: bool,
     pub text_style_tokens: std::collections::BTreeMap<String, String>,
     pub variable_tokens: std::collections::BTreeMap<String, String>,
+    pub root_layout: RootLayout,
 }
 
 impl CodegenOptions {
@@ -908,6 +918,7 @@ pub fn generate_node(
         inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
         variable_tokens: options.variable_tokens.clone(),
+        root_layout: options.root_layout,
         ..Context::default()
     };
     let jsx = render_node(snapshot, render_root, 0, &mut context, &mut HashSet::new())?;
@@ -928,6 +939,7 @@ struct Context {
     inline_instances: bool,
     text_style_tokens: std::collections::BTreeMap<String, String>,
     variable_tokens: std::collections::BTreeMap<String, String>,
+    root_layout: RootLayout,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -987,7 +999,14 @@ fn render_node(
         };
         if view.string("layoutPositioning") == Some("ABSOLUTE") {
             let mut props = Vec::new();
-            layout::push_layout_props(snapshot, node, "Box", &mut props);
+            layout::push_layout_props(
+                snapshot,
+                node,
+                "Box",
+                &mut props,
+                context.root_layout,
+                depth == 0,
+            );
             props.retain(|(name, value)| {
                 matches!(
                     name.as_str(),
@@ -1049,8 +1068,16 @@ fn render_node(
     context.imports.insert(component.to_owned());
 
     let mut props = Vec::new();
-    layout::push_layout_props(snapshot, node, component, &mut props);
-    if asset.is_none()
+    layout::push_layout_props(
+        snapshot,
+        node,
+        component,
+        &mut props,
+        context.root_layout,
+        depth == 0,
+    );
+    if !(depth == 0 && context.root_layout == RootLayout::Embedded)
+        && asset.is_none()
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
         && view.child_ids().any(|child| {

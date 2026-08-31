@@ -28,6 +28,7 @@ pub struct CollectedPayload {
     pub styles: Option<UpstreamResult>,
     pub completeness: PayloadCompleteness,
     pub source_version: Option<String>,
+    #[serde(default)]
     pub stats: CollectionStats,
 }
 

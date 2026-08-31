@@ -16,7 +16,7 @@ use rmcp::{
 use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::{
-    codegen::{CodegenOptions, generate_component},
+    codegen::{CodegenOptions, RootLayout, generate_component},
     theme::{ThemeScope, generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
@@ -203,6 +203,7 @@ impl DevupServer {
         })?;
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+        let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, scope);
         request.resource_scope = ResourceScope::Used;
         let result = self
@@ -210,6 +211,7 @@ impl DevupServer {
                 PendingOperation::ToUi {
                     component_name: input.component_name,
                     include_diagnostics: input.include_diagnostics,
+                    root_layout,
                     output_path: input.output_path,
                 },
                 request,
@@ -363,6 +365,7 @@ fn complete_operation(
         PendingOperation::ToUi {
             component_name,
             include_diagnostics,
+            root_layout,
             output_path,
         } => {
             let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
@@ -379,6 +382,7 @@ fn complete_operation(
                     component_name,
                     include_diagnostics,
                     inline_instances: true,
+                    root_layout,
                     ..CodegenOptions::default()
                 }
                 .with_payload_tokens(&payload),
@@ -400,6 +404,7 @@ fn complete_operation(
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "completeness": payload.completeness,
+                "rootLayout": root_layout,
                 "collection": collection,
                 "source": {
                     "kind": source_kind,
@@ -577,6 +582,18 @@ fn parse_collection_scope(scope: &str) -> Result<CollectionScope, DevupError> {
         _ => Err(DevupError::new(
             ErrorCode::DevupThemeConflict,
             "scope는 node, page 또는 file이어야 합니다.",
+            false,
+        )),
+    }
+}
+
+fn parse_root_layout(root_layout: &str) -> Result<RootLayout, DevupError> {
+    match root_layout {
+        "standalone" => Ok(RootLayout::Standalone),
+        "embedded" => Ok(RootLayout::Embedded),
+        _ => Err(DevupError::new(
+            ErrorCode::DevupThemeConflict,
+            "rootLayout은 standalone 또는 embedded여야 합니다.",
             false,
         )),
     }

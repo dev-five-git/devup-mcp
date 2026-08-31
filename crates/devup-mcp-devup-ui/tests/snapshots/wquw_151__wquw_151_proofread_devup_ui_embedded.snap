@@ -1,18 +1,12 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
-expression: output.tsx
+expression: embedded.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
 
 export function AStoryFProofread() {
   return (
-    <VStack
-      bg="$backgroundLight"
-      h="740px"
-      overflow="hidden"
-      pos="relative"
-      w="360px"
-    >
+    <VStack bg="$backgroundLight" overflow="hidden">
       <VStack
         alignItems="center"
         bg="$containerBackground"

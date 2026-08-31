@@ -19,6 +19,8 @@ pub struct FigmaToUiInput {
     pub source_policy: String,
     #[serde(default = "default_scope")]
     pub scope: String,
+    #[serde(default = "default_root_layout")]
+    pub root_layout: String,
     #[serde(default)]
     pub output_path: Option<String>,
 }
@@ -74,6 +76,10 @@ pub struct FigmaExploreInput {
 
 fn default_scope() -> String {
     "node".to_owned()
+}
+
+fn default_root_layout() -> String {
+    "standalone".to_owned()
 }
 
 fn default_source_policy() -> String {

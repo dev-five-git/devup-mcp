@@ -1,4 +1,6 @@
-use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component, normalize_component_name};
+use devup_mcp_devup_ui::codegen::{
+    CodegenOptions, RootLayout, generate_component, normalize_component_name,
+};
 use devup_mcp_figma::{SnapshotChunk, merge_chunks};
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -245,4 +247,108 @@ fn standalone_instance_inlining_uses_resolved_children_not_component_props() {
     assert!(output.tsx.contains("실제 자식"));
     assert!(!output.tsx.contains("Visible"));
     assert!(!output.tsx.contains("<SectionTitle"));
+}
+
+#[test]
+fn mixed_individual_stroke_emits_only_nonzero_sides() {
+    let snapshot = stroke_snapshot(true);
+
+    let output = generate_component(&snapshot, "4:1", &CodegenOptions::default()).unwrap();
+
+    assert!(output.tsx.contains("borderTop=\"solid 1px #000\""));
+    assert!(!output.tsx.contains(" border=\""));
+    assert!(!output.tsx.contains("borderRight="));
+    assert!(!output.tsx.contains("borderBottom="));
+    assert!(!output.tsx.contains("borderLeft="));
+}
+
+#[test]
+fn mixed_stroke_without_side_weights_does_not_invent_uniform_border() {
+    let snapshot = stroke_snapshot(false);
+
+    let output = generate_component(&snapshot, "4:1", &CodegenOptions::default()).unwrap();
+
+    assert!(!output.tsx.contains(" border=\""));
+    assert!(!output.tsx.contains(" outline=\""));
+}
+
+#[test]
+fn embedded_root_omits_only_selected_frame_geometry_and_position() {
+    let mut snapshot = snapshot();
+    let child = snapshot.nodes.get_mut("1:2").unwrap();
+    child
+        .fields
+        .insert("layoutPositioning".to_owned(), json!("ABSOLUTE"));
+    child.fields.insert("width".to_owned(), json!(100));
+    child.fields.insert("height".to_owned(), json!(20));
+    child.fields.insert("x".to_owned(), json!(10));
+    child.fields.insert("y".to_owned(), json!(12));
+
+    let standalone = generate_component(&snapshot, "1:1", &CodegenOptions::default()).unwrap();
+    let embedded = generate_component(
+        &snapshot,
+        "1:1",
+        &CodegenOptions {
+            root_layout: RootLayout::Embedded,
+            ..CodegenOptions::default()
+        },
+    )
+    .unwrap();
+
+    let standalone_root = component_root_opening(&standalone.tsx);
+    assert!(standalone_root.contains("h=\"80px\""));
+    assert!(standalone_root.contains("w=\"320px\""));
+    assert!(standalone_root.contains("pos=\"relative\""));
+    let embedded_root = component_root_opening(&embedded.tsx);
+    assert!(!embedded_root.contains("h=\""));
+    assert!(!embedded_root.contains("w=\""));
+    assert!(!embedded_root.contains("pos=\""));
+    assert!(embedded.tsx.contains("left=\"10px\""));
+    assert!(embedded.tsx.contains("pos=\"absolute\""));
+    assert!(embedded.tsx.contains("top=\"12px\""));
+}
+
+fn component_root_opening(tsx: &str) -> &str {
+    let start = tsx.find("    <").expect("component root");
+    let end = tsx[start..].find('>').expect("root opening close") + start;
+    &tsx[start..=end]
+}
+
+fn stroke_snapshot(with_sides: bool) -> devup_mcp_figma::Snapshot {
+    let mut fields = json!({
+        "name": "Mixed stroke",
+        "childrenIds": [],
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "width": 320,
+        "height": 64,
+        "strokes": [{
+            "type": "SOLID",
+            "visible": true,
+            "color": {"r": 0, "g": 0, "b": 0}
+        }],
+        "strokeWeight": {"$unsupported": "symbol"},
+        "strokeAlign": "INSIDE"
+    });
+    if with_sides {
+        fields["strokeTopWeight"] = json!(1);
+        fields["strokeRightWeight"] = json!(0);
+        fields["strokeBottomWeight"] = json!(0);
+        fields["strokeLeftWeight"] = json!(0);
+    }
+    let chunk: SnapshotChunk = serde_json::from_value(json!({
+        "fileKey": "file-key",
+        "version": "1",
+        "rootIds": ["4:1"],
+        "nodes": [{
+            "id": "4:1",
+            "type": "FRAME",
+            "fields": fields,
+            "extra": {},
+            "fieldErrors": {}
+        }],
+        "diagnostics": []
+    }))
+    .unwrap();
+    merge_chunks(vec![chunk]).unwrap()
 }

@@ -828,7 +828,24 @@ fn push_strokes(
     };
     let align = view.string("strokeAlign").unwrap_or("INSIDE");
     let explicit_weight = view.number("strokeWeight");
-    let weight = explicit_weight.unwrap_or(1.0);
+    if explicit_weight.is_none() {
+        let sides = [
+            ("strokeTopWeight", "borderTop"),
+            ("strokeRightWeight", "borderRight"),
+            ("strokeBottomWeight", "borderBottom"),
+            ("strokeLeftWeight", "borderLeft"),
+        ];
+        if sides.iter().all(|(field, _)| view.number(field).is_some()) {
+            for (field, prop) in sides {
+                let weight = view.number(field).unwrap_or(0.0);
+                if weight != 0.0 {
+                    string_prop(props, prop, format!("{style} {} {color}", px(weight)));
+                }
+            }
+        }
+        return;
+    }
+    let weight = explicit_weight.unwrap_or(0.0);
     if view.node_type() == "LINE" {
         string_prop(props, "outline", format!("{style} {} {color}", px(weight)));
         let base = if view.string("layoutSizingHorizontal") == Some("FIXED") {
@@ -855,28 +872,7 @@ fn push_strokes(
         }
         return;
     }
-    if explicit_weight.is_none()
-        && [
-            "strokeTopWeight",
-            "strokeRightWeight",
-            "strokeBottomWeight",
-            "strokeLeftWeight",
-        ]
-        .iter()
-        .all(|field| view.number(field).is_some())
-    {
-        for (field, prop) in [
-            ("strokeTopWeight", "borderTop"),
-            ("strokeRightWeight", "borderRight"),
-            ("strokeBottomWeight", "borderBottom"),
-            ("strokeLeftWeight", "borderLeft"),
-        ] {
-            let weight = view.number(field).unwrap_or(0.0);
-            if weight != 0.0 {
-                string_prop(props, prop, format!("{style} {} {color}", px(weight)));
-            }
-        }
-    } else if align == "INSIDE" {
+    if align == "INSIDE" {
         string_prop(props, "border", format!("{style} {} {color}", px(weight)));
     } else {
         string_prop(props, "outline", format!("{style} {} {color}", px(weight)));

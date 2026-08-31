@@ -238,7 +238,9 @@ fn snapshot_result() -> Value {
             "id": "1:2", "type": "FRAME",
             "fields": {
                 "name": "Synthetic Frame", "childrenIds": [],
-                "layoutMode": "VERTICAL", "width": 320, "height": 240
+                "layoutMode": "VERTICAL",
+                "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                "width": 320, "height": 240
             },
             "extra": {}, "fieldErrors": {}
         }]
@@ -314,12 +316,59 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
 
     assert_eq!(output["status"], "complete");
     assert_eq!(output["source"]["kind"], "direct");
+    assert_eq!(output["rootLayout"], "standalone");
     assert!(output["tsx"].as_str().unwrap().contains("SyntheticFrame"));
     assert_eq!(output["collection"]["figmaToolCalls"], 3);
     assert_eq!(output["collection"]["transport"], "legacy-cursor");
     assert_eq!(output["collection"]["fallbackUsed"], true);
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn embedded_root_layout_omits_selected_frame_dimensions() -> anyhow::Result<()> {
+    let result = call_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Connected,
+            logins: AtomicUsize::new(0),
+        }),
+        Arc::new(FixtureUpstream::default()),
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "sourcePolicy": "direct",
+            "rootLayout": "embedded"
+        }),
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+
+    assert_eq!(output["rootLayout"], "embedded");
+    let tsx = output["tsx"].as_str().unwrap();
+    assert!(!tsx.contains("h=\"240px\""));
+    assert!(!tsx.contains("w=\"320px\""));
+    Ok(())
+}
+
+#[tokio::test]
+async fn rejects_unknown_root_layout_before_collecting() -> anyhow::Result<()> {
+    let upstream = Arc::new(FixtureUpstream::default());
+    let result = call_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Connected,
+            logins: AtomicUsize::new(0),
+        }),
+        upstream.clone(),
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "sourcePolicy": "direct",
+            "rootLayout": "fluid"
+        }),
+    )
+    .await;
+
+    assert!(result.is_err());
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
     Ok(())
 }
 

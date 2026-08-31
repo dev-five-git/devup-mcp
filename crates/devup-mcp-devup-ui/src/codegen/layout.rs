@@ -1,13 +1,15 @@
 use devup_mcp_figma::{RawNode, Snapshot};
 use serde_json::Value;
 
-use super::component::{Prop, PropValue};
+use super::component::{Prop, PropValue, RootLayout};
 
 pub(super) fn push_layout_props(
     snapshot: &Snapshot,
     node: &RawNode,
     component: &str,
     props: &mut Vec<Prop>,
+    root_layout: RootLayout,
+    is_render_root: bool,
 ) {
     let view = node.typed_view();
     let parent = snapshot.nodes.values().find(|candidate| {
@@ -28,10 +30,15 @@ pub(super) fn push_layout_props(
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
     let fill_h = view.string("layoutSizingVertical") == Some("FILL");
     let absolute = view.string("layoutPositioning") == Some("ABSOLUTE");
+    let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
     let mut width = None;
     let mut height = None;
 
-    if absolute {
+    if embedded_root {
+        // The selected frame is being inserted into an existing page layout.
+        // Preserve its visual/layout semantics, but do not constrain the host
+        // with Figma canvas geometry or root positioning.
+    } else if absolute {
         push_absolute(node, parent, props);
         if matches!(component, "Image" | "Text") {
             width = view.number("width").map(px);
@@ -240,7 +247,8 @@ pub(super) fn push_layout_props(
     if view.bool("clipsContent") == Some(true) {
         string_prop(props, "overflow", "hidden");
     }
-    if !is_page_root
+    if !embedded_root
+        && !is_page_root
         && view.child_ids().any(|child| {
             snapshot.nodes.get(child).is_some_and(|child| {
                 child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")

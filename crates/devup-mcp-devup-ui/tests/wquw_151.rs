@@ -1,6 +1,7 @@
-use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component};
+use devup_mcp_devup_ui::codegen::{CodegenOptions, RootLayout, generate_component};
 use devup_mcp_figma::{
-    CollectedPayload, CollectionScope, FigmaTarget, PayloadCompleteness, Snapshot, UpstreamResult,
+    CollectedPayload, CollectionScope, CollectionStats, FigmaTarget, PayloadCompleteness, Snapshot,
+    UpstreamResult,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -47,6 +48,7 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
         styles: Some(fixture.resources),
         completeness: PayloadCompleteness::UsedTokens,
         source_version: None,
+        stats: CollectionStats::default(),
     };
     let output = generate_component(
         &payload.snapshot,
@@ -84,8 +86,40 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     }
     assert!(output.tsx.matches("<VStack").count() >= 10);
     assert!(output.tsx.matches("<Text").count() >= 20);
+    assert!(output.tsx.contains("borderTop=\"solid 1px $border\""));
+    assert_eq!(
+        output.tsx.matches("border=\"solid 1px $border\"").count(),
+        1,
+        "the public-setting card keeps its border, while the footer uses only borderTop"
+    );
+
+    let embedded = generate_component(
+        &payload.snapshot,
+        &fixture.source.node_id,
+        &CodegenOptions {
+            include_diagnostics: true,
+            inline_instances: true,
+            root_layout: RootLayout::Embedded,
+            ..CodegenOptions::default()
+        }
+        .with_payload_tokens(&payload),
+    )
+    .expect("embedded WQUW-151 DevupUI output");
+    let embedded_root = component_root_opening(&embedded.tsx);
+    assert!(!embedded_root.contains("h=\"740px\""));
+    assert!(!embedded_root.contains("w=\"360px\""));
+    assert!(!embedded_root.contains("pos=\"relative\""));
+    assert!(embedded.tsx.contains("bottom=\"0px\""));
+    assert!(embedded.tsx.contains("pos=\"absolute\""));
 
     insta::assert_snapshot!("wquw_151_proofread_devup_ui", output.tsx);
+    insta::assert_snapshot!("wquw_151_proofread_devup_ui_embedded", embedded.tsx);
     insta::assert_json_snapshot!("wquw_151_proofread_used_tokens", output.used_tokens);
     insta::assert_json_snapshot!("wquw_151_proofread_diagnostics", json!(output.diagnostics));
+}
+
+fn component_root_opening(tsx: &str) -> &str {
+    let start = tsx.find("    <").expect("component root");
+    let end = tsx[start..].find('>').expect("root opening close") + start;
+    &tsx[start..=end]
 }

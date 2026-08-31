@@ -40,6 +40,7 @@ async fn exposes_the_six_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let ui_schema = serde_json::to_value(&ui.input_schema)?;
     assert!(ui_schema.to_string().contains("sourcePolicy"));
     assert!(ui_schema.to_string().contains("scope"));
+    assert!(ui_schema.to_string().contains("rootLayout"));
     assert!(!ui_schema.to_string().contains("code"));
 
     let explore = tools
