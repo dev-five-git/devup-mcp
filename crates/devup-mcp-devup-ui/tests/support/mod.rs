@@ -347,6 +347,30 @@ pub struct FixtureLedger {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CoverageRegistry {
+    pub schema_version: u32,
+    pub evidence: Vec<CoverageEvidence>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CoverageEvidence {
+    pub rust_test: String,
+    pub source_path: String,
+    pub function: String,
+    pub coverage: EvidenceCoverage,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceCoverage {
+    SnapshotParity,
+    RepresentativeAssertion,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LedgerEntry {
     pub test_id: String,
     pub source_file: String,
@@ -364,6 +388,7 @@ pub enum LedgerClassification {
     RustSnapshot,
     RustAssertion,
     Contract,
+    NotPorted,
     OutOfScopeWrite,
     UpstreamRuntimeOnly,
 }
@@ -374,6 +399,182 @@ pub struct CorpusSummary {
     pub ledger_entries: usize,
     pub cases: usize,
     pub snapshots: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoverageSummary {
+    pub inventory_entries: usize,
+    pub snapshot_parity_entries: usize,
+    pub snapshot_cases: usize,
+    pub representative_assertion_entries: usize,
+    pub non_parity_entries: usize,
+}
+
+pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<String>> {
+    let ledger =
+        read_json::<FixtureLedger>(&root.join("ledger.json")).map_err(|error| vec![error])?;
+    let registry = read_json::<CoverageRegistry>(&root.join("coverage-registry.json"))
+        .map_err(|error| vec![error])?;
+    let mut violations = Vec::new();
+    if registry.schema_version != 1 {
+        violations.push("coverage registry schemaVersion은 1이어야 합니다.".to_owned());
+    }
+
+    let repository = root
+        .parent()
+        .and_then(Path::parent)
+        .expect("fixture corpus must live below the repository root");
+    let mut evidence_by_test = BTreeMap::new();
+    for evidence in &registry.evidence {
+        if evidence.rust_test.trim().is_empty()
+            || evidence.source_path.trim().is_empty()
+            || evidence.function.trim().is_empty()
+            || evidence.description.trim().is_empty()
+        {
+            violations.push(format!(
+                "coverage evidence 필드가 비어 있습니다: {}",
+                evidence.rust_test
+            ));
+            continue;
+        }
+        if evidence_by_test
+            .insert(evidence.rust_test.as_str(), evidence)
+            .is_some()
+        {
+            violations.push(format!("중복 coverage evidence: {}", evidence.rust_test));
+        }
+        let relative = Path::new(&evidence.source_path);
+        if relative.is_absolute()
+            || relative
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir))
+        {
+            violations.push(format!(
+                "coverage source 경로가 안전하지 않습니다: {}",
+                evidence.source_path
+            ));
+            continue;
+        }
+        let source_path = repository.join(relative);
+        match fs::read_to_string(&source_path) {
+            Ok(source) => {
+                let signature = format!("fn {}(", evidence.function);
+                if let Some(index) = source.find(&signature) {
+                    let prefix = source[..index]
+                        .lines()
+                        .rev()
+                        .take(5)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    if !prefix.contains("#[test]") && !prefix.contains("#[tokio::test]") {
+                        violations.push(format!(
+                            "coverage evidence가 실행 test 함수가 아닙니다: {}",
+                            evidence.rust_test
+                        ));
+                    }
+                } else {
+                    violations.push(format!(
+                        "coverage evidence test symbol이 없습니다: {} -> {}",
+                        evidence.rust_test, evidence.source_path
+                    ));
+                }
+            }
+            Err(error) => violations.push(format!(
+                "coverage source를 읽을 수 없습니다: {}: {error}",
+                evidence.source_path
+            )),
+        }
+    }
+
+    let case_files = discover(root.join("cases"), "json", root, &mut violations);
+    let snapshot_files = discover(root.join("snapshots"), "snap", root, &mut violations);
+    let mut case_ids = BTreeSet::new();
+    for relative in &case_files {
+        let path = root.join(relative.replace('/', std::path::MAIN_SEPARATOR_STR));
+        match load_case(&path) {
+            Ok(case) => {
+                case_ids.insert(case.id);
+            }
+            Err(error) => violations.push(format!("{relative}: {error}")),
+        }
+    }
+
+    let mut snapshot_parity_entries = 0;
+    let mut representative_assertion_entries = 0;
+    let mut non_parity_entries = 0;
+    let mut covered_case_ids = BTreeSet::new();
+    for entry in &ledger.entries {
+        match entry.classification {
+            LedgerClassification::RustSnapshot => {
+                snapshot_parity_entries += 1;
+                covered_case_ids.extend(entry.fixture_ids.iter().cloned());
+                match evidence_by_test.get(entry.rust_test.as_str()) {
+                    Some(evidence) if evidence.coverage == EvidenceCoverage::SnapshotParity => {}
+                    _ => violations.push(format!(
+                        "rust_snapshot이 실행 가능한 snapshot parity test를 참조하지 않습니다: {} -> {}",
+                        entry.test_id, entry.rust_test
+                    )),
+                }
+            }
+            LedgerClassification::RustAssertion => {
+                representative_assertion_entries += 1;
+                match evidence_by_test.get(entry.rust_test.as_str()) {
+                    Some(evidence)
+                        if evidence.coverage == EvidenceCoverage::RepresentativeAssertion => {}
+                    _ => violations.push(format!(
+                        "rust_assertion이 등록된 대표 Rust test를 참조하지 않습니다: {} -> {}",
+                        entry.test_id, entry.rust_test
+                    )),
+                }
+            }
+            LedgerClassification::NotPorted
+            | LedgerClassification::OutOfScopeWrite
+            | LedgerClassification::UpstreamRuntimeOnly => {
+                non_parity_entries += 1;
+                if entry
+                    .rationale
+                    .as_deref()
+                    .is_none_or(|value| value.trim().is_empty())
+                {
+                    violations.push(format!("비-parity 분류 근거가 없습니다: {}", entry.test_id));
+                }
+            }
+            LedgerClassification::Contract => violations.push(format!(
+                "모호한 contract 분류를 실행 evidence 또는 명시적 비-parity로 바꿔야 합니다: {}",
+                entry.test_id
+            )),
+        }
+    }
+
+    for case_id in case_ids.difference(&covered_case_ids) {
+        violations.push(format!(
+            "snapshot parity test에 연결되지 않은 fixture: {case_id}"
+        ));
+    }
+    for case_id in covered_case_ids.difference(&case_ids) {
+        violations.push(format!(
+            "존재하지 않는 snapshot fixture coverage: {case_id}"
+        ));
+    }
+    if case_files.len() != 268 || snapshot_files.len() != 268 {
+        violations.push(format!(
+            "snapshot parity corpus는 JSON/snapshot 각각 268개여야 합니다: {}/{}",
+            case_files.len(),
+            snapshot_files.len()
+        ));
+    }
+
+    if violations.is_empty() {
+        Ok(CoverageSummary {
+            inventory_entries: ledger.entries.len(),
+            snapshot_parity_entries,
+            snapshot_cases: case_ids.len(),
+            representative_assertion_entries,
+            non_parity_entries,
+        })
+    } else {
+        Err(violations)
+    }
 }
 
 pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
@@ -485,7 +686,9 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
                     entry.test_id
                 ))
             }
-            LedgerClassification::OutOfScopeWrite | LedgerClassification::UpstreamRuntimeOnly
+            LedgerClassification::NotPorted
+            | LedgerClassification::OutOfScopeWrite
+            | LedgerClassification::UpstreamRuntimeOnly
                 if entry
                     .rationale
                     .as_deref()

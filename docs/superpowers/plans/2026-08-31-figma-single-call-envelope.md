@@ -254,7 +254,7 @@
 
   Expected: 268/268 JSON-to-golden snapshot comparisons still pass; only the dedicated live WQUW regression changes.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
   Commit: `fix(devup-ui): preserve individual strokes and root modes`
 
@@ -271,19 +271,19 @@
 - Modify: `crates/devup-mcp-devup-ui/tests/fixtures/devup-figma-plugin/README.md`
 - Modify repository documentation that currently implies all 978 tests run as Rust parity tests.
 
-- [ ] **Step 1: Add a failing coverage-registry integrity test**
+- [x] **Step 1: Add a failing coverage-registry integrity test**
 
   Require every one of the 978 ledger entries to reference a registered executable Rust test or an explicit non-parity classification with a non-empty reason. Require all 268 generated fixture paths to exist as JSON input plus golden output and to be exercised by `compat_fixtures`.
 
-- [ ] **Step 2: Replace the nonexistent umbrella symbol mapping**
+- [x] **Step 2: Replace the nonexistent umbrella symbol mapping**
 
   Register actual Rust test symbols/categories. Map all snapshot-producing entries to the executable fixture parity harness; map TSX-affecting assertions such as strokes, layout, text styles, variables, instances, and responsive output to concrete unit/integration tests; leave plugin-runtime and write-only cases explicitly classified rather than falsely covered.
 
-- [ ] **Step 3: Correct documentation and generated metadata wording**
+- [x] **Step 3: Correct documentation and generated metadata wording**
 
   State precisely: 268 imported snapshot outputs pass byte parity, while 978 upstream tests are inventoried and categorized. Do not claim 978 independently executed Rust parity tests.
 
-- [ ] **Step 4: Run corpus verification**
+- [x] **Step 4: Run corpus verification**
 
   Run:
 
@@ -292,7 +292,7 @@
   cargo test -p devup-mcp-devup-ui --test compat_fixtures
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit: `test(devup-ui): make upstream coverage registry executable`
 

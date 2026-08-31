@@ -20,3 +20,16 @@ fn manifest_hashes_are_stable_across_checkout_line_endings() {
         support::hex_sha256(b"{\n  \"value\": true\n}\n")
     );
 }
+
+#[test]
+fn coverage_registry_maps_every_inventory_entry_to_real_evidence() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/devup-figma-plugin");
+    let summary = support::validate_coverage_registry(&root)
+        .unwrap_or_else(|violations| panic!("coverage registry 위반:\n{}", violations.join("\n")));
+
+    assert_eq!(summary.inventory_entries, 978);
+    assert_eq!(summary.snapshot_parity_entries, 252);
+    assert_eq!(summary.snapshot_cases, 268);
+    assert_eq!(summary.representative_assertion_entries, 550);
+    assert_eq!(summary.non_parity_entries, 176);
+}
