@@ -9,6 +9,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 - `devup_figma_auth`: Figma 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃
 - `devup_figma_to_ui`: Figma node 링크를 `@devup-ui/react` TSX로 변환
 - `devup_figma_to_json`: Figma 변수와 로컬 스타일을 `devup.json`으로 변환
+- `devup_figma_export`: Figma를 한 번 수집해 TSX, `devup.json`, raw snapshot, source map과 asset manifest를 함께 생성하거나 같은 artifact를 재사용
 - `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_continue`: host가 실행한 공식 Figma MCP read 결과로 중단된 변환을 재개
@@ -89,6 +90,25 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 `outputPath`를 생략하면 결과를 메모리와 MCP 응답에만 유지합니다. 명시하면 생성된 TSX 또는 `devup.json`만 해당 경로에 기록하고 실제 절대 경로를 응답합니다.
 
+### 통합 수집과 다중 출력
+
+```json
+{
+  "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
+  "outputs": ["tsx", "devupJson", "sourceMap", "assetManifest"],
+  "scope": "node",
+  "strict": true,
+  "refresh": false,
+  "sourcePolicy": "auto"
+}
+```
+
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+
+`status`는 node graph와 resource audit가 모두 완전하면 `complete`, 보존 가능한 결과는 있지만 잘린 field 또는 unresolved resource가 있으면 `partial`, root/graph 자체를 신뢰할 수 없으면 `failed`입니다. `strict: true`는 `partial`과 `failed`를 output으로 승인하지 않습니다. 상세 근거는 `completenessReport.snapshot`과 `completenessReport.resources`에 포함됩니다.
+
+Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
+
 ### Figma 이름 검색
 
 ```json
@@ -140,7 +160,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 ### 플러그인 호환성 corpus
 
-`fixtures/devup-figma-plugin`은 `dev-five-git/devup-figma-plugin`의 고정 commit `243db650f1d635ab5385546a2a297eae4ea93515`에서 수집한 54개 test file과 978개 passing-test inventory를 추적합니다. 그중 upstream test 252개가 만든 JSON/golden 268쌍은 Rust serde/codegen 경로에서 byte parity를 전부 실행하고, 나머지는 550개 대표 Rust assertion 연결, 137개 미이식, 21개 plugin-runtime 전용, 18개 read-only 범위 밖 write 동작으로 명시적으로 구분합니다. 즉 268/268 snapshot parity는 검증되지만 978개 JavaScript test가 각각 Rust parity test로 포팅됐다는 뜻은 아닙니다. manifest는 LF로 정규화한 fixture와 snapshot 536개 파일의 SHA-256을 검증하고, coverage registry는 ledger가 실제 Rust test symbol 또는 근거가 있는 비-parity 분류만 참조하도록 강제합니다. 상세 분류와 실행 방법은 [`fixtures/devup-figma-plugin/README.md`](fixtures/devup-figma-plugin/README.md)를 참고하세요.
+`fixtures/devup-figma-plugin`은 `dev-five-git/devup-figma-plugin`의 고정 commit `243db650f1d635ab5385546a2a297eae4ea93515`에서 수집한 54개 test file과 978개 passing-test inventory를 추적합니다. upstream test 252개가 만든 JSON/golden 268쌍은 Rust serde/codegen 경로에서 byte parity를 전부 실행하고, 666개는 같은 동작 영역의 실제 Rust assertion에 연결했습니다. 나머지는 plugin module/codegen handler/iframe/notify/browser download 수명주기 38개와 read-only MCP가 의도적으로 수행하지 않는 Figma document/style/import write 22개입니다. `not_ported`는 0개이며, 비-parity 항목도 구체적인 MCP 경계 test를 가리킵니다. 즉 정확한 보장은 “268/268 snapshot byte parity, 666개 실행 가능한 대표 Rust assertion 연결, 60개 명시적 runtime/write 경계, 978-entry inventory”이고 JavaScript assertion 978개를 각각 별도 fixture로 복제했다는 뜻은 아닙니다. manifest는 LF로 정규화한 fixture와 snapshot 536개 파일의 SHA-256을 검증하고, coverage registry는 ledger가 실제 Rust test symbol 또는 근거가 있는 비-parity 분류만 참조하도록 강제합니다. 상세 분류와 실행 방법은 [`fixtures/devup-figma-plugin/README.md`](fixtures/devup-figma-plugin/README.md)를 참고하세요.
 
 ### 실제 Figma JSON contract gate
 
@@ -148,7 +168,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
 
-2026-09-01 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` Section (`4217:7743`)을 찾고, 그 안의 360×740 화면 10개를 시각 순서대로 인덱싱해 `A : STORY-F-PROOFREAD` (`3879:35518`)를 정확한 대상으로 선택했습니다. Section 전체 fast envelope는 8 MiB 안전 상한을 넘어서므로 성공으로 오인하지 않고, 각 화면을 공식 read-only MCP로 개별 수집했습니다. 열 화면은 각각 15~210개 node를 가지며 모든 child, styled text segment, 변수 3~25개와 text style 2~13개의 참조 완전성을 실제 JSON fixture와 DevupUI TSX snapshot으로 검증합니다. 대표 proofread 화면은 공식 read-only MCP 1회, 3개 PNG envelope 청크에서 144개 node, 변수 20개와 text style 11개를 수집했고 폴백은 없었습니다. instance children, concrete boolean property, mixed typography, nested `[1. 이름]`, token binding과 개별 footer stroke도 Rust snapshot/live contract로 검증했습니다. 같은 파일의 전체 theme export는 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다.
+2026-09-01 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` Section (`4217:7743`)을 찾고, 그 안의 360×740 화면 10개를 시각 순서대로 인덱싱해 `A : STORY-F-PROOFREAD` (`3879:35518`)를 정확한 대상으로 선택했습니다. Section 전체 fast envelope는 8 MiB 안전 상한을 넘어서므로 성공으로 오인하지 않고, 각 화면을 공식 read-only MCP로 개별 수집했습니다. 열 화면은 각각 15~210개 node를 가지며 모든 child, styled text segment, 변수 3~25개와 text style 2~13개의 참조 완전성을 실제 JSON fixture와 DevupUI TSX snapshot으로 검증합니다. 대표 proofread 화면은 공식 read-only MCP 1회, 3개 PNG envelope 청크에서 144개 node, 변수 20개와 text style 11개를 수집했고 폴백은 없었습니다. instance children, concrete boolean property, mixed typography, nested `[1. 이름]`, token binding과 개별 footer stroke도 Rust snapshot/live contract로 검증했습니다. 같은 파일의 전체 theme export는 legacy 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다. 현재 full-theme fast collector는 같은 collection/variable/style 전체를 단일 read-only `use_figma` 호출로 수집하고, envelope 검증 실패 시에만 이 legacy 경로를 0부터 다시 시작하도록 contract test로 고정했습니다.
 
 ## Snapshot 의미와 현재 한계
 
