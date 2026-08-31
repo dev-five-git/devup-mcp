@@ -7,7 +7,7 @@ use std::{
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use devup_mcp_figma::{
-    CollectedPayload, CollectionRequest, CollectionScope, DevupError, ErrorCode,
+    AssetSelection, CollectedPayload, CollectionRequest, CollectionScope, DevupError, ErrorCode,
     ExploreReadOptions, ResourceScope, SearchReadOptions, SourcePolicy,
 };
 use rand::Rng;
@@ -29,6 +29,7 @@ pub struct ArtifactRequestKey {
     variables_only: bool,
     search: Option<SearchReadOptions>,
     explore: Option<ExploreReadOptions>,
+    asset_selections: Vec<AssetSelection>,
     source_policy: SourcePolicy,
 }
 
@@ -45,6 +46,7 @@ impl ArtifactRequestKey {
             variables_only: request.variables_only,
             search: request.search.clone(),
             explore: request.explore.clone(),
+            asset_selections: request.asset_selections.clone(),
             source_policy,
         }
     }

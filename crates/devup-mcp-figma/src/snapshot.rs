@@ -300,7 +300,9 @@ impl Snapshot {
 fn contains_truncation(value: &Value) -> bool {
     match value {
         Value::Object(object) => {
-            object.contains_key("$truncated") || object.values().any(contains_truncation)
+            object.contains_key("$truncated")
+                || object.contains_key("$largeValue")
+                || object.values().any(contains_truncation)
         }
         Value::Array(values) => values.iter().any(contains_truncation),
         _ => false,

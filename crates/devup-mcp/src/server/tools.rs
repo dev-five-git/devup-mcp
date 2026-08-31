@@ -69,6 +69,20 @@ pub struct FigmaExportInput {
     pub frame_ids: Vec<String>,
     #[serde(default)]
     pub all_screens: bool,
+    #[serde(default)]
+    pub asset_requests: Vec<FigmaAssetRequestInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FigmaAssetRequestInput {
+    pub asset_id: String,
+    #[serde(default = "default_asset_format")]
+    pub format: String,
+    #[serde(default = "default_asset_scale")]
+    pub scale: u8,
+    #[serde(default)]
+    pub output_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -136,4 +150,12 @@ fn default_true() -> bool {
 
 fn default_outputs() -> Vec<String> {
     vec!["tsx".to_owned(), "devupJson".to_owned()]
+}
+
+fn default_asset_format() -> String {
+    "png".to_owned()
+}
+
+fn default_asset_scale() -> u8 {
+    1
 }

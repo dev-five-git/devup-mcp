@@ -24,6 +24,8 @@ const hardProtectedFields = new Set([
   "boundVariables",
 ]);
 
+"__DEVUP_LARGE_VALUE_HELPERS__";
+
 function utf8ByteLength(value) {
   let bytes = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -95,12 +97,15 @@ function truncatedValue(reason, byteLength) {
   return { $truncated: reason, byteLength };
 }
 
-function serializeField(name, value, fieldErrors) {
+function serializeField(nodeId, name, value, fieldErrors) {
   const serialized = serialize(value);
   const byteLength = jsonByteLength(serialized);
   if (byteLength <= maxFieldBytes) return serialized;
-  fieldErrors[name] = `DEVUP_FIELD_VALUE_TRUNCATED:${byteLength}>${maxFieldBytes}`;
-  return truncatedValue("max-field-bytes", byteLength);
+  const descriptor = devupLargeValueDescriptor(nodeId, name, serialized);
+  if (descriptor.$truncated) {
+    fieldErrors[name] = `DEVUP_FIELD_VALUE_UNSUPPORTED:${byteLength}>${DEVUP_MAX_LARGE_VALUE_BYTES}`;
+  }
+  return descriptor;
 }
 
 function isHardProtectedField(name) {
@@ -117,7 +122,9 @@ function shrinkNodeToBudget(node, budget) {
     ["fields", node.fields],
   ]) {
     for (const [name, value] of Object.entries(section)) {
-      if (value && typeof value === "object" && "$truncated" in value) continue;
+      if (value && typeof value === "object" && ("$truncated" in value || "$largeValue" in value)) {
+        continue;
+      }
       candidates.push({
         sectionName,
         name,
@@ -133,12 +140,16 @@ function shrinkNodeToBudget(node, budget) {
 
   for (const candidate of candidates) {
     if (currentBytes <= budget) break;
-    node[candidate.sectionName][candidate.name] = truncatedValue(
-      "max-node-bytes",
-      candidate.byteLength,
+    const descriptor = devupLargeValueDescriptor(
+      node.id,
+      candidate.name,
+      node[candidate.sectionName][candidate.name],
     );
-    node.fieldErrors[candidate.name] =
-      `DEVUP_FIELD_VALUE_TRUNCATED:${candidate.byteLength}>node-budget`;
+    node[candidate.sectionName][candidate.name] = descriptor;
+    if (descriptor.$truncated) {
+      node.fieldErrors[candidate.name] =
+        `DEVUP_FIELD_VALUE_UNSUPPORTED:${candidate.byteLength}>${DEVUP_MAX_LARGE_VALUE_BYTES}`;
+    }
     currentBytes = jsonByteLength(node);
   }
   return node;
@@ -156,7 +167,7 @@ function snapshotNode(node) {
     try {
       const value = node[name];
       if (typeof value === "function") continue;
-      const serialized = serializeField(name, value, fieldErrors);
+      const serialized = serializeField(node.id, name, value, fieldErrors);
       (manifestSet.has(name) ? fields : extra)[name] = serialized;
     } catch (error) {
       fieldErrors[name] = String(error && error.message ? error.message : error);
@@ -165,6 +176,7 @@ function snapshotNode(node) {
   if (node.type === "TEXT" && typeof node.getStyledTextSegments === "function") {
     try {
       fields.styledTextSegments = serializeField(
+        node.id,
         "styledTextSegments",
         node.getStyledTextSegments(textSegmentManifest),
         fieldErrors,

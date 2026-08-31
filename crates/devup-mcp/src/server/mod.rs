@@ -5,6 +5,7 @@ mod tools;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use rmcp::{
     ErrorData, ServerHandler,
     handler::server::{
@@ -21,20 +22,20 @@ use devup_mcp_devup_ui::{
     theme::{ThemeScope, generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CompletenessState, CredentialStore, DevupError, ErrorCode,
-    ExploreOptions, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore,
-    OAuthManager, RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SourcePolicy,
-    SystemBrowser, TargetKind, classify_target, explore_snapshot, fallback_allowed_for_error,
-    search_snapshot,
+    AssetFormat, AssetSelection, AssetStatus, AuthStatus, CollectedParts, CollectedPayload,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CompletenessState,
+    CredentialStore, DevupError, ErrorCode, ExploreOptions, ExploreReadOptions, FigmaTarget,
+    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope,
+    SearchOptions, SearchReadOptions, SourcePolicy, SystemBrowser, TargetKind, classify_target,
+    explore_snapshot, fallback_allowed_for_error, search_snapshot,
 };
 
 use artifacts::{ArtifactLookup, ArtifactRequestKey, ArtifactStore};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 
 pub use tools::{
-    AuthInput, ContinueInput, FigmaExploreInput, FigmaExportInput, FigmaSearchInput,
-    FigmaToJsonInput, FigmaToUiInput,
+    AuthInput, ContinueInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput,
+    FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput,
 };
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -410,6 +411,15 @@ impl DevupServer {
         Parameters(input): Parameters<FigmaExportInput>,
     ) -> Result<Json<Value>, ErrorData> {
         validate_outputs(&input.outputs).map_err(to_mcp_error)?;
+        if !input.asset_requests.is_empty()
+            && !input.outputs.iter().any(|output| output == "assetManifest")
+        {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "assetRequests를 사용하려면 outputs에 assetManifest가 필요합니다.",
+                false,
+            )));
+        }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
         parse_scope(&input.scope).map_err(to_mcp_error)?;
 
@@ -428,6 +438,8 @@ impl DevupServer {
                     true,
                 ))
             })?;
+            let (asset_selections, asset_output_paths) =
+                parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
             let result = complete_operation(
                 PendingOperation::Export {
                     outputs: input.outputs,
@@ -439,6 +451,11 @@ impl DevupServer {
                     output_paths: input.output_paths,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
+                    asset_ids: asset_selections
+                        .into_iter()
+                        .map(|selection| selection.asset_id)
+                        .collect(),
+                    asset_output_paths,
                 },
                 &artifact.payload,
                 "artifact",
@@ -466,13 +483,17 @@ impl DevupServer {
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
+        let (asset_selections, asset_output_paths) =
+            parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
+        request.asset_selections = asset_selections.clone();
         request.resource_scope = if collection_scope == CollectionScope::File {
             ResourceScope::File
         } else {
             ResourceScope::Used
         };
         request.variables_only = collection_scope == CollectionScope::File
-            && input.outputs.iter().all(|output| output == "devupJson");
+            && input.outputs.iter().all(|output| output == "devupJson")
+            && request.asset_selections.is_empty();
         let result = self
             .start_operation(
                 PendingOperation::Export {
@@ -485,6 +506,11 @@ impl DevupServer {
                     output_paths: input.output_paths,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
+                    asset_ids: asset_selections
+                        .into_iter()
+                        .map(|selection| selection.asset_id)
+                        .collect(),
+                    asset_output_paths,
                 },
                 request,
                 policy,
@@ -682,6 +708,8 @@ fn complete_operation(
             output_paths,
             frame_ids,
             all_screens,
+            asset_ids,
+            asset_output_paths,
         } => {
             if strict && completeness_report.state != CompletenessState::Complete {
                 return Err(DevupError::with_details(
@@ -952,10 +980,70 @@ fn complete_operation(
             }
 
             if outputs.iter().any(|output| output == "assetManifest") {
-                result.insert(
-                    "assetManifest".to_owned(),
-                    json!({"version": 1, "assets": [], "diagnostics": []}),
-                );
+                let mut manifest = devup_mcp_figma::discover_asset_manifest(&payload.snapshot);
+                for exported in &payload.assets {
+                    if let Some(existing) = manifest
+                        .assets
+                        .iter_mut()
+                        .find(|asset| asset.asset_id == exported.asset_id)
+                    {
+                        *existing = exported.clone();
+                    } else {
+                        manifest.assets.push(exported.clone());
+                    }
+                }
+                manifest
+                    .assets
+                    .sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
+                for asset_id in &asset_ids {
+                    if !payload
+                        .assets
+                        .iter()
+                        .any(|asset| &asset.asset_id == asset_id)
+                    {
+                        return Err(DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            format!(
+                                "artifact에 요청한 asset export가 없습니다. URL로 다시 수집하세요: {asset_id}"
+                            ),
+                            false,
+                        ));
+                    }
+                }
+                for asset in &mut manifest.assets {
+                    if asset.status != AssetStatus::Exported {
+                        continue;
+                    }
+                    let Some(path) = asset_output_paths.get(&asset.asset_id) else {
+                        continue;
+                    };
+                    let data = asset.data_base64.as_deref().ok_or_else(|| {
+                        DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            "export된 asset binary가 artifact에 없습니다.",
+                            false,
+                        )
+                    })?;
+                    let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
+                        DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            "export된 asset binary의 base64가 올바르지 않습니다.",
+                            false,
+                        )
+                    })?;
+                    let written = write_binary_output(path, &bytes)?;
+                    written_paths.insert(format!("asset:{}", asset.asset_id), json!(written));
+                    asset.output_path = Some(path.clone());
+                    asset.data_base64 = None;
+                }
+                manifest.diagnostics = payload
+                    .snapshot
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.resource_kind.as_deref() == Some("asset"))
+                    .cloned()
+                    .collect();
+                result.insert("assetManifest".to_owned(), json!(manifest));
             }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
             Ok(Value::Object(result))
@@ -1015,7 +1103,67 @@ fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupError> {
     }
 }
 
+fn parse_asset_requests(
+    requests: &[FigmaAssetRequestInput],
+) -> Result<
+    (
+        Vec<AssetSelection>,
+        std::collections::BTreeMap<String, String>,
+    ),
+    DevupError,
+> {
+    if requests.len() > 16 {
+        return Err(DevupError::new(
+            ErrorCode::DevupSnapshotUnsupported,
+            "한 번에 export할 asset은 16개 이하여야 합니다.",
+            false,
+        ));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut selections = Vec::with_capacity(requests.len());
+    let mut output_paths = std::collections::BTreeMap::new();
+    for request in requests {
+        if request.asset_id.trim().is_empty()
+            || request.scale == 0
+            || request.scale > 4
+            || !seen.insert(request.asset_id.as_str())
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "assetRequests의 ID, scale 또는 중복 값이 올바르지 않습니다.",
+                false,
+            ));
+        }
+        let format = match request.format.as_str() {
+            "png" => AssetFormat::Png,
+            "jpg" | "jpeg" => AssetFormat::Jpg,
+            "svg" => AssetFormat::Svg,
+            "pdf" => AssetFormat::Pdf,
+            _ => {
+                return Err(DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "asset format은 png, jpg, svg 또는 pdf여야 합니다.",
+                    false,
+                ));
+            }
+        };
+        selections.push(AssetSelection {
+            asset_id: request.asset_id.clone(),
+            format,
+            scale: request.scale,
+        });
+        if let Some(path) = &request.output_path {
+            output_paths.insert(request.asset_id.clone(), path.clone());
+        }
+    }
+    Ok((selections, output_paths))
+}
+
 fn write_output(path: &str, contents: &str) -> Result<String, DevupError> {
+    write_binary_output(path, contents.as_bytes())
+}
+
+fn write_binary_output(path: &str, contents: &[u8]) -> Result<String, DevupError> {
     let path = std::path::PathBuf::from(path);
     if path.as_os_str().is_empty() || path.file_name().is_none() {
         return Err(DevupError::new(

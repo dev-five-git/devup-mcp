@@ -1,8 +1,10 @@
+mod assets;
 mod collector;
 mod credentials;
 mod envelope;
 mod errors;
 mod explore;
+mod large_values;
 mod oauth;
 mod payload;
 mod resources;
@@ -24,6 +26,11 @@ pub use errors::{DevupError, ErrorCode};
 pub use explore::{
     ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,
     ExploreResult, TargetKind, classify_explore_node, classify_target, explore_snapshot,
+};
+pub use large_values::{
+    LargeValueAssembler, LargeValueCursor, LargeValueDescriptor, LargeValueFragment,
+    LargeValueReadOptions, LargeValueUnsupported, MAX_LARGE_VALUE_BYTES,
+    MAX_LARGE_VALUE_CHUNK_BYTES,
 };
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
 pub use payload::{
@@ -51,6 +58,11 @@ pub use upstream::{
 pub use url::FigmaTarget;
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
+pub use assets::{
+    AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus,
+    MAX_ASSET_BYTES, asset_export_from_result, discover_asset_manifest, resolve_asset_selections,
+    validate_asset_requests,
+};
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
     CollectorStep, PlannedCall,

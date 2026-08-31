@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::{
-    CredentialStore, DevupError, OAuthManager, ResourceBatch, UpstreamFailureContext,
-    UpstreamFailureKind, upstream_failure_error,
+    AssetRequest, CredentialStore, DevupError, LargeValueReadOptions, OAuthManager, ResourceBatch,
+    UpstreamFailureContext, UpstreamFailureKind, upstream_failure_error,
 };
 
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -28,17 +28,12 @@ pub enum BuiltinScript {
     LocalVariables,
     UsedResources,
     ExploreSnapshot,
+    LargeValue,
+    AssetExport,
 }
 
 impl BuiltinScript {
-    fn source(
-        self,
-        node_id: &str,
-        resources: Option<&ResourceBatch>,
-        search: Option<&SearchReadOptions>,
-        explore: Option<&ExploreReadOptions>,
-        snapshot: Option<&SnapshotReadOptions>,
-    ) -> String {
+    fn source(self, node_id: &str, inputs: ScriptInputs<'_>) -> String {
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
@@ -50,20 +45,54 @@ impl BuiltinScript {
             Self::LocalVariables => include_str!("scripts/variables.js"),
             Self::UsedResources => include_str!("scripts/used_resources.js"),
             Self::ExploreSnapshot => include_str!("scripts/explore.js"),
+            Self::LargeValue => include_str!("scripts/large_value.js"),
+            Self::AssetExport => include_str!("scripts/assets.js"),
         };
         let empty_resources = ResourceBatch {
             variable_ids: Vec::new(),
             styles: Vec::new(),
         };
-        let resources = serde_json::to_string(resources.unwrap_or(&empty_resources))
+        let resources = serde_json::to_string(inputs.resources.unwrap_or(&empty_resources))
             .expect("resource batch serializes");
-        let search = serde_json::to_string(search.unwrap_or(&SearchReadOptions::default()))
+        let search = serde_json::to_string(inputs.search.unwrap_or(&SearchReadOptions::default()))
             .expect("search options serialize");
-        let explore = serde_json::to_string(explore.unwrap_or(&ExploreReadOptions::default()))
-            .expect("explore options serialize");
-        let snapshot = serde_json::to_string(snapshot.unwrap_or(&SnapshotReadOptions::default()))
-            .expect("snapshot options serialize");
+        let explore =
+            serde_json::to_string(inputs.explore.unwrap_or(&ExploreReadOptions::default()))
+                .expect("explore options serialize");
+        let snapshot =
+            serde_json::to_string(inputs.snapshot.unwrap_or(&SnapshotReadOptions::default()))
+                .expect("snapshot options serialize");
+        let large_value =
+            serde_json::to_string(inputs.large_value.unwrap_or(&LargeValueReadOptions {
+                node_id: String::new(),
+                field: String::new(),
+                offset: 0,
+                max_chunk_bytes: 1,
+                byte_length: 0,
+                sha256: String::new(),
+                version: None,
+            }))
+            .expect("large value options serialize");
+        let asset = inputs
+            .asset
+            .map(|(request, version)| {
+                json!({
+                    "assetId": request.asset_id,
+                    "nodeId": request.node_id,
+                    "field": request.field,
+                    "imageHash": request.image_hash,
+                    "format": request.format,
+                    "scale": request.scale,
+                    "version": version
+                })
+            })
+            .unwrap_or_else(|| json!({}));
+        let asset = serde_json::to_string(&asset).expect("asset options serialize");
         source
+            .replace(
+                "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
+                include_str!("scripts/large_value_helpers.js"),
+            )
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
             .replace(
                 "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
@@ -77,7 +106,19 @@ impl BuiltinScript {
             .replace("\"__DEVUP_SEARCH__\"", &search)
             .replace("\"__DEVUP_EXPLORE__\"", &explore)
             .replace("\"__DEVUP_SNAPSHOT__\"", &snapshot)
+            .replace("\"__DEVUP_LARGE_VALUE__\"", &large_value)
+            .replace("\"__DEVUP_ASSET__\"", &asset)
     }
+}
+
+#[derive(Default)]
+struct ScriptInputs<'a> {
+    resources: Option<&'a ResourceBatch>,
+    search: Option<&'a SearchReadOptions>,
+    explore: Option<&'a ExploreReadOptions>,
+    snapshot: Option<&'a SnapshotReadOptions>,
+    large_value: Option<&'a LargeValueReadOptions>,
+    asset: Option<(&'a AssetRequest, Option<&'a str>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,6 +210,15 @@ pub enum ReadToolCall {
     FastTheme {
         file_key: String,
     },
+    LargeValue {
+        file_key: String,
+        options: LargeValueReadOptions,
+    },
+    AssetExport {
+        file_key: String,
+        version: Option<String>,
+        request: Box<AssetRequest>,
+    },
 }
 
 impl ReadToolCall {
@@ -252,6 +302,25 @@ impl ReadToolCall {
         }
     }
 
+    pub fn large_value(file_key: impl Into<String>, options: LargeValueReadOptions) -> Self {
+        Self::LargeValue {
+            file_key: file_key.into(),
+            options,
+        }
+    }
+
+    pub fn asset_export(
+        file_key: impl Into<String>,
+        version: Option<String>,
+        request: AssetRequest,
+    ) -> Self {
+        Self::AssetExport {
+            file_key: file_key.into(),
+            version,
+            request: Box::new(request),
+        }
+    }
+
     pub fn resource_batch(
         file_key: impl Into<String>,
         node_id: impl Into<String>,
@@ -321,7 +390,9 @@ impl ReadToolCall {
             | Self::SearchSnapshot { .. }
             | Self::PageCatalog { .. }
             | Self::ExploreSnapshot { .. }
-            | Self::FastTheme { .. } => "use_figma",
+            | Self::FastTheme { .. }
+            | Self::LargeValue { .. }
+            | Self::AssetExport { .. } => "use_figma",
         }
     }
 
@@ -345,7 +416,11 @@ impl ReadToolCall {
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": script.source(node_id, resources.as_ref(), None, None, snapshot.as_ref())
+                "code": script.source(node_id, ScriptInputs {
+                    resources: resources.as_ref(),
+                    snapshot: snapshot.as_ref(),
+                    ..ScriptInputs::default()
+                })
             }),
             Self::SearchSnapshot {
                 file_key,
@@ -354,11 +429,14 @@ impl ReadToolCall {
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": BuiltinScript::SearchSnapshot.source(node_id, None, Some(options), None, None)
+                "code": BuiltinScript::SearchSnapshot.source(node_id, ScriptInputs {
+                    search: Some(options),
+                    ..ScriptInputs::default()
+                })
             }),
             Self::PageCatalog { file_key } => json!({
                 "fileKey": file_key,
-                "code": BuiltinScript::PageCatalog.source("", None, None, None, None)
+                "code": BuiltinScript::PageCatalog.source("", ScriptInputs::default())
             }),
             Self::ExploreSnapshot {
                 file_key,
@@ -367,11 +445,34 @@ impl ReadToolCall {
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": BuiltinScript::ExploreSnapshot.source(node_id, None, None, Some(options), None)
+                "code": BuiltinScript::ExploreSnapshot.source(node_id, ScriptInputs {
+                    explore: Some(options),
+                    ..ScriptInputs::default()
+                })
             }),
             Self::FastTheme { file_key } => json!({
                 "fileKey": file_key,
-                "code": BuiltinScript::FastThemeEnvelope.source("", None, None, None, None)
+                "code": BuiltinScript::FastThemeEnvelope.source("", ScriptInputs::default())
+            }),
+            Self::LargeValue { file_key, options } => json!({
+                "fileKey": file_key,
+                "nodeId": options.node_id,
+                "code": BuiltinScript::LargeValue.source(&options.node_id, ScriptInputs {
+                    large_value: Some(options),
+                    ..ScriptInputs::default()
+                })
+            }),
+            Self::AssetExport {
+                file_key,
+                version,
+                request,
+            } => json!({
+                "fileKey": file_key,
+                "nodeId": request.node_id,
+                "code": BuiltinScript::AssetExport.source(&request.node_id, ScriptInputs {
+                    asset: Some((request, version.as_deref())),
+                    ..ScriptInputs::default()
+                })
             }),
         };
         value.as_object().cloned().unwrap_or_default()

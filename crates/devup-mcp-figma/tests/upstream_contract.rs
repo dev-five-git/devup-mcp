@@ -72,10 +72,61 @@ fn snapshot_is_byte_bounded_and_cursor_driven() {
     assert!(code.contains("snapshotOptions"));
     assert!(code.contains("maxPayloadBytes"));
     assert!(code.contains("maxFieldBytes"));
-    assert!(code.contains("DEVUP_FIELD_VALUE_TRUNCATED"));
+    assert!(code.contains("$largeValue"));
     assert!(code.contains("__DEVUP_SNAPSHOT_CURSOR__"));
     assert!(code.contains("\"offset\":7"));
     assert!(code.contains("\"maxPayloadBytes\":12000"));
+}
+
+#[test]
+fn large_values_use_a_compiled_bounded_read_only_continuation() {
+    let call = ReadToolCall::large_value(
+        "file-key",
+        devup_mcp_figma::LargeValueReadOptions {
+            node_id: "1:2".to_owned(),
+            field: "characters".to_owned(),
+            offset: 4096,
+            max_chunk_bytes: 8192,
+            byte_length: 20000,
+            sha256: "abc123".to_owned(),
+            version: Some("v1".to_owned()),
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("getNodeByIdAsync"));
+    assert!(code.contains("getStyledTextSegments"));
+    assert!(code.contains("dataBase64"));
+    assert!(code.contains("\"offset\":4096"));
+    assert!(code.contains("\"maxChunkBytes\":8192"));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
+}
+
+#[test]
+fn asset_export_uses_only_compiled_read_only_export_settings() {
+    let call = ReadToolCall::asset_export(
+        "file-key",
+        Some("v1".to_owned()),
+        devup_mcp_figma::AssetRequest {
+            asset_id: "1:2:node".to_owned(),
+            node_id: "1:2".to_owned(),
+            field: "node".to_owned(),
+            image_hash: None,
+            format: devup_mcp_figma::AssetFormat::Svg,
+            scale: 1,
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("exportAsync"));
+    assert!(code.contains("figma.io.write"));
+    assert!(code.contains("DEVUP_ASSET_EXPORT_FAILED"));
+    assert!(code.contains("\"format\":\"svg\""));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
 }
 
 #[test]

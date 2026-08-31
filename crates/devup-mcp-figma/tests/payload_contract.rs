@@ -41,6 +41,7 @@ fn synthetic_parts() -> CollectedParts {
         }),
         source_version: Some("v1".to_owned()),
         stats: CollectionStats::default(),
+        assets: Vec::new(),
     }
 }
 

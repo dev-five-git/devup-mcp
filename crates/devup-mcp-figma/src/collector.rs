@@ -3,13 +3,18 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::large_values::{
+    LargeValueResult, descriptors_in_chunk, large_value_from_result, replace_descriptor,
+};
 use crate::{
-    BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, RawNode, ReadToolCall,
-    ResourceBatch, ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk,
-    SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
-    collect_used_resource_refs, decode_fast_snapshot, decode_fast_theme,
+    AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BuiltinScript, DevupError,
+    ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler, LargeValueReadOptions,
+    RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef, SearchReadOptions,
+    SnapshotChunk, SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
+    asset_export_from_result, collect_used_resource_refs, decode_fast_snapshot, decode_fast_theme,
+    merge_chunks,
     metadata::{MetadataResult, metadata_from_result_for_target},
-    snapshot_chunk_from_result,
+    resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
         merge_used_resource_results, merge_variable_results,
@@ -45,6 +50,7 @@ pub struct CollectionRequest {
     pub variables_only: bool,
     pub search: Option<SearchReadOptions>,
     pub explore: Option<ExploreReadOptions>,
+    pub asset_selections: Vec<AssetSelection>,
 }
 
 impl CollectionRequest {
@@ -58,6 +64,7 @@ impl CollectionRequest {
             variables_only: false,
             search: None,
             explore: None,
+            asset_selections: Vec::new(),
         }
     }
 }
@@ -80,6 +87,7 @@ pub struct CollectedParts {
     pub styles: Option<UpstreamResult>,
     pub source_version: Option<String>,
     pub stats: CollectionStats,
+    pub assets: Vec<AssetManifestEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,7 +125,7 @@ impl Default for CollectionStats {
 
 #[derive(Debug, Clone)]
 pub enum CollectorStep {
-    Call(PlannedCall),
+    Call(Box<PlannedCall>),
     AwaitingResults,
     Complete(Box<CollectedParts>),
 }
@@ -133,6 +141,8 @@ enum CallKind {
     VariableBatch,
     UsedResourceBatch,
     Explore,
+    LargeValue,
+    Asset,
 }
 
 #[derive(Debug, Clone)]
@@ -158,6 +168,9 @@ pub struct CollectorSession {
     used_resource_refs: Option<UsedResourceRefs>,
     variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
+    large_values: BTreeMap<(String, String), LargeValueAssembler>,
+    asset_results: Vec<AssetManifestEntry>,
+    assets_scheduled: bool,
     stats: CollectionStats,
     fast_attempted: bool,
     next_id: usize,
@@ -166,6 +179,7 @@ pub struct CollectorSession {
 
 impl CollectorSession {
     pub fn new(request: CollectionRequest) -> Self {
+        let assets_scheduled = request.asset_selections.is_empty();
         Self {
             request,
             queued: VecDeque::new(),
@@ -181,6 +195,9 @@ impl CollectorSession {
             used_resource_refs: None,
             variable_batches: BTreeMap::new(),
             variables: None,
+            large_values: BTreeMap::new(),
+            asset_results: Vec::new(),
+            assets_scheduled,
             stats: CollectionStats::default(),
             fast_attempted: false,
             next_id: 0,
@@ -255,10 +272,33 @@ impl CollectorSession {
         {
             self.pending.insert(call.planned.id.clone(), call.clone());
             self.stats.figma_tool_calls = self.stats.figma_tool_calls.saturating_add(1);
-            return Ok(CollectorStep::Call(call.planned));
+            return Ok(CollectorStep::Call(Box::new(call.planned)));
         }
         if !self.pending.is_empty() {
             return Ok(CollectorStep::AwaitingResults);
+        }
+        if self.metadata.is_some()
+            && !self.assets_scheduled
+            && !self.snapshot_chunks.is_empty()
+            && self.queued.is_empty()
+        {
+            let snapshot = merge_chunks(self.snapshot_chunks.values().cloned().collect())?;
+            let requests = resolve_asset_selections(&snapshot, &self.request.asset_selections)?;
+            self.assets_scheduled = true;
+            for request in requests {
+                self.enqueue(
+                    ReadToolCall::asset_export(
+                        &self.request.target.file_key,
+                        self.source_version.clone(),
+                        request.clone(),
+                    ),
+                    Some(request.node_id.clone()),
+                    CallKind::Asset,
+                );
+            }
+            if !self.queued.is_empty() {
+                return self.advance();
+            }
         }
         if self.metadata.is_some()
             && self.request.resource_scope == ResourceScope::File
@@ -351,6 +391,7 @@ impl CollectorSession {
                 styles: self.variables.clone(),
                 source_version: self.source_version.clone(),
                 stats: self.stats.clone(),
+                assets: std::mem::take(&mut self.asset_results),
             })));
         }
         Ok(CollectorStep::AwaitingResults)
@@ -381,6 +422,8 @@ impl CollectorSession {
                 Ok(())
             }
             CallKind::Explore => self.accept_explore(&pending.planned, pending.order, result),
+            CallKind::LargeValue => self.accept_large_value(&pending.planned, result),
+            CallKind::Asset => self.accept_asset(&pending.planned, result),
         }
     }
 
@@ -390,6 +433,30 @@ impl CollectorSession {
                 "알 수 없거나 이미 처리한 Figma call ID입니다.",
             ));
         };
+        if pending.kind == CallKind::Asset {
+            let pending = self
+                .pending
+                .remove(call_id)
+                .ok_or_else(|| invalid_call("asset call이 없습니다."))?;
+            self.consumed.insert(call_id.to_owned());
+            let ReadToolCall::AssetExport { request, .. } = pending.planned.call else {
+                return Err(invalid_call("asset call 형식이 올바르지 않습니다."));
+            };
+            self.record_asset_failure(*request, "DEVUP_ASSET_EXPORT_FAILED");
+            return Ok(true);
+        }
+        if pending.kind == CallKind::LargeValue {
+            let pending = self
+                .pending
+                .remove(call_id)
+                .ok_or_else(|| invalid_call("large value call이 없습니다."))?;
+            self.consumed.insert(call_id.to_owned());
+            let ReadToolCall::LargeValue { options, .. } = pending.planned.call else {
+                return Err(invalid_call("large value call 형식이 올바르지 않습니다."));
+            };
+            self.record_large_value_unsupported(&options, "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM")?;
+            return Ok(true);
+        }
         if !matches!(pending.kind, CallKind::FastSnapshot | CallKind::FastTheme) {
             return Ok(false);
         }
@@ -479,8 +546,9 @@ impl CollectorSession {
         self.stats.raw_bytes = payload.stats.raw_bytes;
         self.stats.wire_bytes = payload.stats.wire_bytes;
         self.stats.envelope_chunks = payload.stats.chunk_count;
-        self.snapshot_chunks.insert(order, payload.snapshot);
-        self.variables = Some(payload.resources);
+        let has_large_values = !descriptors_in_chunk(&payload.snapshot)?.is_empty();
+        self.variables = (!has_large_values).then_some(payload.resources);
+        self.record_snapshot_chunk(order, payload.snapshot)?;
         Ok(())
     }
 
@@ -497,6 +565,9 @@ impl CollectorSession {
         self.used_resource_refs = None;
         self.variable_batches.clear();
         self.variables = None;
+        self.large_values.clear();
+        self.asset_results.clear();
+        self.assets_scheduled = self.request.asset_selections.is_empty();
         self.stats.transport = "legacy-cursor".to_owned();
         self.stats.fallback_used = true;
         self.stats.fallback_reason = Some(reason);
@@ -591,8 +662,232 @@ impl CollectorSession {
         self.root_node_id = Some(expected_node_id.to_owned());
         self.metadata_root_ids = chunk.root_ids.clone();
         self.metadata = Some(result.raw);
-        self.snapshot_chunks.insert(order, chunk);
+        self.record_snapshot_chunk(order, chunk)?;
         Ok(())
+    }
+
+    fn record_snapshot_chunk(
+        &mut self,
+        order: usize,
+        chunk: SnapshotChunk,
+    ) -> Result<(), DevupError> {
+        let descriptors = descriptors_in_chunk(&chunk)?;
+        let version = chunk.version.clone();
+        self.snapshot_chunks.insert(order, chunk);
+        for descriptor in descriptors {
+            let key = (descriptor.node_id.clone(), descriptor.field.clone());
+            if self.large_values.contains_key(&key) {
+                return Err(invalid_call(
+                    "동일한 Figma large value descriptor가 중복되었습니다.",
+                ));
+            }
+            let options = LargeValueReadOptions::from_descriptor(
+                &descriptor,
+                version.clone(),
+                descriptor.cursor.next_offset,
+            );
+            self.large_values.insert(
+                key,
+                LargeValueAssembler::new(
+                    self.request.target.file_key.clone(),
+                    version.clone(),
+                    descriptor,
+                )?,
+            );
+            self.enqueue(
+                ReadToolCall::large_value(&self.request.target.file_key, options.clone()),
+                Some(options.node_id),
+                CallKind::LargeValue,
+            );
+        }
+        Ok(())
+    }
+
+    fn accept_large_value(
+        &mut self,
+        planned: &PlannedCall,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let ReadToolCall::LargeValue { options, .. } = &planned.call else {
+            return Err(invalid_call("large value call 형식이 올바르지 않습니다."));
+        };
+        let result = large_value_from_result(&result)?;
+        if let LargeValueResult::Unsupported(unsupported) = result {
+            if unsupported.file_key != planned.expected_file_key
+                || unsupported.version != options.version
+                || unsupported.node_id != options.node_id
+                || unsupported.field != options.field
+                || unsupported.byte_length != options.byte_length
+                || unsupported.sha256 != options.sha256
+                || unsupported.error_code != "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM"
+            {
+                return Err(invalid_call(
+                    "large value unsupported 응답이 요청과 일치하지 않습니다.",
+                ));
+            }
+            return self.record_large_value_unsupported(options, &unsupported.error_code);
+        }
+        let LargeValueResult::Fragment(fragment) = result else {
+            unreachable!()
+        };
+        if fragment.offset != options.offset {
+            return Err(invalid_call(
+                "large value fragment offset이 요청과 일치하지 않습니다.",
+            ));
+        }
+        let key = (options.node_id.clone(), options.field.clone());
+        let next_offset = fragment.next_offset;
+        let complete = fragment.complete;
+        let assembler = self
+            .large_values
+            .get_mut(&key)
+            .ok_or_else(|| invalid_call("large value assembler가 없습니다."))?;
+        assembler.push(fragment)?;
+        if complete {
+            let assembler = self
+                .large_values
+                .remove(&key)
+                .ok_or_else(|| invalid_call("large value assembler가 없습니다."))?;
+            let descriptor = assembler.descriptor().clone();
+            let value = assembler.finish()?;
+            replace_descriptor(&mut self.snapshot_chunks, &descriptor, value)?;
+        } else {
+            if next_offset <= options.offset {
+                return Err(invalid_call("large value cursor가 진행되지 않았습니다."));
+            }
+            let descriptor = assembler.descriptor().clone();
+            let next = LargeValueReadOptions::from_descriptor(
+                &descriptor,
+                options.version.clone(),
+                next_offset,
+            );
+            self.enqueue(
+                ReadToolCall::large_value(&self.request.target.file_key, next.clone()),
+                Some(next.node_id),
+                CallKind::LargeValue,
+            );
+        }
+        Ok(())
+    }
+
+    fn record_large_value_unsupported(
+        &mut self,
+        options: &LargeValueReadOptions,
+        error_code: &str,
+    ) -> Result<(), DevupError> {
+        let key = (options.node_id.clone(), options.field.clone());
+        let assembler = self
+            .large_values
+            .remove(&key)
+            .ok_or_else(|| invalid_call("large value assembler가 없습니다."))?;
+        let descriptor = assembler.descriptor().clone();
+        replace_descriptor(
+            &mut self.snapshot_chunks,
+            &descriptor,
+            json!({
+                "$truncated": "unsupported-by-upstream",
+                "byteLength": descriptor.byte_length
+            }),
+        )?;
+        if let Some(chunk) = self
+            .snapshot_chunks
+            .values_mut()
+            .find(|chunk| chunk.nodes.iter().any(|node| node.id == descriptor.node_id))
+            && let Some(node) = chunk
+                .nodes
+                .iter_mut()
+                .find(|node| node.id == descriptor.node_id)
+        {
+            node.field_errors
+                .insert(descriptor.field.clone(), error_code.to_owned());
+            chunk.diagnostics.push(crate::Diagnostic {
+                code: error_code.to_owned(),
+                message:
+                    "Figma upstream에서 큰 필드를 다시 읽을 수 없어 명시적 marker를 유지했습니다."
+                        .to_owned(),
+                node_id: Some(descriptor.node_id),
+                severity: Some(crate::DiagnosticSeverity::Warning),
+                property: Some(descriptor.field),
+                fallback: Some("unsupported-by-upstream".to_owned()),
+                recoverable: Some(false),
+                ..crate::Diagnostic::default()
+            });
+        }
+        Ok(())
+    }
+
+    fn accept_asset(
+        &mut self,
+        planned: &PlannedCall,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let ReadToolCall::AssetExport {
+            version, request, ..
+        } = &planned.call
+        else {
+            return Err(invalid_call("asset call 형식이 올바르지 않습니다."));
+        };
+        let exported = asset_export_from_result(
+            &result,
+            &planned.expected_file_key,
+            version.as_deref(),
+            request,
+        )?;
+        if exported.status == AssetStatus::Failed {
+            let error_code = exported
+                .error_code
+                .clone()
+                .unwrap_or_else(|| "DEVUP_ASSET_EXPORT_FAILED".to_owned());
+            self.record_asset_diagnostic(request, &error_code);
+        }
+        self.asset_results.push(exported);
+        Ok(())
+    }
+
+    fn record_asset_failure(&mut self, request: AssetRequest, error_code: &str) {
+        self.record_asset_diagnostic(&request, error_code);
+        self.asset_results.push(AssetManifestEntry {
+            asset_id: request.asset_id,
+            node_id: request.node_id,
+            field: request.field,
+            source_kind: if request.image_hash.is_some() {
+                "image-fill".to_owned()
+            } else {
+                "vector-node".to_owned()
+            },
+            image_hash: request.image_hash,
+            format: Some(request.format),
+            scale: Some(request.scale),
+            status: AssetStatus::Failed,
+            byte_length: None,
+            sha256: None,
+            mime_type: None,
+            data_base64: None,
+            output_path: None,
+            error_code: Some(error_code.to_owned()),
+        });
+    }
+
+    fn record_asset_diagnostic(&mut self, request: &AssetRequest, error_code: &str) {
+        if let Some(chunk) = self
+            .snapshot_chunks
+            .values_mut()
+            .find(|chunk| chunk.nodes.iter().any(|node| node.id == request.node_id))
+        {
+            chunk.diagnostics.push(crate::Diagnostic {
+                code: error_code.to_owned(),
+                message: "요청한 Figma asset을 export하지 못해 layout 출력은 유지했습니다."
+                    .to_owned(),
+                node_id: Some(request.node_id.clone()),
+                severity: Some(crate::DiagnosticSeverity::Warning),
+                property: Some(request.field.clone()),
+                resource_kind: Some("asset".to_owned()),
+                resource_id: Some(request.asset_id.clone()),
+                fallback: Some("layout-only".to_owned()),
+                recoverable: Some(true),
+                ..crate::Diagnostic::default()
+            });
+        }
     }
 
     fn accept_metadata(
@@ -821,7 +1116,7 @@ impl CollectorSession {
                 );
             }
         }
-        self.snapshot_chunks.insert(order, chunk);
+        self.record_snapshot_chunk(order, chunk)?;
         Ok(())
     }
 

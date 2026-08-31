@@ -65,6 +65,9 @@ impl FigmaUpstream for FastFixtureUpstream {
                 script: BuiltinScript::FastSnapshotEnvelope,
                 ..
             } => Ok(fast_envelope_result(self.partial)),
+            ReadToolCall::AssetExport {
+                version, request, ..
+            } => Ok(asset_export_result(version.as_deref(), &request)),
             _ => Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
                 "composite export must stay on the one-call fast path",
@@ -104,7 +107,7 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
         "devup_figma_export",
         json!({
             "url": url,
-            "outputs": ["tsx", "devupJson", "rawSnapshot", "sourceMap"],
+            "outputs": ["tsx", "devupJson", "rawSnapshot", "sourceMap", "assetManifest"],
             "scope": "node",
             "sourcePolicy": "direct",
             "includeDiagnostics": true
@@ -120,6 +123,11 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
     assert_eq!(first["sourceMap"]["version"], 1);
+    assert_eq!(
+        first["assetManifest"]["assets"][0]["assetId"],
+        "1:2:fills:1"
+    );
+    assert_eq!(first["assetManifest"]["assets"][0]["status"], "available");
     assert!(first["sourceMap"]["tsx"].as_array().is_some_and(|entries| {
         entries.iter().any(|entry| {
             entry["nodeId"] == "1:2" && entry["property"] == "fills" && entry["variableId"] == "v"
@@ -189,6 +197,42 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
 }
 
 #[tokio::test]
+async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let result = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["tsx", "assetManifest"],
+            "sourcePolicy": "direct",
+            "assetRequests": [{"assetId":"1:2:fills:1","format":"png","scale":2}]
+        }),
+    )
+    .await?;
+
+    assert_eq!(result["status"], "complete");
+    assert_eq!(result["collection"]["figmaToolCalls"], 2);
+    assert_eq!(result["assetManifest"]["assets"][0]["status"], "exported");
+    assert_eq!(
+        result["assetManifest"]["assets"][0]["dataBase64"],
+        STANDARD.encode(b"synthetic-png")
+    );
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
 async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Result<()> {
     let upstream = Arc::new(FastFixtureUpstream::partial());
     let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
@@ -246,7 +290,7 @@ fn fast_envelope_result(partial: bool) -> UpstreamResult {
                         "type": "SOLID",
                         "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
                         "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
-                    }],
+                    }, {"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}],
                     "boundVariables": {"fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]}
                 },
                 "extra": {},
@@ -322,6 +366,26 @@ fn fast_envelope_result(partial: bool) -> UpstreamResult {
         raw: json!({"content": [
             {"type": "text", "text": descriptor.to_string()},
             {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+        ]}),
+    }
+}
+
+fn asset_export_result(
+    version: Option<&str>,
+    request: &devup_mcp_figma::AssetRequest,
+) -> UpstreamResult {
+    let bytes = b"synthetic-png";
+    let descriptor = json!({
+        "kind":"devupAssetExport","fileKey":"FileKey123","version":version,
+        "assetId":request.asset_id,"nodeId":request.node_id,"field":request.field,
+        "imageHash":request.image_hash,"format":request.format,"scale":request.scale,
+        "status":"exported","byteLength":bytes.len(),
+        "sha256":"294ad7145322ec19f8250cca8480a933f1ce8c9e2ad1038e7ae8930d55a6598a"
+    });
+    UpstreamResult {
+        raw: json!({"content":[
+            {"type":"text","text":descriptor.to_string()},
+            {"type":"image","data":STANDARD.encode(bytes),"mimeType":"image/png"}
         ]}),
     }
 }
