@@ -2,8 +2,14 @@ const anchor = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
 if (!anchor) throw new Error("DEVUP_NODE_NOT_FOUND");
 
 const options = "__DEVUP_EXPLORE__";
-const projectionLimit = Math.max(20, Math.min(400, options.projectionLimit || 200));
-const textPreviewLimit = Math.max(0, Math.min(500, options.textPreviewLimit || 160));
+const projectionLimit = Math.max(20, Math.min(
+  400,
+  Number.isInteger(options.projectionLimit) ? options.projectionLimit : 200,
+));
+const textPreviewLimit = Math.max(0, Math.min(
+  500,
+  Number.isInteger(options.textPreviewLimit) ? options.textPreviewLimit : 160,
+));
 
 let anchorPeer = anchor;
 while (anchorPeer.parent && anchorPeer.parent.type !== "PAGE") anchorPeer = anchorPeer.parent;

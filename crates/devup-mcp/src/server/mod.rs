@@ -21,15 +21,17 @@ use devup_mcp_devup_ui::{
 };
 use devup_mcp_figma::{
     AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, FigmaTarget,
-    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope,
-    SearchOptions, SearchReadOptions, SourcePolicy, SystemBrowser, fallback_allowed_for_error,
-    search_snapshot,
+    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, ExploreOptions,
+    ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore, OAuthManager,
+    RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SourcePolicy,
+    SystemBrowser, explore_snapshot, fallback_allowed_for_error, search_snapshot,
 };
 
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 
-pub use tools::{AuthInput, ContinueInput, FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput};
+pub use tools::{
+    AuthInput, ContinueInput, FigmaExploreInput, FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput,
+};
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 
@@ -271,6 +273,44 @@ impl DevupServer {
         Ok(Json(result))
     }
 
+    #[tool(description = "Explore screen candidates spatially related to a linked Figma node")]
+    async fn devup_figma_explore(
+        &self,
+        Parameters(input): Parameters<FigmaExploreInput>,
+    ) -> Result<Json<Value>, ErrorData> {
+        let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
+        target.node_id.as_ref().ok_or_else(|| {
+            to_mcp_error(DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "Figma 주변 화면 탐색에는 node-id가 필요합니다.",
+                false,
+            ))
+        })?;
+        if !(1..=100).contains(&input.limit) {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "탐색 limit은 1 이상 100 이하여야 합니다.",
+                false,
+            )));
+        }
+        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+        let mut request = CollectionRequest::new(target, CollectionScope::Node);
+        request.resource_scope = ResourceScope::None;
+        request.explore = Some(ExploreReadOptions {
+            projection_limit: input.limit.saturating_mul(4).clamp(50, 400),
+            text_preview_limit: if input.include_text_preview { 160 } else { 0 },
+        });
+        let result = self
+            .start_operation(
+                PendingOperation::Explore { limit: input.limit },
+                request,
+                policy,
+            )
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(Json(result))
+    }
+
     #[tool(description = "Continue a read-only Figma host handoff with an official MCP result")]
     async fn devup_figma_continue(
         &self,
@@ -430,6 +470,30 @@ fn complete_operation(
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
+                    "version": payload.snapshot.version
+                }
+            }))
+        }
+        PendingOperation::Explore { limit } => {
+            let result = explore_snapshot(
+                &payload.snapshot,
+                &payload.target,
+                &ExploreOptions { limit },
+            )?;
+            let count = result.candidates.len();
+            Ok(json!({
+                "status": "complete",
+                "anchor": result.anchor,
+                "group": result.group,
+                "count": count,
+                "candidates": result.candidates,
+                "truncated": result.truncated,
+                "diagnostics": payload.snapshot.diagnostics,
+                "completeness": payload.completeness,
+                "source": {
+                    "kind": source_kind,
+                    "fileKey": payload.target.file_key,
+                    "nodeId": payload.target.node_id,
                     "version": payload.snapshot.version
                 }
             }))

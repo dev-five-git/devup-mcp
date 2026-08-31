@@ -2,7 +2,7 @@ use devup_mcp::server::DevupServer;
 use rmcp::ServiceExt;
 
 #[tokio::test]
-async fn exposes_the_five_read_only_devup_figma_tools() -> anyhow::Result<()> {
+async fn exposes_the_six_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
     let server = tokio::spawn(async move {
         DevupServer::default()
@@ -26,6 +26,7 @@ async fn exposes_the_five_read_only_devup_figma_tools() -> anyhow::Result<()> {
         [
             "devup_figma_auth",
             "devup_figma_continue",
+            "devup_figma_explore",
             "devup_figma_search",
             "devup_figma_to_json",
             "devup_figma_to_ui",
@@ -40,6 +41,18 @@ async fn exposes_the_five_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert!(ui_schema.to_string().contains("sourcePolicy"));
     assert!(ui_schema.to_string().contains("scope"));
     assert!(!ui_schema.to_string().contains("code"));
+
+    let explore = tools
+        .iter()
+        .find(|tool| tool.name == "devup_figma_explore")
+        .unwrap();
+    let explore_schema = serde_json::to_value(&explore.input_schema)?;
+    let explore_text = explore_schema.to_string();
+    assert!(explore_text.contains("url"));
+    assert!(explore_text.contains("limit"));
+    assert!(explore_text.contains("includeTextPreview"));
+    assert!(explore_text.contains("sourcePolicy"));
+    assert!(!explore_text.contains("code"));
 
     let continuation = tools
         .iter()

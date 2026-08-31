@@ -32,6 +32,9 @@ pub enum PendingOperation {
         match_kind: String,
         limit: usize,
     },
+    Explore {
+        limit: usize,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]

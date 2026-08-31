@@ -60,6 +60,18 @@ pub struct FigmaSearchInput {
     pub source_policy: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FigmaExploreInput {
+    pub url: String,
+    #[serde(default = "default_explore_limit")]
+    pub limit: usize,
+    #[serde(default = "default_true")]
+    pub include_text_preview: bool,
+    #[serde(default = "default_source_policy")]
+    pub source_policy: String,
+}
+
 fn default_scope() -> String {
     "node".to_owned()
 }
@@ -74,4 +86,12 @@ fn default_match() -> String {
 
 fn default_limit() -> usize {
     20
+}
+
+fn default_explore_limit() -> usize {
+    50
+}
+
+fn default_true() -> bool {
+    true
 }
