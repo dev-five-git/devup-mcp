@@ -8,6 +8,10 @@ use crate::{DevupError, ErrorCode, UpstreamResult};
 pub struct ResourceStyleRef {
     pub id: String,
     pub style_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consumer_start: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consumer_end: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,14 +62,74 @@ pub(crate) fn batch_from_result(
 pub(crate) fn merge_variable_results(
     catalog: VariableCatalog,
     batches: impl IntoIterator<Item = VariableBatchResult>,
-) -> UpstreamResult {
+) -> Result<UpstreamResult, DevupError> {
     let mut variables = Vec::new();
-    let mut styles = Vec::new();
+    let mut styles_by_id = std::collections::BTreeMap::<String, Value>::new();
+    let mut consumer_counts = std::collections::BTreeMap::<String, usize>::new();
+    let mut consumer_fragments =
+        std::collections::BTreeMap::<String, std::collections::BTreeMap<usize, Vec<Value>>>::new();
     for batch in batches {
         variables.extend(batch.variables);
-        styles.extend(batch.styles);
+        for mut style in batch.styles {
+            let Some(object) = style.as_object_mut() else {
+                return Err(invalid_variable_result());
+            };
+            let Some(id) = object.get("id").and_then(Value::as_str).map(str::to_owned) else {
+                return Err(invalid_variable_result());
+            };
+            if let Some(start) = object
+                .remove("$consumerStart")
+                .and_then(|value| value.as_u64())
+            {
+                let entries = object
+                    .remove("$consumerEntries")
+                    .and_then(|value| value.as_array().cloned())
+                    .ok_or_else(invalid_variable_result)?;
+                let consumers = entries
+                    .into_iter()
+                    .map(expand_consumer_entry)
+                    .collect::<Result<Vec<_>, _>>()?;
+                consumer_fragments
+                    .entry(id)
+                    .or_default()
+                    .insert(start as usize, consumers);
+                continue;
+            }
+            let count = object
+                .remove("$consumerCount")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0) as usize;
+            consumer_counts.insert(id.clone(), count);
+            styles_by_id.insert(id, style);
+        }
     }
-    UpstreamResult {
+    let mut styles = Vec::with_capacity(catalog.styles.len());
+    for style_ref in &catalog.styles {
+        let mut style = styles_by_id.remove(&style_ref.id).ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupFigmaVersionChanged,
+                "수집 중 Figma style이 삭제되거나 변경되었습니다.",
+                true,
+            )
+        })?;
+        let expected = consumer_counts.remove(&style_ref.id).unwrap_or(0);
+        let mut consumers = Vec::with_capacity(expected);
+        for (start, mut fragment) in consumer_fragments.remove(&style_ref.id).unwrap_or_default() {
+            if start != consumers.len() {
+                return Err(incomplete_consumers());
+            }
+            consumers.append(&mut fragment);
+        }
+        if consumers.len() != expected {
+            return Err(incomplete_consumers());
+        }
+        style
+            .as_object_mut()
+            .ok_or_else(invalid_variable_result)?
+            .insert("consumers".to_owned(), Value::Array(consumers));
+        styles.push(style);
+    }
+    Ok(UpstreamResult {
         raw: json!({
             "collections": catalog.collections,
             "variables": variables,
@@ -74,7 +138,28 @@ pub(crate) fn merge_variable_results(
             "localComplete": catalog.local_complete,
             "usedRemoteComplete": catalog.used_remote_complete
         }),
+    })
+}
+
+fn expand_consumer_entry(entry: Value) -> Result<Value, DevupError> {
+    let values = entry.as_array().ok_or_else(invalid_variable_result)?;
+    if values.len() != 3 {
+        return Err(invalid_variable_result());
     }
+    let node_id = values[0].as_str().ok_or_else(invalid_variable_result)?;
+    let node_type = values[1].as_str().ok_or_else(invalid_variable_result)?;
+    Ok(json!({
+        "node": { "$nodeId": node_id, "$nodeType": node_type },
+        "fields": values[2].clone()
+    }))
+}
+
+fn incomplete_consumers() -> DevupError {
+    DevupError::new(
+        ErrorCode::DevupFigmaVersionChanged,
+        "수집 중 Figma style consumer 목록이 변경되었습니다.",
+        true,
+    )
 }
 
 fn find<T>(value: &Value, required_keys: &[&str]) -> Option<T>
@@ -111,4 +196,62 @@ fn invalid_variable_result() -> DevupError {
         "Figma MCP 응답에서 변수/style batch를 찾지 못했습니다.",
         false,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merges_compact_consumer_fragments_in_range_order() {
+        let catalog = VariableCatalog {
+            collections: Vec::new(),
+            variable_ids: Vec::new(),
+            styles: vec![ResourceStyleRef {
+                id: "s1".to_owned(),
+                style_type: "TEXT".to_owned(),
+                consumer_start: None,
+                consumer_end: None,
+            }],
+            local_complete: true,
+            used_remote_complete: false,
+        };
+        let batches = vec![
+            VariableBatchResult {
+                variables: Vec::new(),
+                styles: vec![json!({
+                    "id": "s1",
+                    "name": "Body",
+                    "styleType": "TEXT",
+                    "value": {"fontSize": 16},
+                    "$consumerCount": 2
+                })],
+            },
+            VariableBatchResult {
+                variables: Vec::new(),
+                styles: vec![json!({
+                    "id": "s1",
+                    "styleType": "TEXT",
+                    "$consumerStart": 1,
+                    "$consumerEntries": [["2:2", "TEXT", ["textStyleId"]]]
+                })],
+            },
+            VariableBatchResult {
+                variables: Vec::new(),
+                styles: vec![json!({
+                    "id": "s1",
+                    "styleType": "TEXT",
+                    "$consumerStart": 0,
+                    "$consumerEntries": [["2:1", "TEXT", ["textStyleId"]]]
+                })],
+            },
+        ];
+
+        let merged = merge_variable_results(catalog, batches).unwrap();
+        let consumers = merged.raw["styles"][0]["consumers"].as_array().unwrap();
+        assert_eq!(consumers.len(), 2);
+        assert_eq!(consumers[0]["node"]["$nodeId"], "2:1");
+        assert_eq!(consumers[1]["node"]["$nodeId"], "2:2");
+        assert_eq!(merged.raw["styles"][0]["value"]["fontSize"], 16);
+    }
 }

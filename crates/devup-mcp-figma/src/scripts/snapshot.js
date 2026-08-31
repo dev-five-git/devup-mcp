@@ -6,11 +6,16 @@ const manifestSet = new Set(manifest);
 const skipped = new Set(["id", "type", "parent", "children"]);
 
 function propertyNames(value) {
-  const names = new Set(manifest);
+  const names = new Set();
   let current = value;
   while (current && current !== Object.prototype) {
     for (const name of Object.getOwnPropertyNames(current)) names.add(name);
     current = Object.getPrototypeOf(current);
+  }
+  for (const name of manifest) {
+    try {
+      if (name in value) names.add(name);
+    } catch (_) {}
   }
   return [...names].sort();
 }

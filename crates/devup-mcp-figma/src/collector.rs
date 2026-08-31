@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::{
-    BuiltinScript, DevupError, ErrorCode, FigmaTarget, ReadToolCall, ResourceBatch,
-    ResourceStyleRef, SnapshotChunk, UpstreamResult,
-    metadata::metadata_from_result_for_target,
+    BuiltinScript, DevupError, ErrorCode, FigmaTarget, RawNode, ReadToolCall, ResourceBatch,
+    ResourceStyleRef, SearchReadOptions, SnapshotChunk, UpstreamResult,
+    metadata::{MetadataResult, metadata_from_result_for_target},
     snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
@@ -16,7 +16,11 @@ use crate::{
 
 const LARGE_SUBTREE_THRESHOLD: usize = 200;
 const MAX_PENDING_CALLS: usize = 4;
-const VARIABLE_BATCH_SIZE: usize = 1;
+const VARIABLE_BATCH_SIZE: usize = 8;
+const STYLE_BATCH_SIZE: usize = 8;
+// Consumer relations can be huge. Compact, bounded fragments are expanded
+// back to the exhaustive shape in Rust without dropping any relation.
+const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +36,9 @@ pub struct CollectionRequest {
     pub scope: CollectionScope,
     pub include_variables: bool,
     pub include_context: bool,
+    pub metadata_only: bool,
+    pub variables_only: bool,
+    pub search: Option<SearchReadOptions>,
 }
 
 impl CollectionRequest {
@@ -41,6 +48,9 @@ impl CollectionRequest {
             scope,
             include_variables: false,
             include_context: false,
+            metadata_only: false,
+            variables_only: false,
+            search: None,
         }
     }
 }
@@ -74,6 +84,7 @@ pub enum CollectorStep {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CallKind {
     Metadata,
+    PageCatalog,
     Snapshot,
     VariableCatalog,
     VariableBatch,
@@ -93,6 +104,8 @@ pub struct CollectorSession {
     pending: BTreeMap<String, PendingCall>,
     consumed: BTreeSet<String>,
     metadata: Option<Value>,
+    metadata_nodes: BTreeMap<String, RawNode>,
+    metadata_root_ids: Vec<String>,
     root_node_id: Option<String>,
     source_version: Option<String>,
     snapshot_chunks: BTreeMap<usize, SnapshotChunk>,
@@ -111,6 +124,8 @@ impl CollectorSession {
             pending: BTreeMap::new(),
             consumed: BTreeSet::new(),
             metadata: None,
+            metadata_nodes: BTreeMap::new(),
+            metadata_root_ids: Vec::new(),
             root_node_id: None,
             source_version: None,
             snapshot_chunks: BTreeMap::new(),
@@ -127,7 +142,20 @@ impl CollectorSession {
             return Err(invalid_call("완료된 Figma 수집 session입니다."));
         }
         if self.metadata.is_none() && self.pending.is_empty() && self.queued.is_empty() {
-            let node_id = self.request.target.node_id.as_deref();
+            if self.request.search.is_some() {
+                self.enqueue(
+                    ReadToolCall::page_catalog(&self.request.target.file_key),
+                    None,
+                    CallKind::PageCatalog,
+                );
+                return self.advance();
+            }
+            let node_id = match self.request.scope {
+                CollectionScope::File => None,
+                CollectionScope::Node | CollectionScope::Page => {
+                    self.request.target.node_id.as_deref()
+                }
+            };
             self.enqueue(
                 ReadToolCall::metadata(&self.request.target.file_key, node_id),
                 node_id.map(str::to_owned),
@@ -177,17 +205,30 @@ impl CollectorSession {
             self.variables = Some(merge_variable_results(
                 catalog,
                 std::mem::take(&mut self.variable_batches).into_values(),
-            ));
+            )?);
         }
         if self.metadata.is_some() && self.queued.is_empty() {
             self.completed = true;
+            let snapshot_chunks = if self.request.metadata_only || self.request.variables_only {
+                vec![SnapshotChunk {
+                    file_key: self.request.target.file_key.clone(),
+                    version: self.source_version.clone(),
+                    root_ids: std::mem::take(&mut self.metadata_root_ids),
+                    nodes: std::mem::take(&mut self.metadata_nodes)
+                        .into_values()
+                        .collect(),
+                    diagnostics: Vec::new(),
+                }]
+            } else {
+                std::mem::take(&mut self.snapshot_chunks)
+                    .into_values()
+                    .collect()
+            };
             return Ok(CollectorStep::Complete(Box::new(CollectedParts {
                 target: self.request.target.clone(),
                 scope: self.request.scope,
                 metadata: self.metadata.take().unwrap_or(Value::Null),
-                snapshot_chunks: std::mem::take(&mut self.snapshot_chunks)
-                    .into_values()
-                    .collect(),
+                snapshot_chunks,
                 variables: self.variables.clone(),
                 styles: self.variables.clone(),
                 source_version: self.source_version.clone(),
@@ -203,29 +244,141 @@ impl CollectorSession {
             .ok_or_else(|| invalid_call("알 수 없거나 이미 처리한 Figma call ID입니다."))?;
         self.consumed.insert(call_id.to_owned());
         match pending.kind {
-            CallKind::Metadata => self.accept_metadata(result),
+            CallKind::Metadata => self.accept_metadata(&pending.planned, result),
+            CallKind::PageCatalog => self.accept_page_catalog(&pending.planned, result),
             CallKind::Snapshot => self.accept_snapshot(&pending.planned, pending.order, result),
             CallKind::VariableCatalog => self.accept_variable_catalog(result),
             CallKind::VariableBatch => {
-                self.variable_batches
-                    .insert(pending.order, batch_from_result(&result)?);
+                let batch = batch_from_result(&result)?;
+                self.enqueue_style_consumer_batches(&batch)?;
+                self.variable_batches.insert(pending.order, batch);
                 Ok(())
             }
         }
     }
 
-    fn accept_metadata(&mut self, result: UpstreamResult) -> Result<(), DevupError> {
-        let document = metadata_from_result_for_target(
+    fn accept_page_catalog(
+        &mut self,
+        planned: &PlannedCall,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let catalog = snapshot_chunk_from_result(&result)?;
+        if catalog.file_key != planned.expected_file_key {
+            return Err(invalid_call(
+                "Figma page catalog의 file key가 요청과 다릅니다.",
+            ));
+        }
+        if catalog.root_ids.is_empty() {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "Figma page catalog가 비어 있습니다.",
+                false,
+            ));
+        }
+        let options = self
+            .request
+            .search
+            .clone()
+            .ok_or_else(|| invalid_call("검색 설정 없이 page catalog를 수집했습니다."))?;
+        self.metadata = Some(result.raw);
+        self.root_node_id = catalog.root_ids.first().cloned();
+        self.source_version = catalog.version.clone();
+        self.metadata_root_ids = catalog.root_ids.clone();
+        for page in catalog.nodes {
+            self.metadata_nodes.insert(page.id.clone(), page);
+        }
+        for page_id in catalog.root_ids {
+            self.enqueue(
+                ReadToolCall::search_snapshot(
+                    &self.request.target.file_key,
+                    &page_id,
+                    options.clone(),
+                ),
+                Some(page_id),
+                CallKind::Snapshot,
+            );
+        }
+        Ok(())
+    }
+
+    fn accept_metadata(
+        &mut self,
+        planned: &PlannedCall,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let metadata = metadata_from_result_for_target(
             &result,
             &self.request.target.file_key,
-            self.request.target.node_id.as_deref(),
+            planned.expected_node_id.as_deref(),
         )?;
+        if let MetadataResult::TopLevelPages(pages) = metadata {
+            if planned.expected_node_id.is_some() {
+                return Err(invalid_call(
+                    "page metadata 요청에 top-level page 목록이 반환되었습니다.",
+                ));
+            }
+            self.record_metadata(result.raw);
+            self.root_node_id = pages.first().map(|page| page.id.clone());
+            for page in &pages {
+                self.record_metadata_node(page);
+                if !self.metadata_root_ids.contains(&page.id) {
+                    self.metadata_root_ids.push(page.id.clone());
+                }
+            }
+            if let Some(options) = self.request.search.clone() {
+                for page in pages {
+                    self.enqueue(
+                        ReadToolCall::search_snapshot(
+                            &self.request.target.file_key,
+                            &page.id,
+                            options.clone(),
+                        ),
+                        Some(page.id),
+                        CallKind::Snapshot,
+                    );
+                }
+                return Ok(());
+            }
+            if self.request.variables_only {
+                return Ok(());
+            }
+            for page in pages {
+                self.enqueue(
+                    ReadToolCall::metadata(&self.request.target.file_key, Some(&page.id)),
+                    Some(page.id),
+                    CallKind::Metadata,
+                );
+            }
+            return Ok(());
+        }
+        let MetadataResult::Document(document) = metadata else {
+            unreachable!("top-level page metadata is handled above")
+        };
         if document.file_key != self.request.target.file_key {
             return Err(invalid_call("Figma metadata의 file key가 요청과 다릅니다."));
         }
-        self.source_version = document.version.clone();
-        self.root_node_id = Some(document.root_id.clone());
-        self.metadata = Some(result.raw);
+        if let (Some(existing), Some(incoming)) = (&self.source_version, &document.version)
+            && existing != incoming
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaVersionChanged,
+                "metadata 수집 중 Figma 파일 버전이 변경되었습니다.",
+                true,
+            ));
+        }
+        if document.version.is_some() {
+            self.source_version = document.version.clone();
+        }
+        if self.root_node_id.is_none() {
+            self.root_node_id = Some(document.root_id.clone());
+        }
+        if !self.metadata_root_ids.contains(&document.root_id) {
+            self.metadata_root_ids.push(document.root_id.clone());
+        }
+        for node in &document.nodes {
+            self.record_metadata_node(node);
+        }
+        self.record_metadata(result.raw);
         let root = document.root().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
@@ -233,6 +386,17 @@ impl CollectorSession {
                 false,
             )
         })?;
+        if let Some(options) = self.request.search.clone() {
+            self.enqueue(
+                ReadToolCall::search_snapshot(&self.request.target.file_key, &root.id, options),
+                Some(root.id.clone()),
+                CallKind::Snapshot,
+            );
+            return Ok(());
+        }
+        if self.request.metadata_only || self.request.variables_only {
+            return Ok(());
+        }
         let split = !root.children_ids.is_empty()
             && (root.descendant_count > LARGE_SUBTREE_THRESHOLD
                 || matches!(
@@ -256,6 +420,48 @@ impl CollectorSession {
             );
         }
         Ok(())
+    }
+
+    fn record_metadata(&mut self, value: Value) {
+        self.metadata = Some(match self.metadata.take() {
+            None => value,
+            Some(Value::Array(mut values)) => {
+                values.push(value);
+                Value::Array(values)
+            }
+            Some(existing) => Value::Array(vec![existing, value]),
+        });
+    }
+
+    fn record_metadata_node(&mut self, node: &crate::metadata::MetadataNode) {
+        let mut fields = Map::new();
+        if let Some(name) = &node.name {
+            fields.insert("name".to_owned(), Value::String(name.clone()));
+        }
+        fields.insert(
+            "childrenIds".to_owned(),
+            Value::Array(
+                node.children_ids
+                    .iter()
+                    .cloned()
+                    .map(Value::String)
+                    .collect(),
+            ),
+        );
+        fields.insert(
+            "descendantCount".to_owned(),
+            Value::from(node.descendant_count),
+        );
+        self.metadata_nodes.insert(
+            node.id.clone(),
+            RawNode {
+                id: node.id.clone(),
+                node_type: node.node_type.clone(),
+                fields,
+                extra: Map::new(),
+                field_errors: BTreeMap::new(),
+            },
+        );
     }
 
     fn accept_snapshot(
@@ -285,31 +491,81 @@ impl CollectorSession {
             .root_node_id
             .clone()
             .ok_or_else(|| invalid_call("Figma 변수 batch에 사용할 root node ID가 없습니다."))?;
-        let resources = catalog
-            .variable_ids
-            .iter()
-            .cloned()
-            .map(ResourceItem::Variable)
-            .chain(catalog.styles.iter().cloned().map(ResourceItem::Style))
-            .collect::<Vec<_>>();
-        for chunk in resources.chunks(VARIABLE_BATCH_SIZE) {
-            let mut batch = ResourceBatch {
-                variable_ids: Vec::new(),
-                styles: Vec::new(),
-            };
-            for resource in chunk {
-                match resource {
-                    ResourceItem::Variable(id) => batch.variable_ids.push(id.clone()),
-                    ResourceItem::Style(style) => batch.styles.push(style.clone()),
-                }
-            }
+        for variable_ids in catalog.variable_ids.chunks(VARIABLE_BATCH_SIZE) {
             self.enqueue(
-                ReadToolCall::resource_batch(&self.request.target.file_key, &node_id, batch),
+                ReadToolCall::resource_batch(
+                    &self.request.target.file_key,
+                    &node_id,
+                    ResourceBatch {
+                        variable_ids: variable_ids.to_vec(),
+                        styles: Vec::new(),
+                    },
+                ),
+                Some(node_id.clone()),
+                CallKind::VariableBatch,
+            );
+        }
+        for styles in catalog.styles.chunks(STYLE_BATCH_SIZE) {
+            self.enqueue(
+                ReadToolCall::resource_batch(
+                    &self.request.target.file_key,
+                    &node_id,
+                    ResourceBatch {
+                        variable_ids: Vec::new(),
+                        styles: styles.to_vec(),
+                    },
+                ),
                 Some(node_id.clone()),
                 CallKind::VariableBatch,
             );
         }
         self.variable_catalog = Some(catalog);
+        Ok(())
+    }
+
+    fn enqueue_style_consumer_batches(
+        &mut self,
+        batch: &VariableBatchResult,
+    ) -> Result<(), DevupError> {
+        let node_id = self.root_node_id.clone().ok_or_else(|| {
+            invalid_call("Figma style consumer 수집에 사용할 root node ID가 없습니다.")
+        })?;
+        for style in &batch.styles {
+            let Some(object) = style.as_object() else {
+                return Err(invalid_call("Figma style batch 형식이 올바르지 않습니다."));
+            };
+            let Some(consumer_count) = object.get("$consumerCount").and_then(Value::as_u64) else {
+                continue;
+            };
+            let id = object
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid_call("Figma style ID가 없습니다."))?;
+            let style_type = object
+                .get("styleType")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid_call("Figma style type이 없습니다."))?;
+            for start in (0..consumer_count as usize).step_by(STYLE_CONSUMER_BATCH_SIZE) {
+                let end = (start + STYLE_CONSUMER_BATCH_SIZE).min(consumer_count as usize);
+                self.enqueue(
+                    ReadToolCall::resource_batch(
+                        &self.request.target.file_key,
+                        &node_id,
+                        ResourceBatch {
+                            variable_ids: Vec::new(),
+                            styles: vec![ResourceStyleRef {
+                                id: id.to_owned(),
+                                style_type: style_type.to_owned(),
+                                consumer_start: Some(start),
+                                consumer_end: Some(end),
+                            }],
+                        },
+                    ),
+                    Some(node_id.clone()),
+                    CallKind::VariableBatch,
+                );
+            }
+        }
         Ok(())
     }
 
@@ -328,12 +584,6 @@ impl CollectorSession {
             order,
         });
     }
-}
-
-#[derive(Debug, Clone)]
-enum ResourceItem {
-    Variable(String),
-    Style(ResourceStyleRef),
 }
 
 fn invalid_call(message: &str) -> DevupError {

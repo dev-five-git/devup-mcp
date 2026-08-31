@@ -29,6 +29,12 @@ pub struct MetadataNode {
     pub descendant_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MetadataResult {
+    Document(MetadataDocument),
+    TopLevelPages(Vec<MetadataNode>),
+}
+
 impl MetadataDocument {
     pub fn root(&self) -> Option<&MetadataNode> {
         self.nodes.iter().find(|node| node.id == self.root_id)
@@ -39,9 +45,14 @@ pub fn metadata_from_result_for_target(
     result: &UpstreamResult,
     expected_file_key: &str,
     expected_root_id: Option<&str>,
-) -> Result<MetadataDocument, DevupError> {
+) -> Result<MetadataResult, DevupError> {
     find_metadata(&result.raw)
-        .or_else(|| find_xml_metadata(&result.raw, expected_file_key, expected_root_id))
+        .map(MetadataResult::Document)
+        .or_else(|| {
+            find_xml_metadata(&result.raw, expected_file_key, expected_root_id)
+                .map(MetadataResult::Document)
+        })
+        .or_else(|| find_top_level_pages(&result.raw).map(MetadataResult::TopLevelPages))
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
@@ -49,6 +60,46 @@ pub fn metadata_from_result_for_target(
                 false,
             )
         })
+}
+
+fn find_top_level_pages(value: &Value) -> Option<Vec<MetadataNode>> {
+    match value {
+        Value::Object(object) => object.values().find_map(find_top_level_pages),
+        Value::Array(values) => values.iter().find_map(find_top_level_pages),
+        Value::String(text) => parse_top_level_pages(text),
+        _ => None,
+    }
+}
+
+fn parse_top_level_pages(text: &str) -> Option<Vec<MetadataNode>> {
+    let (_, list) = text.split_once("Top-level pages of the document:")?;
+    let pages = list
+        .lines()
+        .filter_map(|line| {
+            let item = line.trim().strip_prefix("- ")?;
+            let id_colon = item.find(':')?;
+            let separator = item[id_colon + 1..].find(": ")? + id_colon + 1;
+            let id = &item[..separator];
+            let name = &item[separator + 2..];
+            let (major, minor) = id.split_once(':')?;
+            if major.is_empty()
+                || minor.is_empty()
+                || !major.bytes().all(|byte| byte.is_ascii_digit())
+                || !minor.bytes().all(|byte| byte.is_ascii_digit())
+                || name.is_empty()
+            {
+                return None;
+            }
+            Some(MetadataNode {
+                id: id.to_owned(),
+                node_type: "PAGE".to_owned(),
+                name: Some(name.to_owned()),
+                children_ids: Vec::new(),
+                descendant_count: 0,
+            })
+        })
+        .collect::<Vec<_>>();
+    (!pages.is_empty()).then_some(pages)
 }
 
 #[derive(Debug)]

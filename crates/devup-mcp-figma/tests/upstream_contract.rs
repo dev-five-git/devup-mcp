@@ -1,4 +1,6 @@
-use devup_mcp_figma::{BuiltinScript, ReadToolCall};
+use devup_mcp_figma::{
+    BuiltinScript, ReadToolCall, ResourceBatch, ResourceStyleRef, SearchReadOptions,
+};
 
 #[test]
 fn maps_every_read_call_to_the_fixed_figma_tool_contract() {
@@ -72,9 +74,66 @@ fn snapshot_manifest_covers_current_official_node_properties() {
 }
 
 #[test]
+fn snapshot_reads_only_manifest_properties_supported_by_the_runtime_node() {
+    let call = ReadToolCall::snapshot("file-key", "1:2", BuiltinScript::NodeSnapshot);
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(code.contains("if (name in value) names.add(name)"));
+    assert!(!code.contains("const names = new Set(manifest)"));
+}
+
+#[test]
+fn search_uses_a_compiled_read_only_page_projection() {
+    let call = ReadToolCall::search_snapshot(
+        "file-key",
+        "0:1",
+        SearchReadOptions {
+            query: "본연체".to_owned(),
+            node_types: vec!["FRAME".to_owned()],
+            match_kind: "normalized".to_owned(),
+            limit: 20,
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("figma.setCurrentPageAsync(page)"));
+    assert!(code.contains("page.findAll"));
+    assert!(code.contains("본연체"));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
+}
+
+#[test]
+fn style_consumers_use_async_compact_range_projection() {
+    let call = ReadToolCall::resource_batch(
+        "file-key",
+        "1:2",
+        ResourceBatch {
+            variable_ids: Vec::new(),
+            styles: vec![ResourceStyleRef {
+                id: "s1".to_owned(),
+                style_type: "TEXT".to_owned(),
+                consumer_start: Some(320),
+                consumer_end: Some(640),
+            }],
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(code.contains("getStyleConsumersAsync"));
+    assert!(code.contains("$consumerEntries"));
+    assert!(code.contains("[\"parent\", \"children\", \"consumers\"]"));
+    assert!(code.contains("\"consumerStart\":320"));
+    assert!(code.contains("\"consumerEnd\":640"));
+}
+
+#[test]
 fn built_in_scripts_expose_only_read_operations() {
     for script in [
         BuiltinScript::NodeSnapshot,
+        BuiltinScript::PageCatalog,
+        BuiltinScript::SearchSnapshot,
         BuiltinScript::VariableCatalog,
         BuiltinScript::LocalVariables,
     ] {

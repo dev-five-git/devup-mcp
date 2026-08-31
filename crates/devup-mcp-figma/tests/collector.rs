@@ -12,6 +12,10 @@ fn target(node_id: &str) -> FigmaTarget {
     .unwrap()
 }
 
+fn file_target() -> FigmaTarget {
+    FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture").unwrap()
+}
+
 fn metadata(node_type: &str, children: &[&str], descendant_count: usize) -> UpstreamResult {
     UpstreamResult {
         raw: json!({
@@ -64,6 +68,152 @@ fn official_xml_metadata() -> UpstreamResult {
             ]
         }),
     }
+}
+
+fn official_top_level_pages() -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "content": [{
+                "type": "text",
+                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: 표지\n- 12:34: 본문: 교정"
+            }]
+        }),
+    }
+}
+
+fn file_page_metadata() -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "structuredContent": {
+                "devupMetadata": {
+                    "fileKey": "FileKey123",
+                    "version": "v1",
+                    "rootId": "0:1",
+                    "nodes": [
+                        {
+                            "id": "0:1",
+                            "type": "PAGE",
+                            "name": "표지",
+                            "childrenIds": ["1:2"],
+                            "descendantCount": 1
+                        },
+                        {
+                            "id": "1:2",
+                            "type": "FRAME",
+                            "name": "A : STORY-F-PROOFREAD",
+                            "childrenIds": [],
+                            "descendantCount": 0
+                        }
+                    ]
+                }
+            }
+        }),
+    }
+}
+
+#[test]
+fn file_scope_starts_from_the_file_even_when_the_url_contains_a_node() {
+    let request = CollectionRequest::new(target("1:2"), CollectionScope::File);
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!("metadata call expected")
+    };
+    assert_eq!(metadata_call.call.tool_name(), "get_metadata");
+    assert_eq!(metadata_call.expected_node_id, None);
+    assert_eq!(metadata_call.call.arguments()["nodeId"], json!(null));
+}
+
+#[test]
+fn official_top_level_page_list_expands_to_page_metadata_calls() {
+    let request = CollectionRequest::new(file_target(), CollectionScope::File);
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(file_metadata) = collector.advance().unwrap() else {
+        panic!("file metadata call expected")
+    };
+
+    collector
+        .accept(&file_metadata.id, official_top_level_pages())
+        .unwrap();
+
+    let CollectorStep::Call(first_page) = collector.advance().unwrap() else {
+        panic!("first page metadata call expected")
+    };
+    let CollectorStep::Call(second_page) = collector.advance().unwrap() else {
+        panic!("second page metadata call expected")
+    };
+    assert_eq!(first_page.call.tool_name(), "get_metadata");
+    assert_eq!(first_page.expected_node_id.as_deref(), Some("0:1"));
+    assert_eq!(second_page.call.tool_name(), "get_metadata");
+    assert_eq!(second_page.expected_node_id.as_deref(), Some("12:34"));
+}
+
+#[test]
+fn metadata_only_file_collection_completes_without_snapshot_calls() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.metadata_only = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(file_metadata) = collector.advance().unwrap() else {
+        panic!("file metadata call expected")
+    };
+    collector
+        .accept(&file_metadata.id, official_top_level_pages())
+        .unwrap();
+
+    let CollectorStep::Call(first_page) = collector.advance().unwrap() else {
+        panic!("first page metadata call expected")
+    };
+    let CollectorStep::Call(second_page) = collector.advance().unwrap() else {
+        panic!("second page metadata call expected")
+    };
+    collector
+        .accept(&first_page.id, file_page_metadata())
+        .unwrap();
+    let mut second = file_page_metadata();
+    second.raw["structuredContent"]["devupMetadata"]["rootId"] = json!("12:34");
+    second.raw["structuredContent"]["devupMetadata"]["nodes"] = json!([{
+        "id": "12:34",
+        "type": "PAGE",
+        "name": "본문: 교정",
+        "childrenIds": [],
+        "descendantCount": 0
+    }]);
+    collector.accept(&second_page.id, second).unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("metadata-only collection should complete")
+    };
+    assert_eq!(parts.snapshot_chunks.len(), 1);
+    let chunk = &parts.snapshot_chunks[0];
+    assert_eq!(chunk.root_ids, ["0:1", "12:34"]);
+    assert_eq!(chunk.nodes.len(), 3);
+    let match_node = chunk.nodes.iter().find(|node| node.id == "1:2").unwrap();
+    assert_eq!(match_node.fields["name"], json!("A : STORY-F-PROOFREAD"));
+}
+
+#[test]
+fn variables_only_file_collection_skips_page_and_node_snapshots() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.include_variables = true;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(file_metadata) = collector.advance().unwrap() else {
+        panic!("file metadata call expected")
+    };
+    collector
+        .accept(&file_metadata.id, official_top_level_pages())
+        .unwrap();
+
+    let CollectorStep::Call(variable_catalog) = collector.advance().unwrap() else {
+        panic!("variable catalog should immediately follow page discovery")
+    };
+    assert_eq!(variable_catalog.call.tool_name(), "use_figma");
+    assert!(
+        variable_catalog.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("getLocalVariableCollectionsAsync")
+    );
 }
 
 #[test]
@@ -325,9 +475,10 @@ fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
     let CollectorStep::Call(catalog_call) = collector.advance().unwrap() else {
         panic!()
     };
-    let variable_ids = (0..2)
+    let variable_ids = (0..9)
         .map(|index| format!("v{index:02}"))
         .collect::<Vec<_>>();
+    let expected_ids = variable_ids.clone();
     collector
         .accept(
             &catalog_call.id,
@@ -348,11 +499,14 @@ fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
     let CollectorStep::Call(second) = collector.advance().unwrap() else {
         panic!()
     };
+    let first_values = (0..8)
+        .map(|index| json!({"id": format!("v{index:02}")}))
+        .collect::<Vec<_>>();
     collector
         .accept(
             &second.id,
             UpstreamResult {
-                raw: json!({"variables": [{"id": "v01"}], "styles": []}),
+                raw: json!({"variables": [{"id": "v08"}], "styles": []}),
             },
         )
         .unwrap();
@@ -360,10 +514,7 @@ fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
         .accept(
             &first.id,
             UpstreamResult {
-                raw: json!({
-                    "variables": [{"id": "v00"}],
-                    "styles": []
-                }),
+                raw: json!({"variables": first_values, "styles": []}),
             },
         )
         .unwrap();
@@ -377,6 +528,83 @@ fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
         .iter()
         .map(|variable| variable["id"].as_str().unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(ids.first().copied(), Some("v00"));
-    assert_eq!(ids.last().copied(), Some("v01"));
+    assert_eq!(ids, expected_ids);
+}
+
+#[test]
+fn style_consumers_are_planned_as_compact_bounded_fragments() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.include_variables = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&snapshot_call.id, snapshot("1:2"))
+        .unwrap();
+    let CollectorStep::Call(catalog_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &catalog_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "collections": [],
+                    "variableIds": [],
+                    "styles": [
+                        {"id": "s1", "styleType": "TEXT"},
+                        {"id": "s2", "styleType": "PAINT"}
+                    ],
+                    "localComplete": true,
+                    "usedRemoteComplete": false
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Call(base_styles) = collector.advance().unwrap() else {
+        panic!("style definitions should be batched")
+    };
+    let base_arguments = base_styles.call.arguments();
+    let base_code = base_arguments["code"].as_str().unwrap();
+    assert!(base_code.contains("s1"));
+    assert!(base_code.contains("s2"));
+    collector
+        .accept(
+            &base_styles.id,
+            UpstreamResult {
+                raw: json!({
+                    "variables": [],
+                    "styles": [
+                        {"id": "s1", "name": "Text", "styleType": "TEXT", "value": {}, "$consumerCount": 321},
+                        {"id": "s2", "name": "Paint", "styleType": "PAINT", "value": [], "$consumerCount": 0}
+                    ]
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!("first consumer fragment should be scheduled")
+    };
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!("second consumer fragment should be scheduled")
+    };
+    let first_arguments = first.call.arguments();
+    let second_arguments = second.call.arguments();
+    let first_code = first_arguments["code"].as_str().unwrap();
+    let second_code = second_arguments["code"].as_str().unwrap();
+    assert!(first_code.contains("s1"));
+    assert!(first_code.contains("\"consumerStart\":0"));
+    assert!(first_code.contains("\"consumerEnd\":320"));
+    assert!(second_code.contains("s1"));
+    assert!(second_code.contains("\"consumerStart\":320"));
+    assert!(second_code.contains("\"consumerEnd\":321"));
 }

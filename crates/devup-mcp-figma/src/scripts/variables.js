@@ -22,7 +22,7 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
     current = Object.getPrototypeOf(current);
   }
   for (const name of [...names].sort()) {
-    if (name.startsWith("_") || ["parent", "children"].includes(name)) continue;
+    if (name.startsWith("_") || ["parent", "children", "consumers"].includes(name)) continue;
     try {
       const serialized = serialize(value[name], seen, depth + 1);
       if (!(serialized && serialized.$unsupported === "function")) result[name] = serialized;
@@ -38,21 +38,38 @@ const [variableValues, styleValues] = await Promise.all([
   Promise.all(resources.variableIds.map((id) => figma.variables.getVariableByIdAsync(id))),
   Promise.all(resources.styles.map((style) => figma.getStyleByIdAsync(style.id)))
 ]);
-const styleTypes = new Map(resources.styles.map((style) => [style.id, style.styleType]));
+const styleRefs = new Map(resources.styles.map((style) => [style.id, style]));
+const styles = await Promise.all(styleValues.filter(Boolean).map(async (style) => {
+  const styleRef = styleRefs.get(style.id);
+  const styleType = styleRef.styleType;
+  if (Number.isInteger(styleRef.consumerStart) && Number.isInteger(styleRef.consumerEnd)) {
+    const consumers = await style.getStyleConsumersAsync();
+    return {
+      id: style.id,
+      styleType,
+      $consumerStart: styleRef.consumerStart,
+      $consumerEntries: consumers.slice(styleRef.consumerStart, styleRef.consumerEnd).map((consumer) => [
+        consumer.node.id,
+        consumer.node.type,
+        serialize(consumer.fields)
+      ])
+    };
+  }
+  const consumers = await style.getStyleConsumersAsync();
+  return {
+    ...serialize(style),
+    styleType,
+    $consumerCount: consumers.length,
+    value: serialize(
+      styleType === "PAINT" ? style.paints
+        : styleType === "EFFECT" ? style.effects
+          : styleType === "GRID" ? style.layoutGrids
+            : style
+    )
+  };
+}));
 
 return {
   variables: variableValues.filter(Boolean).map((value) => serialize(value)),
-  styles: styleValues.filter(Boolean).map((style) => {
-    const styleType = styleTypes.get(style.id);
-    return {
-      ...serialize(style),
-      styleType,
-      value: serialize(
-        styleType === "PAINT" ? style.paints
-          : styleType === "EFFECT" ? style.effects
-            : styleType === "GRID" ? style.layoutGrids
-              : style
-      )
-    };
-  })
+  styles
 };

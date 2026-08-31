@@ -23,7 +23,7 @@ use devup_mcp_figma::{
     AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
     CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, FigmaTarget,
     FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, SearchOptions,
-    SourcePolicy, SystemBrowser, fallback_allowed_for_error, search_snapshot,
+    SearchReadOptions, SourcePolicy, SystemBrowser, fallback_allowed_for_error, search_snapshot,
 };
 
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
@@ -223,6 +223,7 @@ impl DevupServer {
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
         request.include_variables = true;
+        request.variables_only = true;
         let result = self
             .start_operation(
                 PendingOperation::ToJson {
@@ -245,7 +246,13 @@ impl DevupServer {
     ) -> Result<Json<Value>, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
-        let request = CollectionRequest::new(target, CollectionScope::File);
+        let mut request = CollectionRequest::new(target, CollectionScope::File);
+        request.search = Some(SearchReadOptions {
+            query: input.query.clone(),
+            node_types: input.node_types.clone(),
+            match_kind: input.match_kind.clone(),
+            limit: input.limit,
+        });
         let result = self
             .start_operation(
                 PendingOperation::Search {

@@ -13,7 +13,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 - `devup_figma_continue`: host가 실행한 공식 Figma MCP read 결과로 중단된 변환을 재개
 - Figma Plugin API의 readable data property를 raw JSON으로 보존하고, 알려지지 않은 runtime field는 `extra`, 실패한 getter는 `fieldErrors`로 유지
 
-Figma PAT, 사용자가 만든 OAuth app, 내장 client secret은 필요하지 않습니다. Figma Remote MCP의 OAuth discovery, Dynamic Client Registration, PKCE S256과 일시적인 `127.0.0.1` callback을 사용합니다.
+host handoff 경로에는 Figma PAT, 사용자가 만든 OAuth app, 내장 client secret이 필요하지 않습니다. direct 경로는 Figma Remote MCP의 OAuth discovery, Dynamic Client Registration, PKCE S256과 일시적인 `127.0.0.1` callback을 구현하지만, Figma는 현재 MCP Catalog에 승인된 client의 registration만 허용합니다. private build에서는 이미 인증된 공식 Figma MCP를 사용하는 `auto` 또는 `host`가 기본 경로입니다.
 
 ## 빌드와 설치
 
@@ -100,7 +100,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-검색은 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬합니다. `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, 각 결과는 node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_to_ui`에 그대로 전달할 canonical URL을 포함합니다.
+검색은 먼저 read-only Plugin API로 실제 `figma.root.children` page catalog를 얻고, page마다 한 번씩 전환하는 작은 query projection을 병렬 실행합니다. 전체 page snapshot을 응답하지 않으므로 큰 파일에서도 공식 MCP text 상한을 피합니다. 결과는 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬하고 `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_to_ui`에 그대로 전달할 canonical URL을 포함합니다.
 
 `sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다.
 
@@ -127,7 +127,9 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 `crates/devup-mcp/tests/live_figma_contract.rs`는 기본적으로 ignore됩니다. `DEVUP_MCP_LIVE_FIGMA=1`을 설정하고 공식 MCP의 `get_metadata`, 내장 node snapshot, variable/style catalog, resource batch 결과를 호출 순서대로 stdin에 전달하면 실제 payload를 디스크에 쓰거나 출력하지 않고 serde round-trip, 요청 context, node 존재, 변수/style parser를 검증하고 값이 제거된 `PayloadStructure`만 출력합니다.
 
-실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. resource 단위 분할은 exhaustive style payload가 MCP text 출력 한도를 넘지 않게 하며, 공식 MCP seat/plan quota가 소진되면 live gate는 rate-limit 오류로 중단되고 committed offline fixture test에는 영향을 주지 않습니다.
+실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 retryable version-change 오류로 처리합니다.
+
+2026-08-31 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` (`3879:35481`)를 찾고, 해당 node를 DevupUI TSX로 변환했습니다. 같은 파일의 전체 theme export는 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다. 검증 중 원본 payload와 token은 파일에 기록하지 않았습니다.
 
 ## Snapshot 의미와 현재 한계
 
@@ -135,7 +137,9 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 
 현재 private MVP의 남은 한계는 다음과 같습니다.
 
-- 공식 `get_metadata`의 page/file 전체 탐색은 node XML과 다른 top-level page 목록 envelope를 사용하므로 추가 live 검증이 필요합니다.
+- 공식 `get_metadata`의 file-level page 목록은 실제 page 전체보다 적게 반환될 수 있습니다. 이름 검색은 Plugin API page catalog와 per-page projection으로 우회하며 실제 13개 page 파일에서 검증했습니다.
+- page/file 전체의 exhaustive visual node snapshot은 매우 큰 subtree에서 공식 MCP text 상한을 넘을 수 있습니다. 선택 node 변환은 실제 검증했지만, 전체 visual export에는 field/node 단위 adaptive chunking이 추가로 필요합니다.
+- direct OAuth registration은 Figma MCP Catalog 승인이 없는 private client에서 거절됩니다. `auto`/`host` fallback은 host가 인증한 공식 Figma MCP로 실제 검증했습니다.
 - 사용되지 않은 외부 Figma library 변수 전체는 Remote MCP가 제공하지 않을 수 있습니다.
 - node/page theme scope는 로컬 변수 API의 file-wide 결과를 기반으로 하며 세밀한 사용 범위 필터는 후속 보강 대상입니다.
 - vector, mask, image, absolute layout과 일부 effect는 diagnostics를 포함한 제한적 fallback입니다.

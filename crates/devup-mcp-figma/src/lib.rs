@@ -28,7 +28,10 @@ pub use source::{
     classify_upstream_failure, fallback_allowed, fallback_allowed_for_error,
     upstream_failure_error,
 };
-pub use upstream::{BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, UpstreamResult};
+pub use upstream::{
+    BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, SearchReadOptions,
+    UpstreamResult,
+};
 pub use url::FigmaTarget;
 pub use variables::{ResourceBatch, ResourceStyleRef};
 mod metadata;

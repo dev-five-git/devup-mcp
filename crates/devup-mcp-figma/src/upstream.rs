@@ -20,15 +20,24 @@ const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinScript {
     NodeSnapshot,
+    PageCatalog,
+    SearchSnapshot,
     VariableCatalog,
     LocalVariables,
 }
 
 impl BuiltinScript {
-    fn source(self, node_id: &str, resources: Option<&ResourceBatch>) -> String {
+    fn source(
+        self,
+        node_id: &str,
+        resources: Option<&ResourceBatch>,
+        search: Option<&SearchReadOptions>,
+    ) -> String {
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
+            Self::PageCatalog => include_str!("scripts/page_catalog.js"),
+            Self::SearchSnapshot => include_str!("scripts/search.js"),
             Self::VariableCatalog => include_str!("scripts/variable_catalog.js"),
             Self::LocalVariables => include_str!("scripts/variables.js"),
         };
@@ -38,6 +47,8 @@ impl BuiltinScript {
         };
         let resources = serde_json::to_string(resources.unwrap_or(&empty_resources))
             .expect("resource batch serializes");
+        let search = serde_json::to_string(search.unwrap_or(&SearchReadOptions::default()))
+            .expect("search options serialize");
         source
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
             .replace(
@@ -45,7 +56,18 @@ impl BuiltinScript {
                 include_str!("plugin_api_manifest.json"),
             )
             .replace("\"__DEVUP_RESOURCE_BATCH__\"", &resources)
+            .replace("\"__DEVUP_SEARCH__\"", &search)
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchReadOptions {
+    pub query: String,
+    #[serde(default)]
+    pub node_types: Vec<String>,
+    pub match_kind: String,
+    pub limit: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,6 +97,14 @@ pub enum ReadToolCall {
         node_id: String,
         script: BuiltinScript,
         resources: Option<ResourceBatch>,
+    },
+    SearchSnapshot {
+        file_key: String,
+        node_id: String,
+        options: SearchReadOptions,
+    },
+    PageCatalog {
+        file_key: String,
     },
 }
 
@@ -140,6 +170,24 @@ impl ReadToolCall {
         }
     }
 
+    pub fn search_snapshot(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: SearchReadOptions,
+    ) -> Self {
+        Self::SearchSnapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            options,
+        }
+    }
+
+    pub fn page_catalog(file_key: impl Into<String>) -> Self {
+        Self::PageCatalog {
+            file_key: file_key.into(),
+        }
+    }
+
     pub fn tool_name(&self) -> &'static str {
         match self {
             Self::Metadata { .. } => "get_metadata",
@@ -147,7 +195,9 @@ impl ReadToolCall {
             Self::DesignContext { .. } => "get_design_context",
             Self::CodeConnectMap { .. } => "get_code_connect_map",
             Self::Screenshot { .. } => "get_screenshot",
-            Self::Snapshot { .. } => "use_figma",
+            Self::Snapshot { .. } | Self::SearchSnapshot { .. } | Self::PageCatalog { .. } => {
+                "use_figma"
+            }
         }
     }
 
@@ -170,7 +220,20 @@ impl ReadToolCall {
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": script.source(node_id, resources.as_ref())
+                "code": script.source(node_id, resources.as_ref(), None)
+            }),
+            Self::SearchSnapshot {
+                file_key,
+                node_id,
+                options,
+            } => json!({
+                "fileKey": file_key,
+                "nodeId": node_id,
+                "code": BuiltinScript::SearchSnapshot.source(node_id, None, Some(options))
+            }),
+            Self::PageCatalog { file_key } => json!({
+                "fileKey": file_key,
+                "code": BuiltinScript::PageCatalog.source("", None, None)
             }),
         };
         value.as_object().cloned().unwrap_or_default()

@@ -119,12 +119,13 @@ async fn call_named_tool(
 
 #[tokio::test]
 async fn search_collects_the_file_and_returns_replayable_node_urls() -> anyhow::Result<()> {
+    let upstream = Arc::new(FixtureUpstream::default());
     let result = call_named_tool(
         Arc::new(AuthProbe {
             status: AuthStatus::Connected,
             logins: AtomicUsize::new(0),
         }),
-        Arc::new(FixtureUpstream::default()),
+        upstream.clone(),
         "devup_figma_search",
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture",
@@ -142,6 +143,7 @@ async fn search_collects_the_file_and_returns_replayable_node_urls() -> anyhow::
         output["matches"][0]["canonicalUrl"],
         "https://www.figma.com/design/FileKey123/devup?node-id=1-2"
     );
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
     Ok(())
 }
 
@@ -190,7 +192,8 @@ fn metadata_result() -> Value {
                 "version": "v1",
                 "rootId": "1:2",
                 "nodes": [{
-                    "id": "1:2", "type": "FRAME", "childrenIds": [], "descendantCount": 1
+                    "id": "1:2", "type": "FRAME", "name": "Synthetic Frame",
+                    "childrenIds": [], "descendantCount": 1
                 }]
             }
         }
