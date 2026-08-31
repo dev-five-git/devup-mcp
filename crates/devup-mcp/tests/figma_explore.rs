@@ -3,7 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use devup_mcp::server::{DevupAuth, DevupServer, Services};
 use devup_mcp_figma::{
-    AuthStatus, DevupError, ErrorCode, FigmaUpstream, ReadToolCall, UpstreamResult,
+    AuthStatus, DevupError, ErrorCode, ExploreOptions, FigmaTarget, FigmaUpstream, ReadToolCall,
+    SnapshotChunk, UpstreamResult, explore_snapshot, merge_chunks,
 };
 use rmcp::{ServiceExt, model::CallToolRequestParams};
 use serde_json::{Map, Value, json};
@@ -203,4 +204,46 @@ async fn explore_rejects_missing_node_and_out_of_range_limit() -> anyhow::Result
     client.cancel().await?;
     task.await??;
     Ok(())
+}
+
+#[test]
+fn wquw_151_heading_discovers_the_actual_screen_group() {
+    let chunk: SnapshotChunk =
+        serde_json::from_str(include_str!("fixtures/wquw-151-neighborhood.json")).unwrap();
+    let snapshot = merge_chunks(vec![chunk]).unwrap();
+    let target = FigmaTarget::parse(
+        "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Girok?node-id=3879-35481",
+    )
+    .unwrap();
+
+    let result = explore_snapshot(&snapshot, &target, &ExploreOptions { limit: 50 }).unwrap();
+    let ids = result
+        .candidates
+        .iter()
+        .map(|candidate| candidate.node.node_id.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        ids,
+        [
+            "3879:36108",
+            "3879:36059",
+            "3879:35503",
+            "3879:35518",
+            "3879:35569",
+            "3879:36144",
+            "3879:35729",
+            "3879:35887",
+            "3879:35973",
+            "3879:35652",
+        ]
+    );
+    assert_eq!(result.anchor.name, "[FR-026] 본연체");
+    assert!(
+        result
+            .candidates
+            .iter()
+            .any(|candidate| candidate.node.node_id == "3879:35518")
+    );
+    assert!(!result.truncated);
 }

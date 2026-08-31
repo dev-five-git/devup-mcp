@@ -256,9 +256,11 @@ pub fn explore_snapshot(
         .filter(|node| node.id != anchor.node_id)
         .filter_map(|node| ExploreNode::try_from(node).ok())
         .collect::<Vec<_>>();
+    let anchor_is_requirement = looks_like_requirement_heading(&anchor.name);
     let next_heading_y = nodes
         .iter()
         .filter(|node| node.kind == ExploreKind::Heading)
+        .filter(|node| !anchor_is_requirement || looks_like_requirement_heading(&node.name))
         .filter(|node| node.bounds.y >= anchor.bounds.bottom())
         .filter(|node| node.bounds.width >= anchor.bounds.width * 0.5)
         .filter(|node| horizontal_overlap(node.bounds, anchor.bounds) > 0.0)
@@ -335,6 +337,23 @@ fn visual_order(left: &ExploreNode, right: &ExploreNode) -> Ordering {
         .total_cmp(&right.bounds.y)
         .then_with(|| left.bounds.x.total_cmp(&right.bounds.x))
         .then_with(|| left.node_id.cmp(&right.node_id))
+}
+
+fn looks_like_requirement_heading(name: &str) -> bool {
+    let Some((identifier, _)) = name
+        .trim()
+        .strip_prefix('[')
+        .and_then(|name| name.split_once(']'))
+    else {
+        return false;
+    };
+    let Some((prefix, number)) = identifier.split_once('-') else {
+        return false;
+    };
+    !prefix.is_empty()
+        && prefix.bytes().all(|byte| byte.is_ascii_uppercase())
+        && !number.is_empty()
+        && number.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn canonical_url(target: &FigmaTarget, node_id: &str) -> String {
