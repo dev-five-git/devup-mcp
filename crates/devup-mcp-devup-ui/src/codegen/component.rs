@@ -1290,6 +1290,7 @@ fn add_fallback_diagnostics(node: &RawNode, context: &mut Context) {
                 code: code.to_owned(),
                 message: message.to_owned(),
                 node_id: Some(node.id.clone()),
+                ..Diagnostic::default()
             });
         }
     }

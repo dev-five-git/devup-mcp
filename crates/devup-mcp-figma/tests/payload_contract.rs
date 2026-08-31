@@ -1,6 +1,7 @@
 use devup_mcp_figma::{
-    CollectedParts, CollectedPayload, CollectionScope, CollectionStats, ErrorCode, FigmaTarget,
-    PayloadCompleteness, PayloadStructure, SnapshotChunk, UpstreamResult, validate_payload_context,
+    CollectedParts, CollectedPayload, CollectionScope, CollectionStats, CompletenessState,
+    ErrorCode, FigmaTarget, PayloadCompleteness, PayloadStructure, SnapshotChunk, UpstreamResult,
+    validate_payload_context,
 };
 use serde_json::json;
 
@@ -90,4 +91,28 @@ fn payload_context_rejects_a_different_figma_target() {
 
     let error = validate_payload_context(&payload, &expected).unwrap_err();
     assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn completeness_report_combines_graph_and_unresolved_resource_state() {
+    let mut parts = synthetic_parts();
+    parts.variables = Some(UpstreamResult {
+        raw: json!({
+            "variables": [],
+            "styles": [],
+            "unresolved": [{
+                "id": "VariableID:1:404",
+                "kind": "variable",
+                "reason": "notFoundOrUnavailable"
+            }]
+        }),
+    });
+    let payload = CollectedPayload::try_from(parts).unwrap();
+
+    let report = payload.completeness_report();
+
+    assert_eq!(report.state, CompletenessState::Partial);
+    assert_eq!(report.snapshot.state, CompletenessState::Partial);
+    assert_eq!(report.resources.state, CompletenessState::Partial);
+    assert_eq!(report.resources.unresolved_count, 1);
 }

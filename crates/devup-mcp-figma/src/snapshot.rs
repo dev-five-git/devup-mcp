@@ -5,13 +5,35 @@ use serde_json::{Map, Value};
 
 use super::{DevupError, ErrorCode, UpstreamResult};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostic {
     pub code: String,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub severity: Option<DiagnosticSeverity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub property: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recoverable: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DiagnosticSeverity {
+    Info,
+    Warning,
+    Error,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -102,6 +124,187 @@ pub struct Snapshot {
     pub roots: Vec<String>,
     pub nodes: BTreeMap<String, RawNode>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompletenessState {
+    Complete,
+    Partial,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MissingChild {
+    pub parent_id: String,
+    pub child_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParentMismatch {
+    pub parent_id: String,
+    pub child_id: String,
+    pub observed_parent_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldLocation {
+    pub node_id: String,
+    pub field: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChildCountMismatch {
+    pub node_id: String,
+    pub declared_count: usize,
+    pub exported_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotAudit {
+    pub state: CompletenessState,
+    pub root_count: usize,
+    pub preserved_node_count: usize,
+    pub reachable_node_count: usize,
+    pub missing_root_ids: Vec<String>,
+    pub orphan_node_ids: Vec<String>,
+    pub declared_child_count: usize,
+    pub exported_child_count: usize,
+    pub missing_children: Vec<MissingChild>,
+    pub parent_mismatches: Vec<ParentMismatch>,
+    pub child_count_mismatches: Vec<ChildCountMismatch>,
+    pub truncated_fields: Vec<FieldLocation>,
+    pub field_error_count: usize,
+}
+
+impl Snapshot {
+    pub fn audit(&self) -> SnapshotAudit {
+        let mut reachable = BTreeSet::new();
+        let mut pending = self.roots.iter().rev().cloned().collect::<Vec<_>>();
+        let mut declared_child_count = 0usize;
+        let mut exported_child_count = 0usize;
+        let mut missing_children = Vec::new();
+        let mut parent_mismatches = Vec::new();
+        let mut child_count_mismatches = Vec::new();
+        let missing_root_ids = self
+            .roots
+            .iter()
+            .filter(|root_id| !self.nodes.contains_key(*root_id))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        while let Some(node_id) = pending.pop() {
+            let Some(node) = self.nodes.get(&node_id) else {
+                continue;
+            };
+            if !reachable.insert(node_id) {
+                continue;
+            }
+            let child_ids = node.typed_view().child_ids().collect::<Vec<_>>();
+            if let Some(observed_count) = node
+                .typed_view()
+                .value("childCount")
+                .and_then(Value::as_u64)
+                .and_then(|count| usize::try_from(count).ok())
+                && observed_count != child_ids.len()
+            {
+                child_count_mismatches.push(ChildCountMismatch {
+                    node_id: node.id.clone(),
+                    declared_count: observed_count,
+                    exported_count: child_ids.len(),
+                });
+            }
+            declared_child_count = declared_child_count.saturating_add(child_ids.len());
+            let mut existing_child_ids = Vec::new();
+            for child_id in child_ids {
+                let Some(child) = self.nodes.get(child_id) else {
+                    missing_children.push(MissingChild {
+                        parent_id: node.id.clone(),
+                        child_id: child_id.to_owned(),
+                    });
+                    continue;
+                };
+                exported_child_count = exported_child_count.saturating_add(1);
+                if let Some(observed_parent_id) = child.typed_view().string("parentId")
+                    && observed_parent_id != node.id
+                {
+                    parent_mismatches.push(ParentMismatch {
+                        parent_id: node.id.clone(),
+                        child_id: child.id.clone(),
+                        observed_parent_id: Some(observed_parent_id.to_owned()),
+                    });
+                }
+                existing_child_ids.push(child_id.to_owned());
+            }
+            for child_id in existing_child_ids.into_iter().rev() {
+                pending.push(child_id);
+            }
+        }
+
+        let orphan_node_ids = self
+            .nodes
+            .keys()
+            .filter(|node_id| !reachable.contains(*node_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut truncated_fields = Vec::new();
+        let mut field_error_count = 0usize;
+        for node in self.nodes.values() {
+            field_error_count = field_error_count.saturating_add(node.field_errors.len());
+            for (field, value) in node.fields.iter().chain(&node.extra) {
+                if contains_truncation(value) {
+                    truncated_fields.push(FieldLocation {
+                        node_id: node.id.clone(),
+                        field: field.clone(),
+                    });
+                }
+            }
+        }
+        let state = if !missing_root_ids.is_empty() {
+            CompletenessState::Failed
+        } else if missing_children.is_empty()
+            && parent_mismatches.is_empty()
+            && child_count_mismatches.is_empty()
+            && orphan_node_ids.is_empty()
+            && truncated_fields.is_empty()
+            && field_error_count == 0
+        {
+            CompletenessState::Complete
+        } else {
+            CompletenessState::Partial
+        };
+
+        SnapshotAudit {
+            state,
+            root_count: self.roots.len(),
+            preserved_node_count: self.nodes.len(),
+            reachable_node_count: reachable.len(),
+            missing_root_ids,
+            orphan_node_ids,
+            declared_child_count,
+            exported_child_count,
+            missing_children,
+            parent_mismatches,
+            child_count_mismatches,
+            truncated_fields,
+            field_error_count,
+        }
+    }
+}
+
+fn contains_truncation(value: &Value) -> bool {
+    match value {
+        Value::Object(object) => {
+            object.contains_key("$truncated") || object.values().any(contains_truncation)
+        }
+        Value::Array(values) => values.iter().any(contains_truncation),
+        _ => false,
+    }
 }
 
 pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> {

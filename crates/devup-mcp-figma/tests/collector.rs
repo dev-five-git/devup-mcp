@@ -1,7 +1,7 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, DevupError, ErrorCode,
-    ExploreReadOptions, FigmaTarget, ResourceScope, UpstreamResult,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, DevupError,
+    DiagnosticSeverity, ErrorCode, ExploreReadOptions, FigmaTarget, ResourceScope, UpstreamResult,
 };
 use serde_json::{Value, json};
 
@@ -939,17 +939,19 @@ fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
     assert_eq!(resources["variables"][0]["name"], "primary");
     assert_eq!(resources["styles"], json!([]));
     assert_eq!(resources["usedRemoteComplete"], false);
-    assert!(
-        parts.snapshot_chunks[0]
-            .diagnostics
-            .iter()
-            .any(|diagnostic| {
-                diagnostic.code == "DEVUP_RESOURCE_UNRESOLVED"
-                    && diagnostic.node_id.as_deref() == Some("1:2")
-                    && diagnostic.message.contains("textStyleId")
-                    && diagnostic.message.contains("S:text")
-            })
-    );
+    assert_eq!(resources["unresolved"][0]["id"], "S:text");
+    let diagnostic = parts.snapshot_chunks[0]
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "DEVUP_RESOURCE_UNRESOLVED")
+        .expect("unresolved resource diagnostic");
+    assert_eq!(diagnostic.node_id.as_deref(), Some("1:2"));
+    assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::Warning));
+    assert_eq!(diagnostic.property.as_deref(), Some("textStyleId"));
+    assert_eq!(diagnostic.resource_kind.as_deref(), Some("style"));
+    assert_eq!(diagnostic.resource_id.as_deref(), Some("S:text"));
+    assert_eq!(diagnostic.fallback.as_deref(), Some("raw-value"));
+    assert_eq!(diagnostic.recoverable, Some(true));
 }
 
 #[test]

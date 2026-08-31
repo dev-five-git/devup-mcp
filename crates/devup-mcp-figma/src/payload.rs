@@ -5,8 +5,8 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CollectedParts, CollectionScope, CollectionStats, DevupError, FigmaTarget, Snapshot,
-    UpstreamResult, merge_chunks,
+    CollectedParts, CollectionScope, CollectionStats, CompletenessState, DevupError, FigmaTarget,
+    Snapshot, SnapshotAudit, UpstreamResult, merge_chunks,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +30,76 @@ pub struct CollectedPayload {
     pub source_version: Option<String>,
     #[serde(default)]
     pub stats: CollectionStats,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceAudit {
+    pub state: CompletenessState,
+    pub unresolved_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PayloadCompletenessReport {
+    pub state: CompletenessState,
+    pub snapshot: SnapshotAudit,
+    pub resources: ResourceAudit,
+}
+
+impl CollectedPayload {
+    pub fn completeness_report(&self) -> PayloadCompletenessReport {
+        let snapshot = self.snapshot.audit();
+        let unresolved_count = self
+            .variables
+            .as_ref()
+            .and_then(|result| find_unresolved_count(&result.raw))
+            .unwrap_or_else(|| {
+                self.snapshot
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| diagnostic.code == "DEVUP_RESOURCE_UNRESOLVED")
+                    .count()
+            });
+        let resources = ResourceAudit {
+            state: if unresolved_count == 0 {
+                CompletenessState::Complete
+            } else {
+                CompletenessState::Partial
+            },
+            unresolved_count,
+        };
+        let state = if snapshot.state == CompletenessState::Failed {
+            CompletenessState::Failed
+        } else if snapshot.state == CompletenessState::Partial
+            || resources.state == CompletenessState::Partial
+        {
+            CompletenessState::Partial
+        } else {
+            CompletenessState::Complete
+        };
+        PayloadCompletenessReport {
+            state,
+            snapshot,
+            resources,
+        }
+    }
+}
+
+fn find_unresolved_count(value: &Value) -> Option<usize> {
+    match value {
+        Value::Object(object) => {
+            if let Some(unresolved) = object.get("unresolved").and_then(Value::as_array) {
+                return Some(unresolved.len());
+            }
+            object.values().find_map(find_unresolved_count)
+        }
+        Value::Array(values) => values.iter().find_map(find_unresolved_count),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|value| find_unresolved_count(&value)),
+        Value::Null | Value::Bool(_) | Value::Number(_) => None,
+    }
 }
 
 impl TryFrom<CollectedParts> for CollectedPayload {

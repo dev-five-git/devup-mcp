@@ -21,9 +21,9 @@ use devup_mcp_devup_ui::{
 };
 use devup_mcp_figma::{
     AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, ExploreOptions,
-    ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore, OAuthManager,
-    RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SourcePolicy,
+    CollectorSession, CollectorStep, CompletenessState, CredentialStore, DevupError, ErrorCode,
+    ExploreOptions, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore,
+    OAuthManager, RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SourcePolicy,
     SystemBrowser, explore_snapshot, fallback_allowed_for_error, search_snapshot,
 };
 
@@ -361,6 +361,12 @@ fn complete_operation(
 ) -> Result<Value, DevupError> {
     let payload = CollectedPayload::try_from(parts)?;
     let collection = payload.stats.clone();
+    let completeness_report = payload.completeness_report();
+    let status = match completeness_report.state {
+        CompletenessState::Complete => "complete",
+        CompletenessState::Partial => "partial",
+        CompletenessState::Failed => "failed",
+    };
     match operation {
         PendingOperation::ToUi {
             component_name,
@@ -397,13 +403,14 @@ fn complete_operation(
                 .map(|path| write_output(path, &output.tsx))
                 .transpose()?;
             Ok(json!({
-                "status": "complete",
+                "status": status,
                 "tsx": output.tsx,
                 "imports": output.imports,
                 "usedTokens": output.used_tokens,
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "completeness": payload.completeness,
+                "completenessReport": &completeness_report,
                 "rootLayout": root_layout,
                 "collection": collection,
                 "source": {
@@ -443,10 +450,11 @@ fn complete_operation(
                 .map(|path| write_output(path, &output.json))
                 .transpose()?;
             Ok(json!({
-                "status": "complete",
+                "status": status,
                 "devupJson": output.json,
                 "counts": output.counts,
                 "completeness": output.completeness,
+                "completenessReport": &completeness_report,
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "collection": collection,
@@ -475,11 +483,12 @@ fn complete_operation(
                 },
             )?;
             Ok(json!({
-                "status": "complete",
+                "status": status,
                 "query": query,
                 "count": matches.len(),
                 "matches": matches,
                 "completeness": payload.completeness,
+                "completenessReport": &completeness_report,
                 "collection": collection,
                 "source": {
                     "kind": source_kind,
@@ -496,7 +505,7 @@ fn complete_operation(
             )?;
             let count = result.candidates.len();
             Ok(json!({
-                "status": "complete",
+                "status": status,
                 "anchor": result.anchor,
                 "group": result.group,
                 "count": count,
@@ -504,6 +513,7 @@ fn complete_operation(
                 "truncated": result.truncated,
                 "diagnostics": payload.snapshot.diagnostics,
                 "completeness": payload.completeness,
+                "completenessReport": &completeness_report,
                 "collection": collection,
                 "source": {
                     "kind": source_kind,

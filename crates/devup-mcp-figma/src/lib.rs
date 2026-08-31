@@ -24,15 +24,17 @@ pub use explore::{
 };
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
 pub use payload::{
-    CollectedPayload, PayloadCompleteness, PayloadStructure, validate_payload_context,
+    CollectedPayload, PayloadCompleteness, PayloadCompletenessReport, PayloadStructure,
+    ResourceAudit, validate_payload_context,
 };
 pub use resources::{
     ResourceKind, ResourceOccurrence, ResourceScope, UsedResourceRefs, collect_used_resource_refs,
 };
 pub use search::{SearchOptions, SearchResult, search_snapshot};
 pub use snapshot::{
-    Diagnostic, RawNode, Snapshot, SnapshotChunk, TypedNode, merge_chunks,
-    snapshot_chunk_from_result,
+    ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FieldLocation,
+    MissingChild, ParentMismatch, RawNode, Snapshot, SnapshotAudit, SnapshotChunk, TypedNode,
+    merge_chunks, snapshot_chunk_from_result,
 };
 pub use source::{
     SelectedSource, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,

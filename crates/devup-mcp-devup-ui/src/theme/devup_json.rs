@@ -121,6 +121,7 @@ pub fn generate_devup_json(
                 code: "DEVUP_THEME_COLLECTION_MISSING".to_owned(),
                 message: format!("변수 '{}'의 collection을 찾지 못했습니다.", variable.name),
                 node_id: None,
+                ..Diagnostic::default()
             });
             continue;
         };
@@ -139,6 +140,7 @@ pub fn generate_devup_json(
                         variable.name
                     ),
                     node_id: None,
+                    ..Diagnostic::default()
                 });
                 continue;
             };

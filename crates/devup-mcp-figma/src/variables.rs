@@ -224,7 +224,8 @@ pub(crate) fn merge_used_resource_results(
                 "styles": styles,
                 "usedRemoteVariables": used_remote_variables,
                 "localComplete": false,
-                "usedRemoteComplete": used_remote_complete
+                "usedRemoteComplete": used_remote_complete,
+                "unresolved": &unresolved
             }),
         },
         unresolved,

@@ -853,6 +853,19 @@ impl CollectorSession {
                     occurrence.field, occurrence.resource_id
                 ),
                 node_id: Some(occurrence.node_id.clone()),
+                severity: Some(crate::DiagnosticSeverity::Warning),
+                property: Some(occurrence.field.clone()),
+                resource_kind: Some(
+                    match occurrence.resource_kind {
+                        crate::ResourceKind::Variable => "variable",
+                        crate::ResourceKind::Style => "style",
+                    }
+                    .to_owned(),
+                ),
+                resource_id: Some(occurrence.resource_id.clone()),
+                fallback: Some("raw-value".to_owned()),
+                recoverable: Some(true),
+                ..crate::Diagnostic::default()
             };
             if let Some(chunk) = self
                 .snapshot_chunks

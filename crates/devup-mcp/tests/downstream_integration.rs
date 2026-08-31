@@ -110,7 +110,16 @@ async fn call_tool_with_auth(
     name: &str,
     arguments: Value,
 ) -> anyhow::Result<Value> {
-    let server = DevupServer::new(Services::new(auth, Arc::new(FixtureUpstream)));
+    call_tool_with_services(auth, Arc::new(FixtureUpstream), name, arguments).await
+}
+
+async fn call_tool_with_services(
+    auth: Arc<dyn DevupAuth>,
+    upstream: Arc<dyn FigmaUpstream>,
+    name: &str,
+    arguments: Value,
+) -> anyhow::Result<Value> {
+    let server = DevupServer::new(Services::new(auth, upstream));
     let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
     let task = tokio::spawn(async move {
         server.serve(server_transport).await?.waiting().await?;
@@ -124,6 +133,47 @@ async fn call_tool_with_auth(
     client.cancel().await?;
     task.await??;
     Ok(result.structured_content.expect("structured tool output"))
+}
+
+#[derive(Debug)]
+struct PartialFixtureUpstream;
+
+#[async_trait]
+impl FigmaUpstream for PartialFixtureUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        if let ReadToolCall::Snapshot {
+            script: devup_mcp_figma::BuiltinScript::NodeSnapshot,
+            ..
+        } = call
+        {
+            return Ok(UpstreamResult {
+                raw: json!({"structuredContent": {"result": {
+                    "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+                    "version": "1",
+                    "rootIds": ["3879:35481"],
+                    "nodes": [{
+                        "id": "3879:35481",
+                        "type": "FRAME",
+                        "fields": {
+                            "name": "Proofread",
+                            "childrenIds": ["3879:404"],
+                            "layoutMode": "VERTICAL",
+                            "width": 320,
+                            "height": 240
+                        },
+                        "extra": {},
+                        "fieldErrors": {}
+                    }],
+                    "diagnostics": []
+                }}}),
+            });
+        }
+        FixtureUpstream.call_read_tool(call).await
+    }
 }
 
 #[derive(Debug, Default)]
@@ -182,6 +232,28 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     );
     assert_eq!(result["source"]["nodeId"], "3879:35481");
     assert_eq!(result["snapshot"]["preservedNodeCount"], 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn reports_partial_instead_of_complete_when_a_child_is_missing() -> anyhow::Result<()> {
+    let result = call_tool_with_services(
+        Arc::new(ConnectedAuth),
+        Arc::new(PartialFixtureUpstream),
+        "devup_figma_to_ui",
+        json!({
+            "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "includeDiagnostics": true
+        }),
+    )
+    .await?;
+
+    assert_eq!(result["status"], "partial");
+    assert_eq!(result["completenessReport"]["state"], "partial");
+    assert_eq!(
+        result["completenessReport"]["snapshot"]["missingChildren"][0]["childId"],
+        "3879:404"
+    );
     Ok(())
 }
 
