@@ -63,6 +63,83 @@
       "function": "maps_variables_modes_aliases_and_styles_to_devup_json",
       "coverage": "representative_assertion",
       "description": "variable alias, color collection 및 devup.json 변환의 대표 Rust assertion"
+    },
+    {
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "sourcePath": "crates/devup-mcp-devup-ui/tests/plugin_compat.rs",
+      "function": "import_metadata_is_sorted_deduplicated_and_stable",
+      "coverage": "representative_assertion",
+      "description": "DevupUI/keyframes/custom component import의 추출, 정렬, 중복 제거와 반복 결정성을 검증"
+    },
+    {
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "sourcePath": "crates/devup-mcp-devup-ui/tests/plugin_compat.rs",
+      "function": "component_usage_preserves_variants_boolean_and_text_properties",
+      "coverage": "representative_assertion",
+      "description": "COMPONENT, COMPONENT_SET, INSTANCE usage의 variant, boolean, text 및 reserved property 규칙을 검증"
+    },
+    {
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "sourcePath": "crates/devup-mcp-devup-ui/tests/plugin_compat.rs",
+      "function": "responsive_provider_covers_sections_variants_and_pure_code_first",
+      "coverage": "representative_assertion",
+      "description": "Section Pure Code 순서, viewport component와 다중 variant tree 결합을 검증"
+    },
+    {
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "sourcePath": "crates/devup-mcp-figma/tests/assets.rs",
+      "function": "manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "coverage": "representative_assertion",
+      "description": "image fill과 vector asset을 고유 node/field ID로 수집하고 요청 전에는 binary를 내보내지 않음을 검증"
+    },
+    {
+      "rustTest": "explore::section_notes_combine_direct_text_and_descendant_annotations",
+      "sourcePath": "crates/devup-mcp-figma/tests/explore.rs",
+      "function": "section_notes_combine_direct_text_and_descendant_annotations",
+      "coverage": "representative_assertion",
+      "description": "Section 직접 TEXT와 descendant annotation label/Markdown fallback의 시각 트리 순서 결합을 검증"
+    },
+    {
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "sourcePath": "crates/devup-mcp-devup-ui/tests/theme.rs",
+      "function": "node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "coverage": "representative_assertion",
+      "description": "treeshaking node scope가 사용 alias dependency와 style만 보존하고 미사용 resource를 제외함을 검증"
+    },
+    {
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "sourcePath": "crates/devup-mcp-devup-ui/tests/theme.rs",
+      "function": "resolves_token_conflicts_deterministically_across_input_orders",
+      "coverage": "representative_assertion",
+      "description": "collection/source가 다른 동일 token 충돌을 입력 순서와 무관하게 진단하고 결정적으로 해석함을 검증"
+    },
+    {
+      "rustTest": "section_export::section_requires_selection_then_exports_requested_or_all_screens_from_one_artifact",
+      "sourcePath": "crates/devup-mcp/tests/section_export.rs",
+      "function": "section_requires_selection_then_exports_requested_or_all_screens_from_one_artifact",
+      "coverage": "representative_assertion",
+      "description": "Section/page 후보 수집, 선택 export, 전체 export와 artifact 재사용 orchestration을 검증"
+    },
+    {
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "sourcePath": "crates/devup-mcp/tests/stdio_tools.rs",
+      "function": "exposes_the_seven_read_only_devup_figma_tools",
+      "coverage": "representative_assertion",
+      "description": "plugin command dispatcher를 대체하는 일곱 MCP tool과 secret/code 비노출 schema를 검증"
+    },
+    {
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "sourcePath": "crates/devup-mcp-figma/tests/upstream_contract.rs",
+      "function": "built_in_scripts_expose_only_read_operations",
+      "coverage": "representative_assertion",
+      "description": "모든 내장 Figma script가 create/remove/append/insert 같은 문서 mutation을 포함하지 않음을 검증"
+    },
+    {
+      "rustTest": "source_orchestration::direct_fast_call_error_restarts_the_legacy_collector",
+      "sourcePath": "crates/devup-mcp/tests/source_orchestration.rs",
+      "function": "direct_fast_call_error_restarts_the_legacy_collector",
+      "coverage": "representative_assertion",
+      "description": "선택 projection 실패가 전체 요청을 잃지 않고 안전한 legacy 수집으로 전환됨을 검증"
     }
   ]
 }

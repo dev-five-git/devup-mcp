@@ -30,6 +30,10 @@ fn coverage_registry_maps_every_inventory_entry_to_real_evidence() {
     assert_eq!(summary.inventory_entries, 978);
     assert_eq!(summary.snapshot_parity_entries, 252);
     assert_eq!(summary.snapshot_cases, 268);
-    assert_eq!(summary.representative_assertion_entries, 550);
-    assert_eq!(summary.non_parity_entries, 176);
+    assert_eq!(summary.representative_assertion_entries, 666);
+    assert_eq!(summary.non_parity_entries, 60);
+    assert_eq!(
+        summary.not_ported_entries, 0,
+        "모든 upstream inventory 항목은 실행 evidence 또는 명시적인 범위 분류를 가져야 합니다."
+    );
 }

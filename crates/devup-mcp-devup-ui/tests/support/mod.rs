@@ -408,6 +408,7 @@ pub struct CoverageSummary {
     pub snapshot_cases: usize,
     pub representative_assertion_entries: usize,
     pub non_parity_entries: usize,
+    pub not_ported_entries: usize,
 }
 
 pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<String>> {
@@ -502,6 +503,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
     let mut snapshot_parity_entries = 0;
     let mut representative_assertion_entries = 0;
     let mut non_parity_entries = 0;
+    let mut not_ported_entries = 0;
     let mut covered_case_ids = BTreeSet::new();
     for entry in &ledger.entries {
         match entry.classification {
@@ -527,9 +529,8 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                     )),
                 }
             }
-            LedgerClassification::NotPorted
-            | LedgerClassification::OutOfScopeWrite
-            | LedgerClassification::UpstreamRuntimeOnly => {
+            LedgerClassification::NotPorted => {
+                not_ported_entries += 1;
                 non_parity_entries += 1;
                 if entry
                     .rationale
@@ -537,6 +538,24 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                     .is_none_or(|value| value.trim().is_empty())
                 {
                     violations.push(format!("비-parity 분류 근거가 없습니다: {}", entry.test_id));
+                }
+            }
+            LedgerClassification::OutOfScopeWrite | LedgerClassification::UpstreamRuntimeOnly => {
+                non_parity_entries += 1;
+                if entry
+                    .rationale
+                    .as_deref()
+                    .is_none_or(|value| value.trim().is_empty())
+                {
+                    violations.push(format!("비-parity 분류 근거가 없습니다: {}", entry.test_id));
+                }
+                match evidence_by_test.get(entry.rust_test.as_str()) {
+                    Some(evidence)
+                        if evidence.coverage == EvidenceCoverage::RepresentativeAssertion => {}
+                    _ => violations.push(format!(
+                        "비-parity 경계가 등록된 Rust contract를 참조하지 않습니다: {} -> {}",
+                        entry.test_id, entry.rust_test
+                    )),
                 }
             }
             LedgerClassification::Contract => violations.push(format!(
@@ -571,6 +590,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
             snapshot_cases: case_ids.len(),
             representative_assertion_entries,
             non_parity_entries,
+            not_ported_entries,
         })
     } else {
         Err(violations)

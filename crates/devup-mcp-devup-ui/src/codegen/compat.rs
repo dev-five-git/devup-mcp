@@ -1,6 +1,214 @@
+use std::collections::BTreeSet;
+
 use serde_json::{Map, Value, json};
 
 use super::normalize_component_name;
+
+pub fn extract_devup_imports(components: &[Value]) -> Vec<String> {
+    let mut imports = BTreeSet::new();
+    for component in components {
+        let Some(metadata) = component_metadata(component) else {
+            continue;
+        };
+        if let Some(values) = metadata.get("devupImports").and_then(Value::as_array) {
+            imports.extend(values.iter().filter_map(Value::as_str).map(str::to_owned));
+        }
+        if metadata.get("usesKeyframes").and_then(Value::as_bool) == Some(true) {
+            imports.insert("keyframes".to_owned());
+        }
+    }
+    imports.into_iter().collect()
+}
+
+pub fn extract_custom_component_imports(components: &[Value]) -> Vec<String> {
+    let devup = extract_devup_imports(components)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut imports = BTreeSet::new();
+    for component in components {
+        let Some(metadata) = component_metadata(component) else {
+            continue;
+        };
+        if let Some(values) = metadata.get("customImports").and_then(Value::as_array) {
+            imports.extend(
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .filter(|value| !devup.contains(*value))
+                    .map(str::to_owned),
+            );
+        }
+    }
+    imports.into_iter().collect()
+}
+
+pub fn generate_import_statements(components: &[Value]) -> String {
+    let devup = extract_devup_imports(components);
+    let custom = extract_custom_component_imports(components);
+    if devup.is_empty() && custom.is_empty() {
+        return String::new();
+    }
+    let mut lines = Vec::new();
+    if !devup.is_empty() {
+        lines.push(format!(
+            "import {{ {} }} from '@devup-ui/react'",
+            devup.join(", ")
+        ));
+    }
+    lines.extend(
+        custom
+            .iter()
+            .map(|name| format!("import {{ {name} }} from '@/components/{name}'")),
+    );
+    format!("{}\n\n", lines.join("\n"))
+}
+
+pub fn render_component_usage(node: &Value) -> Option<String> {
+    let node_type = node.get("type")?.as_str()?;
+    if !matches!(node_type, "COMPONENT" | "COMPONENT_SET" | "INSTANCE") {
+        return None;
+    }
+    let parent = node
+        .get("parent")
+        .filter(|parent| parent.get("type").and_then(Value::as_str) == Some("COMPONENT_SET"));
+    let name = if node_type == "COMPONENT" {
+        parent
+            .and_then(|parent| parent.get("name"))
+            .and_then(Value::as_str)
+            .or_else(|| node.get("name").and_then(Value::as_str))?
+    } else {
+        node.get("name")?.as_str()?
+    };
+    let name = normalize_component_name(name);
+    let properties = if node_type == "INSTANCE" {
+        node.get("componentProperties").and_then(Value::as_object)
+    } else if node_type == "COMPONENT" {
+        parent
+            .and_then(|parent| parent.get("componentPropertyDefinitions"))
+            .and_then(Value::as_object)
+            .or_else(|| {
+                node.get("componentPropertyDefinitions")
+                    .and_then(Value::as_object)
+            })
+    } else {
+        node.get("componentPropertyDefinitions")
+            .and_then(Value::as_object)
+    };
+    let value_field = if node_type == "INSTANCE" {
+        "value"
+    } else {
+        "defaultValue"
+    };
+    let mut attributes = Vec::new();
+    let mut text_properties = Vec::new();
+    let mut added = BTreeSet::new();
+
+    if node_type == "COMPONENT"
+        && let Some(variants) = node.get("variantProperties").and_then(Value::as_object)
+    {
+        for (raw_key, value) in variants {
+            push_string_attribute(&mut attributes, &mut added, raw_key, value.as_str(), true);
+        }
+    }
+    if let Some(properties) = properties {
+        for (raw_key, property) in properties {
+            let property_type = property.get("type").and_then(Value::as_str);
+            let value = property.get(value_field);
+            match property_type {
+                Some("VARIANT") => push_string_attribute(
+                    &mut attributes,
+                    &mut added,
+                    raw_key,
+                    value.and_then(Value::as_str),
+                    true,
+                ),
+                Some("BOOLEAN") if value.and_then(Value::as_bool) == Some(true) => {
+                    let key = component_property_name(raw_key);
+                    if added.insert(key.clone()) {
+                        attributes.push(key);
+                    }
+                }
+                Some("TEXT") => {
+                    if let Some(value) = value.and_then(Value::as_str) {
+                        let key = component_property_name(raw_key);
+                        if added.insert(key.clone()) {
+                            text_properties.push((key, value.to_owned()));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if text_properties.len() == 1 {
+        let (_, text) = &text_properties[0];
+        let attributes = if attributes.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", attributes.join(" "))
+        };
+        return Some(format!(
+            "<{name}{attributes}>{}</{name}>",
+            escape_jsx_text(text)
+        ));
+    }
+    attributes.extend(
+        text_properties
+            .into_iter()
+            .map(|(key, value)| format!("{key}=\"{}\"", escape_attribute(&value))),
+    );
+    if attributes.is_empty() {
+        Some(format!("<{name} />"))
+    } else {
+        Some(format!("<{name} {} />", attributes.join(" ")))
+    }
+}
+
+fn component_metadata(component: &Value) -> Option<&Map<String, Value>> {
+    component
+        .get("metadata")
+        .or_else(|| component.as_array().and_then(|values| values.get(2)))
+        .and_then(Value::as_object)
+}
+
+fn component_property_name(raw: &str) -> String {
+    raw.split('#').next().unwrap_or(raw).to_owned()
+}
+
+fn push_string_attribute(
+    attributes: &mut Vec<String>,
+    added: &mut BTreeSet<String>,
+    raw_key: &str,
+    value: Option<&str>,
+    filter_reserved: bool,
+) {
+    let key = component_property_name(raw_key);
+    if filter_reserved && matches!(key.to_ascii_lowercase().as_str(), "effect" | "viewport") {
+        return;
+    }
+    if let Some(value) = value
+        && added.insert(key.clone())
+    {
+        attributes.push(format!("{key}=\"{}\"", escape_attribute(value)));
+    }
+}
+
+fn escape_attribute(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn escape_jsx_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('{', "&#123;")
+        .replace('}', "&#125;")
+}
 
 pub fn render_codegen_provider(input: &Value, pure_code: &str) -> Option<String> {
     if input
@@ -32,11 +240,8 @@ pub fn render_codegen_provider(input: &Value, pure_code: &str) -> Option<String>
     match node_type {
         "FRAME" => entries.push(provider_entry(&name, "TYPESCRIPT", pure_code)),
         "COMPONENT" => {
-            entries.push(provider_entry(
-                "Usage",
-                "TYPESCRIPT",
-                &format!("<{name} />"),
-            ));
+            let usage = render_component_usage(node).unwrap_or_else(|| format!("<{name} />"));
+            entries.push(provider_entry("Usage", "TYPESCRIPT", &usage));
             let source = component_source(&name, pure_code);
             entries.push(provider_entry(&name, "TYPESCRIPT", &source));
             entries.extend(cli_entries(&name, &name, &source));
@@ -47,6 +252,11 @@ pub fn render_codegen_provider(input: &Value, pure_code: &str) -> Option<String>
             let title = format!("{name} - Responsive");
             entries.push(provider_entry(&title, "TYPESCRIPT", &source));
             entries.extend(cli_entries(&name, &title, &source));
+        }
+        "COMPONENT_SET" | "INSTANCE" => {
+            let usage = render_component_usage(node)?;
+            entries.push(provider_entry("Usage", "TYPESCRIPT", &usage));
+            entries.push(provider_entry(&name, "TYPESCRIPT", pure_code));
         }
         _ => return None,
     }

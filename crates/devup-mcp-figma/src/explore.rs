@@ -172,6 +172,8 @@ pub struct ExploreGroup {
     pub title: String,
     pub heading_node_id: Option<String>,
     pub bounds: ExploreBounds,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub notes: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -291,6 +293,7 @@ pub fn explore_snapshot(
                 title: anchor.name.clone(),
                 heading_node_id: None,
                 bounds: anchor.bounds,
+                notes: String::new(),
             }),
             candidates: vec![ExploreCandidate {
                 canonical_url: canonical_url(target, &anchor.node_id),
@@ -348,6 +351,7 @@ pub fn explore_snapshot(
                 title: anchor.name.clone(),
                 heading_node_id: None,
                 bounds: group_bounds,
+                notes: collect_section_notes(snapshot, &anchor.node_id)?,
             }),
             anchor,
             candidates,
@@ -423,11 +427,81 @@ pub fn explore_snapshot(
             title: anchor.name.clone(),
             heading_node_id: (anchor.kind == ExploreKind::Heading).then(|| anchor.node_id.clone()),
             bounds: group_bounds,
+            notes: String::new(),
         }),
         anchor,
         candidates,
         truncated: projection_truncated || candidate_count > options.limit,
     })
+}
+
+pub fn collect_section_notes(snapshot: &Snapshot, section_id: &str) -> Result<String, DevupError> {
+    let section = snapshot.nodes.get(section_id).ok_or_else(|| {
+        DevupError::new(
+            ErrorCode::DevupFigmaNodeNotFound,
+            "Section note를 수집할 node를 찾지 못했습니다.",
+            false,
+        )
+    })?;
+    if section.node_type != "SECTION" {
+        return Err(DevupError::new(
+            ErrorCode::DevupSnapshotUnsupported,
+            "Section note 수집 대상은 SECTION이어야 합니다.",
+            false,
+        ));
+    }
+    let mut notes = section
+        .typed_view()
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|node| node.node_type == "TEXT")
+        .filter_map(|node| node.typed_view().string("characters"))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let mut pending = section
+        .typed_view()
+        .child_ids()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    pending.reverse();
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(node_id) = pending.pop() {
+        if !visited.insert(node_id.clone()) {
+            continue;
+        }
+        let Some(node) = snapshot.nodes.get(&node_id) else {
+            continue;
+        };
+        let view = node.typed_view();
+        if let Some(annotations) = view
+            .value("annotations")
+            .and_then(serde_json::Value::as_array)
+        {
+            for annotation in annotations {
+                let label = annotation
+                    .get("label")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|label| !label.is_empty())
+                    .or_else(|| {
+                        annotation
+                            .get("labelMarkdown")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::trim)
+                            .filter(|label| !label.is_empty())
+                    });
+                if let Some(label) = label {
+                    notes.push(format!("[{}] {label}", view.name().unwrap_or("Unnamed")));
+                }
+            }
+        }
+        let mut children = view.child_ids().map(str::to_owned).collect::<Vec<_>>();
+        children.reverse();
+        pending.extend(children);
+    }
+    Ok(notes.join("\n"))
 }
 
 fn enrich_node(snapshot: &Snapshot, node: &mut ExploreNode) {

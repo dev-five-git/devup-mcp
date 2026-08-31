@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use devup_mcp_figma::{
     ExploreKind, ExploreNode, ExploreOptions, FigmaTarget, RawNode, Snapshot, TargetKind,
-    classify_explore_node, classify_target, explore_snapshot,
+    classify_explore_node, classify_target, collect_section_notes, explore_snapshot,
 };
 use serde_json::{Map, json};
 
@@ -400,4 +400,64 @@ fn target_classification_and_section_candidates_are_explicit_and_complete() {
     assert_eq!(first.node.page_child_index, Some(0));
     assert_eq!(first.node.bounds.width, 360.0);
     assert!(first.canonical_url.ends_with("node-id=1-2"));
+}
+
+#[test]
+fn section_notes_combine_direct_text_and_descendant_annotations() {
+    let mut section = raw_node(
+        "1:1",
+        "SECTION",
+        "Documented section",
+        [0.0, 0.0, 1200.0, 900.0],
+        2,
+        "",
+    );
+    section.fields.insert("parentId".to_owned(), json!(null));
+    section
+        .fields
+        .insert("childrenIds".to_owned(), json!(["1:2", "1:3"]));
+    let mut direct = raw_node("1:2", "TEXT", "Note", [0.0, 0.0, 200.0, 30.0], 0, "");
+    direct.fields.insert("parentId".to_owned(), json!("1:1"));
+    direct
+        .fields
+        .insert("characters".to_owned(), json!("  Introductory note  "));
+    let mut frame = raw_node("1:3", "FRAME", "Card", [0.0, 50.0, 360.0, 740.0], 1, "");
+    frame.fields.insert("parentId".to_owned(), json!("1:1"));
+    frame
+        .fields
+        .insert("childrenIds".to_owned(), json!(["1:4"]));
+    frame.fields.insert(
+        "annotations".to_owned(),
+        json!([{"label": " Use the compact variant "}, {"label": "   "}]),
+    );
+    let mut image = raw_node(
+        "1:4",
+        "RECTANGLE",
+        "Hero image",
+        [0.0, 50.0, 360.0, 200.0],
+        0,
+        "",
+    );
+    image.fields.insert("parentId".to_owned(), json!("1:3"));
+    image.fields.insert(
+        "annotations".to_owned(),
+        json!([{"labelMarkdown": "Maintain the aspect ratio"}]),
+    );
+    let snapshot = Snapshot {
+        file_key: "file-key".to_owned(),
+        version: None,
+        roots: vec!["1:1".to_owned()],
+        nodes: [section, direct, frame, image]
+            .into_iter()
+            .map(|node| (node.id.clone(), node))
+            .collect(),
+        diagnostics: Vec::new(),
+    };
+
+    let expected =
+        "Introductory note\n[Card] Use the compact variant\n[Hero image] Maintain the aspect ratio";
+    assert_eq!(collect_section_notes(&snapshot, "1:1").unwrap(), expected);
+    let explored = explore_snapshot(&snapshot, &target("1:1"), &ExploreOptions { limit: 50 })
+        .expect("Section exploration");
+    assert_eq!(explored.group.expect("Section group").notes, expected);
 }

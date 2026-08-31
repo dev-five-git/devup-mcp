@@ -4,90 +4,90 @@
     {
       "testId": "src/__tests__/code-responsive.test.ts > registerCodegen responsive error handling > swallows responsive errors and still returns base code",
       "sourceFile": "src/__tests__/code-responsive.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "source_orchestration::direct_fast_call_error_restarts_the_legacy_collector",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code-responsive.test.ts > registerCodegen pure code error handling > swallows pure code errors and omits the Pure Code entry",
       "sourceFile": "src/__tests__/code-responsive.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "source_orchestration::direct_fast_call_error_restarts_the_legacy_collector",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-devup",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-devup-without-treeshaking",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-devup-excel",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-devup-excel-without-treeshaking",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches import-devup",
       "sourceFile": "src/__tests__/code.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches import-devup-excel",
       "sourceFile": "src/__tests__/code.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-assets",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-components",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > runCommand > dispatches export-pages-and-components",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen > should register codegen [case 1]",
@@ -106,16 +106,16 @@
       "sourceFile": "src/__tests__/code.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen > should register codegen [case 3]",
       "sourceFile": "src/__tests__/code.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen > should generate responsive code when root node is SECTION",
@@ -131,376 +131,376 @@
       "sourceFile": "src/__tests__/code.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/__tests__/code.test.ts >  > should run command",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/__tests__/code.test.ts >  > auto-runs on module load when figma is present",
       "sourceFile": "src/__tests__/code.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/__tests__/code.test.ts > extractImports > should extract keyframes import when code contains keyframes(",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractImports > should extract keyframes import when code contains keyframes`",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractImports > should not extract keyframes when not present",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractCustomComponentImports > should extract custom component imports",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractCustomComponentImports > should not include devup-ui components",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractCustomComponentImports > should return empty array when no custom components",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractCustomComponentImports > should sort custom components alphabetically",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractCustomComponentImports > should handle multiple components with same custom component",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > extractCustomComponentImports > should handle nested custom components",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with viewport variant > should generate responsive component codes for COMPONENT_SET with viewport variant",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with viewport variant > should generate responsive component with multiple variants (viewport + size)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with viewport variant > should generate responsive component with multiple non-viewport variants (size + varient)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with viewport variant > should generate responsive code for node with parent SECTION",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with viewport variant > should generate CLI with custom component imports",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with viewport variant > should generate componentsResponsiveCodes when FRAME contains INSTANCE of COMPONENT_SET with viewport",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::responsive_provider_covers_sections_variants_and_pure_code_first",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should generate usage for COMPONENT without variant props",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should generate usage for COMPONENT with variant props",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should filter reserved variant keys for COMPONENT",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should generate usage for COMPONENT in COMPONENT_SET",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should include BOOLEAN and TEXT from parent COMPONENT_SET for COMPONENT",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should skip BOOLEAN with false default from parent COMPONENT_SET for COMPONENT",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should generate usage for COMPONENT_SET with defaults",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should filter reserved variant keys for COMPONENT_SET",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should sanitize COMPONENT_SET property names with hash suffixes",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should include BOOLEAN and TEXT properties for COMPONENT_SET",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should skip BOOLEAN with false defaultValue for COMPONENT_SET",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should include TEXT properties for COMPONENT_SET",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should use children syntax for COMPONENT with VARIANT and single TEXT",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should use children syntax for COMPONENT with single TEXT-only prop (no other props)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should use children syntax for COMPONENT_SET with BOOLEAN and single TEXT",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should use children syntax for COMPONENT_SET with single TEXT-only prop (no other props)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should keep prop syntax for COMPONENT_SET with 2+ TEXT properties",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should keep prop syntax for COMPONENT with 2+ TEXT properties from parent",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should skip INSTANCE_SWAP properties for COMPONENT_SET",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should generate usage for COMPONENT_SET without componentPropertyDefinitions",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should return null for non-component nodes",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > generateComponentUsage > should generate usage with no props when COMPONENT_SET has only reserved variants",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should generate usage for INSTANCE node",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should generate usage for positioned INSTANCE node (absolute)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should generate usage for COMPONENT node",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should emit wrapped definition + import + CLI for standalone COMPONENT (regression)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should emit Pure Code section as first entry for every node type (regression)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should inline-expand INSTANCE in Pure Code (no component references)",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/code.test.ts > registerCodegen with usage output > should generate usage for COMPONENT_SET node",
       "sourceFile": "src/__tests__/code.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::component_usage_preserves_variants_boolean_and_text_properties",
+      "rationale": null
     },
     {
       "testId": "src/__tests__/utils.test.ts > space > should create space",
@@ -3407,354 +3407,354 @@
     {
       "testId": "src/commands/__tests__/exportAssets.test.ts > exportAssets > runs Codegen for each selected node",
       "sourceFile": "src/commands/__tests__/exportAssets.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportAssets.test.ts > exportAssets > handles empty selection",
       "sourceFile": "src/commands/__tests__/exportAssets.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportComponents.test.ts > exportComponents > should notify and return if no components found",
       "sourceFile": "src/commands/__tests__/exportComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "section_export::section_requires_selection_then_exports_requested_or_all_screens_from_one_artifact",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportComponents.test.ts > exportComponents > should not export components if all children are invisible",
       "sourceFile": "src/commands/__tests__/exportComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "section_export::section_requires_selection_then_exports_requested_or_all_screens_from_one_artifact",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportComponents.test.ts > exportComponents > should export components and call downloadFile",
       "sourceFile": "src/commands/__tests__/exportComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "source_orchestration::direct_fast_call_error_restarts_the_legacy_collector",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/commands/__tests__/exportComponents.test.ts > exportComponents > should raise error",
       "sourceFile": "src/commands/__tests__/exportComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "source_orchestration::direct_fast_call_error_restarts_the_legacy_collector",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > DEVUP_COMPONENTS > should contain expected devup-ui components",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractImports > should extract Box import",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractImports > should extract multiple devup-ui components",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractImports > should extract keyframes import",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractImports > should not extract keyframes when not present",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractImports > should return sorted imports",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractImports > should not include duplicates",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractCustomComponentImports > should extract custom component",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractCustomComponentImports > should extract multiple custom components",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractCustomComponentImports > should not include devup-ui components",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractCustomComponentImports > should return sorted imports",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractCustomComponentImports > should not include duplicates",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > extractCustomComponentImports > should return empty array when no custom components",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should collect SVG asset node",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should collect PNG asset node",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should skip invisible nodes",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should recursively collect from children",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should not descend into asset node children",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should deduplicate by type and name",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should collect from nested frames",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should collect both SVG and PNG assets",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should return empty map for non-asset leaf node",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should skip already-visited nodes when visited set is provided",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should skip visited parent node entirely",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectAssetNodes > should work without visited set (backward compatible)",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "assets::manifest_preserves_image_and_vector_source_details_without_exporting_bytes",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should generate devup-ui import statement",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should generate custom component import statements",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should generate multiple custom component imports on separate lines",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should return empty string when no imports",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should include keyframes in devup-ui import",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should end with double newline when has imports",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > generateImportStatements > should return the same imports across repeated calls",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "plugin_compat::import_metadata_is_sorted_deduplicated_and_stable",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectSectionNotes > combines non-empty direct text and descendant annotations",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "explore::section_notes_combine_direct_text_and_descendant_annotations",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > collectSectionNotes > returns an empty string when the section has no notes",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "explore::section_notes_combine_direct_text_and_descendant_annotations",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > exportPagesAndComponents > exports components, pages, notes, screenshots, and assets into a real zip",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > exportPagesAndComponents > uses page children and returns when no components or pages are found",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "section_export::section_requires_selection_then_exports_requested_or_all_screens_from_one_artifact",
+      "rationale": null
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > exportPagesAndComponents > exports successfully without adding an asset count to the notification",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/commands/__tests__/exportPagesAndComponents.test.ts > exportPagesAndComponents > notifies an error when orchestration throws",
       "sourceFile": "src/commands/__tests__/exportPagesAndComponents.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "source_orchestration::direct_fast_call_error_restarts_the_legacy_collector",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/utils/__tests__/download-file.test.ts > downloadFile > should download file",
@@ -4013,16 +4013,16 @@
       "sourceFile": "src/utils/__tests__/upload-file.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/utils/__tests__/upload-file.test.ts > uploadFile > should resolve with decoded value and close UI on message",
       "sourceFile": "src/utils/__tests__/upload-file.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/utils/__tests__/variable-alias-to-value.test.ts > variableAliasToValue > should convert variableAlias to value",
@@ -6973,490 +6973,490 @@
     {
       "testId": "src/commands/devup/__tests__/apply-typography.test.ts > applyTypography > applies typography to a newly created style",
       "sourceFile": "src/commands/devup/__tests__/apply-typography.test.ts",
-      "classification": "not_ported",
+      "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma text style 또는 문서 대상을 생성·수정한다. devup-mcp는 read-only이므로 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/apply-typography.test.ts > applyTypography > notifies on font load failure and leaves style untouched",
       "sourceFile": "src/commands/devup/__tests__/apply-typography.test.ts",
-      "classification": "not_ported",
+      "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma text style 또는 문서 대상을 생성·수정한다. devup-mcp는 read-only이므로 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/apply-typography.test.ts > applyTypography > applies px letterSpacing and percent lineHeight on existing style",
       "sourceFile": "src/commands/devup/__tests__/apply-typography.test.ts",
-      "classification": "not_ported",
+      "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma text style 또는 문서 대상을 생성·수정한다. devup-mcp는 read-only이므로 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/apply-typography.test.ts > applyTypography > applies string lineHeight as pixels",
       "sourceFile": "src/commands/devup/__tests__/apply-typography.test.ts",
-      "classification": "not_ported",
+      "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma text style 또는 문서 대상을 생성·수정한다. devup-mcp는 read-only이므로 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.coverage.test.ts > export-devup branch coverage > non-treeshaking loads other pages, recurses children, and drops an empty length map",
       "sourceFile": "src/commands/devup/__tests__/export-devup.coverage.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.coverage.test.ts > export-devup branch coverage > treeshaking walks children of text-search nodes for bound vars",
       "sourceFile": "src/commands/devup/__tests__/export-devup.coverage.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.coverage.test.ts > export-devup branch coverage > resolves FLOAT length values that are variable aliases",
       "sourceFile": "src/commands/devup/__tests__/export-devup.coverage.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.coverage.test.ts > export-devup branch coverage > collectVariableSources loads non-current pages, walks nested children, and annotates a bound local var",
       "sourceFile": "src/commands/devup/__tests__/export-devup.coverage.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > exports FLOAT variables with full breakpoint mapping and color theme resolution",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > treeshaking scans bound variables and includes library FLOAT vars",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > exports FLOAT variables to default theme when colors are missing",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > exports effect styles as shadow with level prefixes and theme wrapper",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > exports color aliases and removes empty length theme buckets",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > replicates length and shadow values for all color themes",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts > export-devup length and shadow coverage > exportDevup sends excel output to xlsx downloader",
       "sourceFile": "src/commands/devup/__tests__/export-devup.length-shadow.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts > import-devup length and shadow coverage > imports length as FLOAT variables for single and responsive values",
       "sourceFile": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts > import-devup length and shadow coverage > imports shadow styles and parses hex, rgba, inset and multiple shadows",
       "sourceFile": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts > import-devup length and shadow coverage > loads excel payload path and exits safely for empty theme",
       "sourceFile": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts > import-devup length and shadow coverage > imports length reusing an existing collection mode",
       "sourceFile": "src/commands/devup/__tests__/import-devup.length-shadow.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.test.ts > import-devup (standalone file) > returns early when theme is missing",
       "sourceFile": "src/commands/devup/__tests__/import-devup.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.test.ts > import-devup (standalone file) > imports colors and typography from excel payload",
       "sourceFile": "src/commands/devup/__tests__/import-devup.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.test.ts > import-devup (standalone file) > removes only variables from the Devup color collection",
       "sourceFile": "src/commands/devup/__tests__/import-devup.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/import-devup.test.ts > import-devup (standalone file) > imports array typography and skips nulls",
       "sourceFile": "src/commands/devup/__tests__/import-devup.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup exports colors and downloads json",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup treeshake false exports typography and downloads excel",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup treeshake true handles variable aliases and segments",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup treeshake true handles mixed-style text nodes",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup treeshake true stops typography within current page subtree but loads all pages for bound vars",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup treeshake true lazily loads later pages when needed",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup treeshake true handles direct text children and recursive fallback nodes",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup fills missing typography levels from styles map",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup builds typography array when first level missing",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup keeps full array when first level exists",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup filters out empty typography entries",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::maps_variables_modes_aliases_and_styles_to_devup_json",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup notifies and skips json download when variable names collide across collections",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > exportDevup exports excel when a text style shares a name with a color variable",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module/handler, command, notify 또는 browser download 수명주기에 의존한다. 대응 Rust MCP boundary와 오류 fallback contract를 실행한다."
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > importDevup creates colors and typography from json",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > importDevup handles excel input with modes and removal",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > importDevup notifies when font load fails and covers letterSpacing/lineHeight",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > devup commands > importDevup sets typography spacing values",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > returns empty map when no theme is defined",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > returns empty map when each name lives in a single category",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > reports a name shared between colors and length",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > ignores typography names shared with every other category",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > reports a name occurring in three categories",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > deduplicates a name appearing in multiple themes of the same category",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > findDuplicateVariableNames > annotates duplicates with variable sources when provided",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > collectVariableSources > indexes COLOR and FLOAT variables by camelCased name with collection + origin",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > collectVariableSources > locates library/bound variables that are absent from local collections",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > formatDuplicateReport > shows collection + origin for variable-backed categories and a hint otherwise",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::resolves_token_conflicts_deterministically_across_input_orders",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/__tests__/index.test.ts > buildDevupConfig > excludes remote/library bound variables from length (only current-file collections)",
       "sourceFile": "src/commands/devup/__tests__/index.test.ts",
-      "classification": "not_ported",
+      "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "non_parity::not_independently_ported",
-      "rationale": "원본 upstream test는 inventory에 보존하지만 이 동작은 독립 실행 가능한 Rust parity test로 이식되지 않았다."
+      "rustTest": "theme::node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources",
+      "rationale": null
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx > should call showUI with correct HTML string and visible false",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx > should set onmessage handler and post message",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx > should return a promise that resolves when onmessage is called",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx > should handle different file names and data",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx > notifies when the iframe reports a failure instead of closing silently",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx iframe script > writes both sheets and answers without an error",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx iframe script > exports a file that has no color variables",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx iframe script > exports a file that has no text styles",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx iframe script > exports an empty config",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts > downloadDevupXlsx iframe script > answers with the error instead of leaving the plugin pending",
       "sourceFile": "src/commands/devup/utils/__tests__/download-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/get-devup-color-collection.test.ts > getDevupColorCollection > should get Devup Color Collection",
@@ -7477,72 +7477,72 @@
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx > should resolve with parsed JSON when message is received",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx > should handle message with colors and typography",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx > notifies and still resolves when the iframe reports a failure",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx iframe script > parses both sheets into a devup config",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx iframe script > imports a workbook without a Colors sheet",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx iframe script > imports a workbook without a Typography sheet",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "out_of_scope_write",
       "fixtureIds": [],
-      "rustTest": "non_parity::figma_write_operation",
-      "rationale": "Figma 문서 또는 로컬 import 대상을 변경하는 upstream 동작이며 devup-mcp의 읽기 전용 경계 밖이다."
+      "rustTest": "upstream_contract::built_in_scripts_expose_only_read_operations",
+      "rationale": "원본 동작은 Figma 문서, style 또는 import 대상을 생성·수정한다. devup-mcp의 read-only 경계와 내장 script mutation 비포함 contract로 실행 금지를 검증한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx iframe script > answers with the error instead of leaving the plugin pending",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     },
     {
       "testId": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts > uploadDevupXlsx iframe script > answers when the file itself cannot be read",
       "sourceFile": "src/commands/devup/utils/__tests__/upload-devup-xlsx.test.ts",
       "classification": "upstream_runtime_only",
       "fixtureIds": [],
-      "rustTest": "non_parity::upstream_plugin_runtime",
-      "rationale": "Figma plugin iframe 또는 JavaScript runtime 수명주기에 의존하여 순수 Rust MCP에서 독립 parity test로 실행하지 않는다."
+      "rustTest": "stdio_tools::exposes_the_seven_read_only_devup_figma_tools",
+      "rationale": "원본 동작은 Figma plugin module 등록, iframe, command, notify 또는 browser download 수명주기에 의존한다. devup-mcp에서는 명시적인 read-only MCP tool surface contract가 이 경계를 대체한다."
     }
   ]
 }
