@@ -21,6 +21,7 @@ const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
 pub enum BuiltinScript {
     NodeSnapshot,
     FastSnapshotEnvelope,
+    FastThemeEnvelope,
     PageCatalog,
     SearchSnapshot,
     VariableCatalog,
@@ -42,6 +43,7 @@ impl BuiltinScript {
         let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
             Self::FastSnapshotEnvelope => include_str!("scripts/fast_snapshot.js"),
+            Self::FastThemeEnvelope => include_str!("scripts/fast_theme.js"),
             Self::PageCatalog => include_str!("scripts/page_catalog.js"),
             Self::SearchSnapshot => include_str!("scripts/search.js"),
             Self::VariableCatalog => include_str!("scripts/variable_catalog.js"),
@@ -164,6 +166,9 @@ pub enum ReadToolCall {
         node_id: String,
         options: ExploreReadOptions,
     },
+    FastTheme {
+        file_key: String,
+    },
 }
 
 impl ReadToolCall {
@@ -241,6 +246,12 @@ impl ReadToolCall {
         }
     }
 
+    pub fn fast_theme(file_key: impl Into<String>) -> Self {
+        Self::FastTheme {
+            file_key: file_key.into(),
+        }
+    }
+
     pub fn resource_batch(
         file_key: impl Into<String>,
         node_id: impl Into<String>,
@@ -309,7 +320,8 @@ impl ReadToolCall {
             Self::Snapshot { .. }
             | Self::SearchSnapshot { .. }
             | Self::PageCatalog { .. }
-            | Self::ExploreSnapshot { .. } => "use_figma",
+            | Self::ExploreSnapshot { .. }
+            | Self::FastTheme { .. } => "use_figma",
         }
     }
 
@@ -356,6 +368,10 @@ impl ReadToolCall {
                 "fileKey": file_key,
                 "nodeId": node_id,
                 "code": BuiltinScript::ExploreSnapshot.source(node_id, None, None, Some(options), None)
+            }),
+            Self::FastTheme { file_key } => json!({
+                "fileKey": file_key,
+                "code": BuiltinScript::FastThemeEnvelope.source("", None, None, None, None)
             }),
         };
         value.as_object().cloned().unwrap_or_default()

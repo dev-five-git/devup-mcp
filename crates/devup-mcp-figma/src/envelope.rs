@@ -33,6 +33,13 @@ pub struct FastSnapshotPayload {
     pub stats: FastTransportStats,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct FastThemePayload {
+    pub resources: UpstreamResult,
+    pub source_version: Option<String>,
+    pub stats: FastTransportStats,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Envelope {
@@ -68,6 +75,45 @@ struct EnvelopeDescriptor {
     node_count: usize,
     variable_ref_count: usize,
     style_ref_count: usize,
+    utf8_bytes: usize,
+    chunk_count: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ThemeEnvelope {
+    schema_version: u32,
+    source: ThemeEnvelopeSource,
+    resources: Value,
+    integrity: ThemeEnvelopeIntegrity,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ThemeEnvelopeSource {
+    file_key: String,
+    version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ThemeEnvelopeIntegrity {
+    collection_count: usize,
+    variable_count: usize,
+    style_count: usize,
+    unresolved_count: usize,
+    utf8_bytes: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ThemeEnvelopeDescriptor {
+    kind: String,
+    schema_version: u32,
+    collection_count: usize,
+    variable_count: usize,
+    style_count: usize,
+    unresolved_count: usize,
     utf8_bytes: usize,
     chunk_count: usize,
 }
@@ -146,6 +192,79 @@ pub fn decode_fast_snapshot(
     })
 }
 
+pub fn decode_fast_theme(
+    result: &UpstreamResult,
+    expected_file_key: &str,
+) -> Result<FastThemePayload, DevupError> {
+    let descriptor = find_theme_descriptor(&result.raw)?;
+    if descriptor.chunk_count == 0 {
+        return Err(invalid("descriptorChunkCount"));
+    }
+    if descriptor.chunk_count > MAX_ENVELOPE_CHUNKS {
+        return Err(too_large("chunkCount"));
+    }
+    let images = find_images(&result.raw)?;
+    if images.len() > descriptor.chunk_count {
+        return Err(invalid("imageMultiplicity"));
+    }
+    let mut encoded_bytes = 0_usize;
+    let mut wire_bytes = 0_usize;
+    let mut pngs = Vec::with_capacity(images.len());
+    for (encoded, mime_type) in images {
+        if mime_type != "image/png" {
+            return Err(invalid("imageMime"));
+        }
+        encoded_bytes = encoded_bytes
+            .checked_add(encoded.len())
+            .ok_or_else(|| too_large("png"))?;
+        if encoded_bytes > MAX_BASE64_PNG_BYTES + MAX_ENVELOPE_CHUNKS * 3 {
+            return Err(too_large("png"));
+        }
+        let png = STANDARD
+            .decode(encoded)
+            .map_err(|_| invalid("imageBase64"))?;
+        wire_bytes = wire_bytes
+            .checked_add(png.len())
+            .ok_or_else(|| too_large("png"))?;
+        if wire_bytes > MAX_PNG_BYTES {
+            return Err(too_large("png"));
+        }
+        pngs.push(png);
+    }
+    let mut chunks = Vec::with_capacity(descriptor.chunk_count);
+    for png in &pngs {
+        chunks.extend(decode_png_envelope(png)?);
+    }
+    if chunks.len() != descriptor.chunk_count {
+        return Err(invalid("descriptorChunkCount"));
+    }
+    let envelope_bytes = join_envelope_chunks(chunks)?;
+    if envelope_bytes.len() > MAX_ENVELOPE_BYTES {
+        return Err(too_large("envelope"));
+    }
+    let envelope_text =
+        std::str::from_utf8(&envelope_bytes).map_err(|_| invalid("envelopeUtf8"))?;
+    let envelope: ThemeEnvelope =
+        serde_json::from_str(envelope_text).map_err(|_| invalid("envelopeJson"))?;
+    validate_theme_envelope(
+        &envelope,
+        &descriptor,
+        expected_file_key,
+        envelope_bytes.len(),
+    )?;
+    Ok(FastThemePayload {
+        resources: UpstreamResult {
+            raw: envelope.resources,
+        },
+        source_version: envelope.source.version,
+        stats: FastTransportStats {
+            raw_bytes: envelope_bytes.len(),
+            wire_bytes,
+            chunk_count: descriptor.chunk_count,
+        },
+    })
+}
+
 fn find_images(value: &Value) -> Result<Vec<(&str, &str)>, DevupError> {
     fn collect<'a>(value: &'a Value, found: &mut Vec<(&'a str, &'a str)>) {
         match value {
@@ -190,6 +309,38 @@ fn find_descriptor(value: &Value) -> Result<EnvelopeDescriptor, DevupError> {
                 if let Some(Value::String(text)) = object.get("text")
                     && let Ok(descriptor) = serde_json::from_str::<EnvelopeDescriptor>(text)
                     && descriptor.kind == "devupFastSnapshotDescriptor"
+                {
+                    found.push(descriptor);
+                }
+                for child in object.values() {
+                    collect(child, found);
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    collect(child, found);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut descriptors = Vec::new();
+    collect(value, &mut descriptors);
+    match descriptors.len() {
+        1 => Ok(descriptors.remove(0)),
+        0 => Err(invalid("descriptorMissing")),
+        _ => Err(invalid("descriptorMultiplicity")),
+    }
+}
+
+fn find_theme_descriptor(value: &Value) -> Result<ThemeEnvelopeDescriptor, DevupError> {
+    fn collect(value: &Value, found: &mut Vec<ThemeEnvelopeDescriptor>) {
+        match value {
+            Value::Object(object) => {
+                if let Some(Value::String(text)) = object.get("text")
+                    && let Ok(descriptor) = serde_json::from_str::<ThemeEnvelopeDescriptor>(text)
+                    && descriptor.kind == "devupFastThemeDescriptor"
                 {
                     found.push(descriptor);
                 }
@@ -382,6 +533,88 @@ fn validate_envelope(
     }
     validate_resources(&envelope.resources, &refs.variable_ids, &refs.styles)?;
     Ok(())
+}
+
+fn validate_theme_envelope(
+    envelope: &ThemeEnvelope,
+    descriptor: &ThemeEnvelopeDescriptor,
+    expected_file_key: &str,
+    utf8_bytes: usize,
+) -> Result<(), DevupError> {
+    if envelope.schema_version != 1 || descriptor.schema_version != 1 {
+        return Err(invalid("schemaVersion"));
+    }
+    if envelope.source.file_key != expected_file_key {
+        return Err(invalid("targetMismatch"));
+    }
+    if envelope.integrity.utf8_bytes != utf8_bytes || descriptor.utf8_bytes != utf8_bytes {
+        return Err(invalid("utf8Bytes"));
+    }
+    let resources = envelope
+        .resources
+        .as_object()
+        .ok_or_else(|| invalid("resourcesShape"))?;
+    let collections = resource_ids(resources.get("collections"), "collections")?;
+    let variables = resource_ids(resources.get("variables"), "variables")?;
+    let styles = resource_ids(resources.get("styles"), "styles")?;
+    let unresolved = resources
+        .get("unresolved")
+        .and_then(Value::as_array)
+        .ok_or_else(|| invalid("unresolvedShape"))?;
+    validate_theme_count(
+        envelope.integrity.collection_count,
+        descriptor.collection_count,
+        collections.len(),
+        "collectionCount",
+    )?;
+    validate_theme_count(
+        envelope.integrity.variable_count,
+        descriptor.variable_count,
+        variables.len(),
+        "variableCount",
+    )?;
+    validate_theme_count(
+        envelope.integrity.style_count,
+        descriptor.style_count,
+        styles.len(),
+        "styleCount",
+    )?;
+    validate_theme_count(
+        envelope.integrity.unresolved_count,
+        descriptor.unresolved_count,
+        unresolved.len(),
+        "unresolvedCount",
+    )?;
+    if resources.get("localComplete").and_then(Value::as_bool) != Some(true) {
+        return Err(invalid("localComplete"));
+    }
+    for value in unresolved {
+        if value.get("id").and_then(Value::as_str).is_none()
+            || serde_json::from_value::<ResourceKind>(
+                value
+                    .get("kind")
+                    .cloned()
+                    .ok_or_else(|| invalid("unresolvedShape"))?,
+            )
+            .is_err()
+        {
+            return Err(invalid("unresolvedShape"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_theme_count(
+    envelope_count: usize,
+    descriptor_count: usize,
+    observed_count: usize,
+    category: &'static str,
+) -> Result<(), DevupError> {
+    if envelope_count != observed_count || descriptor_count != observed_count {
+        Err(invalid(category))
+    } else {
+        Ok(())
+    }
 }
 
 fn validate_resources(

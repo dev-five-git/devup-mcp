@@ -16,7 +16,10 @@ mod variables;
 pub use credentials::{
     CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
 };
-pub use envelope::{FastSnapshotPayload, FastTransportStats, decode_fast_snapshot};
+pub use envelope::{
+    FastSnapshotPayload, FastThemePayload, FastTransportStats, decode_fast_snapshot,
+    decode_fast_theme,
+};
 pub use errors::{DevupError, ErrorCode};
 pub use explore::{
     ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,

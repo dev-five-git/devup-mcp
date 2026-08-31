@@ -1,5 +1,5 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use devup_mcp_figma::{FigmaTarget, UpstreamResult, decode_fast_snapshot};
+use devup_mcp_figma::{FigmaTarget, UpstreamResult, decode_fast_snapshot, decode_fast_theme};
 use serde_json::{Value, json};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
@@ -220,6 +220,38 @@ fn descriptor_must_match_the_binary_envelope() {
     assert_category(result, &target(), "nodeCount");
 }
 
+#[test]
+fn valid_fast_theme_envelope_round_trips_and_validates_counts() {
+    let envelope = theme_envelope();
+    let result = theme_upstream_result(envelope.clone(), 1);
+
+    let decoded = decode_fast_theme(&result, "fileKey123").expect("valid fast theme");
+
+    assert_eq!(decoded.source_version, Some("v42".to_owned()));
+    assert_eq!(
+        decoded.resources.raw["collections"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        decoded.resources.raw["variables"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(decoded.resources.raw["styles"].as_array().unwrap().len(), 1);
+    assert_eq!(decoded.resources.raw["localComplete"], true);
+    assert_eq!(decoded.stats.raw_bytes, envelope.len());
+
+    let mut bad = theme_upstream_result(envelope, 1);
+    let descriptor = bad.raw["content"][0]["text"].as_str().unwrap();
+    let mut descriptor: Value = serde_json::from_str(descriptor).unwrap();
+    descriptor["variableCount"] = json!(2);
+    bad.raw["content"][0]["text"] = json!(descriptor.to_string());
+    let error = decode_fast_theme(&bad, "fileKey123").expect_err("count mismatch");
+    assert_eq!(error.details["category"], "variableCount");
+}
+
 fn target() -> FigmaTarget {
     FigmaTarget {
         file_key: "fileKey123".to_owned(),
@@ -277,6 +309,53 @@ fn complete_envelope() -> Vec<u8> {
             "utf8Bytes": 0
         }
     }))
+}
+
+fn theme_envelope() -> Vec<u8> {
+    finalize_envelope(json!({
+        "schemaVersion": 1,
+        "source": {"fileKey": "fileKey123", "version": "v42"},
+        "resources": {
+            "collections": [{"id": "c", "name": "Theme"}],
+            "variables": [{"id": "v", "name": "primary"}],
+            "styles": [{"id": "s", "name": "body", "styleType": "TEXT"}],
+            "usedRemoteVariables": [],
+            "usedVariableIds": ["v"],
+            "usedStyleIds": ["s"],
+            "localComplete": true,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "integrity": {
+            "collectionCount": 1,
+            "variableCount": 1,
+            "styleCount": 1,
+            "unresolvedCount": 0,
+            "utf8Bytes": 0
+        }
+    }))
+}
+
+fn theme_upstream_result(envelope: Vec<u8>, chunk_count: usize) -> UpstreamResult {
+    let png = envelope_png(&envelope, chunk_count);
+    let descriptor = json!({
+        "kind": "devupFastThemeDescriptor",
+        "schemaVersion": 1,
+        "collectionCount": 1,
+        "variableCount": 1,
+        "styleCount": 1,
+        "unresolvedCount": 0,
+        "utf8Bytes": envelope.len(),
+        "chunkCount": chunk_count
+    });
+    UpstreamResult {
+        raw: json!({
+            "content": [
+                {"type": "text", "text": descriptor.to_string()},
+                {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            ]
+        }),
+    }
 }
 
 fn mutate_envelope(mutate: impl FnOnce(&mut Value)) -> Vec<u8> {

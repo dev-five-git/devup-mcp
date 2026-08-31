@@ -266,6 +266,47 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
 }
 
 #[test]
+fn fast_theme_collects_complete_local_theme_and_used_remote_resources_read_only() {
+    let call = ReadToolCall::fast_theme("file-key");
+    let arguments = call.arguments();
+    let code = arguments["code"].as_str().unwrap();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert_eq!(arguments["fileKey"], "file-key");
+    assert!(arguments.get("nodeId").is_none());
+    for read in [
+        "getLocalVariableCollectionsAsync",
+        "getLocalVariablesAsync",
+        "getLocalPaintStylesAsync",
+        "getLocalTextStylesAsync",
+        "getLocalEffectStylesAsync",
+        "getLocalGridStylesAsync",
+        "getVariableByIdAsync",
+        "getVariableCollectionByIdAsync",
+    ] {
+        assert!(code.contains(read), "missing theme read {read}");
+    }
+    assert!(code.contains("usedRemoteVariables"));
+    assert!(code.contains("devupFastThemeDescriptor"));
+    assert!(code.contains("devup-fast-theme-${sequence + 1}-of-${chunkCount}.png"));
+    assert!(code.contains("duVp"));
+    assert!(code.contains("MAX_ENVELOPE_BYTES"));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
+    for mutation in [
+        "figma.create",
+        ".setPluginData(",
+        ".setSharedPluginData(",
+        ".remove(",
+        ".appendChild(",
+        ".insertChild(",
+        "deleteAsync(",
+    ] {
+        assert!(!code.contains(mutation), "theme script exposed {mutation}");
+    }
+}
+
+#[test]
 fn built_in_scripts_expose_only_read_operations() {
     for script in [
         BuiltinScript::NodeSnapshot,
@@ -276,6 +317,7 @@ fn built_in_scripts_expose_only_read_operations() {
         BuiltinScript::UsedResources,
         BuiltinScript::ExploreSnapshot,
         BuiltinScript::FastSnapshotEnvelope,
+        BuiltinScript::FastThemeEnvelope,
     ] {
         let call = ReadToolCall::snapshot("file-key", "1:2", script);
         let code = call.arguments()["code"].as_str().unwrap().to_owned();

@@ -5,7 +5,7 @@ use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component};
 use devup_mcp_figma::{
     CollectedPayload, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
     FigmaTarget, PayloadStructure, ResourceScope, UpstreamResult, decode_fast_snapshot,
-    validate_payload_context,
+    decode_fast_theme, validate_payload_context,
 };
 use serde_json::{Value, json};
 
@@ -139,6 +139,62 @@ fn corrupted_fast_envelope_restarts_at_legacy_metadata() {
         )
         .expect("corruption must trigger safe fallback");
 
+    let CollectorStep::Call(metadata) = collector.advance().expect("legacy metadata") else {
+        panic!("expected legacy metadata call");
+    };
+    assert_eq!(metadata.call.tool_name(), "get_metadata");
+}
+
+#[test]
+#[ignore = "requires an official Figma MCP fast-theme result on stdin"]
+fn official_fast_theme_completes_in_one_call() {
+    assert_eq!(
+        std::env::var("DEVUP_MCP_LIVE_FIGMA").as_deref(),
+        Ok("1"),
+        "set DEVUP_MCP_LIVE_FIGMA=1 explicitly"
+    );
+    let target = FigmaTarget::parse("https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Fixture")
+        .expect("static live file target");
+    let mut request = CollectionRequest::new(target.clone(), CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(call) = collector.advance().expect("fast theme call") else {
+        panic!("expected fast theme call");
+    };
+    let raw = read_result(&mut io::stdin().lock().lines(), call.call.tool_name());
+    let decoded = decode_fast_theme(&UpstreamResult { raw: raw.clone() }, &target.file_key)
+        .expect("fast theme envelope validation");
+    assert_eq!(decoded.resources.raw["localComplete"], true);
+    collector
+        .accept(&call.id, UpstreamResult { raw })
+        .expect("accept fast theme");
+    let CollectorStep::Complete(parts) = collector.advance().expect("complete theme") else {
+        panic!("fast theme must complete in one call");
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 1);
+    assert_eq!(parts.stats.transport, "png-theme-envelope-v1");
+}
+
+#[test]
+fn corrupted_fast_theme_restarts_at_legacy_metadata() {
+    let target = FigmaTarget::parse("https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Fixture")
+        .expect("static live file target");
+    let mut request = CollectionRequest::new(target, CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(fast) = collector.advance().expect("fast theme call") else {
+        panic!("expected fast theme call");
+    };
+    collector
+        .accept(
+            &fast.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": "corrupted theme"}]}),
+            },
+        )
+        .expect("corruption must trigger legacy fallback");
     let CollectorStep::Call(metadata) = collector.advance().expect("legacy metadata") else {
         panic!("expected legacy metadata call");
     };

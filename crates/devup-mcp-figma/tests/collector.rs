@@ -253,6 +253,69 @@ fn fast_envelope_result() -> UpstreamResult {
     }
 }
 
+fn fast_theme_envelope_result() -> UpstreamResult {
+    let mut envelope = json!({
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "version": "v2"},
+        "resources": {
+            "collections": [{"id": "c", "name": "Theme"}],
+            "variables": [{"id": "v", "name": "primary"}],
+            "styles": [{"id": "s", "name": "body", "styleType": "TEXT"}],
+            "usedRemoteVariables": [],
+            "usedVariableIds": ["v"],
+            "usedStyleIds": ["s"],
+            "localComplete": true,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "integrity": {
+            "collectionCount": 1,
+            "variableCount": 1,
+            "styleCount": 1,
+            "unresolvedCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    let envelope_bytes = loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break bytes;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    };
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
+    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
+    payload.extend_from_slice(&0_u32.to_be_bytes());
+    payload.extend_from_slice(&1_u32.to_be_bytes());
+    payload.extend_from_slice(&envelope_bytes);
+    push_png_chunk(&mut png, b"duVp", &payload);
+    push_png_chunk(
+        &mut png,
+        b"IDAT",
+        &[
+            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
+        ],
+    );
+    push_png_chunk(&mut png, b"IEND", &[]);
+    let descriptor = json!({
+        "kind": "devupFastThemeDescriptor",
+        "schemaVersion": 1,
+        "collectionCount": 1,
+        "variableCount": 1,
+        "styleCount": 1,
+        "unresolvedCount": 0,
+        "utf8Bytes": envelope_bytes.len(),
+        "chunkCount": 1
+    });
+    UpstreamResult {
+        raw: json!({"content": [
+            {"type": "text", "text": descriptor.to_string()},
+            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+        ]}),
+    }
+}
+
 fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
     output.extend_from_slice(&(data.len() as u32).to_be_bytes());
     output.extend_from_slice(chunk_type);
@@ -459,23 +522,74 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
     request.resource_scope = ResourceScope::File;
     request.variables_only = true;
     let mut collector = CollectorSession::new(request);
-    let CollectorStep::Call(file_metadata) = collector.advance().unwrap() else {
-        panic!("file metadata call expected")
+    let CollectorStep::Call(fast_theme) = collector.advance().unwrap() else {
+        panic!("fast theme call expected")
     };
-    collector
-        .accept(&file_metadata.id, official_top_level_pages())
-        .unwrap();
-
-    let CollectorStep::Call(variable_catalog) = collector.advance().unwrap() else {
-        panic!("variable catalog should immediately follow page discovery")
-    };
-    assert_eq!(variable_catalog.call.tool_name(), "use_figma");
+    assert_eq!(fast_theme.call.tool_name(), "use_figma");
     assert!(
-        variable_catalog.call.arguments()["code"]
+        fast_theme.call.arguments()["code"]
             .as_str()
             .unwrap()
-            .contains("getLocalVariableCollectionsAsync")
+            .contains("devupFastThemeDescriptor")
     );
+    collector
+        .accept(&fast_theme.id, fast_theme_envelope_result())
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("valid fast theme should complete in one call")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 1);
+    assert_eq!(parts.stats.transport, "png-theme-envelope-v1");
+    assert!(!parts.stats.fallback_used);
+    assert_eq!(parts.stats.variable_count, 1);
+    assert_eq!(parts.stats.style_count, 1);
+    assert_eq!(parts.variables.as_ref().unwrap().raw["localComplete"], true);
+}
+
+#[test]
+fn malformed_or_rejected_fast_theme_restarts_legacy_collection_atomically() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut malformed = CollectorSession::new(request.clone());
+    let CollectorStep::Call(fast) = malformed.advance().unwrap() else {
+        panic!("fast theme call expected")
+    };
+    malformed
+        .accept(
+            &fast.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": "corrupt"}]}),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(metadata) = malformed.advance().unwrap() else {
+        panic!("legacy metadata must restart from zero")
+    };
+    assert_eq!(metadata.call.tool_name(), "get_metadata");
+    assert_eq!(metadata.expected_node_id, None);
+
+    let mut rejected = CollectorSession::new(request);
+    let CollectorStep::Call(fast) = rejected.advance().unwrap() else {
+        panic!("fast theme call expected")
+    };
+    assert!(
+        rejected
+            .reject(
+                &fast.id,
+                &DevupError::new(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "fast theme unavailable",
+                    true,
+                ),
+            )
+            .unwrap()
+    );
+    let CollectorStep::Call(metadata) = rejected.advance().unwrap() else {
+        panic!("rejected fast theme must restart legacy metadata")
+    };
+    assert_eq!(metadata.call.tool_name(), "get_metadata");
 }
 
 #[test]

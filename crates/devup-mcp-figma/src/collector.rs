@@ -7,7 +7,7 @@ use crate::{
     BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, RawNode, ReadToolCall,
     ResourceBatch, ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk,
     SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
-    collect_used_resource_refs, decode_fast_snapshot,
+    collect_used_resource_refs, decode_fast_snapshot, decode_fast_theme,
     metadata::{MetadataResult, metadata_from_result_for_target},
     snapshot_chunk_from_result,
     variables::{
@@ -125,6 +125,7 @@ pub enum CollectorStep {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CallKind {
     FastSnapshot,
+    FastTheme,
     Metadata,
     PageCatalog,
     Snapshot,
@@ -192,6 +193,15 @@ impl CollectorSession {
             return Err(invalid_call("완료된 Figma 수집 session입니다."));
         }
         if self.metadata.is_none() && self.pending.is_empty() && self.queued.is_empty() {
+            if self.fast_theme_eligible() && !self.fast_attempted {
+                self.fast_attempted = true;
+                self.enqueue(
+                    ReadToolCall::fast_theme(&self.request.target.file_key),
+                    None,
+                    CallKind::FastTheme,
+                );
+                return self.advance();
+            }
             if let Some(options) = self.request.explore.clone() {
                 let node_id = self.request.target.node_id.clone().ok_or_else(|| {
                     invalid_call("Figma 주변 화면 탐색에는 node ID가 필요합니다.")
@@ -354,6 +364,7 @@ impl CollectorSession {
         self.consumed.insert(call_id.to_owned());
         match pending.kind {
             CallKind::FastSnapshot => self.accept_fast_snapshot(pending.order, result),
+            CallKind::FastTheme => self.accept_fast_theme(result),
             CallKind::Metadata => self.accept_metadata(&pending.planned, result),
             CallKind::PageCatalog => self.accept_page_catalog(&pending.planned, result),
             CallKind::Snapshot => self.accept_snapshot(&pending.planned, pending.order, result),
@@ -379,7 +390,7 @@ impl CollectorSession {
                 "알 수 없거나 이미 처리한 Figma call ID입니다.",
             ));
         };
-        if pending.kind != CallKind::FastSnapshot {
+        if !matches!(pending.kind, CallKind::FastSnapshot | CallKind::FastTheme) {
             return Ok(false);
         }
         if !fast_call_fallback_allowed(error) {
@@ -400,6 +411,42 @@ impl CollectorSession {
             && !self.request.variables_only
             && self.request.search.is_none()
             && self.request.explore.is_none()
+    }
+
+    fn fast_theme_eligible(&self) -> bool {
+        self.request.scope == CollectionScope::File
+            && self.request.resource_scope == ResourceScope::File
+            && self.request.variables_only
+            && !self.request.metadata_only
+            && !self.request.include_context
+            && self.request.search.is_none()
+            && self.request.explore.is_none()
+    }
+
+    fn accept_fast_theme(&mut self, result: UpstreamResult) -> Result<(), DevupError> {
+        let payload = match decode_fast_theme(&result, &self.request.target.file_key) {
+            Ok(payload) => payload,
+            Err(error) => {
+                self.restart_legacy(fallback_category(&error));
+                return Ok(());
+            }
+        };
+        self.metadata = Some(json!({
+            "transport": "png-theme-envelope-v1",
+            "collectionCount": payload.resources.raw["collections"]
+                .as_array().map_or(0, Vec::len),
+            "variableCount": payload.resources.raw["variables"]
+                .as_array().map_or(0, Vec::len),
+            "styleCount": payload.resources.raw["styles"]
+                .as_array().map_or(0, Vec::len)
+        }));
+        self.source_version = payload.source_version;
+        self.stats.transport = "png-theme-envelope-v1".to_owned();
+        self.stats.raw_bytes = payload.stats.raw_bytes;
+        self.stats.wire_bytes = payload.stats.wire_bytes;
+        self.stats.envelope_chunks = payload.stats.chunk_count;
+        self.variables = Some(payload.resources);
+        Ok(())
     }
 
     fn accept_fast_snapshot(
