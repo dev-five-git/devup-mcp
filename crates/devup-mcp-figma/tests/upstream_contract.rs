@@ -1,6 +1,6 @@
 use devup_mcp_figma::{
     BuiltinScript, ExploreReadOptions, ReadToolCall, ResourceBatch, ResourceStyleRef,
-    SearchReadOptions,
+    SearchReadOptions, SnapshotReadOptions,
 };
 
 #[test]
@@ -54,6 +54,28 @@ fn snapshot_accepts_only_compiled_in_scripts() {
     assert!(code.contains("figma.getNodeByIdAsync"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
+}
+
+#[test]
+fn snapshot_is_byte_bounded_and_cursor_driven() {
+    let call = ReadToolCall::snapshot_chunk(
+        "file-key",
+        "1:2",
+        SnapshotReadOptions {
+            offset: 7,
+            max_payload_bytes: 12_000,
+            max_field_bytes: 4_096,
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(code.contains("snapshotOptions"));
+    assert!(code.contains("maxPayloadBytes"));
+    assert!(code.contains("maxFieldBytes"));
+    assert!(code.contains("DEVUP_FIELD_VALUE_TRUNCATED"));
+    assert!(code.contains("__DEVUP_SNAPSHOT_CURSOR__"));
+    assert!(code.contains("\"offset\":7"));
+    assert!(code.contains("\"maxPayloadBytes\":12000"));
 }
 
 #[test]

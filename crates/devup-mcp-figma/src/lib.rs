@@ -39,7 +39,7 @@ pub use source::{
 };
 pub use upstream::{
     BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,
-    SearchReadOptions, UpstreamResult,
+    SearchReadOptions, SnapshotReadOptions, UpstreamResult,
 };
 pub use url::FigmaTarget;
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};

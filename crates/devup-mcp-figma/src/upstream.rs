@@ -35,6 +35,7 @@ impl BuiltinScript {
         resources: Option<&ResourceBatch>,
         search: Option<&SearchReadOptions>,
         explore: Option<&ExploreReadOptions>,
+        snapshot: Option<&SnapshotReadOptions>,
     ) -> String {
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
@@ -56,6 +57,8 @@ impl BuiltinScript {
             .expect("search options serialize");
         let explore = serde_json::to_string(explore.unwrap_or(&ExploreReadOptions::default()))
             .expect("explore options serialize");
+        let snapshot = serde_json::to_string(snapshot.unwrap_or(&SnapshotReadOptions::default()))
+            .expect("snapshot options serialize");
         source
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
             .replace(
@@ -69,6 +72,25 @@ impl BuiltinScript {
             .replace("\"__DEVUP_RESOURCE_BATCH__\"", &resources)
             .replace("\"__DEVUP_SEARCH__\"", &search)
             .replace("\"__DEVUP_EXPLORE__\"", &explore)
+            .replace("\"__DEVUP_SNAPSHOT__\"", &snapshot)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotReadOptions {
+    pub offset: usize,
+    pub max_payload_bytes: usize,
+    pub max_field_bytes: usize,
+}
+
+impl Default for SnapshotReadOptions {
+    fn default() -> Self {
+        Self {
+            offset: 0,
+            max_payload_bytes: 12_000,
+            max_field_bytes: 4_096,
+        }
     }
 }
 
@@ -125,6 +147,7 @@ pub enum ReadToolCall {
         node_id: String,
         script: BuiltinScript,
         resources: Option<ResourceBatch>,
+        snapshot: Option<SnapshotReadOptions>,
     },
     SearchSnapshot {
         file_key: String,
@@ -182,11 +205,27 @@ impl ReadToolCall {
         node_id: impl Into<String>,
         script: BuiltinScript,
     ) -> Self {
+        let snapshot = (script == BuiltinScript::NodeSnapshot).then(SnapshotReadOptions::default);
         Self::Snapshot {
             file_key: file_key.into(),
             node_id: node_id.into(),
             script,
             resources: None,
+            snapshot,
+        }
+    }
+
+    pub fn snapshot_chunk(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: SnapshotReadOptions,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::NodeSnapshot,
+            resources: None,
+            snapshot: Some(options),
         }
     }
 
@@ -200,6 +239,7 @@ impl ReadToolCall {
             node_id: node_id.into(),
             script: BuiltinScript::LocalVariables,
             resources: Some(resources),
+            snapshot: None,
         }
     }
 
@@ -213,6 +253,7 @@ impl ReadToolCall {
             node_id: node_id.into(),
             script: BuiltinScript::UsedResources,
             resources: Some(resources),
+            snapshot: None,
         }
     }
 
@@ -276,10 +317,11 @@ impl ReadToolCall {
                 node_id,
                 script,
                 resources,
+                snapshot,
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": script.source(node_id, resources.as_ref(), None, None)
+                "code": script.source(node_id, resources.as_ref(), None, None, snapshot.as_ref())
             }),
             Self::SearchSnapshot {
                 file_key,
@@ -288,11 +330,11 @@ impl ReadToolCall {
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": BuiltinScript::SearchSnapshot.source(node_id, None, Some(options), None)
+                "code": BuiltinScript::SearchSnapshot.source(node_id, None, Some(options), None, None)
             }),
             Self::PageCatalog { file_key } => json!({
                 "fileKey": file_key,
-                "code": BuiltinScript::PageCatalog.source("", None, None, None)
+                "code": BuiltinScript::PageCatalog.source("", None, None, None, None)
             }),
             Self::ExploreSnapshot {
                 file_key,
@@ -301,7 +343,7 @@ impl ReadToolCall {
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
-                "code": BuiltinScript::ExploreSnapshot.source(node_id, None, None, Some(options))
+                "code": BuiltinScript::ExploreSnapshot.source(node_id, None, None, Some(options), None)
             }),
         };
         value.as_object().cloned().unwrap_or_default()

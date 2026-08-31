@@ -745,3 +745,75 @@ fn explore_collection_starts_with_one_bounded_projection_and_no_resources() {
     assert_eq!(parts.snapshot_chunks[0].nodes.len(), 2);
     assert!(parts.variables.is_none());
 }
+
+#[test]
+fn node_snapshot_follows_the_compiled_cursor_until_complete() {
+    let request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!("metadata call expected")
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 2))
+        .unwrap();
+
+    let CollectorStep::Call(first_call) = collector.advance().unwrap() else {
+        panic!("first snapshot chunk expected")
+    };
+    assert!(
+        first_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("\"offset\":0")
+    );
+    collector
+        .accept(
+            &first_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
+                    "nodes": [
+                        {"id": "1:2", "type": "FRAME", "fields": {"name": "Root", "childrenIds": ["1:3"]}, "extra": {}, "fieldErrors": {}},
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                    ], "diagnostics": []
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Call(second_call) = collector.advance().unwrap() else {
+        panic!("second snapshot chunk expected")
+    };
+    assert!(
+        second_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("\"offset\":1")
+    );
+    collector
+        .accept(
+            &second_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
+                    "nodes": [
+                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "완료", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                    ], "diagnostics": []
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("snapshot pagination should complete")
+    };
+    assert_eq!(parts.snapshot_chunks.len(), 2);
+    assert!(
+        parts
+            .snapshot_chunks
+            .iter()
+            .flat_map(|chunk| &chunk.nodes)
+            .all(|node| node.id != "__DEVUP_SNAPSHOT_CURSOR__")
+    );
+}

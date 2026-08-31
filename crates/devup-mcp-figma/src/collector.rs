@@ -6,7 +6,8 @@ use serde_json::{Map, Value};
 use crate::{
     BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, RawNode, ReadToolCall,
     ResourceBatch, ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk,
-    UnresolvedResource, UpstreamResult, UsedResourceRefs, collect_used_resource_refs,
+    SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
+    collect_used_resource_refs,
     metadata::{MetadataResult, metadata_from_result_for_target},
     snapshot_chunk_from_result,
     variables::{
@@ -22,6 +23,7 @@ const STYLE_BATCH_SIZE: usize = 8;
 // Consumer relations can be huge. Compact, bounded fragments are expanded
 // back to the exhaustive shape in Rust without dropping any relation.
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
+const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -557,7 +559,7 @@ impl CollectorSession {
         order: usize,
         result: UpstreamResult,
     ) -> Result<(), DevupError> {
-        let chunk = snapshot_chunk_from_result(&result)?;
+        let mut chunk = snapshot_chunk_from_result(&result)?;
         if chunk.file_key != planned.expected_file_key {
             return Err(invalid_call("Figma snapshot의 file key가 요청과 다릅니다."));
         }
@@ -567,6 +569,52 @@ impl CollectorSession {
                 "수집 중 Figma 파일 버전이 변경되었습니다.",
                 true,
             ));
+        }
+        let pagination = match &planned.call {
+            ReadToolCall::Snapshot {
+                script: BuiltinScript::NodeSnapshot,
+                snapshot: Some(options),
+                ..
+            } => Some(options.clone()),
+            _ => None,
+        };
+        if let Some(options) = pagination
+            && let Some(cursor) = take_snapshot_cursor(&mut chunk)?
+        {
+            let expected_next = options
+                .offset
+                .checked_add(chunk.nodes.len())
+                .ok_or_else(|| invalid_call("Figma snapshot cursor offset이 넘쳤습니다."))?;
+            if cursor.next_offset != expected_next || cursor.next_offset > cursor.total_nodes {
+                return Err(invalid_call(
+                    "Figma snapshot cursor가 수집한 node 범위와 일치하지 않습니다.",
+                ));
+            }
+            if cursor.complete != (cursor.next_offset >= cursor.total_nodes) {
+                return Err(invalid_call(
+                    "Figma snapshot cursor의 완료 상태가 node 수와 일치하지 않습니다.",
+                ));
+            }
+            if !cursor.complete {
+                if chunk.nodes.is_empty() {
+                    return Err(invalid_call("Figma snapshot cursor가 진행되지 않았습니다."));
+                }
+                let node_id = planned.expected_node_id.clone().ok_or_else(|| {
+                    invalid_call("Figma snapshot cursor의 root node ID가 없습니다.")
+                })?;
+                self.enqueue(
+                    ReadToolCall::snapshot_chunk(
+                        &self.request.target.file_key,
+                        &node_id,
+                        SnapshotReadOptions {
+                            offset: cursor.next_offset,
+                            ..options
+                        },
+                    ),
+                    Some(node_id),
+                    CallKind::Snapshot,
+                );
+            }
         }
         self.snapshot_chunks.insert(order, chunk);
         Ok(())
@@ -740,6 +788,55 @@ impl CollectorSession {
             order,
         });
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SnapshotCursor {
+    next_offset: usize,
+    complete: bool,
+    total_nodes: usize,
+}
+
+fn take_snapshot_cursor(chunk: &mut SnapshotChunk) -> Result<Option<SnapshotCursor>, DevupError> {
+    let positions = chunk
+        .nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, node)| (node.id == SNAPSHOT_CURSOR_ID).then_some(index))
+        .collect::<Vec<_>>();
+    let Some(&position) = positions.first() else {
+        return Ok(None);
+    };
+    if positions.len() != 1 {
+        return Err(invalid_call(
+            "Figma snapshot 응답에 cursor가 중복되었습니다.",
+        ));
+    }
+    let cursor = chunk.nodes.remove(position);
+    if cursor.node_type != "DEVUP_INTERNAL" {
+        return Err(invalid_call(
+            "Figma snapshot cursor 형식이 올바르지 않습니다.",
+        ));
+    }
+    let cursor = cursor.typed_view();
+    let next_offset = cursor
+        .value("nextOffset")
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| invalid_call("Figma snapshot cursor의 nextOffset이 없습니다."))?;
+    let complete = cursor
+        .bool("complete")
+        .ok_or_else(|| invalid_call("Figma snapshot cursor의 complete가 없습니다."))?;
+    let total_nodes = cursor
+        .value("totalNodes")
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| invalid_call("Figma snapshot cursor의 totalNodes가 없습니다."))?;
+    Ok(Some(SnapshotCursor {
+        next_offset,
+        complete,
+        total_nodes,
+    }))
 }
 
 fn invalid_call(message: &str) -> DevupError {
