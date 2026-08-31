@@ -5,8 +5,8 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    CollectedParts, CollectionScope, DevupError, FigmaTarget, Snapshot, UpstreamResult,
-    merge_chunks,
+    CollectedParts, CollectionScope, CollectionStats, DevupError, FigmaTarget, Snapshot,
+    UpstreamResult, merge_chunks,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +28,7 @@ pub struct CollectedPayload {
     pub styles: Option<UpstreamResult>,
     pub completeness: PayloadCompleteness,
     pub source_version: Option<String>,
+    pub stats: CollectionStats,
 }
 
 impl TryFrom<CollectedParts> for CollectedPayload {
@@ -49,6 +50,7 @@ impl TryFrom<CollectedParts> for CollectedPayload {
             styles: parts.styles,
             completeness,
             source_version: parts.source_version,
+            stats: parts.stats,
         })
     }
 }

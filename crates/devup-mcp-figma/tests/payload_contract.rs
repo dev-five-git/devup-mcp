@@ -1,6 +1,6 @@
 use devup_mcp_figma::{
-    CollectedParts, CollectedPayload, CollectionScope, ErrorCode, FigmaTarget, PayloadCompleteness,
-    PayloadStructure, SnapshotChunk, UpstreamResult, validate_payload_context,
+    CollectedParts, CollectedPayload, CollectionScope, CollectionStats, ErrorCode, FigmaTarget,
+    PayloadCompleteness, PayloadStructure, SnapshotChunk, UpstreamResult, validate_payload_context,
 };
 use serde_json::json;
 
@@ -39,6 +39,7 @@ fn synthetic_parts() -> CollectedParts {
             raw: json!({"styles": [{"id": "s1", "name": "PRIVATE_STYLE"}]}),
         }),
         source_version: Some("v1".to_owned()),
+        stats: CollectionStats::default(),
     }
 }
 

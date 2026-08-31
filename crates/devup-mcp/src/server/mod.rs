@@ -138,8 +138,12 @@ impl DevupServer {
         loop {
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
-                    let result = self.services.upstream.call_read_tool(planned.call).await?;
-                    collector.accept(&planned.id, result)?;
+                    let call_id = planned.id.clone();
+                    match self.services.upstream.call_read_tool(planned.call).await {
+                        Ok(result) => collector.accept(&call_id, result)?,
+                        Err(error) if collector.reject(&call_id, &error)? => continue,
+                        Err(error) => return Err(error),
+                    }
                 }
                 CollectorStep::AwaitingResults => continue,
                 CollectorStep::Complete(parts) => return Ok(*parts),
@@ -354,6 +358,7 @@ fn complete_operation(
     source_kind: &str,
 ) -> Result<Value, DevupError> {
     let payload = CollectedPayload::try_from(parts)?;
+    let collection = payload.stats.clone();
     match operation {
         PendingOperation::ToUi {
             component_name,
@@ -395,6 +400,7 @@ fn complete_operation(
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "completeness": payload.completeness,
+                "collection": collection,
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -438,6 +444,7 @@ fn complete_operation(
                 "completeness": output.completeness,
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
+                "collection": collection,
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -468,6 +475,7 @@ fn complete_operation(
                 "count": matches.len(),
                 "matches": matches,
                 "completeness": payload.completeness,
+                "collection": collection,
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -491,6 +499,7 @@ fn complete_operation(
                 "truncated": result.truncated,
                 "diagnostics": payload.snapshot.diagnostics,
                 "completeness": payload.completeness,
+                "collection": collection,
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,

@@ -1,8 +1,175 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, ErrorCode,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, DevupError, ErrorCode,
     ExploreReadOptions, FigmaTarget, ResourceScope, UpstreamResult,
 };
-use serde_json::json;
+use serde_json::{Value, json};
+
+#[test]
+fn exact_node_fast_path_completes_in_one_call() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast snapshot call expected")
+    };
+    assert_eq!(fast_call.call.tool_name(), "use_figma");
+    assert!(
+        fast_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("devupFastSnapshotDescriptor")
+    );
+
+    collector
+        .accept(&fast_call.id, fast_envelope_result())
+        .unwrap();
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("fast snapshot should complete without another call")
+    };
+
+    assert_eq!(parts.snapshot_chunks.len(), 1);
+    assert_eq!(parts.snapshot_chunks[0].nodes.len(), 1);
+    assert_eq!(parts.stats.figma_tool_calls, 1);
+    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert!(!parts.stats.fallback_used);
+    assert_eq!(parts.stats.node_count, 1);
+    assert_eq!(parts.stats.variable_count, 0);
+    assert_eq!(parts.stats.style_count, 0);
+    let metadata = parts.metadata.to_string();
+    assert!(!metadata.contains("image/png"));
+    assert!(!metadata.contains("devupFastSnapshotDescriptor"));
+}
+
+#[test]
+fn malformed_fast_result_restarts_legacy_from_metadata() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast call expected")
+    };
+    collector
+        .accept(
+            &fast_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": "unsupported"}]}),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!("legacy metadata must restart after a malformed envelope")
+    };
+    assert_eq!(metadata_call.call.tool_name(), "get_metadata");
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!("legacy snapshot expected")
+    };
+    assert!(
+        snapshot_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("__DEVUP_SNAPSHOT_CURSOR__")
+    );
+    collector
+        .accept(&snapshot_call.id, snapshot("1:2"))
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("legacy fallback should complete")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 3);
+    assert_eq!(parts.stats.transport, "legacy-cursor");
+    assert!(parts.stats.fallback_used);
+    assert_eq!(
+        parts.stats.fallback_reason.as_deref(),
+        Some("descriptorMissing")
+    );
+    assert_eq!(parts.stats.node_count, 1);
+}
+
+#[test]
+fn rejected_fast_call_can_restart_legacy_collection() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast call expected")
+    };
+
+    let recovered = collector
+        .reject(
+            &fast_call.id,
+            &DevupError::new(
+                ErrorCode::DevupFigmaDirectUnavailable,
+                "private upstream detail",
+                true,
+            ),
+        )
+        .unwrap();
+
+    assert!(recovered);
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!("legacy metadata call expected")
+    };
+    assert_eq!(metadata_call.call.tool_name(), "get_metadata");
+}
+
+#[test]
+fn legacy_used_resources_combine_variables_and_styles_in_one_call() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &fast_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": "fallback"}]}),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let mut used_snapshot = snapshot("1:2");
+    used_snapshot.raw["nodes"][0]["fields"] = json!({
+        "name": "Synthetic",
+        "boundVariables": {
+            "fills": [{"type": "VARIABLE_ALIAS", "id": "VariableID:1:2"}]
+        },
+        "textStyleId": "S:text"
+    });
+    collector.accept(&snapshot_call.id, used_snapshot).unwrap();
+
+    let CollectorStep::Call(resources_call) = collector.advance().unwrap() else {
+        panic!("one combined resource call expected")
+    };
+    let code = resources_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(code.contains("VariableID:1:2"));
+    assert!(code.contains("S:text"));
+    assert!(matches!(
+        collector.advance().unwrap(),
+        CollectorStep::AwaitingResults
+    ));
+}
 
 fn target(node_id: &str) -> FigmaTarget {
     FigmaTarget::parse(&format!(
@@ -10,6 +177,101 @@ fn target(node_id: &str) -> FigmaTarget {
         node_id.replace(':', "-")
     ))
     .unwrap()
+}
+
+fn fast_envelope_result() -> UpstreamResult {
+    let mut envelope = json!({
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "rootId": "1:2"},
+        "snapshot": {
+            "fileKey": "FileKey123",
+            "version": "v1",
+            "rootIds": ["1:2"],
+            "nodes": [{
+                "id": "1:2",
+                "type": "FRAME",
+                "fields": {"name": "Synthetic", "childrenIds": []},
+                "extra": {},
+                "fieldErrors": {}
+            }],
+            "diagnostics": []
+        },
+        "resources": {
+            "collections": [],
+            "variables": [],
+            "styles": [],
+            "usedRemoteVariables": [],
+            "localComplete": false,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "integrity": {
+            "nodeCount": 1,
+            "variableRefCount": 0,
+            "styleRefCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    let envelope_bytes = loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break bytes;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    };
+
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
+    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
+    payload.extend_from_slice(&0_u32.to_be_bytes());
+    payload.extend_from_slice(&1_u32.to_be_bytes());
+    payload.extend_from_slice(&envelope_bytes);
+    push_png_chunk(&mut png, b"duVp", &payload);
+    push_png_chunk(
+        &mut png,
+        b"IDAT",
+        &[
+            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
+        ],
+    );
+    push_png_chunk(&mut png, b"IEND", &[]);
+    let descriptor = json!({
+        "kind": "devupFastSnapshotDescriptor",
+        "schemaVersion": 1,
+        "rootId": "1:2",
+        "nodeCount": 1,
+        "variableRefCount": 0,
+        "styleRefCount": 0,
+        "utf8Bytes": envelope_bytes.len(),
+        "chunkCount": 1
+    });
+    UpstreamResult {
+        raw: json!({"content": [
+            {"type": "text", "text": descriptor.to_string()},
+            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+        ]}),
+    }
+}
+
+fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
+    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    output.extend_from_slice(chunk_type);
+    output.extend_from_slice(data);
+    let mut crc_input = Vec::with_capacity(4 + data.len());
+    crc_input.extend_from_slice(chunk_type);
+    crc_input.extend_from_slice(data);
+    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
+}
+
+fn crc32(bytes: &[u8]) -> u32 {
+    let mut crc = u32::MAX;
+    for byte in bytes {
+        crc ^= u32::from(*byte);
+        for _ in 0..8 {
+            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
+        }
+    }
+    !crc
 }
 
 fn file_target() -> FigmaTarget {
@@ -615,6 +877,17 @@ fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
     request.resource_scope = ResourceScope::Used;
     let mut collector = CollectorSession::new(request);
 
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast call expected")
+    };
+    collector
+        .accept(
+            &fast_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": "fallback"}]}),
+            },
+        )
+        .unwrap();
     let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
         panic!("metadata call expected")
     };
@@ -634,37 +907,24 @@ fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
     });
     collector.accept(&snapshot_call.id, used_snapshot).unwrap();
 
-    let CollectorStep::Call(variable_call) = collector.advance().unwrap() else {
-        panic!("used variable batch should follow the snapshot")
+    let CollectorStep::Call(resource_call) = collector.advance().unwrap() else {
+        panic!("combined used resource batch should follow the snapshot")
     };
-    let CollectorStep::Call(style_call) = collector.advance().unwrap() else {
-        panic!("used style batch should follow the snapshot")
-    };
-    let variable_code = variable_call.call.arguments()["code"]
+    let resource_code = resource_call.call.arguments()["code"]
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(variable_code.contains("getVariableByIdAsync"));
-    assert!(!variable_code.contains("getStyleConsumersAsync"));
+    assert!(resource_code.contains("getVariableByIdAsync"));
+    assert!(resource_code.contains("VariableID:1:2"));
+    assert!(resource_code.contains("S:text"));
+    assert!(!resource_code.contains("getStyleConsumersAsync"));
 
     collector
         .accept(
-            &variable_call.id,
+            &resource_call.id,
             UpstreamResult {
                 raw: json!({
                     "variables": [{"id": "VariableID:1:2", "name": "primary", "remote": true}],
-                    "styles": [],
-                    "unresolved": []
-                }),
-            },
-        )
-        .unwrap();
-    collector
-        .accept(
-            &style_call.id,
-            UpstreamResult {
-                raw: json!({
-                    "variables": [],
                     "styles": [],
                     "unresolved": [{"id": "S:text", "kind": "style", "reason": "notFoundOrUnavailable"}]
                 }),

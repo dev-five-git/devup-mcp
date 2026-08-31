@@ -47,6 +47,6 @@ pub use url::FigmaTarget;
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 pub use collector::{
-    CollectedParts, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
-    PlannedCall,
+    CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
+    CollectorStep, PlannedCall,
 };

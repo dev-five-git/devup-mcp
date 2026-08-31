@@ -151,37 +151,37 @@
 - Modify: `crates/devup-mcp-figma/tests/collector.rs`
 - Modify or create: `crates/devup-mcp-figma/tests/fast_fallback.rs`
 
-- [ ] **Step 1: Write a failing one-call collector test**
+- [x] **Step 1: Write a failing one-call collector test**
 
   Start an exact-node `CollectionRequest` with node scope and used resources. Assert the first emitted call is `FastSnapshotEnvelope`; after accepting one valid envelope, assert the session completes without metadata, snapshot-page, variable, or style calls and reports `figma_tool_calls=1`, `transport="png-envelope-v1"`, `fallback_used=false`.
 
   Run: `cargo test -p devup-mcp-figma --test collector exact_node_fast_path_completes_in_one_call -- --exact`
 
-- [ ] **Step 2: Add collection stats and the minimal fast success transition**
+- [x] **Step 2: Add collection stats and the minimal fast success transition**
 
   Add a serializable `CollectionStats` to `CollectedParts`/`CollectedPayload` with tool call count, transport name, fallback flag, node/variable/style counts, raw bytes, and wire bytes. Count calls when the state machine dispatches a unique upstream request, not when a result is parsed.
 
-- [ ] **Step 3: Write failing atomic fallback tests**
+- [x] **Step 3: Write failing atomic fallback tests**
 
   For text-only result, malformed PNG, target mismatch, graph mismatch, resource mismatch, and rejected direct upstream call, assert that the next request is legacy metadata at cursor zero; fast partial nodes/resources are absent; the final payload is produced only from legacy results; stats preserve `fallback_used=true` and a sanitized failure category.
 
-- [ ] **Step 4: Implement an explicit fast-call rejection/fallback transition**
+- [x] **Step 4: Implement an explicit fast-call rejection/fallback transition**
 
   Add a collector method used by direct execution when the fast upstream request errors. In `accept`, convert every decoder/integrity error for the fast call into the same clean restart. Retain hard errors for stale/wrong call IDs and failures after legacy collection begins. Host handoff uses the identical `accept` path when it submits a text/error-shaped result.
 
-- [ ] **Step 5: Write a failing legacy combined-resource test**
+- [x] **Step 5: Write a failing legacy combined-resource test**
 
   Feed a paginated legacy snapshot referencing variables and styles whose combined serialized request fits the configured limit. Assert one stable, sorted used-resource batch follows the final snapshot page instead of separate variable/style groups.
 
-- [ ] **Step 6: Implement bounded combined batching**
+- [x] **Step 6: Implement bounded combined batching**
 
   Merge variable/style IDs into one read-only used-resource request when it fits; deterministically split only when the serialized ID/count limit requires it. Keep existing partial completeness and unresolved behavior.
 
-- [ ] **Step 7: Verify direct and handoff result observability**
+- [x] **Step 7: Verify direct and handoff result observability**
 
   Add server tests that both execution modes expose the same safe fields: `figmaToolCalls`, `transport`, `fallbackUsed`, `nodeCount`, `variableCount`, `styleCount`, `rawBytes`, and `wireBytes`, without raw envelope or credentials.
 
-- [ ] **Step 8: Run focused checks and commit**
+- [x] **Step 8: Run focused checks and commit**
 
   Run:
 

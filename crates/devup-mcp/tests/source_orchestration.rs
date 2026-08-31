@@ -70,6 +70,35 @@ struct FixtureUpstream {
     calls: AtomicUsize,
 }
 
+#[derive(Default)]
+struct FastRejectingFixture {
+    calls: AtomicUsize,
+}
+
+#[async_trait]
+impl FigmaUpstream for FastRejectingFixture {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["get_metadata".to_owned(), "use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        let index = self.calls.fetch_add(1, Ordering::SeqCst);
+        if index == 0 {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaDirectUnavailable,
+                "fast transport unavailable",
+                false,
+            ));
+        }
+        let raw = match call.tool_name() {
+            "get_metadata" => metadata_result(),
+            "use_figma" => snapshot_result(),
+            _ => unreachable!(),
+        };
+        Ok(UpstreamResult { raw })
+    }
+}
+
 #[async_trait]
 impl FigmaUpstream for FixtureUpstream {
     async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
@@ -228,7 +257,13 @@ async fn auto_disconnected_returns_handoff_without_starting_oauth() -> anyhow::R
 
     assert_eq!(output["status"], "needs_figma");
     assert_eq!(output["resumeTool"], "devup_figma_continue");
-    assert_eq!(output["calls"][0]["tool"], "get_metadata");
+    assert_eq!(output["calls"][0]["tool"], "use_figma");
+    assert!(
+        output["calls"][0]["arguments"]["code"]
+            .as_str()
+            .unwrap()
+            .contains("devupFastSnapshotDescriptor")
+    );
     assert!(output["expiresAt"].as_str().unwrap().contains('T'));
     assert!(output["expiresAt"].as_str().unwrap().ends_with('Z'));
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
@@ -280,8 +315,36 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
     assert_eq!(output["status"], "complete");
     assert_eq!(output["source"]["kind"], "direct");
     assert!(output["tsx"].as_str().unwrap().contains("SyntheticFrame"));
-    assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(output["collection"]["figmaToolCalls"], 3);
+    assert_eq!(output["collection"]["transport"], "legacy-cursor");
+    assert_eq!(output["collection"]["fallbackUsed"], true);
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn direct_fast_call_error_restarts_the_legacy_collector() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastRejectingFixture::default());
+    let result = call_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Connected,
+            logins: AtomicUsize::new(0),
+        }),
+        upstream.clone(),
+        input("direct"),
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+
+    assert_eq!(output["status"], "complete");
+    assert_eq!(output["collection"]["figmaToolCalls"], 3);
+    assert_eq!(output["collection"]["fallbackUsed"], true);
+    assert_eq!(
+        output["collection"]["fallbackReason"],
+        "DevupFigmaDirectUnavailable"
+    );
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
     Ok(())
 }
 
@@ -332,7 +395,25 @@ async fn public_continuation_finishes_a_multi_call_host_collection() -> anyhow::
         .structured_content
         .unwrap();
     let session_id = start["sessionId"].as_str().unwrap();
-    let metadata_call = start["calls"][0]["callId"].as_str().unwrap();
+    let fast_call = start["calls"][0]["callId"].as_str().unwrap();
+    let after_fast = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": session_id,
+                    "callId": fast_call,
+                    "result": snapshot_result()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert_eq!(after_fast["calls"][0]["tool"], "get_metadata");
+    let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
     let after_metadata = client
         .call_tool(
             CallToolRequestParams::new("devup_figma_continue").with_arguments(
@@ -372,6 +453,8 @@ async fn public_continuation_finishes_a_multi_call_host_collection() -> anyhow::
     assert_eq!(complete["status"], "complete");
     assert_eq!(complete["source"]["kind"], "host");
     assert!(complete["tsx"].as_str().unwrap().contains("SyntheticFrame"));
+    assert_eq!(complete["collection"]["figmaToolCalls"], 3);
+    assert_eq!(complete["collection"]["fallbackUsed"], true);
 
     client.cancel().await?;
     task.await??;
@@ -410,7 +493,24 @@ async fn direct_and_host_collection_produce_identical_artifacts() -> anyhow::Res
         .structured_content
         .unwrap();
     let session_id = start["sessionId"].as_str().unwrap();
-    let metadata_call = start["calls"][0]["callId"].as_str().unwrap();
+    let fast_call = start["calls"][0]["callId"].as_str().unwrap();
+    let after_fast = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": session_id,
+                    "callId": fast_call,
+                    "result": snapshot_result()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
     let after_metadata = client
         .call_tool(
             CallToolRequestParams::new("devup_figma_continue").with_arguments(
@@ -445,7 +545,14 @@ async fn direct_and_host_collection_produce_identical_artifacts() -> anyhow::Res
         .structured_content
         .unwrap();
 
-    for field in ["tsx", "imports", "usedTokens", "diagnostics", "snapshot"] {
+    for field in [
+        "tsx",
+        "imports",
+        "usedTokens",
+        "diagnostics",
+        "snapshot",
+        "collection",
+    ] {
         assert_eq!(direct[field], host[field], "source changed {field}");
     }
     assert_eq!(direct["source"]["kind"], "direct");
