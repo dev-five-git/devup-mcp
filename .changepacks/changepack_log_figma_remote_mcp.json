@@ -4,6 +4,6 @@
     "crates/devup-mcp-figma/Cargo.toml": "Minor",
     "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
   },
-  "note": "Add private Figma Remote MCP OAuth and verified host fallback, exhaustive node snapshots, projected all-page search, lossless paged style resources, full plugin fixture parity, DevupUI TSX, devup.json export, and refresh Rust dependencies to their latest Rust 1.88-compatible releases",
+  "note": "Add private Figma Remote MCP OAuth and verified host fallback, all-page search and linked-screen exploration, cursor-paged node snapshots, exact used variable/style resolution, standalone instance unfolding, mixed typography token preservation, full plugin plus WQUW-151 fixture parity, DevupUI TSX, devup.json export, and Rust 1.88-compatible dependency updates",
   "date": "2026-08-31T00:30:00+09:00"
 }
