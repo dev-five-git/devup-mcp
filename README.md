@@ -64,13 +64,14 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
   "componentName": "OptionalComponentName",
   "includeDiagnostics": true,
+  "rootLayout": "standalone",
   "sourcePolicy": "auto",
   "scope": "node",
   "outputPath": "optional/path/Component.tsx"
 }
 ```
 
-결과에는 `tsx`, import 목록, 사용된 token, source 식별자, 보존한 node 수와 fallback diagnostics가 포함됩니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. standalone 결과에서는 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다.
+결과에는 `tsx`, import 목록, 사용된 token, source 식별자, 보존한 node 수와 fallback diagnostics가 포함됩니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
 
 ### Figma → devup.json
 
@@ -116,9 +117,11 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 원하는 후보의 canonical URL을 `devup_figma_to_ui`에 넘겨 정확한 화면만 변환합니다.
 
-탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 `boundVariables`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `devup_figma_to_json`만 file 전체 로컬 catalog를 수집합니다.
+탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `devup_figma_to_json`만 file 전체 로컬 catalog를 수집합니다.
 
 `sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다.
+
+정확한 node 링크의 UI 변환은 우선 하나의 공식 `use_figma` 호출 안에서 subtree 전체와 실제 사용 리소스를 수집합니다. JSON envelope를 512 KiB 단위로 나누고 각 조각을 CRC가 있는 1×1 PNG에 담아 MCP 응답 크기 제한을 피하며, Rust는 MIME·base64·PNG 구조·청크 순서·schema·대상 ID·node graph·리소스 참조를 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`, `fallbackUsed`, node/variable/style 수와 byte/청크 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
 
 완전성 등급은 다음과 같습니다.
 
@@ -129,7 +132,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 ## 읽기 전용·개인정보 보호
 
 - upstream 호출은 `get_metadata`, `get_variable_defs`, `get_design_context`, `get_code_connect_map`, `get_screenshot`과 내장된 read-only `use_figma` script로 닫혀 있습니다.
-- 사용자 입력 JavaScript를 받지 않으며 Figma write tool을 호출하지 않습니다.
+- 사용자 입력 JavaScript를 받지 않으며 Figma document mutation API를 호출하지 않습니다. `figma.io.write`는 공식 MCP 응답으로 검증 가능한 1×1 PNG를 반환하는 transport에만 사용하며 Figma 파일을 변경하지 않습니다.
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
@@ -141,11 +144,11 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 ### 실제 Figma JSON contract gate
 
-`crates/devup-mcp/tests/live_figma_contract.rs`는 기본적으로 ignore됩니다. `DEVUP_MCP_LIVE_FIGMA=1`을 설정하고 공식 MCP의 `get_metadata`, 내장 node snapshot, variable/style catalog, resource batch 결과를 호출 순서대로 stdin에 전달하면 실제 payload를 디스크에 쓰거나 출력하지 않고 serde round-trip, 요청 context, node 존재, 변수/style parser를 검증하고 값이 제거된 `PayloadStructure`만 출력합니다.
+`crates/devup-mcp/tests/live_figma_contract.rs`는 기본적으로 ignore됩니다. `DEVUP_MCP_LIVE_FIGMA=1`을 설정하고 공식 MCP의 fast `use_figma` 결과를 stdin에 한 줄로 전달하면 실제 payload를 디스크에 쓰거나 출력하지 않고 envelope 무결성, serde round-trip, 요청 context, node/리소스 수와 DevupUI codegen을 검증하고 안전한 count/hash 요약만 출력합니다. 별도의 비-ignore corruption test는 깨진 fast 응답이 legacy metadata 수집으로 원자적으로 폴백하는지 확인합니다.
 
-실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
+legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
 
-2026-08-31 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` (`3879:35481`)를 찾고, 주변의 화면 후보 10개를 탐색해 `A : STORY-F-PROOFREAD` (`3879:35518`)를 정확한 대상으로 선택했습니다. 이 화면의 144개 node, 사용된 변수 13개와 text style 11개를 공식 read-only MCP에서 수집해 instance children, mixed typography, nested `[1. 이름]`, token binding을 Rust snapshot test로 고정했습니다. 같은 파일의 전체 theme export는 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다.
+2026-08-31 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` (`3879:35481`)를 찾고, 주변의 화면 후보 10개를 탐색해 `A : STORY-F-PROOFREAD` (`3879:35518`)를 정확한 대상으로 선택했습니다. 최신 fast 경로는 공식 read-only MCP 1회에서 3개 PNG envelope 청크로 이 화면의 144개 node, 모든 보존 필드에서 참조된 변수 20개와 text style 11개를 수집했으며 폴백은 없었습니다. instance children, mixed typography, nested `[1. 이름]`, token binding과 개별 footer stroke를 Rust snapshot/live contract로 검증했습니다. 같은 파일의 전체 theme export는 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다.
 
 ## Snapshot 의미와 현재 한계
 
@@ -155,7 +158,7 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 
 - 공식 `get_metadata`의 file-level page 목록은 실제 page 전체보다 적게 반환될 수 있습니다. 이름 검색은 Plugin API page catalog와 per-page projection으로 우회하며 실제 13개 page 파일에서 검증했습니다.
 - 매우 큰 computed field(예: vector `fillGeometry`)는 현재 값 전체 대신 명시적인 byte-length marker로 보존됩니다. 모든 대용량 field 값을 lossless하게 export하는 기능은 후속 wire-format 개선 대상입니다.
-- exhaustive node 변환은 공식 MCP text 상한에 맞춰 여러 cursor call이 필요하므로 subtree 크기에 따라 시간이 늘어날 수 있습니다.
+- exact-node fast envelope가 8 MiB 안전 상한을 넘거나 공식 MCP가 image transport를 바꾸면 자동 legacy fallback이 여러 cursor call을 사용하므로 subtree 크기에 따라 시간이 늘어날 수 있습니다.
 - direct OAuth registration은 Figma MCP Catalog 승인이 없는 private client에서 거절됩니다. `auto`/`host` fallback은 host가 인증한 공식 Figma MCP로 실제 검증했습니다.
 - 사용되지 않은 외부 Figma library 변수 전체는 Remote MCP가 제공하지 않을 수 있습니다.
 - node/page theme scope는 로컬 변수 API의 file-wide 결과를 기반으로 하며 세밀한 사용 범위 필터는 후속 보강 대상입니다.
