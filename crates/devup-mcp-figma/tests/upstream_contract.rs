@@ -226,6 +226,39 @@ fn used_resources_use_exact_ids_without_file_catalog_or_consumers() {
 }
 
 #[test]
+fn fast_snapshot_is_lossless_bounded_and_read_only() {
+    let call = ReadToolCall::fast_snapshot("file-key", "1:2");
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("figma.getNodeByIdAsync"));
+    assert!(code.contains("if (name in value) names.add(name)"));
+    assert!(code.contains("getStyledTextSegments(textSegmentManifest)"));
+    for field in [
+        "strokeTopWeight",
+        "strokeRightWeight",
+        "strokeBottomWeight",
+        "strokeLeftWeight",
+    ] {
+        assert!(code.contains(&format!("\"{field}\"")), "missing {field}");
+    }
+    assert!(code.contains("getVariableByIdAsync"));
+    assert!(code.contains("getStyleByIdAsync"));
+    assert!(code.contains("Promise.all([...variableJobs, ...styleJobs])"));
+    assert!(code.contains("duVp"));
+    assert!(code.contains("figma.io.write"));
+    assert!(code.contains("devupFastSnapshotDescriptor"));
+    assert!(code.contains("MAX_ENVELOPE_BYTES"));
+    assert!(code.contains("0xfffd"));
+    assert!(!code.contains("maxPayloadBytes"));
+    assert!(!code.contains("maxFieldBytes"));
+    assert!(!code.contains("DEVUP_FIELD_VALUE_TRUNCATED"));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
+    assert_eq!(code.matches("figma.io.write(").count(), 1);
+}
+
+#[test]
 fn built_in_scripts_expose_only_read_operations() {
     for script in [
         BuiltinScript::NodeSnapshot,
@@ -235,6 +268,7 @@ fn built_in_scripts_expose_only_read_operations() {
         BuiltinScript::LocalVariables,
         BuiltinScript::UsedResources,
         BuiltinScript::ExploreSnapshot,
+        BuiltinScript::FastSnapshotEnvelope,
     ] {
         let call = ReadToolCall::snapshot("file-key", "1:2", script);
         let code = call.arguments()["code"].as_str().unwrap().to_owned();

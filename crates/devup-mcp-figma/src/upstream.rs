@@ -20,6 +20,7 @@ const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinScript {
     NodeSnapshot,
+    FastSnapshotEnvelope,
     PageCatalog,
     SearchSnapshot,
     VariableCatalog,
@@ -40,6 +41,7 @@ impl BuiltinScript {
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
+            Self::FastSnapshotEnvelope => include_str!("scripts/fast_snapshot.js"),
             Self::PageCatalog => include_str!("scripts/page_catalog.js"),
             Self::SearchSnapshot => include_str!("scripts/search.js"),
             Self::VariableCatalog => include_str!("scripts/variable_catalog.js"),
@@ -226,6 +228,16 @@ impl ReadToolCall {
             script: BuiltinScript::NodeSnapshot,
             resources: None,
             snapshot: Some(options),
+        }
+    }
+
+    pub fn fast_snapshot(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::FastSnapshotEnvelope,
+            resources: None,
+            snapshot: None,
         }
     }
 

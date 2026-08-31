@@ -102,12 +102,12 @@
 
 **Files:**
 
-- Create: `crates/devup-mcp-figma/scripts/fast_snapshot.js`
+- Create: `crates/devup-mcp-figma/src/scripts/fast_snapshot.js`
 - Modify: `crates/devup-mcp-figma/src/upstream.rs`
 - Modify: `crates/devup-mcp-figma/tests/upstream_contract.rs`
-- Modify if shared serializer extraction is needed: `crates/devup-mcp-figma/scripts/snapshot.js`
+- Modify if shared serializer extraction is needed: `crates/devup-mcp-figma/src/scripts/snapshot.js`
 
-- [ ] **Step 1: Write failing source-contract tests**
+- [x] **Step 1: Write failing source-contract tests**
 
   Assert that `BuiltinScript::FastSnapshotEnvelope` exists, is selected by `ReadToolCall::fast_snapshot`, receives only Rust-substituted file/root IDs, walks the complete subtree without text-page limits, reads manifest plus runtime fields, captures styled text segments and individual stroke weights, collects used variable/style IDs, resolves both kinds in one `Promise.all`, encodes lone surrogates safely, emits `duVp` chunks, and calls only `figma.io.write` for output.
 
@@ -117,24 +117,24 @@
 
   Expected: compilation/assertion failure because the variant and script do not exist.
 
-- [ ] **Step 2: Implement the script from the current serializer contract**
+- [x] **Step 2: Implement the script from the current serializer contract**
 
   Reuse the snapshot field/marker semantics rather than inventing a projection. Traverse breadth-first, serialize all public manifest and enumerable/prototype data properties, preserve getter errors and mixed/styled text, scan the completed serialized graph for used IDs, resolve resources in stable sorted order, assemble schema version 1 and integrity counts, encode UTF-8 in pure JavaScript, construct a valid 1×1 PNG with private ancillary chunks and CRC32, then call `figma.io.write` once.
 
-- [ ] **Step 3: Add deterministic script-level contract cases**
+- [x] **Step 3: Add deterministic script-level contract cases**
 
   Assert placeholder escaping, stable resource ordering, no `maxFieldBytes`/`maxNodeBytes` truncation in fast mode, a bounded maximum envelope size before allocation, and a descriptor containing only schema/count/byte/chunk metadata.
 
-- [ ] **Step 4: Run upstream and snapshot contract suites**
+- [x] **Step 4: Run upstream and snapshot contract suites**
 
   Run:
 
   ```powershell
   cargo test -p devup-mcp-figma --test upstream_contract
-  cargo test -p devup-mcp-figma --test snapshot_contract
+  cargo test -p devup-mcp-figma --test snapshot
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   Commit: `feat(figma): add lossless single-call snapshot script`
 
