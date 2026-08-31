@@ -22,8 +22,9 @@ use devup_mcp_devup_ui::{
 use devup_mcp_figma::{
     AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
     CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, FigmaTarget,
-    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, SearchOptions,
-    SearchReadOptions, SourcePolicy, SystemBrowser, fallback_allowed_for_error, search_snapshot,
+    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope,
+    SearchOptions, SearchReadOptions, SourcePolicy, SystemBrowser, fallback_allowed_for_error,
+    search_snapshot,
 };
 
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
@@ -222,7 +223,7 @@ impl DevupServer {
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
-        request.include_variables = true;
+        request.resource_scope = ResourceScope::File;
         request.variables_only = true;
         let result = self
             .start_operation(

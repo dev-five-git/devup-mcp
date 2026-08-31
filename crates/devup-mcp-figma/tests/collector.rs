@@ -1,6 +1,6 @@
 use devup_mcp_figma::{
     CollectionRequest, CollectionScope, CollectorSession, CollectorStep, ErrorCode, FigmaTarget,
-    UpstreamResult,
+    ResourceScope, UpstreamResult,
 };
 use serde_json::json;
 
@@ -194,7 +194,7 @@ fn metadata_only_file_collection_completes_without_snapshot_calls() {
 #[test]
 fn variables_only_file_collection_skips_page_and_node_snapshots() {
     let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
-    request.include_variables = true;
+    request.resource_scope = ResourceScope::File;
     request.variables_only = true;
     let mut collector = CollectorSession::new(request);
     let CollectorStep::Call(file_metadata) = collector.advance().unwrap() else {
@@ -359,7 +359,7 @@ fn rejects_unknown_or_replayed_call_ids() {
 #[test]
 fn variable_collection_uses_catalog_then_batched_resources() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
-    request.include_variables = true;
+    request.resource_scope = ResourceScope::File;
     let mut collector = CollectorSession::new(request);
 
     let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
@@ -458,7 +458,7 @@ fn accepts_the_official_xml_metadata_envelope_without_inventing_values() {
 #[test]
 fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
-    request.include_variables = true;
+    request.resource_scope = ResourceScope::File;
     let mut collector = CollectorSession::new(request);
     let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
         panic!()
@@ -534,7 +534,7 @@ fn variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order() {
 #[test]
 fn style_consumers_are_planned_as_compact_bounded_fragments() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
-    request.include_variables = true;
+    request.resource_scope = ResourceScope::File;
     let mut collector = CollectorSession::new(request);
     let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
         panic!()

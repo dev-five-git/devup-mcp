@@ -3,6 +3,7 @@ mod credentials;
 mod errors;
 mod oauth;
 mod payload;
+mod resources;
 mod search;
 mod snapshot;
 mod source;
@@ -17,6 +18,9 @@ pub use errors::{DevupError, ErrorCode};
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
 pub use payload::{
     CollectedPayload, PayloadCompleteness, PayloadStructure, validate_payload_context,
+};
+pub use resources::{
+    ResourceKind, ResourceOccurrence, ResourceScope, UsedResourceRefs, collect_used_resource_refs,
 };
 pub use search::{SearchOptions, SearchResult, search_snapshot};
 pub use snapshot::{

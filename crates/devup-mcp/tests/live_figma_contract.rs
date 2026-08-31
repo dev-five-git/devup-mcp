@@ -3,7 +3,7 @@ use std::io::{self, BufRead};
 use devup_mcp_devup_ui::theme::variable_snapshot_from_result;
 use devup_mcp_figma::{
     CollectedPayload, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
-    FigmaTarget, PayloadStructure, UpstreamResult, validate_payload_context,
+    FigmaTarget, PayloadStructure, ResourceScope, UpstreamResult, validate_payload_context,
 };
 use serde_json::Value;
 
@@ -21,7 +21,7 @@ fn official_mcp_payload_round_trips_without_value_logging() {
     let mut input = io::stdin().lock().lines();
     let target = FigmaTarget::parse(LIVE_URL).expect("static live target");
     let mut request = CollectionRequest::new(target.clone(), CollectionScope::Node);
-    request.include_variables = true;
+    request.resource_scope = ResourceScope::File;
     let mut collector = CollectorSession::new(request);
 
     let parts = loop {

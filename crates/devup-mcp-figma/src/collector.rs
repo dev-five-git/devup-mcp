@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     BuiltinScript, DevupError, ErrorCode, FigmaTarget, RawNode, ReadToolCall, ResourceBatch,
-    ResourceStyleRef, SearchReadOptions, SnapshotChunk, UpstreamResult,
+    ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk, UpstreamResult,
     metadata::{MetadataResult, metadata_from_result_for_target},
     snapshot_chunk_from_result,
     variables::{
@@ -34,7 +34,7 @@ pub enum CollectionScope {
 pub struct CollectionRequest {
     pub target: FigmaTarget,
     pub scope: CollectionScope,
-    pub include_variables: bool,
+    pub resource_scope: ResourceScope,
     pub include_context: bool,
     pub metadata_only: bool,
     pub variables_only: bool,
@@ -46,7 +46,7 @@ impl CollectionRequest {
         Self {
             target,
             scope,
-            include_variables: false,
+            resource_scope: ResourceScope::None,
             include_context: false,
             metadata_only: false,
             variables_only: false,
@@ -172,7 +172,7 @@ impl CollectorSession {
             return Ok(CollectorStep::AwaitingResults);
         }
         if self.metadata.is_some()
-            && self.request.include_variables
+            && self.request.resource_scope == ResourceScope::File
             && self.variable_catalog.is_none()
             && self.variables.is_none()
             && self.queued.is_empty()
@@ -193,7 +193,7 @@ impl CollectorSession {
             return self.advance();
         }
         if self.metadata.is_some()
-            && self.request.include_variables
+            && self.request.resource_scope == ResourceScope::File
             && self.variable_catalog.is_some()
             && self.variables.is_none()
             && self.queued.is_empty()
