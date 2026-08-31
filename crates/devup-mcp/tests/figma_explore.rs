@@ -165,6 +165,7 @@ async fn direct_and_host_explore_return_identical_candidate_data() -> anyhow::Re
             .is_empty()
     );
     assert_eq!(direct["anchor"]["kind"], "heading");
+    assert_eq!(direct["targetKind"], "other");
     assert_eq!(direct["count"], 2);
     assert_eq!(direct["candidates"][0]["node"]["nodeId"], "1:2");
     for field in ["anchor", "group", "candidates", "truncated", "diagnostics"] {

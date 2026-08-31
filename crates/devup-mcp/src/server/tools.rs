@@ -65,6 +65,10 @@ pub struct FigmaExportInput {
     pub refresh: bool,
     #[serde(default)]
     pub output_paths: BTreeMap<String, String>,
+    #[serde(default)]
+    pub frame_ids: Vec<String>,
+    #[serde(default)]
+    pub all_screens: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

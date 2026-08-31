@@ -23,7 +23,7 @@ pub use envelope::{
 pub use errors::{DevupError, ErrorCode};
 pub use explore::{
     ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,
-    ExploreResult, classify_explore_node, explore_snapshot,
+    ExploreResult, TargetKind, classify_explore_node, classify_target, explore_snapshot,
 };
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
 pub use payload::{

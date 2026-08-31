@@ -171,6 +171,10 @@ fn explore_uses_a_bounded_spatial_projection() {
     assert!(code.contains("projectionLimit"));
     assert!(code.contains("textPreviewLimit"));
     assert!(code.contains("projectionTruncated"));
+    assert!(code.contains("anchor.type === \"SECTION\""));
+    assert!(code.contains("breadcrumb"));
+    assert!(code.contains("visible"));
+    assert!(code.contains("sectionQueue"));
     assert!(code.contains("120"));
     assert!(code.contains("96"));
     assert!(!code.contains("page.findAll"));

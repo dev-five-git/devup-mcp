@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use devup_mcp_figma::{
-    ExploreKind, ExploreNode, ExploreOptions, FigmaTarget, RawNode, Snapshot,
-    classify_explore_node, explore_snapshot,
+    ExploreKind, ExploreNode, ExploreOptions, FigmaTarget, RawNode, Snapshot, TargetKind,
+    classify_explore_node, classify_target, explore_snapshot,
 };
 use serde_json::{Map, json};
 
@@ -240,4 +240,164 @@ fn exact_screen_anchor_is_returned_without_semantic_guessing() {
         result.candidates[0].selection_reasons,
         ["exact-screen-anchor"]
     );
+}
+
+#[test]
+fn target_classification_and_section_candidates_are_explicit_and_complete() {
+    let mut page = raw_node("0:1", "PAGE", "Screens", [0.0, 0.0, 2400.0, 2000.0], 2, "");
+    page.fields.insert("parentId".to_owned(), json!(null));
+    page.fields.insert("childrenIds".to_owned(), json!(["1:1"]));
+    let mut section = raw_node(
+        "1:1",
+        "SECTION",
+        "Proofread States",
+        [100.0, 100.0, 1400.0, 1000.0],
+        3,
+        "",
+    );
+    section.fields.insert("parentId".to_owned(), json!("0:1"));
+    section
+        .fields
+        .insert("childrenIds".to_owned(), json!(["1:2", "1:3", "1:4"]));
+    let mut first = raw_node(
+        "1:2",
+        "FRAME",
+        "Default",
+        [120.0, 180.0, 360.0, 740.0],
+        4,
+        "default state",
+    );
+    first.fields.insert("parentId".to_owned(), json!("1:1"));
+    first.fields.insert("visible".to_owned(), json!(true));
+    first.fields.insert(
+        "breadcrumb".to_owned(),
+        json!(["Screens", "Proofread States", "Default"]),
+    );
+    first.fields.insert("pageChildIndex".to_owned(), json!(0));
+    let mut hidden = raw_node(
+        "1:3",
+        "FRAME",
+        "Hidden",
+        [520.0, 180.0, 360.0, 740.0],
+        2,
+        "hidden state",
+    );
+    hidden.fields.insert("parentId".to_owned(), json!("1:1"));
+    hidden.fields.insert("visible".to_owned(), json!(false));
+    let mut nested_container = raw_node(
+        "1:4",
+        "GROUP",
+        "Nested",
+        [920.0, 160.0, 400.0, 800.0],
+        1,
+        "",
+    );
+    nested_container
+        .fields
+        .insert("parentId".to_owned(), json!("1:1"));
+    nested_container
+        .fields
+        .insert("childrenIds".to_owned(), json!(["1:5"]));
+    let mut nested = raw_node(
+        "1:5",
+        "FRAME",
+        "Nested screen",
+        [940.0, 180.0, 360.0, 740.0],
+        3,
+        "nested state",
+    );
+    nested.fields.insert("parentId".to_owned(), json!("1:4"));
+    nested.fields.insert("visible".to_owned(), json!(true));
+    nested.fields.insert(
+        "breadcrumb".to_owned(),
+        json!(["Screens", "Proofread States", "Nested", "Nested screen"]),
+    );
+    nested.fields.insert("pageChildIndex".to_owned(), json!(0));
+    let mut component = raw_node(
+        "2:1",
+        "COMPONENT",
+        "Button",
+        [1700.0, 100.0, 320.0, 480.0],
+        2,
+        "",
+    );
+    component.fields.insert("parentId".to_owned(), json!("0:1"));
+    let other = raw_node(
+        "2:2",
+        "TEXT",
+        "Note",
+        [1700.0, 600.0, 200.0, 40.0],
+        0,
+        "note",
+    );
+    let snapshot = Snapshot {
+        file_key: "85CgSws3o5XsLv7aAwWJyS".to_owned(),
+        version: None,
+        roots: vec!["0:1".to_owned()],
+        nodes: [
+            page,
+            section,
+            first,
+            hidden,
+            nested_container,
+            nested,
+            component,
+            other,
+        ]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    };
+
+    assert_eq!(
+        classify_target(
+            &snapshot,
+            &FigmaTarget {
+                file_key: snapshot.file_key.clone(),
+                node_id: None,
+                branch_key: None,
+            }
+        ),
+        TargetKind::File
+    );
+    assert_eq!(classify_target(&snapshot, &target("0:1")), TargetKind::Page);
+    assert_eq!(
+        classify_target(&snapshot, &target("1:1")),
+        TargetKind::Section
+    );
+    assert_eq!(
+        classify_target(&snapshot, &target("1:2")),
+        TargetKind::Screen
+    );
+    assert_eq!(
+        classify_target(&snapshot, &target("2:1")),
+        TargetKind::Component
+    );
+    assert_eq!(
+        classify_target(&snapshot, &target("2:2")),
+        TargetKind::Other
+    );
+
+    let result = explore_snapshot(&snapshot, &target("1:1"), &ExploreOptions { limit: 50 })
+        .expect("section exploration");
+    assert_eq!(result.target_kind, TargetKind::Section);
+    assert_eq!(
+        result
+            .candidates
+            .iter()
+            .map(|candidate| candidate.node.node_id.as_str())
+            .collect::<Vec<_>>(),
+        ["1:2", "1:5"]
+    );
+    let first = &result.candidates[0];
+    assert!(first.node.visible);
+    assert_eq!(first.node.child_count, 4);
+    assert_eq!(
+        first.node.breadcrumb,
+        ["Screens", "Proofread States", "Default"]
+    );
+    assert_eq!(first.node.page_child_index, Some(0));
+    assert_eq!(first.node.bounds.width, 360.0);
+    assert!(first.canonical_url.ends_with("node-id=1-2"));
 }

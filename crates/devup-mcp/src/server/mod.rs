@@ -25,7 +25,8 @@ use devup_mcp_figma::{
     CollectorSession, CollectorStep, CompletenessState, CredentialStore, DevupError, ErrorCode,
     ExploreOptions, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore,
     OAuthManager, RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SourcePolicy,
-    SystemBrowser, explore_snapshot, fallback_allowed_for_error, search_snapshot,
+    SystemBrowser, TargetKind, classify_target, explore_snapshot, fallback_allowed_for_error,
+    search_snapshot,
 };
 
 use artifacts::{ArtifactLookup, ArtifactRequestKey, ArtifactStore};
@@ -436,6 +437,8 @@ impl DevupServer {
                     scope: input.scope,
                     strict: input.strict,
                     output_paths: input.output_paths,
+                    frame_ids: input.frame_ids,
+                    all_screens: input.all_screens,
                 },
                 &artifact.payload,
                 "artifact",
@@ -480,6 +483,8 @@ impl DevupServer {
                     scope: input.scope,
                     strict: input.strict,
                     output_paths: input.output_paths,
+                    frame_ids: input.frame_ids,
+                    all_screens: input.all_screens,
                 },
                 request,
                 policy,
@@ -648,6 +653,7 @@ fn complete_operation(
             let count = result.candidates.len();
             Ok(json!({
                 "status": status,
+                "targetKind": result.target_kind,
                 "anchor": result.anchor,
                 "group": result.group,
                 "count": count,
@@ -674,6 +680,8 @@ fn complete_operation(
             scope,
             strict,
             output_paths,
+            frame_ids,
+            all_screens,
         } => {
             if strict && completeness_report.state != CompletenessState::Complete {
                 return Err(DevupError::with_details(
@@ -701,9 +709,140 @@ fn complete_operation(
                     "version": payload.snapshot.version
                 }),
             );
+            let target_kind = classify_target(&payload.snapshot, &payload.target);
+            result.insert("targetKind".to_owned(), json!(target_kind));
+
+            if !frame_ids.is_empty() && all_screens {
+                return Err(DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "frameIds와 allScreens는 동시에 사용할 수 없습니다.",
+                    false,
+                ));
+            }
+            if target_kind != TargetKind::Section && (!frame_ids.is_empty() || all_screens) {
+                return Err(DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "frameIds와 allScreens는 Section artifact에서만 사용할 수 있습니다.",
+                    false,
+                ));
+            }
+
+            let section_candidates = if target_kind == TargetKind::Section
+                && outputs.iter().any(|output| output == "tsx")
+            {
+                Some(
+                    explore_snapshot(
+                        &payload.snapshot,
+                        &payload.target,
+                        &ExploreOptions { limit: 100 },
+                    )?
+                    .candidates,
+                )
+            } else {
+                None
+            };
+            if let Some(candidates) = &section_candidates
+                && frame_ids.is_empty()
+                && !all_screens
+            {
+                result.insert("status".to_owned(), json!("selection_required"));
+                result.insert(
+                    "selection".to_owned(),
+                    json!({
+                        "kind": "screen-frame",
+                        "candidates": candidates,
+                        "truncated": candidates.len() == 100
+                    }),
+                );
+                return Ok(Value::Object(result));
+            }
 
             let mut written_paths = Map::new();
-            if outputs.iter().any(|output| output == "tsx") {
+            let mut section_tsx_projected = false;
+            if let Some(candidates) = section_candidates {
+                let by_id = candidates
+                    .iter()
+                    .map(|candidate| (candidate.node.node_id.as_str(), candidate))
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                let selected = if all_screens {
+                    candidates.iter().collect::<Vec<_>>()
+                } else {
+                    let mut seen = std::collections::BTreeSet::new();
+                    frame_ids
+                        .iter()
+                        .map(|node_id| {
+                            if !seen.insert(node_id.as_str()) {
+                                return Err(DevupError::new(
+                                    ErrorCode::DevupSnapshotUnsupported,
+                                    format!("frameIds에 중복 node가 있습니다: {node_id}"),
+                                    false,
+                                ));
+                            }
+                            by_id.get(node_id.as_str()).copied().ok_or_else(|| {
+                                DevupError::new(
+                                    ErrorCode::DevupFigmaNodeNotFound,
+                                    format!(
+                                        "Section 내부 screen frame이 아니거나 존재하지 않습니다: {node_id}"
+                                    ),
+                                    false,
+                                )
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                };
+                let mut frames = Vec::with_capacity(selected.len());
+                for (index, candidate) in selected.into_iter().enumerate() {
+                    let frame_component_name = component_name.as_ref().map(|name| {
+                        if frame_ids.len() <= 1 && !all_screens {
+                            name.clone()
+                        } else {
+                            format!("{name}{}", index + 1)
+                        }
+                    });
+                    let output = generate_component(
+                        &payload.snapshot,
+                        &candidate.node.node_id,
+                        &CodegenOptions {
+                            component_name: frame_component_name,
+                            include_diagnostics,
+                            inline_instances: true,
+                            root_layout,
+                            ..CodegenOptions::default()
+                        }
+                        .with_payload_tokens(payload),
+                    )?;
+                    let source_map = json!({
+                        "version": 1,
+                        "tsx": [],
+                        "source": {
+                            "fileKey": payload.target.file_key,
+                            "rootNodeId": candidate.node.node_id,
+                            "sourceVersion": payload.source_version
+                        }
+                    });
+                    let mut frame = json!({
+                        "nodeId": candidate.node.node_id,
+                        "name": candidate.node.name,
+                        "canonicalUrl": candidate.canonical_url,
+                        "status": status,
+                        "tsx": output.tsx,
+                        "imports": output.imports,
+                        "usedTokens": output.used_tokens,
+                        "completenessReport": &completeness_report
+                    });
+                    if outputs.iter().any(|output| output == "sourceMap") {
+                        frame["sourceMap"] = source_map;
+                    }
+                    if include_diagnostics {
+                        frame["diagnostics"] = json!(output.diagnostics);
+                    }
+                    frames.push(frame);
+                }
+                result.insert("frames".to_owned(), Value::Array(frames));
+                section_tsx_projected = true;
+            }
+
+            if outputs.iter().any(|output| output == "tsx") && !section_tsx_projected {
                 let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupFigmaNodeNotFound,
@@ -783,7 +922,7 @@ fn complete_operation(
                 result.insert("rawSnapshot".to_owned(), raw);
             }
 
-            if outputs.iter().any(|output| output == "sourceMap") {
+            if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
                     "version": 1,
                     "tsx": [],

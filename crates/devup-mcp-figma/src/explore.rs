@@ -46,6 +46,17 @@ pub enum ExploreKind {
     Unknown,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TargetKind {
+    File,
+    Page,
+    Section,
+    Screen,
+    Component,
+    Other,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExploreNode {
@@ -57,6 +68,9 @@ pub struct ExploreNode {
     pub text_preview: String,
     pub parent_id: Option<String>,
     pub kind: ExploreKind,
+    pub visible: bool,
+    pub breadcrumb: Vec<String>,
+    pub page_child_index: Option<usize>,
 }
 
 impl TryFrom<&RawNode> for ExploreNode {
@@ -112,6 +126,19 @@ impl TryFrom<&RawNode> for ExploreNode {
             text_preview: view.string("textPreview").unwrap_or_default().to_owned(),
             parent_id: view.string("parentId").map(str::to_owned),
             kind: ExploreKind::Unknown,
+            visible: view.bool("visible").unwrap_or(true),
+            breadcrumb: view
+                .value("breadcrumb")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+            page_child_index: view
+                .value("pageChildIndex")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok()),
         };
         result.kind = classify_explore_node(&result);
         Ok(result)
@@ -150,10 +177,33 @@ pub struct ExploreGroup {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExploreResult {
+    pub target_kind: TargetKind,
     pub anchor: ExploreNode,
     pub group: Option<ExploreGroup>,
     pub candidates: Vec<ExploreCandidate>,
     pub truncated: bool,
+}
+
+pub fn classify_target(snapshot: &Snapshot, target: &FigmaTarget) -> TargetKind {
+    let Some(node_id) = target.node_id.as_deref() else {
+        return TargetKind::File;
+    };
+    let Some(node) = snapshot.nodes.get(node_id) else {
+        return TargetKind::Other;
+    };
+    match node.node_type.as_str() {
+        "PAGE" => TargetKind::Page,
+        "SECTION" => TargetKind::Section,
+        "COMPONENT" | "COMPONENT_SET" | "INSTANCE" => TargetKind::Component,
+        "FRAME" => ExploreNode::try_from(node).map_or(TargetKind::Other, |node| {
+            if node.kind == ExploreKind::Screen {
+                TargetKind::Screen
+            } else {
+                TargetKind::Other
+            }
+        }),
+        _ => TargetKind::Other,
+    }
 }
 
 pub fn classify_explore_node(node: &ExploreNode) -> ExploreKind {
@@ -226,7 +276,9 @@ pub fn explore_snapshot(
             false,
         )
     })?;
-    let anchor = ExploreNode::try_from(raw_anchor)?;
+    let mut anchor = ExploreNode::try_from(raw_anchor)?;
+    enrich_node(snapshot, &mut anchor);
+    let target_kind = classify_target(snapshot, target);
     let projection_truncated = snapshot
         .nodes
         .values()
@@ -234,6 +286,7 @@ pub fn explore_snapshot(
 
     if anchor.kind == ExploreKind::Screen {
         return Ok(ExploreResult {
+            target_kind,
             group: Some(ExploreGroup {
                 title: anchor.name.clone(),
                 heading_node_id: None,
@@ -250,11 +303,67 @@ pub fn explore_snapshot(
         });
     }
 
+    if target_kind == TargetKind::Section {
+        let mut nodes = snapshot
+            .nodes
+            .values()
+            .filter(|node| node.id != anchor.node_id)
+            .filter(|node| node.node_type == "FRAME")
+            .filter_map(|node| {
+                let mut node = ExploreNode::try_from(node).ok()?;
+                enrich_node(snapshot, &mut node);
+                (node.visible
+                    && node.kind == ExploreKind::Screen
+                    && is_descendant_of(snapshot, &node.node_id, &anchor.node_id))
+                .then_some(node)
+            })
+            .collect::<Vec<_>>();
+        let screen_ids = nodes
+            .iter()
+            .map(|node| node.node_id.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        nodes.retain(|node| {
+            !ancestor_ids(snapshot, &node.node_id, &anchor.node_id)
+                .iter()
+                .any(|ancestor| screen_ids.contains(ancestor))
+        });
+        nodes.sort_by(visual_order);
+        let candidate_count = nodes.len();
+        nodes.truncate(options.limit);
+        let candidates = nodes
+            .into_iter()
+            .map(|node| ExploreCandidate {
+                canonical_url: canonical_url(target, &node.node_id),
+                node,
+                score: 900,
+                selection_reasons: vec!["screen-like".to_owned(), "inside-section".to_owned()],
+            })
+            .collect::<Vec<_>>();
+        let group_bounds = candidates.iter().fold(anchor.bounds, |bounds, candidate| {
+            bounds.union(candidate.node.bounds)
+        });
+        return Ok(ExploreResult {
+            target_kind,
+            group: Some(ExploreGroup {
+                title: anchor.name.clone(),
+                heading_node_id: None,
+                bounds: group_bounds,
+            }),
+            anchor,
+            candidates,
+            truncated: projection_truncated || candidate_count > options.limit,
+        });
+    }
+
     let mut nodes = snapshot
         .nodes
         .values()
         .filter(|node| node.id != anchor.node_id)
-        .filter_map(|node| ExploreNode::try_from(node).ok())
+        .filter_map(|node| {
+            let mut node = ExploreNode::try_from(node).ok()?;
+            enrich_node(snapshot, &mut node);
+            node.visible.then_some(node)
+        })
         .collect::<Vec<_>>();
     let anchor_is_requirement = looks_like_requirement_heading(&anchor.name);
     let next_heading_y = nodes
@@ -309,6 +418,7 @@ pub fn explore_snapshot(
     });
 
     Ok(ExploreResult {
+        target_kind,
         group: Some(ExploreGroup {
             title: anchor.name.clone(),
             heading_node_id: (anchor.kind == ExploreKind::Heading).then(|| anchor.node_id.clone()),
@@ -318,6 +428,49 @@ pub fn explore_snapshot(
         candidates,
         truncated: projection_truncated || candidate_count > options.limit,
     })
+}
+
+fn enrich_node(snapshot: &Snapshot, node: &mut ExploreNode) {
+    if node.breadcrumb.is_empty() {
+        let mut breadcrumb = ancestor_ids(snapshot, &node.node_id, "");
+        breadcrumb.reverse();
+        node.breadcrumb = breadcrumb
+            .into_iter()
+            .filter_map(|id| snapshot.nodes.get(&id))
+            .filter_map(|node| node.typed_view().name())
+            .map(str::to_owned)
+            .chain(std::iter::once(node.name.clone()))
+            .collect();
+    }
+}
+
+fn is_descendant_of(snapshot: &Snapshot, node_id: &str, ancestor_id: &str) -> bool {
+    ancestor_ids(snapshot, node_id, ancestor_id)
+        .iter()
+        .any(|id| id == ancestor_id)
+}
+
+fn ancestor_ids(snapshot: &Snapshot, node_id: &str, stop_id: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = snapshot
+        .nodes
+        .get(node_id)
+        .and_then(|node| node.typed_view().string("parentId"));
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(parent_id) = current {
+        if !visited.insert(parent_id.to_owned()) {
+            break;
+        }
+        result.push(parent_id.to_owned());
+        if parent_id == stop_id {
+            break;
+        }
+        current = snapshot
+            .nodes
+            .get(parent_id)
+            .and_then(|node| node.typed_view().string("parentId"));
+    }
+    result
 }
 
 fn horizontal_overlap(left: ExploreBounds, right: ExploreBounds) -> f64 {

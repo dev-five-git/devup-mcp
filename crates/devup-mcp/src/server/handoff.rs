@@ -42,6 +42,8 @@ pub enum PendingOperation {
         scope: String,
         strict: bool,
         output_paths: BTreeMap<String, String>,
+        frame_ids: Vec<String>,
+        all_screens: bool,
     },
     Search {
         query: String,

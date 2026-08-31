@@ -51,6 +51,16 @@ function textPreview(node) {
   return values.filter(Boolean).join(" ").slice(0, textPreviewLimit);
 }
 
+function breadcrumb(node) {
+  const names = [];
+  let current = node;
+  while (current && current.type !== "DOCUMENT") {
+    if (typeof current.name === "string" && current.name) names.push(current.name);
+    current = current.parent;
+  }
+  return names.reverse();
+}
+
 const anchorBounds = bounds(anchorPeer) || bounds(anchor);
 if (!anchorBounds) throw new Error("DEVUP_NODE_BOUNDS_UNAVAILABLE");
 const pageChildren = "children" in page ? page.children : [];
@@ -68,7 +78,9 @@ const eligible = pageChildren
       || left.bounds.x - right.bounds.x
       || left.node.id.localeCompare(right.node.id),
   );
-const selected = eligible.slice(0, projectionLimit);
+const selected = anchor.type === "SECTION"
+  ? eligible.filter((entry) => entry.node.id === anchorPeer.id)
+  : eligible.slice(0, projectionLimit);
 const included = new Map(selected.map((entry) => [entry.node.id, entry]));
 if (!included.has(anchorPeer.id)) {
   included.set(anchorPeer.id, { node: anchorPeer, pageChildIndex: -1, bounds: bounds(anchorPeer) });
@@ -82,6 +94,21 @@ if ("children" in anchor) {
       included.set(child.id, { node: child, pageChildIndex: -1, bounds: bounds(child) });
     }
   }
+}
+let sectionTraversalTruncated = false;
+if (anchor.type === "SECTION" && "children" in anchor) {
+  const sectionQueue = [...anchor.children];
+  let visited = 0;
+  const traversalLimit = projectionLimit * 8;
+  while (sectionQueue.length && visited < traversalLimit) {
+    const node = sectionQueue.shift();
+    visited += 1;
+    if (!included.has(node.id)) {
+      included.set(node.id, { node, pageChildIndex: -1, bounds: bounds(node) });
+    }
+    if ("children" in node) sectionQueue.push(...node.children);
+  }
+  sectionTraversalTruncated = sectionQueue.length > 0;
 }
 
 const compact = [...included.values()]
@@ -100,7 +127,9 @@ const compact = [...included.values()]
       height: box.height,
       childCount: "children" in node ? node.children.length : 0,
       textPreview: textPreview(node),
-      pageChildIndex,
+      pageChildIndex: pageChildIndex >= 0 ? pageChildIndex : null,
+      visible: node.visible !== false,
+      breadcrumb: breadcrumb(node),
     },
     extra: {},
     fieldErrors: {},
@@ -116,8 +145,9 @@ const projectedBounds = compact.reduce((result, node) => {
     bottom: Math.max(result.bottom, box.y + box.height),
   };
 }, null) || { x: 0, y: 0, right: 0, bottom: 0 };
-const projectionTruncated = eligible.length > selected.length
-  || included.size > projectionLimit + 2;
+const projectionTruncated = (anchor.type !== "SECTION" && eligible.length > selected.length)
+  || included.size > projectionLimit + 2
+  || sectionTraversalTruncated;
 const pageNode = {
   id: page.id,
   type: page.type,
@@ -132,6 +162,9 @@ const pageNode = {
     childCount: pageChildren.length,
     textPreview: "",
     projectionTruncated,
+    visible: page.visible !== false,
+    breadcrumb: breadcrumb(page),
+    pageChildIndex: null,
   },
   extra: {},
   fieldErrors: {},
