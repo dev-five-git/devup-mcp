@@ -347,7 +347,7 @@
 
   Verify the configured Codex MCP entry still points at the installed executable; note that an already-running Codex session may require a restart to load the new binary.
 
-- [ ] **Step 7: Commit, push, and update PR #1**
+- [x] **Step 7: Commit, push, and update PR #1**
 
   Create a final focused docs/release commit if needed, push `owjs3901/figma-remote-mcp`, and update PR `https://github.com/dev-five-git/devup-mcp/pull/1` with requirements, architecture, test evidence, live call count, fixture audit wording, security/privacy considerations, assumptions, and remaining live-runtime risks.
 
