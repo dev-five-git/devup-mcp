@@ -1,6 +1,7 @@
 mod collector;
 mod credentials;
 mod errors;
+mod explore;
 mod oauth;
 mod payload;
 mod resources;
@@ -15,6 +16,10 @@ pub use credentials::{
     CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
 };
 pub use errors::{DevupError, ErrorCode};
+pub use explore::{
+    ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,
+    ExploreResult, classify_explore_node, explore_snapshot,
+};
 pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
 pub use payload::{
     CollectedPayload, PayloadCompleteness, PayloadStructure, validate_payload_context,
@@ -33,8 +38,8 @@ pub use source::{
     upstream_failure_error,
 };
 pub use upstream::{
-    BuiltinScript, FigmaUpstream, ReadToolCall, RemoteFigmaClient, SearchReadOptions,
-    UpstreamResult,
+    BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,
+    SearchReadOptions, UpstreamResult,
 };
 pub use url::FigmaTarget;
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};

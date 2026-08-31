@@ -1,6 +1,6 @@
 use devup_mcp_figma::{
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, ErrorCode, FigmaTarget,
-    ResourceScope, UpstreamResult,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, ErrorCode,
+    ExploreReadOptions, FigmaTarget, ResourceScope, UpstreamResult,
 };
 use serde_json::json;
 
@@ -690,4 +690,58 @@ fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
                     && diagnostic.message.contains("S:text")
             })
     );
+}
+
+#[test]
+fn explore_collection_starts_with_one_bounded_projection_and_no_resources() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.explore = Some(ExploreReadOptions::default());
+    request.resource_scope = ResourceScope::None;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(explore_call) = collector.advance().unwrap() else {
+        panic!("explore projection call expected")
+    };
+    assert_eq!(explore_call.call.tool_name(), "use_figma");
+    assert_eq!(explore_call.expected_node_id.as_deref(), Some("1:2"));
+    let code = explore_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(code.contains("projectionTruncated"));
+    assert!(!code.contains("getLocalVariableCollectionsAsync"));
+    assert!(!code.contains("getVariableByIdAsync"));
+
+    collector
+        .accept(
+            &explore_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "fileKey": "FileKey123",
+                    "version": null,
+                    "rootIds": ["0:1"],
+                    "nodes": [
+                        {
+                            "id": "0:1", "type": "PAGE",
+                            "fields": {"name": "Page", "x": 0, "y": 0, "width": 1000, "height": 1000, "projectionTruncated": false},
+                            "extra": {}, "fieldErrors": {}
+                        },
+                        {
+                            "id": "1:2", "type": "FRAME",
+                            "fields": {"name": "Heading", "parentId": "0:1", "x": 0, "y": 0, "width": 1000, "height": 80, "childCount": 1},
+                            "extra": {}, "fieldErrors": {}
+                        }
+                    ],
+                    "diagnostics": []
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("explore collection should complete after one projection")
+    };
+    assert_eq!(parts.snapshot_chunks.len(), 1);
+    assert_eq!(parts.snapshot_chunks[0].nodes.len(), 2);
+    assert!(parts.variables.is_none());
 }

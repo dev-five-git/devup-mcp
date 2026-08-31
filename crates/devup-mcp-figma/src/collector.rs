@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::{
-    BuiltinScript, DevupError, ErrorCode, FigmaTarget, RawNode, ReadToolCall, ResourceBatch,
-    ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk, UnresolvedResource,
-    UpstreamResult, UsedResourceRefs, collect_used_resource_refs,
+    BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, RawNode, ReadToolCall,
+    ResourceBatch, ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk,
+    UnresolvedResource, UpstreamResult, UsedResourceRefs, collect_used_resource_refs,
     metadata::{MetadataResult, metadata_from_result_for_target},
     snapshot_chunk_from_result,
     variables::{
@@ -40,6 +40,7 @@ pub struct CollectionRequest {
     pub metadata_only: bool,
     pub variables_only: bool,
     pub search: Option<SearchReadOptions>,
+    pub explore: Option<ExploreReadOptions>,
 }
 
 impl CollectionRequest {
@@ -52,6 +53,7 @@ impl CollectionRequest {
             metadata_only: false,
             variables_only: false,
             search: None,
+            explore: None,
         }
     }
 }
@@ -90,6 +92,7 @@ enum CallKind {
     VariableCatalog,
     VariableBatch,
     UsedResourceBatch,
+    Explore,
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +149,21 @@ impl CollectorSession {
             return Err(invalid_call("완료된 Figma 수집 session입니다."));
         }
         if self.metadata.is_none() && self.pending.is_empty() && self.queued.is_empty() {
+            if let Some(options) = self.request.explore.clone() {
+                let node_id = self.request.target.node_id.clone().ok_or_else(|| {
+                    invalid_call("Figma 주변 화면 탐색에는 node ID가 필요합니다.")
+                })?;
+                self.enqueue(
+                    ReadToolCall::explore_snapshot(
+                        &self.request.target.file_key,
+                        &node_id,
+                        options,
+                    ),
+                    Some(node_id),
+                    CallKind::Explore,
+                );
+                return self.advance();
+            }
             if self.request.search.is_some() {
                 self.enqueue(
                     ReadToolCall::page_catalog(&self.request.target.file_key),
@@ -291,6 +309,7 @@ impl CollectorSession {
                 self.variable_batches.insert(pending.order, batch);
                 Ok(())
             }
+            CallKind::Explore => self.accept_explore(&pending.planned, pending.order, result),
         }
     }
 
@@ -335,6 +354,37 @@ impl CollectorSession {
                 CallKind::Snapshot,
             );
         }
+        Ok(())
+    }
+
+    fn accept_explore(
+        &mut self,
+        planned: &PlannedCall,
+        order: usize,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let chunk = snapshot_chunk_from_result(&result)?;
+        if chunk.file_key != planned.expected_file_key {
+            return Err(invalid_call(
+                "Figma 탐색 projection의 file key가 요청과 다릅니다.",
+            ));
+        }
+        let expected_node_id = planned
+            .expected_node_id
+            .as_deref()
+            .ok_or_else(|| invalid_call("Figma 탐색 projection의 expected node ID가 없습니다."))?;
+        if !chunk.nodes.iter().any(|node| node.id == expected_node_id) {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "Figma 탐색 projection에서 anchor node를 찾지 못했습니다.",
+                false,
+            ));
+        }
+        self.source_version = chunk.version.clone();
+        self.root_node_id = Some(expected_node_id.to_owned());
+        self.metadata_root_ids = chunk.root_ids.clone();
+        self.metadata = Some(result.raw);
+        self.snapshot_chunks.insert(order, chunk);
         Ok(())
     }
 

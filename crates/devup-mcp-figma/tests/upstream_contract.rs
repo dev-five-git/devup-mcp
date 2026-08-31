@@ -1,5 +1,6 @@
 use devup_mcp_figma::{
-    BuiltinScript, ReadToolCall, ResourceBatch, ResourceStyleRef, SearchReadOptions,
+    BuiltinScript, ExploreReadOptions, ReadToolCall, ResourceBatch, ResourceStyleRef,
+    SearchReadOptions,
 };
 
 #[test]
@@ -131,6 +132,30 @@ fn search_uses_a_compiled_read_only_page_projection() {
 }
 
 #[test]
+fn explore_uses_a_bounded_spatial_projection() {
+    let call = ReadToolCall::explore_snapshot(
+        "file-key",
+        "3879:35481",
+        ExploreReadOptions {
+            projection_limit: 120,
+            text_preview_limit: 96,
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("figma.getNodeByIdAsync"));
+    assert!(code.contains("current.type !== \"PAGE\""));
+    assert!(code.contains("projectionLimit"));
+    assert!(code.contains("textPreviewLimit"));
+    assert!(code.contains("projectionTruncated"));
+    assert!(code.contains("120"));
+    assert!(code.contains("96"));
+    assert!(!code.contains("page.findAll"));
+    assert!(!code.contains("eval("));
+}
+
+#[test]
 fn style_consumers_use_async_compact_range_projection() {
     let call = ReadToolCall::resource_batch(
         "file-key",
@@ -187,6 +212,7 @@ fn built_in_scripts_expose_only_read_operations() {
         BuiltinScript::VariableCatalog,
         BuiltinScript::LocalVariables,
         BuiltinScript::UsedResources,
+        BuiltinScript::ExploreSnapshot,
     ] {
         let call = ReadToolCall::snapshot("file-key", "1:2", script);
         let code = call.arguments()["code"].as_str().unwrap().to_owned();
