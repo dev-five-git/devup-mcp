@@ -759,6 +759,8 @@ fn complete_operation(
 
             let mut written_paths = Map::new();
             let mut section_tsx_projected = false;
+            let mut tsx_source_map = None;
+            let mut devup_json_source_map = None;
             if let Some(candidates) = section_candidates {
                 let by_id = candidates
                     .iter()
@@ -812,8 +814,8 @@ fn complete_operation(
                         .with_payload_tokens(payload),
                     )?;
                     let source_map = json!({
-                        "version": 1,
-                        "tsx": [],
+                        "version": output.source_map.version,
+                        "entries": output.source_map.entries,
                         "source": {
                             "fileKey": payload.target.file_key,
                             "rootNodeId": candidate.node.node_id,
@@ -862,6 +864,7 @@ fn complete_operation(
                     }
                     .with_payload_tokens(payload),
                 )?;
+                tsx_source_map = Some(output.source_map.clone());
                 if let Some(path) = output_paths.get("tsx") {
                     written_paths.insert("tsx".to_owned(), json!(write_output(path, &output.tsx)?));
                 }
@@ -883,6 +886,7 @@ fn complete_operation(
                 })?;
                 let variables = variable_snapshot_from_result(variables)?;
                 let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+                devup_json_source_map = Some(output.source_map.clone());
                 if let Some(path) = output_paths.get("devupJson") {
                     written_paths.insert(
                         "devupJson".to_owned(),
@@ -925,8 +929,10 @@ fn complete_operation(
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
                     "version": 1,
-                    "tsx": [],
-                    "devupJson": [],
+                    "tsx": tsx_source_map.map(|source_map| source_map.entries).unwrap_or_default(),
+                    "devupJson": devup_json_source_map
+                        .map(|source_map| source_map.entries)
+                        .unwrap_or_default(),
                     "source": {
                         "fileKey": payload.target.file_key,
                         "rootNodeId": payload.target.node_id,

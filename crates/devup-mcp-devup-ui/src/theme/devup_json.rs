@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use devup_mcp_figma::{DevupError, Diagnostic, DiagnosticSeverity, ErrorCode, UpstreamResult};
 
 use super::tokens::{normalize_token, variable_token};
+use crate::provenance::{ProvenanceEntry, SourceMap, json_pointer_segment};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -101,6 +102,7 @@ pub struct ThemeOutput {
     pub diagnostics: Vec<Diagnostic>,
     pub conflicts: Vec<ThemeConflict>,
     pub unresolved_variables: Vec<ThemeUnresolvedVariable>,
+    pub source_map: SourceMap,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,6 +157,7 @@ struct ProjectedVariable {
     mode_id: String,
     source: ThemeVariableSource,
     value: Value,
+    resolution: String,
 }
 
 pub fn generate_devup_json(
@@ -164,6 +167,7 @@ pub fn generate_devup_json(
     let mut diagnostics = Vec::new();
     let mut conflicts = Vec::new();
     let mut unresolved_variables = Vec::new();
+    let mut source_entries = Vec::new();
     let collections = snapshot
         .collections
         .iter()
@@ -287,6 +291,17 @@ pub fn generate_devup_json(
                         mode_id: mode.mode_id.clone(),
                         source: candidate.source,
                         value,
+                        resolution: if variable
+                            .values_by_mode
+                            .get(&mode.mode_id)
+                            .and_then(|value| value.get("type"))
+                            .and_then(Value::as_str)
+                            == Some("VARIABLE_ALIAS")
+                        {
+                            "alias".to_owned()
+                        } else {
+                            "variable".to_owned()
+                        },
                     });
             }
         }
@@ -311,6 +326,21 @@ pub fn generate_devup_json(
             }
             _ => continue,
         }
+        let category = if kind == "color" { "colors" } else { "length" };
+        source_entries.push(ProvenanceEntry {
+            generated_range: None,
+            json_pointer: Some(format!(
+                "/theme/{}/{}/{}",
+                category,
+                json_pointer_segment(&mode),
+                json_pointer_segment(&token)
+            )),
+            node_id: None,
+            property: None,
+            variable_id: Some(winner.variable_id.clone()),
+            style_id: None,
+            resolution: winner.resolution.clone(),
+        });
         if candidates
             .iter()
             .skip(1)
@@ -370,10 +400,34 @@ pub fn generate_devup_json(
         let token = normalize_token(&style.name);
         match style.style_type.as_str() {
             "TEXT" => {
-                typography.insert(token, style.value.clone());
+                typography.insert(token.clone(), style.value.clone());
+                source_entries.push(ProvenanceEntry {
+                    generated_range: None,
+                    json_pointer: Some(format!(
+                        "/theme/typography/{}",
+                        json_pointer_segment(&token)
+                    )),
+                    node_id: None,
+                    property: None,
+                    variable_id: None,
+                    style_id: Some(style.id.clone()),
+                    resolution: "style".to_owned(),
+                });
             }
             "EFFECT" => {
-                shadows.insert(token, style.value.clone());
+                shadows.insert(token.clone(), style.value.clone());
+                source_entries.push(ProvenanceEntry {
+                    generated_range: None,
+                    json_pointer: Some(format!(
+                        "/theme/shadow/default/{}",
+                        json_pointer_segment(&token)
+                    )),
+                    node_id: None,
+                    property: None,
+                    variable_id: None,
+                    style_id: Some(style.id.clone()),
+                    resolution: "style".to_owned(),
+                });
             }
             _ => {}
         }
@@ -409,6 +463,7 @@ pub fn generate_devup_json(
             .then_with(|| left.mode_id.cmp(&right.mode_id))
             .then_with(|| left.reason.cmp(&right.reason))
     });
+    source_entries.sort_by(|left, right| left.json_pointer.cmp(&right.json_pointer));
     Ok(ThemeOutput {
         json: output,
         counts: ThemeCounts {
@@ -425,6 +480,10 @@ pub fn generate_devup_json(
         diagnostics,
         conflicts,
         unresolved_variables,
+        source_map: SourceMap {
+            version: 1,
+            entries: source_entries,
+        },
     })
 }
 

@@ -168,6 +168,7 @@ pub(super) fn generate_variant_component_set(
         imports: imports.into_iter().collect(),
         used_tokens: BTreeSet::new(),
         diagnostics: Vec::<Diagnostic>::new(),
+        source_map: crate::provenance::SourceMap::empty(),
     }))
 }
 

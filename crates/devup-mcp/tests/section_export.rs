@@ -122,6 +122,13 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .contains("Second")
     );
     assert_eq!(selected["frames"][0]["sourceMap"]["version"], 1);
+    assert!(
+        selected["frames"][0]["sourceMap"]["entries"]
+            .as_array()
+            .is_some_and(|entries| entries
+                .iter()
+                .any(|entry| entry["nodeId"] == "10:2" && entry["property"] == "type"))
+    );
     assert_eq!(selected["cache"]["cacheHit"], true);
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
 

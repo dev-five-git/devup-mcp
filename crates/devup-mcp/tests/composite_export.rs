@@ -120,6 +120,19 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
     assert_eq!(first["sourceMap"]["version"], 1);
+    assert!(first["sourceMap"]["tsx"].as_array().is_some_and(|entries| {
+        entries.iter().any(|entry| {
+            entry["nodeId"] == "1:2" && entry["property"] == "fills" && entry["variableId"] == "v"
+        })
+    }));
+    assert!(
+        first["sourceMap"]["devupJson"]
+            .as_array()
+            .is_some_and(|entries| entries.iter().any(|entry| {
+                entry["jsonPointer"] == "/theme/colors/default/primary"
+                    && entry["variableId"] == "v"
+            }))
+    );
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
 
     let artifact_id = first["cache"]["artifactId"].as_str().unwrap();

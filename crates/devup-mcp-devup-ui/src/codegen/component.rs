@@ -6,6 +6,7 @@ use devup_mcp_figma::{
 use serde::{Deserialize, Serialize};
 
 use super::{layout, style, text, variant};
+use crate::provenance::{SourceMap, finalize_tsx, mark_node};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +40,7 @@ pub struct CodegenOutput {
     pub imports: Vec<String>,
     pub used_tokens: BTreeSet<String>,
     pub diagnostics: Vec<Diagnostic>,
+    pub source_map: SourceMap,
 }
 
 pub fn generate_component(
@@ -46,7 +48,7 @@ pub fn generate_component(
     root_id: &str,
     options: &CodegenOptions,
 ) -> Result<CodegenOutput, DevupError> {
-    let generated = generate_node(snapshot, root_id, options)?;
+    let generated = generate_node_marked(snapshot, root_id, options)?;
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
@@ -72,7 +74,11 @@ pub fn generate_component(
     tsx.push_str(&format!(
         "export function {component_name}() {{\n  return (\n{body}\n  );\n}}\n"
     ));
-    Ok(CodegenOutput { tsx, ..generated })
+    Ok(finalize_codegen_output(
+        CodegenOutput { tsx, ..generated },
+        snapshot,
+        options,
+    ))
 }
 
 pub fn generate_legacy_component(
@@ -80,7 +86,7 @@ pub fn generate_legacy_component(
     root_id: &str,
     options: &CodegenOptions,
 ) -> Result<CodegenOutput, DevupError> {
-    let generated = generate_node(snapshot, root_id, options)?;
+    let generated = generate_node_marked(snapshot, root_id, options)?;
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
@@ -104,10 +110,14 @@ pub fn generate_legacy_component(
     } else {
         generated.tsx.clone()
     };
-    Ok(CodegenOutput {
-        tsx: format!("export function {component_name}() {{\n  return {body}\n}}"),
-        ..generated
-    })
+    Ok(finalize_codegen_output(
+        CodegenOutput {
+            tsx: format!("export function {component_name}() {{\n  return {body}\n}}"),
+            ..generated
+        },
+        snapshot,
+        options,
+    ))
 }
 
 pub fn render_component_source(
@@ -898,6 +908,18 @@ pub fn generate_node(
     root_id: &str,
     options: &CodegenOptions,
 ) -> Result<CodegenOutput, DevupError> {
+    Ok(finalize_codegen_output(
+        generate_node_marked(snapshot, root_id, options)?,
+        snapshot,
+        options,
+    ))
+}
+
+fn generate_node_marked(
+    snapshot: &Snapshot,
+    root_id: &str,
+    options: &CodegenOptions,
+) -> Result<CodegenOutput, DevupError> {
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
@@ -928,7 +950,24 @@ pub fn generate_node(
         imports,
         used_tokens: context.used_tokens,
         diagnostics: context.diagnostics,
+        source_map: SourceMap::empty(),
     })
+}
+
+fn finalize_codegen_output(
+    mut output: CodegenOutput,
+    snapshot: &Snapshot,
+    options: &CodegenOptions,
+) -> CodegenOutput {
+    let (tsx, source_map) = finalize_tsx(
+        &output.tsx,
+        snapshot,
+        &options.variable_tokens,
+        &options.text_style_tokens,
+    );
+    output.tsx = tsx;
+    output.source_map = source_map;
+    output
 }
 
 #[derive(Default)]
@@ -1022,14 +1061,20 @@ fn render_node(
                 format!("{opening_props}>")
             };
             visiting.remove(&node.id);
-            return Ok(format!(
-                "{indent}<Box{close_open}\n{}{}\n{indent}</Box>",
-                "  ".repeat(depth + 1),
-                expression
+            return Ok(mark_node(
+                &node.id,
+                format!(
+                    "{indent}<Box{close_open}\n{}{}\n{indent}</Box>",
+                    "  ".repeat(depth + 1),
+                    expression
+                ),
             ));
         }
         visiting.remove(&node.id);
-        return Ok(format!("{}{expression}", "  ".repeat(depth)));
+        return Ok(mark_node(
+            &node.id,
+            format!("{}{expression}", "  ".repeat(depth)),
+        ));
     }
     let asset = style::asset_kind(snapshot, node);
     let inferred_mode = view
@@ -1183,7 +1228,7 @@ fn render_node(
             .unwrap_or(rendered)
     };
     visiting.remove(&node.id);
-    Ok(rendered)
+    Ok(mark_node(&node.id, rendered))
 }
 
 fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<String, String> {

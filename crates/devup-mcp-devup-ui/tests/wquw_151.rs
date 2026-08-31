@@ -92,6 +92,41 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
         1,
         "the public-setting card keeps its border, while the footer uses only borderTop"
     );
+    let source_entry = |node_id: &str, property: &str| {
+        output
+            .source_map
+            .entries
+            .iter()
+            .find(|entry| {
+                entry.node_id.as_deref() == Some(node_id)
+                    && entry.property.as_deref() == Some(property)
+            })
+            .expect("WQUW-151 provenance entry")
+    };
+    let heading_typography = source_entry("3879:35520", "textStyleId");
+    assert_eq!(
+        heading_typography.style_id.as_deref(),
+        Some("S:b2c215baee1a675e5d0bbe9e39c21bf78a39eabc,")
+    );
+    let nested_placeholder = output
+        .source_map
+        .entries
+        .iter()
+        .find(|entry| {
+            entry.node_id.as_deref() == Some("3879:35555")
+                && entry.property.as_deref() == Some("styledTextSegments")
+                && entry.variable_id.as_deref() == Some("VariableID:98:3276")
+        })
+        .expect("nested placeholder color provenance");
+    assert_eq!(nested_placeholder.resolution, "variable-token");
+    let footer_border = source_entry("3879:35564", "strokes");
+    assert_eq!(
+        footer_border.variable_id.as_deref(),
+        Some("VariableID:1:1001")
+    );
+    let source_map_json = serde_json::to_string(&output.source_map).unwrap();
+    assert!(!source_map_json.contains("작은 시장"));
+    assert!(!source_map_json.contains("[1. 이름]"));
 
     let embedded = generate_component(
         &payload.snapshot,
@@ -116,6 +151,7 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     insta::assert_snapshot!("wquw_151_proofread_devup_ui_embedded", embedded.tsx);
     insta::assert_json_snapshot!("wquw_151_proofread_used_tokens", output.used_tokens);
     insta::assert_json_snapshot!("wquw_151_proofread_diagnostics", json!(output.diagnostics));
+    insta::assert_json_snapshot!("wquw_151_proofread_source_map", output.source_map);
 }
 
 fn component_root_opening(tsx: &str) -> &str {
