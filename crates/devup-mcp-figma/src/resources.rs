@@ -52,7 +52,6 @@ pub fn collect_used_resource_refs(chunks: &[SnapshotChunk]) -> UsedResourceRefs 
                     &node.id,
                     field,
                     value,
-                    field == "boundVariables",
                     &mut variable_ids,
                     &mut styles,
                     &mut occurrences,
@@ -80,15 +79,13 @@ fn scan_value(
     node_id: &str,
     path: &str,
     value: &Value,
-    in_bound_variables: bool,
     variable_ids: &mut BTreeSet<String>,
     styles: &mut BTreeMap<String, String>,
     occurrences: &mut BTreeSet<ResourceOccurrence>,
 ) {
     match value {
         Value::Object(object) => {
-            if in_bound_variables
-                && object.get("type").and_then(Value::as_str) == Some("VARIABLE_ALIAS")
+            if object.get("type").and_then(Value::as_str) == Some("VARIABLE_ALIAS")
                 && let Some(id) = object.get("id").and_then(Value::as_str)
                 && is_resource_id(id)
             {
@@ -123,7 +120,6 @@ fn scan_value(
                     node_id,
                     &child_path,
                     child,
-                    in_bound_variables || field == "boundVariables",
                     variable_ids,
                     styles,
                     occurrences,
@@ -136,7 +132,6 @@ fn scan_value(
                     node_id,
                     &format!("{path}[{index}]"),
                     child,
-                    in_bound_variables,
                     variable_ids,
                     styles,
                     occurrences,

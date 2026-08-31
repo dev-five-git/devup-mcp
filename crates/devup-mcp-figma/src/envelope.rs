@@ -15,6 +15,7 @@ const EXPECTED_IHDR: &[u8; 13] = &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0];
 const MAX_PNG_BYTES: usize = 11 * 1024 * 1024;
 const MAX_BASE64_PNG_BYTES: usize = MAX_PNG_BYTES.div_ceil(3) * 4;
 const MAX_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_ENVELOPE_CHUNKS: usize = 32;
 
 type EnvelopeChunk<'a> = (u32, u32, &'a [u8]);
 
@@ -76,21 +77,49 @@ pub fn decode_fast_snapshot(
     target: &FigmaTarget,
 ) -> Result<FastSnapshotPayload, DevupError> {
     let descriptor = find_descriptor(&result.raw)?;
-    let (encoded, mime_type) = find_image(&result.raw)?;
-    if mime_type != "image/png" {
-        return Err(invalid("imageMime"));
+    if descriptor.chunk_count == 0 {
+        return Err(invalid("descriptorChunkCount"));
     }
-    if encoded.len() > MAX_BASE64_PNG_BYTES {
-        return Err(too_large("png"));
-    }
-    let png = STANDARD
-        .decode(encoded)
-        .map_err(|_| invalid("imageBase64"))?;
-    if png.len() > MAX_PNG_BYTES {
-        return Err(too_large("png"));
+    if descriptor.chunk_count > MAX_ENVELOPE_CHUNKS {
+        return Err(too_large("chunkCount"));
     }
 
-    let chunks = decode_png_envelope(&png)?;
+    let images = find_images(&result.raw)?;
+    if images.len() > descriptor.chunk_count {
+        return Err(invalid("imageMultiplicity"));
+    }
+    let mut encoded_bytes = 0_usize;
+    let mut wire_bytes = 0_usize;
+    let mut pngs = Vec::with_capacity(images.len());
+    for (encoded, mime_type) in images {
+        if mime_type != "image/png" {
+            return Err(invalid("imageMime"));
+        }
+        encoded_bytes = encoded_bytes
+            .checked_add(encoded.len())
+            .ok_or_else(|| too_large("png"))?;
+        let maximum_encoded_bytes = MAX_BASE64_PNG_BYTES
+            .checked_add(MAX_ENVELOPE_CHUNKS * 3)
+            .ok_or_else(|| too_large("png"))?;
+        if encoded_bytes > maximum_encoded_bytes {
+            return Err(too_large("png"));
+        }
+        let png = STANDARD
+            .decode(encoded)
+            .map_err(|_| invalid("imageBase64"))?;
+        wire_bytes = wire_bytes
+            .checked_add(png.len())
+            .ok_or_else(|| too_large("png"))?;
+        if wire_bytes > MAX_PNG_BYTES {
+            return Err(too_large("png"));
+        }
+        pngs.push(png);
+    }
+
+    let mut chunks = Vec::with_capacity(descriptor.chunk_count);
+    for png in &pngs {
+        chunks.extend(decode_png_envelope(png)?);
+    }
     if chunks.len() != descriptor.chunk_count {
         return Err(invalid("descriptorChunkCount"));
     }
@@ -111,13 +140,13 @@ pub fn decode_fast_snapshot(
         },
         stats: FastTransportStats {
             raw_bytes: envelope_bytes.len(),
-            wire_bytes: png.len(),
+            wire_bytes,
             chunk_count: descriptor.chunk_count,
         },
     })
 }
 
-fn find_image(value: &Value) -> Result<(&str, &str), DevupError> {
+fn find_images(value: &Value) -> Result<Vec<(&str, &str)>, DevupError> {
     fn collect<'a>(value: &'a Value, found: &mut Vec<(&'a str, &'a str)>) {
         match value {
             Value::Object(object) => {
@@ -145,11 +174,13 @@ fn find_image(value: &Value) -> Result<(&str, &str), DevupError> {
 
     let mut images = Vec::new();
     collect(value, &mut images);
-    match images.as_slice() {
-        [image] => Ok(*image),
-        [] => Err(invalid("imageMissing")),
-        _ => Err(invalid("imageMultiplicity")),
+    if images.is_empty() {
+        return Err(invalid("imageMissing"));
     }
+    if images.len() > MAX_ENVELOPE_CHUNKS {
+        return Err(too_large("imageCount"));
+    }
+    Ok(images)
 }
 
 fn find_descriptor(value: &Value) -> Result<EnvelopeDescriptor, DevupError> {

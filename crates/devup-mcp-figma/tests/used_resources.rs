@@ -148,3 +148,33 @@ fn scanner_is_deterministic_and_ignores_unbound_ids_and_mixed_sentinels() {
     assert_eq!(first.styles.len(), 1);
     assert_eq!(ResourceScope::default(), ResourceScope::None);
 }
+
+#[test]
+fn variable_aliases_are_collected_from_any_lossless_snapshot_field() {
+    let chunks = [SnapshotChunk {
+        file_key: "file-key".to_owned(),
+        version: None,
+        root_ids: vec!["1:1".to_owned()],
+        nodes: vec![node(
+            "1:1",
+            json!({
+                "styledTextSegments": [{
+                    "fontSize": {
+                        "type": "VARIABLE_ALIAS",
+                        "id": "VariableID:font-size"
+                    }
+                }]
+            }),
+        )],
+        diagnostics: Vec::new(),
+    }];
+
+    let refs = collect_used_resource_refs(&chunks);
+
+    assert_eq!(refs.variable_ids, ["VariableID:font-size"]);
+    assert!(refs.occurrences.iter().any(|occurrence| {
+        occurrence.field == "styledTextSegments[0].fontSize"
+            && occurrence.resource_id == "VariableID:font-size"
+            && occurrence.resource_kind == ResourceKind::Variable
+    }));
+}

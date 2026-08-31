@@ -26,6 +26,20 @@ fn valid_multichunk_envelope_round_trips() {
 }
 
 #[test]
+fn valid_multi_image_envelope_round_trips() {
+    let target = target();
+    let envelope = complete_envelope();
+    let result = upstream_result_with_split_pngs(envelope.clone(), 2);
+
+    let decoded = decode_fast_snapshot(&result, &target).expect("valid split envelope");
+
+    assert_eq!(decoded.snapshot.nodes.len(), 2);
+    assert_eq!(decoded.stats.raw_bytes, envelope.len());
+    assert_eq!(decoded.stats.chunk_count, 2);
+    assert!(decoded.stats.wire_bytes > envelope.len());
+}
+
+#[test]
 fn out_of_order_chunks_are_rejected() {
     let envelope = complete_envelope();
     let png = envelope_png_with_order(&envelope, &[1, 0]);
@@ -131,13 +145,13 @@ fn image_content_contract_is_strict() {
     wrong_mime.raw["content"][1]["mimeType"] = Value::from("image/jpeg");
     assert_category(wrong_mime, &target(), "imageMime");
 
-    let mut multiple = upstream_result(envelope.clone(), 1);
-    let duplicate = multiple.raw["content"][1].clone();
-    multiple.raw["content"]
+    let mut duplicate = upstream_result_with_split_pngs(envelope.clone(), 2);
+    let repeated = duplicate.raw["content"][1].clone();
+    duplicate.raw["content"]
         .as_array_mut()
         .unwrap()
-        .push(duplicate);
-    assert_category(multiple, &target(), "imageMultiplicity");
+        .push(repeated);
+    assert_category(duplicate, &target(), "imageMultiplicity");
 
     let oversized = vec![0_u8; 11 * 1024 * 1024 + 1];
     let error = decode_fast_snapshot(
@@ -318,6 +332,37 @@ fn upstream_result_with_png(
     }
 }
 
+fn upstream_result_with_split_pngs(envelope: Vec<u8>, chunk_count: usize) -> UpstreamResult {
+    assert!(chunk_count > 0 && chunk_count <= envelope.len());
+    let per_chunk = envelope.len().div_ceil(chunk_count);
+    let payloads = envelope.chunks(per_chunk).collect::<Vec<_>>();
+    assert_eq!(payloads.len(), chunk_count);
+    let mut content = vec![json!({
+        "type": "text",
+        "text": json!({
+            "kind": "devupFastSnapshotDescriptor",
+            "schemaVersion": 1,
+            "rootId": "1:1",
+            "nodeCount": 2,
+            "variableRefCount": 1,
+            "styleRefCount": 1,
+            "utf8Bytes": envelope.len(),
+            "chunkCount": chunk_count
+        }).to_string()
+    })];
+    for (sequence, payload) in payloads.into_iter().enumerate() {
+        let png = envelope_png_for_chunk(payload, sequence, chunk_count);
+        content.push(json!({
+            "type": "image",
+            "data": STANDARD.encode(png),
+            "mimeType": "image/png"
+        }));
+    }
+    UpstreamResult {
+        raw: json!({"content": content}),
+    }
+}
+
 fn envelope_png(envelope: &[u8], chunk_count: usize) -> Vec<u8> {
     assert!(chunk_count > 0 && chunk_count <= envelope.len());
     let order = (0..chunk_count).collect::<Vec<_>>();
@@ -331,6 +376,25 @@ fn envelope_png_with_ihdr(envelope: &[u8], ihdr: &[u8; 13]) -> Vec<u8> {
     data.extend_from_slice(&0_u32.to_be_bytes());
     data.extend_from_slice(&1_u32.to_be_bytes());
     data.extend_from_slice(envelope);
+    push_chunk(&mut png, b"duVp", &data);
+    push_chunk(
+        &mut png,
+        b"IDAT",
+        &[
+            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
+        ],
+    );
+    push_chunk(&mut png, b"IEND", &[]);
+    png
+}
+
+fn envelope_png_for_chunk(payload: &[u8], sequence: usize, total: usize) -> Vec<u8> {
+    let mut png = PNG_SIGNATURE.to_vec();
+    push_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
+    let mut data = Vec::with_capacity(payload.len() + 8);
+    data.extend_from_slice(&(sequence as u32).to_be_bytes());
+    data.extend_from_slice(&(total as u32).to_be_bytes());
+    data.extend_from_slice(payload);
     push_chunk(&mut png, b"duVp", &data);
     push_chunk(
         &mut png,

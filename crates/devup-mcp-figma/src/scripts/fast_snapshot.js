@@ -353,27 +353,25 @@ function pngChunk(type, data) {
 }
 
 const chunkCount = Math.ceil(envelopeBytes.length / MAX_ENVELOPE_CHUNK_BYTES);
-const envelopeChunks = [];
 for (let sequence = 0; sequence < chunkCount; sequence += 1) {
   const start = sequence * MAX_ENVELOPE_CHUNK_BYTES;
   const end = Math.min(envelopeBytes.length, start + MAX_ENVELOPE_CHUNK_BYTES);
-  envelopeChunks.push(
-    pngChunk("duVp", concat([u32(sequence), u32(chunkCount), envelopeBytes.slice(start, end)])),
+  const envelopeChunk = pngChunk(
+    "duVp",
+    concat([u32(sequence), u32(chunkCount), envelopeBytes.slice(start, end)]),
   );
+  const png = concat([
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk("IHDR", new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])),
+    envelopeChunk,
+    pngChunk(
+      "IDAT",
+      new Uint8Array([120, 1, 1, 5, 0, 250, 255, 0, 0, 0, 0, 0, 5, 0, 1]),
+    ),
+    pngChunk("IEND", new Uint8Array()),
+  ]);
+  figma.io.write(`devup-fast-snapshot-${sequence + 1}-of-${chunkCount}.png`, png);
 }
-
-const png = concat([
-  new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-  pngChunk("IHDR", new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])),
-  ...envelopeChunks,
-  pngChunk(
-    "IDAT",
-    new Uint8Array([120, 1, 1, 5, 0, 250, 255, 0, 0, 0, 0, 0, 5, 0, 1]),
-  ),
-  pngChunk("IEND", new Uint8Array()),
-]);
-
-figma.io.write("devup-fast-snapshot.png", png);
 return {
   kind: "devupFastSnapshotDescriptor",
   schemaVersion: 1,

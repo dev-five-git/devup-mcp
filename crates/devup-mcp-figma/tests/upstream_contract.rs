@@ -247,6 +247,7 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
     assert!(code.contains("Promise.all([...variableJobs, ...styleJobs])"));
     assert!(code.contains("duVp"));
     assert!(code.contains("figma.io.write"));
+    assert!(code.contains("devup-fast-snapshot-${sequence + 1}-of-${chunkCount}.png"));
     assert!(code.contains("devupFastSnapshotDescriptor"));
     assert!(code.contains("MAX_ENVELOPE_BYTES"));
     assert!(code.contains("0xfffd"));
