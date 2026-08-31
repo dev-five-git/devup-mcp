@@ -1,5 +1,6 @@
 mod collector;
 mod credentials;
+mod envelope;
 mod errors;
 mod explore;
 mod oauth;
@@ -15,6 +16,7 @@ mod variables;
 pub use credentials::{
     CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
 };
+pub use envelope::{FastSnapshotPayload, FastTransportStats, decode_fast_snapshot};
 pub use errors::{DevupError, ErrorCode};
 pub use explore::{
     ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,

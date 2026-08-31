@@ -31,11 +31,11 @@
 - Modify: `crates/devup-mcp-figma/src/lib.rs`
 - Create: `crates/devup-mcp-figma/tests/envelope.rs`
 
-- [ ] **Step 1: Add a valid single- and multi-chunk fixture builder in the integration test**
+- [x] **Step 1: Add a valid single- and multi-chunk fixture builder in the integration test**
 
   Define test-only helpers that create a minimal valid PNG with `IHDR`, one or more `duVp` chunks, `IDAT`, and `IEND`. Each `duVp` payload starts with big-endian `sequence` and `total` values, and every PNG chunk receives a standards-compliant CRC32.
 
-- [ ] **Step 2: Write the first failing round-trip test**
+- [x] **Step 2: Write the first failing round-trip test**
 
   Construct a schema-version-1 envelope containing two nodes, one variable, one style, and a descriptor. Call the planned `decode_fast_snapshot(&UpstreamResult, &FigmaTarget)` API and assert exact source IDs, node/resource counts, UTF-8 byte count, and transport byte/chunk statistics.
 
@@ -43,7 +43,7 @@
 
   Expected: compilation failure because `envelope` and `decode_fast_snapshot` do not exist.
 
-- [ ] **Step 3: Add the minimal public decoder model and happy path**
+- [x] **Step 3: Add the minimal public decoder model and happy path**
 
   Introduce:
 
@@ -68,11 +68,11 @@
 
   Find exactly one `image/png` content block, decode base64, parse checked PNG lengths, verify every PNG CRC, collect all `duVp` chunks, enforce unique contiguous sequence numbers, concatenate bytes, decode UTF-8/JSON, and verify the descriptor without logging content.
 
-- [ ] **Step 4: Observe the round-trip test pass**
+- [x] **Step 4: Observe the round-trip test pass**
 
   Run the exact test from Step 2 and confirm it passes.
 
-- [ ] **Step 5: Add table-driven failing corruption and limit tests**
+- [x] **Step 5: Add table-driven failing corruption and limit tests**
 
   Cover bad PNG signature, truncated length, missing/duplicate/out-of-order envelope chunk, corrupted CRC, invalid UTF-8, invalid JSON, unsupported schema, image MIME mismatch, multiple image blocks, oversized PNG, oversized envelope, descriptor count mismatch, file key mismatch, root ID mismatch, declared node count mismatch, missing root, dangling child, and unresolved resource reference.
 
@@ -80,11 +80,11 @@
 
   Expected: new cases fail at the missing validation boundary, never panic.
 
-- [ ] **Step 6: Implement all validation boundaries with stable safe errors**
+- [x] **Step 6: Implement all validation boundaries with stable safe errors**
 
   Use checked arithmetic and explicit constants sized below the existing 16 MiB handoff result ceiling after base64 overhead. Validate that every referenced variable/style appears either in the resource result or its `unresolved` list. Error messages contain only category/count/ID metadata, never design text or values.
 
-- [ ] **Step 7: Run focused crate checks and commit**
+- [x] **Step 7: Run focused crate checks and commit**
 
   Run:
 
