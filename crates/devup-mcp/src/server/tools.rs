@@ -1,5 +1,6 @@
 use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +38,33 @@ pub struct FigmaToJsonInput {
     pub source_policy: String,
     #[serde(default)]
     pub output_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FigmaExportInput {
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub artifact_id: Option<String>,
+    #[serde(default = "default_outputs")]
+    pub outputs: Vec<String>,
+    #[serde(default)]
+    pub component_name: Option<String>,
+    #[serde(default)]
+    pub include_diagnostics: bool,
+    #[serde(default = "default_source_policy")]
+    pub source_policy: String,
+    #[serde(default = "default_scope")]
+    pub scope: String,
+    #[serde(default = "default_root_layout")]
+    pub root_layout: String,
+    #[serde(default)]
+    pub strict: bool,
+    #[serde(default)]
+    pub refresh: bool,
+    #[serde(default)]
+    pub output_paths: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -100,4 +128,8 @@ fn default_explore_limit() -> usize {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_outputs() -> Vec<String> {
+    vec!["tsx".to_owned(), "devupJson".to_owned()]
 }

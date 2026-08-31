@@ -14,9 +14,15 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
+use super::artifacts::ArtifactRequestKey;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PendingOperation {
     Collect,
+    Artifact {
+        operation: Box<PendingOperation>,
+        artifact_key: ArtifactRequestKey,
+    },
     ToUi {
         component_name: Option<String>,
         include_diagnostics: bool,
@@ -27,6 +33,15 @@ pub enum PendingOperation {
         scope: String,
         include_diagnostics: bool,
         output_path: Option<String>,
+    },
+    Export {
+        outputs: Vec<String>,
+        component_name: Option<String>,
+        include_diagnostics: bool,
+        root_layout: RootLayout,
+        scope: String,
+        strict: bool,
+        output_paths: BTreeMap<String, String>,
     },
     Search {
         query: String,
@@ -141,6 +156,21 @@ impl HandoffStore {
         operation: PendingOperation,
         collector: CollectorSession,
     ) -> Result<String, DevupError> {
+        self.begin_with_artifact(operation, collector, None).await
+    }
+
+    pub async fn begin_with_artifact(
+        &self,
+        operation: PendingOperation,
+        collector: CollectorSession,
+        artifact_key: Option<ArtifactRequestKey>,
+    ) -> Result<String, DevupError> {
+        let operation = artifact_key.map_or(operation.clone(), |artifact_key| {
+            PendingOperation::Artifact {
+                operation: Box::new(operation),
+                artifact_key,
+            }
+        });
         let now = self.clock.now_epoch_seconds();
         let mut state = self.state.lock().await;
         prune_expired(&mut state, now);

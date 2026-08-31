@@ -2,7 +2,7 @@ use devup_mcp::server::DevupServer;
 use rmcp::ServiceExt;
 
 #[tokio::test]
-async fn exposes_the_six_read_only_devup_figma_tools() -> anyhow::Result<()> {
+async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
     let server = tokio::spawn(async move {
         DevupServer::default()
@@ -27,6 +27,7 @@ async fn exposes_the_six_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_figma_auth",
             "devup_figma_continue",
             "devup_figma_explore",
+            "devup_figma_export",
             "devup_figma_search",
             "devup_figma_to_json",
             "devup_figma_to_ui",
@@ -42,6 +43,28 @@ async fn exposes_the_six_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert!(ui_schema.to_string().contains("scope"));
     assert!(ui_schema.to_string().contains("rootLayout"));
     assert!(!ui_schema.to_string().contains("code"));
+
+    let export = tools
+        .iter()
+        .find(|tool| tool.name == "devup_figma_export")
+        .unwrap();
+    let export_schema = serde_json::to_value(&export.input_schema)?;
+    let export_text = export_schema.to_string();
+    for field in [
+        "url",
+        "artifactId",
+        "outputs",
+        "scope",
+        "rootLayout",
+        "strict",
+        "refresh",
+        "outputPaths",
+        "sourcePolicy",
+    ] {
+        assert!(export_text.contains(field), "missing export field {field}");
+    }
+    assert!(!export_text.contains("accessToken"));
+    assert!(!export_text.contains("clientSecret"));
 
     let explore = tools
         .iter()

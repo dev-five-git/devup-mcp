@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod handoff;
 mod tools;
 
@@ -13,7 +14,7 @@ use rmcp::{
     model::{ErrorCode as McpErrorCode, ServerCapabilities, ServerInfo},
     tool, tool_handler, tool_router,
 };
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use devup_mcp_devup_ui::{
     codegen::{CodegenOptions, RootLayout, generate_component},
@@ -27,10 +28,12 @@ use devup_mcp_figma::{
     SystemBrowser, explore_snapshot, fallback_allowed_for_error, search_snapshot,
 };
 
+use artifacts::{ArtifactLookup, ArtifactRequestKey, ArtifactStore};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 
 pub use tools::{
-    AuthInput, ContinueInput, FigmaExploreInput, FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput,
+    AuthInput, ContinueInput, FigmaExploreInput, FigmaExportInput, FigmaSearchInput,
+    FigmaToJsonInput, FigmaToUiInput,
 };
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -82,6 +85,7 @@ pub struct DevupServer {
     tool_router: ToolRouter<Self>,
     services: Services,
     handoffs: HandoffStore,
+    artifacts: ArtifactStore,
 }
 
 impl DevupServer {
@@ -90,6 +94,7 @@ impl DevupServer {
             tool_router: Self::tool_router(),
             services,
             handoffs: HandoffStore::default(),
+            artifacts: ArtifactStore::default(),
         }
     }
 }
@@ -106,15 +111,20 @@ impl DevupServer {
         operation: PendingOperation,
         request: CollectionRequest,
         policy: SourcePolicy,
+        refresh: bool,
     ) -> Result<Value, DevupError> {
+        let artifact_key = ArtifactRequestKey::from_collection(&request, policy);
+        if !refresh && let Some(artifact) = self.artifacts.lookup(&artifact_key).await {
+            return complete_operation(operation, &artifact.payload, "artifact", &artifact);
+        }
         if policy == SourcePolicy::Host {
-            return self.begin_handoff(operation, request).await;
+            return self.begin_handoff(operation, request, artifact_key).await;
         }
 
         let auth_status = self.services.auth.status().await?;
         if auth_status == AuthStatus::Disconnected {
             if policy == SourcePolicy::Auto {
-                return self.begin_handoff(operation, request).await;
+                return self.begin_handoff(operation, request, artifact_key).await;
             }
             return Err(DevupError::with_details(
                 ErrorCode::DevupAuthRequired,
@@ -124,10 +134,16 @@ impl DevupServer {
             ));
         }
 
-        match self.run_direct(request.clone()).await {
-            Ok(parts) => complete_operation(operation, parts, "direct"),
+        match self
+            .artifacts
+            .get_or_acquire(artifact_key.clone(), refresh, || async {
+                CollectedPayload::try_from(self.run_direct(request.clone()).await?)
+            })
+            .await
+        {
+            Ok(artifact) => complete_operation(operation, &artifact.payload, "direct", &artifact),
             Err(error) if fallback_allowed_for_error(policy, &error) => {
-                self.begin_handoff(operation, request).await
+                self.begin_handoff(operation, request, artifact_key).await
             }
             Err(error) => Err(error),
         }
@@ -155,13 +171,54 @@ impl DevupServer {
         &self,
         operation: PendingOperation,
         request: CollectionRequest,
+        artifact_key: ArtifactRequestKey,
     ) -> Result<Value, DevupError> {
         let session_id = self
             .handoffs
-            .begin(operation, CollectorSession::new(request))
+            .begin_with_artifact(
+                operation,
+                CollectorSession::new(request),
+                Some(artifact_key),
+            )
             .await?;
         let step = self.handoffs.next(&session_id).await?;
-        handoff_step_to_value(step, "host")
+        self.handoff_step_to_value(step, "host").await
+    }
+
+    async fn handoff_step_to_value(
+        &self,
+        step: HandoffStep,
+        source: &str,
+    ) -> Result<Value, DevupError> {
+        match step {
+            HandoffStep::NeedsFigma {
+                session_id,
+                expires_at_epoch_seconds,
+                calls,
+            } => Ok(json!({
+                "status": "needs_figma",
+                "sessionId": session_id,
+                "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
+                "calls": calls,
+                "resumeTool": "devup_figma_continue"
+            })),
+            HandoffStep::Complete { operation, parts } => {
+                let PendingOperation::Artifact {
+                    operation,
+                    artifact_key,
+                } = operation
+                else {
+                    return Err(DevupError::new(
+                        ErrorCode::DevupFigmaHandoffInvalid,
+                        "Figma handoff artifact key가 없습니다.",
+                        false,
+                    ));
+                };
+                let payload = CollectedPayload::try_from(*parts)?;
+                let artifact = self.artifacts.insert(artifact_key, payload).await?;
+                complete_operation(*operation, &artifact.payload, source, &artifact)
+            }
+        }
     }
 }
 
@@ -216,6 +273,7 @@ impl DevupServer {
                 },
                 request,
                 policy,
+                false,
             )
             .await
             .map_err(to_mcp_error)?;
@@ -247,6 +305,7 @@ impl DevupServer {
                 },
                 request,
                 policy,
+                false,
             )
             .await
             .map_err(to_mcp_error)?;
@@ -277,6 +336,7 @@ impl DevupServer {
                 },
                 request,
                 policy,
+                false,
             )
             .await
             .map_err(to_mcp_error)?;
@@ -315,6 +375,7 @@ impl DevupServer {
                 PendingOperation::Explore { limit: input.limit },
                 request,
                 policy,
+                false,
             )
             .await
             .map_err(to_mcp_error)?;
@@ -336,34 +397,106 @@ impl DevupServer {
             .await
             .map_err(to_mcp_error)?;
         Ok(Json(
-            handoff_step_to_value(step, "host").map_err(to_mcp_error)?,
+            self.handoff_step_to_value(step, "host")
+                .await
+                .map_err(to_mcp_error)?,
         ))
     }
-}
 
-fn handoff_step_to_value(step: HandoffStep, source: &str) -> Result<Value, DevupError> {
-    match step {
-        HandoffStep::NeedsFigma {
-            session_id,
-            expires_at_epoch_seconds,
-            calls,
-        } => Ok(json!({
-            "status": "needs_figma",
-            "sessionId": session_id,
-            "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
-            "calls": calls,
-            "resumeTool": "devup_figma_continue"
-        })),
-        HandoffStep::Complete { operation, parts } => complete_operation(operation, *parts, source),
+    #[tool(description = "Acquire a Figma design once and project multiple DevupUI artifacts")]
+    async fn devup_figma_export(
+        &self,
+        Parameters(input): Parameters<FigmaExportInput>,
+    ) -> Result<Json<Value>, ErrorData> {
+        validate_outputs(&input.outputs).map_err(to_mcp_error)?;
+        let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
+        parse_scope(&input.scope).map_err(to_mcp_error)?;
+
+        if let Some(artifact_id) = input.artifact_id.as_deref() {
+            if input.url.is_some() || input.refresh {
+                return Err(to_mcp_error(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "artifactId는 url 또는 refresh와 함께 사용할 수 없습니다.",
+                    false,
+                )));
+            }
+            let artifact = self.artifacts.get(artifact_id).await.ok_or_else(|| {
+                to_mcp_error(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffExpired,
+                    "Figma artifact가 없거나 만료되었습니다.",
+                    true,
+                ))
+            })?;
+            let result = complete_operation(
+                PendingOperation::Export {
+                    outputs: input.outputs,
+                    component_name: input.component_name,
+                    include_diagnostics: input.include_diagnostics,
+                    root_layout,
+                    scope: input.scope,
+                    strict: input.strict,
+                    output_paths: input.output_paths,
+                },
+                &artifact.payload,
+                "artifact",
+                &artifact,
+            )
+            .map_err(to_mcp_error)?;
+            return Ok(Json(result));
+        }
+
+        let url = input.url.as_deref().ok_or_else(|| {
+            to_mcp_error(DevupError::new(
+                ErrorCode::DevupFigmaHandoffInvalid,
+                "url 또는 artifactId 중 하나가 필요합니다.",
+                false,
+            ))
+        })?;
+        let target = FigmaTarget::parse(url).map_err(to_mcp_error)?;
+        if input.outputs.iter().any(|output| output == "tsx") && target.node_id.is_none() {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "TSX export 링크에는 node-id가 필요합니다.",
+                false,
+            )));
+        }
+        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+        let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+        let mut request = CollectionRequest::new(target, collection_scope);
+        request.resource_scope = if collection_scope == CollectionScope::File {
+            ResourceScope::File
+        } else {
+            ResourceScope::Used
+        };
+        request.variables_only = collection_scope == CollectionScope::File
+            && input.outputs.iter().all(|output| output == "devupJson");
+        let result = self
+            .start_operation(
+                PendingOperation::Export {
+                    outputs: input.outputs,
+                    component_name: input.component_name,
+                    include_diagnostics: input.include_diagnostics,
+                    root_layout,
+                    scope: input.scope,
+                    strict: input.strict,
+                    output_paths: input.output_paths,
+                },
+                request,
+                policy,
+                input.refresh,
+            )
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(Json(result))
     }
 }
 
 fn complete_operation(
     operation: PendingOperation,
-    parts: CollectedParts,
+    payload: &CollectedPayload,
     source_kind: &str,
+    artifact: &ArtifactLookup,
 ) -> Result<Value, DevupError> {
-    let payload = CollectedPayload::try_from(parts)?;
     let collection = payload.stats.clone();
     let completeness_report = payload.completeness_report();
     let status = match completeness_report.state {
@@ -395,7 +528,7 @@ fn complete_operation(
                     root_layout,
                     ..CodegenOptions::default()
                 }
-                .with_payload_tokens(&payload),
+                .with_payload_tokens(payload),
             )?;
             let diagnostics = if include_diagnostics {
                 output.diagnostics
@@ -417,6 +550,7 @@ fn complete_operation(
                 "completenessReport": &completeness_report,
                 "rootLayout": root_layout,
                 "collection": collection,
+                "cache": artifact_metadata(artifact),
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -464,6 +598,7 @@ fn complete_operation(
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "collection": collection,
+                "cache": artifact_metadata(artifact),
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -496,6 +631,7 @@ fn complete_operation(
                 "completeness": payload.completeness,
                 "completenessReport": &completeness_report,
                 "collection": collection,
+                "cache": artifact_metadata(artifact),
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -521,6 +657,7 @@ fn complete_operation(
                 "completeness": payload.completeness,
                 "completenessReport": &completeness_report,
                 "collection": collection,
+                "cache": artifact_metadata(artifact),
                 "source": {
                     "kind": source_kind,
                     "fileKey": payload.target.file_key,
@@ -529,12 +666,195 @@ fn complete_operation(
                 }
             }))
         }
-        PendingOperation::Collect => Err(DevupError::new(
+        PendingOperation::Export {
+            outputs,
+            component_name,
+            include_diagnostics,
+            root_layout,
+            scope,
+            strict,
+            output_paths,
+        } => {
+            if strict && completeness_report.state != CompletenessState::Complete {
+                return Err(DevupError::with_details(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    format!(
+                        "strict export는 partial 또는 failed payload를 허용하지 않습니다: {status}"
+                    ),
+                    false,
+                    json!({"completenessReport": completeness_report}),
+                ));
+            }
+
+            let mut result = Map::new();
+            result.insert("status".to_owned(), json!(status));
+            result.insert("completeness".to_owned(), json!(payload.completeness));
+            result.insert("completenessReport".to_owned(), json!(&completeness_report));
+            result.insert("collection".to_owned(), json!(collection));
+            result.insert("cache".to_owned(), artifact_metadata(artifact));
+            result.insert(
+                "source".to_owned(),
+                json!({
+                    "kind": source_kind,
+                    "fileKey": payload.target.file_key,
+                    "nodeId": payload.target.node_id,
+                    "version": payload.snapshot.version
+                }),
+            );
+
+            let mut written_paths = Map::new();
+            if outputs.iter().any(|output| output == "tsx") {
+                let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
+                    DevupError::new(
+                        ErrorCode::DevupFigmaNodeNotFound,
+                        "TSX export payload에는 node ID가 필요합니다.",
+                        false,
+                    )
+                })?;
+                let output = generate_component(
+                    &payload.snapshot,
+                    node_id,
+                    &CodegenOptions {
+                        component_name,
+                        include_diagnostics,
+                        inline_instances: true,
+                        root_layout,
+                        ..CodegenOptions::default()
+                    }
+                    .with_payload_tokens(payload),
+                )?;
+                if let Some(path) = output_paths.get("tsx") {
+                    written_paths.insert("tsx".to_owned(), json!(write_output(path, &output.tsx)?));
+                }
+                result.insert("tsx".to_owned(), json!(output.tsx));
+                result.insert("imports".to_owned(), json!(output.imports));
+                result.insert("usedTokens".to_owned(), json!(output.used_tokens));
+                if include_diagnostics {
+                    result.insert("diagnostics".to_owned(), json!(output.diagnostics));
+                }
+            }
+
+            if outputs.iter().any(|output| output == "devupJson") {
+                let variables = payload.variables.as_ref().ok_or_else(|| {
+                    DevupError::new(
+                        ErrorCode::DevupSnapshotUnsupported,
+                        "Figma 변수/style 수집 결과가 없습니다.",
+                        false,
+                    )
+                })?;
+                let variables = variable_snapshot_from_result(variables)?;
+                let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+                if let Some(path) = output_paths.get("devupJson") {
+                    written_paths.insert(
+                        "devupJson".to_owned(),
+                        json!(write_output(path, &output.json)?),
+                    );
+                }
+                result.insert("devupJson".to_owned(), json!(output.json));
+                result.insert("themeCounts".to_owned(), json!(output.counts));
+                result.insert("themeCompleteness".to_owned(), json!(output.completeness));
+                result.insert("conflicts".to_owned(), json!(output.conflicts));
+                result.insert(
+                    "unresolvedVariables".to_owned(),
+                    json!(output.unresolved_variables),
+                );
+                if include_diagnostics && !result.contains_key("diagnostics") {
+                    result.insert("diagnostics".to_owned(), json!(output.diagnostics));
+                }
+            }
+
+            if outputs.iter().any(|output| output == "rawSnapshot") {
+                let raw = serde_json::to_value(&payload.snapshot).map_err(|error| {
+                    DevupError::new(
+                        ErrorCode::DevupSnapshotUnsupported,
+                        format!("raw snapshot을 직렬화할 수 없습니다: {error}"),
+                        false,
+                    )
+                })?;
+                if let Some(path) = output_paths.get("rawSnapshot") {
+                    written_paths.insert(
+                        "rawSnapshot".to_owned(),
+                        json!(write_output(
+                            path,
+                            &serde_json::to_string_pretty(&raw).unwrap_or_default()
+                        )?),
+                    );
+                }
+                result.insert("rawSnapshot".to_owned(), raw);
+            }
+
+            if outputs.iter().any(|output| output == "sourceMap") {
+                let source_map = json!({
+                    "version": 1,
+                    "tsx": [],
+                    "devupJson": [],
+                    "source": {
+                        "fileKey": payload.target.file_key,
+                        "rootNodeId": payload.target.node_id,
+                        "sourceVersion": payload.source_version
+                    }
+                });
+                if let Some(path) = output_paths.get("sourceMap") {
+                    written_paths.insert(
+                        "sourceMap".to_owned(),
+                        json!(write_output(
+                            path,
+                            &serde_json::to_string_pretty(&source_map).unwrap_or_default()
+                        )?),
+                    );
+                }
+                result.insert("sourceMap".to_owned(), source_map);
+            }
+
+            if outputs.iter().any(|output| output == "assetManifest") {
+                result.insert(
+                    "assetManifest".to_owned(),
+                    json!({"version": 1, "assets": [], "diagnostics": []}),
+                );
+            }
+            result.insert("outputPaths".to_owned(), Value::Object(written_paths));
+            Ok(Value::Object(result))
+        }
+        PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
             "내부 수집 operation은 MCP artifact로 완료할 수 없습니다.",
             false,
         )),
     }
+}
+
+fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
+    json!({
+        "artifactId": artifact.artifact_id,
+        "contentHash": artifact.content_hash,
+        "cacheHit": artifact.cache_hit,
+        "sizeBytes": artifact.size_bytes,
+        "acquiredAt": format_epoch_rfc3339(artifact.created_at_epoch_seconds),
+        "expiresAt": format_epoch_rfc3339(artifact.expires_at_epoch_seconds)
+    })
+}
+
+fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
+    if outputs.is_empty() {
+        return Err(DevupError::new(
+            ErrorCode::DevupSnapshotUnsupported,
+            "outputs는 하나 이상이어야 합니다.",
+            false,
+        ));
+    }
+    for output in outputs {
+        if !matches!(
+            output.as_str(),
+            "tsx" | "devupJson" | "rawSnapshot" | "sourceMap" | "assetManifest"
+        ) {
+            return Err(DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                format!("지원하지 않는 export output입니다: {output}"),
+                false,
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupError> {

@@ -153,7 +153,17 @@ async fn direct_and_host_explore_return_identical_candidate_data() -> anyhow::Re
         .structured_content
         .unwrap();
 
-    assert_eq!(direct["status"], "complete");
+    // Explore is an intentionally shallow spatial projection. Its candidate data is
+    // complete for the operation, while the preserved graph correctly reports that
+    // descendants represented by childCount were not included in the snapshot.
+    assert_eq!(direct["status"], "partial");
+    assert_eq!(complete["status"], "partial");
+    assert!(
+        !direct["completenessReport"]["snapshot"]["childCountMismatches"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(direct["anchor"]["kind"], "heading");
     assert_eq!(direct["count"], 2);
     assert_eq!(direct["candidates"][0]["node"]["nodeId"], "1:2");
