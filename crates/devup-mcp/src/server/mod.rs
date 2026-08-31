@@ -197,7 +197,8 @@ impl DevupServer {
         })?;
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
-        let request = CollectionRequest::new(target, scope);
+        let mut request = CollectionRequest::new(target, scope);
+        request.resource_scope = ResourceScope::Used;
         let result = self
             .start_operation(
                 PendingOperation::ToUi {

@@ -608,3 +608,86 @@ fn style_consumers_are_planned_as_compact_bounded_fragments() {
     assert!(second_code.contains("\"consumerStart\":320"));
     assert!(second_code.contains("\"consumerEnd\":321"));
 }
+
+#[test]
+fn used_scope_resolves_only_snapshot_references_and_keeps_partial_results() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!("metadata call expected")
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!("snapshot call expected")
+    };
+    let mut used_snapshot = snapshot("1:2");
+    used_snapshot.raw["nodes"][0]["fields"] = json!({
+        "name": "Synthetic",
+        "boundVariables": {
+            "fills": [{"type": "VARIABLE_ALIAS", "id": "VariableID:1:2"}]
+        },
+        "textStyleId": "S:text"
+    });
+    collector.accept(&snapshot_call.id, used_snapshot).unwrap();
+
+    let CollectorStep::Call(variable_call) = collector.advance().unwrap() else {
+        panic!("used variable batch should follow the snapshot")
+    };
+    let CollectorStep::Call(style_call) = collector.advance().unwrap() else {
+        panic!("used style batch should follow the snapshot")
+    };
+    let variable_code = variable_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(variable_code.contains("getVariableByIdAsync"));
+    assert!(!variable_code.contains("getStyleConsumersAsync"));
+
+    collector
+        .accept(
+            &variable_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "variables": [{"id": "VariableID:1:2", "name": "primary", "remote": true}],
+                    "styles": [],
+                    "unresolved": []
+                }),
+            },
+        )
+        .unwrap();
+    collector
+        .accept(
+            &style_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "variables": [],
+                    "styles": [],
+                    "unresolved": [{"id": "S:text", "kind": "style", "reason": "notFoundOrUnavailable"}]
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("used resource collection should complete")
+    };
+    let resources = &parts.variables.as_ref().unwrap().raw;
+    assert_eq!(resources["variables"][0]["name"], "primary");
+    assert_eq!(resources["styles"], json!([]));
+    assert_eq!(resources["usedRemoteComplete"], false);
+    assert!(
+        parts.snapshot_chunks[0]
+            .diagnostics
+            .iter()
+            .any(|diagnostic| {
+                diagnostic.code == "DEVUP_RESOURCE_UNRESOLVED"
+                    && diagnostic.node_id.as_deref() == Some("1:2")
+                    && diagnostic.message.contains("textStyleId")
+                    && diagnostic.message.contains("S:text")
+            })
+    );
+}

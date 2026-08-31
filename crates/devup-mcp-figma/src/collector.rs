@@ -5,12 +5,13 @@ use serde_json::{Map, Value};
 
 use crate::{
     BuiltinScript, DevupError, ErrorCode, FigmaTarget, RawNode, ReadToolCall, ResourceBatch,
-    ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk, UpstreamResult,
+    ResourceScope, ResourceStyleRef, SearchReadOptions, SnapshotChunk, UnresolvedResource,
+    UpstreamResult, UsedResourceRefs, collect_used_resource_refs,
     metadata::{MetadataResult, metadata_from_result_for_target},
     snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
-        merge_variable_results,
+        merge_used_resource_results, merge_variable_results,
     },
 };
 
@@ -88,6 +89,7 @@ enum CallKind {
     Snapshot,
     VariableCatalog,
     VariableBatch,
+    UsedResourceBatch,
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +112,7 @@ pub struct CollectorSession {
     source_version: Option<String>,
     snapshot_chunks: BTreeMap<usize, SnapshotChunk>,
     variable_catalog: Option<VariableCatalog>,
+    used_resource_refs: Option<UsedResourceRefs>,
     variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
     next_id: usize,
@@ -130,6 +133,7 @@ impl CollectorSession {
             source_version: None,
             snapshot_chunks: BTreeMap::new(),
             variable_catalog: None,
+            used_resource_refs: None,
             variable_batches: BTreeMap::new(),
             variables: None,
             next_id: 0,
@@ -207,6 +211,34 @@ impl CollectorSession {
                 std::mem::take(&mut self.variable_batches).into_values(),
             )?);
         }
+        if self.metadata.is_some()
+            && self.request.resource_scope == ResourceScope::Used
+            && self.used_resource_refs.is_none()
+            && self.variables.is_none()
+            && self.queued.is_empty()
+        {
+            self.enqueue_used_resource_batches()?;
+            if !self.queued.is_empty() {
+                return self.advance();
+            }
+        }
+        if self.metadata.is_some()
+            && self.request.resource_scope == ResourceScope::Used
+            && self.used_resource_refs.is_some()
+            && self.variables.is_none()
+            && self.queued.is_empty()
+        {
+            let refs = self
+                .used_resource_refs
+                .take()
+                .ok_or_else(|| invalid_call("사용된 Figma 리소스 참조가 없습니다."))?;
+            let merged = merge_used_resource_results(
+                &refs,
+                std::mem::take(&mut self.variable_batches).into_values(),
+            )?;
+            self.record_unresolved_diagnostics(&refs, &merged.unresolved);
+            self.variables = Some(merged.result);
+        }
         if self.metadata.is_some() && self.queued.is_empty() {
             self.completed = true;
             let snapshot_chunks = if self.request.metadata_only || self.request.variables_only {
@@ -251,6 +283,11 @@ impl CollectorSession {
             CallKind::VariableBatch => {
                 let batch = batch_from_result(&result)?;
                 self.enqueue_style_consumer_batches(&batch)?;
+                self.variable_batches.insert(pending.order, batch);
+                Ok(())
+            }
+            CallKind::UsedResourceBatch => {
+                let batch = batch_from_result(&result)?;
                 self.variable_batches.insert(pending.order, batch);
                 Ok(())
             }
@@ -521,6 +558,75 @@ impl CollectorSession {
         }
         self.variable_catalog = Some(catalog);
         Ok(())
+    }
+
+    fn enqueue_used_resource_batches(&mut self) -> Result<(), DevupError> {
+        let refs =
+            collect_used_resource_refs(&self.snapshot_chunks.values().cloned().collect::<Vec<_>>());
+        let node_id = self.root_node_id.clone().ok_or_else(|| {
+            invalid_call("사용된 Figma 리소스 batch에 사용할 root node ID가 없습니다.")
+        })?;
+        for variable_ids in refs.variable_ids.chunks(VARIABLE_BATCH_SIZE) {
+            self.enqueue(
+                ReadToolCall::used_resources(
+                    &self.request.target.file_key,
+                    &node_id,
+                    ResourceBatch {
+                        variable_ids: variable_ids.to_vec(),
+                        styles: Vec::new(),
+                    },
+                ),
+                Some(node_id.clone()),
+                CallKind::UsedResourceBatch,
+            );
+        }
+        for styles in refs.styles.chunks(STYLE_BATCH_SIZE) {
+            self.enqueue(
+                ReadToolCall::used_resources(
+                    &self.request.target.file_key,
+                    &node_id,
+                    ResourceBatch {
+                        variable_ids: Vec::new(),
+                        styles: styles.to_vec(),
+                    },
+                ),
+                Some(node_id.clone()),
+                CallKind::UsedResourceBatch,
+            );
+        }
+        self.used_resource_refs = Some(refs);
+        Ok(())
+    }
+
+    fn record_unresolved_diagnostics(
+        &mut self,
+        refs: &UsedResourceRefs,
+        unresolved: &[UnresolvedResource],
+    ) {
+        let unresolved = unresolved
+            .iter()
+            .map(|resource| (resource.kind, resource.id.as_str()))
+            .collect::<BTreeSet<_>>();
+        for occurrence in &refs.occurrences {
+            if !unresolved.contains(&(occurrence.resource_kind, occurrence.resource_id.as_str())) {
+                continue;
+            }
+            let diagnostic = crate::Diagnostic {
+                code: "DEVUP_RESOURCE_UNRESOLVED".to_owned(),
+                message: format!(
+                    "Figma 리소스를 확인할 수 없어 raw 값으로 대체했습니다: field={}, resourceId={}",
+                    occurrence.field, occurrence.resource_id
+                ),
+                node_id: Some(occurrence.node_id.clone()),
+            };
+            if let Some(chunk) = self
+                .snapshot_chunks
+                .values_mut()
+                .find(|chunk| chunk.nodes.iter().any(|node| node.id == occurrence.node_id))
+            {
+                chunk.diagnostics.push(diagnostic);
+            }
+        }
     }
 
     fn enqueue_style_consumer_batches(

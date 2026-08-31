@@ -129,6 +129,30 @@ fn style_consumers_use_async_compact_range_projection() {
 }
 
 #[test]
+fn used_resources_use_exact_ids_without_file_catalog_or_consumers() {
+    let call = ReadToolCall::used_resources(
+        "file-key",
+        "1:2",
+        ResourceBatch {
+            variable_ids: vec!["VariableID:1:2".to_owned()],
+            styles: vec![ResourceStyleRef {
+                id: "S:text".to_owned(),
+                style_type: "TEXT".to_owned(),
+                consumer_start: None,
+                consumer_end: None,
+            }],
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("getVariableByIdAsync"));
+    assert!(code.contains("getStyleByIdAsync"));
+    assert!(!code.contains("getLocalVariableCollectionsAsync"));
+    assert!(!code.contains("getStyleConsumersAsync"));
+}
+
+#[test]
 fn built_in_scripts_expose_only_read_operations() {
     for script in [
         BuiltinScript::NodeSnapshot,
@@ -136,6 +160,7 @@ fn built_in_scripts_expose_only_read_operations() {
         BuiltinScript::SearchSnapshot,
         BuiltinScript::VariableCatalog,
         BuiltinScript::LocalVariables,
+        BuiltinScript::UsedResources,
     ] {
         let call = ReadToolCall::snapshot("file-key", "1:2", script);
         let code = call.arguments()["code"].as_str().unwrap().to_owned();

@@ -24,6 +24,7 @@ pub enum BuiltinScript {
     SearchSnapshot,
     VariableCatalog,
     LocalVariables,
+    UsedResources,
 }
 
 impl BuiltinScript {
@@ -40,6 +41,7 @@ impl BuiltinScript {
             Self::SearchSnapshot => include_str!("scripts/search.js"),
             Self::VariableCatalog => include_str!("scripts/variable_catalog.js"),
             Self::LocalVariables => include_str!("scripts/variables.js"),
+            Self::UsedResources => include_str!("scripts/used_resources.js"),
         };
         let empty_resources = ResourceBatch {
             variable_ids: Vec::new(),
@@ -166,6 +168,19 @@ impl ReadToolCall {
             file_key: file_key.into(),
             node_id: node_id.into(),
             script: BuiltinScript::LocalVariables,
+            resources: Some(resources),
+        }
+    }
+
+    pub fn used_resources(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        resources: ResourceBatch,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::UsedResources,
             resources: Some(resources),
         }
     }

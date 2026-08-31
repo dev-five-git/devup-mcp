@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{DevupError, ErrorCode, UpstreamResult};
+use crate::{DevupError, ErrorCode, ResourceKind, UpstreamResult, UsedResourceRefs};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +45,21 @@ pub(crate) struct VariableBatchResult {
     pub variables: Vec<Value>,
     #[serde(default)]
     pub styles: Vec<Value>,
+    #[serde(default)]
+    pub unresolved: Vec<UnresolvedResource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnresolvedResource {
+    pub id: String,
+    pub kind: ResourceKind,
+    pub reason: String,
+}
+
+pub(crate) struct UsedResourceMerge {
+    pub result: UpstreamResult,
+    pub unresolved: Vec<UnresolvedResource>,
 }
 
 pub(crate) fn catalog_from_result(result: &UpstreamResult) -> Result<VariableCatalog, DevupError> {
@@ -141,6 +156,89 @@ pub(crate) fn merge_variable_results(
     })
 }
 
+pub(crate) fn merge_used_resource_results(
+    refs: &UsedResourceRefs,
+    batches: impl IntoIterator<Item = VariableBatchResult>,
+) -> Result<UsedResourceMerge, DevupError> {
+    let mut variables_by_id = std::collections::BTreeMap::<String, Value>::new();
+    let mut styles_by_id = std::collections::BTreeMap::<String, Value>::new();
+    let mut unresolved_by_key =
+        std::collections::BTreeMap::<(ResourceKind, String), UnresolvedResource>::new();
+
+    for batch in batches {
+        for variable in batch.variables {
+            let id = resource_value_id(&variable)?;
+            variables_by_id.insert(id, variable);
+        }
+        for style in batch.styles {
+            let id = resource_value_id(&style)?;
+            styles_by_id.insert(id, style);
+        }
+        for unresolved in batch.unresolved {
+            unresolved_by_key.insert((unresolved.kind, unresolved.id.clone()), unresolved);
+        }
+    }
+
+    let mut variables = Vec::with_capacity(refs.variable_ids.len());
+    for id in &refs.variable_ids {
+        if let Some(variable) = variables_by_id.remove(id) {
+            variables.push(variable);
+        } else {
+            unresolved_by_key
+                .entry((ResourceKind::Variable, id.clone()))
+                .or_insert_with(|| UnresolvedResource {
+                    id: id.clone(),
+                    kind: ResourceKind::Variable,
+                    reason: "notFoundOrUnavailable".to_owned(),
+                });
+        }
+    }
+
+    let mut styles = Vec::with_capacity(refs.styles.len());
+    for style_ref in &refs.styles {
+        if let Some(style) = styles_by_id.remove(&style_ref.id) {
+            styles.push(style);
+        } else {
+            unresolved_by_key
+                .entry((ResourceKind::Style, style_ref.id.clone()))
+                .or_insert_with(|| UnresolvedResource {
+                    id: style_ref.id.clone(),
+                    kind: ResourceKind::Style,
+                    reason: "notFoundOrUnavailable".to_owned(),
+                });
+        }
+    }
+
+    let unresolved = unresolved_by_key.into_values().collect::<Vec<_>>();
+    let used_remote_variables = variables
+        .iter()
+        .filter(|variable| variable.get("remote").and_then(Value::as_bool) == Some(true))
+        .cloned()
+        .collect::<Vec<_>>();
+    let used_remote_complete = unresolved.is_empty();
+    Ok(UsedResourceMerge {
+        result: UpstreamResult {
+            raw: json!({
+                "collections": [],
+                "variables": variables,
+                "styles": styles,
+                "usedRemoteVariables": used_remote_variables,
+                "localComplete": false,
+                "usedRemoteComplete": used_remote_complete
+            }),
+        },
+        unresolved,
+    })
+}
+
+fn resource_value_id(value: &Value) -> Result<String, DevupError> {
+    value
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(invalid_variable_result)
+}
+
 fn expand_consumer_entry(entry: Value) -> Result<Value, DevupError> {
     let values = entry.as_array().ok_or_else(invalid_variable_result)?;
     if values.len() != 3 {
@@ -226,6 +324,7 @@ mod tests {
                     "value": {"fontSize": 16},
                     "$consumerCount": 2
                 })],
+                unresolved: Vec::new(),
             },
             VariableBatchResult {
                 variables: Vec::new(),
@@ -235,6 +334,7 @@ mod tests {
                     "$consumerStart": 1,
                     "$consumerEntries": [["2:2", "TEXT", ["textStyleId"]]]
                 })],
+                unresolved: Vec::new(),
             },
             VariableBatchResult {
                 variables: Vec::new(),
@@ -244,6 +344,7 @@ mod tests {
                     "$consumerStart": 0,
                     "$consumerEntries": [["2:1", "TEXT", ["textStyleId"]]]
                 })],
+                unresolved: Vec::new(),
             },
         ];
 

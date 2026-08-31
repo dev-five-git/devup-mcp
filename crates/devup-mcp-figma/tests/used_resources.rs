@@ -1,5 +1,6 @@
 use devup_mcp_figma::{
-    RawNode, ResourceKind, ResourceScope, SnapshotChunk, collect_used_resource_refs,
+    RawNode, ReadToolCall, ResourceBatch, ResourceKind, ResourceScope, ResourceStyleRef,
+    SnapshotChunk, collect_used_resource_refs,
 };
 use serde_json::{Map, json};
 
@@ -11,6 +12,30 @@ fn node(id: &str, fields: serde_json::Value) -> RawNode {
         extra: Map::new(),
         field_errors: Default::default(),
     }
+}
+
+#[test]
+fn exact_id_script_fetches_used_resources_without_style_consumers() {
+    let call = ReadToolCall::used_resources(
+        "FileKey123",
+        "3879:35518",
+        ResourceBatch {
+            variable_ids: vec!["VariableID:12:34".to_owned()],
+            styles: vec![ResourceStyleRef {
+                id: "S:text".to_owned(),
+                style_type: "TEXT".to_owned(),
+                consumer_start: None,
+                consumer_end: None,
+            }],
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(code.contains("getVariableByIdAsync"));
+    assert!(code.contains("getStyleByIdAsync"));
+    assert!(code.contains("unresolved"));
+    assert!(!code.contains("getLocalVariablesAsync"));
+    assert!(!code.contains("getStyleConsumersAsync"));
 }
 
 #[test]

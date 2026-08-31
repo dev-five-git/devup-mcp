@@ -37,7 +37,7 @@ pub use upstream::{
     UpstreamResult,
 };
 pub use url::FigmaTarget;
-pub use variables::{ResourceBatch, ResourceStyleRef};
+pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
