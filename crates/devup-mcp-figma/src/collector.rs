@@ -52,6 +52,7 @@ pub struct CollectionRequest {
     pub search: Option<SearchReadOptions>,
     pub explore: Option<ExploreReadOptions>,
     pub section: Option<SectionReadOptions>,
+    pub cached_section_index: Option<SectionIndex>,
     pub asset_selections: Vec<AssetSelection>,
 }
 
@@ -76,6 +77,7 @@ impl CollectionRequest {
             search: None,
             explore: None,
             section: None,
+            cached_section_index: None,
             asset_selections: Vec::new(),
         }
     }
@@ -232,6 +234,12 @@ impl CollectorSession {
     pub fn advance(&mut self) -> Result<CollectorStep, DevupError> {
         if self.completed {
             return Err(invalid_call("완료된 Figma 수집 session입니다."));
+        }
+        if self.section_index.is_none()
+            && let Some(index) = self.request.cached_section_index.take()
+        {
+            self.prepare_cached_section_index(index)?;
+            return self.advance();
         }
         if self.metadata.is_none() && self.pending.is_empty() && self.queued.is_empty() {
             if self.request.section.is_some() && self.section_index.is_none() {
@@ -453,7 +461,9 @@ impl CollectorSession {
             .ok_or_else(|| invalid_call("알 수 없거나 이미 처리한 Figma call ID입니다."))?;
         self.consumed.insert(call_id.to_owned());
         match pending.kind {
-            CallKind::FastSnapshot => self.accept_fast_snapshot(pending.order, result),
+            CallKind::FastSnapshot => {
+                self.accept_fast_snapshot(&pending.planned, pending.order, result)
+            }
             CallKind::FastTheme => self.accept_fast_theme(result),
             CallKind::Metadata => self.accept_metadata(&pending.planned, result),
             CallKind::PageCatalog => self.accept_page_catalog(&pending.planned, result),
@@ -585,12 +595,28 @@ impl CollectorSession {
 
     fn accept_fast_snapshot(
         &mut self,
+        planned: &PlannedCall,
         order: usize,
         result: UpstreamResult,
     ) -> Result<(), DevupError> {
         let payload = match decode_fast_snapshot(&result, &self.request.target) {
             Ok(payload) => payload,
             Err(error) => {
+                if let Ok(chunk) = snapshot_chunk_from_result(&result)
+                    && chunk.root_ids.as_slice()
+                        == [self.request.target.node_id.as_deref().unwrap_or_default()]
+                    && chunk.nodes.iter().any(|node| {
+                        node.id == self.request.target.node_id.as_deref().unwrap_or_default()
+                            && node.node_type == "SECTION"
+                            && node.typed_view().value("projectionTruncated").is_some()
+                    })
+                {
+                    self.request.section = Some(SectionReadOptions {
+                        frame_ids: Vec::new(),
+                        all_screens: false,
+                    });
+                    return self.accept_section_index(planned, order, result);
+                }
                 self.restart_legacy(fallback_category(&error));
                 return Ok(());
             }
@@ -818,6 +844,67 @@ impl CollectorSession {
         Ok(())
     }
 
+    fn prepare_cached_section_index(&mut self, index: SectionIndex) -> Result<(), DevupError> {
+        if index.file_key != self.request.target.file_key
+            || self.request.target.node_id.as_deref() != Some(index.section.node_id.as_str())
+        {
+            return Err(invalid_call(
+                "cached Section index가 요청한 Section과 일치하지 않습니다.",
+            ));
+        }
+        let options = self
+            .request
+            .section
+            .clone()
+            .ok_or_else(|| invalid_call("cached Section index에 선택 설정이 없습니다."))?;
+        let selected = index.select(&options.frame_ids, options.all_screens)?;
+        let batches = plan_batches(&index, &selected, BatchLimits::default())?;
+        self.source_version = index.source_version.clone();
+        self.section_selected_roots = selected.clone();
+        self.root_node_id = selected.first().cloned();
+        self.metadata_root_ids = selected.clone();
+        self.metadata = Some(json!({
+            "transport": "section-multi-root-v1",
+            "sectionIndex": &index,
+            "selectedRootIds": &selected,
+            "batchCount": batches.len(),
+            "indexCacheHit": true
+        }));
+        self.section_index = Some(index);
+        let section_id = self
+            .request
+            .target
+            .node_id
+            .clone()
+            .ok_or_else(|| invalid_call("cached Section index의 Section ID가 없습니다."))?;
+        for batch in batches {
+            if batch.oversized {
+                for root_id in batch.root_ids {
+                    self.enqueue(
+                        ReadToolCall::snapshot(
+                            &self.request.target.file_key,
+                            &root_id,
+                            BuiltinScript::NodeSnapshot,
+                        ),
+                        Some(root_id),
+                        CallKind::Snapshot,
+                    );
+                }
+            } else {
+                self.enqueue(
+                    ReadToolCall::multi_root_snapshot(
+                        &self.request.target.file_key,
+                        &section_id,
+                        batch.root_ids,
+                    ),
+                    Some(section_id.clone()),
+                    CallKind::FastMultiRoot,
+                );
+            }
+        }
+        Ok(())
+    }
+
     fn accept_fast_multi_root(
         &mut self,
         planned: &PlannedCall,
@@ -834,7 +921,14 @@ impl CollectorSession {
                 "multi-root snapshot call 형식이 올바르지 않습니다.",
             ));
         };
-        let payload = decode_fast_multi_snapshot(&result, &self.request.target, root_ids)?;
+        let payload = match decode_fast_multi_snapshot(&result, &self.request.target, root_ids) {
+            Ok(payload) => payload,
+            Err(error) if fast_call_fallback_allowed(&error) => {
+                self.restart_multi_root_legacy(fallback_category(&error))?;
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
         if let (Some(existing), Some(incoming)) = (&self.source_version, &payload.snapshot.version)
             && existing != incoming
         {

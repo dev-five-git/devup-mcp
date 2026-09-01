@@ -42,7 +42,12 @@ impl FigmaUpstream for SectionUpstream {
             ReadToolCall::Snapshot {
                 script: BuiltinScript::FastSnapshotEnvelope,
                 ..
-            } => Ok(section_envelope()),
+            } => Ok(compact_section_index_result()),
+            ReadToolCall::Snapshot {
+                script: BuiltinScript::MultiRootSnapshotEnvelope,
+                root_ids: Some(root_ids),
+                ..
+            } => Ok(multi_root_envelope(&root_ids)),
             _ => Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
                 "section export must use one fast acquisition",
@@ -96,6 +101,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
     );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
     let artifact_id = selection["cache"]["artifactId"].as_str().unwrap();
+    assert_eq!(selection["cache"]["capabilities"]["kind"], "section-index");
 
     let selected = call(
         &client,
@@ -114,13 +120,13 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .iter()
             .map(|frame| frame["nodeId"].as_str().unwrap())
             .collect::<Vec<_>>(),
-        ["10:2", "10:3"]
+        ["10:3", "10:2"]
     );
     assert!(
         selected["frames"][0]["tsx"]
             .as_str()
             .unwrap()
-            .contains("Second")
+            .contains("First")
     );
     assert_eq!(selected["frames"][0]["sourceMap"]["version"], 1);
     assert!(
@@ -128,16 +134,17 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .as_array()
             .is_some_and(|entries| entries
                 .iter()
-                .any(|entry| entry["nodeId"] == "10:2" && entry["property"] == "type"))
+                .any(|entry| entry["nodeId"] == "10:3" && entry["property"] == "type"))
     );
-    assert_eq!(selected["cache"]["cacheHit"], true);
+    assert_eq!(selected["cache"]["cacheHit"], false);
     assert_eq!(selected["collection"]["figmaToolCalls"], 1);
-    assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
+    let selected_artifact_id = selected["cache"]["artifactId"].as_str().unwrap();
 
     let all = call(
         &client,
         json!({
-            "artifactId": artifact_id,
+            "artifactId": selected_artifact_id,
             "outputs": ["tsx"],
             "allScreens": true
         }),
@@ -152,7 +159,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
-    assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
     assert_eq!(all["collection"]["figmaToolCalls"], 1);
 
     let invalid = client
@@ -208,41 +215,61 @@ fn actual_wquw_151_section_fixture_preserves_the_ten_screen_index() {
     );
 }
 
-fn section_envelope() -> UpstreamResult {
-    let mut envelope = json!({
-        "schemaVersion": 1,
-        "source": {"fileKey": "FileKey123", "rootId": "10:1"},
-        "snapshot": {
-            "fileKey": "FileKey123", "version": "v1", "rootIds": ["10:1"],
+fn compact_section_index_result() -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "fileKey": "FileKey123", "version": null, "rootIds": ["10:1"],
             "nodes": [
                 {"id": "10:1", "type": "SECTION", "fields": {
-                    "name": "Proofread states", "parentId": "0:1",
-                    "childrenIds": ["10:2", "10:3", "10:4"],
+                    "name": "Proofread states", "parentId": "0:1", "childrenIds": ["10:2", "10:3"],
+                    "visible": true, "projectionTruncated": false,
                     "absoluteBoundingBox": {"x": 0, "y": 0, "width": 1200, "height": 1000}
                 }, "extra": {}, "fieldErrors": {}},
                 {"id": "10:2", "type": "FRAME", "fields": {
                     "name": "Second", "parentId": "10:1", "childrenIds": [], "visible": true,
-                    "absoluteBoundingBox": {"x": 500, "y": 120, "width": 360, "height": 740},
-                    "layoutMode": "VERTICAL", "width": 360, "height": 740
+                    "directChildCount": 0, "subtreeNodeCount": 1, "estimatedSerializedBytes": 1000,
+                    "absoluteBoundingBox": {"x": 500, "y": 120, "width": 360, "height": 740}
                 }, "extra": {}, "fieldErrors": {}},
                 {"id": "10:3", "type": "FRAME", "fields": {
                     "name": "First", "parentId": "10:1", "childrenIds": [], "visible": true,
-                    "absoluteBoundingBox": {"x": 100, "y": 120, "width": 360, "height": 740},
-                    "layoutMode": "VERTICAL", "width": 360, "height": 740
-                }, "extra": {}, "fieldErrors": {}},
-                {"id": "10:4", "type": "TEXT", "fields": {
-                    "name": "Annotation", "parentId": "10:1", "childrenIds": [], "visible": true,
-                    "absoluteBoundingBox": {"x": 100, "y": 900, "width": 200, "height": 30},
-                    "characters": "Do not export"
+                    "directChildCount": 0, "subtreeNodeCount": 1, "estimatedSerializedBytes": 1000,
+                    "absoluteBoundingBox": {"x": 100, "y": 120, "width": 360, "height": 740}
                 }, "extra": {}, "fieldErrors": {}}
             ], "diagnostics": []
+        }),
+    }
+}
+
+fn multi_root_envelope(root_ids: &[String]) -> UpstreamResult {
+    let nodes = root_ids
+        .iter()
+        .map(|root_id| match root_id.as_str() {
+            "10:2" => json!({"id": "10:2", "type": "FRAME", "fields": {
+                "name": "Second", "parentId": "10:1", "childrenIds": [], "visible": true,
+                "absoluteBoundingBox": {"x": 500, "y": 120, "width": 360, "height": 740},
+                "layoutMode": "VERTICAL", "width": 360, "height": 740
+            }, "extra": {}, "fieldErrors": {}}),
+            "10:3" => json!({"id": "10:3", "type": "FRAME", "fields": {
+                "name": "First", "parentId": "10:1", "childrenIds": [], "visible": true,
+                "absoluteBoundingBox": {"x": 100, "y": 120, "width": 360, "height": 740},
+                "layoutMode": "VERTICAL", "width": 360, "height": 740
+            }, "extra": {}, "fieldErrors": {}}),
+            _ => panic!("unexpected selected root"),
+        })
+        .collect::<Vec<_>>();
+    let mut envelope = json!({
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "rootId": "10:1"},
+        "snapshot": {
+            "fileKey": "FileKey123", "version": null, "rootIds": root_ids,
+            "nodes": nodes, "diagnostics": []
         },
         "resources": {
             "collections": [], "variables": [], "styles": [],
             "usedRemoteVariables": [], "usedVariableIds": [], "usedStyleIds": [],
             "localComplete": false, "usedRemoteComplete": true, "unresolved": []
         },
-        "integrity": {"nodeCount": 4, "variableRefCount": 0, "styleRefCount": 0, "utf8Bytes": 0}
+        "integrity": {"nodeCount": root_ids.len(), "variableRefCount": 0, "styleRefCount": 0, "utf8Bytes": 0}
     });
     let bytes = loop {
         let bytes = serde_json::to_vec(&envelope).unwrap();
@@ -266,7 +293,7 @@ fn section_envelope() -> UpstreamResult {
     push_chunk(&mut png, b"IEND", &[]);
     let descriptor = json!({
         "kind": "devupFastSnapshotDescriptor", "schemaVersion": 1, "rootId": "10:1",
-        "nodeCount": 4, "variableRefCount": 0, "styleRefCount": 0,
+        "nodeCount": root_ids.len(), "variableRefCount": 0, "styleRefCount": 0,
         "utf8Bytes": bytes.len(), "chunkCount": 1
     });
     UpstreamResult {

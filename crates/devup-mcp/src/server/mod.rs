@@ -26,10 +26,11 @@ use devup_mcp_devup_ui::{
 use devup_mcp_figma::{
     AssetFormat, AssetSelection, AssetStatus, AuthStatus, CollectedParts, CollectedPayload,
     CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
-    DevupError, ErrorCode, ExploreOptions, ExploreReadOptions, FigmaTarget, FigmaUpstream,
-    KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchOptions,
-    SearchReadOptions, SourcePolicy, SystemBrowser, TargetKind, classify_target, explore_snapshot,
-    fallback_allowed_for_error, search_snapshot,
+    DevupError, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode, ExploreOptions,
+    ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore, OAuthManager,
+    RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SectionCandidate,
+    SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser, TargetKind, classify_target,
+    explore_snapshot, fallback_allowed_for_error, search_snapshot,
 };
 
 use artifacts::{ArtifactKind, ArtifactLookup, ArtifactRequestKey, ArtifactStore};
@@ -483,6 +484,58 @@ impl DevupServer {
             })?;
             let (asset_selections, asset_output_paths) =
                 parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
+            if artifact.capabilities.kind == ArtifactKind::SectionIndex
+                && (!input.frame_ids.is_empty() || input.all_screens)
+            {
+                let index = section_index_from_payload(&artifact.payload).ok_or_else(|| {
+                    to_mcp_error(DevupError::new(
+                        ErrorCode::DevupFigmaHandoffInvalid,
+                        "Section index artifact payload가 올바르지 않습니다.",
+                        false,
+                    ))
+                })?;
+                let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+                let collection_scope =
+                    parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+                if collection_scope != CollectionScope::Node {
+                    return Err(to_mcp_error(DevupError::new(
+                        ErrorCode::DevupSnapshotUnsupported,
+                        "Section Frame 수집 scope는 node여야 합니다.",
+                        false,
+                    )));
+                }
+                let mut request =
+                    CollectionRequest::new(artifact.payload.target.clone(), collection_scope);
+                request.resource_scope = ResourceScope::Used;
+                request.asset_selections = asset_selections.clone();
+                request.section = Some(SectionReadOptions {
+                    frame_ids: input.frame_ids.clone(),
+                    all_screens: input.all_screens,
+                });
+                request.cached_section_index = Some(index);
+                let result = self
+                    .start_operation(
+                        PendingOperation::Export {
+                            outputs: input.outputs,
+                            component_name: input.component_name,
+                            include_diagnostics: input.include_diagnostics,
+                            root_layout,
+                            scope: input.scope,
+                            strict: input.strict,
+                            output_paths: input.output_paths,
+                            frame_ids: input.frame_ids,
+                            all_screens: input.all_screens,
+                            asset_captures: asset_selections,
+                            asset_output_paths,
+                        },
+                        request,
+                        policy,
+                        false,
+                    )
+                    .await
+                    .map_err(to_mcp_error)?;
+                return Ok(Json(result));
+            }
             validate_artifact_projection(
                 &artifact,
                 &input.outputs,
@@ -542,6 +595,12 @@ impl DevupServer {
         request.variables_only = collection_scope == CollectionScope::File
             && input.outputs.iter().all(|output| output == "devupJson")
             && request.asset_selections.is_empty();
+        if !input.frame_ids.is_empty() || input.all_screens {
+            request.section = Some(SectionReadOptions {
+                frame_ids: input.frame_ids.clone(),
+                all_screens: input.all_screens,
+            });
+        }
         let result = self
             .start_operation(
                 PendingOperation::Export {
@@ -804,7 +863,12 @@ fn complete_operation(
                     "version": payload.snapshot.version
                 }),
             );
-            let target_kind = classify_target(&payload.snapshot, &payload.target);
+            let payload_section_index = section_index_from_payload(payload);
+            let target_kind = if payload_section_index.is_some() {
+                TargetKind::Section
+            } else {
+                classify_target(&payload.snapshot, &payload.target)
+            };
             result.insert("targetKind".to_owned(), json!(target_kind));
 
             if !frame_ids.is_empty() && all_screens {
@@ -825,14 +889,20 @@ fn complete_operation(
             let section_candidates = if target_kind == TargetKind::Section
                 && outputs.iter().any(|output| output == "tsx")
             {
-                Some(
+                Some(if let Some(index) = &payload_section_index {
+                    index
+                        .candidates
+                        .iter()
+                        .map(section_candidate_as_explore)
+                        .collect()
+                } else {
                     explore_snapshot(
                         &payload.snapshot,
                         &payload.target,
                         &ExploreOptions { limit: 100 },
                     )?
-                    .candidates,
-                )
+                    .candidates
+                })
             } else {
                 None
             };
@@ -876,28 +946,33 @@ fn complete_operation(
                 let selected = if all_screens {
                     candidates.iter().collect::<Vec<_>>()
                 } else {
-                    let mut seen = std::collections::BTreeSet::new();
-                    frame_ids
+                    let requested = frame_ids
                         .iter()
-                        .map(|node_id| {
-                            if !seen.insert(node_id.as_str()) {
-                                return Err(DevupError::new(
-                                    ErrorCode::DevupSnapshotUnsupported,
-                                    format!("frameIds에 중복 node가 있습니다: {node_id}"),
-                                    false,
-                                ));
-                            }
-                            by_id.get(node_id.as_str()).copied().ok_or_else(|| {
-                                DevupError::new(
-                                    ErrorCode::DevupFigmaNodeNotFound,
-                                    format!(
-                                        "Section 내부 screen frame이 아니거나 존재하지 않습니다: {node_id}"
-                                    ),
-                                    false,
-                                )
-                            })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?
+                        .map(String::as_str)
+                        .collect::<std::collections::BTreeSet<_>>();
+                    if requested.len() != frame_ids.len() {
+                        return Err(DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            "frameIds에 중복 node가 있습니다.",
+                            false,
+                        ));
+                    }
+                    if let Some(node_id) = requested
+                        .iter()
+                        .find(|node_id| !by_id.contains_key(**node_id))
+                    {
+                        return Err(DevupError::new(
+                            ErrorCode::DevupFigmaNodeNotFound,
+                            format!(
+                                "Section 내부 screen frame이 아니거나 존재하지 않습니다: {node_id}"
+                            ),
+                            false,
+                        ));
+                    }
+                    candidates
+                        .iter()
+                        .filter(|candidate| requested.contains(candidate.node.node_id.as_str()))
+                        .collect::<Vec<_>>()
                 };
                 let mut frames = Vec::with_capacity(selected.len());
                 for (index, candidate) in selected.into_iter().enumerate() {
@@ -1240,6 +1315,7 @@ fn validate_artifact_projection(
     let kind_compatible = match capabilities.kind {
         ArtifactKind::Design => true,
         ArtifactKind::ThemeOnly => theme_requested && !design_output_requested,
+        ArtifactKind::SectionIndex => outputs.iter().any(|output| output == "tsx"),
         ArtifactKind::Search | ArtifactKind::Explore => false,
     };
     let collection_compatible = collection_scope_rank(requested_scope)
@@ -1271,6 +1347,31 @@ fn validate_artifact_projection(
             }
         }),
     ))
+}
+
+fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex> {
+    serde_json::from_value(payload.metadata.get("sectionIndex")?.clone()).ok()
+}
+
+fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidate {
+    ExploreCandidate {
+        node: ExploreNode {
+            node_id: candidate.node_id.clone(),
+            name: candidate.name.clone(),
+            node_type: candidate.node_type.clone(),
+            bounds: candidate.bounds,
+            child_count: candidate.direct_child_count,
+            text_preview: String::new(),
+            parent_id: candidate.parent_id.clone(),
+            kind: ExploreKind::Screen,
+            visible: candidate.visible,
+            breadcrumb: candidate.breadcrumb.clone(),
+            page_child_index: None,
+        },
+        canonical_url: candidate.canonical_url.clone(),
+        score: 900,
+        selection_reasons: candidate.selection_reasons.clone(),
+    }
 }
 
 fn collection_scope_rank(scope: CollectionScope) -> u8 {

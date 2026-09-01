@@ -1,3 +1,5 @@
+"__DEVUP_SECTION_INDEX_PROBE__";
+
 const requestedRootIds = "__DEVUP_ROOT_IDS__";
 if (!Array.isArray(requestedRootIds) || requestedRootIds.length === 0) {
   throw new Error("DEVUP_ROOTS_INVALID");

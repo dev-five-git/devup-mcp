@@ -8,7 +8,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use devup_mcp_figma::{
     AssetSelection, CollectedPayload, CollectionRequest, CollectionScope, DevupError, ErrorCode,
-    ExploreReadOptions, ResourceScope, SearchReadOptions, SourcePolicy,
+    ExploreReadOptions, ResourceScope, SearchReadOptions, SectionReadOptions, SourcePolicy,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -29,6 +29,7 @@ pub struct ArtifactRequestKey {
     variables_only: bool,
     search: Option<SearchReadOptions>,
     explore: Option<ExploreReadOptions>,
+    section: Option<SectionReadOptions>,
     asset_selections: Vec<AssetSelection>,
     source_policy: SourcePolicy,
 }
@@ -46,6 +47,7 @@ impl ArtifactRequestKey {
             variables_only: request.variables_only,
             search: request.search.clone(),
             explore: request.explore.clone(),
+            section: request.section.clone(),
             asset_selections: request.asset_selections.clone(),
             source_policy,
         }
@@ -60,6 +62,12 @@ impl ArtifactRequestKey {
             ArtifactKind::Search
         } else if self.explore.is_some() {
             ArtifactKind::Explore
+        } else if self
+            .section
+            .as_ref()
+            .is_some_and(|section| section.frame_ids.is_empty() && !section.all_screens)
+        {
+            ArtifactKind::SectionIndex
         } else if self.variables_only {
             ArtifactKind::ThemeOnly
         } else {
@@ -82,6 +90,7 @@ pub enum ArtifactKind {
     ThemeOnly,
     Search,
     Explore,
+    SectionIndex,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -306,9 +315,14 @@ impl ArtifactStore {
     async fn insert_with_digest(
         &self,
         key_digest: String,
-        capabilities: ArtifactCapabilities,
+        mut capabilities: ArtifactCapabilities,
         payload: CollectedPayload,
     ) -> Result<ArtifactLookup, DevupError> {
+        if payload.metadata.get("sectionIndex").is_some()
+            && payload.metadata.get("selectedRootIds").is_none()
+        {
+            capabilities.kind = ArtifactKind::SectionIndex;
+        }
         let bytes = serde_json::to_vec(&payload).map_err(|error| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
