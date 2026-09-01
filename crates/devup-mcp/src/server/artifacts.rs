@@ -54,6 +54,40 @@ impl ArtifactRequestKey {
     fn digest(&self) -> String {
         sha256_hex(&serde_json::to_vec(self).unwrap_or_default())
     }
+
+    fn capabilities(&self) -> ArtifactCapabilities {
+        let kind = if self.search.is_some() {
+            ArtifactKind::Search
+        } else if self.explore.is_some() {
+            ArtifactKind::Explore
+        } else if self.variables_only {
+            ArtifactKind::ThemeOnly
+        } else {
+            ArtifactKind::Design
+        };
+        ArtifactCapabilities {
+            kind,
+            collection_scope: self.scope,
+            resource_scope: self.resource_scope,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ArtifactKind {
+    Design,
+    ThemeOnly,
+    Search,
+    Explore,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactCapabilities {
+    pub kind: ArtifactKind,
+    pub collection_scope: CollectionScope,
+    pub resource_scope: ResourceScope,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -99,6 +133,7 @@ pub struct ArtifactLookup {
     pub expires_at_epoch_seconds: u64,
     pub size_bytes: usize,
     pub cache_hit: bool,
+    pub capabilities: ArtifactCapabilities,
     pub payload: Arc<CollectedPayload>,
 }
 
@@ -119,6 +154,7 @@ struct Entry {
     expires_at: u64,
     size_bytes: usize,
     last_access: u64,
+    capabilities: ArtifactCapabilities,
     payload: Arc<CollectedPayload>,
 }
 
@@ -170,6 +206,7 @@ impl ArtifactStore {
         Fut: Future<Output = Result<CollectedPayload, DevupError>>,
     {
         let key_digest = key.digest();
+        let capabilities = key.capabilities();
         let (owner, mut receiver, sender) = {
             let now = self.clock.now_epoch_seconds();
             let mut state = self.state.lock().await;
@@ -202,7 +239,10 @@ impl ArtifactStore {
         }
 
         let result = match acquire().await {
-            Ok(payload) => self.insert_with_digest(key_digest.clone(), payload).await,
+            Ok(payload) => {
+                self.insert_with_digest(key_digest.clone(), capabilities, payload)
+                    .await
+            }
             Err(error) => Err(error),
         };
         {
@@ -220,7 +260,8 @@ impl ArtifactStore {
         key: ArtifactRequestKey,
         payload: CollectedPayload,
     ) -> Result<ArtifactLookup, DevupError> {
-        self.insert_with_digest(key.digest(), payload).await
+        self.insert_with_digest(key.digest(), key.capabilities(), payload)
+            .await
     }
 
     pub async fn get(&self, artifact_id: &str) -> Option<ArtifactLookup> {
@@ -252,6 +293,7 @@ impl ArtifactStore {
     async fn insert_with_digest(
         &self,
         key_digest: String,
+        capabilities: ArtifactCapabilities,
         payload: CollectedPayload,
     ) -> Result<ArtifactLookup, DevupError> {
         let bytes = serde_json::to_vec(&payload).map_err(|error| {
@@ -310,6 +352,7 @@ impl ArtifactStore {
                 expires_at,
                 size_bytes: bytes.len(),
                 last_access,
+                capabilities,
                 payload: payload.clone(),
             },
         );
@@ -320,6 +363,7 @@ impl ArtifactStore {
             expires_at_epoch_seconds: expires_at,
             size_bytes: bytes.len(),
             cache_hit: false,
+            capabilities,
             payload,
         })
     }
@@ -361,6 +405,7 @@ fn touch_entry(
         expires_at_epoch_seconds: entry.expires_at,
         size_bytes: entry.size_bytes,
         cache_hit,
+        capabilities: entry.capabilities,
         payload: entry.payload.clone(),
     })
 }

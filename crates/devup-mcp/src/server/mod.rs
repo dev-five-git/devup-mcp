@@ -31,7 +31,7 @@ use devup_mcp_figma::{
     fallback_allowed_for_error, search_snapshot,
 };
 
-use artifacts::{ArtifactLookup, ArtifactRequestKey, ArtifactStore};
+use artifacts::{ArtifactKind, ArtifactLookup, ArtifactRequestKey, ArtifactStore};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 use quality::{
     OutputQuality, acquisition_quality, assets_quality, projection_quality, theme_quality,
@@ -442,6 +442,8 @@ impl DevupServer {
                     true,
                 ))
             })?;
+            validate_artifact_projection(&artifact, &input.outputs, &input.scope)
+                .map_err(to_mcp_error)?;
             let (asset_selections, asset_output_paths) =
                 parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
             let result = complete_operation(
@@ -1137,10 +1139,66 @@ fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
         "artifactId": artifact.artifact_id,
         "contentHash": artifact.content_hash,
         "cacheHit": artifact.cache_hit,
+        "capabilities": artifact.capabilities,
         "sizeBytes": artifact.size_bytes,
         "acquiredAt": format_epoch_rfc3339(artifact.created_at_epoch_seconds),
         "expiresAt": format_epoch_rfc3339(artifact.expires_at_epoch_seconds)
     })
+}
+
+fn validate_artifact_projection(
+    artifact: &ArtifactLookup,
+    outputs: &[String],
+    requested_scope: &str,
+) -> Result<(), DevupError> {
+    let requested_scope = parse_collection_scope(requested_scope)?;
+    let capabilities = artifact.capabilities;
+    let design_output_requested = outputs.iter().any(|output| {
+        matches!(
+            output.as_str(),
+            "tsx" | "rawSnapshot" | "sourceMap" | "assetManifest"
+        )
+    });
+    let theme_requested = outputs.iter().any(|output| output == "devupJson");
+    let kind_compatible = match capabilities.kind {
+        ArtifactKind::Design => true,
+        ArtifactKind::ThemeOnly => theme_requested && !design_output_requested,
+        ArtifactKind::Search | ArtifactKind::Explore => false,
+    };
+    let collection_compatible = collection_scope_rank(requested_scope)
+        <= collection_scope_rank(capabilities.collection_scope);
+    let resources_compatible = !theme_requested
+        || match requested_scope {
+            CollectionScope::File => capabilities.resource_scope == ResourceScope::File,
+            CollectionScope::Node | CollectionScope::Page => {
+                capabilities.resource_scope != ResourceScope::None
+            }
+        };
+
+    if kind_compatible && collection_compatible && resources_compatible {
+        return Ok(());
+    }
+
+    Err(DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffInvalid,
+        "artifact capture capability가 요청한 export 범위를 충족하지 않습니다.",
+        false,
+        json!({
+            "capabilities": capabilities,
+            "requested": {
+                "outputs": outputs,
+                "collectionScope": requested_scope
+            }
+        }),
+    ))
+}
+
+fn collection_scope_rank(scope: CollectionScope) -> u8 {
+    match scope {
+        CollectionScope::Node => 0,
+        CollectionScope::Page => 1,
+        CollectionScope::File => 2,
+    }
 }
 
 fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {

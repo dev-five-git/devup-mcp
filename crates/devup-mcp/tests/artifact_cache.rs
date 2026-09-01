@@ -8,11 +8,11 @@ use std::{
 };
 
 use devup_mcp::server::artifacts::{
-    ArtifactClock, ArtifactLimits, ArtifactRequestKey, ArtifactStore,
+    ArtifactClock, ArtifactKind, ArtifactLimits, ArtifactRequestKey, ArtifactStore,
 };
 use devup_mcp_figma::{
-    CollectedPayload, CollectionRequest, CollectionScope, CollectionStats, FigmaTarget,
-    PayloadCompleteness, ResourceScope, Snapshot, SourcePolicy,
+    CollectedPayload, CollectionRequest, CollectionScope, CollectionStats, ExploreReadOptions,
+    FigmaTarget, PayloadCompleteness, ResourceScope, SearchReadOptions, Snapshot, SourcePolicy,
 };
 use serde_json::json;
 
@@ -76,6 +76,64 @@ fn payload(file_key: &str, node_id: &str, marker: &str) -> CollectedPayload {
         stats: CollectionStats::default(),
         assets: Vec::new(),
     }
+}
+
+#[tokio::test]
+async fn artifact_lookup_preserves_capture_capabilities() -> anyhow::Result<()> {
+    let store = ArtifactStore::with_limits(limits());
+
+    let design_request = request("design-file", "1:1");
+    let design = store
+        .insert(
+            ArtifactRequestKey::from_collection(&design_request, SourcePolicy::Direct),
+            payload("design-file", "1:1", "design"),
+        )
+        .await?;
+    assert_eq!(design.capabilities.kind, ArtifactKind::Design);
+    assert_eq!(design.capabilities.collection_scope, CollectionScope::Node);
+    assert_eq!(design.capabilities.resource_scope, ResourceScope::Used);
+
+    let mut theme_request = request("theme-file", "2:2");
+    theme_request.scope = CollectionScope::File;
+    theme_request.resource_scope = ResourceScope::File;
+    theme_request.variables_only = true;
+    let theme = store
+        .insert(
+            ArtifactRequestKey::from_collection(&theme_request, SourcePolicy::Direct),
+            payload("theme-file", "2:2", "theme"),
+        )
+        .await?;
+    assert_eq!(theme.capabilities.kind, ArtifactKind::ThemeOnly);
+    assert_eq!(theme.capabilities.collection_scope, CollectionScope::File);
+    assert_eq!(theme.capabilities.resource_scope, ResourceScope::File);
+
+    let mut search_request = request("search-file", "3:3");
+    search_request.scope = CollectionScope::File;
+    search_request.search = Some(SearchReadOptions {
+        query: "screen".to_owned(),
+        node_types: Vec::new(),
+        match_kind: "contains".to_owned(),
+        limit: 10,
+    });
+    let search = store
+        .insert(
+            ArtifactRequestKey::from_collection(&search_request, SourcePolicy::Direct),
+            payload("search-file", "3:3", "search"),
+        )
+        .await?;
+    assert_eq!(search.capabilities.kind, ArtifactKind::Search);
+
+    let mut explore_request = request("explore-file", "4:4");
+    explore_request.resource_scope = ResourceScope::None;
+    explore_request.explore = Some(ExploreReadOptions::default());
+    let explore = store
+        .insert(
+            ArtifactRequestKey::from_collection(&explore_request, SourcePolicy::Direct),
+            payload("explore-file", "4:4", "explore"),
+        )
+        .await?;
+    assert_eq!(explore.capabilities.kind, ArtifactKind::Explore);
+    Ok(())
 }
 
 #[tokio::test]

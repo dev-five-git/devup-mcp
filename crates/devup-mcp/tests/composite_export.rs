@@ -208,6 +208,57 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
 }
 
 #[tokio::test]
+async fn artifact_reuse_rejects_file_theme_beyond_captured_scope() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(128 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let acquired = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["tsx"],
+            "scope": "node",
+            "sourcePolicy": "direct"
+        }),
+    )
+    .await?;
+    let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+
+    let incompatible = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export").with_arguments(
+                json!({
+                    "artifactId": artifact_id,
+                    "outputs": ["devupJson"],
+                    "scope": "file"
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await;
+
+    let error = incompatible.expect_err("node artifact must not impersonate file theme capture");
+    assert!(
+        error.to_string().contains("DEVUP_FIGMA_HANDOFF_INVALID"),
+        "unexpected capability error: {error}"
+    );
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
 async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> anyhow::Result<()> {
     let upstream = Arc::new(FastFixtureUpstream::complete());
     let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
