@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod handoff;
+pub mod output;
 mod quality;
 mod tools;
 
