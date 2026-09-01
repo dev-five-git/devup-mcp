@@ -261,6 +261,10 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     .await?;
 
     assert_eq!(result["status"], "complete");
+    assert_eq!(result["quality"]["acquisition"], "complete");
+    assert_eq!(result["quality"]["projection"], "exact");
+    assert_eq!(result["quality"]["theme"], "not-requested");
+    assert_eq!(result["quality"]["assets"], "not-requested");
     assert!(
         result["tsx"]
             .as_str()
@@ -317,7 +321,10 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
     )
     .await?;
 
-    assert_eq!(result["status"], "complete");
+    assert_eq!(result["status"], "partial");
+    assert_eq!(result["quality"]["acquisition"], "complete");
+    assert_eq!(result["quality"]["projection"], "not-requested");
+    assert_eq!(result["quality"]["theme"], "conflicted");
     assert!(
         result["devupJson"]
             .as_str()

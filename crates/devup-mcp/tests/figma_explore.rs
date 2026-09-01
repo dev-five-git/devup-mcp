@@ -156,8 +156,11 @@ async fn direct_and_host_explore_return_identical_candidate_data() -> anyhow::Re
     // Explore is an intentionally shallow spatial projection. Its candidate data is
     // complete for the operation, while the preserved graph correctly reports that
     // descendants represented by childCount were not included in the snapshot.
-    assert_eq!(direct["status"], "partial");
-    assert_eq!(complete["status"], "partial");
+    assert_eq!(direct["status"], "complete");
+    assert_eq!(complete["status"], "complete");
+    assert_eq!(direct["quality"]["acquisition"], "expected-projection");
+    assert_eq!(complete["quality"]["acquisition"], "expected-projection");
+    assert_eq!(direct["quality"]["projection"], "not-requested");
     assert!(
         !direct["completenessReport"]["snapshot"]["childCountMismatches"]
             .as_array()

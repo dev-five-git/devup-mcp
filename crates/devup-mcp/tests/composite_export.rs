@@ -34,6 +34,7 @@ impl DevupAuth for ConnectedAuth {
 struct FastFixtureUpstream {
     calls: AtomicUsize,
     partial: bool,
+    lossy: bool,
 }
 
 impl FastFixtureUpstream {
@@ -41,6 +42,7 @@ impl FastFixtureUpstream {
         Self {
             calls: AtomicUsize::new(0),
             partial: false,
+            lossy: false,
         }
     }
 
@@ -48,6 +50,15 @@ impl FastFixtureUpstream {
         Self {
             calls: AtomicUsize::new(0),
             partial: true,
+            lossy: false,
+        }
+    }
+
+    fn lossy() -> Self {
+        Self {
+            calls: AtomicUsize::new(0),
+            partial: false,
+            lossy: true,
         }
     }
 }
@@ -64,7 +75,7 @@ impl FigmaUpstream for FastFixtureUpstream {
             ReadToolCall::Snapshot {
                 script: BuiltinScript::FastSnapshotEnvelope,
                 ..
-            } => Ok(fast_envelope_result(self.partial)),
+            } => Ok(fast_envelope_result(self.partial, self.lossy)),
             ReadToolCall::AssetExport {
                 version, request, ..
             } => Ok(asset_export_result(version.as_deref(), &request)),
@@ -269,7 +280,44 @@ async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Re
     Ok(())
 }
 
-fn fast_envelope_result(partial: bool) -> UpstreamResult {
+#[tokio::test]
+async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::lossy());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let result = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export").with_arguments(
+                json!({
+                    "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+                    "outputs": ["tsx"],
+                    "sourcePolicy": "direct",
+                    "strict": true
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await;
+
+    let error = result.expect_err("strict lossy export must fail");
+    assert!(
+        error.to_string().contains("lossy"),
+        "unexpected strict error: {error}"
+    );
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+fn fast_envelope_result(partial: bool, lossy: bool) -> UpstreamResult {
     let mut envelope = json!({
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "1:2"},
@@ -328,6 +376,11 @@ fn fast_envelope_result(partial: bool) -> UpstreamResult {
         envelope["resources"]["unresolved"] = json!([{
             "id": "v", "kind": "variable", "reason": "fixture-unresolved"
         }]);
+    }
+    if lossy {
+        envelope["snapshot"]["nodes"][0]["fields"]["isMask"] = json!(true);
+        envelope["snapshot"]["nodes"][0]["fields"]["effects"] =
+            json!([{"type": "BACKGROUND_BLUR"}]);
     }
     let envelope_bytes = loop {
         let bytes = serde_json::to_vec(&envelope).unwrap();

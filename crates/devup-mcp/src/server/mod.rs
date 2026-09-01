@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod handoff;
+mod quality;
 mod tools;
 
 use std::sync::Arc;
@@ -23,15 +24,18 @@ use devup_mcp_devup_ui::{
 };
 use devup_mcp_figma::{
     AssetFormat, AssetSelection, AssetStatus, AuthStatus, CollectedParts, CollectedPayload,
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CompletenessState,
-    CredentialStore, DevupError, ErrorCode, ExploreOptions, ExploreReadOptions, FigmaTarget,
-    FigmaUpstream, KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope,
-    SearchOptions, SearchReadOptions, SourcePolicy, SystemBrowser, TargetKind, classify_target,
-    explore_snapshot, fallback_allowed_for_error, search_snapshot,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
+    DevupError, ErrorCode, ExploreOptions, ExploreReadOptions, FigmaTarget, FigmaUpstream,
+    KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchOptions,
+    SearchReadOptions, SourcePolicy, SystemBrowser, TargetKind, classify_target, explore_snapshot,
+    fallback_allowed_for_error, search_snapshot,
 };
 
 use artifacts::{ArtifactLookup, ArtifactRequestKey, ArtifactStore};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
+use quality::{
+    OutputQuality, acquisition_quality, assets_quality, projection_quality, theme_quality,
+};
 
 pub use tools::{
     AuthInput, ContinueInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput,
@@ -530,11 +534,6 @@ fn complete_operation(
 ) -> Result<Value, DevupError> {
     let collection = payload.stats.clone();
     let completeness_report = payload.completeness_report();
-    let status = match completeness_report.state {
-        CompletenessState::Complete => "complete",
-        CompletenessState::Partial => "partial",
-        CompletenessState::Failed => "failed",
-    };
     match operation {
         PendingOperation::ToUi {
             component_name,
@@ -561,8 +560,15 @@ fn complete_operation(
                 }
                 .with_payload_tokens(payload),
             )?;
+            let quality = OutputQuality {
+                acquisition: acquisition_quality(&completeness_report, false),
+                projection: projection_quality(true, &output.diagnostics),
+                theme: theme_quality(false, 0, 0),
+                assets: assets_quality(false, &[], &[]),
+            };
+            let status = quality.status();
             let diagnostics = if include_diagnostics {
-                output.diagnostics
+                output.diagnostics.clone()
             } else {
                 Vec::new()
             };
@@ -572,6 +578,7 @@ fn complete_operation(
                 .transpose()?;
             Ok(json!({
                 "status": status,
+                "quality": quality,
                 "tsx": output.tsx,
                 "imports": output.imports,
                 "usedTokens": output.used_tokens,
@@ -609,8 +616,19 @@ fn complete_operation(
             })?;
             let variables = variable_snapshot_from_result(result)?;
             let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+            let quality = OutputQuality {
+                acquisition: acquisition_quality(&completeness_report, false),
+                projection: projection_quality(false, &[]),
+                theme: theme_quality(
+                    true,
+                    output.conflicts.len(),
+                    output.unresolved_variables.len(),
+                ),
+                assets: assets_quality(false, &[], &[]),
+            };
+            let status = quality.status();
             let diagnostics = if include_diagnostics {
-                output.diagnostics
+                output.diagnostics.clone()
             } else {
                 Vec::new()
             };
@@ -620,6 +638,7 @@ fn complete_operation(
                 .transpose()?;
             Ok(json!({
                 "status": status,
+                "quality": quality,
                 "devupJson": output.json,
                 "counts": output.counts,
                 "completeness": output.completeness,
@@ -654,8 +673,15 @@ fn complete_operation(
                     limit,
                 },
             )?;
+            let quality = OutputQuality {
+                acquisition: acquisition_quality(&completeness_report, true),
+                projection: projection_quality(false, &[]),
+                theme: theme_quality(false, 0, 0),
+                assets: assets_quality(false, &[], &[]),
+            };
             Ok(json!({
-                "status": status,
+                "status": quality.status(),
+                "quality": quality,
                 "query": query,
                 "count": matches.len(),
                 "matches": matches,
@@ -677,8 +703,15 @@ fn complete_operation(
                 &ExploreOptions { limit },
             )?;
             let count = result.candidates.len();
+            let quality = OutputQuality {
+                acquisition: acquisition_quality(&completeness_report, true),
+                projection: projection_quality(false, &[]),
+                theme: theme_quality(false, 0, 0),
+                assets: assets_quality(false, &[], &[]),
+            };
             Ok(json!({
-                "status": status,
+                "status": quality.status(),
+                "quality": quality,
                 "targetKind": result.target_kind,
                 "anchor": result.anchor,
                 "group": result.group,
@@ -711,19 +744,7 @@ fn complete_operation(
             asset_ids,
             asset_output_paths,
         } => {
-            if strict && completeness_report.state != CompletenessState::Complete {
-                return Err(DevupError::with_details(
-                    ErrorCode::DevupSnapshotUnsupported,
-                    format!(
-                        "strict export는 partial 또는 failed payload를 허용하지 않습니다: {status}"
-                    ),
-                    false,
-                    json!({"completenessReport": completeness_report}),
-                ));
-            }
-
             let mut result = Map::new();
-            result.insert("status".to_owned(), json!(status));
             result.insert("completeness".to_owned(), json!(payload.completeness));
             result.insert("completenessReport".to_owned(), json!(&completeness_report));
             result.insert("collection".to_owned(), json!(collection));
@@ -773,7 +794,14 @@ fn complete_operation(
                 && frame_ids.is_empty()
                 && !all_screens
             {
+                let quality = OutputQuality {
+                    acquisition: acquisition_quality(&completeness_report, false),
+                    projection: projection_quality(false, &[]),
+                    theme: theme_quality(false, 0, 0),
+                    assets: assets_quality(false, &[], &[]),
+                };
                 result.insert("status".to_owned(), json!("selection_required"));
+                result.insert("quality".to_owned(), json!(quality));
                 result.insert(
                     "selection".to_owned(),
                     json!({
@@ -789,6 +817,9 @@ fn complete_operation(
             let mut section_tsx_projected = false;
             let mut tsx_source_map = None;
             let mut devup_json_source_map = None;
+            let mut projection_diagnostics = Vec::new();
+            let mut theme_conflict_count = 0;
+            let mut theme_unresolved_count = 0;
             if let Some(candidates) = section_candidates {
                 let by_id = candidates
                     .iter()
@@ -841,6 +872,13 @@ fn complete_operation(
                         }
                         .with_payload_tokens(payload),
                     )?;
+                    projection_diagnostics.extend(output.diagnostics.iter().cloned());
+                    let frame_quality = OutputQuality {
+                        acquisition: acquisition_quality(&completeness_report, false),
+                        projection: projection_quality(true, &output.diagnostics),
+                        theme: theme_quality(false, 0, 0),
+                        assets: assets_quality(false, &[], &[]),
+                    };
                     let source_map = json!({
                         "version": output.source_map.version,
                         "entries": output.source_map.entries,
@@ -854,7 +892,8 @@ fn complete_operation(
                         "nodeId": candidate.node.node_id,
                         "name": candidate.node.name,
                         "canonicalUrl": candidate.canonical_url,
-                        "status": status,
+                        "status": frame_quality.status(),
+                        "quality": frame_quality,
                         "tsx": output.tsx,
                         "imports": output.imports,
                         "usedTokens": output.used_tokens,
@@ -892,6 +931,7 @@ fn complete_operation(
                     }
                     .with_payload_tokens(payload),
                 )?;
+                projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 tsx_source_map = Some(output.source_map.clone());
                 if let Some(path) = output_paths.get("tsx") {
                     written_paths.insert("tsx".to_owned(), json!(write_output(path, &output.tsx)?));
@@ -900,7 +940,7 @@ fn complete_operation(
                 result.insert("imports".to_owned(), json!(output.imports));
                 result.insert("usedTokens".to_owned(), json!(output.used_tokens));
                 if include_diagnostics {
-                    result.insert("diagnostics".to_owned(), json!(output.diagnostics));
+                    result.insert("diagnostics".to_owned(), json!(&output.diagnostics));
                 }
             }
 
@@ -914,6 +954,8 @@ fn complete_operation(
                 })?;
                 let variables = variable_snapshot_from_result(variables)?;
                 let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+                theme_conflict_count = output.conflicts.len();
+                theme_unresolved_count = output.unresolved_variables.len();
                 devup_json_source_map = Some(output.source_map.clone());
                 if let Some(path) = output_paths.get("devupJson") {
                     written_paths.insert(
@@ -1045,6 +1087,40 @@ fn complete_operation(
                     .collect();
                 result.insert("assetManifest".to_owned(), json!(manifest));
             }
+            let quality = OutputQuality {
+                acquisition: acquisition_quality(&completeness_report, false),
+                projection: projection_quality(
+                    outputs.iter().any(|output| output == "tsx"),
+                    &projection_diagnostics,
+                ),
+                theme: theme_quality(
+                    outputs.iter().any(|output| output == "devupJson"),
+                    theme_conflict_count,
+                    theme_unresolved_count,
+                ),
+                assets: assets_quality(
+                    outputs.iter().any(|output| output == "assetManifest"),
+                    &asset_ids,
+                    &payload.assets,
+                ),
+            };
+            if strict && quality.strict_violation() {
+                return Err(DevupError::with_details(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    format!(
+                        "strict export는 exact/complete output만 허용합니다: status={}, quality={}",
+                        quality.status(),
+                        serde_json::to_string(&quality).unwrap_or_default()
+                    ),
+                    false,
+                    json!({
+                        "quality": quality,
+                        "completenessReport": completeness_report
+                    }),
+                ));
+            }
+            result.insert("status".to_owned(), json!(quality.status()));
+            result.insert("quality".to_owned(), json!(quality));
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
             Ok(Value::Object(result))
         }
