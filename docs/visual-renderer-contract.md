@@ -18,6 +18,26 @@ The collector makes one `get_screenshot` call for the linked node, accepts only 
 
 ## 2. Render the generated component
 
+The consumer should persist a content-free run manifest next to `actual.png`:
+
+```json
+{
+  "schemaVersion": 1,
+  "tsxResource": { "uri": "devup://artifact/.../manifest", "sha256": "..." },
+  "referenceResource": { "uri": "devup://artifact/.../manifest", "sha256": "..." },
+  "viewport": { "width": 360, "height": 740, "deviceScaleFactor": 1 },
+  "themePath": "devup.json",
+  "assetDirectory": "public/figma-assets",
+  "fontManifest": [{ "family": "Pretendard", "sha256": "..." }],
+  "renderer": { "name": "playwright-chromium", "version": "..." },
+  "devupUiVersion": "...",
+  "actualPng": "actual.png",
+  "environmentStatus": "valid"
+}
+```
+
+Paths are consumer-local examples; hashes and pinned versions are required for reproducibility. A missing font/asset, renderer version mismatch, failed readiness signal, console/runtime error, or viewport mismatch MUST set `environmentStatus` to `environment-invalid` and stop before pixel metrics are treated as a product pass.
+
 The repository-owned renderer MUST:
 
 - render the generated TSX using the repository's real DevupUI configuration, fonts, assets, and CSS reset;
@@ -28,6 +48,8 @@ The repository-owned renderer MUST:
 - keep OS, browser engine/version, device scale factor, font files, locale, and timezone pinned in CI.
 
 The renderer writes `actual.png`. Its implementation is intentionally outside this Rust workspace because it is application-specific and may use Playwright, a browser harness, or another deterministic renderer.
+
+The exact sequence is: request TSX/theme/reference resources, reconstruct and hash-check every resource chunk, build and type-check the generated component inside the consumer, validate the environment manifest, render at the declared viewport, write `actual.png`, and only then invoke the comparator. A pixel report from an invalid environment is diagnostic evidence, never a passing result.
 
 ## 3. Compare in pure Rust
 

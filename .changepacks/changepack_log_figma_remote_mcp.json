@@ -2,8 +2,9 @@
   "changes": {
     "crates/devup-mcp/Cargo.toml": "Minor",
     "crates/devup-mcp-figma/Cargo.toml": "Minor",
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
+    "crates/devup-mcp-visual/Cargo.toml": "Minor"
   },
-  "note": "Add a Rust-native private Figma Remote MCP with OAuth and verified official-host fallback; exact-node and full-theme one-call acquisition with atomic legacy fallback; bounded memory-only artifact reuse and refresh; deterministic complete/partial/failed audits; Section screen selection and batch export; DevupUI TSX, devup.json, raw snapshot, source maps and requested asset export; loss-aware large-field continuation; all ten WQUW-151 screens; 268/268 plugin snapshot parity and a zero-not-ported 978-entry ledger; and Rust 1.88-compatible dependency updates",
+  "note": "Add a Rust-native private Figma Remote MCP with OAuth and verified official-host fallback; exact-node and full-theme one-call acquisition with atomic legacy fallback; bounded memory-only artifact/resource reuse and transactional file delivery; Section screen selection and batch export; syntax-validated DevupUI TSX, devup.json, raw snapshot, source maps, requested assets and optional verified reference PNG; typed fidelity impact, exhaustive projection trace and strict coverage reports; a pure Rust PNG comparator plus renderer contract; loss-aware large-field continuation; all ten WQUW-151 screens; 268/268 plugin snapshot parity and a zero-not-ported 978-entry ledger; focused server module boundaries; and Rust 1.88-compatible dependency updates",
   "date": "2026-08-31T00:30:00+09:00"
 }

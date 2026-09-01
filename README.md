@@ -2,14 +2,14 @@
 
 Rust-native MCP server that reads Figma designs and generates DevupUI artifacts. One binary acts as a local stdio MCP server and a read-only client of Figma Remote MCP.
 
-저장소는 Cargo workspace이며 `devup-mcp` 실행 crate, OAuth·upstream·snapshot을 담당하는 `devup-mcp-figma`, TSX·theme projection을 담당하는 `devup-mcp-devup-ui`로 구성됩니다. 별도 IR/auth/server crate 없이 제품 설치 단위는 `devup-mcp` 하나입니다.
+저장소는 Cargo workspace이며 `devup-mcp` 실행 crate, OAuth·upstream·snapshot을 담당하는 `devup-mcp-figma`, TSX·theme projection을 담당하는 `devup-mcp-devup-ui`, PNG 비교 library/CLI인 `devup-mcp-visual`로 구성됩니다. 별도 IR/auth/server crate 없이 MCP 제품 설치 단위는 `devup-mcp` 하나입니다.
 
 ## 현재 제공 기능
 
 - `devup_figma_auth`: Figma 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃
 - `devup_figma_to_ui`: Figma node 링크를 `@devup-ui/react` TSX로 변환
 - `devup_figma_to_json`: Figma 변수와 로컬 스타일을 `devup.json`으로 변환
-- `devup_figma_export`: Figma를 한 번 수집해 TSX, `devup.json`, raw snapshot, source map과 asset manifest를 함께 생성하거나 같은 artifact를 재사용
+- `devup_figma_export`: Figma를 한 번 수집해 TSX, `devup.json`, raw snapshot, source map, asset manifest와 선택적 reference PNG를 함께 생성하거나 같은 artifact를 재사용
 - `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_continue`: host가 실행한 공식 Figma MCP read 결과로 중단된 변환을 재개
@@ -99,15 +99,20 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
-  "outputs": ["tsx", "devupJson", "sourceMap", "assetManifest"],
+  "outputs": ["tsx", "devupJson", "sourceMap", "assetManifest", "referencePng"],
   "scope": "node",
   "strict": true,
   "refresh": false,
-  "sourcePolicy": "auto"
+  "sourcePolicy": "auto",
+  "delivery": "auto"
 }
 ```
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 search artifact로 TSX를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+
+`delivery`는 `auto | inline | resource`입니다. `auto`는 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고 그보다 큰 결과는 `devup://artifact/...` resource link로 바꿉니다. `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. 같은 artifact와 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 둘을 transaction으로 다루어 파일 commit 실패 시 이번 호출에서 새로 붙인 resource만 rollback합니다.
+
+`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. PNG signature, 16 MiB 상한, byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. Section의 여러 Frame은 먼저 반환된 canonical URL별로 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 
@@ -124,6 +129,10 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 ```
 
 `acquisition`은 `complete | expected-projection | partial | failed`, `projection`은 `exact | approximated | lossy | failed | not-requested`, `theme`은 `complete | conflicted | unresolved | not-requested`, `assets`는 `complete | partial | failed | not-requested`입니다. 검색·탐색의 의도적인 얕은 graph는 `expected-projection`으로 정상 완료하지만, 포함된 field의 실패나 truncation은 `partial`입니다. mask/effect fallback은 `lossy`, absolute layout fallback은 `approximated`이며 `includeDiagnostics: false`여도 품질 판정에는 반영됩니다. 기존 `status`는 요청한 모든 축이 정확하거나 완전할 때만 `complete`이고, `strict: true`는 모든 요청 축이 exact/complete가 아니면 quality와 `completenessReport`를 담은 오류로 거절합니다.
+
+모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 source node/text/variable/typography/asset/layout이 `emitted | flattened | ignored` 중 정확히 하나로 추적되었는지와 축별 coverage·typed impact count를 담습니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, trace coverage, lossy/failed impact를 함께 검사합니다.
+
+브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다. renderer pinning, 기본 0.5% threshold, diff PNG와 개인정보 취급 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
@@ -174,6 +183,7 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
+- screenshot, asset, TSX resource는 bounded memory artifact와 같은 TTL을 가지며 resource manifest에는 이름·MIME·크기·hash만 노출됩니다.
 - 호환성 fixture는 고정한 JavaScript 플러그인의 268개 synthetic 입력입니다. 별도의 WQUW-151 회귀 fixture는 공식 MCP에서 read-only로 수집한 디자인 node/텍스트/token 이름만 포함하며 OAuth token, header, callback parameter, 사용자 계정·email은 포함하지 않습니다.
 
 ### 플러그인 호환성 corpus
@@ -185,6 +195,10 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 `crates/devup-mcp/tests/live_figma_contract.rs`는 기본적으로 ignore됩니다. `DEVUP_MCP_LIVE_FIGMA=1`을 설정하고 공식 MCP의 fast `use_figma` 결과를 stdin에 한 줄로 전달하면 실제 payload를 디스크에 쓰거나 출력하지 않고 envelope 무결성, serde round-trip, 요청 context, node/리소스 수와 DevupUI codegen을 검증하고 안전한 count/hash 요약만 출력합니다. 별도의 비-ignore corruption test는 깨진 fast 응답이 legacy metadata 수집으로 원자적으로 폴백하는지 확인합니다.
 
 legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
+
+### Server module ownership
+
+`server/mod.rs`는 MCP tool router, service construction, handoff 연결과 `ServerHandler`만 소유합니다. `projection.rs`는 TSX/theme/source-map/asset/reference output 생성과 delivery transaction을, `validation.rs`는 output/schema/artifact capability 입력 검증을 담당합니다. `delivery.rs`, `artifacts.rs`, `output.rs`, `resources.rs`, `quality.rs`는 각각 크기 결정, memory artifact, allowlisted filesystem transaction, MCP resource protocol, typed 품질 집계를 담당하며 source-level boundary test가 generator와 filesystem 구현이 router로 되돌아오는 것을 막습니다.
 
 2026-09-01 실제 파일 검증에서는 13개 page 전체 검색으로 `[FR-026] 본연체` Section (`4217:7743`)을 찾고, 그 안의 360×740 화면 10개를 시각 순서대로 인덱싱해 `A : STORY-F-PROOFREAD` (`3879:35518`)를 정확한 대상으로 선택했습니다. Section 전체 fast envelope는 8 MiB 안전 상한을 넘어서므로 성공으로 오인하지 않고, 각 화면을 공식 read-only MCP로 개별 수집했습니다. 열 화면은 각각 15~210개 node를 가지며 모든 child, styled text segment, 변수 3~25개와 text style 2~13개의 참조 완전성을 실제 JSON fixture와 DevupUI TSX snapshot으로 검증합니다. 대표 proofread 화면은 공식 read-only MCP 1회, 3개 PNG envelope 청크에서 144개 node, 변수 20개와 text style 11개를 수집했고 폴백은 없었습니다. instance children, concrete boolean property, mixed typography, nested `[1. 이름]`, token binding과 개별 footer stroke도 Rust snapshot/live contract로 검증했습니다. 같은 파일의 전체 theme export는 legacy 공식 read-only 호출 89개를 통해 collection 1개, variable 49개, style 37개, mode 2개를 수집해 42,794자 `devup.json`을 생성했으며 diagnostics는 0개였습니다. 현재 full-theme fast collector는 같은 collection/variable/style 전체를 단일 read-only `use_figma` 호출로 수집하고, envelope 검증 실패 시에만 이 legacy 경로를 0부터 다시 시작하도록 contract test로 고정했습니다.
 
