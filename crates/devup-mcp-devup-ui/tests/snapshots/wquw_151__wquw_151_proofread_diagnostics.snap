@@ -6,11 +6,13 @@ expression: json!(output.diagnostics)
   {
     "code": "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
     "message": "절대 배치는 position props로 제한적으로 변환됩니다.",
-    "nodeId": "3879:35540"
+    "nodeId": "3879:35540",
+    "fidelityImpact": "approximated"
   },
   {
     "code": "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
     "message": "절대 배치는 position props로 제한적으로 변환됩니다.",
-    "nodeId": "3879:35564"
+    "nodeId": "3879:35564",
+    "fidelityImpact": "approximated"
   }
 ]

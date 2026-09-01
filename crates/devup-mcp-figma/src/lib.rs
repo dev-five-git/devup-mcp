@@ -48,9 +48,9 @@ pub use section::{
     plan_batches,
 };
 pub use snapshot::{
-    ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FieldLocation,
-    MissingChild, ParentMismatch, RawNode, Snapshot, SnapshotAudit, SnapshotChunk, TypedNode,
-    merge_chunks, snapshot_chunk_from_result,
+    ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FidelityImpact,
+    FieldLocation, MissingChild, ParentMismatch, RawNode, Snapshot, SnapshotAudit, SnapshotChunk,
+    TypedNode, merge_chunks, snapshot_chunk_from_result,
 };
 pub use source::{
     SelectedSource, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,

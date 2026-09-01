@@ -1,5 +1,6 @@
 use devup_mcp_figma::{
-    AssetManifestEntry, AssetStatus, CompletenessState, Diagnostic, PayloadCompletenessReport,
+    AssetManifestEntry, AssetStatus, CompletenessState, Diagnostic, FidelityImpact,
+    PayloadCompletenessReport,
 };
 use serde::{Deserialize, Serialize};
 
@@ -118,27 +119,17 @@ pub fn projection_quality(requested: bool, diagnostics: &[Diagnostic]) -> Projec
     if !requested {
         return ProjectionQuality::NotRequested;
     }
-    if diagnostics
+    match diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.code == "DEVUP_CODEGEN_PROJECTION_FAILED")
+        .map(Diagnostic::fidelity_impact)
+        .max()
+        .unwrap_or_default()
     {
-        return ProjectionQuality::Failed;
+        FidelityImpact::None => ProjectionQuality::Exact,
+        FidelityImpact::Approximated => ProjectionQuality::Approximated,
+        FidelityImpact::Lossy => ProjectionQuality::Lossy,
+        FidelityImpact::Failed => ProjectionQuality::Failed,
     }
-    if diagnostics.iter().any(|diagnostic| {
-        matches!(
-            diagnostic.code.as_str(),
-            "DEVUP_CODEGEN_MASK_FALLBACK" | "DEVUP_CODEGEN_EFFECT_FALLBACK"
-        )
-    }) {
-        return ProjectionQuality::Lossy;
-    }
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
-    {
-        return ProjectionQuality::Approximated;
-    }
-    ProjectionQuality::Exact
 }
 
 pub fn theme_quality(
@@ -186,5 +177,100 @@ pub fn assets_quality(
         AssetsQuality::Partial
     } else {
         AssetsQuality::Complete
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use devup_mcp_figma::{Diagnostic, DiagnosticSeverity, FidelityImpact};
+
+    use super::{ProjectionQuality, projection_quality};
+
+    fn diagnostic(
+        code: &str,
+        severity: DiagnosticSeverity,
+        fidelity_impact: Option<FidelityImpact>,
+    ) -> Diagnostic {
+        Diagnostic {
+            code: code.to_owned(),
+            message: "redacted fixture".to_owned(),
+            severity: Some(severity),
+            fidelity_impact,
+            ..Diagnostic::default()
+        }
+    }
+
+    #[test]
+    fn projection_quality_uses_structured_fidelity_impact() {
+        assert_eq!(
+            projection_quality(
+                true,
+                &[diagnostic(
+                    "IGNORED_CODE",
+                    DiagnosticSeverity::Warning,
+                    Some(FidelityImpact::Approximated),
+                )],
+            ),
+            ProjectionQuality::Approximated
+        );
+        assert_eq!(
+            projection_quality(
+                true,
+                &[diagnostic(
+                    "IGNORED_CODE",
+                    DiagnosticSeverity::Warning,
+                    Some(FidelityImpact::Lossy),
+                )],
+            ),
+            ProjectionQuality::Lossy
+        );
+        assert_eq!(
+            projection_quality(
+                true,
+                &[diagnostic(
+                    "IGNORED_CODE",
+                    DiagnosticSeverity::Error,
+                    Some(FidelityImpact::Failed),
+                )],
+            ),
+            ProjectionQuality::Failed
+        );
+    }
+
+    #[test]
+    fn unknown_codegen_diagnostics_fail_closed_but_collector_warnings_do_not() {
+        assert_eq!(
+            projection_quality(
+                true,
+                &[diagnostic(
+                    "DEVUP_CODEGEN_FUTURE_WARNING",
+                    DiagnosticSeverity::Warning,
+                    None,
+                )],
+            ),
+            ProjectionQuality::Approximated
+        );
+        assert_eq!(
+            projection_quality(
+                true,
+                &[diagnostic(
+                    "DEVUP_CODEGEN_FUTURE_ERROR",
+                    DiagnosticSeverity::Error,
+                    None,
+                )],
+            ),
+            ProjectionQuality::Failed
+        );
+        assert_eq!(
+            projection_quality(
+                true,
+                &[diagnostic(
+                    "DEVUP_RESOURCE_UNRESOLVED",
+                    DiagnosticSeverity::Warning,
+                    None,
+                )],
+            ),
+            ProjectionQuality::Exact
+        );
     }
 }

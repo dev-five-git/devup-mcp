@@ -5,6 +5,16 @@ use serde_json::{Map, Value};
 
 use super::{DevupError, ErrorCode, UpstreamResult};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FidelityImpact {
+    #[default]
+    None,
+    Approximated,
+    Lossy,
+    Failed,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostic {
@@ -14,6 +24,8 @@ pub struct Diagnostic {
     pub node_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub severity: Option<DiagnosticSeverity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fidelity_impact: Option<FidelityImpact>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub property: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -26,6 +38,27 @@ pub struct Diagnostic {
     pub recoverable: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<Value>,
+}
+
+impl Diagnostic {
+    pub fn fidelity_impact(&self) -> FidelityImpact {
+        if let Some(impact) = self.fidelity_impact {
+            return impact;
+        }
+        match self.code.as_str() {
+            "DEVUP_CODEGEN_PROJECTION_FAILED" => FidelityImpact::Failed,
+            "DEVUP_CODEGEN_MASK_FALLBACK" | "DEVUP_CODEGEN_EFFECT_FALLBACK" => {
+                FidelityImpact::Lossy
+            }
+            "DEVUP_CODEGEN_ABSOLUTE_FALLBACK" => FidelityImpact::Approximated,
+            _ if self.code.starts_with("DEVUP_CODEGEN_") => match self.severity {
+                Some(DiagnosticSeverity::Error) => FidelityImpact::Failed,
+                Some(DiagnosticSeverity::Info) => FidelityImpact::None,
+                Some(DiagnosticSeverity::Warning) | None => FidelityImpact::Approximated,
+            },
+            _ => FidelityImpact::None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

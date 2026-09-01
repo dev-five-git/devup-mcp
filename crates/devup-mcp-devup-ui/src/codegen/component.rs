@@ -1367,17 +1367,21 @@ pub(super) fn render_static_attribute(name: &str, value: &str) -> String {
 }
 
 fn add_fallback_diagnostics(node: &RawNode, context: &mut Context) {
+    use devup_mcp_figma::FidelityImpact;
+
     let view = node.typed_view();
     let candidates = [
         (
             view.bool("isMask") == Some(true),
             "DEVUP_CODEGEN_MASK_FALLBACK",
             "Mask는 기본 Box 렌더링으로 보존됩니다.",
+            FidelityImpact::Lossy,
         ),
         (
             view.string("layoutPositioning") == Some("ABSOLUTE"),
             "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
             "절대 배치는 position props로 제한적으로 변환됩니다.",
+            FidelityImpact::Approximated,
         ),
         (
             view.value("effects")
@@ -1385,14 +1389,16 @@ fn add_fallback_diagnostics(node: &RawNode, context: &mut Context) {
                 .is_some_and(|effects| !effects.is_empty()),
             "DEVUP_CODEGEN_EFFECT_FALLBACK",
             "일부 Figma effect는 계산된 CSS로 변환되지 않을 수 있습니다.",
+            FidelityImpact::Lossy,
         ),
     ];
-    for (enabled, code, message) in candidates {
+    for (enabled, code, message, fidelity_impact) in candidates {
         if enabled {
             context.diagnostics.push(Diagnostic {
                 code: code.to_owned(),
                 message: message.to_owned(),
                 node_id: Some(node.id.clone()),
+                fidelity_impact: Some(fidelity_impact),
                 ..Diagnostic::default()
             });
         }
