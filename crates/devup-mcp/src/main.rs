@@ -1,14 +1,13 @@
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut arguments = std::env::args_os().skip(1);
-    if arguments
-        .next()
-        .is_some_and(|argument| matches!(argument.to_str(), Some("--version" | "-V")))
-        && arguments.next().is_none()
-    {
+    let action = devup_mcp::parse_cli_args(std::env::args_os().skip(1))?;
+    if action == devup_mcp::CliAction::Version {
         println!("devup-mcp {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+    let devup_mcp::CliAction::Serve(config) = action else {
+        unreachable!("version action returned above")
+    };
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -18,5 +17,5 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    devup_mcp::run_stdio().await
+    devup_mcp::run_stdio_with_config(config).await
 }

@@ -43,7 +43,8 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 {
   "mcpServers": {
     "devup-mcp": {
-      "command": "devup-mcp"
+      "command": "devup-mcp",
+      "args": ["--allow-write-root", "/absolute/path/to/workspace"]
     }
   }
 }
@@ -89,7 +90,9 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 결과는 `theme.colors`, `theme.typography`, `theme.length`, `theme.shadow`를 포함하는 결정적 JSON 문자열과 counts, completeness를 반환합니다.
 
-`outputPath`를 생략하면 결과를 메모리와 MCP 응답에만 유지합니다. 명시하면 생성된 TSX 또는 `devup.json`만 해당 경로에 기록하고 실제 절대 경로를 응답합니다.
+`outputPath`를 생략하면 결과를 메모리와 MCP 응답에만 유지합니다. 명시하면 생성된 TSX 또는 `devup.json`만 해당 경로에 기록하고 실제 절대 경로를 응답합니다. 기본 허용 write root는 `devup-mcp` process 시작 당시의 current directory 하나이며, 그 밖의 workspace는 반복 가능한 `--allow-write-root <directory>` 시작 인자로만 추가할 수 있습니다. Tool 입력으로 root 자체를 넓힐 수 없고 `..`, 다른 drive/UNC, alternate data stream, symlink/junction을 통한 root 탈출은 기록 전에 거절됩니다.
+
+여러 text/asset output은 모두 검증한 뒤 같은 directory의 exclusive 임시 파일에 staging하고 한 transaction으로 교체합니다. 정상 runtime 오류에서는 이미 교체한 파일을 역순으로 되돌리고 기존 파일을 복구합니다. 개별 rename은 atomic하지만 여러 directory와 process crash를 가로지르는 완전한 원자성은 일반 filesystem 특성상 보장하지 않습니다.
 
 ### 통합 수집과 다중 출력
 
@@ -104,7 +107,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`만 공개합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 search artifact로 TSX를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 search artifact로 TSX를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 

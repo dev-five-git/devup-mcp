@@ -118,6 +118,12 @@ impl DevupServer {
             output_policy: OutputPolicy::from_roots(roots)?,
         })
     }
+
+    pub fn production_with_output_roots(
+        roots: Vec<std::path::PathBuf>,
+    ) -> Result<Self, DevupError> {
+        Self::with_output_roots(Services::production(), roots)
+    }
 }
 
 impl Default for DevupServer {
