@@ -14,6 +14,16 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     });
 
     let client = ().serve(client_transport).await?;
+    let server_info = client.peer_info().expect("server info");
+    let resources = server_info
+        .capabilities
+        .resources
+        .as_ref()
+        .expect("resources capability");
+    assert_eq!(resources.subscribe, None);
+    assert_eq!(resources.list_changed, None);
+    assert_eq!(client.list_all_resources().await?, Vec::new());
+    assert_eq!(client.list_all_resource_templates().await?.len(), 2);
     let tools = client.list_all_tools().await?;
     let mut names = tools
         .iter()

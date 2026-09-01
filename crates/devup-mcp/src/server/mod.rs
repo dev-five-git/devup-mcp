@@ -3,6 +3,7 @@ pub mod delivery;
 pub mod handoff;
 pub mod output;
 mod quality;
+pub mod resources;
 mod tools;
 
 use std::sync::Arc;
@@ -10,12 +11,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use rmcp::{
-    ErrorData, ServerHandler,
+    ErrorData, RoleServer, ServerHandler,
     handler::server::{
         router::tool::ToolRouter,
         wrapper::{Json, Parameters},
     },
     model::{ErrorCode as McpErrorCode, ServerCapabilities, ServerInfo},
+    service::RequestContext,
     tool, tool_handler, tool_router,
 };
 use serde_json::{Map, Value, json};
@@ -1563,7 +1565,46 @@ fn to_mcp_error(error: DevupError) -> ErrorData {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for DevupServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_instructions("Read Figma designs and generate DevupUI artifacts")
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_resources()
+                .enable_tools()
+                .build(),
+        )
+        .with_instructions("Read Figma designs and generate DevupUI artifacts")
+    }
+
+    async fn list_resources(
+        &self,
+        request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListResourcesResult, ErrorData> {
+        resources::list_output_resources(
+            &self.artifacts,
+            request
+                .as_ref()
+                .and_then(|request| request.cursor.as_deref()),
+        )
+        .await
+        .map_err(to_mcp_error)
+    }
+
+    async fn list_resource_templates(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListResourceTemplatesResult, ErrorData> {
+        Ok(resources::resource_templates())
+    }
+
+    async fn read_resource(
+        &self,
+        request: rmcp::model::ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ReadResourceResponse, ErrorData> {
+        resources::read_output_resource(&self.artifacts, &request.uri)
+            .await
+            .map(Into::into)
+            .map_err(|_| ErrorData::resource_not_found("resource not found", None))
     }
 }

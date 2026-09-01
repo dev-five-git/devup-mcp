@@ -190,6 +190,7 @@ pub struct AttachedOutputManifest {
 struct AttachedOutput {
     manifest: AttachedOutputManifest,
     bytes: Arc<[u8]>,
+    ranges: Vec<(usize, usize)>,
     allocation_bytes: usize,
 }
 
@@ -393,6 +394,7 @@ impl ArtifactStore {
             let output_id = unique_output_id(&staged_ids);
             staged_ids.insert(output_id.clone(), ());
             let raw_bytes = output.bytes.len();
+            let ranges = output_chunk_ranges(&output.bytes, output.is_binary)?;
             let encoded_bytes = if output.is_binary {
                 raw_bytes.div_ceil(3).saturating_mul(4)
             } else {
@@ -409,13 +411,14 @@ impl ArtifactStore {
                     mime_type: output.mime_type,
                     raw_bytes,
                     sha256: sha256_hex(&output.bytes),
-                    chunk_count: raw_bytes.div_ceil(RESOURCE_CHUNK_BYTES),
+                    chunk_count: ranges.len(),
                     chunk_bytes: RESOURCE_CHUNK_BYTES,
                     is_binary: output.is_binary,
                     manifest_uri,
                     expires_at_epoch_seconds: expires_at,
                 },
                 bytes: Arc::from(output.bytes),
+                ranges,
                 allocation_bytes,
             });
         }
@@ -501,14 +504,38 @@ impl ArtifactStore {
         let entry = state.entries.get_mut(artifact_id)?;
         entry.last_access = access;
         let output = entry.outputs.get(output_id)?;
-        let start = index.checked_mul(RESOURCE_CHUNK_BYTES)?;
-        if start >= output.bytes.len() && !(index == 0 && output.bytes.is_empty()) {
-            return None;
-        }
-        let end = start
-            .saturating_add(RESOURCE_CHUNK_BYTES)
-            .min(output.bytes.len());
+        let (start, end) = *output.ranges.get(index)?;
         Some(output.bytes[start..end].to_vec())
+    }
+
+    pub async fn output_manifest(
+        &self,
+        artifact_id: &str,
+        output_id: &str,
+    ) -> Option<AttachedOutputManifest> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state.entries.get_mut(artifact_id)?;
+        entry.last_access = access;
+        entry
+            .outputs
+            .get(output_id)
+            .map(|output| output.manifest.clone())
+    }
+
+    pub async fn output_manifests(&self) -> Vec<AttachedOutputManifest> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        state
+            .entries
+            .values()
+            .flat_map(|entry| entry.outputs.values())
+            .map(|output| output.manifest.clone())
+            .collect()
     }
 
     async fn insert_with_digest(
@@ -667,6 +694,42 @@ fn unique_output_id(existing: &BTreeMap<String, ()>) -> String {
             return id;
         }
     }
+}
+
+fn output_chunk_ranges(bytes: &[u8], is_binary: bool) -> Result<Vec<(usize, usize)>, DevupError> {
+    let text = (!is_binary)
+        .then(|| std::str::from_utf8(bytes))
+        .transpose()
+        .map_err(|_| {
+            DevupError::new(
+                ErrorCode::DevupFigmaHandoffInvalid,
+                "text resource output은 UTF-8이어야 합니다.",
+                false,
+            )
+        })?;
+    if bytes.is_empty() {
+        return Ok(vec![(0, 0)]);
+    }
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    while start < bytes.len() {
+        let mut end = start.saturating_add(RESOURCE_CHUNK_BYTES).min(bytes.len());
+        if let Some(text) = text {
+            while end > start && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            if end == start {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "text resource chunk 경계를 계산할 수 없습니다.",
+                    false,
+                ));
+            }
+        }
+        ranges.push((start, end));
+        start = end;
+    }
+    Ok(ranges)
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

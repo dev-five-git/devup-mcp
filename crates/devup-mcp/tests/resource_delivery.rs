@@ -6,11 +6,13 @@ use devup_mcp::server::{
         DeliveryMode, MAX_INLINE_OUTPUT_BYTES, MAX_INLINE_TOTAL_BYTES, ProjectedOutput,
         RESOURCE_CHUNK_BYTES, choose_delivery,
     },
+    resources::{list_output_resources, read_output_resource, resource_templates},
 };
 use devup_mcp_figma::{
     CollectedPayload, CollectionRequest, CollectionScope, CollectionStats, FigmaTarget,
     PayloadCompleteness, ResourceScope, Snapshot, SourcePolicy,
 };
+use rmcp::model::ResourceContents;
 use serde_json::json;
 
 #[test]
@@ -128,6 +130,72 @@ async fn attached_outputs_are_bounded_hashed_and_share_artifact_lifetime() -> an
         )
         .await?;
     assert_eq!(reused, attached);
+    Ok(())
+}
+
+#[tokio::test]
+async fn resource_protocol_lists_manifests_and_round_trips_chunks() -> anyhow::Result<()> {
+    let store = ArtifactStore::with_limits(ArtifactLimits {
+        ttl: Duration::from_secs(60),
+        max_entries: 2,
+        max_entry_bytes: 4 * 1024 * 1024,
+        max_total_bytes: 8 * 1024 * 1024,
+    });
+    let artifact = store
+        .insert(
+            ArtifactRequestKey::from_collection(&request(), SourcePolicy::Direct),
+            payload(),
+        )
+        .await?;
+    let original = "가나다".repeat(100_000).into_bytes();
+    let attached = store
+        .attach_outputs(
+            &artifact.artifact_id,
+            "unicode",
+            vec![ProjectedOutput::text(
+                "tsx",
+                "text/typescript",
+                original.clone(),
+            )],
+        )
+        .await?;
+    let manifest = &attached[0];
+
+    let listed = list_output_resources(&store, None).await?;
+    assert_eq!(listed.resources.len(), 1);
+    assert_eq!(listed.resources[0].uri, manifest.manifest_uri);
+    assert!(listed.next_cursor.is_none());
+    assert_eq!(resource_templates().resource_templates.len(), 2);
+
+    let manifest_read = read_output_resource(&store, &manifest.manifest_uri).await?;
+    let ResourceContents::TextResourceContents { text, .. } = &manifest_read.contents[0] else {
+        panic!("manifest must be JSON text")
+    };
+    let value: serde_json::Value = serde_json::from_str(text.as_str())?;
+    assert_eq!(value["sha256"], manifest.sha256);
+    assert_eq!(value["rawBytes"], original.len());
+
+    let mut restored = Vec::new();
+    for index in 0..manifest.chunk_count {
+        let uri = format!(
+            "devup://artifact/{}/outputs/{}/chunks/{index}",
+            artifact.artifact_id, manifest.output_id
+        );
+        let read = read_output_resource(&store, &uri).await?;
+        let ResourceContents::TextResourceContents { text, .. } = &read.contents[0] else {
+            panic!("text chunk expected")
+        };
+        restored.extend_from_slice(text.as_bytes());
+    }
+    assert_eq!(restored, original);
+    assert!(
+        read_output_resource(
+            &store,
+            "devup://artifact/not-an-id/outputs/not-an-id/chunks/0"
+        )
+        .await
+        .is_err()
+    );
     Ok(())
 }
 
