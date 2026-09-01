@@ -1,7 +1,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
     CollectionRequest, CollectionScope, CollectorSession, CollectorStep, DevupError,
-    DiagnosticSeverity, ErrorCode, ExploreReadOptions, FigmaTarget, ResourceScope, UpstreamResult,
+    DiagnosticSeverity, ErrorCode, ExploreReadOptions, FigmaTarget, ResourceScope,
+    SectionReadOptions, UpstreamResult,
 };
 use serde_json::{Value, json};
 
@@ -1208,4 +1209,94 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
             .flat_map(|chunk| &chunk.nodes)
             .all(|node| node.id != "__DEVUP_SNAPSHOT_CURSOR__")
     );
+}
+
+#[test]
+fn section_collection_indexes_before_planning_selected_roots() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec!["10:2".to_owned(), "10:3".to_owned()],
+        all_screens: false,
+    });
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(index_call) = collector.advance().unwrap() else {
+        panic!("compact section index expected")
+    };
+    assert!(
+        index_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("subtreeNodeCount")
+    );
+    collector
+        .accept(&index_call.id, compact_section_index())
+        .unwrap();
+
+    let CollectorStep::Call(batch_call) = collector.advance().unwrap() else {
+        panic!("one bounded multi-root call expected")
+    };
+    let arguments = batch_call.call.arguments();
+    let code = arguments["code"].as_str().unwrap();
+    assert!(code.contains("[\"10:3\",\"10:2\"]"));
+    assert_eq!(batch_call.expected_node_id.as_deref(), Some("10:1"));
+}
+
+#[test]
+fn section_collection_without_selection_completes_after_the_compact_index() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: Vec::new(),
+        all_screens: false,
+    });
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(index_call) = collector.advance().unwrap() else {
+        panic!("compact section index expected")
+    };
+    collector
+        .accept(&index_call.id, compact_section_index())
+        .unwrap();
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("selection discovery must not collect a full subtree")
+    };
+
+    assert_eq!(parts.stats.figma_tool_calls, 1);
+    assert_eq!(parts.snapshot_chunks.len(), 1);
+    assert_eq!(parts.snapshot_chunks[0].nodes.len(), 3);
+    assert_eq!(
+        parts.metadata["sectionIndex"]["candidates"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+fn compact_section_index() -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "fileKey": "FileKey123", "version": null, "rootIds": ["10:1"],
+            "nodes": [
+                {"id": "10:1", "type": "SECTION", "fields": {
+                    "name": "Proofread", "parentId": "0:1", "childrenIds": ["10:2", "10:3"],
+                    "visible": true, "projectionTruncated": false,
+                    "absoluteBoundingBox": {"x": 0, "y": 0, "width": 1200, "height": 1000}
+                }, "extra": {}, "fieldErrors": {}},
+                {"id": "10:2", "type": "FRAME", "fields": {
+                    "name": "Second", "parentId": "10:1", "childrenIds": [], "visible": true,
+                    "directChildCount": 5, "subtreeNodeCount": 20, "estimatedSerializedBytes": 10000,
+                    "absoluteBoundingBox": {"x": 500, "y": 120, "width": 360, "height": 740}
+                }, "extra": {}, "fieldErrors": {}},
+                {"id": "10:3", "type": "FRAME", "fields": {
+                    "name": "First", "parentId": "10:1", "childrenIds": [], "visible": true,
+                    "directChildCount": 5, "subtreeNodeCount": 20, "estimatedSerializedBytes": 10000,
+                    "absoluteBoundingBox": {"x": 100, "y": 120, "width": 360, "height": 740}
+                }, "extra": {}, "fieldErrors": {}}
+            ],
+            "diagnostics": []
+        }),
+    }
 }

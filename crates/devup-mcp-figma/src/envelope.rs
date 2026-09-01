@@ -122,6 +122,31 @@ pub fn decode_fast_snapshot(
     result: &UpstreamResult,
     target: &FigmaTarget,
 ) -> Result<FastSnapshotPayload, DevupError> {
+    let target_root = target
+        .node_id
+        .as_ref()
+        .ok_or_else(|| invalid("targetRootMissing"))?;
+    decode_fast_snapshot_for_roots(result, target, std::slice::from_ref(target_root))
+}
+
+pub fn decode_fast_multi_snapshot(
+    result: &UpstreamResult,
+    target: &FigmaTarget,
+    expected_root_ids: &[String],
+) -> Result<FastSnapshotPayload, DevupError> {
+    if expected_root_ids.is_empty()
+        || expected_root_ids.iter().collect::<BTreeSet<_>>().len() != expected_root_ids.len()
+    {
+        return Err(invalid("targetRootsInvalid"));
+    }
+    decode_fast_snapshot_for_roots(result, target, expected_root_ids)
+}
+
+fn decode_fast_snapshot_for_roots(
+    result: &UpstreamResult,
+    target: &FigmaTarget,
+    expected_root_ids: &[String],
+) -> Result<FastSnapshotPayload, DevupError> {
     let descriptor = find_descriptor(&result.raw)?;
     if descriptor.chunk_count == 0 {
         return Err(invalid("descriptorChunkCount"));
@@ -177,7 +202,13 @@ pub fn decode_fast_snapshot(
         std::str::from_utf8(&envelope_bytes).map_err(|_| invalid("envelopeUtf8"))?;
     let envelope: Envelope =
         serde_json::from_str(envelope_text).map_err(|_| invalid("envelopeJson"))?;
-    validate_envelope(&envelope, &descriptor, target, envelope_bytes.len())?;
+    validate_envelope(
+        &envelope,
+        &descriptor,
+        target,
+        expected_root_ids,
+        envelope_bytes.len(),
+    )?;
 
     Ok(FastSnapshotPayload {
         snapshot: envelope.snapshot,
@@ -482,6 +513,7 @@ fn validate_envelope(
     envelope: &Envelope,
     descriptor: &EnvelopeDescriptor,
     target: &FigmaTarget,
+    expected_root_ids: &[String],
     utf8_bytes: usize,
 ) -> Result<(), DevupError> {
     if envelope.schema_version != 1 || descriptor.schema_version != 1 {
@@ -495,7 +527,7 @@ fn validate_envelope(
         || envelope.snapshot.file_key != target.file_key
         || envelope.source.root_id != target_root
         || descriptor.root_id != target_root
-        || envelope.snapshot.root_ids.as_slice() != [target_root]
+        || envelope.snapshot.root_ids != expected_root_ids
     {
         return Err(invalid("targetMismatch"));
     }
@@ -511,7 +543,9 @@ fn validate_envelope(
     }
     if envelope.integrity.node_count != node_ids.len()
         || descriptor.node_count != node_ids.len()
-        || !node_ids.contains(target_root)
+        || !expected_root_ids
+            .iter()
+            .all(|root_id| node_ids.contains(root_id.as_str()))
     {
         return Err(invalid("nodeCount"));
     }

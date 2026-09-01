@@ -28,12 +28,15 @@ pub enum BuiltinScript {
     LocalVariables,
     UsedResources,
     ExploreSnapshot,
+    SectionIndex,
+    MultiRootSnapshotEnvelope,
     LargeValue,
     AssetExport,
 }
 
 impl BuiltinScript {
     fn source(self, node_id: &str, inputs: ScriptInputs<'_>) -> String {
+        let default_root_ids = [node_id.to_owned()];
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
@@ -45,6 +48,8 @@ impl BuiltinScript {
             Self::LocalVariables => include_str!("scripts/variables.js"),
             Self::UsedResources => include_str!("scripts/used_resources.js"),
             Self::ExploreSnapshot => include_str!("scripts/explore.js"),
+            Self::SectionIndex => include_str!("scripts/section_index.js"),
+            Self::MultiRootSnapshotEnvelope => include_str!("scripts/fast_snapshot.js"),
             Self::LargeValue => include_str!("scripts/large_value.js"),
             Self::AssetExport => include_str!("scripts/assets.js"),
         };
@@ -62,6 +67,8 @@ impl BuiltinScript {
         let snapshot =
             serde_json::to_string(inputs.snapshot.unwrap_or(&SnapshotReadOptions::default()))
                 .expect("snapshot options serialize");
+        let root_ids = serde_json::to_string(inputs.root_ids.unwrap_or(&default_root_ids))
+            .expect("root ids serialize");
         let large_value =
             serde_json::to_string(inputs.large_value.unwrap_or(&LargeValueReadOptions {
                 node_id: String::new(),
@@ -94,6 +101,7 @@ impl BuiltinScript {
                 include_str!("scripts/large_value_helpers.js"),
             )
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
+            .replace("\"__DEVUP_ROOT_IDS__\"", &root_ids)
             .replace(
                 "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
                 include_str!("plugin_api_manifest.json"),
@@ -117,6 +125,7 @@ struct ScriptInputs<'a> {
     search: Option<&'a SearchReadOptions>,
     explore: Option<&'a ExploreReadOptions>,
     snapshot: Option<&'a SnapshotReadOptions>,
+    root_ids: Option<&'a [String]>,
     large_value: Option<&'a LargeValueReadOptions>,
     asset: Option<(&'a AssetRequest, Option<&'a str>)>,
 }
@@ -193,6 +202,7 @@ pub enum ReadToolCall {
         script: BuiltinScript,
         resources: Option<ResourceBatch>,
         snapshot: Option<SnapshotReadOptions>,
+        root_ids: Option<Vec<String>>,
     },
     SearchSnapshot {
         file_key: String,
@@ -269,6 +279,7 @@ impl ReadToolCall {
             script,
             resources: None,
             snapshot,
+            root_ids: None,
         }
     }
 
@@ -283,6 +294,7 @@ impl ReadToolCall {
             script: BuiltinScript::NodeSnapshot,
             resources: None,
             snapshot: Some(options),
+            root_ids: None,
         }
     }
 
@@ -293,6 +305,33 @@ impl ReadToolCall {
             script: BuiltinScript::FastSnapshotEnvelope,
             resources: None,
             snapshot: None,
+            root_ids: None,
+        }
+    }
+
+    pub fn section_index(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: node_id.into(),
+            script: BuiltinScript::SectionIndex,
+            resources: None,
+            snapshot: None,
+            root_ids: None,
+        }
+    }
+
+    pub fn multi_root_snapshot(
+        file_key: impl Into<String>,
+        section_id: impl Into<String>,
+        root_ids: Vec<String>,
+    ) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: section_id.into(),
+            script: BuiltinScript::MultiRootSnapshotEnvelope,
+            resources: None,
+            snapshot: None,
+            root_ids: Some(root_ids),
         }
     }
 
@@ -332,6 +371,7 @@ impl ReadToolCall {
             script: BuiltinScript::LocalVariables,
             resources: Some(resources),
             snapshot: None,
+            root_ids: None,
         }
     }
 
@@ -346,6 +386,7 @@ impl ReadToolCall {
             script: BuiltinScript::UsedResources,
             resources: Some(resources),
             snapshot: None,
+            root_ids: None,
         }
     }
 
@@ -413,12 +454,14 @@ impl ReadToolCall {
                 script,
                 resources,
                 snapshot,
+                root_ids,
             } => json!({
                 "fileKey": file_key,
                 "nodeId": node_id,
                 "code": script.source(node_id, ScriptInputs {
                     resources: resources.as_ref(),
                     snapshot: snapshot.as_ref(),
+                    root_ids: root_ids.as_deref(),
                     ..ScriptInputs::default()
                 })
             }),

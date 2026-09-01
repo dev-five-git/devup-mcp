@@ -1,5 +1,10 @@
-const root = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
-if (!root) throw new Error("DEVUP_NODE_NOT_FOUND");
+const requestedRootIds = "__DEVUP_ROOT_IDS__";
+if (!Array.isArray(requestedRootIds) || requestedRootIds.length === 0) {
+  throw new Error("DEVUP_ROOTS_INVALID");
+}
+const roots = await Promise.all(requestedRootIds.map((id) => figma.getNodeByIdAsync(id)));
+if (roots.some((root) => !root)) throw new Error("DEVUP_NODE_NOT_FOUND");
+const envelopeRootId = "__DEVUP_NODE_ID__";
 
 const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
 const manifestSet = new Set(manifest);
@@ -106,9 +111,12 @@ function snapshotNode(node) {
 }
 
 const allNodes = [];
-const queue = [root];
+const queue = [...roots];
+const visitedNodeIds = new Set();
 for (let index = 0; index < queue.length; index += 1) {
   const node = queue[index];
+  if (visitedNodeIds.has(node.id)) continue;
+  visitedNodeIds.add(node.id);
   allNodes.push(node);
   if ("children" in node) queue.push(...node.children);
 }
@@ -309,11 +317,11 @@ function utf8Encode(value) {
 
 const envelope = {
   schemaVersion: 1,
-  source: { fileKey: figma.fileKey || "", rootId: root.id },
+  source: { fileKey: figma.fileKey || "", rootId: envelopeRootId },
   snapshot: {
     fileKey: figma.fileKey || "",
     version: null,
-    rootIds: [root.id],
+    rootIds: roots.map((root) => root.id),
     nodes,
     diagnostics: [],
   },
@@ -413,7 +421,7 @@ for (let sequence = 0; sequence < chunkCount; sequence += 1) {
 return {
   kind: "devupFastSnapshotDescriptor",
   schemaVersion: 1,
-  rootId: root.id,
+  rootId: envelopeRootId,
   nodeCount: nodes.length,
   variableRefCount: sortedVariableIds.length,
   styleRefCount: sortedStyles.length,

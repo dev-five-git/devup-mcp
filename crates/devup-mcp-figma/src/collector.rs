@@ -7,14 +7,15 @@ use crate::large_values::{
     LargeValueResult, descriptors_in_chunk, large_value_from_result, replace_descriptor,
 };
 use crate::{
-    AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BuiltinScript, DevupError,
-    ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler, LargeValueReadOptions,
-    RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef, SearchReadOptions,
-    SnapshotChunk, SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
-    asset_export_from_result, collect_used_resource_refs, decode_fast_snapshot, decode_fast_theme,
-    merge_chunks,
+    AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchLimits, BuiltinScript,
+    DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler,
+    LargeValueReadOptions, RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef,
+    SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotReadOptions, UnresolvedResource,
+    UpstreamResult, UsedResourceRefs, asset_export_from_result, build_section_index,
+    collect_used_resource_refs, decode_fast_multi_snapshot, decode_fast_snapshot,
+    decode_fast_theme, merge_chunks,
     metadata::{MetadataResult, metadata_from_result_for_target},
-    resolve_asset_selections, snapshot_chunk_from_result,
+    plan_batches, resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
         merge_used_resource_results, merge_variable_results,
@@ -50,7 +51,17 @@ pub struct CollectionRequest {
     pub variables_only: bool,
     pub search: Option<SearchReadOptions>,
     pub explore: Option<ExploreReadOptions>,
+    pub section: Option<SectionReadOptions>,
     pub asset_selections: Vec<AssetSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SectionReadOptions {
+    #[serde(default)]
+    pub frame_ids: Vec<String>,
+    #[serde(default)]
+    pub all_screens: bool,
 }
 
 impl CollectionRequest {
@@ -64,6 +75,7 @@ impl CollectionRequest {
             variables_only: false,
             search: None,
             explore: None,
+            section: None,
             asset_selections: Vec::new(),
         }
     }
@@ -141,6 +153,8 @@ enum CallKind {
     VariableBatch,
     UsedResourceBatch,
     Explore,
+    SectionIndex,
+    FastMultiRoot,
     LargeValue,
     Asset,
 }
@@ -173,6 +187,11 @@ pub struct CollectorSession {
     assets_scheduled: bool,
     stats: CollectionStats,
     fast_attempted: bool,
+    section_index: Option<SectionIndex>,
+    section_selected_roots: Vec<String>,
+    fast_multi_resources: Option<UpstreamResult>,
+    fast_multi_has_large_values: bool,
+    multi_fast_disabled: bool,
     next_id: usize,
     completed: bool,
 }
@@ -200,6 +219,11 @@ impl CollectorSession {
             assets_scheduled,
             stats: CollectionStats::default(),
             fast_attempted: false,
+            section_index: None,
+            section_selected_roots: Vec::new(),
+            fast_multi_resources: None,
+            fast_multi_has_large_values: false,
+            multi_fast_disabled: false,
             next_id: 0,
             completed: false,
         }
@@ -210,6 +234,18 @@ impl CollectorSession {
             return Err(invalid_call("완료된 Figma 수집 session입니다."));
         }
         if self.metadata.is_none() && self.pending.is_empty() && self.queued.is_empty() {
+            if self.request.section.is_some() && self.section_index.is_none() {
+                let node_id =
+                    self.request.target.node_id.clone().ok_or_else(|| {
+                        invalid_call("Figma Section index에는 node ID가 필요합니다.")
+                    })?;
+                self.enqueue(
+                    ReadToolCall::section_index(&self.request.target.file_key, &node_id),
+                    Some(node_id),
+                    CallKind::SectionIndex,
+                );
+                return self.advance();
+            }
             if self.fast_theme_eligible() && !self.fast_attempted {
                 self.fast_attempted = true;
                 self.enqueue(
@@ -267,7 +303,12 @@ impl CollectorSession {
                 CallKind::Metadata,
             );
         }
-        if self.pending.len() < MAX_PENDING_CALLS
+        let pending_limit = if self.request.section.is_some() {
+            2
+        } else {
+            MAX_PENDING_CALLS
+        };
+        if self.pending.len() < pending_limit
             && let Some(call) = self.queued.pop_front()
         {
             self.pending.insert(call.planned.id.clone(), call.clone());
@@ -276,6 +317,14 @@ impl CollectorSession {
         }
         if !self.pending.is_empty() {
             return Ok(CollectorStep::AwaitingResults);
+        }
+        if self.request.section.is_some()
+            && !self.section_selected_roots.is_empty()
+            && self.variables.is_none()
+            && !self.fast_multi_has_large_values
+            && let Some(resources) = self.fast_multi_resources.take()
+        {
+            self.variables = Some(resources);
         }
         if self.metadata.is_some()
             && !self.assets_scheduled
@@ -422,6 +471,12 @@ impl CollectorSession {
                 Ok(())
             }
             CallKind::Explore => self.accept_explore(&pending.planned, pending.order, result),
+            CallKind::SectionIndex => {
+                self.accept_section_index(&pending.planned, pending.order, result)
+            }
+            CallKind::FastMultiRoot => {
+                self.accept_fast_multi_root(&pending.planned, pending.order, result)
+            }
             CallKind::LargeValue => self.accept_large_value(&pending.planned, result),
             CallKind::Asset => self.accept_asset(&pending.planned, result),
         }
@@ -457,14 +512,24 @@ impl CollectorSession {
             self.record_large_value_unsupported(&options, "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM")?;
             return Ok(true);
         }
-        if !matches!(pending.kind, CallKind::FastSnapshot | CallKind::FastTheme) {
+        if !matches!(
+            pending.kind,
+            CallKind::FastSnapshot | CallKind::FastTheme | CallKind::FastMultiRoot
+        ) {
             return Ok(false);
         }
         if !fast_call_fallback_allowed(error) {
             return Ok(false);
         }
-        self.pending.remove(call_id);
+        let pending = self
+            .pending
+            .remove(call_id)
+            .ok_or_else(|| invalid_call("fast call이 없습니다."))?;
         self.consumed.insert(call_id.to_owned());
+        if pending.kind == CallKind::FastMultiRoot {
+            self.restart_multi_root_legacy(fallback_category(error))?;
+            return Ok(true);
+        }
         self.restart_legacy(fallback_category(error));
         Ok(true)
     }
@@ -478,6 +543,7 @@ impl CollectorSession {
             && !self.request.variables_only
             && self.request.search.is_none()
             && self.request.explore.is_none()
+            && self.request.section.is_none()
     }
 
     fn fast_theme_eligible(&self) -> bool {
@@ -488,6 +554,7 @@ impl CollectorSession {
             && !self.request.include_context
             && self.request.search.is_none()
             && self.request.explore.is_none()
+            && self.request.section.is_none()
     }
 
     fn accept_fast_theme(&mut self, result: UpstreamResult) -> Result<(), DevupError> {
@@ -663,6 +730,170 @@ impl CollectorSession {
         self.metadata_root_ids = chunk.root_ids.clone();
         self.metadata = Some(result.raw);
         self.record_snapshot_chunk(order, chunk)?;
+        Ok(())
+    }
+
+    fn accept_section_index(
+        &mut self,
+        planned: &PlannedCall,
+        order: usize,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let chunk = snapshot_chunk_from_result(&result)?;
+        if chunk.file_key != planned.expected_file_key {
+            return Err(invalid_call(
+                "Figma Section index의 file key가 요청과 다릅니다.",
+            ));
+        }
+        let section_id = planned
+            .expected_node_id
+            .as_deref()
+            .ok_or_else(|| invalid_call("Figma Section index의 node ID가 없습니다."))?;
+        if chunk.root_ids.as_slice() != [section_id]
+            || !chunk.nodes.iter().any(|node| node.id == section_id)
+        {
+            return Err(invalid_call(
+                "Figma Section index가 요청한 Section과 일치하지 않습니다.",
+            ));
+        }
+        let snapshot = merge_chunks(vec![chunk.clone()])?;
+        let index = build_section_index(&snapshot, &self.request.target)?;
+        let options = self
+            .request
+            .section
+            .clone()
+            .ok_or_else(|| invalid_call("Section read options가 없습니다."))?;
+        self.source_version = index.source_version.clone();
+        self.root_node_id = Some(section_id.to_owned());
+        self.metadata_root_ids = chunk.root_ids.clone();
+        self.metadata = Some(json!({
+            "transport": "section-index-v1",
+            "sectionIndex": &index
+        }));
+        self.section_index = Some(index.clone());
+
+        if options.frame_ids.is_empty() && !options.all_screens {
+            self.request.resource_scope = ResourceScope::None;
+            self.variables = Some(empty_used_resources());
+            self.record_snapshot_chunk(order, chunk)?;
+            return Ok(());
+        }
+
+        let selected = index.select(&options.frame_ids, options.all_screens)?;
+        let batches = plan_batches(&index, &selected, BatchLimits::default())?;
+        self.section_selected_roots = selected.clone();
+        self.root_node_id = selected.first().cloned();
+        self.metadata_root_ids = selected.clone();
+        self.metadata = Some(json!({
+            "transport": "section-multi-root-v1",
+            "sectionIndex": &index,
+            "selectedRootIds": &selected,
+            "batchCount": batches.len()
+        }));
+        for batch in batches {
+            if self.multi_fast_disabled || batch.oversized {
+                for root_id in batch.root_ids {
+                    self.enqueue(
+                        ReadToolCall::snapshot(
+                            &self.request.target.file_key,
+                            &root_id,
+                            BuiltinScript::NodeSnapshot,
+                        ),
+                        Some(root_id),
+                        CallKind::Snapshot,
+                    );
+                }
+            } else {
+                self.enqueue(
+                    ReadToolCall::multi_root_snapshot(
+                        &self.request.target.file_key,
+                        section_id,
+                        batch.root_ids,
+                    ),
+                    Some(section_id.to_owned()),
+                    CallKind::FastMultiRoot,
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn accept_fast_multi_root(
+        &mut self,
+        planned: &PlannedCall,
+        order: usize,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let ReadToolCall::Snapshot {
+            script: BuiltinScript::MultiRootSnapshotEnvelope,
+            root_ids: Some(root_ids),
+            ..
+        } = &planned.call
+        else {
+            return Err(invalid_call(
+                "multi-root snapshot call 형식이 올바르지 않습니다.",
+            ));
+        };
+        let payload = decode_fast_multi_snapshot(&result, &self.request.target, root_ids)?;
+        if let (Some(existing), Some(incoming)) = (&self.source_version, &payload.snapshot.version)
+            && existing != incoming
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaVersionChanged,
+                "multi-root 수집 중 Figma 파일 버전이 변경되었습니다.",
+                true,
+            ));
+        }
+        if payload.snapshot.version.is_some() {
+            self.source_version = payload.snapshot.version.clone();
+        }
+        self.fast_multi_has_large_values |= !descriptors_in_chunk(&payload.snapshot)?.is_empty();
+        merge_fast_resources(&mut self.fast_multi_resources, payload.resources)?;
+        self.stats.transport = "png-multi-root-envelope-v1".to_owned();
+        self.stats.raw_bytes = self.stats.raw_bytes.saturating_add(payload.stats.raw_bytes);
+        self.stats.wire_bytes = self
+            .stats
+            .wire_bytes
+            .saturating_add(payload.stats.wire_bytes);
+        self.stats.envelope_chunks = self
+            .stats
+            .envelope_chunks
+            .saturating_add(payload.stats.chunk_count);
+        self.record_snapshot_chunk(order, payload.snapshot)?;
+        Ok(())
+    }
+
+    fn restart_multi_root_legacy(&mut self, reason: String) -> Result<(), DevupError> {
+        self.queued.clear();
+        self.pending.clear();
+        self.snapshot_chunks.clear();
+        self.variable_batches.clear();
+        self.variables = None;
+        self.fast_multi_resources = None;
+        self.fast_multi_has_large_values = false;
+        self.multi_fast_disabled = true;
+        self.stats.transport = "legacy-multi-root-cursor".to_owned();
+        self.stats.fallback_used = true;
+        self.stats.fallback_reason = Some(reason);
+        self.stats.raw_bytes = 0;
+        self.stats.wire_bytes = 0;
+        self.stats.envelope_chunks = 0;
+        for root_id in self.section_selected_roots.clone() {
+            self.enqueue(
+                ReadToolCall::snapshot(
+                    &self.request.target.file_key,
+                    &root_id,
+                    BuiltinScript::NodeSnapshot,
+                ),
+                Some(root_id),
+                CallKind::Snapshot,
+            );
+        }
+        if self.queued.is_empty() {
+            return Err(invalid_call(
+                "multi-root fallback에 선택된 root가 없습니다.",
+            ));
+        }
         Ok(())
     }
 
@@ -1360,6 +1591,128 @@ fn resource_count(value: &Value, field: &str) -> usize {
         .get(field)
         .and_then(Value::as_array)
         .map_or(0, Vec::len)
+}
+
+fn empty_used_resources() -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "collections": [],
+            "variables": [],
+            "styles": [],
+            "usedRemoteVariables": [],
+            "usedVariableIds": [],
+            "usedStyleIds": [],
+            "localComplete": false,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        }),
+    }
+}
+
+fn merge_fast_resources(
+    existing: &mut Option<UpstreamResult>,
+    incoming: UpstreamResult,
+) -> Result<(), DevupError> {
+    let Some(current) = existing else {
+        *existing = Some(incoming);
+        return Ok(());
+    };
+    let current = current
+        .raw
+        .as_object_mut()
+        .ok_or_else(|| invalid_call("기존 multi-root resource 형식이 올바르지 않습니다."))?;
+    let incoming = incoming
+        .raw
+        .as_object()
+        .ok_or_else(|| invalid_call("multi-root resource 형식이 올바르지 않습니다."))?;
+    for field in ["collections", "variables", "styles", "usedRemoteVariables"] {
+        let mut values = BTreeMap::<String, Value>::new();
+        for value in current
+            .get(field)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .chain(
+                incoming
+                    .get(field)
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten(),
+            )
+        {
+            let id = value
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid_call("multi-root resource ID가 없습니다."))?;
+            if let Some(previous) = values.get(id)
+                && previous != value
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaVersionChanged,
+                    "multi-root resource 내용이 batch 사이에서 달라졌습니다.",
+                    true,
+                ));
+            }
+            values.insert(id.to_owned(), value.clone());
+        }
+        current.insert(
+            field.to_owned(),
+            Value::Array(values.into_values().collect()),
+        );
+    }
+    for field in ["usedVariableIds", "usedStyleIds"] {
+        let values = current
+            .get(field)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .chain(
+                incoming
+                    .get(field)
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten(),
+            )
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| invalid_call("multi-root resource ID 형식이 올바르지 않습니다."))
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        current.insert(
+            field.to_owned(),
+            Value::Array(values.into_iter().map(Value::String).collect()),
+        );
+    }
+    let unresolved = current
+        .get("unresolved")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .chain(
+            incoming
+                .get("unresolved")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten(),
+        )
+        .map(|value| serde_json::to_string(value).map(|key| (key, value.clone())))
+        .collect::<Result<BTreeMap<_, _>, _>>()
+        .map_err(|_| invalid_call("multi-root unresolved resource를 직렬화할 수 없습니다."))?;
+    current.insert(
+        "unresolved".to_owned(),
+        Value::Array(unresolved.into_values().collect()),
+    );
+    for field in ["localComplete", "usedRemoteComplete"] {
+        let merged = current.get(field).and_then(Value::as_bool).unwrap_or(false)
+            && incoming
+                .get(field)
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+        current.insert(field.to_owned(), Value::Bool(merged));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]

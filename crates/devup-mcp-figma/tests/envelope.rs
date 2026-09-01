@@ -1,5 +1,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use devup_mcp_figma::{FigmaTarget, UpstreamResult, decode_fast_snapshot, decode_fast_theme};
+use devup_mcp_figma::{
+    FigmaTarget, UpstreamResult, decode_fast_multi_snapshot, decode_fast_snapshot,
+    decode_fast_theme,
+};
 use serde_json::{Value, json};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
@@ -37,6 +40,39 @@ fn valid_multi_image_envelope_round_trips() {
     assert_eq!(decoded.stats.raw_bytes, envelope.len());
     assert_eq!(decoded.stats.chunk_count, 2);
     assert!(decoded.stats.wire_bytes > envelope.len());
+}
+
+#[test]
+fn valid_multi_root_envelope_requires_the_exact_ordered_root_set() {
+    let envelope = mutate_envelope(|value| {
+        value["source"]["rootId"] = json!("9:9");
+        value["snapshot"]["rootIds"] = json!(["1:1", "1:2"]);
+    });
+    let mut result = upstream_result(envelope, 1);
+    let mut descriptor: Value =
+        serde_json::from_str(result.raw["content"][0]["text"].as_str().unwrap()).unwrap();
+    descriptor["rootId"] = json!("9:9");
+    result.raw["content"][0]["text"] = json!(descriptor.to_string());
+    let section_target = FigmaTarget {
+        node_id: Some("9:9".to_owned()),
+        ..target()
+    };
+
+    let decoded = decode_fast_multi_snapshot(
+        &result,
+        &section_target,
+        &["1:1".to_owned(), "1:2".to_owned()],
+    )
+    .expect("valid multi-root envelope");
+    assert_eq!(decoded.snapshot.root_ids, ["1:1", "1:2"]);
+
+    let error = decode_fast_multi_snapshot(
+        &result,
+        &section_target,
+        &["1:2".to_owned(), "1:1".to_owned()],
+    )
+    .expect_err("ordered root mismatch");
+    assert_eq!(error.details["category"], "targetMismatch");
 }
 
 #[test]

@@ -20,8 +20,8 @@ pub use credentials::{
     CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
 };
 pub use envelope::{
-    FastSnapshotPayload, FastThemePayload, FastTransportStats, decode_fast_snapshot,
-    decode_fast_theme,
+    FastSnapshotPayload, FastThemePayload, FastTransportStats, decode_fast_multi_snapshot,
+    decode_fast_snapshot, decode_fast_theme,
 };
 pub use errors::{DevupError, ErrorCode};
 pub use explore::{
@@ -71,5 +71,5 @@ pub use assets::{
 };
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
-    CollectorStep, PlannedCall,
+    CollectorStep, PlannedCall, SectionReadOptions,
 };

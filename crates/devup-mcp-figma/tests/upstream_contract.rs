@@ -233,6 +233,44 @@ fn explore_uses_a_bounded_spatial_projection() {
 }
 
 #[test]
+fn section_index_exposes_compact_candidates_without_descendant_fields() {
+    let call = ReadToolCall::section_index("file-key", "4217:7743");
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert!(code.contains("subtreeNodeCount"));
+    assert!(code.contains("estimatedSerializedBytes"));
+    assert!(code.contains("directChildCount"));
+    assert!(code.contains("selectionReasons"));
+    assert!(code.contains("projectionTruncated"));
+    assert!(!code.contains("snapshotNode"));
+    assert!(!code.contains("styledTextSegments"));
+    assert!(!code.contains("__DEVUP_PLUGIN_API_MANIFEST__"));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
+}
+
+#[test]
+fn multi_root_fast_snapshot_embeds_only_validated_root_ids() {
+    let call = ReadToolCall::multi_root_snapshot(
+        "file-key",
+        "4217:7743",
+        vec!["10:3".to_owned(), "10:2".to_owned()],
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert_eq!(call.tool_name(), "use_figma");
+    assert_eq!(call.arguments()["nodeId"], "4217:7743");
+    assert!(code.contains("[\"10:3\",\"10:2\"]"));
+    assert!(code.contains("requestedRootIds"));
+    assert!(code.contains("rootIds: roots.map"));
+    assert!(code.contains("getStyledTextSegments(textSegmentManifest)"));
+    assert!(code.contains("devupFastSnapshotDescriptor"));
+    assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
+}
+
+#[test]
 fn style_consumers_use_async_compact_range_projection() {
     let call = ReadToolCall::resource_batch(
         "file-key",
@@ -371,7 +409,9 @@ fn built_in_scripts_expose_only_read_operations() {
         BuiltinScript::LocalVariables,
         BuiltinScript::UsedResources,
         BuiltinScript::ExploreSnapshot,
+        BuiltinScript::SectionIndex,
         BuiltinScript::FastSnapshotEnvelope,
+        BuiltinScript::MultiRootSnapshotEnvelope,
         BuiltinScript::FastThemeEnvelope,
     ] {
         let call = ReadToolCall::snapshot("file-key", "1:2", script);
