@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{layout, style, text, variant};
 use crate::provenance::{SourceMap, finalize_tsx, mark_node};
+use crate::theme::{normalize_token, variable_token};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1290,7 +1291,19 @@ fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<S
                     value.get("id").and_then(serde_json::Value::as_str),
                     value.get("name").and_then(serde_json::Value::as_str),
                 ) {
-                    tokens.insert(id.to_owned(), to_camel(name));
+                    let token = if collection == "variables" {
+                        variable_token(
+                            name,
+                            value
+                                .get("codeSyntax")
+                                .and_then(serde_json::Value::as_object)
+                                .and_then(|syntax| syntax.get("WEB"))
+                                .and_then(serde_json::Value::as_str),
+                        )
+                    } else {
+                        normalize_token(name)
+                    };
+                    tokens.insert(id.to_owned(), token);
                 }
             }
         }
@@ -1315,26 +1328,6 @@ fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<S
     tokens
 }
 
-fn to_camel(input: &str) -> String {
-    let mut output = String::new();
-    for (index, part) in input
-        .split(|character: char| !character.is_alphanumeric())
-        .filter(|part| !part.is_empty())
-        .enumerate()
-    {
-        let mut characters = part.chars();
-        if let Some(first) = characters.next() {
-            if index == 0 {
-                output.extend(first.to_lowercase());
-            } else {
-                output.extend(first.to_uppercase());
-            }
-            output.extend(characters);
-        }
-    }
-    output
-}
-
 fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
     if props.is_empty() {
         return (String::new(), false);
@@ -1344,7 +1337,7 @@ fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
     let rendered = sorted
         .into_iter()
         .map(|(name, value)| match value {
-            PropValue::String(value) => format!("{name}=\"{value}\""),
+            PropValue::String(value) => render_static_attribute(&name, &value),
         })
         .collect::<Vec<_>>();
     let multiline = rendered.len() >= 5;
@@ -1357,6 +1350,20 @@ fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
     } else {
         (format!(" {}", rendered.join(" ")), false)
     }
+}
+
+pub(super) fn render_static_attribute(name: &str, value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '"' => escaped.push_str("&quot;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            _ => escaped.push(character),
+        }
+    }
+    format!("{name}=\"{escaped}\"")
 }
 
 fn add_fallback_diagnostics(node: &RawNode, context: &mut Context) {

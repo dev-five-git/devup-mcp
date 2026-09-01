@@ -105,6 +105,41 @@ fn records_explicit_diagnostics_for_unsupported_visuals() {
 }
 
 #[test]
+fn escapes_static_jsx_attribute_values() {
+    let chunk: SnapshotChunk = serde_json::from_value(json!({
+        "fileKey": "file-key",
+        "version": "1",
+        "rootIds": ["escape:1"],
+        "nodes": [{
+            "id": "escape:1",
+            "type": "TEXT",
+            "fields": {
+                "name": "Escaped font",
+                "childrenIds": [],
+                "characters": "safe",
+                "fontName": {"family": "A&B\"Font<UI>", "style": "Regular"},
+                "fontSize": 16,
+                "fontWeight": 400
+            },
+            "extra": {},
+            "fieldErrors": {}
+        }],
+        "diagnostics": []
+    }))
+    .expect("synthetic snapshot");
+    let snapshot = merge_chunks(vec![chunk]).expect("snapshot");
+
+    let output =
+        generate_component(&snapshot, "escape:1", &CodegenOptions::default()).expect("codegen");
+
+    assert!(
+        output
+            .tsx
+            .contains("fontFamily=\"A&amp;B&quot;Font&lt;UI&gt;\"")
+    );
+}
+
+#[test]
 fn nested_text_style_uses_typography() {
     let chunk: SnapshotChunk = serde_json::from_value(json!({
         "fileKey": "file-key",

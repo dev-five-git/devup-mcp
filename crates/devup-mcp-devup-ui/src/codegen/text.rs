@@ -4,7 +4,7 @@ use devup_mcp_figma::TypedNode;
 use serde_json::Value;
 
 use super::{
-    component::{Prop, PropValue},
+    component::{Prop, PropValue, render_static_attribute},
     layout::{format_number, px, string_prop},
     style::first_solid_color,
 };
@@ -300,7 +300,7 @@ pub(super) fn render_text_children(
             let props = segment_props
                 .into_iter()
                 .map(|(name, value)| match value {
-                    PropValue::String(value) => format!("{name}=\"{value}\""),
+                    PropValue::String(value) => render_static_attribute(&name, &value),
                 })
                 .collect::<Vec<_>>()
                 .join(" ");

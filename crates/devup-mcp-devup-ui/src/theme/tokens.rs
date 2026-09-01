@@ -1,4 +1,4 @@
-pub(super) fn normalize_token(input: &str) -> String {
+pub(crate) fn normalize_token(input: &str) -> String {
     let words = input
         .split(|character: char| !character.is_alphanumeric())
         .filter(|word| !word.is_empty())
@@ -28,7 +28,7 @@ pub(super) fn normalize_token(input: &str) -> String {
     }
 }
 
-pub(super) fn variable_token(name: &str, web_syntax: Option<&str>) -> String {
+pub(crate) fn variable_token(name: &str, web_syntax: Option<&str>) -> String {
     if let Some(web_syntax) = web_syntax.filter(|value| !value.trim().is_empty()) {
         return normalize_token(web_syntax.trim_start_matches('$'));
     }

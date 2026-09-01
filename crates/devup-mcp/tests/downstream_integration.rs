@@ -67,6 +67,13 @@ impl FigmaUpstream for FixtureUpstream {
                             "layoutMode": "VERTICAL",
                             "width": 320,
                             "height": 240,
+                            "fills": [{
+                                "type": "SOLID",
+                                "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
+                                "boundVariables": {
+                                    "color": {"type": "VARIABLE_ALIAS", "id": "v"}
+                                }
+                            }],
                             "boundVariables": {
                                 "fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]
                             }
@@ -260,6 +267,9 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
             .unwrap()
             .contains("export function Proofread")
     );
+    let tsx = result["tsx"].as_str().unwrap();
+    assert!(tsx.contains("bg=\"$primary\""));
+    assert!(!tsx.contains("$colorPrimary"));
     assert_eq!(result["source"]["nodeId"], "3879:35481");
     assert_eq!(result["snapshot"]["preservedNodeCount"], 1);
     Ok(())
