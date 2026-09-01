@@ -31,6 +31,7 @@ cargo install --git https://github.com/dev-five-git/devup-mcp.git --branch owjs3
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
+cargo insta test --workspace --all-features --check
 cargo build --workspace --release
 ```
 
@@ -72,7 +73,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-결과에는 `tsx`, import 목록, 사용된 token, source 식별자, 보존한 node 수와 fallback diagnostics가 포함됩니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
+결과에는 `tsx`, import 목록, 사용된 token, source 식별자, 보존한 node 수와 fallback diagnostics가 포함됩니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. 변수 token은 비어 있지 않은 Figma `codeSyntax.WEB`을 우선하고, 없으면 변수 경로의 마지막 이름을 정규화합니다. 따라서 TSX의 `$token`, `usedTokens`, `devup.json` key와 source map이 같은 이름을 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
 
 ### Figma → devup.json
 
@@ -103,9 +104,23 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`만 공개합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 search artifact로 TSX를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
 
-`status`는 node graph와 resource audit가 모두 완전하면 `complete`, 보존 가능한 결과는 있지만 잘린 field 또는 unresolved resource가 있으면 `partial`, root/graph 자체를 신뢰할 수 없으면 `failed`입니다. `strict: true`는 `partial`과 `failed`를 output으로 승인하지 않습니다. 상세 근거는 `completenessReport.snapshot`과 `completenessReport.resources`에 포함됩니다.
+모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
+
+```json
+{
+  "status": "complete",
+  "quality": {
+    "acquisition": "complete",
+    "projection": "exact",
+    "theme": "not-requested",
+    "assets": "not-requested"
+  }
+}
+```
+
+`acquisition`은 `complete | expected-projection | partial | failed`, `projection`은 `exact | approximated | lossy | failed | not-requested`, `theme`은 `complete | conflicted | unresolved | not-requested`, `assets`는 `complete | partial | failed | not-requested`입니다. 검색·탐색의 의도적인 얕은 graph는 `expected-projection`으로 정상 완료하지만, 포함된 field의 실패나 truncation은 `partial`입니다. mask/effect fallback은 `lossy`, absolute layout fallback은 `approximated`이며 `includeDiagnostics: false`여도 품질 판정에는 반영됩니다. 기존 `status`는 요청한 모든 축이 정확하거나 완전할 때만 `complete`이고, `strict: true`는 모든 요청 축이 exact/complete가 아니면 quality와 `completenessReport`를 담은 오류로 거절합니다.
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
