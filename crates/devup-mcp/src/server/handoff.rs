@@ -44,7 +44,7 @@ pub enum PendingOperation {
         output_paths: BTreeMap<String, String>,
         frame_ids: Vec<String>,
         all_screens: bool,
-        asset_ids: Vec<String>,
+        asset_captures: Vec<devup_mcp_figma::AssetSelection>,
         asset_output_paths: BTreeMap<String, String>,
     },
     Search {

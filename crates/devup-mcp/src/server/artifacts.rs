@@ -69,6 +69,8 @@ impl ArtifactRequestKey {
             kind,
             collection_scope: self.scope,
             resource_scope: self.resource_scope,
+            asset_capture_count: self.asset_selections.len(),
+            asset_captures: self.asset_selections.clone(),
         }
     }
 }
@@ -82,12 +84,23 @@ pub enum ArtifactKind {
     Explore,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactCapabilities {
     pub kind: ArtifactKind,
     pub collection_scope: CollectionScope,
     pub resource_scope: ResourceScope,
+    pub asset_capture_count: usize,
+    #[serde(skip)]
+    asset_captures: Vec<AssetSelection>,
+}
+
+impl ArtifactCapabilities {
+    pub fn supports_asset_captures(&self, requested: &[AssetSelection]) -> bool {
+        requested
+            .iter()
+            .all(|capture| self.asset_captures.contains(capture))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -352,7 +365,7 @@ impl ArtifactStore {
                 expires_at,
                 size_bytes: bytes.len(),
                 last_access,
-                capabilities,
+                capabilities: capabilities.clone(),
                 payload: payload.clone(),
             },
         );
@@ -405,7 +418,7 @@ fn touch_entry(
         expires_at_epoch_seconds: entry.expires_at,
         size_bytes: entry.size_bytes,
         cache_hit,
-        capabilities: entry.capabilities,
+        capabilities: entry.capabilities.clone(),
         payload: entry.payload.clone(),
     })
 }

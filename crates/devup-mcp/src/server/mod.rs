@@ -442,10 +442,15 @@ impl DevupServer {
                     true,
                 ))
             })?;
-            validate_artifact_projection(&artifact, &input.outputs, &input.scope)
-                .map_err(to_mcp_error)?;
             let (asset_selections, asset_output_paths) =
                 parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
+            validate_artifact_projection(
+                &artifact,
+                &input.outputs,
+                &input.scope,
+                &asset_selections,
+            )
+            .map_err(to_mcp_error)?;
             let result = complete_operation(
                 PendingOperation::Export {
                     outputs: input.outputs,
@@ -457,10 +462,7 @@ impl DevupServer {
                     output_paths: input.output_paths,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
-                    asset_ids: asset_selections
-                        .into_iter()
-                        .map(|selection| selection.asset_id)
-                        .collect(),
+                    asset_captures: asset_selections,
                     asset_output_paths,
                 },
                 &artifact.payload,
@@ -512,10 +514,7 @@ impl DevupServer {
                     output_paths: input.output_paths,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
-                    asset_ids: asset_selections
-                        .into_iter()
-                        .map(|selection| selection.asset_id)
-                        .collect(),
+                    asset_captures: asset_selections,
                     asset_output_paths,
                 },
                 request,
@@ -743,7 +742,7 @@ fn complete_operation(
             output_paths,
             frame_ids,
             all_screens,
-            asset_ids,
+            asset_captures,
             asset_output_paths,
         } => {
             let mut result = Map::new();
@@ -1032,16 +1031,18 @@ fn complete_operation(
                 manifest
                     .assets
                     .sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
-                for asset_id in &asset_ids {
-                    if !payload
-                        .assets
-                        .iter()
-                        .any(|asset| &asset.asset_id == asset_id)
-                    {
+                for capture in &asset_captures {
+                    if !payload.assets.iter().any(|asset| {
+                        asset.asset_id == capture.asset_id
+                            && asset.format == Some(capture.format)
+                            && asset.scale == Some(capture.scale)
+                            && asset.status == AssetStatus::Exported
+                    }) {
                         return Err(DevupError::new(
-                            ErrorCode::DevupSnapshotUnsupported,
+                            ErrorCode::DevupFigmaHandoffInvalid,
                             format!(
-                                "artifact에 요청한 asset export가 없습니다. URL로 다시 수집하세요: {asset_id}"
+                                "artifact에 요청한 정확한 asset export가 없습니다. URL로 다시 수집하세요: {}",
+                                capture.asset_id
                             ),
                             false,
                         ));
@@ -1069,7 +1070,10 @@ fn complete_operation(
                 ),
                 assets: assets_quality(
                     outputs.iter().any(|output| output == "assetManifest"),
-                    &asset_ids,
+                    &asset_captures
+                        .iter()
+                        .map(|capture| capture.asset_id.clone())
+                        .collect::<Vec<_>>(),
                     &payload.assets,
                 ),
             };
@@ -1151,9 +1155,10 @@ fn validate_artifact_projection(
     artifact: &ArtifactLookup,
     outputs: &[String],
     requested_scope: &str,
+    requested_assets: &[AssetSelection],
 ) -> Result<(), DevupError> {
     let requested_scope = parse_collection_scope(requested_scope)?;
-    let capabilities = artifact.capabilities;
+    let capabilities = &artifact.capabilities;
     let design_output_requested = outputs.iter().any(|output| {
         matches!(
             output.as_str(),
@@ -1176,7 +1181,9 @@ fn validate_artifact_projection(
             }
         };
 
-    if kind_compatible && collection_compatible && resources_compatible {
+    let assets_compatible = capabilities.supports_asset_captures(requested_assets);
+
+    if kind_compatible && collection_compatible && resources_compatible && assets_compatible {
         return Ok(());
     }
 
@@ -1188,7 +1195,8 @@ fn validate_artifact_projection(
             "capabilities": capabilities,
             "requested": {
                 "outputs": outputs,
-                "collectionScope": requested_scope
+                "collectionScope": requested_scope,
+                "assetCaptureCount": requested_assets.len()
             }
         }),
     ))

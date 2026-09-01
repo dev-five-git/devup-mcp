@@ -295,6 +295,63 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
 }
 
 #[tokio::test]
+async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let acquired = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["assetManifest"],
+            "sourcePolicy": "direct",
+            "assetRequests": [{"assetId":"1:2:fills:1","format":"png","scale":2}]
+        }),
+    )
+    .await?;
+    let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
+    assert_eq!(acquired["cache"]["capabilities"]["assetCaptureCount"], 1);
+    assert!(!serde_json::to_string(&acquired["cache"]["capabilities"])?.contains("1:2:fills:1"));
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
+
+    for request in [
+        json!({"assetId":"1:2:fills:1","format":"svg","scale":2}),
+        json!({"assetId":"1:2:fills:1","format":"png","scale":1}),
+    ] {
+        let reused = client
+            .call_tool(
+                CallToolRequestParams::new("devup_figma_export").with_arguments(
+                    json!({
+                        "artifactId": artifact_id,
+                        "outputs": ["assetManifest"],
+                        "assetRequests": [request]
+                    })
+                    .as_object()
+                    .cloned()
+                    .unwrap(),
+                ),
+            )
+            .await;
+        let error = reused.expect_err("asset capture reuse requires the exact format and scale");
+        assert!(
+            error.to_string().contains("DEVUP_FIGMA_HANDOFF_INVALID"),
+            "unexpected capture mismatch error: {error}"
+        );
+    }
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
 async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Result<()> {
     let upstream = Arc::new(FastFixtureUpstream::partial());
     let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
