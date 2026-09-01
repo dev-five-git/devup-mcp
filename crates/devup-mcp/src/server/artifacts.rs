@@ -16,6 +16,8 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, watch};
 
+use super::delivery::{ProjectedOutput, RESOURCE_CHUNK_BYTES};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactRequestKey {
@@ -168,6 +170,29 @@ pub struct ArtifactStoreStats {
     pub max_total_bytes: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedOutputManifest {
+    pub artifact_id: String,
+    pub output_id: String,
+    pub name: String,
+    pub mime_type: String,
+    pub raw_bytes: usize,
+    pub sha256: String,
+    pub chunk_count: usize,
+    pub chunk_bytes: usize,
+    pub is_binary: bool,
+    pub manifest_uri: String,
+    pub expires_at_epoch_seconds: u64,
+}
+
+#[derive(Debug)]
+struct AttachedOutput {
+    manifest: AttachedOutputManifest,
+    bytes: Arc<[u8]>,
+    allocation_bytes: usize,
+}
+
 #[derive(Debug)]
 struct Entry {
     key_digest: String,
@@ -178,6 +203,8 @@ struct Entry {
     last_access: u64,
     capabilities: ArtifactCapabilities,
     payload: Arc<CollectedPayload>,
+    outputs: BTreeMap<String, AttachedOutput>,
+    projections: BTreeMap<String, Vec<String>>,
 }
 
 type AcquisitionResult = Result<ArtifactLookup, DevupError>;
@@ -312,6 +339,178 @@ impl ArtifactStore {
         }
     }
 
+    pub async fn attach_outputs(
+        &self,
+        artifact_id: &str,
+        projection_key: &str,
+        outputs: Vec<ProjectedOutput>,
+    ) -> Result<Vec<AttachedOutputManifest>, DevupError> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        if let Some(ids) = state
+            .entries
+            .get(artifact_id)
+            .and_then(|entry| entry.projections.get(projection_key))
+            .cloned()
+        {
+            let entry = state
+                .entries
+                .get(artifact_id)
+                .ok_or_else(resource_expired)?;
+            return ids
+                .iter()
+                .map(|id| {
+                    entry
+                        .outputs
+                        .get(id)
+                        .map(|output| output.manifest.clone())
+                        .ok_or_else(resource_expired)
+                })
+                .collect();
+        }
+        let expires_at = state
+            .entries
+            .get(artifact_id)
+            .map(|entry| entry.expires_at)
+            .ok_or_else(resource_expired)?;
+        let mut staged = Vec::with_capacity(outputs.len());
+        let mut staged_ids = BTreeMap::new();
+        for output in outputs {
+            if output.name.is_empty()
+                || !output
+                    .name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+                || output.mime_type.is_empty()
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "resource output 이름 또는 MIME 형식이 올바르지 않습니다.",
+                    false,
+                ));
+            }
+            let output_id = unique_output_id(&staged_ids);
+            staged_ids.insert(output_id.clone(), ());
+            let raw_bytes = output.bytes.len();
+            let encoded_bytes = if output.is_binary {
+                raw_bytes.div_ceil(3).saturating_mul(4)
+            } else {
+                0
+            };
+            let allocation_bytes = raw_bytes.saturating_add(encoded_bytes);
+            let manifest_uri =
+                format!("devup://artifact/{artifact_id}/outputs/{output_id}/manifest");
+            staged.push(AttachedOutput {
+                manifest: AttachedOutputManifest {
+                    artifact_id: artifact_id.to_owned(),
+                    output_id,
+                    name: output.name,
+                    mime_type: output.mime_type,
+                    raw_bytes,
+                    sha256: sha256_hex(&output.bytes),
+                    chunk_count: raw_bytes.div_ceil(RESOURCE_CHUNK_BYTES),
+                    chunk_bytes: RESOURCE_CHUNK_BYTES,
+                    is_binary: output.is_binary,
+                    manifest_uri,
+                    expires_at_epoch_seconds: expires_at,
+                },
+                bytes: Arc::from(output.bytes),
+                allocation_bytes,
+            });
+        }
+        let allocation = staged
+            .iter()
+            .try_fold(0_usize, |sum, output| {
+                sum.checked_add(output.allocation_bytes)
+            })
+            .ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupFigmaResponseTooLarge,
+                    "resource allocation 크기가 안전한 범위를 초과했습니다.",
+                    false,
+                )
+            })?;
+        let entry_size = state
+            .entries
+            .get(artifact_id)
+            .map(|entry| entry.size_bytes)
+            .ok_or_else(resource_expired)?;
+        if entry_size.saturating_add(allocation) > self.limits.max_entry_bytes
+            || allocation > self.limits.max_total_bytes
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "resource output이 artifact 메모리 한도를 초과했습니다.",
+                false,
+            ));
+        }
+        while state.total_bytes.saturating_add(allocation) > self.limits.max_total_bytes {
+            let Some(lru_id) = state
+                .entries
+                .iter()
+                .filter(|(id, _)| id.as_str() != artifact_id)
+                .min_by_key(|(_, entry)| entry.last_access)
+                .map(|(id, _)| id.clone())
+            else {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaResponseTooLarge,
+                    "resource output이 전체 메모리 한도를 초과했습니다.",
+                    false,
+                ));
+            };
+            remove_entry(&mut state, &lru_id);
+        }
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state
+            .entries
+            .get_mut(artifact_id)
+            .ok_or_else(resource_expired)?;
+        entry.last_access = access;
+        entry.size_bytes = entry.size_bytes.saturating_add(allocation);
+        let ids = staged
+            .iter()
+            .map(|output| output.manifest.output_id.clone())
+            .collect::<Vec<_>>();
+        let manifests = staged
+            .iter()
+            .map(|output| output.manifest.clone())
+            .collect::<Vec<_>>();
+        for output in staged {
+            entry
+                .outputs
+                .insert(output.manifest.output_id.clone(), output);
+        }
+        entry.projections.insert(projection_key.to_owned(), ids);
+        state.total_bytes = state.total_bytes.saturating_add(allocation);
+        Ok(manifests)
+    }
+
+    pub async fn read_output_chunk(
+        &self,
+        artifact_id: &str,
+        output_id: &str,
+        index: usize,
+    ) -> Option<Vec<u8>> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state.entries.get_mut(artifact_id)?;
+        entry.last_access = access;
+        let output = entry.outputs.get(output_id)?;
+        let start = index.checked_mul(RESOURCE_CHUNK_BYTES)?;
+        if start >= output.bytes.len() && !(index == 0 && output.bytes.is_empty()) {
+            return None;
+        }
+        let end = start
+            .saturating_add(RESOURCE_CHUNK_BYTES)
+            .min(output.bytes.len());
+        Some(output.bytes[start..end].to_vec())
+    }
+
     async fn insert_with_digest(
         &self,
         key_digest: String,
@@ -381,6 +580,8 @@ impl ArtifactStore {
                 last_access,
                 capabilities: capabilities.clone(),
                 payload: payload.clone(),
+                outputs: BTreeMap::new(),
+                projections: BTreeMap::new(),
             },
         );
         Ok(ArtifactLookup {
@@ -457,6 +658,17 @@ fn unique_id(entries: &BTreeMap<String, Entry>) -> String {
     }
 }
 
+fn unique_output_id(existing: &BTreeMap<String, ()>) -> String {
+    loop {
+        let mut bytes = [0_u8; 16];
+        rand::rng().fill_bytes(&mut bytes);
+        let id = URL_SAFE_NO_PAD.encode(bytes);
+        if !existing.contains_key(&id) {
+            return id;
+        }
+    }
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -468,6 +680,14 @@ fn acquisition_cancelled() -> DevupError {
     DevupError::new(
         ErrorCode::DevupFigmaDirectUnavailable,
         "동일 Figma artifact 수집이 완료되기 전에 취소되었습니다.",
+        true,
+    )
+}
+
+fn resource_expired() -> DevupError {
+    DevupError::new(
+        ErrorCode::DevupFigmaHandoffExpired,
+        "resource artifact가 없거나 만료되었습니다.",
         true,
     )
 }
