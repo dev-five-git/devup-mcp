@@ -9,6 +9,7 @@ mod oauth;
 mod payload;
 mod resources;
 mod search;
+mod section;
 mod snapshot;
 mod source;
 mod upstream;
@@ -42,6 +43,10 @@ pub use resources::{
     ResourceKind, ResourceOccurrence, ResourceScope, UsedResourceRefs, collect_used_resource_refs,
 };
 pub use search::{SearchOptions, SearchResult, search_snapshot};
+pub use section::{
+    BatchLimits, SectionBatch, SectionCandidate, SectionIndex, SectionSummary, build_section_index,
+    plan_batches,
+};
 pub use snapshot::{
     ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FieldLocation,
     MissingChild, ParentMismatch, RawNode, Snapshot, SnapshotAudit, SnapshotChunk, TypedNode,
