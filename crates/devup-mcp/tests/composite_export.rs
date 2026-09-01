@@ -341,6 +341,13 @@ async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
         anyhow::Ok(())
     });
     let client = ().serve(client_transport).await?;
+    let output_path = std::env::temp_dir().join(format!(
+        "devup-mcp-strict-lossy-{}-{}.tsx",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
 
     let result = client
         .call_tool(
@@ -349,7 +356,8 @@ async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
                     "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
                     "outputs": ["tsx"],
                     "sourcePolicy": "direct",
-                    "strict": true
+                    "strict": true,
+                    "outputPaths": {"tsx": output_path.to_string_lossy()}
                 })
                 .as_object()
                 .cloned()
@@ -362,6 +370,14 @@ async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
     assert!(
         error.to_string().contains("lossy"),
         "unexpected strict error: {error}"
+    );
+    let wrote_rejected_output = output_path.exists();
+    if wrote_rejected_output {
+        std::fs::remove_file(&output_path)?;
+    }
+    assert!(
+        !wrote_rejected_output,
+        "strict rejection must not write output files"
     );
     client.cancel().await?;
     task.await??;

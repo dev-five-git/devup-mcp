@@ -822,6 +822,8 @@ fn complete_operation(
             let mut projection_diagnostics = Vec::new();
             let mut theme_conflict_count = 0;
             let mut theme_unresolved_count = 0;
+            let mut pending_text_outputs = std::collections::BTreeMap::new();
+            let mut pending_asset_manifest = None;
             if let Some(candidates) = section_candidates {
                 let by_id = candidates
                     .iter()
@@ -935,8 +937,8 @@ fn complete_operation(
                 )?;
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 tsx_source_map = Some(output.source_map.clone());
-                if let Some(path) = output_paths.get("tsx") {
-                    written_paths.insert("tsx".to_owned(), json!(write_output(path, &output.tsx)?));
+                if output_paths.contains_key("tsx") {
+                    pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
                 }
                 result.insert("tsx".to_owned(), json!(output.tsx));
                 result.insert("imports".to_owned(), json!(output.imports));
@@ -959,11 +961,8 @@ fn complete_operation(
                 theme_conflict_count = output.conflicts.len();
                 theme_unresolved_count = output.unresolved_variables.len();
                 devup_json_source_map = Some(output.source_map.clone());
-                if let Some(path) = output_paths.get("devupJson") {
-                    written_paths.insert(
-                        "devupJson".to_owned(),
-                        json!(write_output(path, &output.json)?),
-                    );
+                if output_paths.contains_key("devupJson") {
+                    pending_text_outputs.insert("devupJson".to_owned(), output.json.clone());
                 }
                 result.insert("devupJson".to_owned(), json!(output.json));
                 result.insert("themeCounts".to_owned(), json!(output.counts));
@@ -986,13 +985,10 @@ fn complete_operation(
                         false,
                     )
                 })?;
-                if let Some(path) = output_paths.get("rawSnapshot") {
-                    written_paths.insert(
+                if output_paths.contains_key("rawSnapshot") {
+                    pending_text_outputs.insert(
                         "rawSnapshot".to_owned(),
-                        json!(write_output(
-                            path,
-                            &serde_json::to_string_pretty(&raw).unwrap_or_default()
-                        )?),
+                        serde_json::to_string_pretty(&raw).unwrap_or_default(),
                     );
                 }
                 result.insert("rawSnapshot".to_owned(), raw);
@@ -1011,13 +1007,10 @@ fn complete_operation(
                         "sourceVersion": payload.source_version
                     }
                 });
-                if let Some(path) = output_paths.get("sourceMap") {
-                    written_paths.insert(
+                if output_paths.contains_key("sourceMap") {
+                    pending_text_outputs.insert(
                         "sourceMap".to_owned(),
-                        json!(write_output(
-                            path,
-                            &serde_json::to_string_pretty(&source_map).unwrap_or_default()
-                        )?),
+                        serde_json::to_string_pretty(&source_map).unwrap_or_default(),
                     );
                 }
                 result.insert("sourceMap".to_owned(), source_map);
@@ -1054,32 +1047,6 @@ fn complete_operation(
                         ));
                     }
                 }
-                for asset in &mut manifest.assets {
-                    if asset.status != AssetStatus::Exported {
-                        continue;
-                    }
-                    let Some(path) = asset_output_paths.get(&asset.asset_id) else {
-                        continue;
-                    };
-                    let data = asset.data_base64.as_deref().ok_or_else(|| {
-                        DevupError::new(
-                            ErrorCode::DevupSnapshotUnsupported,
-                            "export된 asset binary가 artifact에 없습니다.",
-                            false,
-                        )
-                    })?;
-                    let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
-                        DevupError::new(
-                            ErrorCode::DevupSnapshotUnsupported,
-                            "export된 asset binary의 base64가 올바르지 않습니다.",
-                            false,
-                        )
-                    })?;
-                    let written = write_binary_output(path, &bytes)?;
-                    written_paths.insert(format!("asset:{}", asset.asset_id), json!(written));
-                    asset.output_path = Some(path.clone());
-                    asset.data_base64 = None;
-                }
                 manifest.diagnostics = payload
                     .snapshot
                     .diagnostics
@@ -1087,7 +1054,7 @@ fn complete_operation(
                     .filter(|diagnostic| diagnostic.resource_kind.as_deref() == Some("asset"))
                     .cloned()
                     .collect();
-                result.insert("assetManifest".to_owned(), json!(manifest));
+                pending_asset_manifest = Some(manifest);
             }
             let quality = OutputQuality {
                 acquisition: acquisition_quality(&completeness_report, false),
@@ -1123,6 +1090,40 @@ fn complete_operation(
             }
             result.insert("status".to_owned(), json!(quality.status()));
             result.insert("quality".to_owned(), json!(quality));
+            for (output, contents) in pending_text_outputs {
+                if let Some(path) = output_paths.get(&output) {
+                    written_paths.insert(output, json!(write_output(path, &contents)?));
+                }
+            }
+            if let Some(mut manifest) = pending_asset_manifest {
+                for asset in &mut manifest.assets {
+                    if asset.status != AssetStatus::Exported {
+                        continue;
+                    }
+                    let Some(path) = asset_output_paths.get(&asset.asset_id) else {
+                        continue;
+                    };
+                    let data = asset.data_base64.as_deref().ok_or_else(|| {
+                        DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            "export된 asset binary가 artifact에 없습니다.",
+                            false,
+                        )
+                    })?;
+                    let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
+                        DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            "export된 asset binary의 base64가 올바르지 않습니다.",
+                            false,
+                        )
+                    })?;
+                    let written = write_binary_output(path, &bytes)?;
+                    written_paths.insert(format!("asset:{}", asset.asset_id), json!(written));
+                    asset.output_path = Some(path.clone());
+                    asset.data_base64 = None;
+                }
+                result.insert("assetManifest".to_owned(), json!(manifest));
+            }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
             Ok(Value::Object(result))
         }
