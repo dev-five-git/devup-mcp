@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     AssetManifestEntry, CollectedParts, CollectionScope, CollectionStats, CompletenessState,
-    DevupError, FigmaTarget, Snapshot, SnapshotAudit, UpstreamResult, merge_chunks,
+    DevupError, FigmaTarget, ReferencePng, Snapshot, SnapshotAudit, UpstreamResult, merge_chunks,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +32,8 @@ pub struct CollectedPayload {
     pub stats: CollectionStats,
     #[serde(default)]
     pub assets: Vec<AssetManifestEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_png: Option<ReferencePng>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,6 +127,7 @@ impl TryFrom<CollectedParts> for CollectedPayload {
             source_version: parts.source_version,
             stats: parts.stats,
             assets: parts.assets,
+            reference_png: parts.reference_png,
         })
     }
 }

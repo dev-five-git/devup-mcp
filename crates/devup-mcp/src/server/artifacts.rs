@@ -33,6 +33,7 @@ pub struct ArtifactRequestKey {
     explore: Option<ExploreReadOptions>,
     section: Option<SectionReadOptions>,
     asset_selections: Vec<AssetSelection>,
+    reference_png: bool,
     source_policy: SourcePolicy,
 }
 
@@ -51,6 +52,7 @@ impl ArtifactRequestKey {
             explore: request.explore.clone(),
             section: request.section.clone(),
             asset_selections: request.asset_selections.clone(),
+            reference_png: request.reference_png,
             source_policy,
         }
     }
@@ -81,6 +83,7 @@ impl ArtifactRequestKey {
             resource_scope: self.resource_scope,
             asset_capture_count: self.asset_selections.len(),
             asset_captures: self.asset_selections.clone(),
+            reference_png: self.reference_png,
         }
     }
 }
@@ -102,6 +105,7 @@ pub struct ArtifactCapabilities {
     pub collection_scope: CollectionScope,
     pub resource_scope: ResourceScope,
     pub asset_capture_count: usize,
+    pub reference_png: bool,
     #[serde(skip)]
     asset_captures: Vec<AssetSelection>,
 }

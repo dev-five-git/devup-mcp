@@ -3,6 +3,7 @@ members = [
     "crates/devup-mcp",
     "crates/devup-mcp-figma",
     "crates/devup-mcp-devup-ui",
+    "crates/devup-mcp-visual",
 ]
 resolver = "3"
 
@@ -22,6 +23,7 @@ cap-std = "4.0.3"
 dunce = "1.0.5"
 keyring = "4.2"
 insta = { version = "1.48.0", features = ["glob", "json"] }
+image = { version = "=0.25.10", default-features = false, features = ["png"] }
 oxc_allocator = "=0.96.0"
 oxc_parser = "=0.96.0"
 oxc_span = "=0.96.0"

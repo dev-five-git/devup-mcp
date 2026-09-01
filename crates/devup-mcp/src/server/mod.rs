@@ -487,6 +487,14 @@ impl DevupServer {
                 false,
             )));
         }
+        let reference_png_requested = input.outputs.iter().any(|output| output == "referencePng");
+        if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "referencePng는 단일 Figma 링크 대상에서만 수집할 수 있습니다.",
+                false,
+            )));
+        }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
         parse_scope(&input.scope).map_err(to_mcp_error)?;
         let delivery = input
@@ -535,6 +543,7 @@ impl DevupServer {
                     CollectionRequest::new(artifact.payload.target.clone(), collection_scope);
                 request.resource_scope = ResourceScope::Used;
                 request.asset_selections = asset_selections.clone();
+                request.reference_png = reference_png_requested;
                 request.section = Some(SectionReadOptions {
                     frame_ids: input.frame_ids.clone(),
                     all_screens: input.all_screens,
@@ -618,6 +627,7 @@ impl DevupServer {
         let (asset_selections, asset_output_paths) =
             parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
         request.asset_selections = asset_selections.clone();
+        request.reference_png = reference_png_requested;
         request.resource_scope = if collection_scope == CollectionScope::File {
             ResourceScope::File
         } else {
@@ -1003,6 +1013,7 @@ async fn complete_operation(
             let mut theme_conflict_count = 0;
             let mut theme_unresolved_count = 0;
             let mut pending_text_outputs = std::collections::BTreeMap::new();
+            let mut pending_binary_outputs = std::collections::BTreeMap::new();
             let mut pending_asset_manifest = None;
             if let Some(candidates) = section_candidates {
                 let by_id = candidates
@@ -1205,6 +1216,42 @@ async fn complete_operation(
                 result.insert("sourceMap".to_owned(), source_map);
             }
 
+            if outputs.iter().any(|output| output == "referencePng") {
+                let reference = payload.reference_png.as_ref().ok_or_else(|| {
+                    DevupError::new(
+                        ErrorCode::DevupFigmaHandoffInvalid,
+                        "artifact에 요청한 reference PNG가 없습니다. URL로 다시 수집하세요.",
+                        false,
+                    )
+                })?;
+                let bytes = STANDARD
+                    .decode(reference.data_base64.as_bytes())
+                    .map_err(|_| {
+                        DevupError::new(
+                            ErrorCode::DevupSnapshotUnsupported,
+                            "artifact reference PNG의 base64가 올바르지 않습니다.",
+                            false,
+                        )
+                    })?;
+                if bytes.len() != reference.byte_length
+                    || Sha256::digest(&bytes)
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
+                        != reference.sha256
+                {
+                    return Err(DevupError::new(
+                        ErrorCode::DevupSnapshotUnsupported,
+                        "artifact reference PNG의 길이 또는 hash가 일치하지 않습니다.",
+                        false,
+                    ));
+                }
+                if output_paths.contains_key("referencePng") {
+                    pending_binary_outputs.insert("referencePng".to_owned(), bytes);
+                }
+                result.insert("referencePng".to_owned(), json!(reference));
+            }
+
             if outputs.iter().any(|output| output == "assetManifest") {
                 let mut manifest = devup_mcp_figma::discover_asset_manifest(&payload.snapshot);
                 for exported in &payload.assets {
@@ -1298,6 +1345,11 @@ async fn complete_operation(
                     ));
                 }
             }
+            for (output, bytes) in pending_binary_outputs {
+                if let Some(path) = output_paths.get(&output) {
+                    planned_outputs.push((output, output_policy.resolve(path)?, bytes));
+                }
+            }
             if let Some(manifest) = pending_asset_manifest.as_ref() {
                 for asset in &manifest.assets {
                     if asset.status != AssetStatus::Exported {
@@ -1387,6 +1439,26 @@ fn projected_outputs_from_result(
             devup_json.as_bytes().to_vec(),
         ));
     }
+    if let Some(reference) = result.get("referencePng") {
+        let data = reference
+            .get("dataBase64")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "referencePng resource에 base64 data가 없습니다.",
+                    false,
+                )
+            })?;
+        let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "referencePng resource의 base64가 올바르지 않습니다.",
+                false,
+            )
+        })?;
+        outputs.push(ProjectedOutput::binary("reference.png", "image/png", bytes));
+    }
     for (field, name) in [
         ("rawSnapshot", "raw-snapshot.json"),
         ("sourceMap", "source-map.json"),
@@ -1458,6 +1530,7 @@ async fn apply_delivery(
         "rawSnapshot",
         "sourceMap",
         "assetManifest",
+        "referencePng",
     ] {
         result.remove(field);
     }
@@ -1532,7 +1605,7 @@ fn validate_artifact_projection(
     let design_output_requested = outputs.iter().any(|output| {
         matches!(
             output.as_str(),
-            "tsx" | "rawSnapshot" | "sourceMap" | "assetManifest"
+            "tsx" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
         )
     });
     let theme_requested = outputs.iter().any(|output| output == "devupJson");
@@ -1553,8 +1626,15 @@ fn validate_artifact_projection(
         };
 
     let assets_compatible = capabilities.supports_asset_captures(requested_assets);
+    let reference_png_compatible =
+        !outputs.iter().any(|output| output == "referencePng") || capabilities.reference_png;
 
-    if kind_compatible && collection_compatible && resources_compatible && assets_compatible {
+    if kind_compatible
+        && collection_compatible
+        && resources_compatible
+        && assets_compatible
+        && reference_png_compatible
+    {
         return Ok(());
     }
 
@@ -1617,7 +1697,7 @@ fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
     for output in outputs {
         if !matches!(
             output.as_str(),
-            "tsx" | "devupJson" | "rawSnapshot" | "sourceMap" | "assetManifest"
+            "tsx" | "devupJson" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
         ) {
             return Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,

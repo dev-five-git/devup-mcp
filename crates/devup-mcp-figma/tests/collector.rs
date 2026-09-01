@@ -44,6 +44,47 @@ fn exact_node_fast_path_completes_in_one_call() {
 }
 
 #[test]
+fn requested_reference_png_is_collected_after_the_design_snapshot() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.reference_png = true;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast snapshot call expected")
+    };
+    collector
+        .accept(&fast_call.id, fast_envelope_result())
+        .unwrap();
+
+    let CollectorStep::Call(screenshot_call) = collector.advance().unwrap() else {
+        panic!("reference screenshot call expected")
+    };
+    assert_eq!(screenshot_call.call.tool_name(), "get_screenshot");
+    assert_eq!(screenshot_call.call.arguments()["fileKey"], "FileKey123");
+    assert_eq!(screenshot_call.call.arguments()["nodeId"], "1:2");
+    let data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    collector
+        .accept(
+            &screenshot_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "image", "mimeType": "image/png", "data": data}]}),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("collection should complete with its reference PNG")
+    };
+    let reference = parts.reference_png.expect("reference PNG");
+    assert_eq!(reference.mime_type, "image/png");
+    assert_eq!(reference.data_base64, data);
+    assert_eq!(reference.byte_length, STANDARD.decode(data).unwrap().len());
+    assert_eq!(reference.sha256.len(), 64);
+    assert_eq!(parts.stats.figma_tool_calls, 2);
+}
+
+#[test]
 fn malformed_fast_result_restarts_legacy_from_metadata() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
     request.resource_scope = ResourceScope::Used;

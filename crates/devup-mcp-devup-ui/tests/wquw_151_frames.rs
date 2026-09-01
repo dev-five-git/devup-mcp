@@ -188,6 +188,7 @@ fn every_actual_frame_generates_reviewed_devup_ui() {
             source_version: None,
             stats: CollectionStats::default(),
             assets: Vec::new(),
+            reference_png: None,
         };
         let output = generate_component(
             &payload.snapshot,

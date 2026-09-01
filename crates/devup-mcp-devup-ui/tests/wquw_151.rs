@@ -50,6 +50,7 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
         source_version: None,
         stats: CollectionStats::default(),
         assets: Vec::new(),
+        reference_png: None,
     };
     let output = generate_component(
         &payload.snapshot,

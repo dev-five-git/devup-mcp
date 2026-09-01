@@ -69,7 +69,7 @@ impl FastFixtureUpstream {
 #[async_trait]
 impl FigmaUpstream for FastFixtureUpstream {
     async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
-        Ok(vec!["use_figma".to_owned()])
+        Ok(vec!["get_screenshot".to_owned(), "use_figma".to_owned()])
     }
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
@@ -82,6 +82,15 @@ impl FigmaUpstream for FastFixtureUpstream {
             ReadToolCall::AssetExport {
                 version, request, ..
             } => Ok(asset_export_result(version.as_deref(), &request)),
+            ReadToolCall::Screenshot { .. } => Ok(UpstreamResult {
+                raw: json!({
+                    "content": [{
+                        "type": "image",
+                        "mimeType": "image/png",
+                        "data": reference_png_base64()
+                    }]
+                }),
+            }),
             _ => Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
                 "composite export must stay on the one-call fast path",
@@ -89,6 +98,55 @@ impl FigmaUpstream for FastFixtureUpstream {
             )),
         }
     }
+}
+
+#[tokio::test]
+async fn reference_png_is_acquired_once_and_delivered_as_a_binary_resource() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let acquired = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["referencePng"],
+            "sourcePolicy": "direct"
+        }),
+    )
+    .await?;
+
+    assert_eq!(acquired["collection"]["figmaToolCalls"], 2);
+    assert_eq!(acquired["referencePng"]["mimeType"], "image/png");
+    assert_eq!(
+        acquired["referencePng"]["dataBase64"],
+        reference_png_base64()
+    );
+    assert_eq!(acquired["cache"]["capabilities"]["referencePng"], true);
+    let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
+
+    let delivered = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "artifactId": artifact_id,
+            "outputs": ["referencePng"],
+            "delivery": "resource"
+        }),
+    )
+    .await?;
+    assert!(delivered.get("referencePng").is_none());
+    assert_eq!(delivered["resources"][0]["mimeType"], "image/png");
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
 }
 
 async fn call(
@@ -591,6 +649,10 @@ fn asset_export_result(
             {"type":"image","data":STANDARD.encode(bytes),"mimeType":"image/png"}
         ]}),
     }
+}
+
+fn reference_png_base64() -> &'static str {
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 }
 
 fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {

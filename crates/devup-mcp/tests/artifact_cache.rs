@@ -75,6 +75,7 @@ fn payload(file_key: &str, node_id: &str, marker: &str) -> CollectedPayload {
         source_version: Some("1".to_owned()),
         stats: CollectionStats::default(),
         assets: Vec::new(),
+        reference_png: None,
     }
 }
 

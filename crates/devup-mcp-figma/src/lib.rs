@@ -16,6 +16,11 @@ mod upstream;
 mod url;
 mod variables;
 
+pub use collector::{
+    CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
+    CollectorStep, PlannedCall, ReferencePng, SectionReadOptions,
+};
+
 pub use credentials::{
     CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
 };
@@ -68,8 +73,4 @@ pub use assets::{
     AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus,
     MAX_ASSET_BYTES, asset_export_from_result, discover_asset_manifest, resolve_asset_selections,
     validate_asset_requests,
-};
-pub use collector::{
-    CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
-    CollectorStep, PlannedCall, SectionReadOptions,
 };

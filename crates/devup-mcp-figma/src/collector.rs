@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::large_values::{
     LargeValueResult, descriptors_in_chunk, large_value_from_result, replace_descriptor,
@@ -32,6 +34,7 @@ const USED_RESOURCE_BATCH_BYTES: usize = 12_000;
 // back to the exhaustive shape in Rust without dropping any relation.
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
 const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
+const MAX_REFERENCE_PNG_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +57,7 @@ pub struct CollectionRequest {
     pub section: Option<SectionReadOptions>,
     pub cached_section_index: Option<SectionIndex>,
     pub asset_selections: Vec<AssetSelection>,
+    pub reference_png: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +83,7 @@ impl CollectionRequest {
             section: None,
             cached_section_index: None,
             asset_selections: Vec::new(),
+            reference_png: false,
         }
     }
 }
@@ -102,6 +107,16 @@ pub struct CollectedParts {
     pub source_version: Option<String>,
     pub stats: CollectionStats,
     pub assets: Vec<AssetManifestEntry>,
+    pub reference_png: Option<ReferencePng>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferencePng {
+    pub mime_type: String,
+    pub data_base64: String,
+    pub byte_length: usize,
+    pub sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,6 +174,7 @@ enum CallKind {
     FastMultiRoot,
     LargeValue,
     Asset,
+    Screenshot,
 }
 
 #[derive(Debug, Clone)]
@@ -187,6 +203,8 @@ pub struct CollectorSession {
     large_values: BTreeMap<(String, String), LargeValueAssembler>,
     asset_results: Vec<AssetManifestEntry>,
     assets_scheduled: bool,
+    reference_png: Option<ReferencePng>,
+    reference_png_scheduled: bool,
     stats: CollectionStats,
     fast_attempted: bool,
     section_index: Option<SectionIndex>,
@@ -201,6 +219,7 @@ pub struct CollectorSession {
 impl CollectorSession {
     pub fn new(request: CollectionRequest) -> Self {
         let assets_scheduled = request.asset_selections.is_empty();
+        let reference_png_scheduled = !request.reference_png;
         Self {
             request,
             queued: VecDeque::new(),
@@ -219,6 +238,8 @@ impl CollectorSession {
             large_values: BTreeMap::new(),
             asset_results: Vec::new(),
             assets_scheduled,
+            reference_png: None,
+            reference_png_scheduled,
             stats: CollectionStats::default(),
             fast_attempted: false,
             section_index: None,
@@ -358,6 +379,22 @@ impl CollectorSession {
             }
         }
         if self.metadata.is_some()
+            && !self.reference_png_scheduled
+            && !self.snapshot_chunks.is_empty()
+            && self.queued.is_empty()
+        {
+            let node_id = self.request.target.node_id.clone().ok_or_else(|| {
+                invalid_call("Figma reference PNG 수집에는 node ID가 필요합니다.")
+            })?;
+            self.reference_png_scheduled = true;
+            self.enqueue(
+                ReadToolCall::screenshot(&self.request.target.file_key, &node_id),
+                Some(node_id),
+                CallKind::Screenshot,
+            );
+            return self.advance();
+        }
+        if self.metadata.is_some()
             && self.request.resource_scope == ResourceScope::File
             && self.variable_catalog.is_none()
             && self.variables.is_none()
@@ -449,6 +486,7 @@ impl CollectorSession {
                 source_version: self.source_version.clone(),
                 stats: self.stats.clone(),
                 assets: std::mem::take(&mut self.asset_results),
+                reference_png: self.reference_png.take(),
             })));
         }
         Ok(CollectorStep::AwaitingResults)
@@ -489,6 +527,7 @@ impl CollectorSession {
             }
             CallKind::LargeValue => self.accept_large_value(&pending.planned, result),
             CallKind::Asset => self.accept_asset(&pending.planned, result),
+            CallKind::Screenshot => self.accept_reference_png(&pending.planned, result),
         }
     }
 
@@ -661,6 +700,8 @@ impl CollectorSession {
         self.large_values.clear();
         self.asset_results.clear();
         self.assets_scheduled = self.request.asset_selections.is_empty();
+        self.reference_png = None;
+        self.reference_png_scheduled = !self.request.reference_png;
         self.stats.transport = "legacy-cursor".to_owned();
         self.stats.fallback_used = true;
         self.stats.fallback_reason = Some(reason);
@@ -1169,6 +1210,53 @@ impl CollectorSession {
         Ok(())
     }
 
+    fn accept_reference_png(
+        &mut self,
+        planned: &PlannedCall,
+        result: UpstreamResult,
+    ) -> Result<(), DevupError> {
+        let ReadToolCall::Screenshot { file_key, node_id } = &planned.call else {
+            return Err(invalid_call("reference PNG call 형식이 올바르지 않습니다."));
+        };
+        if file_key != &planned.expected_file_key
+            || planned.expected_node_id.as_deref() != Some(node_id.as_str())
+        {
+            return Err(invalid_call(
+                "reference PNG call의 Figma 대상이 요청과 다릅니다.",
+            ));
+        }
+        let data_base64 = find_png_data(&result.raw)
+            .ok_or_else(|| invalid_call("Figma screenshot 응답에 image/png binary가 없습니다."))?;
+        if data_base64.len() > MAX_REFERENCE_PNG_BYTES.saturating_mul(4).saturating_div(3) + 4 {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "Figma reference PNG가 허용 크기를 초과했습니다.",
+                false,
+            ));
+        }
+        let bytes = STANDARD
+            .decode(data_base64.as_bytes())
+            .map_err(|_| invalid_call("Figma reference PNG의 base64가 올바르지 않습니다."))?;
+        if bytes.is_empty()
+            || bytes.len() > MAX_REFERENCE_PNG_BYTES
+            || !bytes.starts_with(b"\x89PNG\r\n\x1a\n")
+        {
+            return Err(invalid_call(
+                "Figma reference PNG의 형식 또는 크기가 올바르지 않습니다.",
+            ));
+        }
+        self.reference_png = Some(ReferencePng {
+            mime_type: "image/png".to_owned(),
+            data_base64,
+            byte_length: bytes.len(),
+            sha256: Sha256::digest(&bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        });
+        Ok(())
+    }
+
     fn record_asset_failure(&mut self, request: AssetRequest, error_code: &str) {
         self.record_asset_diagnostic(&request, error_code);
         self.asset_results.push(AssetManifestEntry {
@@ -1604,6 +1692,31 @@ impl CollectorSession {
             kind,
             order,
         });
+    }
+}
+
+fn find_png_data(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(object) => {
+            let mime_type = object
+                .get("mimeType")
+                .or_else(|| object.get("mime_type"))
+                .and_then(Value::as_str);
+            if mime_type == Some("image/png")
+                && let Some(data) = object
+                    .get("data")
+                    .or_else(|| object.get("blob"))
+                    .and_then(Value::as_str)
+            {
+                return Some(data.to_owned());
+            }
+            object.values().find_map(find_png_data)
+        }
+        Value::Array(values) => values.iter().find_map(find_png_data),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|decoded| find_png_data(&decoded)),
+        Value::Null | Value::Bool(_) | Value::Number(_) => None,
     }
 }
 

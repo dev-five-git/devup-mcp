@@ -230,5 +230,6 @@ fn payload() -> CollectedPayload {
         source_version: None,
         stats: CollectionStats::default(),
         assets: Vec::new(),
+        reference_png: None,
     }
 }
