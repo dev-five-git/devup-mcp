@@ -3,7 +3,7 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"export function TestCase:드론아레나() {
+"export function TestCase드론아레나() {
   return (
     <VStack
       alignItems="flex-end"

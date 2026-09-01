@@ -44,7 +44,9 @@ fn upstream_json_goldens() {
         }) {
             continue;
         }
-        let actual = support::run_upstream_snapshot(&case).expect("upstream conversion");
+        let actual = support::run_upstream_snapshot(&case).unwrap_or_else(|error| {
+            panic!("upstream conversion failed for {}: {error:?}", case.id)
+        });
         let category = path
             .parent()
             .and_then(|parent| parent.file_name())

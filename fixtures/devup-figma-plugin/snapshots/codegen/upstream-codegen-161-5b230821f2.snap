@@ -3,7 +3,7 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"export function AutoLayout&Box() {
+"export function AutoLayoutBox() {
   return (
     <Flex alignItems="center" bg="#50F" gap="10px" p="10px">
       <Text

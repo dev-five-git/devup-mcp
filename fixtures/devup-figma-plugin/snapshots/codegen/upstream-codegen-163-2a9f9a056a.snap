@@ -3,7 +3,7 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"export function AutoLayout&Box() {
+"export function AutoLayoutBox() {
   return (
     <VStack alignItems="center" bg="#50F" gap="6px" p="10px">
       <Text

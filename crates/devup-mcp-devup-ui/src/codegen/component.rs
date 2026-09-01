@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::{layout, style, text, variant};
 use crate::provenance::{SourceMap, finalize_tsx, mark_node};
 use crate::theme::{normalize_token, variable_token};
+use crate::validation::validate_tsx;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,11 +76,7 @@ pub fn generate_component(
     tsx.push_str(&format!(
         "export function {component_name}() {{\n  return (\n{body}\n  );\n}}\n"
     ));
-    Ok(finalize_codegen_output(
-        CodegenOutput { tsx, ..generated },
-        snapshot,
-        options,
-    ))
+    finalize_codegen_output(CodegenOutput { tsx, ..generated }, snapshot, options)
 }
 
 pub fn generate_legacy_component(
@@ -111,14 +108,14 @@ pub fn generate_legacy_component(
     } else {
         generated.tsx.clone()
     };
-    Ok(finalize_codegen_output(
+    finalize_codegen_output(
         CodegenOutput {
             tsx: format!("export function {component_name}() {{\n  return {body}\n}}"),
             ..generated
         },
         snapshot,
         options,
-    ))
+    )
 }
 
 pub fn render_component_source(
@@ -190,7 +187,7 @@ pub fn generate_component_set_target(
     if let Some(set) = component_set
         && let Some(output) = variant::generate_variant_component_set(snapshot, &set.id, options)?
     {
-        return Ok(output);
+        return validate_codegen_output(output);
     }
     let target_id = if main {
         let default_name = root_view
@@ -248,7 +245,7 @@ pub fn generate_component_set_target(
     } else {
         Vec::new()
     };
-    Ok(CodegenOutput {
+    validate_codegen_output(CodegenOutput {
         tsx: render_component_source(&legacy_component_name(target_name), &code, &variants),
         ..generated
     })
@@ -362,7 +359,7 @@ pub fn generate_inlined_component_instance(
         .map(|(key, value)| format!(" {key}=\"{value}\""))
         .collect::<String>();
     output.tsx = format!("{{/* <{name}{usage} /> */}}\n{}", output.tsx);
-    Ok(output)
+    validate_codegen_output(output)
 }
 
 fn generate_component_asset_child(
@@ -871,10 +868,11 @@ pub(super) fn legacy_component_name(input: &str) -> String {
     {
         let mut characters = input.chars();
         if let Some(first) = characters.next() {
-            return first
+            let candidate = first
                 .to_uppercase()
                 .chain(characters.flat_map(char::to_lowercase))
-                .collect();
+                .collect::<String>();
+            return sanitize_legacy_identifier(&candidate);
         }
     }
     let mut output = String::new();
@@ -897,11 +895,25 @@ pub(super) fn legacy_component_name(input: &str) -> String {
             output.extend(characters);
         }
     }
+    sanitize_legacy_identifier(&output)
+}
+
+fn sanitize_legacy_identifier(candidate: &str) -> String {
+    let mut output = candidate
+        .chars()
+        .filter(|character| character.is_alphanumeric() || *character == '_')
+        .collect::<String>();
     if output.is_empty() {
-        "FigmaComponent".to_owned()
-    } else {
-        output
+        return "FigmaComponent".to_owned();
     }
+    if output
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_numeric())
+    {
+        output.insert(0, '_');
+    }
+    output
 }
 
 pub fn generate_node(
@@ -909,11 +921,11 @@ pub fn generate_node(
     root_id: &str,
     options: &CodegenOptions,
 ) -> Result<CodegenOutput, DevupError> {
-    Ok(finalize_codegen_output(
+    finalize_codegen_output(
         generate_node_marked(snapshot, root_id, options)?,
         snapshot,
         options,
-    ))
+    )
 }
 
 fn generate_node_marked(
@@ -959,7 +971,7 @@ fn finalize_codegen_output(
     mut output: CodegenOutput,
     snapshot: &Snapshot,
     options: &CodegenOptions,
-) -> CodegenOutput {
+) -> Result<CodegenOutput, DevupError> {
     let (tsx, source_map) = finalize_tsx(
         &output.tsx,
         snapshot,
@@ -968,7 +980,12 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
-    output
+    validate_codegen_output(output)
+}
+
+fn validate_codegen_output(output: CodegenOutput) -> Result<CodegenOutput, DevupError> {
+    validate_tsx(&output.tsx)?;
+    Ok(output)
 }
 
 #[derive(Default)]
