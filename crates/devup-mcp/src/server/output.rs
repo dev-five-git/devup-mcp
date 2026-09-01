@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsStr,
-    io::Write,
+    io::{Read, Write},
     path::{Component, Path, PathBuf},
     sync::Arc,
 };
@@ -12,6 +12,8 @@ use cap_std::{
 };
 use devup_mcp_figma::{DevupError, ErrorCode};
 use rand::Rng;
+use serde_json::json;
+use sha2::{Digest, Sha256};
 
 #[derive(Clone)]
 pub struct OutputPolicy {
@@ -40,11 +42,35 @@ struct StagedOutput {
     target: OutputTarget,
     temp_path: PathBuf,
     backup_path: Option<PathBuf>,
+    backup_fingerprint: Option<FileFingerprint>,
     replaced: bool,
+}
+
+#[derive(Clone)]
+struct FileFingerprint {
+    bytes: u64,
+    sha256: [u8; 32],
+}
+
+struct RollbackFailure {
+    target_path: String,
+    backup_path: Option<String>,
+    operation: &'static str,
+    message: String,
+}
+
+#[derive(Default)]
+struct RollbackReport {
+    failures: Vec<RollbackFailure>,
+    recovery_paths: Vec<String>,
 }
 
 trait CommitHook {
     fn after_replacement(&mut self, _replaced: usize) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn before_restore(&mut self, _backup: &Path) -> std::io::Result<()> {
         Ok(())
     }
 }
@@ -152,6 +178,7 @@ impl OutputTransaction {
             target,
             temp_path,
             backup_path: None,
+            backup_fingerprint: None,
             replaced: false,
         });
         Ok(())
@@ -190,16 +217,21 @@ impl OutputTransaction {
 
         let result = self.replace_all(hook);
         if let Err(error) = result {
-            self.rollback();
-            return Err(transaction_error(format!(
-                "output transaction commit에 실패했습니다: {error}"
-            )));
+            let rollback = self.rollback(hook);
+            return if rollback.failures.is_empty() {
+                Err(transaction_error(format!(
+                    "output transaction commit에 실패했습니다: {error}"
+                )))
+            } else {
+                Err(transaction_rollback_error(error, rollback))
+            };
         }
 
         for output in &mut self.staged {
             if let Some(backup) = output.backup_path.take() {
                 let _ = output.target.root.dir.remove_file(backup);
             }
+            output.backup_fingerprint = None;
         }
         Ok(self
             .staged
@@ -224,12 +256,14 @@ impl OutputTransaction {
                 .is_ok()
             {
                 let backup_path = unique_sibling(&output.target.relative_path, "bak");
+                let fingerprint = fingerprint(&output.target.root, &output.target.relative_path)?;
                 output.target.root.dir.rename(
                     &output.target.relative_path,
                     &output.target.root.dir,
                     &backup_path,
                 )?;
                 output.backup_path = Some(backup_path);
+                output.backup_fingerprint = Some(fingerprint);
             }
             output.target.root.dir.rename(
                 &output.temp_path,
@@ -243,25 +277,80 @@ impl OutputTransaction {
         Ok(())
     }
 
-    fn rollback(&mut self) {
+    fn rollback(&mut self, hook: &mut impl CommitHook) -> RollbackReport {
+        let mut report = RollbackReport::default();
         for output in self.staged.iter_mut().rev() {
+            let target_path = output.target.display_path.to_string_lossy().into_owned();
+            let mut replacement_removed = true;
             if output.replaced {
-                let _ = output
+                if let Err(error) = output
                     .target
                     .root
                     .dir
-                    .remove_file(&output.target.relative_path);
+                    .remove_file(&output.target.relative_path)
+                    && error.kind() != std::io::ErrorKind::NotFound
+                {
+                    replacement_removed = false;
+                    report.failures.push(RollbackFailure {
+                        target_path: target_path.clone(),
+                        backup_path: output.backup_path.as_ref().map(|backup| {
+                            output
+                                .target
+                                .root
+                                .display_path
+                                .join(backup)
+                                .to_string_lossy()
+                                .into_owned()
+                        }),
+                        operation: "remove-replacement",
+                        message: error.to_string(),
+                    });
+                }
                 output.replaced = false;
             }
             if let Some(backup) = output.backup_path.take() {
-                let _ = output.target.root.dir.rename(
-                    &backup,
-                    &output.target.root.dir,
-                    &output.target.relative_path,
-                );
+                let backup_display = output.target.root.display_path.join(&backup);
+                let backup_path = backup_display.to_string_lossy().into_owned();
+                let restore = if replacement_removed {
+                    hook.before_restore(&backup).and_then(|()| {
+                        if let Some(expected) = output.backup_fingerprint.as_ref() {
+                            verify_fingerprint(&output.target.root, &backup, expected)?;
+                        }
+                        restore_backup(
+                            &output.target.root,
+                            &backup,
+                            &output.target.relative_path,
+                            output.backup_fingerprint.as_ref(),
+                        )
+                    })
+                } else {
+                    Err(std::io::Error::other(
+                        "replacement target를 제거하지 못해 backup을 복원하지 않았습니다.",
+                    ))
+                };
+                if let Err(error) = restore {
+                    report.recovery_paths.push(backup_path.clone());
+                    report.failures.push(RollbackFailure {
+                        target_path: target_path.clone(),
+                        backup_path: Some(backup_path),
+                        operation: "restore-backup",
+                        message: error.to_string(),
+                    });
+                }
+                output.backup_fingerprint = None;
             }
-            let _ = output.target.root.dir.remove_file(&output.temp_path);
+            if let Err(error) = output.target.root.dir.remove_file(&output.temp_path)
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
+                report.failures.push(RollbackFailure {
+                    target_path,
+                    backup_path: None,
+                    operation: "remove-staging",
+                    message: error.to_string(),
+                });
+            }
         }
+        report
     }
 }
 
@@ -282,6 +371,7 @@ impl Drop for OutputTransaction {
                     &output.target.relative_path,
                 );
             }
+            output.backup_fingerprint = None;
         }
     }
 }
@@ -356,6 +446,99 @@ fn transaction_error(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupCodegenFailed, message, false)
 }
 
+fn transaction_rollback_error(
+    commit_error: std::io::Error,
+    rollback: RollbackReport,
+) -> DevupError {
+    let failures = rollback
+        .failures
+        .into_iter()
+        .map(|failure| {
+            json!({
+                "targetPath": failure.target_path,
+                "backupPath": failure.backup_path,
+                "operation": failure.operation,
+                "message": failure.message
+            })
+        })
+        .collect::<Vec<_>>();
+    DevupError::with_details(
+        ErrorCode::DevupCodegenFailed,
+        format!("output transaction commit과 rollback에 실패했습니다: {commit_error}"),
+        false,
+        json!({
+            "phase": "rollback",
+            "commitError": commit_error.to_string(),
+            "rollback": {
+                "complete": false,
+                "failures": failures,
+                "recoveryPaths": rollback.recovery_paths
+            }
+        }),
+    )
+}
+
+fn fingerprint(root: &OutputRoot, relative_path: &Path) -> std::io::Result<FileFingerprint> {
+    let mut file = root.dir.open(relative_path)?;
+    let bytes = file.metadata()?.len();
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(FileFingerprint {
+        bytes,
+        sha256: hasher.finalize().into(),
+    })
+}
+
+fn verify_fingerprint(
+    root: &OutputRoot,
+    relative_path: &Path,
+    expected: &FileFingerprint,
+) -> std::io::Result<()> {
+    let observed = fingerprint(root, relative_path)?;
+    if observed.bytes == expected.bytes && observed.sha256 == expected.sha256 {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(
+            "복원된 output의 길이 또는 hash가 원본 backup과 일치하지 않습니다.",
+        ))
+    }
+}
+
+fn restore_backup(
+    root: &OutputRoot,
+    backup: &Path,
+    target: &Path,
+    expected: Option<&FileFingerprint>,
+) -> std::io::Result<()> {
+    let mut source = root.dir.open(backup)?;
+    let permissions = source.metadata()?.permissions();
+    let mut restored = root
+        .dir
+        .open_with(target, OpenOptions::new().write(true).create_new(true))?;
+    let copy_result = std::io::copy(&mut source, &mut restored)
+        .and_then(|_| restored.sync_all())
+        .and_then(|_| root.dir.set_permissions(target, permissions));
+    drop(restored);
+    if let Err(error) = copy_result {
+        let _ = root.dir.remove_file(target);
+        return Err(error);
+    }
+    if let Some(expected) = expected
+        && let Err(error) = verify_fingerprint(root, target, expected)
+    {
+        let _ = root.dir.remove_file(target);
+        return Err(error);
+    }
+    root.dir.remove_file(backup)
+}
+
 fn unique_sibling(target: &Path, kind: &str) -> PathBuf {
     let mut random = [0_u8; 16];
     rand::rng().fill_bytes(&mut random);
@@ -388,6 +571,22 @@ mod tests {
             } else {
                 Ok(())
             }
+        }
+    }
+
+    struct FailCommitAndRestore;
+
+    impl CommitHook for FailCommitAndRestore {
+        fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
+            if replaced == 1 {
+                Err(io::Error::other("injected commit failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn before_restore(&mut self, _backup: &std::path::Path) -> io::Result<()> {
+            Err(io::Error::other("injected restore failure"))
         }
     }
 
@@ -425,6 +624,34 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(internal_files.is_empty(), "stale files: {internal_files:?}");
 
+        drop(transaction);
+        drop(policy);
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn reports_and_retains_a_backup_when_rollback_restoration_fails() -> anyhow::Result<()> {
+        let root = unique_root()?;
+        fs::write(root.join("first.txt"), b"old-first")?;
+        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+        let mut transaction = OutputTransaction::new();
+        transaction.stage("first", policy.resolve("first.txt")?, b"new-first")?;
+
+        let error = transaction
+            .commit_with_hook(&mut FailCommitAndRestore)
+            .expect_err("the injected rollback failure must be reported");
+
+        assert_eq!(error.details["phase"], "rollback");
+        assert_eq!(error.details["rollback"]["complete"], false);
+        let recovery_path = error.details["rollback"]["recoveryPaths"][0]
+            .as_str()
+            .expect("retained backup path");
+        assert!(std::path::Path::new(recovery_path).exists());
+        assert_eq!(fs::read(recovery_path)?, b"old-first");
+        assert!(!root.join("first.txt").exists());
+
+        fs::remove_file(recovery_path)?;
         drop(transaction);
         drop(policy);
         fs::remove_dir_all(root)?;

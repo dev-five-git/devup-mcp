@@ -13,11 +13,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use rmcp::{
     ErrorData, RoleServer, ServerHandler,
-    handler::server::{
-        router::tool::ToolRouter,
-        wrapper::{Json, Parameters},
-    },
-    model::{ErrorCode as McpErrorCode, ServerCapabilities, ServerInfo},
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::{CallToolResult, ErrorCode as McpErrorCode, ServerCapabilities, ServerInfo},
     service::RequestContext,
     tool, tool_handler, tool_router,
 };
@@ -34,7 +31,7 @@ use devup_mcp_figma::{
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
-use delivery::DeliveryMode;
+use delivery::{DeliveryMode, tool_result};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 use output::OutputPolicy;
 use projection::complete_operation;
@@ -281,11 +278,14 @@ impl DevupServer {
 
 #[tool_router]
 impl DevupServer {
-    #[tool(description = "Check, start, or clear Figma Remote MCP OAuth")]
+    #[tool(
+        description = "Check, start, or clear Figma Remote MCP OAuth",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_auth(
         &self,
         Parameters(input): Parameters<AuthInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         let status = match input.action.as_str() {
             "status" => self.services.auth.status().await,
             "login" => self.services.auth.login().await,
@@ -299,14 +299,17 @@ impl DevupServer {
             }
         }
         .map_err(to_mcp_error)?;
-        Ok(Json(json!({ "status": status })))
+        Ok(tool_result(json!({ "status": status })))
     }
 
-    #[tool(description = "Convert a Figma design link to deterministic DevupUI TypeScript")]
+    #[tool(
+        description = "Convert a Figma design link to deterministic DevupUI TypeScript",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_to_ui(
         &self,
         Parameters(input): Parameters<FigmaToUiInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
@@ -339,14 +342,17 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(Json(result))
+        Ok(tool_result(result))
     }
 
-    #[tool(description = "Convert Figma variables and styles to deterministic devup.json")]
+    #[tool(
+        description = "Convert Figma variables and styles to deterministic devup.json",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_to_json(
         &self,
         Parameters(input): Parameters<FigmaToJsonInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         parse_scope(&input.scope).map_err(to_mcp_error)?;
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
@@ -376,14 +382,17 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(Json(result))
+        Ok(tool_result(result))
     }
 
-    #[tool(description = "Search Figma pages, sections, frames, and components by name")]
+    #[tool(
+        description = "Search Figma pages, sections, frames, and components by name",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_search(
         &self,
         Parameters(input): Parameters<FigmaSearchInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, CollectionScope::File);
@@ -407,14 +416,17 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(Json(result))
+        Ok(tool_result(result))
     }
 
-    #[tool(description = "Explore screen candidates spatially related to a linked Figma node")]
+    #[tool(
+        description = "Explore screen candidates spatially related to a linked Figma node",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_explore(
         &self,
         Parameters(input): Parameters<FigmaExploreInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
@@ -446,14 +458,17 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(Json(result))
+        Ok(tool_result(result))
     }
 
-    #[tool(description = "Continue a read-only Figma host handoff with an official MCP result")]
+    #[tool(
+        description = "Continue a read-only Figma host handoff with an official MCP result",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_continue(
         &self,
         Parameters(input): Parameters<ContinueInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         self.handoffs
             .accept(&input.session_id, &input.call_id, input.result)
             .await
@@ -463,18 +478,21 @@ impl DevupServer {
             .next(&input.session_id)
             .await
             .map_err(to_mcp_error)?;
-        Ok(Json(
+        Ok(tool_result(
             self.handoff_step_to_value(step, "host")
                 .await
                 .map_err(to_mcp_error)?,
         ))
     }
 
-    #[tool(description = "Acquire a Figma design once and project multiple DevupUI artifacts")]
+    #[tool(
+        description = "Acquire a Figma design once and project multiple DevupUI artifacts",
+        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+    )]
     async fn devup_figma_export(
         &self,
         Parameters(input): Parameters<FigmaExportInput>,
-    ) -> Result<Json<Value>, ErrorData> {
+    ) -> Result<CallToolResult, ErrorData> {
         validate_outputs(&input.outputs).map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
             && !input.outputs.iter().any(|output| output == "assetManifest")
@@ -569,7 +587,7 @@ impl DevupServer {
                     )
                     .await
                     .map_err(to_mcp_error)?;
-                return Ok(Json(result));
+                return Ok(tool_result(result));
             }
             validate_artifact_projection(
                 &artifact,
@@ -601,7 +619,7 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-            return Ok(Json(result));
+            return Ok(tool_result(result));
         }
 
         let url = input.url.as_deref().ok_or_else(|| {
@@ -662,7 +680,7 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(Json(result))
+        Ok(tool_result(result))
     }
 }
 

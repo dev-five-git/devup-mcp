@@ -1,9 +1,11 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, DevupError,
-    DiagnosticSeverity, ErrorCode, ExploreReadOptions, FigmaTarget, ResourceScope,
-    SectionReadOptions, UpstreamResult,
+    BuiltinScript, CollectionRequest, CollectionScope, CollectorSession, CollectorStep, DevupError,
+    DiagnosticSeverity, ErrorCode, ExploreBounds, ExploreReadOptions, FigmaTarget, ReadToolCall,
+    ResourceScope, SectionCandidate, SectionIndex, SectionReadOptions, SectionSummary,
+    UpstreamResult, merge_chunks,
 };
+use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde_json::{Value, json};
 
 #[test]
@@ -82,6 +84,149 @@ fn requested_reference_png_is_collected_after_the_design_snapshot() {
     assert_eq!(reference.byte_length, STANDARD.decode(data).unwrap().len());
     assert_eq!(reference.sha256.len(), 64);
     assert_eq!(parts.stats.figma_tool_calls, 2);
+}
+
+#[test]
+fn reference_png_rejects_a_signature_only_payload() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+    let signature_only = STANDARD.encode(b"\x89PNG\r\n\x1a\n");
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            screenshot_result(json!({
+                "type": "image",
+                "mimeType": "image/png",
+                "data": signature_only
+            })),
+        )
+        .expect_err("a PNG signature without chunks or pixels must be rejected");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn reference_png_rejects_a_truncated_image() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+    let mut png = STANDARD.decode(valid_reference_png_base64()).unwrap();
+    png.truncate(png.len() - 8);
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            screenshot_result(json!({
+                "type": "image",
+                "mimeType": "image/png",
+                "data": STANDARD.encode(png)
+            })),
+        )
+        .expect_err("a truncated PNG must be rejected even when its signature is intact");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn reference_png_rejects_multiple_image_content_blocks() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+    let image = json!({
+        "type": "image",
+        "mimeType": "image/png",
+        "data": valid_reference_png_base64()
+    });
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            UpstreamResult {
+                raw: json!({"content": [image.clone(), image]}),
+            },
+        )
+        .expect_err("referencePng accepts exactly one official ImageContent block");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn reference_png_rejects_zero_content_blocks() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            UpstreamResult {
+                raw: json!({"content": []}),
+            },
+        )
+        .expect_err("referencePng requires exactly one ImageContent block");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn reference_png_rejects_an_image_hidden_in_json_text() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+    let hidden = json!({
+        "type": "image",
+        "mimeType": "image/png",
+        "data": valid_reference_png_base64()
+    })
+    .to_string();
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            screenshot_result(json!({"type": "text", "text": hidden})),
+        )
+        .expect_err("JSON embedded in text is not an official ImageContent response");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn reference_png_rejects_an_image_nested_outside_the_official_result() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            UpstreamResult {
+                raw: json!({
+                    "result": {
+                        "content": [{
+                            "type": "image",
+                            "mimeType": "image/png",
+                            "data": valid_reference_png_base64()
+                        }]
+                    }
+                }),
+            },
+        )
+        .expect_err("nested lookalikes are not the official CallToolResult shape");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[test]
+fn reference_png_rejects_dimensions_above_the_decode_bound() {
+    let (mut collector, screenshot_call_id) = collector_awaiting_reference_png();
+    let pixels = vec![0_u8; 8_193];
+    let mut png = Vec::new();
+    PngEncoder::new(&mut png)
+        .write_image(&pixels, 8_193, 1, ExtendedColorType::L8)
+        .unwrap();
+
+    let error = collector
+        .accept(
+            &screenshot_call_id,
+            screenshot_result(json!({
+                "type": "image",
+                "mimeType": "image/png",
+                "data": STANDARD.encode(png)
+            })),
+        )
+        .expect_err("decoded dimensions are bounded independently of compressed size");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
 }
 
 #[test]
@@ -219,6 +364,33 @@ fn target(node_id: &str) -> FigmaTarget {
         node_id.replace(':', "-")
     ))
     .unwrap()
+}
+
+fn collector_awaiting_reference_png() -> (CollectorSession, String) {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.reference_png = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast snapshot call expected")
+    };
+    collector
+        .accept(&fast_call.id, fast_envelope_result())
+        .unwrap();
+    let CollectorStep::Call(screenshot_call) = collector.advance().unwrap() else {
+        panic!("reference screenshot call expected")
+    };
+    (collector, screenshot_call.id)
+}
+
+fn screenshot_result(content: Value) -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({"content": [content]}),
+    }
+}
+
+fn valid_reference_png_base64() -> &'static str {
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 }
 
 fn fast_envelope_result() -> UpstreamResult {
@@ -1285,6 +1457,189 @@ fn section_collection_indexes_before_planning_selected_roots() {
 }
 
 #[test]
+fn failed_section_batch_retries_only_its_root_and_preserves_fast_resources() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec![
+            "root-0".to_owned(),
+            "root-1".to_owned(),
+            "root-2".to_owned(),
+        ],
+        all_screens: false,
+    });
+    request.cached_section_index = Some(three_batch_section_index());
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(first_fast) = collector.advance().unwrap() else {
+        panic!("first fast batch expected")
+    };
+    let CollectorStep::Call(second_fast) = collector.advance().unwrap() else {
+        panic!("second fast batch expected")
+    };
+    assert_eq!(multi_root_ids(&first_fast.call), ["root-0"]);
+    assert_eq!(multi_root_ids(&second_fast.call), ["root-1"]);
+    collector
+        .accept(
+            &second_fast.id,
+            fast_multi_envelope_result(&["root-1"], &["variable-success-1"]),
+        )
+        .unwrap();
+    assert!(
+        collector
+            .reject(
+                &first_fast.id,
+                &DevupError::new(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "synthetic fast batch failure",
+                    true,
+                ),
+            )
+            .unwrap()
+    );
+
+    let CollectorStep::Call(third_fast) = collector.advance().unwrap() else {
+        panic!("the untouched third fast batch must remain queued")
+    };
+    assert_eq!(multi_root_ids(&third_fast.call), ["root-2"]);
+    let CollectorStep::Call(failed_root_retry) = collector.advance().unwrap() else {
+        panic!("only the failed root must be retried through the legacy cursor")
+    };
+    assert_eq!(legacy_root_id(&failed_root_retry.call), "root-0");
+    collector
+        .accept(
+            &third_fast.id,
+            fast_multi_envelope_result(&["root-2"], &["variable-success-2"]),
+        )
+        .unwrap();
+    let mut failed_snapshot = snapshot("root-0");
+    failed_snapshot.raw["nodes"][0]["fields"] = json!({
+        "name": "Failed fast root",
+        "boundVariables": {
+            "fills": [{"type": "VARIABLE_ALIAS", "id": "variable-fallback"}]
+        }
+    });
+    collector
+        .accept(&failed_root_retry.id, failed_snapshot)
+        .unwrap();
+
+    let CollectorStep::Call(missing_resources) = collector.advance().unwrap() else {
+        panic!("only resources missing from the failed fast batch should be acquired")
+    };
+    let resource_code = missing_resources.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(resource_code.contains("variable-fallback"));
+    assert!(!resource_code.contains("variable-success-1"));
+    assert!(!resource_code.contains("variable-success-2"));
+    collector
+        .accept(
+            &missing_resources.id,
+            UpstreamResult {
+                raw: json!({
+                    "collections": [],
+                    "variables": [{"id": "variable-fallback", "name": "Fallback"}],
+                    "styles": []
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("partial fast fallback should complete")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 5);
+    assert_eq!(parts.stats.transport, "hybrid-multi-root-cursor");
+    assert_eq!(
+        merge_chunks(parts.snapshot_chunks.clone()).unwrap().roots,
+        ["root-0", "root-1", "root-2"]
+    );
+    let resources = parts.variables.unwrap();
+    let variable_ids = resources.raw["variables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|variable| variable["id"].as_str().unwrap())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        variable_ids,
+        std::collections::BTreeSet::from([
+            "variable-fallback",
+            "variable-success-1",
+            "variable-success-2"
+        ])
+    );
+}
+
+#[test]
+fn oversized_section_root_uses_legacy_once_and_preserves_fast_resources() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec!["root-0".to_owned(), "root-1".to_owned()],
+        all_screens: false,
+    });
+    request.cached_section_index = Some(section_index_with_node_counts(&[1_000, 5_000]));
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast) = collector.advance().unwrap() else {
+        panic!("bounded root should use the fast batch")
+    };
+    let CollectorStep::Call(oversized) = collector.advance().unwrap() else {
+        panic!("oversized root should be scheduled once through the legacy cursor")
+    };
+    assert_eq!(multi_root_ids(&fast.call), ["root-0"]);
+    assert_eq!(legacy_root_id(&oversized.call), "root-1");
+    collector
+        .accept(
+            &fast.id,
+            fast_multi_envelope_result(&["root-0"], &["variable-fast"]),
+        )
+        .unwrap();
+    let mut oversized_snapshot = snapshot("root-1");
+    oversized_snapshot.raw["nodes"][0]["fields"] = json!({
+        "name": "Oversized root",
+        "boundVariables": {
+            "fills": [{"type": "VARIABLE_ALIAS", "id": "variable-oversized"}]
+        }
+    });
+    collector.accept(&oversized.id, oversized_snapshot).unwrap();
+
+    let CollectorStep::Call(resources) = collector.advance().unwrap() else {
+        panic!("the oversized root's missing resources should be collected")
+    };
+    let resource_arguments = resources.call.arguments();
+    let resource_code = resource_arguments["code"].as_str().unwrap();
+    assert!(resource_code.contains("variable-oversized"));
+    assert!(!resource_code.contains("variable-fast"));
+    collector
+        .accept(
+            &resources.id,
+            UpstreamResult {
+                raw: json!({
+                    "collections": [],
+                    "variables": [{"id": "variable-oversized", "name": "Oversized"}],
+                    "styles": []
+                }),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("hybrid oversized collection should complete")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 3);
+    assert_eq!(parts.stats.transport, "hybrid-multi-root-cursor");
+    assert_eq!(
+        merge_chunks(parts.snapshot_chunks.clone()).unwrap().roots,
+        ["root-0", "root-1"]
+    );
+    let variables = parts.variables.unwrap();
+    assert_eq!(variables.raw["variables"].as_array().unwrap().len(), 2);
+}
+
+#[test]
 fn section_collection_without_selection_completes_after_the_compact_index() {
     let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
     request.resource_scope = ResourceScope::Used;
@@ -1339,5 +1694,169 @@ fn compact_section_index() -> UpstreamResult {
             ],
             "diagnostics": []
         }),
+    }
+}
+
+fn three_batch_section_index() -> SectionIndex {
+    section_index_with_node_counts(&[3_000, 3_000, 3_000])
+}
+
+fn section_index_with_node_counts(node_counts: &[usize]) -> SectionIndex {
+    let section_bounds = ExploreBounds {
+        x: 0.0,
+        y: 0.0,
+        width: 1000.0,
+        height: 1000.0,
+    };
+    SectionIndex {
+        file_key: "FileKey123".to_owned(),
+        source_version: Some("v1".to_owned()),
+        section: SectionSummary {
+            node_id: "10:1".to_owned(),
+            name: "Section".to_owned(),
+            bounds: section_bounds,
+        },
+        candidates: node_counts
+            .iter()
+            .enumerate()
+            .map(|(index, node_count)| SectionCandidate {
+                node_id: format!("root-{index}"),
+                name: format!("Root {index}"),
+                node_type: "FRAME".to_owned(),
+                visible: true,
+                bounds: ExploreBounds {
+                    y: index as f64 * 200.0,
+                    ..section_bounds
+                },
+                parent_id: Some("10:1".to_owned()),
+                breadcrumb: vec!["Section".to_owned(), format!("Root {index}")],
+                direct_child_count: 0,
+                subtree_node_count: *node_count,
+                estimated_serialized_bytes: 1_000,
+                selection_reasons: vec!["screen-like".to_owned()],
+                canonical_url: format!(
+                    "https://www.figma.com/design/FileKey123/devup?node-id=root-{index}"
+                ),
+            })
+            .collect(),
+        truncated: false,
+    }
+}
+
+fn multi_root_ids(call: &ReadToolCall) -> Vec<&str> {
+    let ReadToolCall::Snapshot {
+        script: BuiltinScript::MultiRootSnapshotEnvelope,
+        root_ids: Some(root_ids),
+        ..
+    } = call
+    else {
+        panic!("multi-root fast snapshot call expected")
+    };
+    root_ids.iter().map(String::as_str).collect()
+}
+
+fn legacy_root_id(call: &ReadToolCall) -> &str {
+    let ReadToolCall::Snapshot {
+        node_id,
+        script: BuiltinScript::NodeSnapshot,
+        root_ids: None,
+        ..
+    } = call
+    else {
+        panic!("legacy root snapshot call expected")
+    };
+    node_id
+}
+
+fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> UpstreamResult {
+    assert_eq!(root_ids.len(), variable_ids.len());
+    let nodes = root_ids
+        .iter()
+        .zip(variable_ids)
+        .map(|(root_id, variable_id)| {
+            json!({
+                "id": root_id,
+                "type": "FRAME",
+                "fields": {
+                    "name": root_id,
+                    "childrenIds": [],
+                    "boundVariables": {
+                        "fills": [{"type": "VARIABLE_ALIAS", "id": variable_id}]
+                    }
+                },
+                "extra": {},
+                "fieldErrors": {}
+            })
+        })
+        .collect::<Vec<_>>();
+    let variables = variable_ids
+        .iter()
+        .map(|id| json!({"id": id, "name": id}))
+        .collect::<Vec<_>>();
+    let mut envelope = json!({
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "rootId": "10:1"},
+        "snapshot": {
+            "fileKey": "FileKey123",
+            "version": "v1",
+            "rootIds": root_ids,
+            "nodes": nodes,
+            "diagnostics": []
+        },
+        "resources": {
+            "collections": [],
+            "variables": variables,
+            "styles": [],
+            "usedRemoteVariables": [],
+            "usedVariableIds": variable_ids,
+            "usedStyleIds": [],
+            "localComplete": false,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "integrity": {
+            "nodeCount": root_ids.len(),
+            "variableRefCount": variable_ids.len(),
+            "styleRefCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    let envelope_bytes = loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break bytes;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    };
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
+    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
+    payload.extend_from_slice(&0_u32.to_be_bytes());
+    payload.extend_from_slice(&1_u32.to_be_bytes());
+    payload.extend_from_slice(&envelope_bytes);
+    push_png_chunk(&mut png, b"duVp", &payload);
+    push_png_chunk(
+        &mut png,
+        b"IDAT",
+        &[
+            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
+        ],
+    );
+    push_png_chunk(&mut png, b"IEND", &[]);
+    let descriptor = json!({
+        "kind": "devupFastSnapshotDescriptor",
+        "schemaVersion": 1,
+        "rootId": "10:1",
+        "nodeCount": root_ids.len(),
+        "variableRefCount": variable_ids.len(),
+        "styleRefCount": 0,
+        "utf8Bytes": envelope_bytes.len(),
+        "chunkCount": 1
+    });
+    UpstreamResult {
+        raw: json!({"content": [
+            {"type": "text", "text": descriptor.to_string()},
+            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+        ]}),
     }
 }

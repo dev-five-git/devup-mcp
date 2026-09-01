@@ -1,15 +1,20 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use devup_mcp_figma::{DevupError, Diagnostic, ErrorCode, RawNode, Snapshot};
+use devup_mcp_figma::{
+    DevupError, Diagnostic, DiagnosticSeverity, ErrorCode, FidelityImpact, RawNode, Snapshot,
+};
 use serde_json::Value;
 
 use super::{
     component::{CodegenOptions, CodegenOutput, PropValue, legacy_component_name},
     layout, style, text,
 };
+use crate::provenance::mark_node;
 
 #[derive(Clone, Debug)]
 struct Tree {
+    node_id: String,
+    source_node_ids: BTreeSet<String>,
     component: String,
     props: BTreeMap<String, String>,
     children: Vec<Tree>,
@@ -112,6 +117,8 @@ pub(super) fn generate_variant_component_set(
         .find(|definition| definition.name.eq_ignore_ascii_case("viewport"));
 
     let mut root = default.tree.clone();
+    let mut unrepresented_variant_nodes = BTreeSet::new();
+    merge_source_node_ids(&mut root, &records, &[], &mut unrepresented_variant_nodes);
     root.props = merged_props(
         &records,
         &definitions,
@@ -154,12 +161,15 @@ pub(super) fn generate_variant_component_set(
     }
     let transition = transition(snapshot, &default.node_id, &transition_props);
     let component_name = legacy_component_name(set.typed_view().name().unwrap_or("Component"));
-    let code = render_component(
-        &component_name,
-        &dimensions,
-        &root,
-        &selectors,
-        transition.as_ref(),
+    let code = mark_node(
+        &set.id,
+        render_component(
+            &component_name,
+            &dimensions,
+            &root,
+            &selectors,
+            transition.as_ref(),
+        ),
     );
     let mut imports = BTreeSet::new();
     collect_imports(&root, &mut imports);
@@ -167,7 +177,19 @@ pub(super) fn generate_variant_component_set(
         tsx: code,
         imports: imports.into_iter().collect(),
         used_tokens: BTreeSet::new(),
-        diagnostics: Vec::<Diagnostic>::new(),
+        diagnostics: unrepresented_variant_nodes
+            .into_iter()
+            .map(|node_id| Diagnostic {
+                code: "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK".to_owned(),
+                message: "non-default variant의 중첩 차이를 default variant 구조로 대체했습니다."
+                    .to_owned(),
+                node_id: Some(node_id),
+                severity: Some(DiagnosticSeverity::Warning),
+                fidelity_impact: Some(FidelityImpact::Lossy),
+                fallback: Some("default-variant-structure".to_owned()),
+                ..Diagnostic::default()
+            })
+            .collect(),
         source_map: crate::provenance::SourceMap::empty(),
         projection_trace: crate::provenance::ProjectionTrace::default(),
         fidelity_report: crate::provenance::FidelityReport::default(),
@@ -313,11 +335,56 @@ fn project_tree(
         )
     });
     Ok(Tree {
+        node_id: node.id.clone(),
+        source_node_ids: BTreeSet::from([node.id.clone()]),
         component,
         props,
         children,
         content,
     })
+}
+
+fn merge_source_node_ids(
+    tree: &mut Tree,
+    records: &[Record],
+    path: &[usize],
+    unrepresented: &mut BTreeSet<String>,
+) {
+    for record in records {
+        match tree_at(&record.tree, path) {
+            Some(source) if path.is_empty() => {
+                tree.source_node_ids.insert(source.node_id.clone());
+
+                if !same_rendered_structure(tree, source) {
+                    unrepresented.insert(source.node_id.clone());
+                }
+            }
+            Some(source) if same_rendered_node(tree, source) => {
+                tree.source_node_ids.insert(source.node_id.clone());
+            }
+            Some(source) => {
+                unrepresented.insert(source.node_id.clone());
+            }
+            None => {
+                unrepresented.insert(record.node_id.clone());
+            }
+        }
+    }
+    for (index, child) in tree.children.iter_mut().enumerate() {
+        let mut child_path = path.to_vec();
+        child_path.push(index);
+        merge_source_node_ids(child, records, &child_path, unrepresented);
+    }
+}
+
+fn same_rendered_node(left: &Tree, right: &Tree) -> bool {
+    same_rendered_structure(left, right) && left.props == right.props
+}
+
+fn same_rendered_structure(left: &Tree, right: &Tree) -> bool {
+    left.component == right.component
+        && left.content == right.content
+        && left.children.len() == right.children.len()
 }
 
 fn find_record<'a>(
@@ -762,7 +829,7 @@ fn render_tree(
                 .join("\n"),
         );
     }
-    if children.is_empty() {
+    let rendered = if children.is_empty() {
         format!("{opening}\n{indent}</{}>", tree.component)
     } else {
         format!(
@@ -770,7 +837,11 @@ fn render_tree(
             children.join("\n"),
             tree.component
         )
-    }
+    };
+    tree.source_node_ids
+        .iter()
+        .rev()
+        .fold(rendered, |rendered, node_id| mark_node(node_id, rendered))
 }
 
 fn render_expression_attr(expression: &Expression) -> String {

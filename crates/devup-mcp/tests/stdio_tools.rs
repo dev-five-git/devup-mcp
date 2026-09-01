@@ -25,6 +25,10 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert_eq!(client.list_all_resources().await?, Vec::new());
     assert_eq!(client.list_all_resource_templates().await?.len(), 2);
     let tools = client.list_all_tools().await?;
+    assert!(
+        tools.iter().all(|tool| tool.output_schema.is_some()),
+        "native resource-link responses must preserve the previous structured output schemas"
+    );
     let mut names = tools
         .iter()
         .map(|tool| tool.name.to_string())

@@ -14,7 +14,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use tokio::sync::{Mutex, watch};
+use tokio::sync::{Mutex, OwnedMutexGuard, watch};
 
 use super::delivery::{ProjectedOutput, RESOURCE_CHUNK_BYTES};
 
@@ -39,6 +39,20 @@ pub struct ArtifactRequestKey {
 
 impl ArtifactRequestKey {
     pub fn from_collection(request: &CollectionRequest, source_policy: SourcePolicy) -> Self {
+        let mut section = request.section.clone();
+        if let Some(section) = &mut section {
+            section.frame_ids.sort();
+            section.frame_ids.dedup();
+        }
+        let mut asset_selections = request.asset_selections.clone();
+        asset_selections.sort_by(|left, right| {
+            (&left.asset_id, left.format, left.scale).cmp(&(
+                &right.asset_id,
+                right.format,
+                right.scale,
+            ))
+        });
+        asset_selections.dedup();
         Self {
             file_key: request.target.file_key.clone(),
             node_id: request.target.node_id.clone(),
@@ -50,8 +64,8 @@ impl ArtifactRequestKey {
             variables_only: request.variables_only,
             search: request.search.clone(),
             explore: request.explore.clone(),
-            section: request.section.clone(),
-            asset_selections: request.asset_selections.clone(),
+            section,
+            asset_selections,
             reference_png: request.reference_png,
             source_policy,
         }
@@ -230,6 +244,65 @@ pub struct ArtifactStore {
     limits: ArtifactLimits,
 }
 
+pub struct OutputReservation {
+    state: Option<OwnedMutexGuard<StoreState>>,
+    artifact_id: String,
+    projection_key: String,
+    staged: Vec<AttachedOutput>,
+    manifests: Vec<AttachedOutputManifest>,
+    allocation: usize,
+    created: bool,
+    max_total_bytes: usize,
+}
+
+impl OutputReservation {
+    pub fn manifests(&self) -> &[AttachedOutputManifest] {
+        &self.manifests
+    }
+
+    pub fn commit(mut self) -> Vec<AttachedOutputManifest> {
+        let Some(mut state) = self.state.take() else {
+            return self.manifests;
+        };
+        if !self.created {
+            return self.manifests;
+        }
+        while state.total_bytes.saturating_add(self.allocation) > self.max_total_bytes {
+            let lru_id = state
+                .entries
+                .iter()
+                .filter(|(id, _)| id.as_str() != self.artifact_id)
+                .min_by_key(|(_, entry)| entry.last_access)
+                .map(|(id, _)| id.clone())
+                .expect("output reservation validated enough evictable capacity");
+            remove_entry(&mut state, &lru_id);
+        }
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state
+            .entries
+            .get_mut(&self.artifact_id)
+            .expect("reserved artifact remains pinned by the store lock");
+        entry.last_access = access;
+        entry.size_bytes = entry.size_bytes.saturating_add(self.allocation);
+        let ids = self
+            .staged
+            .iter()
+            .map(|output| output.manifest.output_id.clone())
+            .collect::<Vec<_>>();
+        for output in self.staged.drain(..) {
+            entry
+                .outputs
+                .insert(output.manifest.output_id.clone(), output);
+        }
+        entry.projections.insert(self.projection_key, ids);
+        state.total_bytes = state.total_bytes.saturating_add(self.allocation);
+        self.manifests
+    }
+
+    pub fn rollback(self) {}
+}
+
 impl Default for ArtifactStore {
     fn default() -> Self {
         Self::with_limits(ArtifactLimits::default())
@@ -350,19 +423,20 @@ impl ArtifactStore {
         projection_key: &str,
         outputs: Vec<ProjectedOutput>,
     ) -> Result<Vec<AttachedOutputManifest>, DevupError> {
-        self.attach_outputs_transactional(artifact_id, projection_key, outputs)
-            .await
-            .map(|(manifests, _created)| manifests)
+        Ok(self
+            .reserve_outputs(artifact_id, projection_key, outputs)
+            .await?
+            .commit())
     }
 
-    pub(crate) async fn attach_outputs_transactional(
+    pub async fn reserve_outputs(
         &self,
         artifact_id: &str,
         projection_key: &str,
         outputs: Vec<ProjectedOutput>,
-    ) -> Result<(Vec<AttachedOutputManifest>, bool), DevupError> {
+    ) -> Result<OutputReservation, DevupError> {
         let now = self.clock.now_epoch_seconds();
-        let mut state = self.state.lock().await;
+        let mut state = self.state.clone().lock_owned().await;
         self.prune_expired(&mut state, now);
         if let Some(ids) = state
             .entries
@@ -384,7 +458,16 @@ impl ArtifactStore {
                         .ok_or_else(resource_expired)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            return Ok((manifests, false));
+            return Ok(OutputReservation {
+                state: Some(state),
+                artifact_id: artifact_id.to_owned(),
+                projection_key: projection_key.to_owned(),
+                staged: Vec::new(),
+                manifests,
+                allocation: 0,
+                created: false,
+                max_total_bytes: self.limits.max_total_bytes,
+            });
         }
         let expires_at = state
             .entries
@@ -407,7 +490,20 @@ impl ArtifactStore {
                     false,
                 ));
             }
-            let output_id = unique_output_id(&staged_ids);
+            let output_id = output.resource_id;
+            if !valid_output_id(&output_id)
+                || staged_ids.contains_key(&output_id)
+                || state
+                    .entries
+                    .get(artifact_id)
+                    .is_some_and(|entry| entry.outputs.contains_key(&output_id))
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "resource output ID가 중복되었거나 올바르지 않습니다.",
+                    true,
+                ));
+            }
             staged_ids.insert(output_id.clone(), ());
             let raw_bytes = output.bytes.len();
             let ranges = output_chunk_ranges(&output.bytes, output.is_binary)?;
@@ -464,46 +560,32 @@ impl ArtifactStore {
                 false,
             ));
         }
-        while state.total_bytes.saturating_add(allocation) > self.limits.max_total_bytes {
-            let Some(lru_id) = state
-                .entries
-                .iter()
-                .filter(|(id, _)| id.as_str() != artifact_id)
-                .min_by_key(|(_, entry)| entry.last_access)
-                .map(|(id, _)| id.clone())
-            else {
-                return Err(DevupError::new(
-                    ErrorCode::DevupFigmaResponseTooLarge,
-                    "resource output이 전체 메모리 한도를 초과했습니다.",
-                    false,
-                ));
-            };
-            remove_entry(&mut state, &lru_id);
-        }
-        state.access_sequence = state.access_sequence.saturating_add(1);
-        let access = state.access_sequence;
-        let entry = state
+        let retained_bytes = state
             .entries
-            .get_mut(artifact_id)
+            .get(artifact_id)
+            .map(|entry| entry.size_bytes)
             .ok_or_else(resource_expired)?;
-        entry.last_access = access;
-        entry.size_bytes = entry.size_bytes.saturating_add(allocation);
-        let ids = staged
-            .iter()
-            .map(|output| output.manifest.output_id.clone())
-            .collect::<Vec<_>>();
+        if retained_bytes.saturating_add(allocation) > self.limits.max_total_bytes {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "resource output이 전체 메모리 한도를 초과했습니다.",
+                false,
+            ));
+        }
         let manifests = staged
             .iter()
             .map(|output| output.manifest.clone())
             .collect::<Vec<_>>();
-        for output in staged {
-            entry
-                .outputs
-                .insert(output.manifest.output_id.clone(), output);
-        }
-        entry.projections.insert(projection_key.to_owned(), ids);
-        state.total_bytes = state.total_bytes.saturating_add(allocation);
-        Ok((manifests, true))
+        Ok(OutputReservation {
+            state: Some(state),
+            artifact_id: artifact_id.to_owned(),
+            projection_key: projection_key.to_owned(),
+            staged,
+            manifests,
+            allocation,
+            created: true,
+            max_total_bytes: self.limits.max_total_bytes,
+        })
     }
 
     pub async fn detach_projection(&self, artifact_id: &str, projection_key: &str) -> bool {
@@ -724,15 +806,11 @@ fn unique_id(entries: &BTreeMap<String, Entry>) -> String {
     }
 }
 
-fn unique_output_id(existing: &BTreeMap<String, ()>) -> String {
-    loop {
-        let mut bytes = [0_u8; 16];
-        rand::rng().fill_bytes(&mut bytes);
-        let id = URL_SAFE_NO_PAD.encode(bytes);
-        if !existing.contains_key(&id) {
-            return id;
-        }
-    }
+fn valid_output_id(value: &str) -> bool {
+    value.len() == 22
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
 fn output_chunk_ranges(bytes: &[u8], is_binary: bool) -> Result<Vec<(usize, usize)>, DevupError> {

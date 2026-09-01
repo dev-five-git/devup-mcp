@@ -1,6 +1,11 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    fs,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
@@ -11,7 +16,10 @@ use devup_mcp_figma::{
 };
 use rmcp::{
     ServiceExt,
-    model::{CallToolRequestParams, ReadResourceRequestParams, ResourceContents},
+    model::{
+        CallToolRequestParams, CallToolResult, ContentBlock, ReadResourceRequestParams,
+        ResourceContents,
+    },
 };
 use serde_json::{Map, Value, json};
 
@@ -130,7 +138,7 @@ async fn reference_png_is_acquired_once_and_delivered_as_a_binary_resource() -> 
     assert_eq!(acquired["cache"]["capabilities"]["referencePng"], true);
     let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
 
-    let delivered = call(
+    let delivered_result = call_result(
         &client,
         "devup_figma_export",
         json!({
@@ -140,8 +148,34 @@ async fn reference_png_is_acquired_once_and_delivered_as_a_binary_resource() -> 
         }),
     )
     .await?;
+    let delivered = delivered_result
+        .structured_content
+        .as_ref()
+        .expect("structured compatibility summary");
     assert!(delivered.get("referencePng").is_none());
     assert_eq!(delivered["resources"][0]["mimeType"], "image/png");
+    let manifest_uri = delivered["resources"][0]["uri"].as_str().unwrap();
+    let link = delivered_result
+        .content
+        .iter()
+        .filter_map(ContentBlock::as_resource_link)
+        .find(|link| link.uri == manifest_uri)
+        .expect("native manifest resource link");
+    assert_eq!(link.mime_type.as_deref(), Some("application/json"));
+    assert_eq!(link.size, None);
+    assert_eq!(
+        link.meta
+            .as_ref()
+            .and_then(|meta| meta.0.get("payloadMimeType"))
+            .and_then(Value::as_str),
+        Some("image/png")
+    );
+    let wire = serde_json::to_value(&delivered_result)?;
+    assert!(wire["content"].as_array().is_some_and(|content| {
+        content
+            .iter()
+            .any(|block| block["type"] == "resource_link" && block["uri"] == manifest_uri)
+    }));
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
 
     client.cancel().await?;
@@ -154,11 +188,21 @@ async fn call(
     name: &str,
     arguments: Value,
 ) -> anyhow::Result<Value> {
+    Ok(call_result(client, name, arguments)
+        .await?
+        .structured_content
+        .expect("structured tool output"))
+}
+
+async fn call_result(
+    client: &rmcp::service::RunningService<rmcp::RoleClient, ()>,
+    name: &str,
+    arguments: Value,
+) -> anyhow::Result<CallToolResult> {
     let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
-    let result = client
+    Ok(client
         .call_tool(CallToolRequestParams::new(name.to_owned()).with_arguments(arguments))
-        .await?;
-    Ok(result.structured_content.expect("structured tool output"))
+        .await?)
 }
 
 #[tokio::test]
@@ -376,6 +420,191 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
     client.cancel().await?;
     task.await??;
     Ok(())
+}
+
+#[tokio::test]
+async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let root = unique_temp_dir("asset-resource")?;
+    let output_path = root.join("asset.png");
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(ConnectedAuth), upstream.clone()),
+        vec![root.clone()],
+    )?;
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let result = call_result(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["assetManifest"],
+            "sourcePolicy": "direct",
+            "delivery": "resource",
+            "assetRequests": [{
+                "assetId":"1:2:fills:1",
+                "format":"png",
+                "scale":2,
+                "outputPath": output_path.to_string_lossy()
+            }]
+        }),
+    )
+    .await?;
+    let structured = result
+        .structured_content
+        .as_ref()
+        .expect("structured compatibility summary");
+    let summaries = structured["resources"].as_array().unwrap();
+    assert_eq!(summaries.len(), 2, "manifest plus one binary asset");
+    let manifest_uri = summaries
+        .iter()
+        .find(|item| item["name"] == "asset-manifest.json")
+        .and_then(|item| item["uri"].as_str())
+        .unwrap();
+    let manifest_bytes = read_resource_bytes(&client, manifest_uri).await?;
+    let manifest: Value = serde_json::from_slice(&manifest_bytes)?;
+    let resource = &manifest["assets"][0]["resource"];
+    let asset_uri = resource["uri"].as_str().expect("asset resource URI");
+    assert_eq!(resource["mimeType"], "image/png");
+    assert_eq!(resource["byteLength"], b"synthetic-png".len());
+    assert_eq!(
+        resource["sha256"],
+        "294ad7145322ec19f8250cca8480a933f1ce8c9e2ad1038e7ae8930d55a6598a"
+    );
+    assert!(manifest["assets"][0].get("dataBase64").is_none());
+
+    let resource_bytes = read_resource_bytes(&client, asset_uri).await?;
+    assert_eq!(resource_bytes, b"synthetic-png");
+    assert_eq!(fs::read(&output_path)?, resource_bytes);
+    let asset_links = result
+        .content
+        .iter()
+        .filter_map(ContentBlock::as_resource_link)
+        .filter(|link| {
+            link.meta
+                .as_ref()
+                .and_then(|meta| meta.0.get("payloadMimeType"))
+                .and_then(Value::as_str)
+                == Some("image/png")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(asset_links.len(), 1);
+    assert_eq!(asset_links[0].uri, asset_uri);
+    assert_eq!(
+        asset_links[0].mime_type.as_deref(),
+        Some("application/json")
+    );
+    assert_eq!(asset_links[0].size, None);
+    assert_eq!(
+        asset_links[0]
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.0.get("payloadSha256"))
+            .and_then(Value::as_str),
+        Some("294ad7145322ec19f8250cca8480a933f1ce8c9e2ad1038e7ae8930d55a6598a")
+    );
+    let calls_after_first_export = upstream.calls.load(Ordering::SeqCst);
+
+    let reused = call_result(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["assetManifest"],
+            "sourcePolicy": "direct",
+            "delivery": "resource",
+            "assetRequests": [{
+                "assetId":"1:2:fills:1",
+                "format":"png",
+                "scale":2,
+                "outputPath": output_path.to_string_lossy()
+            }]
+        }),
+    )
+    .await?;
+    let reused_structured = reused
+        .structured_content
+        .as_ref()
+        .expect("reused structured compatibility summary");
+    let reused_resources = reused_structured["resources"].as_array().unwrap();
+    let reused_manifest_uri = reused_resources
+        .iter()
+        .find(|resource| resource["name"] == "asset-manifest.json")
+        .and_then(|resource| resource["uri"].as_str())
+        .expect("reused asset manifest URI");
+    let reused_manifest: Value =
+        serde_json::from_slice(&read_resource_bytes(&client, reused_manifest_uri).await?)?;
+    let reused_asset_uri = reused_manifest["assets"][0]["resource"]["uri"]
+        .as_str()
+        .expect("reused asset resource URI");
+    assert!(
+        reused_resources
+            .iter()
+            .any(|resource| resource["uri"] == reused_asset_uri),
+        "the reused manifest must reference the actually reused resource"
+    );
+    assert_eq!(
+        read_resource_bytes(&client, reused_asset_uri).await?,
+        resource_bytes
+    );
+    assert_eq!(
+        upstream.calls.load(Ordering::SeqCst),
+        calls_after_first_export,
+        "resource projection reuse must not reacquire the Figma payload"
+    );
+
+    client.cancel().await?;
+    task.await??;
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+async fn read_resource_bytes(
+    client: &rmcp::service::RunningService<rmcp::RoleClient, ()>,
+    manifest_uri: &str,
+) -> anyhow::Result<Vec<u8>> {
+    let manifest = client
+        .read_resource(ReadResourceRequestParams::new(manifest_uri))
+        .await?;
+    let ResourceContents::TextResourceContents { text, .. } = &manifest.contents[0] else {
+        anyhow::bail!("resource manifest must be JSON text")
+    };
+    let manifest: Value = serde_json::from_str(text)?;
+    let mut bytes = Vec::new();
+    for index in 0..manifest["chunkCount"].as_u64().unwrap() {
+        let chunk_uri = format!(
+            "devup://artifact/{}/outputs/{}/chunks/{index}",
+            manifest["artifactId"].as_str().unwrap(),
+            manifest["outputId"].as_str().unwrap()
+        );
+        let chunk = client
+            .read_resource(ReadResourceRequestParams::new(chunk_uri))
+            .await?;
+        match &chunk.contents[0] {
+            ResourceContents::TextResourceContents { text, .. } => {
+                bytes.extend_from_slice(text.as_bytes());
+            }
+            ResourceContents::BlobResourceContents { blob, .. } => {
+                bytes.extend_from_slice(&STANDARD.decode(blob.as_bytes())?);
+            }
+            _ => anyhow::bail!("unsupported resource content"),
+        }
+    }
+    Ok(bytes)
+}
+
+fn unique_temp_dir(label: &str) -> anyhow::Result<PathBuf> {
+    let path = std::env::temp_dir().join(format!(
+        "devup-mcp-{label}-{}-{}",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+    ));
+    fs::create_dir_all(&path)?;
+    Ok(path)
 }
 
 #[tokio::test]

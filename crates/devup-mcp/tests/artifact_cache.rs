@@ -11,8 +11,9 @@ use devup_mcp::server::artifacts::{
     ArtifactClock, ArtifactKind, ArtifactLimits, ArtifactRequestKey, ArtifactStore,
 };
 use devup_mcp_figma::{
-    CollectedPayload, CollectionRequest, CollectionScope, CollectionStats, ExploreReadOptions,
-    FigmaTarget, PayloadCompleteness, ResourceScope, SearchReadOptions, Snapshot, SourcePolicy,
+    AssetFormat, AssetSelection, CollectedPayload, CollectionRequest, CollectionScope,
+    CollectionStats, ExploreReadOptions, FigmaTarget, PayloadCompleteness, ResourceScope,
+    SearchReadOptions, SectionReadOptions, Snapshot, SourcePolicy,
 };
 use serde_json::json;
 
@@ -259,6 +260,60 @@ async fn concurrent_same_key_requests_share_one_acquisition() -> anyhow::Result<
     assert_eq!(left.artifact_id, right.artifact_id);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert!(left.cache_hit ^ right.cache_hit);
+    Ok(())
+}
+
+#[tokio::test]
+async fn set_like_capture_and_section_inputs_share_one_cache_key() -> anyhow::Result<()> {
+    let store = ArtifactStore::with_limits(limits());
+    let png = AssetSelection {
+        asset_id: "1:2:fills:1".to_owned(),
+        format: AssetFormat::Png,
+        scale: 2,
+    };
+    let svg = AssetSelection {
+        asset_id: "1:3:fills:1".to_owned(),
+        format: AssetFormat::Svg,
+        scale: 1,
+    };
+    let mut left = request("file-one", "1:2");
+    left.asset_selections = vec![svg.clone(), png.clone(), png.clone()];
+    left.section = Some(SectionReadOptions {
+        frame_ids: vec!["10:3".to_owned(), "10:2".to_owned(), "10:3".to_owned()],
+        all_screens: false,
+    });
+    let mut right = request("file-one", "1:2");
+    right.asset_selections = vec![png, svg];
+    right.section = Some(SectionReadOptions {
+        frame_ids: vec!["10:2".to_owned(), "10:3".to_owned()],
+        all_screens: false,
+    });
+    let calls = AtomicUsize::new(0);
+
+    let first = store
+        .get_or_acquire(
+            ArtifactRequestKey::from_collection(&left, SourcePolicy::Direct),
+            false,
+            || async {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(payload("file-one", "1:2", "canonical"))
+            },
+        )
+        .await?;
+    let second = store
+        .get_or_acquire(
+            ArtifactRequestKey::from_collection(&right, SourcePolicy::Direct),
+            false,
+            || async {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(payload("file-one", "1:2", "duplicate"))
+            },
+        )
+        .await?;
+
+    assert_eq!(first.artifact_id, second.artifact_id);
+    assert_eq!(second.capabilities.asset_capture_count, 2);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
     Ok(())
 }
 

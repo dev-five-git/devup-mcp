@@ -1,6 +1,11 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    io::Cursor,
+};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use image::{ImageDecoder, ImageError, Limits, codecs::png::PngDecoder};
+use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -35,6 +40,9 @@ const USED_RESOURCE_BATCH_BYTES: usize = 12_000;
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
 const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
 const MAX_REFERENCE_PNG_BYTES: usize = 16 * 1024 * 1024;
+const MAX_REFERENCE_PNG_BASE64_BYTES: usize = MAX_REFERENCE_PNG_BYTES.div_ceil(3) * 4;
+const MAX_REFERENCE_PNG_DIMENSION: u32 = 8_192;
+const MAX_REFERENCE_PNG_DECODED_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -211,7 +219,7 @@ pub struct CollectorSession {
     section_selected_roots: Vec<String>,
     fast_multi_resources: Option<UpstreamResult>,
     fast_multi_has_large_values: bool,
-    multi_fast_disabled: bool,
+    section_fallback_roots: BTreeSet<String>,
     next_id: usize,
     completed: bool,
 }
@@ -246,7 +254,7 @@ impl CollectorSession {
             section_selected_roots: Vec::new(),
             fast_multi_resources: None,
             fast_multi_has_large_values: false,
-            multi_fast_disabled: false,
+            section_fallback_roots: BTreeSet::new(),
             next_id: 0,
             completed: false,
         }
@@ -350,6 +358,7 @@ impl CollectorSession {
         if self.request.section.is_some()
             && !self.section_selected_roots.is_empty()
             && self.variables.is_none()
+            && self.section_fallback_roots.is_empty()
             && !self.fast_multi_has_large_values
             && let Some(resources) = self.fast_multi_resources.take()
         {
@@ -456,7 +465,21 @@ impl CollectorSession {
                 std::mem::take(&mut self.variable_batches).into_values(),
             )?;
             self.record_unresolved_diagnostics(&refs, &merged.unresolved);
-            self.variables = Some(merged.result);
+            let mut result = Some(merged.result);
+            if !self.section_fallback_roots.is_empty()
+                && !self.fast_multi_has_large_values
+                && let Some(fast_resources) = self.fast_multi_resources.take()
+            {
+                let mut combined = Some(fast_resources);
+                merge_fast_resources(
+                    &mut combined,
+                    result
+                        .take()
+                        .ok_or_else(|| invalid_call("fallback resource 결과가 없습니다."))?,
+                )?;
+                result = combined;
+            }
+            self.variables = result;
         }
         if self.metadata.is_some() && self.queued.is_empty() {
             self.completed = true;
@@ -471,9 +494,10 @@ impl CollectorSession {
                     diagnostics: Vec::new(),
                 }]
             } else {
-                std::mem::take(&mut self.snapshot_chunks)
+                let chunks = std::mem::take(&mut self.snapshot_chunks)
                     .into_values()
-                    .collect()
+                    .collect();
+                self.restore_section_visual_order(chunks)?
             };
             self.finish_stats(&snapshot_chunks);
             return Ok(CollectorStep::Complete(Box::new(CollectedParts {
@@ -576,7 +600,7 @@ impl CollectorSession {
             .ok_or_else(|| invalid_call("fast call이 없습니다."))?;
         self.consumed.insert(call_id.to_owned());
         if pending.kind == CallKind::FastMultiRoot {
-            self.restart_multi_root_legacy(fallback_category(error))?;
+            self.fallback_multi_root_batch(&pending.planned, fallback_category(error))?;
             return Ok(true);
         }
         self.restart_legacy(fallback_category(error));
@@ -698,6 +722,7 @@ impl CollectorSession {
         self.variable_batches.clear();
         self.variables = None;
         self.large_values.clear();
+        self.section_fallback_roots.clear();
         self.asset_results.clear();
         self.assets_scheduled = self.request.asset_selections.is_empty();
         self.reference_png = None;
@@ -858,17 +883,10 @@ impl CollectorSession {
             "batchCount": batches.len()
         }));
         for batch in batches {
-            if self.multi_fast_disabled || batch.oversized {
+            if batch.oversized {
+                self.mark_section_legacy("oversized-section-root".to_owned());
                 for root_id in batch.root_ids {
-                    self.enqueue(
-                        ReadToolCall::snapshot(
-                            &self.request.target.file_key,
-                            &root_id,
-                            BuiltinScript::NodeSnapshot,
-                        ),
-                        Some(root_id),
-                        CallKind::Snapshot,
-                    );
+                    self.enqueue_section_legacy_root(root_id);
                 }
             } else {
                 self.enqueue(
@@ -920,16 +938,9 @@ impl CollectorSession {
             .ok_or_else(|| invalid_call("cached Section index의 Section ID가 없습니다."))?;
         for batch in batches {
             if batch.oversized {
+                self.mark_section_legacy("oversized-section-root".to_owned());
                 for root_id in batch.root_ids {
-                    self.enqueue(
-                        ReadToolCall::snapshot(
-                            &self.request.target.file_key,
-                            &root_id,
-                            BuiltinScript::NodeSnapshot,
-                        ),
-                        Some(root_id),
-                        CallKind::Snapshot,
-                    );
+                    self.enqueue_section_legacy_root(root_id);
                 }
             } else {
                 self.enqueue(
@@ -965,7 +976,7 @@ impl CollectorSession {
         let payload = match decode_fast_multi_snapshot(&result, &self.request.target, root_ids) {
             Ok(payload) => payload,
             Err(error) if fast_call_fallback_allowed(&error) => {
-                self.restart_multi_root_legacy(fallback_category(&error))?;
+                self.fallback_multi_root_batch(planned, fallback_category(&error))?;
                 return Ok(());
             }
             Err(error) => return Err(error),
@@ -984,7 +995,12 @@ impl CollectorSession {
         }
         self.fast_multi_has_large_values |= !descriptors_in_chunk(&payload.snapshot)?.is_empty();
         merge_fast_resources(&mut self.fast_multi_resources, payload.resources)?;
-        self.stats.transport = "png-multi-root-envelope-v1".to_owned();
+        self.stats.transport = if self.section_fallback_roots.is_empty() {
+            "png-multi-root-envelope-v1"
+        } else {
+            "hybrid-multi-root-cursor"
+        }
+        .to_owned();
         self.stats.raw_bytes = self.stats.raw_bytes.saturating_add(payload.stats.raw_bytes);
         self.stats.wire_bytes = self
             .stats
@@ -998,38 +1014,84 @@ impl CollectorSession {
         Ok(())
     }
 
-    fn restart_multi_root_legacy(&mut self, reason: String) -> Result<(), DevupError> {
-        self.queued.clear();
-        self.pending.clear();
-        self.snapshot_chunks.clear();
-        self.variable_batches.clear();
-        self.variables = None;
-        self.fast_multi_resources = None;
-        self.fast_multi_has_large_values = false;
-        self.multi_fast_disabled = true;
-        self.stats.transport = "legacy-multi-root-cursor".to_owned();
-        self.stats.fallback_used = true;
-        self.stats.fallback_reason = Some(reason);
-        self.stats.raw_bytes = 0;
-        self.stats.wire_bytes = 0;
-        self.stats.envelope_chunks = 0;
-        for root_id in self.section_selected_roots.clone() {
-            self.enqueue(
-                ReadToolCall::snapshot(
-                    &self.request.target.file_key,
-                    &root_id,
-                    BuiltinScript::NodeSnapshot,
-                ),
-                Some(root_id),
-                CallKind::Snapshot,
-            );
-        }
-        if self.queued.is_empty() {
+    fn fallback_multi_root_batch(
+        &mut self,
+        planned: &PlannedCall,
+        reason: String,
+    ) -> Result<(), DevupError> {
+        let ReadToolCall::Snapshot {
+            script: BuiltinScript::MultiRootSnapshotEnvelope,
+            root_ids: Some(root_ids),
+            ..
+        } = &planned.call
+        else {
+            return Err(invalid_call(
+                "multi-root fallback call 형식이 올바르지 않습니다.",
+            ));
+        };
+        if root_ids.is_empty() {
             return Err(invalid_call(
                 "multi-root fallback에 선택된 root가 없습니다.",
             ));
         }
+        self.mark_section_legacy(reason);
+        for root_id in root_ids {
+            self.enqueue_section_legacy_root(root_id.clone());
+        }
         Ok(())
+    }
+
+    fn mark_section_legacy(&mut self, reason: String) {
+        self.stats.transport = if self.fast_multi_resources.is_some() {
+            "hybrid-multi-root-cursor"
+        } else {
+            "legacy-multi-root-cursor"
+        }
+        .to_owned();
+        self.stats.fallback_used = true;
+        self.stats.fallback_reason.get_or_insert(reason);
+    }
+
+    fn enqueue_section_legacy_root(&mut self, root_id: String) {
+        if !self.section_fallback_roots.insert(root_id.clone()) {
+            return;
+        }
+        self.enqueue(
+            ReadToolCall::snapshot(
+                &self.request.target.file_key,
+                &root_id,
+                BuiltinScript::NodeSnapshot,
+            ),
+            Some(root_id),
+            CallKind::Snapshot,
+        );
+    }
+
+    fn restore_section_visual_order(
+        &self,
+        chunks: Vec<SnapshotChunk>,
+    ) -> Result<Vec<SnapshotChunk>, DevupError> {
+        if self.section_selected_roots.is_empty() || chunks.is_empty() {
+            return Ok(chunks);
+        }
+        let snapshot = merge_chunks(chunks)?;
+        let observed = snapshot.roots.iter().collect::<BTreeSet<_>>();
+        if self
+            .section_selected_roots
+            .iter()
+            .any(|root_id| !observed.contains(root_id))
+        {
+            return Err(invalid_call(
+                "Section snapshot에 선택된 root가 모두 포함되지 않았습니다.",
+            ));
+        }
+        Ok(vec![SnapshotChunk {
+            file_key: snapshot.file_key,
+            version: snapshot.version,
+            root_ids: self.section_selected_roots.clone(),
+            nodes: snapshot.nodes.into_values().collect(),
+            diagnostics: snapshot.diagnostics,
+        }])
     }
 
     fn record_snapshot_chunk(
@@ -1225,9 +1287,8 @@ impl CollectorSession {
                 "reference PNG call의 Figma 대상이 요청과 다릅니다.",
             ));
         }
-        let data_base64 = find_png_data(&result.raw)
-            .ok_or_else(|| invalid_call("Figma screenshot 응답에 image/png binary가 없습니다."))?;
-        if data_base64.len() > MAX_REFERENCE_PNG_BYTES.saturating_mul(4).saturating_div(3) + 4 {
+        let data_base64 = take_single_png_data(result.raw)?;
+        if data_base64.len() > MAX_REFERENCE_PNG_BASE64_BYTES {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
                 "Figma reference PNG가 허용 크기를 초과했습니다.",
@@ -1237,14 +1298,12 @@ impl CollectorSession {
         let bytes = STANDARD
             .decode(data_base64.as_bytes())
             .map_err(|_| invalid_call("Figma reference PNG의 base64가 올바르지 않습니다."))?;
-        if bytes.is_empty()
-            || bytes.len() > MAX_REFERENCE_PNG_BYTES
-            || !bytes.starts_with(b"\x89PNG\r\n\x1a\n")
-        {
+        if bytes.is_empty() || bytes.len() > MAX_REFERENCE_PNG_BYTES {
             return Err(invalid_call(
                 "Figma reference PNG의 형식 또는 크기가 올바르지 않습니다.",
             ));
         }
+        validate_reference_png(&bytes)?;
         self.reference_png = Some(ReferencePng {
             mime_type: "image/png".to_owned(),
             data_base64,
@@ -1572,8 +1631,21 @@ impl CollectorSession {
     }
 
     fn enqueue_used_resource_batches(&mut self) -> Result<(), DevupError> {
-        let refs =
-            collect_used_resource_refs(&self.snapshot_chunks.values().cloned().collect::<Vec<_>>());
+        let chunks = self
+            .snapshot_chunks
+            .values()
+            .filter(|chunk| {
+                self.section_fallback_roots.is_empty()
+                    || self.fast_multi_resources.is_none()
+                    || self.fast_multi_has_large_values
+                    || chunk
+                        .root_ids
+                        .iter()
+                        .any(|root_id| self.section_fallback_roots.contains(root_id))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let refs = collect_used_resource_refs(&chunks);
         let node_id = self.root_node_id.clone().ok_or_else(|| {
             invalid_call("사용된 Figma 리소스 batch에 사용할 root node ID가 없습니다.")
         })?;
@@ -1695,28 +1767,74 @@ impl CollectorSession {
     }
 }
 
-fn find_png_data(value: &Value) -> Option<String> {
-    match value {
-        Value::Object(object) => {
-            let mime_type = object
-                .get("mimeType")
-                .or_else(|| object.get("mime_type"))
-                .and_then(Value::as_str);
-            if mime_type == Some("image/png")
-                && let Some(data) = object
-                    .get("data")
-                    .or_else(|| object.get("blob"))
-                    .and_then(Value::as_str)
-            {
-                return Some(data.to_owned());
-            }
-            object.values().find_map(find_png_data)
-        }
-        Value::Array(values) => values.iter().find_map(find_png_data),
-        Value::String(text) => serde_json::from_str::<Value>(text)
-            .ok()
-            .and_then(|decoded| find_png_data(&decoded)),
-        Value::Null | Value::Bool(_) | Value::Number(_) => None,
+fn take_single_png_data(value: Value) -> Result<String, DevupError> {
+    let result = serde_json::from_value::<CallToolResult>(value)
+        .map_err(|_| invalid_call("Figma screenshot 응답 형식이 올바르지 않습니다."))?;
+    if result.is_error == Some(true) || result.content.len() != 1 {
+        return Err(invalid_call(
+            "Figma screenshot 응답에는 image/png content가 정확히 하나 있어야 합니다.",
+        ));
+    }
+    let content = result
+        .content
+        .into_iter()
+        .next()
+        .ok_or_else(|| invalid_call("Figma screenshot 응답에 image/png content가 없습니다."))?;
+    let ContentBlock::Image(image) = content else {
+        return Err(invalid_call(
+            "Figma screenshot 응답에는 image/png content가 정확히 하나 있어야 합니다.",
+        ));
+    };
+    if image.mime_type != "image/png" {
+        return Err(invalid_call(
+            "Figma screenshot 응답의 MIME 형식이 image/png가 아닙니다.",
+        ));
+    }
+    Ok(image.data)
+}
+
+fn validate_reference_png(bytes: &[u8]) -> Result<(), DevupError> {
+    let mut limits = Limits::default();
+    limits.max_image_width = Some(MAX_REFERENCE_PNG_DIMENSION);
+    limits.max_image_height = Some(MAX_REFERENCE_PNG_DIMENSION);
+    limits.max_alloc = Some(MAX_REFERENCE_PNG_DECODED_BYTES as u64);
+    let decoder =
+        PngDecoder::with_limits(Cursor::new(bytes), limits).map_err(reference_png_decode_error)?;
+    let (width, height) = decoder.dimensions();
+    let decoded_bytes = usize::try_from(decoder.total_bytes()).map_err(|_| {
+        DevupError::new(
+            ErrorCode::DevupFigmaResponseTooLarge,
+            "Figma reference PNG의 decoded 크기가 허용 범위를 초과했습니다.",
+            false,
+        )
+    })?;
+    if width == 0
+        || height == 0
+        || width > MAX_REFERENCE_PNG_DIMENSION
+        || height > MAX_REFERENCE_PNG_DIMENSION
+        || decoded_bytes > MAX_REFERENCE_PNG_DECODED_BYTES
+    {
+        return Err(DevupError::new(
+            ErrorCode::DevupFigmaResponseTooLarge,
+            "Figma reference PNG의 dimensions 또는 decoded 크기가 허용 범위를 초과했습니다.",
+            false,
+        ));
+    }
+    let mut pixels = vec![0_u8; decoded_bytes];
+    decoder
+        .read_image(&mut pixels)
+        .map_err(reference_png_decode_error)
+}
+
+fn reference_png_decode_error(error: ImageError) -> DevupError {
+    if matches!(error, ImageError::Limits(_)) {
+        DevupError::new(
+            ErrorCode::DevupFigmaResponseTooLarge,
+            "Figma reference PNG의 dimensions 또는 decoded 크기가 허용 범위를 초과했습니다.",
+            false,
+        )
+    } else {
+        invalid_call("Figma reference PNG 데이터가 손상되었습니다.")
     }
 }
 

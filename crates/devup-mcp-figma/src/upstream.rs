@@ -1,3 +1,10 @@
+use std::{
+    collections::BTreeSet,
+    future::Future,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use async_trait::async_trait;
 use rmcp::{
     ServiceExt,
@@ -8,6 +15,7 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use tokio::sync::Mutex;
 
 use super::{
     AssetRequest, CredentialStore, DevupError, LargeValueReadOptions, OAuthManager, ResourceBatch,
@@ -16,6 +24,94 @@ use super::{
 
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
+const REMOTE_SESSION_TTL: Duration = Duration::from_secs(30);
+const READ_ONLY_TOOL_NAMES: [&str; 6] = [
+    "get_metadata",
+    "get_variable_defs",
+    "get_design_context",
+    "get_code_connect_map",
+    "get_screenshot",
+    "use_figma",
+];
+
+type RunningFigmaClient = rmcp::service::RunningService<rmcp::RoleClient, ()>;
+
+// Keep at most one initialized MCP session for 30 seconds. Its capability catalog is fetched
+// once, intersected with the locally compiled ReadToolCall allowlist, and reused concurrently.
+// A closed session, TTL expiry, or tools/call transport failure evicts it; the next request then
+// reconnects with a freshly resolved OAuth token and re-verifies the catalog. No remote-only tool
+// name can cross this boundary, even when the server advertises it.
+#[derive(Clone)]
+struct RemoteSessionCache {
+    ttl: Duration,
+    state: Arc<Mutex<Option<CachedRemoteSession>>>,
+}
+
+#[derive(Clone)]
+struct RemoteSession {
+    client: Arc<RunningFigmaClient>,
+    capabilities: Arc<BTreeSet<String>>,
+}
+
+struct CachedRemoteSession {
+    created_at: Instant,
+    session: RemoteSession,
+}
+
+impl RemoteSessionCache {
+    fn new(ttl: Duration) -> Self {
+        Self {
+            ttl,
+            state: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    async fn get_or_connect<F, Fut>(&self, connect: F) -> Result<RemoteSession, DevupError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<RunningFigmaClient, DevupError>>,
+    {
+        let mut cached = self.state.lock().await;
+        if let Some(current) = cached.as_ref()
+            && current.created_at.elapsed() < self.ttl
+            && !current.session.client.is_closed()
+        {
+            return Ok(current.session.clone());
+        }
+        let client = Arc::new(connect().await?);
+        let capabilities = client
+            .list_all_tools()
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .filter(|name| is_read_only_tool_name(name))
+            .collect::<BTreeSet<_>>();
+        let session = RemoteSession {
+            client,
+            capabilities: Arc::new(capabilities),
+        };
+        *cached = Some(CachedRemoteSession {
+            created_at: Instant::now(),
+            session: session.clone(),
+        });
+        Ok(session)
+    }
+
+    async fn invalidate(&self, session: &RemoteSession) {
+        let mut cached = self.state.lock().await;
+        if cached
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(&current.session.client, &session.client))
+        {
+            cached.take();
+        }
+    }
+}
+
+fn is_read_only_tool_name(name: &str) -> bool {
+    READ_ONLY_TOOL_NAMES.contains(&name)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinScript {
@@ -549,6 +645,7 @@ pub trait FigmaUpstream: Send + Sync {
 pub struct RemoteFigmaClient<S: CredentialStore> {
     endpoint: String,
     oauth: OAuthManager<S>,
+    sessions: RemoteSessionCache,
 }
 
 impl<S: CredentialStore> RemoteFigmaClient<S> {
@@ -556,6 +653,7 @@ impl<S: CredentialStore> RemoteFigmaClient<S> {
         Self {
             endpoint: DEFAULT_FIGMA_MCP_ENDPOINT.to_owned(),
             oauth,
+            sessions: RemoteSessionCache::new(REMOTE_SESSION_TTL),
         }
     }
 
@@ -563,12 +661,11 @@ impl<S: CredentialStore> RemoteFigmaClient<S> {
         Self {
             endpoint: endpoint.into(),
             oauth,
+            sessions: RemoteSessionCache::new(REMOTE_SESSION_TTL),
         }
     }
 
-    async fn connect(
-        &self,
-    ) -> Result<rmcp::service::RunningService<rmcp::RoleClient, ()>, DevupError> {
+    async fn connect(&self) -> Result<RunningFigmaClient, DevupError> {
         let token = self.oauth.access_token().await?;
         let config = StreamableHttpClientTransportConfig::with_uri(self.endpoint.clone())
             .auth_header(token.expose().to_owned())
@@ -578,50 +675,40 @@ impl<S: CredentialStore> RemoteFigmaClient<S> {
             .await
             .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))
     }
+
+    async fn session(&self) -> Result<RemoteSession, DevupError> {
+        self.sessions.get_or_connect(|| self.connect()).await
+    }
 }
 
 #[async_trait]
 impl<S: CredentialStore> FigmaUpstream for RemoteFigmaClient<S> {
     async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
-        let client = self.connect().await?;
-        let mut names = client
-            .list_all_tools()
-            .await
-            .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?
-            .into_iter()
-            .map(|tool| tool.name.to_string())
-            .collect::<Vec<_>>();
-        names.sort();
-        client
-            .cancel()
-            .await
-            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))?;
-        Ok(names)
+        let session = self.session().await?;
+        Ok(session.capabilities.iter().cloned().collect())
     }
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
-        let client = self.connect().await?;
-        let available = client
-            .list_all_tools()
-            .await
-            .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?;
-        if !available.iter().any(|tool| tool.name == call.tool_name()) {
-            client
-                .cancel()
-                .await
-                .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))?;
+        if !is_read_only_tool_name(call.tool_name()) {
             return Err(UpstreamFailureKind::CapabilityUnavailable.into_devup_error(None));
         }
-        let result = client
+        let session = self.session().await?;
+        if !session.capabilities.contains(call.tool_name()) {
+            return Err(UpstreamFailureKind::CapabilityUnavailable.into_devup_error(None));
+        }
+        let result = match session
+            .client
             .call_tool(
                 CallToolRequestParams::new(call.tool_name()).with_arguments(call.arguments()),
             )
             .await
-            .map_err(|error| map_upstream_error(UpstreamFailureContext::CallTool, error))?;
-        client
-            .cancel()
-            .await
-            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))?;
+        {
+            Ok(result) => result,
+            Err(error) => {
+                self.sessions.invalidate(&session).await;
+                return Err(map_upstream_error(UpstreamFailureContext::CallTool, error));
+            }
+        };
         let raw = serde_json::to_value(result)
             .map_err(|error| map_upstream_error(UpstreamFailureContext::Decode, error))?;
         Ok(UpstreamResult { raw })
@@ -633,4 +720,135 @@ fn map_upstream_error<E: std::fmt::Display>(
     error: E,
 ) -> DevupError {
     upstream_failure_error(context, None, &error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use rmcp::{
+        ErrorData, RoleServer, ServerHandler, ServiceExt,
+        model::{
+            CallToolResponse, CallToolResult, ContentBlock, ListToolsResult,
+            PaginatedRequestParams, ServerCapabilities, ServerInfo, Tool,
+        },
+        service::RequestContext,
+    };
+
+    use super::*;
+
+    #[derive(Clone)]
+    struct CountingToolServer {
+        list_calls: Arc<AtomicUsize>,
+        tool_calls: Arc<AtomicUsize>,
+    }
+
+    impl ServerHandler for CountingToolServer {
+        fn get_info(&self) -> ServerInfo {
+            ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        }
+
+        async fn list_tools(
+            &self,
+            _request: Option<PaginatedRequestParams>,
+            _context: RequestContext<RoleServer>,
+        ) -> Result<ListToolsResult, ErrorData> {
+            self.list_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(ListToolsResult {
+                tools: vec![
+                    Tool::new("get_metadata", "read metadata", Map::new()),
+                    Tool::new("delete_node", "write-like server tool", Map::new()),
+                ],
+                ..ListToolsResult::default()
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _request: CallToolRequestParams,
+            _context: RequestContext<RoleServer>,
+        ) -> Result<CallToolResponse, ErrorData> {
+            self.tool_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(CallToolResult::success(vec![ContentBlock::text("ok")]).into())
+        }
+    }
+
+    async fn connect_counting_server(
+        connections: Arc<AtomicUsize>,
+        list_calls: Arc<AtomicUsize>,
+        tool_calls: Arc<AtomicUsize>,
+    ) -> Result<RunningFigmaClient, DevupError> {
+        connections.fetch_add(1, Ordering::SeqCst);
+        let (server_transport, client_transport) = tokio::io::duplex(4_096);
+        tokio::spawn(async move {
+            let server = CountingToolServer {
+                list_calls,
+                tool_calls,
+            }
+            .serve(server_transport)
+            .await
+            .expect("test MCP server starts");
+            let _ = server.waiting().await;
+        });
+        ().serve(client_transport)
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))
+    }
+
+    #[tokio::test]
+    async fn bounded_session_reuses_one_connection_and_one_filtered_capability_catalog() {
+        let connections = Arc::new(AtomicUsize::new(0));
+        let list_calls = Arc::new(AtomicUsize::new(0));
+        let tool_calls = Arc::new(AtomicUsize::new(0));
+        let cache = RemoteSessionCache::new(Duration::from_secs(30));
+
+        let connect = || {
+            let connections = connections.clone();
+            let list_calls = list_calls.clone();
+            let tool_calls = tool_calls.clone();
+            connect_counting_server(connections, list_calls, tool_calls)
+        };
+
+        let first = cache.get_or_connect(connect).await.unwrap();
+        let second = cache.get_or_connect(connect).await.unwrap();
+        assert!(Arc::ptr_eq(&first.client, &second.client));
+        assert_eq!(
+            first
+                .capabilities
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["get_metadata"]
+        );
+        assert!(!first.capabilities.contains("delete_node"));
+        for session in [&first, &second] {
+            session
+                .client
+                .call_tool(CallToolRequestParams::new("get_metadata").with_arguments(Map::new()))
+                .await
+                .unwrap();
+        }
+
+        assert_eq!(connections.load(Ordering::SeqCst), 1);
+        assert_eq!(list_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(tool_calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn expired_session_reconnects_and_reverifies_capabilities() {
+        let connections = Arc::new(AtomicUsize::new(0));
+        let list_calls = Arc::new(AtomicUsize::new(0));
+        let tool_calls = Arc::new(AtomicUsize::new(0));
+        let cache = RemoteSessionCache::new(Duration::ZERO);
+
+        let connect =
+            || connect_counting_server(connections.clone(), list_calls.clone(), tool_calls.clone());
+        let first = cache.get_or_connect(connect).await.unwrap();
+        let second = cache.get_or_connect(connect).await.unwrap();
+
+        assert!(!Arc::ptr_eq(&first.client, &second.client));
+        assert_eq!(connections.load(Ordering::SeqCst), 2);
+        assert_eq!(list_calls.load(Ordering::SeqCst), 2);
+        assert!(!second.capabilities.contains("delete_node"));
+    }
 }

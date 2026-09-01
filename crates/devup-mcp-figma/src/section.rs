@@ -255,12 +255,39 @@ pub fn plan_batches(
         .iter()
         .map(|candidate| (candidate.node_id.as_str(), candidate))
         .collect::<BTreeMap<_, _>>();
+    let visual_rank = selected
+        .iter()
+        .enumerate()
+        .map(|(rank, root_id)| (root_id.clone(), rank))
+        .collect::<BTreeMap<_, _>>();
+    let mut candidates = selected
+        .into_iter()
+        .map(|root_id| {
+            let candidate = by_id
+                .get(root_id.as_str())
+                .copied()
+                .ok_or_else(|| invalid_selection("Section batch candidate가 없습니다."))?;
+            let rank = visual_rank[&root_id];
+            Ok((rank, root_id, candidate))
+        })
+        .collect::<Result<Vec<_>, DevupError>>()?;
+    // Best-fit decreasing avoids the avoidable extra calls produced by visual-order first-fit.
+    // The normalized pressure comparison uses integers, so equal requests always pack alike.
+    candidates.sort_by(|left, right| {
+        packing_pressure(right.2, limits)
+            .cmp(&packing_pressure(left.2, limits))
+            .then_with(|| {
+                right
+                    .2
+                    .estimated_serialized_bytes
+                    .cmp(&left.2.estimated_serialized_bytes)
+            })
+            .then_with(|| right.2.subtree_node_count.cmp(&left.2.subtree_node_count))
+            .then_with(|| left.0.cmp(&right.0))
+    });
+
     let mut batches: Vec<SectionBatch> = Vec::new();
-    for root_id in selected {
-        let candidate = by_id
-            .get(root_id.as_str())
-            .copied()
-            .ok_or_else(|| invalid_selection("Section batch candidate가 없습니다."))?;
+    for (_rank, root_id, candidate) in candidates {
         let oversized = candidate.estimated_serialized_bytes > limits.max_estimated_bytes
             || candidate.subtree_node_count > limits.max_nodes;
         if oversized {
@@ -272,17 +299,25 @@ pub fn plan_batches(
             });
             continue;
         }
-        if let Some(batch) = batches.iter_mut().find(|batch| {
-            !batch.oversized
-                && batch
+        let best_batch = batches
+            .iter()
+            .enumerate()
+            .filter_map(|(index, batch)| {
+                if batch.oversized {
+                    return None;
+                }
+                let bytes = batch
                     .estimated_bytes
-                    .checked_add(candidate.estimated_serialized_bytes)
-                    .is_some_and(|bytes| bytes <= limits.max_estimated_bytes)
-                && batch
-                    .node_count
-                    .checked_add(candidate.subtree_node_count)
-                    .is_some_and(|nodes| nodes <= limits.max_nodes)
-        }) {
+                    .checked_add(candidate.estimated_serialized_bytes)?;
+                let nodes = batch.node_count.checked_add(candidate.subtree_node_count)?;
+                if bytes > limits.max_estimated_bytes || nodes > limits.max_nodes {
+                    return None;
+                }
+                Some((packing_slack(bytes, nodes, limits), index))
+            })
+            .min();
+        if let Some((_slack, index)) = best_batch {
+            let batch = &mut batches[index];
             batch.root_ids.push(root_id);
             batch.estimated_bytes += candidate.estimated_serialized_bytes;
             batch.node_count += candidate.subtree_node_count;
@@ -295,7 +330,28 @@ pub fn plan_batches(
             });
         }
     }
+    for batch in &mut batches {
+        batch.root_ids.sort_by_key(|root_id| visual_rank[root_id]);
+    }
+    batches.sort_by_key(|batch| {
+        batch
+            .root_ids
+            .iter()
+            .map(|root_id| visual_rank[root_id])
+            .min()
+            .unwrap_or(usize::MAX)
+    });
     Ok(batches)
+}
+
+fn packing_pressure(candidate: &SectionCandidate, limits: BatchLimits) -> u128 {
+    ((candidate.estimated_serialized_bytes as u128) * (limits.max_nodes as u128))
+        .max((candidate.subtree_node_count as u128) * (limits.max_estimated_bytes as u128))
+}
+
+fn packing_slack(bytes: usize, nodes: usize, limits: BatchLimits) -> u128 {
+    ((limits.max_estimated_bytes - bytes) as u128) * (limits.max_nodes as u128)
+        + ((limits.max_nodes - nodes) as u128) * (limits.max_estimated_bytes as u128)
 }
 
 fn subtree_estimate(snapshot: &Snapshot, root_id: &str) -> (usize, usize) {

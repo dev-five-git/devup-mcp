@@ -19,6 +19,15 @@ expression: output.source_map
         "end": 134
       },
       "nodeId": "3879:35518",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 128,
+        "end": 134
+      },
+      "nodeId": "3879:35518",
       "property": "type",
       "resolution": "exact"
     },
@@ -79,7 +88,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 253,
-        "end": 257
+        "end": 259
+      },
+      "nodeId": "3879:35519",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 253,
+        "end": 259
       },
       "nodeId": "3879:35519",
       "property": "type",
@@ -142,11 +160,29 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 385,
+        "end": 394
+      },
+      "nodeId": "3879:35519",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 407,
         "end": 626
       },
       "nodeId": "3879:35520",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 412,
+        "end": 416
+      },
+      "nodeId": "3879:35520",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -218,7 +254,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 566,
-        "end": 585
+        "end": 610
       },
       "nodeId": "3879:35520",
       "property": "characters",
@@ -235,7 +271,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 636,
-        "end": 638
+        "end": 642
+      },
+      "nodeId": "3879:35521",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 636,
+        "end": 642
       },
       "nodeId": "3879:35521",
       "property": "type",
@@ -269,6 +314,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 674,
+        "end": 680
+      },
+      "nodeId": "3879:35522",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 674,
+        "end": 680
+      },
+      "nodeId": "3879:35522",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 681,
         "end": 700
       },
@@ -291,6 +354,33 @@ expression: output.source_map
         "end": 720
       },
       "nodeId": "3879:35522",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 712,
+        "end": 720
+      },
+      "nodeId": "3879:35522",
+      "property": "paddingLeft",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 712,
+        "end": 720
+      },
+      "nodeId": "3879:35522",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 712,
+        "end": 720
+      },
+      "nodeId": "3879:35522",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
@@ -301,6 +391,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35523",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 735,
+        "end": 739
+      },
+      "nodeId": "3879:35523",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -370,6 +469,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 869,
+        "end": 873
+      },
+      "nodeId": "3879:35524",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 874,
         "end": 890
       },
@@ -436,6 +544,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 998,
+        "end": 1003
+      },
+      "nodeId": "3879:35525",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 1004,
         "end": 1019
       },
@@ -449,8 +566,57 @@ expression: output.source_map
         "end": 1034
       },
       "nodeId": "3879:35525",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1020,
+        "end": 1034
+      },
+      "nodeId": "3879:35525",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1035,
+        "end": 1057
+      },
+      "nodeId": "I3879:35525;17:2032",
+      "property": "node",
+      "assetId": "I3879:35525;17:2032:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 1035,
+        "end": 1057
+      },
+      "nodeId": "I3879:35525;17:2034",
+      "property": "node",
+      "assetId": "I3879:35525;17:2034:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 1035,
+        "end": 1057
+      },
+      "nodeId": "I3879:35525;17:2036",
+      "property": "node",
+      "assetId": "I3879:35525;17:2036:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 1035,
+        "end": 1057
+      },
+      "nodeId": "I3879:35525;17:2038",
+      "property": "node",
+      "assetId": "I3879:35525;17:2038:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -459,6 +625,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35526",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 1092,
+        "end": 1098
+      },
+      "nodeId": "3879:35526",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1092,
+        "end": 1098
+      },
+      "nodeId": "3879:35526",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -494,6 +678,33 @@ expression: output.source_map
         "end": 1171
       },
       "nodeId": "3879:35526",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1163,
+        "end": 1171
+      },
+      "nodeId": "3879:35526",
+      "property": "paddingLeft",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1163,
+        "end": 1171
+      },
+      "nodeId": "3879:35526",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1163,
+        "end": 1171
+      },
+      "nodeId": "3879:35526",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
@@ -504,6 +715,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35527",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 1186,
+        "end": 1190
+      },
+      "nodeId": "3879:35527",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1186,
+        "end": 1190
+      },
+      "nodeId": "3879:35527",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -530,6 +759,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35528",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 1238,
+        "end": 1242
+      },
+      "nodeId": "3879:35528",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -599,6 +837,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 1368,
+        "end": 1372
+      },
+      "nodeId": "3879:35529",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 1373,
         "end": 1389
       },
@@ -665,6 +912,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 1507,
+        "end": 1510
+      },
+      "nodeId": "3879:35530",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 1527,
         "end": 1542
       },
@@ -684,12 +940,71 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 1559,
+        "end": 1572
+      },
+      "nodeId": "3879:35531",
+      "property": "fills",
+      "variableId": "VariableID:1:1009",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 1559,
+        "end": 1572
+      },
+      "nodeId": "I3879:35525;17:2032",
+      "property": "strokes",
+      "variableId": "VariableID:1:1009",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 1559,
+        "end": 1572
+      },
+      "nodeId": "I3879:35525;17:2034",
+      "property": "strokes",
+      "variableId": "VariableID:1:1009",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 1559,
+        "end": 1572
+      },
+      "nodeId": "I3879:35525;17:2036",
+      "property": "strokes",
+      "variableId": "VariableID:1:1009",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 1589,
+        "end": 1603
+      },
+      "nodeId": "3879:35530",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 1589,
         "end": 1603
       },
       "nodeId": "3879:35530",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1620,
+        "end": 1653
+      },
+      "nodeId": "3879:35531",
+      "property": "node",
+      "assetId": "3879:35531:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -702,7 +1017,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 1887,
-        "end": 1889
+        "end": 1893
+      },
+      "nodeId": "3879:35532",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1887,
+        "end": 1893
       },
       "nodeId": "3879:35532",
       "property": "type",
@@ -733,6 +1057,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35533",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 1926,
+        "end": 1932
+      },
+      "nodeId": "3879:35533",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1926,
+        "end": 1932
+      },
+      "nodeId": "3879:35533",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -801,6 +1143,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 2125,
+        "end": 2134
+      },
+      "nodeId": "3879:35533",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 2147,
+        "end": 2156
+      },
+      "nodeId": "3879:35533",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 2147,
         "end": 2156
       },
@@ -815,6 +1175,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35534",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 2182,
+        "end": 2185
+      },
+      "nodeId": "3879:35534",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -837,6 +1206,175 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35534;20:3849",
+      "property": "fills",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2032",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2034",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2036",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2032",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2034",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2036",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2032",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2034",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2036",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2032",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2034",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2036",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2032",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2034",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2230,
+        "end": 2248
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2036",
+      "property": "strokes",
+      "variableId": "VariableID:63:2093",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 2263,
+        "end": 2277
+      },
+      "nodeId": "3879:35534",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 2263,
         "end": 2277
       },
@@ -846,11 +1384,30 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 2292,
+        "end": 2325
+      },
+      "nodeId": "I3879:35534;20:3849",
+      "property": "node",
+      "assetId": "I3879:35534;20:3849:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
         "start": 2446,
         "end": 2947
       },
       "nodeId": "3879:35535",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 2455,
+        "end": 2459
+      },
+      "nodeId": "3879:35535",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -951,8 +1508,17 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2791,
-        "end": 2833
+        "start": 2716,
+        "end": 2724
+      },
+      "nodeId": "3879:35535",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
+        "start": 2761,
+        "end": 2927
       },
       "nodeId": "3879:35535",
       "property": "characters",
@@ -965,6 +1531,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35536",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 2979,
+        "end": 2983
+      },
+      "nodeId": "3879:35536",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1045,7 +1620,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 3220,
-        "end": 3222
+        "end": 3226
+      },
+      "nodeId": "3879:35537",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3220,
+        "end": 3226
       },
       "nodeId": "3879:35537",
       "property": "type",
@@ -1085,6 +1669,33 @@ expression: output.source_map
         "end": 3322
       },
       "nodeId": "3879:35537",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3314,
+        "end": 3322
+      },
+      "nodeId": "3879:35537",
+      "property": "paddingLeft",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3314,
+        "end": 3322
+      },
+      "nodeId": "3879:35537",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3314,
+        "end": 3322
+      },
+      "nodeId": "3879:35537",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
@@ -1113,6 +1724,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35538",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 3388,
+        "end": 3392
+      },
+      "nodeId": "3879:35538",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1173,6 +1793,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 3481,
+        "end": 3485
+      },
+      "nodeId": "3879:35539",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 3486,
         "end": 3499
       },
@@ -1223,7 +1852,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 3554,
-        "end": 3613
+        "end": 3722
       },
       "nodeId": "3879:35539",
       "property": "characters",
@@ -1236,6 +1865,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35540",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 3752,
+        "end": 3756
+      },
+      "nodeId": "3879:35540",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3752,
+        "end": 3756
+      },
+      "nodeId": "3879:35540",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1253,6 +1900,33 @@ expression: output.source_map
       },
       "nodeId": "3879:35540",
       "property": "cornerRadius",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3835,
+        "end": 3843
+      },
+      "nodeId": "3879:35540",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3835,
+        "end": 3843
+      },
+      "nodeId": "3879:35540",
+      "property": "paddingLeft",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 3835,
+        "end": 3843
+      },
+      "nodeId": "3879:35540",
+      "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
@@ -1301,6 +1975,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 3942,
+        "end": 3945
+      },
+      "nodeId": "3879:35541",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 3960,
         "end": 3975
       },
@@ -1320,12 +2003,41 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 3990,
+        "end": 4000
+      },
+      "nodeId": "3879:35542",
+      "property": "fills",
+      "variableId": "VariableID:1:998",
+      "resolution": "variable-token"
+    },
+    {
+      "generatedRange": {
+        "start": 4015,
+        "end": 4029
+      },
+      "nodeId": "3879:35541",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 4015,
         "end": 4029
       },
       "nodeId": "3879:35541",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4044,
+        "end": 4077
+      },
+      "nodeId": "3879:35542",
+      "property": "node",
+      "assetId": "3879:35542:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -1338,7 +2050,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 4294,
-        "end": 4298
+        "end": 4300
+      },
+      "nodeId": "3879:35543",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4294,
+        "end": 4300
       },
       "nodeId": "3879:35543",
       "property": "type",
@@ -1355,7 +2076,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 4311,
-        "end": 4313
+        "end": 4317
+      },
+      "nodeId": "3879:35544",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4311,
+        "end": 4317
       },
       "nodeId": "3879:35544",
       "property": "type",
@@ -1368,6 +2098,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35545",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 4330,
+        "end": 4334
+      },
+      "nodeId": "3879:35545",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4330,
+        "end": 4334
+      },
+      "nodeId": "3879:35545",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1408,6 +2156,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 4456,
+        "end": 4465
+      },
+      "nodeId": "3879:35545",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4478,
+        "end": 4487
+      },
+      "nodeId": "3879:35545",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 4478,
         "end": 4487
       },
@@ -1431,6 +2197,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35545;1690:32933",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 4535,
+        "end": 4539
+      },
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1500,6 +2275,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 4658,
+        "end": 4662
+      },
+      "nodeId": "I3879:35545;1690:32948",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4658,
+        "end": 4662
+      },
+      "nodeId": "I3879:35545;1690:32948",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 4663,
         "end": 4682
       },
@@ -1526,6 +2319,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 4709,
+        "end": 4714
+      },
+      "nodeId": "I3879:35545;1690:32934",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 4715,
         "end": 4730
       },
@@ -1539,8 +2341,57 @@ expression: output.source_map
         "end": 4745
       },
       "nodeId": "I3879:35545;1690:32934",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4731,
+        "end": 4745
+      },
+      "nodeId": "I3879:35545;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4746,
+        "end": 4768
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2032",
+      "property": "node",
+      "assetId": "I3879:35545;1690:32934;17:2032:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 4746,
+        "end": 4768
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2034",
+      "property": "node",
+      "assetId": "I3879:35545;1690:32934;17:2034:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 4746,
+        "end": 4768
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2036",
+      "property": "node",
+      "assetId": "I3879:35545;1690:32934;17:2036:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 4746,
+        "end": 4768
+      },
+      "nodeId": "I3879:35545;1690:32934;17:2038",
+      "property": "node",
+      "assetId": "I3879:35545;1690:32934;17:2038:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -1549,6 +2400,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35545;1690:32947",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 4787,
+        "end": 4791
+      },
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1628,6 +2488,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 4958,
+        "end": 4964
+      },
+      "nodeId": "3879:35546",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4958,
+        "end": 4964
+      },
+      "nodeId": "3879:35546",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 4965,
         "end": 4990
       },
@@ -1647,6 +2525,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 4991,
+        "end": 5000
+      },
+      "nodeId": "3879:35546",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5001,
+        "end": 5010
+      },
+      "nodeId": "3879:35546",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 5001,
         "end": 5010
       },
@@ -1661,6 +2557,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35547",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 5025,
+        "end": 5029
+      },
+      "nodeId": "3879:35547",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1740,7 +2645,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 5201,
-        "end": 5203
+        "end": 5207
+      },
+      "nodeId": "3879:35548",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5201,
+        "end": 5207
       },
       "nodeId": "3879:35548",
       "property": "type",
@@ -1753,6 +2667,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35549",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 5220,
+        "end": 5224
+      },
+      "nodeId": "3879:35549",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5220,
+        "end": 5224
+      },
+      "nodeId": "3879:35549",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1793,6 +2725,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 5346,
+        "end": 5355
+      },
+      "nodeId": "3879:35549",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5368,
+        "end": 5377
+      },
+      "nodeId": "3879:35549",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 5368,
         "end": 5377
       },
@@ -1816,6 +2766,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35549;1690:32933",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 5425,
+        "end": 5429
+      },
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -1885,6 +2844,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 5549,
+        "end": 5553
+      },
+      "nodeId": "I3879:35549;1690:32948",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5549,
+        "end": 5553
+      },
+      "nodeId": "I3879:35549;1690:32948",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 5554,
         "end": 5573
       },
@@ -1911,6 +2888,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 5600,
+        "end": 5605
+      },
+      "nodeId": "I3879:35549;1690:32934",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 5606,
         "end": 5621
       },
@@ -1924,8 +2910,57 @@ expression: output.source_map
         "end": 5636
       },
       "nodeId": "I3879:35549;1690:32934",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5622,
+        "end": 5636
+      },
+      "nodeId": "I3879:35549;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5637,
+        "end": 5659
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2032",
+      "property": "node",
+      "assetId": "I3879:35549;1690:32934;17:2032:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 5637,
+        "end": 5659
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2034",
+      "property": "node",
+      "assetId": "I3879:35549;1690:32934;17:2034:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 5637,
+        "end": 5659
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2036",
+      "property": "node",
+      "assetId": "I3879:35549;1690:32934;17:2036:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 5637,
+        "end": 5659
+      },
+      "nodeId": "I3879:35549;1690:32934;17:2038",
+      "property": "node",
+      "assetId": "I3879:35549;1690:32934;17:2038:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -1934,6 +2969,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35549;1690:32947",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 5678,
+        "end": 5682
+      },
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2013,6 +3057,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 5849,
+        "end": 5855
+      },
+      "nodeId": "3879:35550",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5849,
+        "end": 5855
+      },
+      "nodeId": "3879:35550",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 5856,
         "end": 5881
       },
@@ -2041,6 +3103,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 5899,
+        "end": 5908
+      },
+      "nodeId": "3879:35550",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5909,
+        "end": 5918
+      },
+      "nodeId": "3879:35550",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 5909,
         "end": 5918
       },
@@ -2055,6 +3135,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35551",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 5933,
+        "end": 5937
+      },
+      "nodeId": "3879:35551",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2117,7 +3206,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 6015,
-        "end": 6330
+        "end": 6744
       },
       "nodeId": "3879:35551",
       "property": "characters",
@@ -2134,7 +3223,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 6812,
-        "end": 6814
+        "end": 6818
+      },
+      "nodeId": "3879:35552",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 6812,
+        "end": 6818
       },
       "nodeId": "3879:35552",
       "property": "type",
@@ -2147,6 +3245,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35553",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 6831,
+        "end": 6835
+      },
+      "nodeId": "3879:35553",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 6831,
+        "end": 6835
+      },
+      "nodeId": "3879:35553",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2187,6 +3303,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 6957,
+        "end": 6966
+      },
+      "nodeId": "3879:35553",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 6979,
+        "end": 6988
+      },
+      "nodeId": "3879:35553",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 6979,
         "end": 6988
       },
@@ -2210,6 +3344,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35553;1690:32933",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 7036,
+        "end": 7040
+      },
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2279,6 +3422,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 7160,
+        "end": 7164
+      },
+      "nodeId": "I3879:35553;1690:32948",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 7160,
+        "end": 7164
+      },
+      "nodeId": "I3879:35553;1690:32948",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 7165,
         "end": 7184
       },
@@ -2305,6 +3466,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 7211,
+        "end": 7216
+      },
+      "nodeId": "I3879:35553;1690:32934",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 7217,
         "end": 7232
       },
@@ -2318,8 +3488,57 @@ expression: output.source_map
         "end": 7247
       },
       "nodeId": "I3879:35553;1690:32934",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 7233,
+        "end": 7247
+      },
+      "nodeId": "I3879:35553;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 7248,
+        "end": 7270
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2032",
+      "property": "node",
+      "assetId": "I3879:35553;1690:32934;17:2032:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 7248,
+        "end": 7270
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2034",
+      "property": "node",
+      "assetId": "I3879:35553;1690:32934;17:2034:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 7248,
+        "end": 7270
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2036",
+      "property": "node",
+      "assetId": "I3879:35553;1690:32934;17:2036:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 7248,
+        "end": 7270
+      },
+      "nodeId": "I3879:35553;1690:32934;17:2038",
+      "property": "node",
+      "assetId": "I3879:35553;1690:32934;17:2038:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -2328,6 +3547,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35553;1690:32947",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 7289,
+        "end": 7293
+      },
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2407,6 +3635,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 7460,
+        "end": 7466
+      },
+      "nodeId": "3879:35554",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 7460,
+        "end": 7466
+      },
+      "nodeId": "3879:35554",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 7467,
         "end": 7492
       },
@@ -2435,6 +3681,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 7510,
+        "end": 7519
+      },
+      "nodeId": "3879:35554",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 7520,
+        "end": 7529
+      },
+      "nodeId": "3879:35554",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 7520,
         "end": 7529
       },
@@ -2449,6 +3713,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35555",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 7544,
+        "end": 7548
+      },
+      "nodeId": "3879:35555",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2511,7 +3784,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 7626,
-        "end": 7639
+        "end": 8109
       },
       "nodeId": "3879:35555",
       "property": "characters",
@@ -2549,6 +3822,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 8195,
+        "end": 8206
+      },
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
+        "start": 8243,
+        "end": 8662
+      },
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 8683,
         "end": 8704
       },
@@ -2579,6 +3870,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 8748,
+        "end": 8759
+      },
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
+        "start": 8796,
+        "end": 8835
+      },
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 8898,
         "end": 11146
       },
@@ -2588,7 +3897,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 8903,
-        "end": 8905
+        "end": 8909
+      },
+      "nodeId": "3879:35556",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 8903,
+        "end": 8909
       },
       "nodeId": "3879:35556",
       "property": "type",
@@ -2601,6 +3919,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35557",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 8922,
+        "end": 8926
+      },
+      "nodeId": "3879:35557",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 8922,
+        "end": 8926
+      },
+      "nodeId": "3879:35557",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2641,6 +3977,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 9048,
+        "end": 9057
+      },
+      "nodeId": "3879:35557",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9070,
+        "end": 9079
+      },
+      "nodeId": "3879:35557",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 9070,
         "end": 9079
       },
@@ -2664,6 +4018,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35557;1690:32933",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 9127,
+        "end": 9131
+      },
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2733,6 +4096,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 9251,
+        "end": 9255
+      },
+      "nodeId": "I3879:35557;1690:32948",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9251,
+        "end": 9255
+      },
+      "nodeId": "I3879:35557;1690:32948",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 9256,
         "end": 9275
       },
@@ -2759,6 +4140,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 9302,
+        "end": 9307
+      },
+      "nodeId": "I3879:35557;1690:32934",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 9308,
         "end": 9323
       },
@@ -2772,8 +4162,57 @@ expression: output.source_map
         "end": 9338
       },
       "nodeId": "I3879:35557;1690:32934",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9324,
+        "end": 9338
+      },
+      "nodeId": "I3879:35557;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9339,
+        "end": 9361
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2032",
+      "property": "node",
+      "assetId": "I3879:35557;1690:32934;17:2032:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 9339,
+        "end": 9361
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2034",
+      "property": "node",
+      "assetId": "I3879:35557;1690:32934;17:2034:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 9339,
+        "end": 9361
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2036",
+      "property": "node",
+      "assetId": "I3879:35557;1690:32934;17:2036:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 9339,
+        "end": 9361
+      },
+      "nodeId": "I3879:35557;1690:32934;17:2038",
+      "property": "node",
+      "assetId": "I3879:35557;1690:32934;17:2038:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -2782,6 +4221,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35557;1690:32947",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 9380,
+        "end": 9384
+      },
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2861,6 +4309,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 9551,
+        "end": 9557
+      },
+      "nodeId": "3879:35558",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9551,
+        "end": 9557
+      },
+      "nodeId": "3879:35558",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 9558,
         "end": 9583
       },
@@ -2889,6 +4355,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 9601,
+        "end": 9610
+      },
+      "nodeId": "3879:35558",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9611,
+        "end": 9620
+      },
+      "nodeId": "3879:35558",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 9611,
         "end": 9620
       },
@@ -2903,6 +4387,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35559",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 9635,
+        "end": 9639
+      },
+      "nodeId": "3879:35559",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -2965,7 +4458,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 9717,
-        "end": 10186
+        "end": 11088
       },
       "nodeId": "3879:35559",
       "property": "characters",
@@ -2982,7 +4475,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 11156,
-        "end": 11158
+        "end": 11162
+      },
+      "nodeId": "3879:35560",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11156,
+        "end": 11162
       },
       "nodeId": "3879:35560",
       "property": "type",
@@ -2995,6 +4497,24 @@ expression: output.source_map
       },
       "nodeId": "3879:35561",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 11175,
+        "end": 11179
+      },
+      "nodeId": "3879:35561",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11175,
+        "end": 11179
+      },
+      "nodeId": "3879:35561",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -3035,6 +4555,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 11301,
+        "end": 11310
+      },
+      "nodeId": "3879:35561",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11323,
+        "end": 11332
+      },
+      "nodeId": "3879:35561",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 11323,
         "end": 11332
       },
@@ -3058,6 +4596,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35561;1690:32933",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 11380,
+        "end": 11384
+      },
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -3127,6 +4674,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 11504,
+        "end": 11508
+      },
+      "nodeId": "I3879:35561;1690:32948",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11504,
+        "end": 11508
+      },
+      "nodeId": "I3879:35561;1690:32948",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 11509,
         "end": 11528
       },
@@ -3153,6 +4718,15 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 11555,
+        "end": 11560
+      },
+      "nodeId": "I3879:35561;1690:32934",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 11561,
         "end": 11576
       },
@@ -3166,8 +4740,57 @@ expression: output.source_map
         "end": 11591
       },
       "nodeId": "I3879:35561;1690:32934",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11577,
+        "end": 11591
+      },
+      "nodeId": "I3879:35561;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11592,
+        "end": 11614
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2032",
+      "property": "node",
+      "assetId": "I3879:35561;1690:32934;17:2032:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 11592,
+        "end": 11614
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2034",
+      "property": "node",
+      "assetId": "I3879:35561;1690:32934;17:2034:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 11592,
+        "end": 11614
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2036",
+      "property": "node",
+      "assetId": "I3879:35561;1690:32934;17:2036:node",
+      "resolution": "asset"
+    },
+    {
+      "generatedRange": {
+        "start": 11592,
+        "end": 11614
+      },
+      "nodeId": "I3879:35561;1690:32934;17:2038",
+      "property": "node",
+      "assetId": "I3879:35561;1690:32934;17:2038:node",
+      "resolution": "asset"
     },
     {
       "generatedRange": {
@@ -3176,6 +4799,15 @@ expression: output.source_map
       },
       "nodeId": "I3879:35561;1690:32947",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 11633,
+        "end": 11637
+      },
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -3255,6 +4887,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 11804,
+        "end": 11810
+      },
+      "nodeId": "3879:35562",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11804,
+        "end": 11810
+      },
+      "nodeId": "3879:35562",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
         "start": 11811,
         "end": 11836
       },
@@ -3283,6 +4933,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 11854,
+        "end": 11863
+      },
+      "nodeId": "3879:35562",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 11864,
+        "end": 11873
+      },
+      "nodeId": "3879:35562",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 11864,
         "end": 11873
       },
@@ -3297,6 +4965,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35563",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 11888,
+        "end": 11892
+      },
+      "nodeId": "3879:35563",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -3359,7 +5036,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 11970,
-        "end": 12361
+        "end": 13512
       },
       "nodeId": "3879:35563",
       "property": "characters",
@@ -3376,7 +5053,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 13594,
-        "end": 13596
+        "end": 13598
+      },
+      "nodeId": "3879:35564",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 13594,
+        "end": 13598
       },
       "nodeId": "3879:35564",
       "property": "type",
@@ -3467,6 +5153,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 13835,
+        "end": 13844
+      },
+      "nodeId": "3879:35564",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 13853,
+        "end": 13861
+      },
+      "nodeId": "3879:35564",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 13853,
         "end": 13861
       },
@@ -3494,7 +5198,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 13896,
-        "end": 13898
+        "end": 13902
+      },
+      "nodeId": "3879:35565",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 13896,
+        "end": 13902
       },
       "nodeId": "3879:35565",
       "property": "type",
@@ -3540,6 +5253,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 14008,
+        "end": 14017
+      },
+      "nodeId": "3879:35565",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 14028,
+        "end": 14037
+      },
+      "nodeId": "3879:35565",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 14028,
         "end": 14037
       },
@@ -3554,6 +5285,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35566",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 14059,
+        "end": 14063
+      },
+      "nodeId": "3879:35566",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {
@@ -3624,7 +5364,16 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 14197,
-        "end": 14199
+        "end": 14203
+      },
+      "nodeId": "3879:35567",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 14197,
+        "end": 14203
       },
       "nodeId": "3879:35567",
       "property": "type",
@@ -3660,6 +5409,24 @@ expression: output.source_map
     },
     {
       "generatedRange": {
+        "start": 14238,
+        "end": 14247
+      },
+      "nodeId": "3879:35567",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 14248,
+        "end": 14257
+      },
+      "nodeId": "3879:35567",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
         "start": 14248,
         "end": 14257
       },
@@ -3674,6 +5441,15 @@ expression: output.source_map
       },
       "nodeId": "3879:35568",
       "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 14270,
+        "end": 14274
+      },
+      "nodeId": "3879:35568",
+      "property": "type",
+      "resolution": "exact"
     },
     {
       "generatedRange": {

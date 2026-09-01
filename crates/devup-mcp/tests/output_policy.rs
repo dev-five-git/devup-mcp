@@ -1,7 +1,7 @@
 use std::{
-    fs,
+    fs::{self, File, FileTimes},
     path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use devup_mcp::server::output::{OutputPolicy, OutputTransaction};
@@ -141,6 +141,51 @@ fn rejects_duplicate_targets_before_replacing_any_file() -> anyhow::Result<()> {
 
     assert!(duplicate.is_err());
     assert_eq!(fs::read(&original)?, b"original");
+    drop(transaction);
+    drop(policy);
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[test]
+fn staging_never_deletes_preexisting_internal_looking_siblings() -> anyhow::Result<()> {
+    let root = unique_temp_dir("transaction-ttl-cleanup")?;
+    let nested = root.join("nested");
+    fs::create_dir_all(&nested)?;
+    let expired_temp = nested.join(".devup-tmp-00000000000000000000000000000000");
+    let expired_backup = nested.join(".devup-bak-11111111111111111111111111111111");
+    let recent_temp = nested.join(".devup-tmp-22222222222222222222222222222222");
+    let user_file = nested.join(".devup-tmp-user.txt");
+    let other_directory = root.join("other");
+    fs::create_dir_all(&other_directory)?;
+    let untouched = other_directory.join(".devup-bak-33333333333333333333333333333333");
+    for path in [
+        &expired_temp,
+        &expired_backup,
+        &recent_temp,
+        &user_file,
+        &untouched,
+    ] {
+        fs::write(path, b"sentinel")?;
+    }
+    let old = SystemTime::now() - Duration::from_secs(25 * 60 * 60);
+    for path in [&expired_temp, &expired_backup, &user_file, &untouched] {
+        File::options()
+            .write(true)
+            .open(path)?
+            .set_times(FileTimes::new().set_modified(old))?;
+    }
+    let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+    let mut transaction = OutputTransaction::new();
+
+    transaction.stage("tsx", policy.resolve("nested/Component.tsx")?, b"new")?;
+
+    assert!(expired_temp.exists());
+    assert!(expired_backup.exists());
+    assert!(recent_temp.exists());
+    assert!(user_file.exists());
+    assert!(untouched.exists());
+
     drop(transaction);
     drop(policy);
     fs::remove_dir_all(root)?;

@@ -339,6 +339,7 @@ pub fn generate_devup_json(
             property: None,
             variable_id: Some(winner.variable_id.clone()),
             style_id: None,
+            asset_id: None,
             resolution: winner.resolution.clone(),
         });
         if candidates
@@ -411,6 +412,7 @@ pub fn generate_devup_json(
                     property: None,
                     variable_id: None,
                     style_id: Some(style.id.clone()),
+                    asset_id: None,
                     resolution: "style".to_owned(),
                 });
             }
@@ -426,6 +428,7 @@ pub fn generate_devup_json(
                     property: None,
                     variable_id: None,
                     style_id: Some(style.id.clone()),
+                    asset_id: None,
                     resolution: "style".to_owned(),
                 });
             }

@@ -198,7 +198,7 @@ pub fn generate_component_set_target(
     if let Some(set) = component_set
         && let Some(output) = variant::generate_variant_component_set(snapshot, &set.id, options)?
     {
-        return validate_codegen_output(output);
+        return finalize_codegen_output(output, snapshot, options, &set.id);
     }
     let target_id = if main {
         let default_name = root_view
@@ -234,15 +234,21 @@ pub fn generate_component_set_target(
         )
     })?;
 
-    let generated = if main {
+    let (generated, provenance_root_id) = if main {
         match generate_component_asset_child(snapshot, target_id, options) {
             Some(output) => output?,
-            None => generate_node(snapshot, target_id, options)?,
+            None => (
+                generate_node_marked(snapshot, target_id, options)?,
+                target_id.to_owned(),
+            ),
         }
     } else {
-        generate_node(snapshot, target_id, options)?
+        (
+            generate_node_marked(snapshot, target_id, options)?,
+            target_id.to_owned(),
+        )
     };
-    let code = if !main && generated.tsx.trim() == "<Box />" {
+    let code = if !main && generated.tsx.contains("<Box />") {
         generated.tsx.replace("<Box />", "<Box boxSize=\"100%\" />")
     } else {
         generated.tsx.clone()
@@ -256,10 +262,15 @@ pub fn generate_component_set_target(
     } else {
         Vec::new()
     };
-    validate_codegen_output(CodegenOutput {
-        tsx: render_component_source(&legacy_component_name(target_name), &code, &variants),
-        ..generated
-    })
+    finalize_codegen_output(
+        CodegenOutput {
+            tsx: render_component_source(&legacy_component_name(target_name), &code, &variants),
+            ..generated
+        },
+        snapshot,
+        options,
+        &provenance_root_id,
+    )
 }
 
 pub fn generate_inlined_component_instance(
@@ -351,8 +362,9 @@ pub fn generate_inlined_component_instance(
             );
         }
     }
-    let mut output = generate_node(&projected, &selected.id, options)?;
+    let mut output = generate_node_marked(&projected, &selected.id, options)?;
     if let Some(close) = output.tsx.rfind("\n/>") {
+        let suffix = output.tsx[close + 3..].to_owned();
         let mut lines = output.tsx[..close]
             .lines()
             .map(str::to_owned)
@@ -363,21 +375,21 @@ pub fn generate_inlined_component_instance(
             }
         }
         lines[1..].sort();
-        output.tsx = format!("{}\n/>", lines.join("\n"));
+        output.tsx = format!("{}\n/>{suffix}", lines.join("\n"));
     }
     let usage = selected_variants
         .iter()
         .map(|(key, value)| format!(" {key}=\"{value}\""))
         .collect::<String>();
     output.tsx = format!("{{/* <{name}{usage} /> */}}\n{}", output.tsx);
-    validate_codegen_output(output)
+    finalize_codegen_output(output, &projected, options, &selected.id)
 }
 
 fn generate_component_asset_child(
     snapshot: &Snapshot,
     component_id: &str,
     options: &CodegenOptions,
-) -> Option<Result<CodegenOutput, DevupError>> {
+) -> Option<Result<(CodegenOutput, String), DevupError>> {
     let component = snapshot.nodes.get(component_id)?;
     let children = component.typed_view().child_ids().collect::<Vec<_>>();
     if children.len() != 1 {
@@ -405,7 +417,10 @@ fn generate_component_asset_child(
         "layoutSizingVertical".to_owned(),
         serde_json::Value::String("FIXED".to_owned()),
     );
-    Some(generate_node(&projected, child_id, options))
+    Some(
+        generate_node_marked(&projected, child_id, options)
+            .map(|output| (output, child_id.to_owned())),
+    )
 }
 
 pub fn render_component_registration_snapshot(
@@ -995,14 +1010,10 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
+    validate_tsx(&output.tsx)?;
     output.projection_trace =
         build_projection_trace(snapshot, root_id, &output.tsx, &output.source_map);
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
-    validate_codegen_output(output)
-}
-
-fn validate_codegen_output(output: CodegenOutput) -> Result<CodegenOutput, DevupError> {
-    validate_tsx(&output.tsx)?;
     Ok(output)
 }
 

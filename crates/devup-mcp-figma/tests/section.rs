@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use devup_mcp_figma::{
-    BatchLimits, FigmaTarget, RawNode, SectionIndex, Snapshot, build_section_index, plan_batches,
+    BatchLimits, ExploreBounds, FigmaTarget, RawNode, SectionCandidate, SectionIndex,
+    SectionSummary, Snapshot, build_section_index, plan_batches,
 };
 use serde_json::{Map, json};
 
@@ -93,6 +94,77 @@ fn selection_and_batches_are_strict_bounded_and_deterministic() -> anyhow::Resul
     assert_eq!(oversized.len(), 1);
     assert!(oversized[0].oversized);
     Ok(())
+}
+
+#[test]
+fn packing_uses_two_balanced_batches_for_a_nontrivial_visual_sequence() -> anyhow::Result<()> {
+    let index = packing_index(&[4, 4, 6, 6]);
+    let selected = index
+        .candidates
+        .iter()
+        .map(|candidate| candidate.node_id.clone())
+        .collect::<Vec<_>>();
+
+    let batches = plan_batches(
+        &index,
+        &selected,
+        BatchLimits {
+            max_estimated_bytes: 10,
+            max_nodes: 10,
+        },
+    )?;
+
+    assert_eq!(batches.len(), 2);
+    assert_eq!(batches[0].root_ids, ["root-0", "root-2"]);
+    assert_eq!(batches[1].root_ids, ["root-1", "root-3"]);
+    assert!(
+        batches
+            .iter()
+            .all(|batch| batch.estimated_bytes == 10 && batch.node_count == 10)
+    );
+    Ok(())
+}
+
+fn packing_index(weights: &[usize]) -> SectionIndex {
+    let bounds = ExploreBounds {
+        x: 0.0,
+        y: 0.0,
+        width: 100.0,
+        height: 100.0,
+    };
+    SectionIndex {
+        file_key: "FileKey123".to_owned(),
+        source_version: Some("v1".to_owned()),
+        section: SectionSummary {
+            node_id: "section".to_owned(),
+            name: "Section".to_owned(),
+            bounds,
+        },
+        candidates: weights
+            .iter()
+            .enumerate()
+            .map(|(index, weight)| SectionCandidate {
+                node_id: format!("root-{index}"),
+                name: format!("Root {index}"),
+                node_type: "FRAME".to_owned(),
+                visible: true,
+                bounds: ExploreBounds {
+                    y: index as f64 * 120.0,
+                    ..bounds
+                },
+                parent_id: Some("section".to_owned()),
+                breadcrumb: vec!["Section".to_owned(), format!("Root {index}")],
+                direct_child_count: 0,
+                subtree_node_count: *weight,
+                estimated_serialized_bytes: *weight,
+                selection_reasons: vec!["screen-like".to_owned()],
+                canonical_url: format!(
+                    "https://www.figma.com/design/FileKey123/devup?node-id=root-{index}"
+                ),
+            })
+            .collect(),
+        truncated: false,
+    }
 }
 
 fn fixture_snapshot() -> Snapshot {

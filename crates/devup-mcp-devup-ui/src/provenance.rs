@@ -32,6 +32,8 @@ pub struct ProvenanceEntry {
     pub variable_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_id: Option<String>,
     pub resolution: String,
 }
 
@@ -184,6 +186,10 @@ pub(crate) fn build_projection_trace(
             } else if parent_id.as_ref().is_some_and(|parent_id| {
                 asset_nodes.contains(parent_id)
                     || represented_by_parent.contains(parent_id)
+                    || is_variant_component(snapshot, parent_id)
+                    || snapshot.nodes.get(parent_id).is_some_and(|parent| {
+                        parent.node_type == "COMPONENT_SET" && emitted.contains_key(parent_id)
+                    })
                     || snapshot.nodes.get(parent_id).is_some_and(|parent| {
                         parent.node_type == "INSTANCE"
                             || parent.typed_view().bool("isAsset") == Some(true)
@@ -222,6 +228,26 @@ pub(crate) fn build_projection_trace(
         root_node_id: root_id.to_owned(),
         entries,
     }
+}
+
+fn is_variant_component(snapshot: &Snapshot, node_id: &str) -> bool {
+    let Some(node) = snapshot.nodes.get(node_id) else {
+        return false;
+    };
+    if node.node_type != "COMPONENT" {
+        return false;
+    }
+    node.typed_view()
+        .string("parentId")
+        .and_then(|parent_id| snapshot.nodes.get(parent_id))
+        .is_some_and(|parent| parent.node_type == "COMPONENT_SET")
+        || snapshot.nodes.values().any(|parent| {
+            parent.node_type == "COMPONENT_SET"
+                && parent
+                    .typed_view()
+                    .child_ids()
+                    .any(|child| child == node_id)
+        })
 }
 
 pub fn validate_fidelity(
@@ -269,14 +295,8 @@ pub fn validate_fidelity(
         ));
     }
 
-    let active_non_ignored = output
-        .projection_trace
-        .entries
-        .iter()
-        .filter(|entry| entry.disposition != ProjectionDisposition::Ignored)
-        .map(|entry| entry.node_id.as_str())
-        .collect::<BTreeSet<_>>();
-    let text_nodes = active_non_ignored
+    let semantic_nodes = semantic_nodes(snapshot, root_id);
+    let text_nodes = semantic_nodes
         .iter()
         .filter(|node_id| {
             snapshot
@@ -286,31 +306,42 @@ pub fn validate_fidelity(
         })
         .copied()
         .collect::<BTreeSet<_>>();
-    let covered_text = text_nodes
+    let text_segments = text_sources(snapshot, &text_nodes);
+    let mut consumed_text_entries = BTreeSet::new();
+    let covered_text = text_segments
         .iter()
-        .filter(|node_id| {
-            snapshot
-                .nodes
-                .get(**node_id)
-                .and_then(|node| node.typed_view().string("characters"))
-                .is_none_or(str::is_empty)
-                || output.source_map.entries.iter().any(|entry| {
-                    entry.node_id.as_deref() == Some(**node_id)
+        .filter(|(node_id, characters)| {
+            output
+                .source_map
+                .entries
+                .iter()
+                .enumerate()
+                .find(|(index, entry)| {
+                    !consumed_text_entries.contains(index)
+                        && entry.node_id.as_deref() == Some(node_id.as_str())
                         && entry.property.as_deref() == Some("characters")
+                        && entry_range(entry, &output.tsx)
+                            .is_some_and(|source| source_covers_text(source, characters))
                 })
+                .is_some_and(|(index, _)| consumed_text_entries.insert(index))
         })
         .count();
-    let variables = output
-        .source_map
-        .entries
+    let variables = variable_sources(snapshot, &semantic_nodes);
+    let covered_variables = variables
         .iter()
-        .filter_map(|entry| {
-            entry
-                .variable_id
-                .as_deref()
-                .map(|id| (entry.node_id.as_deref(), id))
+        .filter(|(node_id, variable_id)| {
+            output.source_map.entries.iter().any(|entry| {
+                entry.node_id.as_deref() == Some(node_id.as_str())
+                    && entry.variable_id.as_deref() == Some(variable_id.as_str())
+                    && entry.resolution == "variable-token"
+                    && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        !source.contains(['<', '>', '\n'])
+                            && source.contains('$')
+                            && source.ends_with('"')
+                    })
+            })
         })
-        .collect::<BTreeSet<_>>();
+        .count();
     let typography = typography_sources(snapshot, &text_nodes);
     let covered_typography = typography
         .iter()
@@ -318,33 +349,63 @@ pub fn validate_fidelity(
             output.source_map.entries.iter().any(|entry| {
                 entry.node_id.as_deref() == Some(*node_id)
                     && entry.style_id.as_deref() == Some(*style_id)
+                    && entry.resolution == "style-token"
+                    && entry_range(entry, &output.tsx)
+                        .is_some_and(|source| source.starts_with("typography=\""))
             })
         })
         .count();
     let assets = discover_asset_manifest(snapshot)
         .assets
         .into_iter()
-        .filter(|asset| active_non_ignored.contains(asset.node_id.as_str()))
-        .map(|asset| asset.node_id)
+        .filter(|asset| semantic_nodes.contains(asset.node_id.as_str()))
+        .map(|asset| (asset.node_id, asset.asset_id))
         .collect::<BTreeSet<_>>();
     let covered_assets = assets
         .iter()
-        .filter(|node_id| observed.contains(*node_id))
-        .count();
-    let layout_nodes = active_non_ignored
-        .iter()
-        .filter(|node_id| {
-            snapshot.nodes.get(**node_id).is_some_and(|node| {
-                LAYOUT_FIELDS
-                    .iter()
-                    .any(|field| node.typed_view().value(field).is_some())
+        .filter(|(node_id, asset_id)| {
+            output.source_map.entries.iter().any(|entry| {
+                entry.node_id.as_deref() == Some(node_id.as_str())
+                    && entry.asset_id.as_deref() == Some(asset_id.as_str())
+                    && entry.resolution == "asset"
+                    && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        source.starts_with("src=\"")
+                            || source.starts_with("maskImage=\"")
+                            || (source.starts_with("bg=\"") && source.contains("url("))
+                    })
             })
         })
-        .copied()
+        .count();
+    let asset_nodes = snapshot
+        .nodes
+        .values()
+        .filter(|node| projects_as_asset(snapshot, node))
+        .map(|node| node.id.clone())
         .collect::<BTreeSet<_>>();
-    let covered_layout = layout_nodes
+    let parents = source_parents(snapshot);
+    let layout = semantic_nodes
         .iter()
-        .filter(|node_id| observed.contains(**node_id))
+        .filter(|node_id| !has_asset_ancestor(node_id, &parents, &asset_nodes))
+        .flat_map(|node_id| {
+            LAYOUT_FIELDS.iter().filter_map(|field| {
+                snapshot
+                    .nodes
+                    .get(*node_id)
+                    .filter(|node| layout_field_is_semantic(snapshot, node, field))
+                    .map(|_| ((*node_id).to_owned(), (*field).to_owned()))
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let covered_layout = layout
+        .iter()
+        .filter(|(node_id, property)| {
+            output.source_map.entries.iter().any(|entry| {
+                entry.node_id.as_deref() == Some(node_id.as_str())
+                    && entry.property.as_deref() == Some(property.as_str())
+                    && entry_range(entry, &output.tsx)
+                        .is_some_and(|source| layout_source_matches(property, source))
+            })
+        })
         .count();
     let mut impacts = FidelityImpactCounts::default();
     for diagnostic in &output.diagnostics {
@@ -358,13 +419,357 @@ pub fn validate_fidelity(
     Ok(FidelityReport {
         syntax_valid: true,
         nodes: FidelityCoverage::new(expected.len(), observed.len()),
-        text: FidelityCoverage::new(text_nodes.len(), covered_text),
-        variables: FidelityCoverage::new(variables.len(), variables.len()),
+        text: FidelityCoverage::new(text_segments.len(), covered_text),
+        variables: FidelityCoverage::new(variables.len(), covered_variables),
         typography: FidelityCoverage::new(typography.len(), covered_typography),
         assets: FidelityCoverage::new(assets.len(), covered_assets),
-        layout: FidelityCoverage::new(layout_nodes.len(), covered_layout),
+        layout: FidelityCoverage::new(layout.len(), covered_layout),
         impacts,
     })
+}
+
+fn has_asset_ancestor(
+    node_id: &str,
+    parents: &BTreeMap<String, String>,
+    asset_nodes: &BTreeSet<String>,
+) -> bool {
+    let mut parent = parents.get(node_id).map(String::as_str);
+    while let Some(parent_id) = parent {
+        if asset_nodes.contains(parent_id) {
+            return true;
+        }
+        parent = parents.get(parent_id).map(String::as_str);
+    }
+    false
+}
+
+fn layout_field_is_semantic(
+    snapshot: &Snapshot,
+    node: &devup_mcp_figma::RawNode,
+    field: &str,
+) -> bool {
+    let view = node.typed_view();
+    let component_set_parent = view
+        .string("parentId")
+        .and_then(|parent_id| snapshot.nodes.get(parent_id))
+        .is_some_and(|parent| parent.node_type == "COMPONENT_SET")
+        || snapshot.nodes.values().any(|parent| {
+            parent.node_type == "COMPONENT_SET"
+                && parent
+                    .typed_view()
+                    .child_ids()
+                    .any(|child| child == node.id)
+        });
+    let component_canvas_dimension = matches!(field, "width" | "height") && component_set_parent;
+    if component_canvas_dimension {
+        return false;
+    }
+    match field {
+        "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
+        "layoutPositioning" => view.string(field) == Some("ABSOLUTE"),
+        "width" => {
+            view.value(field).is_some()
+                && view
+                    .string("layoutSizingHorizontal")
+                    .is_none_or(|value| value == "FIXED")
+        }
+        "height" => {
+            view.value(field).is_some()
+                && view
+                    .string("layoutSizingVertical")
+                    .is_none_or(|value| value == "FIXED")
+        }
+        "itemSpacing" => {
+            view.child_ids().count() > 1
+                && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
+                && !projects_as_asset(snapshot, node)
+                && view.number(field).is_some_and(|value| value != 0.0)
+        }
+        "paddingTop" | "paddingRight" | "paddingBottom" | "paddingLeft" => {
+            view.number(field).is_some_and(|value| value != 0.0)
+        }
+        _ => false,
+    }
+}
+
+fn projects_as_asset(snapshot: &Snapshot, node: &devup_mcp_figma::RawNode) -> bool {
+    fn nested(snapshot: &Snapshot, node: &devup_mcp_figma::RawNode) -> bool {
+        if projects_as_asset(snapshot, node) {
+            return true;
+        }
+        let view = node.typed_view();
+        if view.node_type() == "TEXT" || view.child_ids().next().is_some() {
+            return false;
+        }
+        view.value("fills")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|fills| {
+                fills.iter().all(|paint| {
+                    paint.get("visible").and_then(serde_json::Value::as_bool) == Some(false)
+                        || paint.get("type").and_then(serde_json::Value::as_str) == Some("SOLID")
+                })
+            })
+    }
+
+    let view = node.typed_view();
+    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
+        || view
+            .value("inferredAutoLayout")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(serde_json::Value::as_str)
+            == Some("GRID")
+    {
+        return false;
+    }
+    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON")
+        || (view.node_type() == "ELLIPSE"
+            && view
+                .value("arcData")
+                .and_then(|value| value.get("innerRadius"))
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(|value| value != 0.0))
+    {
+        return true;
+    }
+    let fills = view.value("fills").and_then(serde_json::Value::as_array);
+    if view.bool("isAsset") == Some(true)
+        && fills.is_some_and(|fills| {
+            (fills.len() == 1
+                && fills[0].get("type").and_then(serde_json::Value::as_str) == Some("IMAGE")
+                && fills[0]
+                    .get("scaleMode")
+                    .and_then(serde_json::Value::as_str)
+                    != Some("TILE"))
+                || (!fills.is_empty()
+                    && !fills.iter().all(|paint| {
+                        paint.get("type").and_then(serde_json::Value::as_str) == Some("SOLID")
+                            && paint.get("visible").and_then(serde_json::Value::as_bool)
+                                == Some(true)
+                    }))
+        })
+    {
+        return true;
+    }
+    let children = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .collect::<Vec<_>>();
+    if children.is_empty()
+        || (children.len() == 1
+            && !children.iter().all(|child| {
+                matches!(
+                    child.typed_view().node_type(),
+                    "VECTOR" | "STAR" | "POLYGON"
+                )
+            })
+            && matches!(
+                view.string("layoutMode"),
+                Some("HORIZONTAL" | "VERTICAL" | "GRID")
+            ))
+    {
+        return false;
+    }
+    children.into_iter().all(|child| nested(snapshot, child))
+}
+
+fn semantic_nodes<'a>(snapshot: &'a Snapshot, root_id: &str) -> BTreeSet<&'a str> {
+    let mut visible = BTreeSet::new();
+    let mut hidden = BTreeSet::new();
+    for (node_id, parent_id) in active_nodes(snapshot, root_id) {
+        let is_hidden = parent_id
+            .as_ref()
+            .is_some_and(|parent_id| hidden.contains(parent_id.as_str()))
+            || snapshot
+                .nodes
+                .get(&node_id)
+                .is_some_and(|node| node.typed_view().bool("visible") == Some(false));
+        if is_hidden {
+            hidden.insert(node_id);
+        } else if let Some((node_id, _)) = snapshot.nodes.get_key_value(&node_id) {
+            visible.insert(node_id.as_str());
+        }
+    }
+    visible
+}
+
+fn variable_sources(
+    snapshot: &Snapshot,
+    semantic_nodes: &BTreeSet<&str>,
+) -> BTreeSet<(String, String)> {
+    fn scan(node_id: &str, value: &serde_json::Value, output: &mut BTreeSet<(String, String)>) {
+        match value {
+            serde_json::Value::Object(object) => {
+                if object.get("type").and_then(serde_json::Value::as_str) == Some("VARIABLE_ALIAS")
+                    && let Some(id) = object
+                        .get("id")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|id| !id.is_empty() && *id != "figma.mixed" && *id != "MIXED")
+                {
+                    output.insert((node_id.to_owned(), id.to_owned()));
+                }
+                for child in object.values() {
+                    scan(node_id, child, output);
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for child in values {
+                    scan(node_id, child, output);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut output = BTreeSet::new();
+    for node_id in semantic_nodes {
+        if let Some(node) = snapshot.nodes.get(*node_id) {
+            for value in node.fields.values().chain(node.extra.values()) {
+                scan(node_id, value, &mut output);
+            }
+        }
+    }
+    output
+}
+
+fn text_sources(snapshot: &Snapshot, text_nodes: &BTreeSet<&str>) -> Vec<(String, String)> {
+    let mut output = Vec::new();
+    for node_id in text_nodes {
+        let Some(node) = snapshot.nodes.get(*node_id) else {
+            continue;
+        };
+        let segments = node
+            .typed_view()
+            .value("styledTextSegments")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|segment| {
+                segment
+                    .get("characters")
+                    .and_then(serde_json::Value::as_str)
+            })
+            .filter(|characters| !characters.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if segments.is_empty() {
+            if let Some(characters) = node
+                .typed_view()
+                .string("characters")
+                .filter(|characters| !characters.is_empty())
+            {
+                output.push(((*node_id).to_owned(), characters.to_owned()));
+            }
+        } else {
+            output.extend(
+                segments
+                    .into_iter()
+                    .map(|characters| ((*node_id).to_owned(), characters)),
+            );
+        }
+    }
+    output
+}
+
+fn entry_range<'a>(entry: &ProvenanceEntry, tsx: &'a str) -> Option<&'a str> {
+    let range = entry.generated_range.as_ref()?;
+    (range.start < range.end
+        && range.end <= tsx.len()
+        && tsx.is_char_boundary(range.start)
+        && tsx.is_char_boundary(range.end))
+    .then(|| &tsx[range.start..range.end])
+}
+
+fn source_covers_text(source: &str, characters: &str) -> bool {
+    if source == encode_jsx_text(characters) {
+        return true;
+    }
+    let fragments = characters
+        .split(['\r', '\n'])
+        .map(str::trim)
+        .filter(|fragment| !fragment.is_empty());
+    let mut cursor = 0;
+    for fragment in fragments {
+        let encoded = encode_jsx_text(fragment);
+        let Some(found) = source[cursor..].find(&encoded) else {
+            return false;
+        };
+        cursor += found + encoded.len();
+    }
+    cursor > 0 && cursor == source.len()
+}
+
+fn encode_jsx_text(input: &str) -> String {
+    let leading = input
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    let trailing = input
+        .chars()
+        .rev()
+        .take_while(|character| *character == ' ')
+        .count();
+    let middle_end = input.len().saturating_sub(trailing);
+    let middle = &input[leading..middle_end];
+    let mut result = String::new();
+    if leading > 0 {
+        result.push_str(&format!("{{\"{}\"}}", " ".repeat(leading)));
+    }
+    let mut characters = middle.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '{' => result.push_str("{\"{\"}"),
+            '}' => result.push_str("{\"}\"}"),
+            '&' => result.push_str("{\"&\"}"),
+            '<' => result.push_str("{\"<\"}"),
+            '>' => result.push_str("{\">\"}"),
+            '\'' => result.push_str("{\"'\"}"),
+            '\r' => {
+                if characters.peek() == Some(&'\n') {
+                    characters.next();
+                }
+                if characters.peek().is_none() {
+                    result.push_str("{\" \"}");
+                } else {
+                    result.push_str("<br />");
+                }
+            }
+            '\n' => {
+                if characters.peek().is_none() {
+                    result.push_str("{\" \"}");
+                } else {
+                    result.push_str("<br />");
+                }
+            }
+            value => result.push(value),
+        }
+    }
+    if trailing > 0 {
+        result.push_str(&format!("{{\"{}\"}}", " ".repeat(trailing)));
+    }
+    result
+}
+
+fn layout_source_matches(property: &str, source: &str) -> bool {
+    let is_prop = |name: &str| {
+        source.starts_with(&format!("{name}=\""))
+            || source.starts_with(&format!("{name}={{"))
+            || source.starts_with(&format!("\"{name}\":"))
+    };
+    match property {
+        "layoutMode" => {
+            is_prop("flexDir") || matches!(source, "VStack" | "Flex" | "Grid" | "Center")
+        }
+        "layoutPositioning" => is_prop("pos"),
+        "width" => is_prop("w") || is_prop("boxSize") || is_prop("aspectRatio"),
+        "height" => is_prop("h") || is_prop("boxSize"),
+        "itemSpacing" => is_prop("gap") || is_prop("m"),
+        "paddingTop" => is_prop("p") || is_prop("py") || is_prop("pt"),
+        "paddingRight" => is_prop("p") || is_prop("px") || is_prop("pr"),
+        "paddingBottom" => is_prop("p") || is_prop("py") || is_prop("pb"),
+        "paddingLeft" => is_prop("p") || is_prop("px") || is_prop("pl"),
+        _ => false,
+    }
 }
 
 fn active_nodes(snapshot: &Snapshot, root_id: &str) -> Vec<(String, Option<String>)> {
@@ -467,6 +872,17 @@ pub(crate) fn finalize_tsx(
     style_tokens: &BTreeMap<String, String>,
 ) -> (String, SourceMap) {
     let (tsx, node_ranges) = strip_markers(marked);
+    let emitted_ranges = node_ranges
+        .iter()
+        .cloned()
+        .collect::<BTreeMap<String, GeneratedRange>>();
+    let mut assets_by_node = BTreeMap::<String, Vec<_>>::new();
+    for asset in discover_asset_manifest(snapshot).assets {
+        assets_by_node
+            .entry(asset.node_id.clone())
+            .or_default()
+            .push(asset);
+    }
     let mut entries = Vec::new();
     for (node_id, range) in node_ranges {
         let Some(node) = snapshot.nodes.get(&node_id) else {
@@ -479,8 +895,12 @@ pub(crate) fn finalize_tsx(
             property: None,
             variable_id: None,
             style_id: None,
+            asset_id: None,
             resolution: "node".to_owned(),
         });
+        if node.node_type == "COMPONENT_SET" {
+            continue;
+        }
         let node_source = &tsx[range.start..range.end];
         let Some(open_relative) = node_source.find('<') else {
             continue;
@@ -493,7 +913,9 @@ pub(crate) fn finalize_tsx(
         let component_start = open_relative + 1;
         let component_end = opening[1..]
             .find(|character: char| character.is_whitespace() || matches!(character, '>' | '/'))
-            .map_or(opening.len(), |offset| offset + 1);
+            .map_or(open_relative + opening.len(), |offset| {
+                open_relative + offset + 1
+            });
         if component_end > component_start {
             entries.push(generated_entry(
                 range.start + component_start,
@@ -504,11 +926,59 @@ pub(crate) fn finalize_tsx(
                 None,
                 "exact",
             ));
+            if matches!(
+                node.typed_view().string("layoutMode"),
+                Some("HORIZONTAL" | "VERTICAL" | "GRID")
+            ) {
+                entries.push(generated_entry(
+                    range.start + component_start,
+                    range.start + component_end,
+                    &node_id,
+                    "layoutMode",
+                    None,
+                    None,
+                    "raw-fallback",
+                ));
+            }
+        }
+
+        let mut selector_properties = BTreeSet::new();
+        if let Some(selector) = non_default_variant_selector(snapshot, node) {
+            for (prop, property) in PROP_SOURCES {
+                let Some((start, end)) = selector_prop_range(opening, &selector, prop) else {
+                    continue;
+                };
+                selector_properties.insert(*property);
+                entries.push(generated_entry(
+                    range.start + open_relative + start,
+                    range.start + open_relative + end,
+                    &node_id,
+                    property,
+                    None,
+                    None,
+                    "variant-selector",
+                ));
+            }
         }
 
         for (prop, property) in PROP_SOURCES {
+            if selector_properties.contains(property) {
+                continue;
+            }
             let needle = format!("{prop}=\"");
             let Some(start) = find_prop(opening, &needle) else {
+                let expression = format!("{prop}={{");
+                if let Some(start) = find_prop(opening, &expression) {
+                    entries.push(generated_entry(
+                        range.start + open_relative + start,
+                        range.start + open_relative + start + expression.len(),
+                        &node_id,
+                        property,
+                        None,
+                        None,
+                        "raw-fallback",
+                    ));
+                }
                 continue;
             };
             let value_start = start + needle.len();
@@ -543,18 +1013,46 @@ pub(crate) fn finalize_tsx(
             ));
         }
 
+        if let Some(asset) = assets_by_node
+            .get(&node_id)
+            .and_then(|assets| assets.first())
+            && let Some((start, end)) = asset_prop_range(opening)
+        {
+            entries.push(ProvenanceEntry {
+                generated_range: Some(GeneratedRange {
+                    start: range.start + open_relative + start,
+                    end: range.start + open_relative + end,
+                }),
+                json_pointer: None,
+                node_id: Some(node_id.clone()),
+                property: Some(asset.field.clone()),
+                variable_id: None,
+                style_id: None,
+                asset_id: Some(asset.asset_id.clone()),
+                resolution: "asset".to_owned(),
+            });
+        }
+
         if node.node_type == "TEXT" {
             add_text_entries(
                 &tsx,
                 &range,
                 &node_id,
-                node.typed_view().string("characters").unwrap_or_default(),
+                node,
                 variable_tokens,
                 style_tokens,
                 &mut entries,
             );
         }
     }
+    add_flattened_resource_entries(
+        &tsx,
+        snapshot,
+        &emitted_ranges,
+        variable_tokens,
+        &assets_by_node,
+        &mut entries,
+    );
     entries.sort_by(|left, right| {
         let left_range = left.generated_range.as_ref();
         let right_range = right.generated_range.as_ref();
@@ -573,6 +1071,212 @@ pub(crate) fn finalize_tsx(
     )
 }
 
+fn add_flattened_resource_entries(
+    tsx: &str,
+    snapshot: &Snapshot,
+    emitted_ranges: &BTreeMap<String, GeneratedRange>,
+    variable_tokens: &BTreeMap<String, String>,
+    assets_by_node: &BTreeMap<String, Vec<devup_mcp_figma::AssetManifestEntry>>,
+    entries: &mut Vec<ProvenanceEntry>,
+) {
+    let parents = source_parents(snapshot);
+    let all_nodes = snapshot
+        .nodes
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    for (node_id, variable_id) in variable_sources(snapshot, &all_nodes) {
+        if entries.iter().any(|entry| {
+            entry.node_id.as_deref() == Some(node_id.as_str())
+                && entry.variable_id.as_deref() == Some(variable_id.as_str())
+                && entry.resolution == "variable-token"
+        }) {
+            continue;
+        }
+        let Some(token) = variable_tokens.get(&variable_id) else {
+            continue;
+        };
+        let needle = format!("${token}");
+        let mut represented_by = Some(node_id.as_str());
+        while let Some(candidate_id) = represented_by {
+            if let Some(range) = emitted_ranges.get(candidate_id) {
+                let source = &tsx[range.start..range.end];
+                if let Some((start, end)) = token_prop_range(source, &needle) {
+                    entries.push(generated_entry(
+                        range.start + start,
+                        range.start + end,
+                        &node_id,
+                        variable_property(snapshot, &node_id, &variable_id),
+                        Some(variable_id.clone()),
+                        None,
+                        "variable-token",
+                    ));
+                    break;
+                }
+            }
+            represented_by = parents.get(candidate_id).map(String::as_str);
+        }
+    }
+
+    for (node_id, assets) in assets_by_node {
+        for asset in assets {
+            if entries.iter().any(|entry| {
+                entry.node_id.as_deref() == Some(node_id.as_str())
+                    && entry.asset_id.as_deref() == Some(asset.asset_id.as_str())
+                    && entry.resolution == "asset"
+            }) {
+                continue;
+            }
+            let mut represented_by = parents.get(node_id.as_str()).map(String::as_str);
+            while let Some(candidate_id) = represented_by {
+                if let Some(range) = emitted_ranges.get(candidate_id) {
+                    let source = &tsx[range.start..range.end];
+                    if let Some((start, end)) = asset_range_in_node_source(source) {
+                        entries.push(ProvenanceEntry {
+                            generated_range: Some(GeneratedRange {
+                                start: range.start + start,
+                                end: range.start + end,
+                            }),
+                            json_pointer: None,
+                            node_id: Some(node_id.clone()),
+                            property: Some(asset.field.clone()),
+                            variable_id: None,
+                            style_id: None,
+                            asset_id: Some(asset.asset_id.clone()),
+                            resolution: "asset".to_owned(),
+                        });
+                        break;
+                    }
+                }
+                represented_by = parents.get(candidate_id).map(String::as_str);
+            }
+        }
+    }
+}
+
+fn source_parents(snapshot: &Snapshot) -> BTreeMap<String, String> {
+    let mut parents = BTreeMap::new();
+    for node in snapshot.nodes.values() {
+        for child_id in node.typed_view().child_ids() {
+            parents
+                .entry(child_id.to_owned())
+                .or_insert_with(|| node.id.clone());
+        }
+    }
+    for node in snapshot.nodes.values() {
+        if let Some(parent_id) = node.typed_view().string("parentId") {
+            parents
+                .entry(node.id.clone())
+                .or_insert_with(|| parent_id.to_owned());
+        }
+    }
+    parents
+}
+
+fn variable_property<'a>(snapshot: &'a Snapshot, node_id: &str, variable_id: &str) -> &'a str {
+    fn contains_alias(value: &serde_json::Value, variable_id: &str) -> bool {
+        match value {
+            serde_json::Value::Object(object) => {
+                (object.get("type").and_then(serde_json::Value::as_str) == Some("VARIABLE_ALIAS")
+                    && object.get("id").and_then(serde_json::Value::as_str) == Some(variable_id))
+                    || object
+                        .values()
+                        .any(|value| contains_alias(value, variable_id))
+            }
+            serde_json::Value::Array(values) => values
+                .iter()
+                .any(|value| contains_alias(value, variable_id)),
+            _ => false,
+        }
+    }
+
+    let Some(node) = snapshot.nodes.get(node_id) else {
+        return "boundVariables";
+    };
+    for field in ["fills", "strokes", "effects", "boundVariables"] {
+        if node
+            .typed_view()
+            .value(field)
+            .is_some_and(|value| contains_alias(value, variable_id))
+        {
+            return field;
+        }
+    }
+    node.fields
+        .iter()
+        .chain(&node.extra)
+        .find_map(|(field, value)| contains_alias(value, variable_id).then_some(field.as_str()))
+        .unwrap_or("boundVariables")
+}
+
+fn non_default_variant_selector(
+    snapshot: &Snapshot,
+    node: &devup_mcp_figma::RawNode,
+) -> Option<String> {
+    let parent = snapshot.nodes.get(node.typed_view().string("parentId")?)?;
+    if parent.node_type != "COMPONENT_SET" {
+        return None;
+    }
+    let definitions = parent
+        .typed_view()
+        .value("componentPropertyDefinitions")?
+        .as_object()?;
+    let (effect_name, definition) = definitions.iter().find(|(name, definition)| {
+        name.eq_ignore_ascii_case("effect")
+            && definition.get("type").and_then(serde_json::Value::as_str) == Some("VARIANT")
+    })?;
+    let default = definition
+        .get("defaultValue")
+        .and_then(serde_json::Value::as_str)?;
+    let value = node
+        .typed_view()
+        .value("variantProperties")?
+        .get(effect_name)?
+        .as_str()?;
+    (value != default).then(|| format!("_{value}"))
+}
+
+fn selector_prop_range(opening: &str, selector: &str, prop: &str) -> Option<(usize, usize)> {
+    let selector_needle = format!("{selector}={{{{");
+    let selector_start = find_prop(opening, &selector_needle)?;
+    let block = &opening[selector_start..];
+    let mut depth = 0_u32;
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut block_end = None;
+    for (offset, character) in block.char_indices() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => quoted = true,
+            '{' => depth += 1,
+            '}' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    block_end = Some(offset + character.len_utf8());
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let block = &block[..block_end?];
+    let needle = format!("\"{prop}\":");
+    let relative = block.find(&needle)?;
+    Some((
+        selector_start + relative,
+        selector_start + relative + needle.len(),
+    ))
+}
+
 const PROP_SOURCES: &[(&str, &str)] = &[
     ("alignContent", "textAlignVertical"),
     ("alignItems", "counterAxisAlignItems"),
@@ -586,6 +1290,7 @@ const PROP_SOURCES: &[(&str, &str)] = &[
     ("borderRadius", "cornerRadius"),
     ("bottom", "y"),
     ("boxSize", "width"),
+    ("boxSize", "height"),
     ("color", "fills"),
     ("flex", "layoutGrow"),
     ("flexDir", "layoutMode"),
@@ -607,13 +1312,18 @@ const PROP_SOURCES: &[(&str, &str)] = &[
     ("opacity", "opacity"),
     ("overflow", "clipsContent"),
     ("p", "paddingTop"),
+    ("p", "paddingRight"),
+    ("p", "paddingBottom"),
+    ("p", "paddingLeft"),
     ("pb", "paddingBottom"),
     ("pl", "paddingLeft"),
     ("pos", "layoutPositioning"),
     ("pr", "paddingRight"),
     ("pt", "paddingTop"),
     ("px", "paddingLeft"),
+    ("px", "paddingRight"),
     ("py", "paddingTop"),
+    ("py", "paddingBottom"),
     ("right", "x"),
     ("textAlign", "textAlignHorizontal"),
     ("top", "y"),
@@ -627,27 +1337,46 @@ fn add_text_entries(
     tsx: &str,
     range: &GeneratedRange,
     node_id: &str,
-    characters: &str,
+    node: &devup_mcp_figma::RawNode,
     variable_tokens: &BTreeMap<String, String>,
     style_tokens: &BTreeMap<String, String>,
     entries: &mut Vec<ProvenanceEntry>,
 ) {
     let source = &tsx[range.start..range.end];
-    if let Some(fragment) = characters
-        .split('\n')
-        .map(str::trim)
-        .find(|fragment| !fragment.is_empty() && source.contains(fragment))
-        && let Some(start) = source.find(fragment)
+    let view = node.typed_view();
+    let mut text_segments = view
+        .value("styledTextSegments")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|segment| {
+            segment
+                .get("characters")
+                .and_then(serde_json::Value::as_str)
+        })
+        .filter(|characters| !characters.is_empty())
+        .collect::<Vec<_>>();
+    if text_segments.is_empty()
+        && let Some(characters) = view
+            .string("characters")
+            .filter(|characters| !characters.is_empty())
     {
-        entries.push(generated_entry(
-            range.start + start,
-            range.start + start + fragment.len(),
-            node_id,
-            "characters",
-            None,
-            None,
-            "exact",
-        ));
+        text_segments.push(characters);
+    }
+    let mut cursor = 0;
+    for characters in text_segments {
+        if let Some((start, end)) = find_text_span(source, characters, cursor) {
+            entries.push(generated_entry(
+                range.start + start,
+                range.start + end,
+                node_id,
+                "characters",
+                None,
+                None,
+                "exact",
+            ));
+            cursor = end;
+        }
     }
     for (variable_id, token) in variable_tokens {
         let needle = format!("${token}");
@@ -683,6 +1412,68 @@ fn add_text_entries(
             ));
         }
     }
+}
+
+fn find_text_span(source: &str, characters: &str, search_start: usize) -> Option<(usize, usize)> {
+    let rendered = encode_jsx_text(characters);
+    if let Some(start) = source[search_start..].find(&rendered) {
+        let start = search_start + start;
+        return Some((start, start + rendered.len()));
+    }
+    let fragments = characters
+        .split(['\r', '\n'])
+        .map(str::trim)
+        .filter(|fragment| !fragment.is_empty())
+        .map(encode_jsx_text)
+        .collect::<Vec<_>>();
+    let mut cursor = search_start;
+    let mut start = None;
+    let mut end = None;
+    for fragment in fragments {
+        let found = source[cursor..].find(&fragment)? + cursor;
+        start.get_or_insert(found);
+        end = Some(found + fragment.len());
+        cursor = found + fragment.len();
+    }
+    Some((start?, end?))
+}
+
+fn asset_prop_range(opening: &str) -> Option<(usize, usize)> {
+    for prop in ["src", "maskImage", "bg"] {
+        let needle = format!("{prop}=\"");
+        let Some(start) = find_prop(opening, &needle) else {
+            continue;
+        };
+        let value_start = start + needle.len();
+        let Some(value_end) = opening[value_start..].find('"') else {
+            continue;
+        };
+        let end = value_start + value_end + 1;
+        if prop != "bg" || opening[value_start..value_start + value_end].contains("url(") {
+            return Some((start, end));
+        }
+    }
+    None
+}
+
+fn asset_range_in_node_source(source: &str) -> Option<(usize, usize)> {
+    let opening_start = source.find('<')?;
+    let opening_end = opening_start + source[opening_start..].find('>')? + 1;
+    let (start, end) = asset_prop_range(&source[opening_start..opening_end])?;
+    Some((opening_start + start, opening_start + end))
+}
+
+fn token_prop_range(source: &str, needle: &str) -> Option<(usize, usize)> {
+    let token_start = source.find(needle)?;
+    let prop_start = source[..token_start]
+        .rfind(|character: char| character.is_whitespace() || character == '<')
+        .map_or(token_start, |offset| offset + 1);
+    let prop_end = source[token_start..]
+        .find('"')
+        .map_or(token_start + needle.len(), |offset| {
+            token_start + offset + 1
+        });
+    Some((prop_start, prop_end))
 }
 
 fn find_resource_id(
@@ -745,6 +1536,7 @@ fn generated_entry(
         property: Some(property.to_owned()),
         variable_id,
         style_id,
+        asset_id: None,
         resolution: resolution.to_owned(),
     }
 }

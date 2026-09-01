@@ -1,9 +1,10 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{DevupError, ErrorCode};
 use rmcp::model::{
-    ListResourceTemplatesResult, ListResourcesResult, ReadResourceResult, Resource,
+    ListResourceTemplatesResult, ListResourcesResult, MetaObject, ReadResourceResult, Resource,
     ResourceContents, ResourceTemplate,
 };
+use serde_json::Value;
 
 use super::artifacts::{ArtifactStore, AttachedOutputManifest};
 
@@ -138,11 +139,24 @@ pub async fn read_output_resource(
 }
 
 fn manifest_resource(manifest: &AttachedOutputManifest) -> Resource {
+    let mut meta = MetaObject::new();
+    meta.0.insert(
+        "payloadMimeType".to_owned(),
+        Value::from(manifest.mime_type.clone()),
+    );
+    meta.0.insert(
+        "payloadBytes".to_owned(),
+        Value::from(manifest.raw_bytes as u64),
+    );
+    meta.0.insert(
+        "payloadSha256".to_owned(),
+        Value::from(manifest.sha256.clone()),
+    );
     Resource::new(&manifest.manifest_uri, format!("devup-{}", manifest.name))
         .with_title(format!("Devup {} output", manifest.name))
         .with_description("Generated Devup output manifest")
         .with_mime_type("application/json")
-        .with_size(manifest.raw_bytes as u64)
+        .with_meta(meta)
 }
 
 fn valid_opaque(value: &str, length: usize) -> bool {

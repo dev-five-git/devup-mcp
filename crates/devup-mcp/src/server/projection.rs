@@ -6,15 +6,15 @@ use devup_mcp_devup_ui::{
     theme::{generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AssetStatus, CollectedPayload, DevupError, ErrorCode, ExploreOptions, SearchOptions,
-    TargetKind, classify_target, explore_snapshot, search_snapshot,
+    AssetManifest, AssetStatus, CollectedPayload, DevupError, ErrorCode, ExploreOptions,
+    SearchOptions, TargetKind, classify_target, explore_snapshot, search_snapshot,
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use super::{
-    artifacts::{ArtifactLookup, ArtifactStore},
-    delivery::{DeliveryMode, ProjectedOutput, choose_delivery},
+    artifacts::{ArtifactLookup, ArtifactStore, OutputReservation},
+    delivery::{DeliveryMode, ProjectedOutput, choose_delivery_for_result},
     format_epoch_rfc3339,
     handoff::PendingOperation,
     output::{OutputPolicy, OutputTransaction},
@@ -108,8 +108,7 @@ fn encode_projected_json(value: &Value) -> Result<Vec<u8>, DevupError> {
 }
 
 pub(super) struct DeliveryAttachment {
-    projection_key: String,
-    created: bool,
+    reservation: OutputReservation,
 }
 
 pub(super) async fn apply_delivery(
@@ -117,15 +116,17 @@ pub(super) async fn apply_delivery(
     mode: DeliveryMode,
     artifact_store: &ArtifactStore,
     artifact: &ArtifactLookup,
-    outputs: Vec<ProjectedOutput>,
+    mut outputs: Vec<ProjectedOutput>,
 ) -> Result<Option<DeliveryAttachment>, DevupError> {
-    if outputs.is_empty() || choose_delivery(mode, &outputs)?.inline {
+    if outputs.is_empty() || choose_delivery_for_result(mode, result, &outputs)?.inline {
         return Ok(None);
     }
     let projection_key = projection_key(&outputs);
-    let (manifests, created) = artifact_store
-        .attach_outputs_transactional(&artifact.artifact_id, &projection_key, outputs)
+    materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
+    let reservation = artifact_store
+        .reserve_outputs(&artifact.artifact_id, &projection_key, outputs)
         .await?;
+    let manifests = reservation.manifests().to_vec();
     let result = result.as_object_mut().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
@@ -170,24 +171,136 @@ pub(super) async fn apply_delivery(
                 .collect(),
         ),
     );
-    Ok(Some(DeliveryAttachment {
-        projection_key,
-        created,
-    }))
+    Ok(Some(DeliveryAttachment { reservation }))
 }
 
 pub(super) async fn rollback_delivery(
-    artifact_store: &ArtifactStore,
-    artifact: &ArtifactLookup,
+    _artifact_store: &ArtifactStore,
+    _artifact: &ArtifactLookup,
     attachment: Option<DeliveryAttachment>,
 ) {
-    if let Some(attachment) = attachment
-        && attachment.created
-    {
-        artifact_store
-            .detach_projection(&artifact.artifact_id, &attachment.projection_key)
-            .await;
+    if let Some(attachment) = attachment {
+        attachment.reservation.rollback();
     }
+}
+
+pub(super) fn commit_delivery(attachment: Option<DeliveryAttachment>) {
+    if let Some(attachment) = attachment {
+        attachment.reservation.commit();
+    }
+}
+
+fn materialize_asset_resource_references(
+    result: &mut Value,
+    outputs: &mut [ProjectedOutput],
+    artifact_id: &str,
+) -> Result<(), DevupError> {
+    let Some(assets) = result
+        .get_mut("assetManifest")
+        .and_then(|manifest| manifest.get_mut("assets"))
+        .and_then(Value::as_array_mut)
+    else {
+        return Ok(());
+    };
+    for output in outputs.iter().filter(|output| output.asset_id.is_some()) {
+        let asset_id = output.asset_id.as_deref().unwrap_or_default();
+        let asset = assets
+            .iter_mut()
+            .find(|asset| asset.get("assetId").and_then(Value::as_str) == Some(asset_id))
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "asset resource에 대응하는 manifest 항목이 없습니다.",
+                    false,
+                )
+            })?;
+        asset.remove("dataBase64");
+        asset.insert(
+            "resource".to_owned(),
+            json!({
+                "uri": output.manifest_uri(artifact_id),
+                "mimeType": output.mime_type,
+                "byteLength": output.bytes.len(),
+                "sha256": sha256_hex(&output.bytes)
+            }),
+        );
+    }
+    if let Some(manifest_output) = outputs
+        .iter_mut()
+        .find(|output| output.name == "asset-manifest.json")
+    {
+        manifest_output.bytes =
+            encode_projected_json(result.get("assetManifest").ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "asset manifest resource가 없습니다.",
+                    false,
+                )
+            })?)?;
+    }
+    Ok(())
+}
+
+fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutput>, DevupError> {
+    let mut outputs = Vec::new();
+    for (index, asset) in manifest.assets.iter().enumerate() {
+        if asset.status != AssetStatus::Exported {
+            continue;
+        }
+        let data = asset.data_base64.as_deref().ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "export된 asset binary가 artifact에 없습니다.",
+                false,
+            )
+        })?;
+        let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "export된 asset binary의 base64가 올바르지 않습니다.",
+                false,
+            )
+        })?;
+        let mime_type = asset.mime_type.as_deref().ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "export된 asset MIME 형식이 없습니다.",
+                false,
+            )
+        })?;
+        let expected_hash = asset.sha256.as_deref().ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "export된 asset hash가 없습니다.",
+                false,
+            )
+        })?;
+        if asset.byte_length != Some(bytes.len()) || expected_hash != sha256_hex(&bytes) {
+            return Err(DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "export된 asset 길이 또는 hash가 일치하지 않습니다.",
+                false,
+            ));
+        }
+        let extension = asset
+            .format
+            .map_or("bin", devup_mcp_figma::AssetFormat::extension);
+        outputs.push(ProjectedOutput::asset(
+            format!("asset-{}.{extension}", index + 1),
+            mime_type,
+            bytes,
+            &asset.asset_id,
+        ));
+    }
+    Ok(outputs)
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn projection_key(outputs: &[ProjectedOutput]) -> String {
@@ -334,6 +447,7 @@ pub(super) async fn complete_operation(
                     return Err(error);
                 }
             };
+            commit_delivery(attachment);
             result["outputPath"] = json!(written_path);
             Ok(result)
         }
@@ -413,6 +527,7 @@ pub(super) async fn complete_operation(
                     return Err(error);
                 }
             };
+            commit_delivery(attachment);
             result["outputPath"] = json!(written_path);
             Ok(result)
         }
@@ -595,6 +710,7 @@ pub(super) async fn complete_operation(
             let mut pending_text_outputs = std::collections::BTreeMap::new();
             let mut pending_binary_outputs = std::collections::BTreeMap::new();
             let mut pending_asset_manifest = None;
+            let mut asset_resource_outputs = Vec::new();
             if let Some(candidates) = section_candidates {
                 let by_id = candidates
                     .iter()
@@ -968,6 +1084,7 @@ pub(super) async fn complete_operation(
                 transaction.stage(name, target, &bytes)?;
             }
             if let Some(mut manifest) = pending_asset_manifest {
+                asset_resource_outputs = projected_asset_outputs(&manifest)?;
                 for asset in &mut manifest.assets {
                     if asset.status != AssetStatus::Exported {
                         continue;
@@ -983,6 +1100,8 @@ pub(super) async fn complete_operation(
             }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
             let projected_outputs = projected_outputs_from_result(&result)?;
+            let mut projected_outputs = projected_outputs;
+            projected_outputs.extend(asset_resource_outputs);
             let mut result = Value::Object(result);
             let attachment = apply_delivery(
                 &mut result,
@@ -996,6 +1115,7 @@ pub(super) async fn complete_operation(
                 rollback_delivery(artifact_store, artifact, attachment).await;
                 return Err(error);
             }
+            commit_delivery(attachment);
             Ok(result)
         }
         PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
