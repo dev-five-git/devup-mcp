@@ -24,6 +24,8 @@ pub struct FigmaToUiInput {
     pub root_layout: String,
     #[serde(default)]
     pub output_path: Option<String>,
+    #[serde(default = "default_delivery")]
+    pub delivery: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -38,6 +40,8 @@ pub struct FigmaToJsonInput {
     pub source_policy: String,
     #[serde(default)]
     pub output_path: Option<String>,
+    #[serde(default = "default_delivery")]
+    pub delivery: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -71,6 +75,8 @@ pub struct FigmaExportInput {
     pub all_screens: bool,
     #[serde(default)]
     pub asset_requests: Vec<FigmaAssetRequestInput>,
+    #[serde(default = "default_delivery")]
+    pub delivery: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -129,6 +135,10 @@ fn default_root_layout() -> String {
 }
 
 fn default_source_policy() -> String {
+    "auto".to_owned()
+}
+
+fn default_delivery() -> String {
     "auto".to_owned()
 }
 

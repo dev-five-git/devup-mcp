@@ -6,7 +6,7 @@ mod quality;
 pub mod resources;
 mod tools;
 
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -21,6 +21,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 
 use devup_mcp_devup_ui::{
     codegen::{CodegenOptions, RootLayout, generate_component},
@@ -37,6 +38,7 @@ use devup_mcp_figma::{
 };
 
 use artifacts::{ArtifactKind, ArtifactLookup, ArtifactRequestKey, ArtifactStore};
+use delivery::{DeliveryMode, ProjectedOutput, choose_delivery};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 use output::{OutputPolicy, OutputTransaction};
 use quality::{
@@ -152,7 +154,9 @@ impl DevupServer {
                 "artifact",
                 &artifact,
                 &self.output_policy,
-            );
+                &self.artifacts,
+            )
+            .await;
         }
         if policy == SourcePolicy::Host {
             return self.begin_handoff(operation, request, artifact_key).await;
@@ -178,13 +182,17 @@ impl DevupServer {
             })
             .await
         {
-            Ok(artifact) => complete_operation(
-                operation,
-                &artifact.payload,
-                "direct",
-                &artifact,
-                &self.output_policy,
-            ),
+            Ok(artifact) => {
+                complete_operation(
+                    operation,
+                    &artifact.payload,
+                    "direct",
+                    &artifact,
+                    &self.output_policy,
+                    &self.artifacts,
+                )
+                .await
+            }
             Err(error) if fallback_allowed_for_error(policy, &error) => {
                 self.begin_handoff(operation, request, artifact_key).await
             }
@@ -265,7 +273,9 @@ impl DevupServer {
                     source,
                     &artifact,
                     &self.output_policy,
+                    &self.artifacts,
                 )
+                .await
             }
         }
     }
@@ -310,6 +320,10 @@ impl DevupServer {
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
+        let delivery = input
+            .delivery
+            .parse::<DeliveryMode>()
+            .map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, scope);
         request.resource_scope = ResourceScope::Used;
         let result = self
@@ -319,6 +333,7 @@ impl DevupServer {
                     include_diagnostics: input.include_diagnostics,
                     root_layout,
                     output_path: input.output_path,
+                    delivery,
                 },
                 request,
                 policy,
@@ -338,6 +353,10 @@ impl DevupServer {
         parse_scope(&input.scope).map_err(to_mcp_error)?;
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+        let delivery = input
+            .delivery
+            .parse::<DeliveryMode>()
+            .map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
         if collection_scope == CollectionScope::File {
             request.resource_scope = ResourceScope::File;
@@ -351,6 +370,7 @@ impl DevupServer {
                     scope: input.scope,
                     include_diagnostics: input.include_diagnostics,
                     output_path: input.output_path,
+                    delivery,
                 },
                 request,
                 policy,
@@ -469,6 +489,10 @@ impl DevupServer {
         }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
         parse_scope(&input.scope).map_err(to_mcp_error)?;
+        let delivery = input
+            .delivery
+            .parse::<DeliveryMode>()
+            .map_err(to_mcp_error)?;
 
         if let Some(artifact_id) = input.artifact_id.as_deref() {
             if input.url.is_some() || input.refresh {
@@ -530,6 +554,7 @@ impl DevupServer {
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
                             asset_output_paths,
+                            delivery,
                         },
                         request,
                         policy,
@@ -559,12 +584,15 @@ impl DevupServer {
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
+                    delivery,
                 },
                 &artifact.payload,
                 "artifact",
                 &artifact,
                 &self.output_policy,
+                &self.artifacts,
             )
+            .await
             .map_err(to_mcp_error)?;
             return Ok(Json(result));
         }
@@ -618,6 +646,7 @@ impl DevupServer {
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
+                    delivery,
                 },
                 request,
                 policy,
@@ -629,12 +658,13 @@ impl DevupServer {
     }
 }
 
-fn complete_operation(
+async fn complete_operation(
     operation: PendingOperation,
     payload: &CollectedPayload,
     source_kind: &str,
     artifact: &ArtifactLookup,
     output_policy: &OutputPolicy,
+    artifact_store: &ArtifactStore,
 ) -> Result<Value, DevupError> {
     let collection = payload.stats.clone();
     let completeness_report = payload.completeness_report();
@@ -644,6 +674,7 @@ fn complete_operation(
             include_diagnostics,
             root_layout,
             output_path,
+            delivery,
         } => {
             let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                 DevupError::new(
@@ -682,7 +713,12 @@ fn complete_operation(
                 "tsx",
                 output.tsx.as_bytes(),
             )?;
-            Ok(json!({
+            let projected_outputs = vec![ProjectedOutput::text(
+                "tsx",
+                "text/typescript",
+                output.tsx.as_bytes().to_vec(),
+            )];
+            let mut result = json!({
                 "status": status,
                 "quality": quality,
                 "tsx": output.tsx,
@@ -706,12 +742,22 @@ fn complete_operation(
                     "fieldErrorCount": payload.snapshot.nodes.values()
                         .map(|node| node.field_errors.len()).sum::<usize>()
                 }
-            }))
+            });
+            apply_delivery(
+                &mut result,
+                delivery,
+                artifact_store,
+                artifact,
+                projected_outputs,
+            )
+            .await?;
+            Ok(result)
         }
         PendingOperation::ToJson {
             scope,
             include_diagnostics,
             output_path,
+            delivery,
         } => {
             let result = payload.variables.as_ref().ok_or_else(|| {
                 DevupError::new(
@@ -744,7 +790,12 @@ fn complete_operation(
                 "devupJson",
                 output.json.as_bytes(),
             )?;
-            Ok(json!({
+            let projected_outputs = vec![ProjectedOutput::text(
+                "devupJson",
+                "application/json",
+                output.json.as_bytes().to_vec(),
+            )];
+            let mut result = json!({
                 "status": status,
                 "quality": quality,
                 "devupJson": output.json,
@@ -763,7 +814,16 @@ fn complete_operation(
                     "nodeId": payload.target.node_id,
                     "version": payload.snapshot.version
                 }
-            }))
+            });
+            apply_delivery(
+                &mut result,
+                delivery,
+                artifact_store,
+                artifact,
+                projected_outputs,
+            )
+            .await?;
+            Ok(result)
         }
         PendingOperation::Search {
             query,
@@ -851,6 +911,7 @@ fn complete_operation(
             all_screens,
             asset_captures,
             asset_output_paths,
+            delivery,
         } => {
             let mut result = Map::new();
             result.insert("completeness".to_owned(), json!(payload.completeness));
@@ -1278,7 +1339,17 @@ fn complete_operation(
                 result.insert("assetManifest".to_owned(), json!(manifest));
             }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
-            Ok(Value::Object(result))
+            let projected_outputs = projected_outputs_from_result(&result)?;
+            let mut result = Value::Object(result);
+            apply_delivery(
+                &mut result,
+                delivery,
+                artifact_store,
+                artifact,
+                projected_outputs,
+            )
+            .await?;
+            Ok(result)
         }
         PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
@@ -1286,6 +1357,146 @@ fn complete_operation(
             false,
         )),
     }
+}
+
+fn projected_outputs_from_result(
+    result: &Map<String, Value>,
+) -> Result<Vec<ProjectedOutput>, DevupError> {
+    let mut outputs = Vec::new();
+    if let Some(tsx) = result.get("tsx").and_then(Value::as_str) {
+        outputs.push(ProjectedOutput::text(
+            "tsx",
+            "text/typescript",
+            tsx.as_bytes().to_vec(),
+        ));
+    }
+    if let Some(devup_json) = result.get("devupJson").and_then(Value::as_str) {
+        outputs.push(ProjectedOutput::text(
+            "devupJson",
+            "application/json",
+            devup_json.as_bytes().to_vec(),
+        ));
+    }
+    for (field, name) in [
+        ("rawSnapshot", "raw-snapshot.json"),
+        ("sourceMap", "source-map.json"),
+        ("assetManifest", "asset-manifest.json"),
+    ] {
+        if let Some(value) = result.get(field) {
+            outputs.push(ProjectedOutput::text(
+                name,
+                "application/json",
+                encode_projected_json(value)?,
+            ));
+        }
+    }
+    if let Some(frames) = result.get("frames").and_then(Value::as_array) {
+        for (index, frame) in frames.iter().enumerate() {
+            if let Some(tsx) = frame.get("tsx").and_then(Value::as_str) {
+                outputs.push(ProjectedOutput::text(
+                    format!("frame-{}.tsx", index + 1),
+                    "text/typescript",
+                    tsx.as_bytes().to_vec(),
+                ));
+            }
+            if let Some(source_map) = frame.get("sourceMap") {
+                outputs.push(ProjectedOutput::text(
+                    format!("frame-{}.source-map.json", index + 1),
+                    "application/json",
+                    encode_projected_json(source_map)?,
+                ));
+            }
+        }
+    }
+    Ok(outputs)
+}
+
+fn encode_projected_json(value: &Value) -> Result<Vec<u8>, DevupError> {
+    serde_json::to_vec(value).map_err(|error| {
+        DevupError::new(
+            ErrorCode::DevupSnapshotUnsupported,
+            format!("resource output을 JSON으로 직렬화할 수 없습니다: {error}"),
+            false,
+        )
+    })
+}
+
+async fn apply_delivery(
+    result: &mut Value,
+    mode: DeliveryMode,
+    artifact_store: &ArtifactStore,
+    artifact: &ArtifactLookup,
+    outputs: Vec<ProjectedOutput>,
+) -> Result<(), DevupError> {
+    if outputs.is_empty() || choose_delivery(mode, &outputs)?.inline {
+        return Ok(());
+    }
+    let projection_key = projection_key(&outputs);
+    let manifests = artifact_store
+        .attach_outputs(&artifact.artifact_id, &projection_key, outputs)
+        .await?;
+    let result = result.as_object_mut().ok_or_else(|| {
+        DevupError::new(
+            ErrorCode::DevupFigmaHandoffInvalid,
+            "resource delivery 결과가 JSON object가 아닙니다.",
+            false,
+        )
+    })?;
+    for field in [
+        "tsx",
+        "devupJson",
+        "rawSnapshot",
+        "sourceMap",
+        "assetManifest",
+    ] {
+        result.remove(field);
+    }
+    if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
+        for frame in frames {
+            if let Some(frame) = frame.as_object_mut() {
+                frame.remove("tsx");
+                frame.remove("sourceMap");
+            }
+        }
+    }
+    result.insert(
+        "resources".to_owned(),
+        Value::Array(
+            manifests
+                .into_iter()
+                .map(|manifest| {
+                    json!({
+                        "type": "resource_link",
+                        "uri": manifest.manifest_uri,
+                        "name": manifest.name,
+                        "mimeType": manifest.mime_type,
+                        "size": manifest.raw_bytes,
+                        "contentHash": manifest.sha256,
+                        "expiresAt": format_epoch_rfc3339(manifest.expires_at_epoch_seconds)
+                    })
+                })
+                .collect(),
+        ),
+    );
+    Ok(())
+}
+
+fn projection_key(outputs: &[ProjectedOutput]) -> String {
+    let mut hasher = Sha256::new();
+    for output in outputs {
+        hasher.update(output.name.as_bytes());
+        hasher.update([0]);
+        hasher.update(output.mime_type.as_bytes());
+        hasher.update([u8::from(output.is_binary)]);
+        hasher.update((output.bytes.len() as u64).to_le_bytes());
+        hasher.update(&output.bytes);
+    }
+    let digest = hasher.finalize();
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(&mut encoded, "{byte:02x}");
+    }
+    encoded
 }
 
 fn artifact_metadata(artifact: &ArtifactLookup) -> Value {

@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
-use super::artifacts::ArtifactRequestKey;
+use super::{artifacts::ArtifactRequestKey, delivery::DeliveryMode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PendingOperation {
@@ -28,11 +28,13 @@ pub enum PendingOperation {
         include_diagnostics: bool,
         root_layout: RootLayout,
         output_path: Option<String>,
+        delivery: DeliveryMode,
     },
     ToJson {
         scope: String,
         include_diagnostics: bool,
         output_path: Option<String>,
+        delivery: DeliveryMode,
     },
     Export {
         outputs: Vec<String>,
@@ -46,6 +48,7 @@ pub enum PendingOperation {
         all_screens: bool,
         asset_captures: Vec<devup_mcp_figma::AssetSelection>,
         asset_output_paths: BTreeMap<String, String>,
+        delivery: DeliveryMode,
     },
     Search {
         query: String,

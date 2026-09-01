@@ -71,6 +71,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         "outputPaths",
         "frameIds",
         "allScreens",
+        "delivery",
         "sourcePolicy",
     ] {
         assert!(export_text.contains(field), "missing export field {field}");

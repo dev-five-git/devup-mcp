@@ -9,7 +9,10 @@ use devup_mcp::server::{DevupAuth, DevupServer, Services};
 use devup_mcp_figma::{
     AuthStatus, BuiltinScript, DevupError, ErrorCode, FigmaUpstream, ReadToolCall, UpstreamResult,
 };
-use rmcp::{ServiceExt, model::CallToolRequestParams};
+use rmcp::{
+    ServiceExt,
+    model::{CallToolRequestParams, ReadResourceRequestParams, ResourceContents},
+};
 use serde_json::{Map, Value, json};
 
 #[derive(Debug)]
@@ -168,6 +171,29 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(projected["cache"]["cacheHit"], true);
     assert_eq!(projected["cache"]["artifactId"], artifact_id);
     assert!(projected.get("devupJson").is_none());
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+
+    let resource = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "artifactId": artifact_id,
+            "outputs": ["tsx"],
+            "delivery": "resource"
+        }),
+    )
+    .await?;
+    assert!(resource.get("tsx").is_none());
+    let manifest_uri = resource["resources"][0]["uri"].as_str().unwrap();
+    let manifest = client
+        .read_resource(ReadResourceRequestParams::new(manifest_uri))
+        .await?;
+    let ResourceContents::TextResourceContents { text, .. } = &manifest.contents[0] else {
+        panic!("resource manifest must be text")
+    };
+    let manifest: Value = serde_json::from_str(text)?;
+    assert_eq!(manifest["name"], "tsx");
+    assert_eq!(manifest["mimeType"], "text/typescript");
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
 
     let ui_wrapper = call(
