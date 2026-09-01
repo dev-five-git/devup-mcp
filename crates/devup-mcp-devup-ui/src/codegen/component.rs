@@ -6,7 +6,10 @@ use devup_mcp_figma::{
 use serde::{Deserialize, Serialize};
 
 use super::{layout, style, text, variant};
-use crate::provenance::{SourceMap, finalize_tsx, mark_node};
+use crate::provenance::{
+    FidelityReport, ProjectionTrace, SourceMap, build_projection_trace, finalize_tsx, mark_node,
+    validate_fidelity,
+};
 use crate::theme::{normalize_token, variable_token};
 use crate::validation::validate_tsx;
 
@@ -43,6 +46,8 @@ pub struct CodegenOutput {
     pub used_tokens: BTreeSet<String>,
     pub diagnostics: Vec<Diagnostic>,
     pub source_map: SourceMap,
+    pub projection_trace: ProjectionTrace,
+    pub fidelity_report: FidelityReport,
 }
 
 pub fn generate_component(
@@ -76,7 +81,12 @@ pub fn generate_component(
     tsx.push_str(&format!(
         "export function {component_name}() {{\n  return (\n{body}\n  );\n}}\n"
     ));
-    finalize_codegen_output(CodegenOutput { tsx, ..generated }, snapshot, options)
+    finalize_codegen_output(
+        CodegenOutput { tsx, ..generated },
+        snapshot,
+        options,
+        root_id,
+    )
 }
 
 pub fn generate_legacy_component(
@@ -115,6 +125,7 @@ pub fn generate_legacy_component(
         },
         snapshot,
         options,
+        root_id,
     )
 }
 
@@ -925,6 +936,7 @@ pub fn generate_node(
         generate_node_marked(snapshot, root_id, options)?,
         snapshot,
         options,
+        root_id,
     )
 }
 
@@ -964,6 +976,8 @@ fn generate_node_marked(
         used_tokens: context.used_tokens,
         diagnostics: context.diagnostics,
         source_map: SourceMap::empty(),
+        projection_trace: ProjectionTrace::default(),
+        fidelity_report: FidelityReport::default(),
     })
 }
 
@@ -971,6 +985,7 @@ fn finalize_codegen_output(
     mut output: CodegenOutput,
     snapshot: &Snapshot,
     options: &CodegenOptions,
+    root_id: &str,
 ) -> Result<CodegenOutput, DevupError> {
     let (tsx, source_map) = finalize_tsx(
         &output.tsx,
@@ -980,6 +995,9 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
+    output.projection_trace =
+        build_projection_trace(snapshot, root_id, &output.tsx, &output.source_map);
+    output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     validate_codegen_output(output)
 }
 

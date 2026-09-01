@@ -169,6 +169,8 @@ pub(super) fn generate_variant_component_set(
         used_tokens: BTreeSet::new(),
         diagnostics: Vec::<Diagnostic>::new(),
         source_map: crate::provenance::SourceMap::empty(),
+        projection_trace: crate::provenance::ProjectionTrace::default(),
+        fidelity_report: crate::provenance::FidelityReport::default(),
     }))
 }
 

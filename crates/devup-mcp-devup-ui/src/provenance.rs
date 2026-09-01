@@ -1,7 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use devup_mcp_figma::Snapshot;
+use devup_mcp_figma::{DevupError, ErrorCode, FidelityImpact, Snapshot, discover_asset_manifest};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use crate::codegen::CodegenOutput;
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
@@ -47,6 +50,411 @@ impl SourceMap {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectionDisposition {
+    Emitted,
+    Flattened,
+    Ignored,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectionTraceEntry {
+    pub node_id: String,
+    pub disposition: ProjectionDisposition,
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_range: Option<GeneratedRange>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectionTrace {
+    pub root_node_id: String,
+    pub entries: Vec<ProjectionTraceEntry>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FidelityCoverage {
+    pub total: usize,
+    pub covered: usize,
+    pub basis_points: u16,
+}
+
+impl FidelityCoverage {
+    fn new(total: usize, covered: usize) -> Self {
+        let basis_points = if total == 0 {
+            10_000
+        } else {
+            ((covered.min(total) as u128 * 10_000) / total as u128) as u16
+        };
+        Self {
+            total,
+            covered: covered.min(total),
+            basis_points,
+        }
+    }
+
+    pub fn complete(self) -> bool {
+        self.total == self.covered
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FidelityImpactCounts {
+    pub none: usize,
+    pub approximated: usize,
+    pub lossy: usize,
+    pub failed: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FidelityReport {
+    pub syntax_valid: bool,
+    pub nodes: FidelityCoverage,
+    pub text: FidelityCoverage,
+    pub variables: FidelityCoverage,
+    pub typography: FidelityCoverage,
+    pub assets: FidelityCoverage,
+    pub layout: FidelityCoverage,
+    pub impacts: FidelityImpactCounts,
+}
+
+impl FidelityReport {
+    pub fn strict_compatible(&self) -> bool {
+        self.syntax_valid
+            && self.nodes.complete()
+            && self.text.complete()
+            && self.variables.complete()
+            && self.typography.complete()
+            && self.assets.complete()
+            && self.layout.complete()
+            && self.impacts.lossy == 0
+            && self.impacts.failed == 0
+    }
+}
+
+pub(crate) fn build_projection_trace(
+    snapshot: &Snapshot,
+    root_id: &str,
+    tsx: &str,
+    source_map: &SourceMap,
+) -> ProjectionTrace {
+    let active = active_nodes(snapshot, root_id);
+    let emitted = source_map
+        .entries
+        .iter()
+        .filter(|entry| entry.property.is_none() && entry.resolution == "node")
+        .filter_map(|entry| Some((entry.node_id.clone()?, entry.generated_range.clone()?)))
+        .collect::<BTreeMap<_, _>>();
+    let asset_nodes = discover_asset_manifest(snapshot)
+        .assets
+        .into_iter()
+        .map(|asset| asset.node_id)
+        .collect::<BTreeSet<_>>();
+    let mut entries = Vec::new();
+    let mut represented_by_parent = BTreeSet::new();
+    let mut ignored_by_parent = BTreeSet::new();
+    for (node_id, parent_id) in active {
+        let node = snapshot.nodes.get(&node_id);
+        let range = emitted.get(&node_id);
+        let projection =
+            if node_id == root_id && node.is_some_and(|node| node.node_type == "SECTION") {
+                Some((ProjectionDisposition::Flattened, "section-root", None))
+            } else if let Some(range) = range.filter(|range| range.start < range.end) {
+                Some((
+                    ProjectionDisposition::Emitted,
+                    "direct",
+                    Some((*range).clone()),
+                ))
+            } else if range.is_some()
+                || node.is_some_and(|node| node.typed_view().bool("visible") == Some(false))
+            {
+                Some((ProjectionDisposition::Ignored, "hidden", None))
+            } else if parent_id
+                .as_ref()
+                .is_some_and(|parent_id| ignored_by_parent.contains(parent_id))
+            {
+                Some((ProjectionDisposition::Ignored, "hidden-ancestor", None))
+            } else if parent_id.as_ref().is_some_and(|parent_id| {
+                asset_nodes.contains(parent_id)
+                    || represented_by_parent.contains(parent_id)
+                    || snapshot.nodes.get(parent_id).is_some_and(|parent| {
+                        parent.node_type == "INSTANCE"
+                            || parent.typed_view().bool("isAsset") == Some(true)
+                    })
+                    || emitted.get(parent_id).is_some_and(|range| {
+                        range.end <= tsx.len()
+                            && (tsx[range.start..range.end].contains("maskImage=")
+                                || tsx[range.start..range.end].contains("<Image"))
+                    })
+            }) {
+                Some((
+                    ProjectionDisposition::Flattened,
+                    "represented-by-parent",
+                    None,
+                ))
+            } else {
+                None
+            };
+        if let Some((disposition, reason, generated_range)) = projection {
+            if disposition == ProjectionDisposition::Flattened && reason == "represented-by-parent"
+            {
+                represented_by_parent.insert(node_id.clone());
+            }
+            if disposition == ProjectionDisposition::Ignored {
+                ignored_by_parent.insert(node_id.clone());
+            }
+            entries.push(ProjectionTraceEntry {
+                node_id,
+                disposition,
+                reason: reason.to_owned(),
+                generated_range,
+            });
+        }
+    }
+    ProjectionTrace {
+        root_node_id: root_id.to_owned(),
+        entries,
+    }
+}
+
+pub fn validate_fidelity(
+    snapshot: &Snapshot,
+    root_id: &str,
+    output: &CodegenOutput,
+) -> Result<FidelityReport, DevupError> {
+    let expected = active_nodes(snapshot, root_id)
+        .into_iter()
+        .map(|(node_id, _)| node_id)
+        .collect::<BTreeSet<_>>();
+    let mut observed = BTreeSet::new();
+    let mut duplicates = Vec::new();
+    let mut invalid_ranges = Vec::new();
+    for entry in &output.projection_trace.entries {
+        if !observed.insert(entry.node_id.clone()) {
+            duplicates.push(entry.node_id.clone());
+        }
+        if let Some(range) = &entry.generated_range
+            && (range.start >= range.end
+                || range.end > output.tsx.len()
+                || !output.tsx.is_char_boundary(range.start)
+                || !output.tsx.is_char_boundary(range.end))
+        {
+            invalid_ranges.push(entry.node_id.clone());
+        }
+    }
+    let missing = expected.difference(&observed).cloned().collect::<Vec<_>>();
+    let unexpected = observed.difference(&expected).cloned().collect::<Vec<_>>();
+    if !duplicates.is_empty()
+        || !missing.is_empty()
+        || !unexpected.is_empty()
+        || !invalid_ranges.is_empty()
+    {
+        return Err(DevupError::with_details(
+            ErrorCode::DevupCodegenFailed,
+            "projection trace가 source node를 정확히 한 번씩 설명하지 못했습니다.",
+            false,
+            json!({
+                "missingNodeIds": missing,
+                "duplicateNodeIds": duplicates,
+                "unexpectedNodeIds": unexpected,
+                "invalidRangeNodeIds": invalid_ranges
+            }),
+        ));
+    }
+
+    let active_non_ignored = output
+        .projection_trace
+        .entries
+        .iter()
+        .filter(|entry| entry.disposition != ProjectionDisposition::Ignored)
+        .map(|entry| entry.node_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let text_nodes = active_non_ignored
+        .iter()
+        .filter(|node_id| {
+            snapshot
+                .nodes
+                .get(**node_id)
+                .is_some_and(|node| node.node_type == "TEXT")
+        })
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let covered_text = text_nodes
+        .iter()
+        .filter(|node_id| {
+            snapshot
+                .nodes
+                .get(**node_id)
+                .and_then(|node| node.typed_view().string("characters"))
+                .is_none_or(str::is_empty)
+                || output.source_map.entries.iter().any(|entry| {
+                    entry.node_id.as_deref() == Some(**node_id)
+                        && entry.property.as_deref() == Some("characters")
+                })
+        })
+        .count();
+    let variables = output
+        .source_map
+        .entries
+        .iter()
+        .filter_map(|entry| {
+            entry
+                .variable_id
+                .as_deref()
+                .map(|id| (entry.node_id.as_deref(), id))
+        })
+        .collect::<BTreeSet<_>>();
+    let typography = typography_sources(snapshot, &text_nodes);
+    let covered_typography = typography
+        .iter()
+        .filter(|(node_id, style_id)| {
+            output.source_map.entries.iter().any(|entry| {
+                entry.node_id.as_deref() == Some(*node_id)
+                    && entry.style_id.as_deref() == Some(*style_id)
+            })
+        })
+        .count();
+    let assets = discover_asset_manifest(snapshot)
+        .assets
+        .into_iter()
+        .filter(|asset| active_non_ignored.contains(asset.node_id.as_str()))
+        .map(|asset| asset.node_id)
+        .collect::<BTreeSet<_>>();
+    let covered_assets = assets
+        .iter()
+        .filter(|node_id| observed.contains(*node_id))
+        .count();
+    let layout_nodes = active_non_ignored
+        .iter()
+        .filter(|node_id| {
+            snapshot.nodes.get(**node_id).is_some_and(|node| {
+                LAYOUT_FIELDS
+                    .iter()
+                    .any(|field| node.typed_view().value(field).is_some())
+            })
+        })
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let covered_layout = layout_nodes
+        .iter()
+        .filter(|node_id| observed.contains(**node_id))
+        .count();
+    let mut impacts = FidelityImpactCounts::default();
+    for diagnostic in &output.diagnostics {
+        match diagnostic.fidelity_impact() {
+            FidelityImpact::None => impacts.none += 1,
+            FidelityImpact::Approximated => impacts.approximated += 1,
+            FidelityImpact::Lossy => impacts.lossy += 1,
+            FidelityImpact::Failed => impacts.failed += 1,
+        }
+    }
+    Ok(FidelityReport {
+        syntax_valid: true,
+        nodes: FidelityCoverage::new(expected.len(), observed.len()),
+        text: FidelityCoverage::new(text_nodes.len(), covered_text),
+        variables: FidelityCoverage::new(variables.len(), variables.len()),
+        typography: FidelityCoverage::new(typography.len(), covered_typography),
+        assets: FidelityCoverage::new(assets.len(), covered_assets),
+        layout: FidelityCoverage::new(layout_nodes.len(), covered_layout),
+        impacts,
+    })
+}
+
+fn active_nodes(snapshot: &Snapshot, root_id: &str) -> Vec<(String, Option<String>)> {
+    let mut output = Vec::new();
+    let Some(root) = snapshot.nodes.get(root_id) else {
+        return output;
+    };
+    output.push((root_id.to_owned(), None));
+    let start = if root.node_type == "SECTION" {
+        root.typed_view().child_ids().next()
+    } else {
+        Some(root_id)
+    };
+    let Some(start) = start else {
+        return output;
+    };
+    let mut stack = if start == root_id {
+        let mut children = root
+            .typed_view()
+            .child_ids()
+            .map(|child| (child.to_owned(), Some(root_id.to_owned())))
+            .collect::<Vec<_>>();
+        children.reverse();
+        children
+    } else {
+        vec![(start.to_owned(), Some(root_id.to_owned()))]
+    };
+    let mut seen = BTreeSet::from([root_id.to_owned()]);
+    while let Some((node_id, parent_id)) = stack.pop() {
+        if !seen.insert(node_id.clone()) {
+            continue;
+        }
+        let Some(node) = snapshot.nodes.get(&node_id) else {
+            continue;
+        };
+        output.push((node_id.clone(), parent_id));
+        let mut children = node.typed_view().child_ids().collect::<Vec<_>>();
+        children.reverse();
+        for child_id in children {
+            stack.push((child_id.to_owned(), Some(node_id.clone())));
+        }
+    }
+    output
+}
+
+fn typography_sources<'a>(
+    snapshot: &'a Snapshot,
+    text_nodes: &BTreeSet<&'a str>,
+) -> BTreeSet<(&'a str, &'a str)> {
+    let mut styles = BTreeSet::new();
+    for node_id in text_nodes {
+        let Some(node) = snapshot.nodes.get(*node_id) else {
+            continue;
+        };
+        if let Some(style_id) = node
+            .typed_view()
+            .string("textStyleId")
+            .filter(|id| !id.is_empty())
+        {
+            styles.insert((*node_id, style_id));
+        }
+        if let Some(segments) = node
+            .typed_view()
+            .value("styledTextSegments")
+            .and_then(serde_json::Value::as_array)
+        {
+            for style_id in segments.iter().filter_map(|segment| {
+                segment
+                    .get("textStyleId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|id| !id.is_empty())
+            }) {
+                styles.insert((*node_id, style_id));
+            }
+        }
+    }
+    styles
+}
+
+const LAYOUT_FIELDS: &[&str] = &[
+    "layoutMode",
+    "layoutPositioning",
+    "width",
+    "height",
+    "itemSpacing",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+];
 
 pub(crate) fn mark_node(node_id: &str, rendered: String) -> String {
     format!("{START}{node_id}{CLOSE}{rendered}{END}{node_id}{CLOSE}")

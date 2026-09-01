@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use devup_mcp_devup_ui::{
     codegen::{CodegenOptions, generate_component},
+    provenance::{ProjectionDisposition, validate_fidelity},
     theme::{
         ThemeScope, VariableCollection, VariableDefinition, VariableMode, VariableSnapshot,
         VariableStyle, generate_devup_json,
@@ -113,6 +114,26 @@ fn tsx_byte_ranges_trace_components_text_props_and_resources() {
     assert_eq!(slice(&output.tsx, typography), "typography=\"body\"");
     assert_eq!(typography.style_id.as_deref(), Some("s"));
     assert_eq!(typography.resolution, "style-token");
+
+    assert_eq!(output.fidelity_report.nodes.total, 2);
+    assert_eq!(output.fidelity_report.nodes.covered, 2);
+    assert_eq!(output.fidelity_report.nodes.basis_points, 10_000);
+    assert!(output.fidelity_report.strict_compatible());
+    assert_eq!(output.projection_trace.entries.len(), 2);
+    assert!(output.projection_trace.entries.iter().all(|entry| {
+        entry.disposition == ProjectionDisposition::Emitted
+            && entry
+                .generated_range
+                .as_ref()
+                .is_some_and(|range| range.start < range.end)
+    }));
+
+    let mut incomplete = output.clone();
+    incomplete.projection_trace.entries.pop();
+    let error = validate_fidelity(&snapshot, "1:1", &incomplete)
+        .expect_err("missing trace disposition must fail");
+    assert_eq!(error.code, devup_mcp_figma::ErrorCode::DevupCodegenFailed);
+    assert!(!error.details.to_string().contains("Hello provenance"));
 }
 
 #[test]

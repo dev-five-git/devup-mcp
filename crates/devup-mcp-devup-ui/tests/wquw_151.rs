@@ -128,6 +128,18 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     let source_map_json = serde_json::to_string(&output.source_map).unwrap();
     assert!(!source_map_json.contains("작은 시장"));
     assert!(!source_map_json.contains("[1. 이름]"));
+    assert!(output.fidelity_report.nodes.complete());
+    assert!(output.fidelity_report.text.complete());
+    assert!(output.fidelity_report.variables.complete());
+    assert!(output.fidelity_report.typography.complete());
+    assert!(output.fidelity_report.assets.complete());
+    assert!(output.fidelity_report.layout.complete());
+    assert_eq!(output.fidelity_report.impacts.lossy, 0);
+    assert_eq!(output.fidelity_report.impacts.failed, 0);
+    assert_eq!(
+        output.projection_trace.entries.len(),
+        payload.snapshot.nodes.len()
+    );
 
     let embedded = generate_component(
         &payload.snapshot,

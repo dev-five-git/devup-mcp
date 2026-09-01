@@ -724,6 +724,7 @@ async fn complete_operation(
                 "tsx": output.tsx,
                 "imports": output.imports,
                 "usedTokens": output.used_tokens,
+                "fidelity": output.fidelity_report,
                 "diagnostics": diagnostics,
                 "outputPath": written_path,
                 "completeness": payload.completeness,
@@ -998,6 +999,7 @@ async fn complete_operation(
             let mut tsx_source_map = None;
             let mut devup_json_source_map = None;
             let mut projection_diagnostics = Vec::new();
+            let mut fidelity_reports = Vec::new();
             let mut theme_conflict_count = 0;
             let mut theme_unresolved_count = 0;
             let mut pending_text_outputs = std::collections::BTreeMap::new();
@@ -1060,6 +1062,7 @@ async fn complete_operation(
                         .with_payload_tokens(payload),
                     )?;
                     projection_diagnostics.extend(output.diagnostics.iter().cloned());
+                    fidelity_reports.push(output.fidelity_report.clone());
                     let frame_quality = OutputQuality {
                         acquisition: acquisition_quality(&completeness_report, false),
                         projection: projection_quality(true, &output.diagnostics),
@@ -1084,6 +1087,7 @@ async fn complete_operation(
                         "tsx": output.tsx,
                         "imports": output.imports,
                         "usedTokens": output.used_tokens,
+                        "fidelity": output.fidelity_report,
                         "completenessReport": &completeness_report
                     });
                     if outputs.iter().any(|output| output == "sourceMap") {
@@ -1119,6 +1123,7 @@ async fn complete_operation(
                     .with_payload_tokens(payload),
                 )?;
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
+                fidelity_reports.push(output.fidelity_report.clone());
                 tsx_source_map = Some(output.source_map.clone());
                 if output_paths.contains_key("tsx") {
                     pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
@@ -1126,6 +1131,7 @@ async fn complete_operation(
                 result.insert("tsx".to_owned(), json!(output.tsx));
                 result.insert("imports".to_owned(), json!(output.imports));
                 result.insert("usedTokens".to_owned(), json!(output.used_tokens));
+                result.insert("fidelity".to_owned(), json!(output.fidelity_report));
                 if include_diagnostics {
                     result.insert("diagnostics".to_owned(), json!(&output.diagnostics));
                 }
@@ -1261,7 +1267,10 @@ async fn complete_operation(
                     &payload.assets,
                 ),
             };
-            if strict && quality.strict_violation() {
+            let fidelity_violation = fidelity_reports
+                .iter()
+                .any(|report| !report.strict_compatible());
+            if strict && (quality.strict_violation() || fidelity_violation) {
                 return Err(DevupError::with_details(
                     ErrorCode::DevupSnapshotUnsupported,
                     format!(
@@ -1272,6 +1281,7 @@ async fn complete_operation(
                     false,
                     json!({
                         "quality": quality,
+                        "fidelity": fidelity_reports,
                         "completenessReport": completeness_report
                     }),
                 ));
