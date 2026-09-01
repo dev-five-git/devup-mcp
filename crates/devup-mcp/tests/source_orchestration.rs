@@ -146,6 +146,29 @@ async fn call_named_tool(
     Ok(result)
 }
 
+async fn call_named_tool_with_roots(
+    auth: Arc<dyn DevupAuth>,
+    upstream: Arc<dyn FigmaUpstream>,
+    tool: &str,
+    arguments: Value,
+    roots: Vec<std::path::PathBuf>,
+) -> anyhow::Result<CallToolResult> {
+    let server = DevupServer::with_output_roots(Services::new(auth, upstream), roots)?;
+    let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    let result = client
+        .call_tool(CallToolRequestParams::new(tool.to_owned()).with_arguments(arguments))
+        .await?;
+    client.cancel().await?;
+    task.await??;
+    Ok(result)
+}
+
 #[tokio::test]
 async fn search_collects_the_file_and_returns_replayable_node_urls() -> anyhow::Result<()> {
     let upstream = Arc::new(FixtureUpstream::default());
@@ -178,24 +201,28 @@ async fn search_collects_the_file_and_returns_replayable_node_urls() -> anyhow::
 
 #[tokio::test]
 async fn ui_output_path_writes_the_generated_artifact_only_when_requested() -> anyhow::Result<()> {
-    let path = std::env::temp_dir().join(format!(
-        "devup-mcp-output-{}-{}.tsx",
+    let root = std::env::temp_dir().join(format!(
+        "devup-mcp-output-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_nanos()
     ));
-    let result = call_tool(
+    std::fs::create_dir_all(&root)?;
+    let path = root.join("generated.tsx");
+    let result = call_named_tool_with_roots(
         Arc::new(AuthProbe {
             status: AuthStatus::Connected,
             logins: AtomicUsize::new(0),
         }),
         Arc::new(FixtureUpstream::default()),
+        "devup_figma_to_ui",
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "sourcePolicy": "direct",
             "outputPath": path
         }),
+        vec![root.clone()],
     )
     .await?;
     let output = result.structured_content.unwrap();
@@ -203,6 +230,7 @@ async fn ui_output_path_writes_the_generated_artifact_only_when_requested() -> a
     assert_eq!(written, output["tsx"].as_str().unwrap());
     assert!(output["outputPath"].as_str().is_some());
     std::fs::remove_file(path)?;
+    std::fs::remove_dir(root)?;
     Ok(())
 }
 

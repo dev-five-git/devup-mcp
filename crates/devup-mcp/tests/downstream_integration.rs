@@ -172,6 +172,30 @@ async fn call_tool_with_services(
     Ok(result.structured_content.expect("structured tool output"))
 }
 
+async fn call_tool_with_output_roots(
+    name: &str,
+    arguments: Value,
+    roots: Vec<std::path::PathBuf>,
+) -> anyhow::Result<Value> {
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(ConnectedAuth), Arc::new(FixtureUpstream)),
+        roots,
+    )?;
+    let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    let result = client
+        .call_tool(CallToolRequestParams::new(name.to_owned()).with_arguments(arguments))
+        .await?;
+    client.cancel().await?;
+    task.await??;
+    Ok(result.structured_content.expect("structured tool output"))
+}
+
 #[derive(Debug)]
 struct PartialFixtureUpstream;
 
@@ -303,14 +327,16 @@ async fn reports_partial_instead_of_complete_when_a_child_is_missing() -> anyhow
 
 #[tokio::test]
 async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<()> {
-    let output_path = std::env::temp_dir().join(format!(
-        "devup-mcp-output-{}-{}.json",
+    let output_root = std::env::temp_dir().join(format!(
+        "devup-mcp-output-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_nanos()
     ));
-    let result = call_tool(
+    std::fs::create_dir_all(&output_root)?;
+    let output_path = output_root.join("devup.json");
+    let result = call_tool_with_output_roots(
         "devup_figma_to_json",
         json!({
             "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
@@ -318,6 +344,7 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
             "includeDiagnostics": true,
             "outputPath": output_path
         }),
+        vec![output_root.clone()],
     )
     .await?;
 
@@ -341,6 +368,7 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
     );
     assert!(result["outputPath"].as_str().is_some());
     std::fs::remove_file(output_path)?;
+    std::fs::remove_dir(output_root)?;
     Ok(())
 }
 

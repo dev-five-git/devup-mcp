@@ -34,6 +34,7 @@ use devup_mcp_figma::{
 
 use artifacts::{ArtifactKind, ArtifactLookup, ArtifactRequestKey, ArtifactStore};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
+use output::{OutputPolicy, OutputTransaction};
 use quality::{
     OutputQuality, acquisition_quality, assets_quality, projection_quality, theme_quality,
 };
@@ -93,16 +94,29 @@ pub struct DevupServer {
     services: Services,
     handoffs: HandoffStore,
     artifacts: ArtifactStore,
+    output_policy: OutputPolicy,
 }
 
 impl DevupServer {
     pub fn new(services: Services) -> Self {
-        Self {
+        Self::with_output_roots(
+            services,
+            vec![std::env::current_dir().expect("devup-mcp current directory")],
+        )
+        .expect("devup-mcp output root")
+    }
+
+    pub fn with_output_roots(
+        services: Services,
+        roots: Vec<std::path::PathBuf>,
+    ) -> Result<Self, DevupError> {
+        Ok(Self {
             tool_router: Self::tool_router(),
             services,
             handoffs: HandoffStore::default(),
             artifacts: ArtifactStore::default(),
-        }
+            output_policy: OutputPolicy::from_roots(roots)?,
+        })
     }
 }
 
@@ -122,7 +136,13 @@ impl DevupServer {
     ) -> Result<Value, DevupError> {
         let artifact_key = ArtifactRequestKey::from_collection(&request, policy);
         if !refresh && let Some(artifact) = self.artifacts.lookup(&artifact_key).await {
-            return complete_operation(operation, &artifact.payload, "artifact", &artifact);
+            return complete_operation(
+                operation,
+                &artifact.payload,
+                "artifact",
+                &artifact,
+                &self.output_policy,
+            );
         }
         if policy == SourcePolicy::Host {
             return self.begin_handoff(operation, request, artifact_key).await;
@@ -148,7 +168,13 @@ impl DevupServer {
             })
             .await
         {
-            Ok(artifact) => complete_operation(operation, &artifact.payload, "direct", &artifact),
+            Ok(artifact) => complete_operation(
+                operation,
+                &artifact.payload,
+                "direct",
+                &artifact,
+                &self.output_policy,
+            ),
             Err(error) if fallback_allowed_for_error(policy, &error) => {
                 self.begin_handoff(operation, request, artifact_key).await
             }
@@ -223,7 +249,13 @@ impl DevupServer {
                 };
                 let payload = CollectedPayload::try_from(*parts)?;
                 let artifact = self.artifacts.insert(artifact_key, payload).await?;
-                complete_operation(*operation, &artifact.payload, source, &artifact)
+                complete_operation(
+                    *operation,
+                    &artifact.payload,
+                    source,
+                    &artifact,
+                    &self.output_policy,
+                )
             }
         }
     }
@@ -469,6 +501,7 @@ impl DevupServer {
                 &artifact.payload,
                 "artifact",
                 &artifact,
+                &self.output_policy,
             )
             .map_err(to_mcp_error)?;
             return Ok(Json(result));
@@ -533,6 +566,7 @@ fn complete_operation(
     payload: &CollectedPayload,
     source_kind: &str,
     artifact: &ArtifactLookup,
+    output_policy: &OutputPolicy,
 ) -> Result<Value, DevupError> {
     let collection = payload.stats.clone();
     let completeness_report = payload.completeness_report();
@@ -574,10 +608,12 @@ fn complete_operation(
             } else {
                 Vec::new()
             };
-            let written_path = output_path
-                .as_deref()
-                .map(|path| write_output(path, &output.tsx))
-                .transpose()?;
+            let written_path = commit_single_output(
+                output_policy,
+                output_path.as_deref(),
+                "tsx",
+                output.tsx.as_bytes(),
+            )?;
             Ok(json!({
                 "status": status,
                 "quality": quality,
@@ -634,10 +670,12 @@ fn complete_operation(
             } else {
                 Vec::new()
             };
-            let written_path = output_path
-                .as_deref()
-                .map(|path| write_output(path, &output.json))
-                .transpose()?;
+            let written_path = commit_single_output(
+                output_policy,
+                output_path.as_deref(),
+                "devupJson",
+                output.json.as_bytes(),
+            )?;
             Ok(json!({
                 "status": status,
                 "quality": quality,
@@ -1095,13 +1133,18 @@ fn complete_operation(
             }
             result.insert("status".to_owned(), json!(quality.status()));
             result.insert("quality".to_owned(), json!(quality));
+            let mut planned_outputs = Vec::new();
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {
-                    written_paths.insert(output, json!(write_output(path, &contents)?));
+                    planned_outputs.push((
+                        output,
+                        output_policy.resolve(path)?,
+                        contents.into_bytes(),
+                    ));
                 }
             }
-            if let Some(mut manifest) = pending_asset_manifest {
-                for asset in &mut manifest.assets {
+            if let Some(manifest) = pending_asset_manifest.as_ref() {
+                for asset in &manifest.assets {
                     if asset.status != AssetStatus::Exported {
                         continue;
                     }
@@ -1122,9 +1165,30 @@ fn complete_operation(
                             false,
                         )
                     })?;
-                    let written = write_binary_output(path, &bytes)?;
-                    written_paths.insert(format!("asset:{}", asset.asset_id), json!(written));
-                    asset.output_path = Some(path.clone());
+                    planned_outputs.push((
+                        format!("asset:{}", asset.asset_id),
+                        output_policy.resolve(path)?,
+                        bytes,
+                    ));
+                }
+            }
+            let mut transaction = OutputTransaction::new();
+            for (name, target, bytes) in planned_outputs {
+                transaction.stage(name, target, &bytes)?;
+            }
+            for (name, path) in transaction.commit()? {
+                written_paths.insert(name, json!(path));
+            }
+            if let Some(mut manifest) = pending_asset_manifest {
+                for asset in &mut manifest.assets {
+                    if asset.status != AssetStatus::Exported {
+                        continue;
+                    }
+                    let output_name = format!("asset:{}", asset.asset_id);
+                    let Some(path) = written_paths.get(&output_name).and_then(Value::as_str) else {
+                        continue;
+                    };
+                    asset.output_path = Some(path.to_owned());
                     asset.data_base64 = None;
                 }
                 result.insert("assetManifest".to_owned(), json!(manifest));
@@ -1303,48 +1367,18 @@ fn parse_asset_requests(
     Ok((selections, output_paths))
 }
 
-fn write_output(path: &str, contents: &str) -> Result<String, DevupError> {
-    write_binary_output(path, contents.as_bytes())
-}
-
-fn write_binary_output(path: &str, contents: &[u8]) -> Result<String, DevupError> {
-    let path = std::path::PathBuf::from(path);
-    if path.as_os_str().is_empty() || path.file_name().is_none() {
-        return Err(DevupError::new(
-            ErrorCode::DevupCodegenFailed,
-            "outputPath는 파일 경로여야 합니다.",
-            false,
-        ));
-    }
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent).map_err(|error| {
-            DevupError::new(
-                ErrorCode::DevupCodegenFailed,
-                format!("outputPath 상위 폴더를 만들 수 없습니다: {error}"),
-                false,
-            )
-        })?;
-    }
-    std::fs::write(&path, contents).map_err(|error| {
-        DevupError::new(
-            ErrorCode::DevupCodegenFailed,
-            format!("artifact를 outputPath에 쓸 수 없습니다: {error}"),
-            false,
-        )
-    })?;
-    path.canonicalize()
-        .unwrap_or(path)
-        .to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| {
-            DevupError::new(
-                ErrorCode::DevupCodegenFailed,
-                "outputPath를 UTF-8 경로로 반환할 수 없습니다.",
-                false,
-            )
-        })
+fn commit_single_output(
+    policy: &OutputPolicy,
+    path: Option<&str>,
+    name: &str,
+    contents: &[u8],
+) -> Result<Option<String>, DevupError> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let mut transaction = OutputTransaction::new();
+    transaction.stage(name, policy.resolve(path)?, contents)?;
+    Ok(transaction.commit()?.remove(name))
 }
 
 fn parse_collection_scope(scope: &str) -> Result<CollectionScope, DevupError> {
