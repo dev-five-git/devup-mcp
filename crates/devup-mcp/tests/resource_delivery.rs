@@ -130,6 +130,22 @@ async fn attached_outputs_are_bounded_hashed_and_share_artifact_lifetime() -> an
         )
         .await?;
     assert_eq!(reused, attached);
+    assert!(
+        store
+            .detach_projection(&artifact.artifact_id, "projection-key")
+            .await
+    );
+    assert!(
+        store
+            .output_manifest(&artifact.artifact_id, &preview.output_id)
+            .await
+            .is_none()
+    );
+    assert!(
+        !store
+            .detach_projection(&artifact.artifact_id, "projection-key")
+            .await
+    );
     Ok(())
 }
 

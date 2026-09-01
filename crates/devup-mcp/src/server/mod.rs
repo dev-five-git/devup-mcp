@@ -2,11 +2,13 @@ pub mod artifacts;
 pub mod delivery;
 pub mod handoff;
 pub mod output;
+mod projection;
 mod quality;
 pub mod resources;
 mod tools;
+mod validation;
 
-use std::{fmt::Write as _, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -24,25 +26,33 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use devup_mcp_devup_ui::{
-    codegen::{CodegenOptions, RootLayout, generate_component},
+    codegen::{CodegenOptions, generate_component},
     theme::{ThemeScope, generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AssetFormat, AssetSelection, AssetStatus, AuthStatus, CollectedParts, CollectedPayload,
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
-    DevupError, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode, ExploreOptions,
-    ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringCredentialStore, OAuthManager,
-    RemoteFigmaClient, ResourceScope, SearchOptions, SearchReadOptions, SectionCandidate,
-    SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser, TargetKind, classify_target,
-    explore_snapshot, fallback_allowed_for_error, search_snapshot,
+    AssetStatus, AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
+    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, ExploreCandidate,
+    ExploreKind, ExploreNode, ExploreOptions, ExploreReadOptions, FigmaTarget, FigmaUpstream,
+    KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchOptions,
+    SearchReadOptions, SectionCandidate, SectionIndex, SectionReadOptions, SourcePolicy,
+    SystemBrowser, TargetKind, classify_target, explore_snapshot, fallback_allowed_for_error,
+    search_snapshot,
 };
 
 use artifacts::{ArtifactKind, ArtifactLookup, ArtifactRequestKey, ArtifactStore};
-use delivery::{DeliveryMode, ProjectedOutput, choose_delivery};
+use delivery::{DeliveryMode, ProjectedOutput};
 use handoff::{HandoffStep, HandoffStore, PendingOperation};
 use output::{OutputPolicy, OutputTransaction};
+use projection::{
+    apply_delivery, artifact_metadata, commit_single_output, projected_outputs_from_result,
+    rollback_delivery,
+};
 use quality::{
     OutputQuality, acquisition_quality, assets_quality, projection_quality, theme_quality,
+};
+use validation::{
+    parse_asset_requests, parse_collection_scope, parse_root_layout, parse_source_policy,
+    validate_artifact_projection, validate_outputs,
 };
 
 pub use tools::{
@@ -717,12 +727,6 @@ async fn complete_operation(
             } else {
                 Vec::new()
             };
-            let written_path = commit_single_output(
-                output_policy,
-                output_path.as_deref(),
-                "tsx",
-                output.tsx.as_bytes(),
-            )?;
             let projected_outputs = vec![ProjectedOutput::text(
                 "tsx",
                 "text/typescript",
@@ -736,7 +740,7 @@ async fn complete_operation(
                 "usedTokens": output.used_tokens,
                 "fidelity": output.fidelity_report,
                 "diagnostics": diagnostics,
-                "outputPath": written_path,
+                "outputPath": null,
                 "completeness": payload.completeness,
                 "completenessReport": &completeness_report,
                 "rootLayout": root_layout,
@@ -754,7 +758,7 @@ async fn complete_operation(
                         .map(|node| node.field_errors.len()).sum::<usize>()
                 }
             });
-            apply_delivery(
+            let attachment = apply_delivery(
                 &mut result,
                 delivery,
                 artifact_store,
@@ -762,6 +766,19 @@ async fn complete_operation(
                 projected_outputs,
             )
             .await?;
+            let written_path = match commit_single_output(
+                output_policy,
+                output_path.as_deref(),
+                "tsx",
+                output.tsx.as_bytes(),
+            ) {
+                Ok(path) => path,
+                Err(error) => {
+                    rollback_delivery(artifact_store, artifact, attachment).await;
+                    return Err(error);
+                }
+            };
+            result["outputPath"] = json!(written_path);
             Ok(result)
         }
         PendingOperation::ToJson {
@@ -795,12 +812,6 @@ async fn complete_operation(
             } else {
                 Vec::new()
             };
-            let written_path = commit_single_output(
-                output_policy,
-                output_path.as_deref(),
-                "devupJson",
-                output.json.as_bytes(),
-            )?;
             let projected_outputs = vec![ProjectedOutput::text(
                 "devupJson",
                 "application/json",
@@ -816,7 +827,7 @@ async fn complete_operation(
                 "conflicts": output.conflicts,
                 "unresolvedVariables": output.unresolved_variables,
                 "diagnostics": diagnostics,
-                "outputPath": written_path,
+                "outputPath": null,
                 "collection": collection,
                 "cache": artifact_metadata(artifact),
                 "source": {
@@ -826,7 +837,7 @@ async fn complete_operation(
                     "version": payload.snapshot.version
                 }
             });
-            apply_delivery(
+            let attachment = apply_delivery(
                 &mut result,
                 delivery,
                 artifact_store,
@@ -834,6 +845,19 @@ async fn complete_operation(
                 projected_outputs,
             )
             .await?;
+            let written_path = match commit_single_output(
+                output_policy,
+                output_path.as_deref(),
+                "devupJson",
+                output.json.as_bytes(),
+            ) {
+                Ok(path) => path,
+                Err(error) => {
+                    rollback_delivery(artifact_store, artifact, attachment).await;
+                    return Err(error);
+                }
+            };
+            result["outputPath"] = json!(written_path);
             Ok(result)
         }
         PendingOperation::Search {
@@ -1381,10 +1405,11 @@ async fn complete_operation(
             }
             let mut transaction = OutputTransaction::new();
             for (name, target, bytes) in planned_outputs {
+                written_paths.insert(
+                    name.clone(),
+                    json!(target.display_path().to_string_lossy().into_owned()),
+                );
                 transaction.stage(name, target, &bytes)?;
-            }
-            for (name, path) in transaction.commit()? {
-                written_paths.insert(name, json!(path));
             }
             if let Some(mut manifest) = pending_asset_manifest {
                 for asset in &mut manifest.assets {
@@ -1403,7 +1428,7 @@ async fn complete_operation(
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
             let projected_outputs = projected_outputs_from_result(&result)?;
             let mut result = Value::Object(result);
-            apply_delivery(
+            let attachment = apply_delivery(
                 &mut result,
                 delivery,
                 artifact_store,
@@ -1411,6 +1436,10 @@ async fn complete_operation(
                 projected_outputs,
             )
             .await?;
+            if let Err(error) = transaction.commit() {
+                rollback_delivery(artifact_store, artifact, attachment).await;
+                return Err(error);
+            }
             Ok(result)
         }
         PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
@@ -1419,238 +1448,6 @@ async fn complete_operation(
             false,
         )),
     }
-}
-
-fn projected_outputs_from_result(
-    result: &Map<String, Value>,
-) -> Result<Vec<ProjectedOutput>, DevupError> {
-    let mut outputs = Vec::new();
-    if let Some(tsx) = result.get("tsx").and_then(Value::as_str) {
-        outputs.push(ProjectedOutput::text(
-            "tsx",
-            "text/typescript",
-            tsx.as_bytes().to_vec(),
-        ));
-    }
-    if let Some(devup_json) = result.get("devupJson").and_then(Value::as_str) {
-        outputs.push(ProjectedOutput::text(
-            "devupJson",
-            "application/json",
-            devup_json.as_bytes().to_vec(),
-        ));
-    }
-    if let Some(reference) = result.get("referencePng") {
-        let data = reference
-            .get("dataBase64")
-            .and_then(Value::as_str)
-            .ok_or_else(|| {
-                DevupError::new(
-                    ErrorCode::DevupSnapshotUnsupported,
-                    "referencePng resource에 base64 data가 없습니다.",
-                    false,
-                )
-            })?;
-        let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
-            DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "referencePng resource의 base64가 올바르지 않습니다.",
-                false,
-            )
-        })?;
-        outputs.push(ProjectedOutput::binary("reference.png", "image/png", bytes));
-    }
-    for (field, name) in [
-        ("rawSnapshot", "raw-snapshot.json"),
-        ("sourceMap", "source-map.json"),
-        ("assetManifest", "asset-manifest.json"),
-    ] {
-        if let Some(value) = result.get(field) {
-            outputs.push(ProjectedOutput::text(
-                name,
-                "application/json",
-                encode_projected_json(value)?,
-            ));
-        }
-    }
-    if let Some(frames) = result.get("frames").and_then(Value::as_array) {
-        for (index, frame) in frames.iter().enumerate() {
-            if let Some(tsx) = frame.get("tsx").and_then(Value::as_str) {
-                outputs.push(ProjectedOutput::text(
-                    format!("frame-{}.tsx", index + 1),
-                    "text/typescript",
-                    tsx.as_bytes().to_vec(),
-                ));
-            }
-            if let Some(source_map) = frame.get("sourceMap") {
-                outputs.push(ProjectedOutput::text(
-                    format!("frame-{}.source-map.json", index + 1),
-                    "application/json",
-                    encode_projected_json(source_map)?,
-                ));
-            }
-        }
-    }
-    Ok(outputs)
-}
-
-fn encode_projected_json(value: &Value) -> Result<Vec<u8>, DevupError> {
-    serde_json::to_vec(value).map_err(|error| {
-        DevupError::new(
-            ErrorCode::DevupSnapshotUnsupported,
-            format!("resource output을 JSON으로 직렬화할 수 없습니다: {error}"),
-            false,
-        )
-    })
-}
-
-async fn apply_delivery(
-    result: &mut Value,
-    mode: DeliveryMode,
-    artifact_store: &ArtifactStore,
-    artifact: &ArtifactLookup,
-    outputs: Vec<ProjectedOutput>,
-) -> Result<(), DevupError> {
-    if outputs.is_empty() || choose_delivery(mode, &outputs)?.inline {
-        return Ok(());
-    }
-    let projection_key = projection_key(&outputs);
-    let manifests = artifact_store
-        .attach_outputs(&artifact.artifact_id, &projection_key, outputs)
-        .await?;
-    let result = result.as_object_mut().ok_or_else(|| {
-        DevupError::new(
-            ErrorCode::DevupFigmaHandoffInvalid,
-            "resource delivery 결과가 JSON object가 아닙니다.",
-            false,
-        )
-    })?;
-    for field in [
-        "tsx",
-        "devupJson",
-        "rawSnapshot",
-        "sourceMap",
-        "assetManifest",
-        "referencePng",
-    ] {
-        result.remove(field);
-    }
-    if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
-        for frame in frames {
-            if let Some(frame) = frame.as_object_mut() {
-                frame.remove("tsx");
-                frame.remove("sourceMap");
-            }
-        }
-    }
-    result.insert(
-        "resources".to_owned(),
-        Value::Array(
-            manifests
-                .into_iter()
-                .map(|manifest| {
-                    json!({
-                        "type": "resource_link",
-                        "uri": manifest.manifest_uri,
-                        "name": manifest.name,
-                        "mimeType": manifest.mime_type,
-                        "size": manifest.raw_bytes,
-                        "contentHash": manifest.sha256,
-                        "expiresAt": format_epoch_rfc3339(manifest.expires_at_epoch_seconds)
-                    })
-                })
-                .collect(),
-        ),
-    );
-    Ok(())
-}
-
-fn projection_key(outputs: &[ProjectedOutput]) -> String {
-    let mut hasher = Sha256::new();
-    for output in outputs {
-        hasher.update(output.name.as_bytes());
-        hasher.update([0]);
-        hasher.update(output.mime_type.as_bytes());
-        hasher.update([u8::from(output.is_binary)]);
-        hasher.update((output.bytes.len() as u64).to_le_bytes());
-        hasher.update(&output.bytes);
-    }
-    let digest = hasher.finalize();
-    let mut encoded = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        let _ = write!(&mut encoded, "{byte:02x}");
-    }
-    encoded
-}
-
-fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
-    json!({
-        "artifactId": artifact.artifact_id,
-        "contentHash": artifact.content_hash,
-        "cacheHit": artifact.cache_hit,
-        "capabilities": artifact.capabilities,
-        "sizeBytes": artifact.size_bytes,
-        "acquiredAt": format_epoch_rfc3339(artifact.created_at_epoch_seconds),
-        "expiresAt": format_epoch_rfc3339(artifact.expires_at_epoch_seconds)
-    })
-}
-
-fn validate_artifact_projection(
-    artifact: &ArtifactLookup,
-    outputs: &[String],
-    requested_scope: &str,
-    requested_assets: &[AssetSelection],
-) -> Result<(), DevupError> {
-    let requested_scope = parse_collection_scope(requested_scope)?;
-    let capabilities = &artifact.capabilities;
-    let design_output_requested = outputs.iter().any(|output| {
-        matches!(
-            output.as_str(),
-            "tsx" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
-        )
-    });
-    let theme_requested = outputs.iter().any(|output| output == "devupJson");
-    let kind_compatible = match capabilities.kind {
-        ArtifactKind::Design => true,
-        ArtifactKind::ThemeOnly => theme_requested && !design_output_requested,
-        ArtifactKind::SectionIndex => outputs.iter().any(|output| output == "tsx"),
-        ArtifactKind::Search | ArtifactKind::Explore => false,
-    };
-    let collection_compatible = collection_scope_rank(requested_scope)
-        <= collection_scope_rank(capabilities.collection_scope);
-    let resources_compatible = !theme_requested
-        || match requested_scope {
-            CollectionScope::File => capabilities.resource_scope == ResourceScope::File,
-            CollectionScope::Node | CollectionScope::Page => {
-                capabilities.resource_scope != ResourceScope::None
-            }
-        };
-
-    let assets_compatible = capabilities.supports_asset_captures(requested_assets);
-    let reference_png_compatible =
-        !outputs.iter().any(|output| output == "referencePng") || capabilities.reference_png;
-
-    if kind_compatible
-        && collection_compatible
-        && resources_compatible
-        && assets_compatible
-        && reference_png_compatible
-    {
-        return Ok(());
-    }
-
-    Err(DevupError::with_details(
-        ErrorCode::DevupFigmaHandoffInvalid,
-        "artifact capture capability가 요청한 export 범위를 충족하지 않습니다.",
-        false,
-        json!({
-            "capabilities": capabilities,
-            "requested": {
-                "outputs": outputs,
-                "collectionScope": requested_scope,
-                "assetCaptureCount": requested_assets.len()
-            }
-        }),
-    ))
 }
 
 fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex> {
@@ -1675,145 +1472,6 @@ fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidat
         canonical_url: candidate.canonical_url.clone(),
         score: 900,
         selection_reasons: candidate.selection_reasons.clone(),
-    }
-}
-
-fn collection_scope_rank(scope: CollectionScope) -> u8 {
-    match scope {
-        CollectionScope::Node => 0,
-        CollectionScope::Page => 1,
-        CollectionScope::File => 2,
-    }
-}
-
-fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
-    if outputs.is_empty() {
-        return Err(DevupError::new(
-            ErrorCode::DevupSnapshotUnsupported,
-            "outputs는 하나 이상이어야 합니다.",
-            false,
-        ));
-    }
-    for output in outputs {
-        if !matches!(
-            output.as_str(),
-            "tsx" | "devupJson" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
-        ) {
-            return Err(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                format!("지원하지 않는 export output입니다: {output}"),
-                false,
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupError> {
-    match policy {
-        "auto" => Ok(SourcePolicy::Auto),
-        "direct" => Ok(SourcePolicy::Direct),
-        "host" => Ok(SourcePolicy::Host),
-        _ => Err(DevupError::new(
-            ErrorCode::DevupFigmaHostRequired,
-            "sourcePolicy는 auto, direct 또는 host여야 합니다.",
-            false,
-        )),
-    }
-}
-
-fn parse_asset_requests(
-    requests: &[FigmaAssetRequestInput],
-) -> Result<
-    (
-        Vec<AssetSelection>,
-        std::collections::BTreeMap<String, String>,
-    ),
-    DevupError,
-> {
-    if requests.len() > 16 {
-        return Err(DevupError::new(
-            ErrorCode::DevupSnapshotUnsupported,
-            "한 번에 export할 asset은 16개 이하여야 합니다.",
-            false,
-        ));
-    }
-    let mut seen = std::collections::BTreeSet::new();
-    let mut selections = Vec::with_capacity(requests.len());
-    let mut output_paths = std::collections::BTreeMap::new();
-    for request in requests {
-        if request.asset_id.trim().is_empty()
-            || request.scale == 0
-            || request.scale > 4
-            || !seen.insert(request.asset_id.as_str())
-        {
-            return Err(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "assetRequests의 ID, scale 또는 중복 값이 올바르지 않습니다.",
-                false,
-            ));
-        }
-        let format = match request.format.as_str() {
-            "png" => AssetFormat::Png,
-            "jpg" | "jpeg" => AssetFormat::Jpg,
-            "svg" => AssetFormat::Svg,
-            "pdf" => AssetFormat::Pdf,
-            _ => {
-                return Err(DevupError::new(
-                    ErrorCode::DevupSnapshotUnsupported,
-                    "asset format은 png, jpg, svg 또는 pdf여야 합니다.",
-                    false,
-                ));
-            }
-        };
-        selections.push(AssetSelection {
-            asset_id: request.asset_id.clone(),
-            format,
-            scale: request.scale,
-        });
-        if let Some(path) = &request.output_path {
-            output_paths.insert(request.asset_id.clone(), path.clone());
-        }
-    }
-    Ok((selections, output_paths))
-}
-
-fn commit_single_output(
-    policy: &OutputPolicy,
-    path: Option<&str>,
-    name: &str,
-    contents: &[u8],
-) -> Result<Option<String>, DevupError> {
-    let Some(path) = path else {
-        return Ok(None);
-    };
-    let mut transaction = OutputTransaction::new();
-    transaction.stage(name, policy.resolve(path)?, contents)?;
-    Ok(transaction.commit()?.remove(name))
-}
-
-fn parse_collection_scope(scope: &str) -> Result<CollectionScope, DevupError> {
-    match scope {
-        "node" => Ok(CollectionScope::Node),
-        "page" => Ok(CollectionScope::Page),
-        "file" => Ok(CollectionScope::File),
-        _ => Err(DevupError::new(
-            ErrorCode::DevupThemeConflict,
-            "scope는 node, page 또는 file이어야 합니다.",
-            false,
-        )),
-    }
-}
-
-fn parse_root_layout(root_layout: &str) -> Result<RootLayout, DevupError> {
-    match root_layout {
-        "standalone" => Ok(RootLayout::Standalone),
-        "embedded" => Ok(RootLayout::Embedded),
-        _ => Err(DevupError::new(
-            ErrorCode::DevupThemeConflict,
-            "rootLayout은 standalone 또는 embedded여야 합니다.",
-            false,
-        )),
     }
 }
 

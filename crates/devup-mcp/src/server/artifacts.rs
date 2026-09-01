@@ -350,6 +350,17 @@ impl ArtifactStore {
         projection_key: &str,
         outputs: Vec<ProjectedOutput>,
     ) -> Result<Vec<AttachedOutputManifest>, DevupError> {
+        self.attach_outputs_transactional(artifact_id, projection_key, outputs)
+            .await
+            .map(|(manifests, _created)| manifests)
+    }
+
+    pub(crate) async fn attach_outputs_transactional(
+        &self,
+        artifact_id: &str,
+        projection_key: &str,
+        outputs: Vec<ProjectedOutput>,
+    ) -> Result<(Vec<AttachedOutputManifest>, bool), DevupError> {
         let now = self.clock.now_epoch_seconds();
         let mut state = self.state.lock().await;
         self.prune_expired(&mut state, now);
@@ -363,7 +374,7 @@ impl ArtifactStore {
                 .entries
                 .get(artifact_id)
                 .ok_or_else(resource_expired)?;
-            return ids
+            let manifests = ids
                 .iter()
                 .map(|id| {
                     entry
@@ -372,7 +383,8 @@ impl ArtifactStore {
                         .map(|output| output.manifest.clone())
                         .ok_or_else(resource_expired)
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok((manifests, false));
         }
         let expires_at = state
             .entries
@@ -491,7 +503,30 @@ impl ArtifactStore {
         }
         entry.projections.insert(projection_key.to_owned(), ids);
         state.total_bytes = state.total_bytes.saturating_add(allocation);
-        Ok(manifests)
+        Ok((manifests, true))
+    }
+
+    pub async fn detach_projection(&self, artifact_id: &str, projection_key: &str) -> bool {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        let removed_allocation = {
+            let Some(entry) = state.entries.get_mut(artifact_id) else {
+                return false;
+            };
+            let Some(ids) = entry.projections.remove(projection_key) else {
+                return false;
+            };
+            let allocation = ids
+                .into_iter()
+                .filter_map(|id| entry.outputs.remove(&id))
+                .map(|output| output.allocation_bytes)
+                .sum::<usize>();
+            entry.size_bytes = entry.size_bytes.saturating_sub(allocation);
+            allocation
+        };
+        state.total_bytes = state.total_bytes.saturating_sub(removed_allocation);
+        true
     }
 
     pub async fn read_output_chunk(
