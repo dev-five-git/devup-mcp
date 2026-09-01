@@ -14,6 +14,9 @@ fn router_keeps_projection_and_validation_implementation_in_dedicated_modules() 
         "fn projection_key",
         "fn validate_artifact_projection",
         "fn validate_outputs",
+        "generate_component(",
+        "generate_devup_json(",
+        "std::fs::",
     ] {
         assert!(
             !router.contains(implementation),
