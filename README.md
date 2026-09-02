@@ -6,7 +6,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 현재 제공 기능
 
-- `devup_figma_auth`: Figma 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃
+- `devup_figma_auth`: Figma 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 그리고 연결 실패 원인을 실측해 보고하는 `doctor` 진단
 - `devup_figma_to_ui`: Figma node 링크를 `@devup-ui/react` TSX로 변환
 - `devup_figma_to_json`: Figma 변수와 로컬 스타일을 `devup.json`으로 변환
 - `devup_figma_export`: Figma를 한 번 수집해 TSX, `devup.json`, raw snapshot, source map, asset manifest와 선택적 reference PNG를 함께 생성하거나 같은 artifact를 재사용
@@ -73,7 +73,93 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 { "action": "status" }
 ```
 
-`action`은 `status`, `login`, `logout` 중 하나입니다.
+`action`은 `status`, `login`, `logout`, `doctor` 중 하나입니다. `status`/`login`/`logout`의 응답 형태는 항상 `{ "status": "connected" | "disconnected" }`입니다. Figma에 붙지 못하는 이유를 알고 싶으면 `doctor`를 호출하세요.
+
+```json
+{ "action": "doctor" }
+```
+
+```json
+{
+  "status": "disconnected",
+  "paths": {
+    "direct": { "available": false, "reason": "저장된 자격증명 없음. ..." },
+    "localDevMode": { "endpoint": "http://127.0.0.1:3845/mcp", "reachable": false, "hint": "..." },
+    "hostHandoff": { "expectedTool": "use_figma", "note": "..." }
+  },
+  "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "...", "localDevMode": { ... } }
+}
+```
+
+`paths.localDevMode.reachable`은 `127.0.0.1:3845`에 대한 300ms 이내 로컬 TCP 연결 확인 결과이며 실패해도 오류를 던지지 않습니다. `needs_figma` 응답에도 같은 프로브 결과가 `hostRequirement.localDevMode`로 포함됩니다. 자세한 제약과 3가지 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+
+## Figma 연결 설정
+
+devup-mcp가 Figma에 붙는 경로는 세 가지입니다.
+
+1. **원격 OAuth (`direct`)** — `devup_figma_auth { action: "login" }`으로 브라우저 인증. Figma MCP Catalog에 승인된 client만 등록할 수 있습니다.
+2. **로컬 Dev Mode MCP (`http://127.0.0.1:3845/mcp`)** — Figma 데스크톱 앱의 Dev Mode MCP 서버. OAuth가 필요 없고 어떤 MCP 클라이언트에서도 동일하게 동작하지만, Figma 데스크톱 앱에서 켜야 하고 Dev/Full 시트가 있는 유료 플랜이 필요합니다.
+3. **호스트 핸드오프 (`host`)** — devup-mcp가 직접 Figma에 붙지 않고, 호스트에 이미 등록된 공식 Figma MCP가 `needs_figma` 응답의 `calls`를 대신 실행하도록 위임합니다. `auto` 정책의 기본 fallback 경로입니다.
+
+세 경로 중 무엇이 지금 사용 가능한지는 `devup_figma_auth { action: "doctor" }`로 확인하세요.
+
+### 원격 OAuth 등록 제약 (실측)
+
+Figma Remote MCP 등록 엔드포인트는 `POST https://api.figma.com/v1/oauth/mcp/register`입니다. 요청 본문의 `client_name`은 정확히 일치하는 allowlist로만 승인됩니다.
+
+| client_name | 결과 |
+|---|---|
+| `Codex` | 200 (client_id + client_secret 발급) |
+| `Claude Code` | 200 |
+| `OpenCode` | 403 |
+| `opencode` | 403 |
+| `Cursor` | 403 |
+| `VS Code` | 403 |
+
+403 응답 본문은 JSON이 아니라 평문 `Forbidden`입니다. 그래서 많은 클라이언트가 `Invalid OAuth error response ... Raw body: Forbidden`으로 파싱까지 깨집니다. `X-Figma-Plugin-Bundle` 헤더나 User-Agent를 바꿔도 결과는 바뀌지 않습니다. 신규 client 등록은 waitlist를 통해서만 가능합니다: <https://www.figma.com/mcp-catalog/>.
+
+`redirect_uri`도 형태가 고정되어 있습니다.
+
+| redirect_uri | 결과 |
+|---|---|
+| `http://127.0.0.1:<port>/callback` | 200 |
+| `http://127.0.0.1:<port>/mcp/oauth/callback` | 400 |
+| `http://localhost:<port>/mcp/oauth/callback` | 400 |
+
+경로는 정확히 `/callback`이어야 하고 호스트는 `127.0.0.1`이어야 합니다 (`localhost` 불가). Figma PAT(`figd_...`)는 `Authorization: Bearer`, `X-Figma-Token` 어느 방식으로도 원격 MCP에서 지원되지 않습니다.
+
+### 숨은 함정 — 콜백 포트 점유
+
+로컬 OAuth 콜백이 쓰는 포트를 OS나 보안 소프트웨어(예: 사내 보안 에이전트)가 이미 점유하고 있으면, 브라우저는 리다이렉트에 "성공"한 것처럼 보이지만 그 요청은 다른 프로세스로 전달됩니다. 클라이언트는 **아무 에러 없이** `Waiting for authorization...` 상태로 영원히 남습니다. 로그인이 멈춘 것처럼 보이면 가장 먼저 콜백 포트를 다른 프로세스가 쓰고 있지 않은지 확인하세요.
+
+### opencode에서 direct 경로 미리 설정하기
+
+Dynamic Client Registration을 건너뛰려면 `mcp.<name>.oauth`에 이미 발급받은 `clientId`/`clientSecret`을 직접 지정합니다.
+
+```json
+{
+  "mcp": {
+    "figma": {
+      "type": "remote",
+      "url": "https://mcp.figma.com/mcp",
+      "oauth": {
+        "clientId": "<allowlist된 client_name으로 등록해 발급받은 client_id>",
+        "clientSecret": "<allowlist된 client_name으로 등록해 발급받은 client_secret>",
+        "scope": "mcp:connect",
+        "callbackPort": 19876,
+        "redirectUri": "http://127.0.0.1:19876/callback"
+      }
+    }
+  }
+}
+```
+
+Claude Code와 Codex는 allowlist에 있어 별도 설정 없이 등록할 수 있습니다.
+
+```bash
+claude mcp add --transport http figma https://mcp.figma.com/mcp
+codex mcp add figma --url https://mcp.figma.com/mcp
+```
 
 ### Figma → DevupUI
 
