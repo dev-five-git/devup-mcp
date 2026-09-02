@@ -352,7 +352,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Convert a Figma design link to deterministic DevupUI TypeScript",
+        description = "Convert a Figma design link to deterministic DevupUI TypeScript only; use devup_figma_export when tokens or a source map are also needed, and never hand-interpret a handoff node tree",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_to_ui(
@@ -435,7 +435,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Search Figma pages, sections, frames, and components by name",
+        description = "Search Figma pages, sections, frames, and components by name to locate the target before devup_figma_export",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_search(
@@ -469,7 +469,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Explore screen candidates spatially related to a linked Figma node",
+        description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_explore(
@@ -515,7 +515,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Continue a read-only Figma host handoff with an official MCP result",
+        description = "Continue a read-only Figma host handoff: run calls[].tool with the exact arguments and pass its raw result unchanged; never substitute tools or fabricate envelope fields",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_continue(
@@ -539,7 +539,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Acquire a Figma design once and project multiple DevupUI artifacts",
+        description = "Acquire a Figma design once and project tsx/devupJson/sourceMap/rawSnapshot together in one collection; the primary Figma-to-code entry point, preferred over devup_figma_to_ui for implementation",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
@@ -875,7 +875,15 @@ impl ServerHandler for DevupServer {
                 .build(),
         )
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
-        .with_instructions("Read Figma designs and generate DevupUI artifacts")
+        .with_instructions(
+            "1. Figma 디자인을 코드로 옮기는 작업에서 devup-mcp가 1차 소스다. 다른 출처로 이를 대체하지 마라.\n\
+             2. 구현이 목적이면 devup_figma_export를 먼저 호출하고 tsx, rawSnapshot, sourceMap을 함께 받아라.\n\
+             3. get_design_context, 스크린샷, 시각적 추론은 검증 보조일 뿐이다. devup-mcp 출력을 덮어쓰지 마라.\n\
+             4. 핸드오프로 받은 노드 트리를 직접 해석해 devup-ui 코드를 작성하지 마라. 좌표로 레이아웃을 추론하지 마라.\n\
+             5. 핸드오프 단계에서는 요청된 도구를 요청된 arguments 그대로 실행하고, 원본 결과를 가공 없이 devup_figma_continue로 돌려줘라.\n\
+             6. devup-mcp 호출이 실패하면 명시적으로 기록하라. 조용히 다른 방법으로 우회하지 마라.\n\
+             7. 색상·간격·radius·타이포 같은 UI 수치를 추측하지 마라. 확보하지 못했으면 멈추고 보고하라.",
+        )
     }
 
     async fn list_resources(

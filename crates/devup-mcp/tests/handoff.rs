@@ -53,6 +53,20 @@ fn metadata_result() -> Value {
     })
 }
 
+/// Builds the content-only XML shape exposed when an MCP client drops
+/// `structuredContent`, optionally with Figma's fixed `get_metadata` reminder.
+fn xml_metadata_result(append_tail: bool) -> Value {
+    let xml = r#"<frame id="1:2" name="Fixture"></frame>"#;
+    let text = if append_tail {
+        format!(
+            "{xml}\n\nIMPORTANT: After you call this tool, you MUST call get_design_context if trying to implement the design, since this tool only returns metadata. If you do not call get_design_context, the agent will not be able to implement the design."
+        )
+    } else {
+        xml.to_owned()
+    };
+    json!({"content": [{"type": "text", "text": text}]})
+}
+
 fn snapshot_result() -> Value {
     json!({
         "fileKey": "FileKey123",
@@ -343,6 +357,104 @@ async fn stringified_tool_results_are_normalized_at_the_handoff_boundary() {
         .await
         .unwrap();
 
+    let HandoffStep::Complete { parts, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(parts.snapshot_chunks.len(), 1);
+}
+
+/// Reproduces WQUW-156: opencode preserved only the XML text plus Figma's
+/// reminder, then submitted that `get_metadata` result for the next
+/// `use_figma` call; the boundary must identify the wrong tool explicitly.
+#[tokio::test]
+async fn wquw_156_wrong_tool_result_reports_tool_mismatch_after_text_only_metadata() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "get_metadata");
+
+    store
+        .accept(&id, &calls[0].call_id, xml_metadata_result(true))
+        .await
+        .unwrap();
+
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
+
+    let error = store
+        .accept(&id, &calls[0].call_id, xml_metadata_result(true))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+    assert_eq!(error.details["reason"], "tool_mismatch");
+    assert_eq!(error.details["requested"]["tool"], "use_figma");
+}
+
+/// Locks in the pre-existing XML fallback when the official reminder is not
+/// present, so reminder normalization cannot regress ordinary text-only hosts.
+#[tokio::test]
+async fn content_only_xml_metadata_without_figma_reminder_advances_to_use_figma() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "get_metadata");
+
+    store
+        .accept(&id, &calls[0].call_id, xml_metadata_result(false))
+        .await
+        .unwrap();
+
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
+}
+
+/// A mismatch rejection must preserve the exact pending call so the host can
+/// retry with the requested tool's raw result instead of restarting collection.
+#[tokio::test]
+async fn tool_mismatch_rejection_keeps_use_figma_call_pending_for_corrected_result() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    store
+        .accept(&id, &calls[0].call_id, metadata_result())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
+
+    let error = store
+        .accept(&id, &calls[0].call_id, xml_metadata_result(true))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+    assert_eq!(error.details["reason"], "tool_mismatch");
+    assert_eq!(error.details["requested"]["tool"], "use_figma");
+
+    store
+        .accept(&id, &calls[0].call_id, snapshot_result())
+        .await
+        .unwrap();
     let HandoffStep::Complete { parts, .. } = store.next(&id).await.unwrap() else {
         panic!()
     };

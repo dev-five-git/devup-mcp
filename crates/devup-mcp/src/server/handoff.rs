@@ -143,6 +143,7 @@ struct SessionTombstone {
 }
 
 const MAX_TOMBSTONES: usize = 64;
+const GET_METADATA_RESULT_TAIL: &str = "IMPORTANT: After you call this tool, you MUST call get_design_context if trying to implement the design, since this tool only returns metadata. If you do not call get_design_context, the agent will not be able to implement the design.";
 
 #[derive(Clone)]
 pub struct HandoffStore {
@@ -287,7 +288,7 @@ impl HandoffStore {
             ));
         }
         let mut session = take_session(&mut state, session_id, now, self.limits.ttl.as_secs())?;
-        let Some((collector_call_id, _)) = session.pending.get(call_id) else {
+        let Some((collector_call_id, handoff_call)) = session.pending.get(call_id) else {
             let reason = if session.consumed.contains(call_id) {
                 "consumed"
             } else {
@@ -300,6 +301,13 @@ impl HandoffStore {
             ));
         };
         let collector_call_id = collector_call_id.clone();
+        let requested_tool = handoff_call.tool;
+        if let Some(error) = detect_tool_mismatch(requested_tool, call_id, &result) {
+            put_session(&mut state, session_id.to_owned(), session);
+            return Err(error);
+        }
+        let mut result = result;
+        strip_get_metadata_tail(&mut result);
         let mut accepted_collector = session.collector.clone();
         if let Err(error) =
             accepted_collector.accept(&collector_call_id, UpstreamResult { raw: result })
@@ -455,6 +463,66 @@ fn too_large(message: &str) -> DevupError {
     )
 }
 
+/// Rejects the WQUW-156 wrong-tool handoff before the collector interprets
+/// a `get_metadata` response using another call's recorded kind.
+///
+/// Detection is deliberately conservative: Figma's complete fixed reminder
+/// is the only signature recognized today, and it is always legitimate when
+/// the recorded request itself was `get_metadata`. Other result shapes are
+/// left to the collector rather than guessed from design content.
+fn detect_tool_mismatch(requested_tool: &str, call_id: &str, value: &Value) -> Option<DevupError> {
+    if requested_tool == "get_metadata" || !contains_get_metadata_tail(value) {
+        return None;
+    }
+    Some(DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffInvalid,
+        "요청한 도구가 아닌 다른 Figma 도구의 결과로 보입니다.",
+        false,
+        json!({
+            "reason": "tool_mismatch",
+            "requested": { "tool": requested_tool, "callId": call_id },
+            "hint": "요청한 도구가 아닌 다른 도구의 결과로 보입니다. calls[].tool 을 그대로 실행하세요.",
+            "doNot": "다른 Figma 도구로 대체하거나, 결과를 가공해 형식을 맞추려 하지 마세요."
+        }),
+    ))
+}
+
+/// Finds only Figma's complete fixed `get_metadata` reminder, recursively,
+/// so official results remain detectable through host-added JSON wrappers.
+/// It deliberately ignores every other metadata-looking string.
+fn contains_get_metadata_tail(value: &Value) -> bool {
+    match value {
+        Value::String(text) => text.contains(GET_METADATA_RESULT_TAIL),
+        Value::Object(object) => object.values().any(contains_get_metadata_tail),
+        Value::Array(values) => values.iter().any(contains_get_metadata_tail),
+        Value::Null | Value::Bool(_) | Value::Number(_) => false,
+    }
+}
+
+/// Removes Figma's fixed reminder from every top-level `content[].text`
+/// block before XML or text fallback parsing.
+///
+/// This addresses clients that discard `structuredContent` and expose only
+/// official Figma text. It truncates at the exact Figma-authored marker and
+/// trims whitespace immediately before it; all other fields and all text
+/// before the marker remain unchanged. It never creates envelope fields or
+/// attempts to infer metadata.
+fn strip_get_metadata_tail(value: &mut Value) {
+    let Some(content) = value.get_mut("content").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for item in content {
+        let Some(Value::String(text)) = item.get_mut("text") else {
+            continue;
+        };
+        let Some(marker_start) = text.find(GET_METADATA_RESULT_TAIL) else {
+            continue;
+        };
+        text.truncate(marker_start);
+        text.truncate(text.trim_end().len());
+    }
+}
+
 /// Normalizes a `devup_figma_continue` `result` payload before it reaches
 /// the collector. This is the fix for a real observed failure: opencode's
 /// host handoff flattens an official Figma MCP `CallToolResult` down to
@@ -565,4 +633,37 @@ fn received_shape(value: &Value) -> Value {
     content_types.sort();
     content_types.dedup();
     json!({ "topLevelKeys": top_level_keys, "contentTypes": content_types })
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{GET_METADATA_RESULT_TAIL, strip_get_metadata_tail};
+
+    /// Every text content block loses only the fixed reminder while values
+    /// outside `content[].text` remain byte-for-byte unchanged.
+    #[test]
+    fn strips_get_metadata_reminder_from_every_text_content_item_only() {
+        let mut value = json!({
+            "content": [
+                {"type": "text", "text": format!("first\n\n{GET_METADATA_RESULT_TAIL}")},
+                {"type": "image", "data": "image-bytes"},
+                {"type": "text", "text": format!("second  \n{GET_METADATA_RESULT_TAIL}")},
+                {"type": "text", "text": "unchanged"}
+            ],
+            "structuredContent": {"reminder": GET_METADATA_RESULT_TAIL}
+        });
+
+        strip_get_metadata_tail(&mut value);
+
+        assert_eq!(value["content"][0]["text"], "first");
+        assert_eq!(value["content"][1]["data"], "image-bytes");
+        assert_eq!(value["content"][2]["text"], "second");
+        assert_eq!(value["content"][3]["text"], "unchanged");
+        assert_eq!(
+            value["structuredContent"]["reminder"],
+            GET_METADATA_RESULT_TAIL
+        );
+    }
 }
