@@ -15,23 +15,28 @@ pub struct TsxValidation {
 pub fn validate_tsx(source: &str) -> Result<TsxValidation, DevupError> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
-    if parsed.errors.is_empty() {
+    // `ParserReturn::diagnostics` (oxc_parser 0.148, was `errors` on 0.96) derefs to
+    // `Vec<OxcDiagnostic>`, so this keeps the original "any diagnostic fails validation"
+    // behavior regardless of severity.
+    if parsed.diagnostics.is_empty() {
         return Ok(TsxValidation {
             byte_len: source.len(),
             statement_count: parsed.program.body.len(),
         });
     }
     let errors = parsed
-        .errors
+        .diagnostics
         .iter()
         .map(|error| {
+            // `OxcDiagnosticInner::labels` (oxc_diagnostics 0.148) is a plain `Labels`
+            // collection (was `Option<Vec<LabeledSpan>>` on 0.96), and
+            // `LabeledSpan::offset`/`len` now return `u32` (was `usize`).
             let (start, end) = error
                 .labels
-                .as_ref()
-                .and_then(|labels| labels.first())
+                .first()
                 .map(|label| {
-                    let start = label.offset().min(source.len());
-                    let end = start.saturating_add(label.len()).min(source.len());
+                    let start = (label.offset() as usize).min(source.len());
+                    let end = start.saturating_add(label.len() as usize).min(source.len());
                     (start, end)
                 })
                 .unwrap_or((0, 0));

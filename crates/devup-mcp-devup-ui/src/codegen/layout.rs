@@ -157,11 +157,9 @@ pub(super) fn push_layout_props(
                     height = None;
                 }
             }
-            Some("NONE" | "TRUNCATE") => {
-                if !is_page_root {
-                    width = view.number("width").map(px).or(width);
-                    height = view.number("height").map(px).or(height);
-                }
+            Some("NONE" | "TRUNCATE") if !is_page_root => {
+                width = view.number("width").map(px).or(width);
+                height = view.number("height").map(px).or(height);
             }
             _ => {}
         }

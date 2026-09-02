@@ -19,7 +19,7 @@ host handoff 경로에는 Figma PAT, 사용자가 만든 OAuth app, 내장 clien
 
 ## 빌드와 설치
 
-Rust 1.88 이상이 필요합니다.
+Rust 1.98 이상이 필요합니다.
 
 ```bash
 cargo install --git https://github.com/dev-five-git/devup-mcp.git --branch owjs3901/figma-remote-mcp devup-mcp

@@ -566,16 +566,14 @@ fn expression_for_prop(
             .filter(|(_, value)| value.is_some())
             .collect::<Vec<_>>();
         if present.len() == 1
-            && matches!(present[0].1, Some(Expression::Literal(_)))
             && dimension.options.len() == 2
+            && let Some(Expression::Literal(value)) = present[0].1.clone()
         {
-            if let Some(Expression::Literal(value)) = present[0].1.clone() {
-                return Some(Expression::Conditional(
-                    dimension.name.clone(),
-                    present[0].0.clone(),
-                    value,
-                ));
-            }
+            return Some(Expression::Conditional(
+                dimension.name.clone(),
+                present[0].0.clone(),
+                value,
+            ));
         }
         return Some(Expression::Variant(
             dimension.name.clone(),

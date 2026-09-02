@@ -50,7 +50,7 @@ fn delivery_boundaries_are_deterministic_and_strict() {
         vec![b'a'; MAX_INLINE_OUTPUT_BYTES + 1],
     );
     assert!(
-        !choose_delivery(DeliveryMode::Auto, &[over.clone()])
+        !choose_delivery(DeliveryMode::Auto, std::slice::from_ref(&over))
             .unwrap()
             .inline
     );

@@ -3,18 +3,13 @@ use serde_json::json;
 
 use crate::{DevupError, ErrorCode};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SourcePolicy {
+    #[default]
     Auto,
     Direct,
     Host,
-}
-
-impl Default for SourcePolicy {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

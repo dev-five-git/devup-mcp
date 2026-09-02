@@ -10,7 +10,7 @@ resolver = "3"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.98"
 license = "MIT"
 repository = "https://github.com/dev-five-git/devup-mcp"
 
@@ -24,13 +24,13 @@ dunce = "1.0.5"
 keyring = "4.2"
 insta = { version = "1.48.0", features = ["glob", "json"] }
 image = { version = "=0.25.10", default-features = false, features = ["png"] }
-oxc_allocator = "=0.96.0"
-oxc_parser = "=0.96.0"
-oxc_span = "=0.96.0"
+oxc_allocator = "=0.148.0"
+oxc_parser = "=0.148.0"
+oxc_span = "=0.148.0"
 rand = "0.10"
 quick-xml = "0.42"
 reqwest = { version = "0.13", default-features = false, features = ["form", "json", "rustls"] }
-rmcp = { version = "3.1", features = ["server", "transport-io", "client", "transport-streamable-http-client-reqwest", "auth", "reqwest"] }
+rmcp = { version = "3.2", features = ["server", "transport-io", "client", "transport-streamable-http-client-reqwest", "auth", "reqwest"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
