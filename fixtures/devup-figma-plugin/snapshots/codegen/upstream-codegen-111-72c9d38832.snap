@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"<Box bg="radial-gradient(50% 50% at 50% 50%, #F00 0%, #00F 100%)" boxSize="100px" />"

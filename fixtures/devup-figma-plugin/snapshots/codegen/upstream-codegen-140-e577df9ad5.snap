@@ -1,0 +1,30 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface AlertCardProps {
+  State: 'Default' | 'Hover'
+  showBadge?: boolean
+}
+
+export function AlertCard({ State, showBadge }: AlertCardProps) {
+  return (
+    <Box>
+      {showBadge && <Box boxSize="100%" />}
+      <Text
+        boxSize="100%"
+        color="#F00"
+        fontFamily="Arial"
+        fontSize="16px"
+        fontWeight="400"
+        letterSpacing="0px"
+        lineHeight="1.5px"
+        overflow="hidden"
+        textOverflow="ellipsis"
+      >
+        Hello
+      </Text>
+    </Box>
+  )
+}"

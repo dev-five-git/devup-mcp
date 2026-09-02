@@ -1,0 +1,18 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface CardProps {
+  showBadge?: boolean
+  showIcon?: boolean
+}
+
+export function Card({ showBadge, showIcon }: CardProps) {
+  return (
+    <Flex>
+      {showBadge && <Box />}
+      {showIcon && <Box />}
+    </Flex>
+  )
+}"

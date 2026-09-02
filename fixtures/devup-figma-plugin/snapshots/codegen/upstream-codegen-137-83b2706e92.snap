@@ -1,0 +1,45 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+{
+  "name": "Button",
+  "node": {
+    "children": [],
+    "name": "Hover",
+    "parent": {
+      "children": [],
+      "componentPropertyDefinitions": {},
+      "defaultVariant": {
+        "children": [],
+        "name": "Default",
+        "type": "COMPONENT",
+        "visible": true,
+      },
+      "name": "Button",
+      "type": "COMPONENT_SET",
+      "visible": true,
+    },
+    "type": "COMPONENT",
+    "visible": true,
+  },
+  "tree": {
+    "children": [],
+    "component": "Box",
+    "nodeName": "Hover",
+    "nodeType": "COMPONENT",
+    "props": {
+      "aspectRatio": undefined,
+      "flex": undefined,
+      "h": undefined,
+      "maxH": undefined,
+      "maxW": undefined,
+      "minH": undefined,
+      "minW": undefined,
+      "w": undefined,
+    },
+  },
+  "variantComments": {},
+  "variants": {},
+}

@@ -1,0 +1,90 @@
+const resources = "__DEVUP_RESOURCE_BATCH__";
+
+function serialize(value, seen = new WeakSet(), depth = 0) {
+  if (value === null || ["string", "number", "boolean"].includes(typeof value)) return value;
+  if (typeof value === "undefined") return { $undefined: true };
+  if (typeof value === "bigint") return { $bigint: value.toString() };
+  if (["function", "symbol"].includes(typeof value)) return { $unsupported: typeof value };
+  if (depth > 12) return { $truncated: "max-depth" };
+  if (typeof value === "object" && "parent" in value && typeof value.id === "string" && typeof value.type === "string") {
+    return { $nodeId: value.id, $nodeType: value.type };
+  }
+  if (Array.isArray(value)) return value.map((item) => serialize(item, seen, depth + 1));
+  if (ArrayBuffer.isView(value)) return { $binary: value.constructor.name, byteLength: value.byteLength };
+  if (value instanceof ArrayBuffer) return { $binary: "ArrayBuffer", byteLength: value.byteLength };
+  if (seen.has(value)) return { $circular: true };
+  seen.add(value);
+  const result = {};
+  const names = new Set(Object.keys(value));
+  let current = value;
+  while (current && current !== Object.prototype) {
+    for (const name of Object.getOwnPropertyNames(current)) names.add(name);
+    current = Object.getPrototypeOf(current);
+  }
+  for (const name of [...names].sort()) {
+    if (name.startsWith("_") || ["parent", "children", "consumers"].includes(name)) continue;
+    try {
+      const serialized = serialize(value[name], seen, depth + 1);
+      if (!(serialized && serialized.$unsupported === "function")) result[name] = serialized;
+    } catch (_error) {
+      result[name] = { $error: "unavailable" };
+    }
+  }
+  seen.delete(value);
+  return result;
+}
+
+const variableResults = await Promise.all(resources.variableIds.map(async (id) => {
+  try {
+    const value = await figma.variables.getVariableByIdAsync(id);
+    return value
+      ? { value: serialize(value), collectionId: value.variableCollectionId }
+      : { unresolved: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+  } catch (_error) {
+    return { unresolved: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+  }
+}));
+
+const collectionIds = [...new Set(variableResults
+  .flatMap((result) => result.collectionId ? [result.collectionId] : []))].sort();
+const collectionResults = await Promise.all(collectionIds.map(async (id) => {
+  try {
+    const collection = await figma.variables.getVariableCollectionByIdAsync(id);
+    return collection ? [serialize(collection)] : [];
+  } catch (_error) {
+    return [];
+  }
+}));
+
+const styleResults = await Promise.all(resources.styles.map(async (styleRef) => {
+  try {
+    const style = await figma.getStyleByIdAsync(styleRef.id);
+    if (!style) {
+      return { unresolved: { id: styleRef.id, kind: "style", reason: "notFoundOrUnavailable" } };
+    }
+    return {
+      value: {
+        ...serialize(style),
+        styleType: styleRef.styleType,
+        value: serialize(
+          styleRef.styleType === "PAINT" ? style.paints
+            : styleRef.styleType === "EFFECT" ? style.effects
+              : styleRef.styleType === "GRID" ? style.layoutGrids
+                : style
+        )
+      }
+    };
+  } catch (_error) {
+    return { unresolved: { id: styleRef.id, kind: "style", reason: "notFoundOrUnavailable" } };
+  }
+}));
+
+return {
+  collections: collectionResults.flat(),
+  variables: variableResults.flatMap((result) => result.value ? [result.value] : []),
+  styles: styleResults.flatMap((result) => result.value ? [result.value] : []),
+  usedVariableIds: resources.variableIds,
+  usedStyleIds: resources.styles.map((style) => style.id),
+  unresolved: [...variableResults, ...styleResults]
+    .flatMap((result) => result.unresolved ? [result.unresolved] : [])
+};

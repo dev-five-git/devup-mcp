@@ -1,0 +1,475 @@
+use devup_mcp_figma::{RawNode, Snapshot};
+use serde_json::Value;
+
+use super::component::{Prop, PropValue, RootLayout};
+
+pub(super) fn push_layout_props(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    component: &str,
+    props: &mut Vec<Prop>,
+    root_layout: RootLayout,
+    is_render_root: bool,
+) {
+    let view = node.typed_view();
+    let parent = snapshot.nodes.values().find(|candidate| {
+        candidate
+            .typed_view()
+            .child_ids()
+            .any(|child| child == node.id)
+    });
+    let is_root = snapshot.roots.iter().any(|root| root == &node.id);
+    let is_page_root = parent.is_some_and(|parent| {
+        matches!(
+            parent.typed_view().node_type(),
+            "SECTION" | "PAGE" | "COMPONENT_SET"
+        )
+    });
+    let fixed_w = view.string("layoutSizingHorizontal") == Some("FIXED");
+    let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
+    let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
+    let fill_h = view.string("layoutSizingVertical") == Some("FILL");
+    let absolute = view.string("layoutPositioning") == Some("ABSOLUTE");
+    let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
+    let mut width = None;
+    let mut height = None;
+
+    if embedded_root {
+        // The selected frame is being inserted into an existing page layout.
+        // Preserve its visual/layout semantics, but do not constrain the host
+        // with Figma canvas geometry or root positioning.
+    } else if absolute {
+        push_absolute(node, parent, props);
+        if matches!(component, "Image" | "Text") {
+            width = view.number("width").map(px);
+            height = Some("100%".to_owned());
+        } else if view.child_ids().next().is_some() {
+            width = match (
+                view.number("width"),
+                parent.and_then(|parent| parent.typed_view().number("width")),
+            ) {
+                (Some(width), Some(parent_width)) if width >= parent_width => Some("100%".into()),
+                _ => None,
+            };
+            height = None;
+        } else if view.node_type() == "FRAME"
+            && let Some(parent) = parent
+        {
+            width = match (view.number("width"), parent.typed_view().number("width")) {
+                (Some(width), Some(parent_width)) if width == parent_width => Some("100%".into()),
+                (Some(width), _) => Some(px(width)),
+                _ => None,
+            };
+            height = match (view.number("height"), parent.typed_view().number("height")) {
+                (Some(height), Some(parent_height)) if height == parent_height => {
+                    Some("100%".into())
+                }
+                (Some(height), _) => Some(px(height)),
+                _ => None,
+            };
+        } else if let Some(parent) = parent {
+            width = match (view.number("width"), parent.typed_view().number("width")) {
+                (Some(width), Some(parent_width)) if width == parent_width => Some("100%".into()),
+                _ => None,
+            };
+            height = Some("100%".to_owned());
+        }
+    } else if is_page_root {
+        // Figma page roots define the component canvas; their editor dimensions
+        // are not emitted as runtime constraints.
+    } else if fixed_w || fixed_h {
+        if fixed_w {
+            width = view.number("width").map(px);
+        }
+        if fixed_h {
+            height = view.number("height").map(px);
+        }
+        if fill_w
+            && (view.value("maxWidth") != Some(&Value::Null)
+                || parent.is_some_and(|parent| child_shrinker(parent, "width")))
+        {
+            width = Some("100%".to_owned());
+        }
+        if fill_h
+            && (view.value("maxHeight") != Some(&Value::Null)
+                || parent.is_some_and(|parent| child_shrinker(parent, "height")))
+        {
+            height = Some("100%".to_owned());
+        }
+    } else if is_root {
+        let no_dimensions = view.number("width").is_none() && view.number("height").is_none();
+        let has_children = view.child_ids().next().is_some();
+        let implicit_text_fill = view.node_type() == "TEXT"
+            && view.value("layoutSizingHorizontal").is_none()
+            && view.value("layoutSizingVertical").is_none();
+        let standalone_component = view.node_type() == "COMPONENT"
+            && !snapshot
+                .nodes
+                .values()
+                .any(|node| node.typed_view().node_type() == "COMPONENT_SET");
+        if (no_dimensions && (view.node_type() != "COMPONENT" || standalone_component))
+            || has_children
+            || fill_w
+            || fill_h
+            || view.node_type() == "GROUP"
+            || implicit_text_fill
+        {
+            width = Some("100%".to_owned());
+            height = Some("100%".to_owned());
+        }
+    } else {
+        if fill_w
+            && (view.value("maxWidth") != Some(&Value::Null)
+                || parent.is_some_and(|parent| child_shrinker(parent, "width")))
+        {
+            width = Some("100%".to_owned());
+        } else if fixed_w {
+            width = view.number("width").map(px);
+        }
+        if fill_h
+            && (view.value("maxHeight") != Some(&Value::Null)
+                || parent.is_some_and(|parent| child_shrinker(parent, "height")))
+        {
+            height = Some("100%".to_owned());
+        } else if fixed_h {
+            height = view.number("height").map(px);
+        }
+        if view.node_type() != "COMPONENT"
+            && view.number("width").is_none()
+            && view.number("height").is_none()
+        {
+            width = Some("100%".to_owned());
+            height = Some("100%".to_owned());
+        }
+    }
+
+    if component == "Text" && fixed_w && fixed_h {
+        match view.string("textAutoResize") {
+            Some("WIDTH_AND_HEIGHT") => {
+                if view.number("width").is_some() || view.number("height").is_some() {
+                    width = None;
+                    height = None;
+                }
+            }
+            Some("HEIGHT") => {
+                if let Some(text_width) = view.number("width") {
+                    width = Some(px(text_width));
+                    height = None;
+                }
+            }
+            Some("NONE" | "TRUNCATE") if !is_page_root => {
+                width = view.number("width").map(px).or(width);
+                height = view.number("height").map(px).or(height);
+            }
+            _ => {}
+        }
+    }
+
+    if let (Some(width), Some(height)) = (&width, &height)
+        && width == height
+    {
+        string_prop(props, "boxSize", width.clone());
+    } else {
+        if let Some(width) = width {
+            string_prop(props, "w", width);
+        }
+        if let Some(height) = height {
+            string_prop(props, "h", height);
+        }
+    }
+
+    if let Some(aspect) = view.value("targetAspectRatio").and_then(Value::as_object)
+        && let (Some(x), Some(y)) = (
+            aspect.get("x").and_then(Value::as_f64),
+            aspect.get("y").and_then(Value::as_f64),
+        )
+        && y != 0.0
+    {
+        string_prop(
+            props,
+            "aspectRatio",
+            format_number((x / y * 100.0).floor() / 100.0),
+        );
+    }
+    for (field, prop) in [
+        ("maxWidth", "maxW"),
+        ("maxHeight", "maxH"),
+        ("minWidth", "minW"),
+        ("minHeight", "minH"),
+    ] {
+        if let Some(value) = view.number(field) {
+            string_prop(props, prop, px(value));
+        }
+    }
+    if view.string("parentId").is_some()
+        && let Some(parent) = parent
+        && parent
+            .typed_view()
+            .value("inferredAutoLayout")
+            .and_then(Value::as_object)
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(Value::as_str)
+            == Some("GRID")
+    {
+        let column = view.number("gridColumnAnchorIndex").unwrap_or(-1.0);
+        let row = view.number("gridRowAnchorIndex").unwrap_or(-1.0);
+        let column_count = parent.typed_view().number("gridColumnCount").unwrap_or(0.0);
+        let current = column + row * column_count;
+        let natural = parent
+            .typed_view()
+            .child_ids()
+            .position(|child| child == node.id)
+            .map(|index| index as f64);
+        if column >= 0.0 && row >= 0.0 && natural != Some(current) {
+            string_prop(
+                props,
+                "gridColumn",
+                format!("{} / span 1", format_number(column + 1.0)),
+            );
+            string_prop(
+                props,
+                "gridRow",
+                format!("{} / span 1", format_number(row + 1.0)),
+            );
+        }
+    }
+    if fill_w
+        && parent
+            .is_some_and(|parent| parent.typed_view().string("layoutMode") == Some("HORIZONTAL"))
+    {
+        string_prop(props, "flex", "1");
+    }
+
+    push_auto_layout(node, component, props);
+    push_padding(node, props);
+    if view.bool("clipsContent") == Some(true) {
+        string_prop(props, "overflow", "hidden");
+    }
+    if !embedded_root
+        && !is_page_root
+        && view.child_ids().any(|child| {
+            snapshot.nodes.get(child).is_some_and(|child| {
+                child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
+            })
+        })
+    {
+        string_prop(props, "pos", "relative");
+    }
+    if let Some(rotation) = view.number("rotation")
+        && rotation.abs() > 0.01
+    {
+        string_prop(
+            props,
+            "transform",
+            format!("rotate({}deg)", format_number(-rotation)),
+        );
+        if absolute {
+            string_prop(props, "transformOrigin", "top left");
+        }
+    }
+}
+
+fn child_shrinker(parent: &RawNode, dimension: &str) -> bool {
+    let inferred = parent
+        .typed_view()
+        .value("inferredAutoLayout")
+        .and_then(Value::as_object);
+    match dimension {
+        "width" => inferred.is_some_and(|layout| {
+            layout.get("layoutMode").and_then(Value::as_str) == Some("VERTICAL")
+                && layout.get("counterAxisAlignItems").and_then(Value::as_str) == Some("CENTER")
+        }),
+        "height" => inferred.is_some_and(|layout| {
+            layout.get("layoutMode").and_then(Value::as_str) == Some("HORIZONTAL")
+                && layout.get("counterAxisAlignItems").and_then(Value::as_str) == Some("CENTER")
+        }),
+        _ => false,
+    }
+}
+
+fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
+    let view = node.typed_view();
+    let Some(layout) = view.value("inferredAutoLayout").and_then(Value::as_object) else {
+        return;
+    };
+    let mode = layout.get("layoutMode").and_then(Value::as_str);
+    if !matches!(mode, Some("HORIZONTAL" | "VERTICAL" | "GRID")) {
+        return;
+    }
+    if mode == Some("GRID") {
+        string_prop(
+            props,
+            "gridTemplateColumns",
+            format!(
+                "repeat({}, 1fr)",
+                format_number(view.number("gridColumnCount").unwrap_or(0.0))
+            ),
+        );
+        string_prop(
+            props,
+            "gridTemplateRows",
+            format!(
+                "repeat({}, 1fr)",
+                format_number(view.number("gridRowCount").unwrap_or(0.0))
+            ),
+        );
+        let row = view.number("gridRowGap").unwrap_or(0.0);
+        let column = view.number("gridColumnGap").unwrap_or(0.0);
+        if row == column {
+            if row != 0.0 {
+                string_prop(props, "gap", px(row));
+            }
+        } else {
+            string_prop(props, "rowGap", px(row));
+            string_prop(props, "columnGap", px(column));
+        }
+        return;
+    }
+    let justify = match view.string("primaryAxisAlignItems") {
+        Some("MIN") => None,
+        Some("MAX") => Some("flex-end"),
+        Some("CENTER") => Some("center"),
+        Some("SPACE_BETWEEN") => Some("space-between"),
+        _ => None,
+    };
+    let align = match view.string("counterAxisAlignItems") {
+        Some("MIN") => None,
+        Some("MAX") => Some("flex-end"),
+        Some("CENTER") => Some("center"),
+        Some("BASELINE") => Some("baseline"),
+        _ => None,
+    };
+    if component != "Center" {
+        if let Some(value) = justify {
+            string_prop(props, "justifyContent", value);
+        }
+        if let Some(value) = align {
+            string_prop(props, "alignItems", value);
+        }
+    }
+    if component == "Center" && mode == Some("VERTICAL") {
+        string_prop(props, "flexDir", "column");
+    }
+    if view.child_ids().count() > 1 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
+    {
+        let gap = layout
+            .get("itemSpacing")
+            .and_then(Value::as_f64)
+            .or_else(|| view.number("itemSpacing"));
+        if let Some(gap) = gap.filter(|gap| *gap != 0.0) {
+            string_prop(props, "gap", px(gap));
+        }
+    }
+}
+
+fn push_padding(node: &RawNode, props: &mut Vec<Prop>) {
+    let view = node.typed_view();
+    let inferred = view.value("inferredAutoLayout").and_then(Value::as_object);
+    let get = |name: &str| {
+        inferred
+            .and_then(|value| value.get(name))
+            .and_then(Value::as_f64)
+            .or_else(|| view.number(name))
+    };
+    let [Some(top), Some(right), Some(bottom), Some(left)] = [
+        get("paddingTop"),
+        get("paddingRight"),
+        get("paddingBottom"),
+        get("paddingLeft"),
+    ] else {
+        return;
+    };
+    if top == 0.0 && right == 0.0 && bottom == 0.0 && left == 0.0 {
+        return;
+    }
+    if top == right && right == bottom && bottom == left {
+        string_prop(props, "p", px(top));
+    } else {
+        if top == bottom {
+            string_prop(props, "py", px(top));
+        } else {
+            string_prop(props, "pt", px(top));
+            string_prop(props, "pb", px(bottom));
+        }
+        if left == right {
+            string_prop(props, "px", px(left));
+        } else {
+            string_prop(props, "pl", px(left));
+            string_prop(props, "pr", px(right));
+        }
+    }
+}
+
+fn push_absolute(node: &RawNode, parent: Option<&RawNode>, props: &mut Vec<Prop>) {
+    string_prop(props, "pos", "absolute");
+    let view = node.typed_view();
+    let Some(parent) = parent else {
+        return;
+    };
+    let parent = parent.typed_view();
+    let constraints = view.value("constraints").and_then(Value::as_object);
+    let horizontal = constraints
+        .and_then(|value| value.get("horizontal"))
+        .and_then(Value::as_str)
+        .unwrap_or("MIN");
+    let vertical = constraints
+        .and_then(|value| value.get("vertical"))
+        .and_then(Value::as_str)
+        .unwrap_or("MIN");
+    let x = view.number("x").unwrap_or(0.0);
+    let y = view.number("y").unwrap_or(0.0);
+    match horizontal {
+        "MAX" => string_prop(
+            props,
+            "right",
+            px(parent.number("width").unwrap_or(0.0) - x - view.number("width").unwrap_or(0.0)),
+        ),
+        "CENTER" => {
+            string_prop(props, "left", "50%");
+            string_prop(props, "transform", "translateX(-50%)");
+        }
+        _ => string_prop(props, "left", px(x)),
+    }
+    match vertical {
+        "MAX" => string_prop(
+            props,
+            "bottom",
+            px(parent.number("height").unwrap_or(0.0) - y - view.number("height").unwrap_or(0.0)),
+        ),
+        "CENTER" => {
+            string_prop(props, "top", "50%");
+            if let Some((_, PropValue::String(value))) =
+                props.iter_mut().find(|(name, _)| name == "transform")
+            {
+                *value = "translate(-50%, -50%)".into();
+            } else {
+                string_prop(props, "transform", "translateY(-50%)");
+            }
+        }
+        _ => string_prop(props, "top", px(y)),
+    }
+}
+
+pub(super) fn string_prop(props: &mut Vec<Prop>, name: &str, value: impl Into<String>) {
+    let value = PropValue::String(value.into());
+    if let Some((_, existing)) = props.iter_mut().find(|(existing, _)| existing == name) {
+        *existing = value;
+    } else {
+        props.push((name.to_owned(), value));
+    }
+}
+
+pub(super) fn px(value: f64) -> String {
+    format!("{}px", format_number(value))
+}
+
+pub(super) fn format_number(value: f64) -> String {
+    let rounded = (value * 100.0).round() / 100.0;
+    if rounded == 0.0 {
+        "0".to_owned()
+    } else if rounded.fract() == 0.0 {
+        format!("{rounded:.0}")
+    } else {
+        format!("{rounded:.2}").trim_end_matches('0').to_owned()
+    }
+}

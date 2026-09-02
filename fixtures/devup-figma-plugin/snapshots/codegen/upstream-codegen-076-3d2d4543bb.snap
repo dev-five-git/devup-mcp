@@ -1,0 +1,19 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Text
+  boxSize="100%"
+  color="#00F"
+  fontFamily="Arial"
+  fontSize="20px"
+  fontWeight="400"
+  letterSpacing="0px"
+  lineHeight="1.5px"
+>
+  <Text color="#F00" fontSize="16px">
+    Hello
+  </Text>
+  World
+</Text>"

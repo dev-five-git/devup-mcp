@@ -1,0 +1,19 @@
+---
+source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
+expression: output.used_tokens
+---
+[
+  "background",
+  "backgroundLight",
+  "border",
+  "borderBold",
+  "caption",
+  "captionLight",
+  "containerBackground",
+  "gray300",
+  "innerBg",
+  "primary",
+  "primaryLight",
+  "text",
+  "textLight"
+]

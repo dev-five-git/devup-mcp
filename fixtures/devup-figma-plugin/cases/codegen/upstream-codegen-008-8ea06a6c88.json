@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-008-8ea06a6c88",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders svg asset with polygon node 1"
+  },
+  "request": {
+    "rootId": "captured:8"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<polygon id=\"captured:8\" name=\"PolygonIcon\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:8"
+      ],
+      "nodes": {
+        "captured:8": {
+          "id": "captured:8",
+          "type": "POLYGON",
+          "fields": {
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "PolygonIcon",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

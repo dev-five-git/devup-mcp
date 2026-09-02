@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-020-a9d569be7a",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders nested svg asset with different colors as image 1"
+  },
+  "request": {
+    "rootId": "captured:31"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:31\" name=\"NestedMultiColorIcon\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:31"
+      ],
+      "nodes": {
+        "captured:31": {
+          "id": "captured:31",
+          "type": "FRAME",
+          "fields": {
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "NestedMultiColorIcon",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [
+              "captured:28",
+              "captured:29",
+              "captured:30"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:28": {
+          "id": "captured:28",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "isAsset": false,
+            "name": "Box1",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:29": {
+          "id": "captured:29",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 1,
+                  "r": 0
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "isAsset": false,
+            "name": "Box2",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:30": {
+          "id": "captured:30",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 1,
+                  "g": 0,
+                  "r": 0
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "isAsset": false,
+            "name": "Box3",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

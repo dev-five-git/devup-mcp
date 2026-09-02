@@ -1,0 +1,109 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Greetings() {
+  return (
+    <VStack>
+      <PageHeader />
+      <VStack
+        alignItems="center"
+        bg="$containerBackground"
+        gap="100px"
+        overflow="hidden"
+        pb="100px"
+        pt="40px"
+        px="40px"
+      >
+        <Center
+          borderBottom="solid 1px $border"
+          gap="20px"
+          maxW="1280px"
+          pos="relative"
+          w="100%"
+        >
+          <Box
+            bg="$border"
+            h="289px"
+            left="-23px"
+            overflow="hidden"
+            pos="absolute"
+            top="194px"
+            w="389px"
+          />
+          <Tab />
+          <Box bg="$border" borderRadius="50%" boxSize="8px" />
+          <Component3 />
+          <Box bg="$border" borderRadius="50%" boxSize="8px" />
+          <Component4 />
+        </Center>
+        <Flex gap="40px" maxW="1280px" w="100%">
+          <Image h="300px" src="/images/Frame 568.png" w="400px" />
+          <VStack flex="1" gap="40px">
+            <Box
+              aspectRatio="1.59"
+              bg="$gold"
+              h="64px"
+              maskImage="url('/icons/Group 27.svg')"
+              maskPos="center"
+              maskRepeat="no-repeat"
+              maskSize="contain"
+              w="102.17px"
+            />
+            <Text
+              color="$primaryAccent"
+              fontFamily="MaruBuri"
+              fontSize="28px"
+              fontWeight="700"
+              letterSpacing="-0.03em"
+              lineHeight="1.5"
+              wordBreak="keep-all"
+            >
+              “ 섬, 그 바람의 울림! ”<br />희망찬 봄을 여는 관악의 울림이 더 <br />널리,<br />더 멀리 퍼져나가기를 기원합니다.{" "}
+            </Text>
+            <Text
+              color="$text"
+              fontFamily="Noto Sans KR"
+              fontSize="16px"
+              fontWeight="400"
+              letterSpacing="-0.02em"
+              lineHeight="1.8"
+              wordBreak="keep-all"
+            >
+              음악과 자연이 함께 어우러지는 제주국제관악제가 30주년을 맞게 되었습니다.<br /><br />제주국제관악제를 아껴주시는 모든 분들과 함께 세계 속의 제주관악의 역사를 써 왔음에 깊이 감사드립니다.<br />그동안 힘들고 어려운 순간들 속에서도 관악의 힘찬 울림은 우리에게 큰 위로와 보람을 안겨주었습니다.<br />새로운 세대를 여는 앞으로의 시간과 함께 켜켜이 쌓여가는 역사 속에서, 세계를 향한 우리의 각오와 노력이 더해질 것입니다.<br /><br />희망찬 봄을 여는 관악의 울림이 더 널리, 더 멀리 퍼져나가기를 기원합니다.<br />감사합니다.
+            </Text>
+            <VStack alignItems="flex-end" gap="10px" justifyContent="center">
+              <Text
+                color="$text"
+                fontFamily="Noto Sans KR"
+                fontSize="16px"
+                fontWeight="400"
+                letterSpacing="-0.02em"
+                lineHeight="1.8"
+                wordBreak="keep-all"
+              >
+                제주국제관악제조직위원장{" "}
+              </Text>
+              <Text
+                color="$text"
+                fontFamily="Noto Sans KR"
+                fontSize="24px"
+                fontWeight="500"
+                letterSpacing="0.1em"
+                lineHeight="1.7"
+                wordBreak="keep-all"
+              >
+                양승보
+              </Text>
+            </VStack>
+          </VStack>
+        </Flex>
+      </VStack>
+      <Footer />
+      <Box left="0px" pos="absolute" top="0px" w="100%">
+        <Header />
+      </Box>
+    </VStack>
+  )
+}"

@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-047-d524fcd6c3",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with dashed stroke 1"
+  },
+  "request": {
+    "rootId": "captured:64"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:64\" name=\"DashedStrokeFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:64"
+      ],
+      "nodes": {
+        "captured:64": {
+          "id": "captured:64",
+          "type": "FRAME",
+          "fields": {
+            "dashPattern": [
+              5,
+              3
+            ],
+            "height": 50,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "DashedStrokeFrame",
+            "strokeAlign": "CENTER",
+            "strokeWeight": 2,
+            "strokes": [
+              {
+                "color": {
+                  "b": 1,
+                  "g": 0,
+                  "r": 0
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

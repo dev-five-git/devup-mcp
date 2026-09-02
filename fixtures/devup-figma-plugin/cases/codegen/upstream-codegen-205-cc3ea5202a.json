@@ -1,0 +1,343 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-205-cc3ea5202a",
+  "operation": "tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 60"
+  },
+  "request": {
+    "rootId": "36:24"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"36:24\" name=\"Text with auto layout\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "36:24"
+      ],
+      "nodes": {
+        "36:24": {
+          "id": "36:24",
+          "type": "SECTION",
+          "fields": {
+            "name": "Text with auto layout",
+            "childrenIds": [
+              "40:78"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "40:78": {
+          "id": "40:78",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "bottomLeftRadius": 0,
+            "bottomRightRadius": 0,
+            "clipsContent": false,
+            "cornerRadius": 0,
+            "counterAxisAlignItems": "CENTER",
+            "counterAxisSpacing": 0,
+            "dashPattern": [],
+            "effects": [],
+            "fills": [],
+            "height": 35,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "AUTO",
+              "itemSpacing": 10,
+              "layoutAlign": "INHERIT",
+              "layoutGrow": 0,
+              "layoutMode": "HORIZONTAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 10,
+              "paddingLeft": 20,
+              "paddingRight": 20,
+              "paddingTop": 10,
+              "primaryAxisAlignItems": "MIN",
+              "primaryAxisSizingMode": "FIXED"
+            },
+            "isAsset": false,
+            "itemSpacing": 10,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "HORIZONTAL",
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "HUG",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Frame 11",
+            "opacity": 1,
+            "paddingBottom": 10,
+            "paddingLeft": 20,
+            "paddingRight": 20,
+            "paddingTop": 10,
+            "primaryAxisAlignItems": "MIN",
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "INSIDE",
+            "strokeBottomWeight": 1,
+            "strokeLeftWeight": 1,
+            "strokeRightWeight": 1,
+            "strokeTopWeight": 1,
+            "strokeWeight": 1,
+            "strokes": [],
+            "topLeftRadius": 0,
+            "topRightRadius": 0,
+            "visible": true,
+            "width": 600,
+            "childrenIds": [
+              "40:79",
+              "40:80"
+            ],
+            "parentId": "36:24"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "40:79": {
+          "id": "40:79",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "Hello World",
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Inter",
+              "style": "Regular"
+            },
+            "fontSize": 12,
+            "fontWeight": 400,
+            "height": 15,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": 0
+            },
+            "lineHeight": {
+              "unit": "AUTO"
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Hello World",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "OUTSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "Hello World",
+                "end": 11,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 1,
+                      "g": 1,
+                      "r": 1
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Inter",
+                  "style": "Regular"
+                },
+                "fontSize": 12,
+                "fontWeight": 400,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "AUTO"
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "CENTER",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 65,
+            "childrenIds": [],
+            "parentId": "40:78"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "40:80": {
+          "id": "40:80",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+            "dashPattern": [],
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "fontName": {
+              "family": "Inter",
+              "style": "Regular"
+            },
+            "fontSize": 12,
+            "fontWeight": 400,
+            "height": 15,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 1,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "HUG",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": 0
+            },
+            "lineHeight": {
+              "unit": "AUTO"
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "OUTSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+                "end": 56,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 1,
+                      "g": 1,
+                      "r": 1
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Inter",
+                  "style": "Regular"
+                },
+                "fontSize": 12,
+                "fontWeight": 400,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "AUTO"
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 485,
+            "childrenIds": [],
+            "parentId": "40:78"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

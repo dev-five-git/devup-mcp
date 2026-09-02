@@ -1,0 +1,18 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Grid() {
+  return (
+    <Grid gap="10px" gridTemplateColumns="repeat(2, 1fr)" gridTemplateRows="repeat(2, 1fr)">
+      <Box
+        bg="#697F9F"
+        gridColumn="2 / span 1"
+        gridRow="2 / span 1"
+        h="100px"
+        overflow="hidden"
+      />
+    </Grid>
+  )
+}"

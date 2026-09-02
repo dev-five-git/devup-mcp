@@ -1,0 +1,21 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function MixBlendMode() {
+  return (
+    <Text
+      color="#FF1919"
+      fontFamily="Jalnan Gothic TTF"
+      fontSize="64px"
+      fontWeight="400"
+      letterSpacing="-0.05em"
+      lineHeight="1.4"
+      mixBlendMode="darken"
+      wordBreak="keep-all"
+    >
+      데브파이브
+    </Text>
+  )
+}"

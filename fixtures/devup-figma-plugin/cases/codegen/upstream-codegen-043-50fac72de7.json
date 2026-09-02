@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-043-50fac72de7",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with stroke outline CENTER alignment 1"
+  },
+  "request": {
+    "rootId": "captured:60"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:60\" name=\"StrokeCenterFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:60"
+      ],
+      "nodes": {
+        "captured:60": {
+          "id": "captured:60",
+          "type": "FRAME",
+          "fields": {
+            "height": 50,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "StrokeCenterFrame",
+            "strokeAlign": "CENTER",
+            "strokeWeight": 2,
+            "strokes": [
+              {
+                "color": {
+                  "b": 1,
+                  "g": 0,
+                  "r": 0
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

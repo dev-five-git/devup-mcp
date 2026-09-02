@@ -1,0 +1,18 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Text
+  WebkitTextFillColor="transparent"
+  bg="linear-gradient(90deg, #F00 0%, #00F 100%)"
+  bgClip="text"
+  boxSize="100%"
+  fontFamily="Arial"
+  fontSize="16px"
+  fontWeight="400"
+  letterSpacing="0px"
+  lineHeight="1.5px"
+>
+  Gradient
+</Text>"

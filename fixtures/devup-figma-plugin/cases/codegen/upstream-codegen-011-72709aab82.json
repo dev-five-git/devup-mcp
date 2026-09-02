@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-011-72709aab82",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders asset with single child and fills 1"
+  },
+  "request": {
+    "rootId": "captured:12"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:12\" name=\"ParentAsset\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:12"
+      ],
+      "nodes": {
+        "captured:12": {
+          "id": "captured:12",
+          "type": "FRAME",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "ParentAsset",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [
+              "captured:11"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:11": {
+          "id": "captured:11",
+          "type": "VECTOR",
+          "fields": {
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "ChildVector",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-083-1820110e8a",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with decimal rotation transform 1"
+  },
+  "request": {
+    "rootId": "captured:108"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:108\" name=\"DecimalRotatedFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:108"
+      ],
+      "nodes": {
+        "captured:108": {
+          "id": "captured:108",
+          "type": "FRAME",
+          "fields": {
+            "height": 60,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "DecimalRotatedFrame",
+            "rotation": 15.5,
+            "visible": true,
+            "width": 120,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

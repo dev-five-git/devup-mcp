@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-079-9e7f3ee9e4",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders text node with list and multiple lines 1"
+  },
+  "request": {
+    "rootId": "captured:104"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<text id=\"captured:104\" name=\"MultiLineListText\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:104"
+      ],
+      "nodes": {
+        "captured:104": {
+          "id": "captured:104",
+          "type": "TEXT",
+          "fields": {
+            "effects": [],
+            "name": "MultiLineListText",
+            "strokes": [],
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "Item 1\nItem 2",
+                "end": 13,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "UNORDERED"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "style1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

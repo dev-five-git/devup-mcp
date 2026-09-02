@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function SvgDetail() {
+  return <Image src="/icons/DevupUI.svg" />
+}"

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-render-263-d2763f9b9f",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "renderComponent interface snapshot VARIANT + BOOLEAN + INSTANCE_SWAP mixed interface 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "code": "<Center gap=\"10px\" px=\"24px\">\n  {leftIcon}\n  <Text fontSize=\"16px\">buttonLg</Text>\n  {rightIcon}\n</Center>",
+      "name": "Button",
+        "variantOrder": ["leftIcon", "showLeftIcon", "rightIcon", "showRightIcon", "size", "variant"],
+        "variants": {
+        "leftIcon": "React.ReactNode",
+        "rightIcon": "React.ReactNode",
+        "showLeftIcon": "boolean",
+        "showRightIcon": "boolean",
+        "size": "'lg' | 'md' | 'sm'",
+        "variant": "'primary' | 'ghost' | 'disabled'"
+      }
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"fixture:root\" name=\"Button\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "FRAME",
+          "fields": {
+            "name": "Button",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

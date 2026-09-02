@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-038-280770f34d",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders padding with all sides different 1"
+  },
+  "request": {
+    "rootId": "captured:55"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:55\" name=\"AllDifferentPaddingFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:55"
+      ],
+      "nodes": {
+        "captured:55": {
+          "id": "captured:55",
+          "type": "FRAME",
+          "fields": {
+            "height": 70,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "AllDifferentPaddingFrame",
+            "paddingBottom": 3,
+            "paddingLeft": 4,
+            "paddingRight": 2,
+            "paddingTop": 1,
+            "visible": true,
+            "width": 110,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-245-537356bcf4",
+  "operation": "tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 100"
+  },
+  "request": {
+    "rootId": "244:1553"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"244:1553\" name=\"Decorative Text\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "244:1553"
+      ],
+      "nodes": {
+        "244:1553": {
+          "id": "244:1553",
+          "type": "SECTION",
+          "fields": {
+            "name": "Decorative Text",
+            "childrenIds": [
+              "244:1564"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "244:1564": {
+          "id": "244:1564",
+          "type": "TEXT",
+          "fields": {
+            "blendMode": "PASS_THROUGH",
+            "characters": "온글과 함께라면",
+            "dashPattern": [],
+            "effects": [],
+            "gridColumnAnchorIndex": -1,
+            "gridRowAnchorIndex": -1,
+            "height": 59,
+            "isAsset": false,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "letterSpacing": {
+              "unit": "PERCENT",
+              "value": -5
+            },
+            "lineHeight": {
+              "unit": "PERCENT",
+              "value": 139.9999976158142
+            },
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "온글과 함께라면",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokeAlign": "OUTSIDE",
+            "strokeWeight": 1,
+            "strokes": [],
+            "styledTextSegments": [
+              {
+                "characters": "온글",
+                "end": 2,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {
+                      "color": {
+                        "id": "VariableID:4be0713ea9f483833095fc5a0baa288fccc81e47/173:0"
+                      }
+                    },
+                    "color": {
+                      "b": 0.9490196108818054,
+                      "g": 0.24313725531101227,
+                      "r": 0.2980392277240753
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "ExtraBold"
+                },
+                "fontSize": 42,
+                "fontWeight": 800,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -5
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 139.9999976158142
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              },
+              {
+                "characters": "과 함께라면",
+                "end": 8,
+                "fillStyleId": "",
+                "fills": [
+                  {
+                    "blendMode": "NORMAL",
+                    "boundVariables": {},
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 0
+                    },
+                    "opacity": 1,
+                    "type": "SOLID",
+                    "visible": true
+                  }
+                ],
+                "fontName": {
+                  "family": "Pretendard",
+                  "style": "Medium"
+                },
+                "fontSize": 40,
+                "fontWeight": 500,
+                "hyperlink": null,
+                "indentation": 0,
+                "letterSpacing": {
+                  "unit": "PERCENT",
+                  "value": -5
+                },
+                "lineHeight": {
+                  "unit": "PERCENT",
+                  "value": 139.9999976158142
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 2,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": ""
+              }
+            ],
+            "textAlignHorizontal": "LEFT",
+            "textAlignVertical": "TOP",
+            "textAutoResize": "WIDTH_AND_HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 242,
+            "childrenIds": [],
+            "parentId": "244:1553"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": {
+      "raw": {
+        "variables": [
+          {
+            "id": "VariableID:228af354eb8741f69bcd91fe730fec0505e9eac9/19:40",
+            "name": "text"
+          },
+          {
+            "id": "VariableID:5ed5fe4e2c110aae522cfe81f189c59552683358/18:227",
+            "name": "primaryBgLight"
+          },
+          {
+            "id": "VariableID:51a40441a4e76d70d58452cb534b842a89c22c63/14:47",
+            "name": "primary"
+          },
+          {
+            "id": "VariableID:331c673285290a0918108f25061f5c757824db3b/11:20",
+            "name": "containerBackground"
+          },
+          {
+            "id": "VariableID:54a5e49a31d11583de0ae1faa3ec4bf26bd03a86/14:112",
+            "name": "gray200"
+          },
+          {
+            "id": "VariableID:93d8aadc9ec1c35e7c24bdf723b9b05a01b75a2d/14:70",
+            "name": "textLight"
+          },
+          {
+            "id": "VariableID:4be0713ea9f483833095fc5a0baa288fccc81e47/173:0",
+            "name": "primary"
+          }
+        ]
+      }
+    },
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-030-f4528f2a74",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders text with leading and trailing spaces 1"
+  },
+  "request": {
+    "rootId": "captured:47"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<text id=\"captured:47\" name=\"SpacedText\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:47"
+      ],
+      "nodes": {
+        "captured:47": {
+          "id": "captured:47",
+          "type": "TEXT",
+          "fields": {
+            "characters": "  spaced  ",
+            "effects": [],
+            "height": 20,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "SpacedText",
+            "strokes": [],
+            "textAutoResize": "NONE",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "  spaced  ",
+                "end": 10,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 0
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "style1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

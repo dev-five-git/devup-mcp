@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-048-fa3442e264",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with page parent and width 1920 1"
+  },
+  "request": {
+    "rootId": "captured:65"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:65\" name=\"PageFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:65"
+      ],
+      "nodes": {
+        "captured:65": {
+          "id": "captured:65",
+          "type": "FRAME",
+          "fields": {
+            "height": 1080,
+            "name": "PageFrame",
+            "visible": true,
+            "width": 1920,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

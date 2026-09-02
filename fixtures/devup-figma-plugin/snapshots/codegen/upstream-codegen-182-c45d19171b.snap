@@ -1,0 +1,16 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Opacity() {
+  return (
+    <Box
+      bg="#FFF"
+      border="solid 1px #000"
+      borderRadius="20px"
+      opacity="0.2"
+      overflow="hidden"
+    />
+  )
+}"

@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"render:Flex:depth=0:{}|{(status === "scroll" || status === "hover") && render:Box:depth=0:{"id":{"__variantProp":true,"variantKey":"status","values":{"scroll":"PartialChild","hover":"PartialChildHover"}}}|}"

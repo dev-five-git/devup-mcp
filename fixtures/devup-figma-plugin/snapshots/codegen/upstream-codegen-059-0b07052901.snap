@@ -1,0 +1,12 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Grid
+  boxSize="100%"
+  columnGap="8px"
+  gridTemplateColumns="repeat(3, 1fr)"
+  gridTemplateRows="repeat(2, 1fr)"
+  rowGap="12px"
+/>"

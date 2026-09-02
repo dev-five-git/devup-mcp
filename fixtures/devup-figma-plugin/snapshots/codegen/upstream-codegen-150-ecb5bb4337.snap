@@ -1,0 +1,19 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Gradient() {
+  return (
+    <Flex
+      bg="#FFF"
+      overflow="hidden"
+      pb="16px"
+      pl="147px"
+      pr="110px"
+      pt="49px"
+    >
+      <Box bg="linear-gradient(-47deg, #8ADAFF 29.62%, #C6C9CE 83.86%)" borderRadius="1000px" boxSize="150px" overflow="hidden" />
+    </Flex>
+  )
+}"

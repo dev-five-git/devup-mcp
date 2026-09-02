@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-118-b5cba733fa",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with multiple fills including non-last solid 1"
+  },
+  "request": {
+    "rootId": "captured:143"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:143\" name=\"MultipleFillsFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:143"
+      ],
+      "nodes": {
+        "captured:143": {
+          "id": "captured:143",
+          "type": "FRAME",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 1,
+                  "r": 0
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              },
+              {
+                "color": {
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 50,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "MultipleFillsFrame",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

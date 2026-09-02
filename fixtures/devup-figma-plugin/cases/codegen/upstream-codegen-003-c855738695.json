@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-003-c855738695",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders objectFit contain for image asset 1"
+  },
+  "request": {
+    "rootId": "captured:3"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<rectangle id=\"captured:3\" name=\"ObjectFitContain\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:3"
+      ],
+      "nodes": {
+        "captured:3": {
+          "id": "captured:3",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "scaleMode": "FIT",
+                "type": "IMAGE",
+                "visible": true
+              }
+            ],
+            "height": 80,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "ObjectFitContain",
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

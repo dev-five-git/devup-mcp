@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-069-0fa1145f4c",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders glass effect props 1"
+  },
+  "request": {
+    "rootId": "captured:94"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:94\" name=\"GlassEffectFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:94"
+      ],
+      "nodes": {
+        "captured:94": {
+          "id": "captured:94",
+          "type": "FRAME",
+          "fields": {
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "radius": 12,
+                "type": "GLASS",
+                "visible": true
+              }
+            ],
+            "height": 80,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "GlassEffectFrame",
+            "visible": true,
+            "width": 160,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

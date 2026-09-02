@@ -1,0 +1,5 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+"<Box h="60px" outline="solid 3px #F00" w="120px" />"

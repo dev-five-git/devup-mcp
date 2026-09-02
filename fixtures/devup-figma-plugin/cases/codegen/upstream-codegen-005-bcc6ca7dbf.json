@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-005-bcc6ca7dbf",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen omits objectFit when image scale mode is FILL 1"
+  },
+  "request": {
+    "rootId": "captured:5"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<rectangle id=\"captured:5\" name=\"ObjectFitFill\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:5"
+      ],
+      "nodes": {
+        "captured:5": {
+          "id": "captured:5",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "scaleMode": "FILL",
+                "type": "IMAGE",
+                "visible": true
+              }
+            ],
+            "height": 70,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "ObjectFitFill",
+            "visible": true,
+            "width": 110,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

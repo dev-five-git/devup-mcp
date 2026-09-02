@@ -1,0 +1,13 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Box
+  bg="#F00"
+  boxSize="24px"
+  maskImage="url(/icons/NestedIcon.svg)"
+  maskPos="center"
+  maskRepeat="no-repeat"
+  maskSize="contain"
+/>"

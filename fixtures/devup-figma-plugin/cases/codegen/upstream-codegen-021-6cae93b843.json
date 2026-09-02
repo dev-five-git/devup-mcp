@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-021-6cae93b843",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders layout for absolute child same size as parent 1"
+  },
+  "request": {
+    "rootId": "captured:33"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:33\" name=\"Parent\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:33"
+      ],
+      "nodes": {
+        "captured:33": {
+          "id": "captured:33",
+          "type": "FRAME",
+          "fields": {
+            "height": 200,
+            "layoutPositioning": "AUTO",
+            "name": "Parent",
+            "visible": true,
+            "width": 300,
+            "childrenIds": [
+              "captured:32"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:32": {
+          "id": "captured:32",
+          "type": "RECTANGLE",
+          "fields": {
+            "constraints": {
+              "horizontal": "MIN",
+              "vertical": "MIN"
+            },
+            "height": 200,
+            "layoutPositioning": "ABSOLUTE",
+            "name": "AbsoluteChild",
+            "visible": true,
+            "width": 300,
+            "x": 0,
+            "y": 0,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

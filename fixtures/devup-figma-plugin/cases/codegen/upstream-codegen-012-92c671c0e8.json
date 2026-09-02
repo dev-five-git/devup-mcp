@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-012-92c671c0e8",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders null for asset with only solid fills 1"
+  },
+  "request": {
+    "rootId": "captured:13"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<rectangle id=\"captured:13\" name=\"SolidAsset\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:13"
+      ],
+      "nodes": {
+        "captured:13": {
+          "id": "captured:13",
+          "type": "RECTANGLE",
+          "fields": {
+            "fills": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 24,
+            "isAsset": true,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "SolidAsset",
+            "visible": true,
+            "width": 24,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

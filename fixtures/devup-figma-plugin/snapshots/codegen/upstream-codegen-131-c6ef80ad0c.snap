@@ -1,0 +1,98 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+{
+  "name": "Button",
+  "node": {
+    "children": [],
+    "name": "Hover",
+    "parent": {
+      "children": [
+        {
+          "children": [],
+          "name": "Default",
+          "reactions": [],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "state": "default",
+          },
+          "visible": true,
+        },
+        {
+          "children": [],
+          "name": "Hover",
+          "reactions": [
+            {
+              "actions": [],
+              "trigger": {
+                "type": "ON_HOVER",
+              },
+            },
+          ],
+          "type": "COMPONENT",
+          "variantProperties": {
+            "state": "hover",
+          },
+          "visible": true,
+        },
+      ],
+      "componentPropertyDefinitions": {
+        "state": {
+          "type": "VARIANT",
+          "variantOptions": [
+            "default",
+            "hover",
+          ],
+        },
+      },
+      "defaultVariant": {
+        "children": [],
+        "name": "Default",
+        "reactions": [],
+        "type": "COMPONENT",
+        "variantProperties": {
+          "state": "default",
+        },
+        "visible": true,
+      },
+      "name": "Button",
+      "type": "COMPONENT_SET",
+      "visible": true,
+    },
+    "reactions": [
+      {
+        "actions": [],
+        "trigger": {
+          "type": "ON_HOVER",
+        },
+      },
+    ],
+    "type": "COMPONENT",
+    "variantProperties": {
+      "state": "hover",
+    },
+    "visible": true,
+  },
+  "tree": {
+    "children": [],
+    "component": "Box",
+    "nodeName": "Hover",
+    "nodeType": "COMPONENT",
+    "props": {
+      "aspectRatio": undefined,
+      "flex": undefined,
+      "h": undefined,
+      "maxH": undefined,
+      "maxW": undefined,
+      "minH": undefined,
+      "minW": undefined,
+      "w": undefined,
+    },
+  },
+  "variantComments": {},
+  "variants": {
+    "state": "'default' | 'hover'",
+  },
+}

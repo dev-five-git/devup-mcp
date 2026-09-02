@@ -1,0 +1,20 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function SvgDetail() {
+  return (
+    <Center aspectRatio="1" bg="$primaryBgLight" borderRadius="8px">
+      <Box
+        aspectRatio="1"
+        bg="$primary"
+        boxSize="20px"
+        maskImage="url(/icons/plus.svg)"
+        maskPos="center"
+        maskRepeat="no-repeat"
+        maskSize="contain"
+      />
+    </Center>
+  )
+}"

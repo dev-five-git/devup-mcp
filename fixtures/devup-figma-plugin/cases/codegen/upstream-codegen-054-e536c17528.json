@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-054-e536c17528",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with individual stroke weights 1"
+  },
+  "request": {
+    "rootId": "captured:75"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:75\" name=\"IndividualStrokeFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:75"
+      ],
+      "nodes": {
+        "captured:75": {
+          "id": "captured:75",
+          "type": "FRAME",
+          "fields": {
+            "height": 80,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "IndividualStrokeFrame",
+            "strokeAlign": "INSIDE",
+            "strokeBottomWeight": 3,
+            "strokeLeftWeight": 4,
+            "strokeRightWeight": 2,
+            "strokeTopWeight": 1,
+            "strokes": [
+              {
+                "color": {
+                  "b": 0,
+                  "g": 0,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "visible": true,
+            "width": 120,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

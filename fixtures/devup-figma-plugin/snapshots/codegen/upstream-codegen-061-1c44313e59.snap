@@ -1,0 +1,9 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<VStack alignItems="center" h="200px" justifyContent="space-between" w="120px">
+  <Box boxSize="100%" />
+  <Box boxSize="100%" />
+</VStack>"

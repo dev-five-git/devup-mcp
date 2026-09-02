@@ -1,0 +1,89 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+{
+  "name": "Button",
+  "node": {
+    "children": [],
+    "name": "Default",
+    "parent": {
+      "children": [
+        [Circular],
+        {
+          "children": [],
+          "name": "Hover",
+          "parent": [Circular],
+          "reactions": [
+            {
+              "actions": [
+                {
+                  "transition": {
+                    "duration": 0.3,
+                    "easing": {
+                      "type": "EASE_IN_OUT",
+                    },
+                    "type": "SMART_ANIMATE",
+                  },
+                  "type": "NODE",
+                },
+              ],
+              "trigger": {
+                "type": "ON_HOVER",
+              },
+            },
+          ],
+          "type": "COMPONENT",
+          "variantProperties": {},
+          "visible": true,
+        },
+      ],
+      "componentPropertyDefinitions": {},
+      "defaultVariant": [Circular],
+      "name": "Button",
+      "type": "COMPONENT_SET",
+      "visible": true,
+    },
+    "reactions": [
+      {
+        "actions": [
+          {
+            "transition": {
+              "duration": 0.3,
+              "easing": {
+                "type": "EASE_IN_OUT",
+              },
+              "type": "SMART_ANIMATE",
+            },
+            "type": "NODE",
+          },
+        ],
+        "trigger": {
+          "type": "ON_HOVER",
+        },
+      },
+    ],
+    "type": "COMPONENT",
+    "variantProperties": {},
+    "visible": true,
+  },
+  "tree": {
+    "children": [],
+    "component": "Box",
+    "nodeName": "Default",
+    "nodeType": "COMPONENT",
+    "props": {
+      "aspectRatio": undefined,
+      "flex": undefined,
+      "h": undefined,
+      "maxH": undefined,
+      "maxW": undefined,
+      "minH": undefined,
+      "minW": undefined,
+      "w": undefined,
+    },
+  },
+  "variantComments": {},
+  "variants": {},
+}

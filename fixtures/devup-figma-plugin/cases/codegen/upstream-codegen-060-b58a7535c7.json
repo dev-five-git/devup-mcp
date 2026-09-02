@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-060-b58a7535c7",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders grid child positioning props when out of order 1"
+  },
+  "request": {
+    "rootId": "captured:83"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:83\" name=\"GridWithChildren\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:83"
+      ],
+      "nodes": {
+        "captured:83": {
+          "id": "captured:83",
+          "type": "FRAME",
+          "fields": {
+            "gridColumnCount": 2,
+            "gridColumnGap": 0,
+            "gridRowCount": 1,
+            "gridRowGap": 0,
+            "height": 100,
+            "inferredAutoLayout": {
+              "layoutMode": "GRID"
+            },
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "GridWithChildren",
+            "visible": true,
+            "width": 200,
+            "childrenIds": [
+              "captured:81",
+              "captured:82"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:81": {
+          "id": "captured:81",
+          "type": "RECTANGLE",
+          "fields": {
+            "gridColumnAnchorIndex": 1,
+            "gridRowAnchorIndex": 0,
+            "name": "ChildB",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:82": {
+          "id": "captured:82",
+          "type": "RECTANGLE",
+          "fields": {
+            "gridColumnAnchorIndex": 0,
+            "gridRowAnchorIndex": 0,
+            "name": "ChildA",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

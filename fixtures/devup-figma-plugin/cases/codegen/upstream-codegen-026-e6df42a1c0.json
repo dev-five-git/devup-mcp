@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-026-e6df42a1c0",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders flex=1 when parent is horizontal auto layout 1"
+  },
+  "request": {
+    "rootId": "captured:43"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:43\" name=\"HorizontalParent\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:43"
+      ],
+      "nodes": {
+        "captured:43": {
+          "id": "captured:43",
+          "type": "FRAME",
+          "fields": {
+            "layoutMode": "HORIZONTAL",
+            "name": "HorizontalParent",
+            "visible": true,
+            "childrenIds": [
+              "captured:42"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:42": {
+          "id": "captured:42",
+          "type": "RECTANGLE",
+          "fields": {
+            "height": 50,
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "FIXED",
+            "name": "FlexChild",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

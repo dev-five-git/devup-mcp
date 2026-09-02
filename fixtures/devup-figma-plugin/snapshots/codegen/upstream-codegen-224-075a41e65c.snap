@@ -1,0 +1,16 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function 다양한도형() {
+  return (
+    <Box
+      bg="#D9D9D9"
+      maskImage="url(/icons/Star7.svg)"
+      maskPos="center"
+      maskRepeat="no-repeat"
+      maskSize="contain"
+    />
+  )
+}"

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-053-5fbe283840",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with maxHeight child height shrinker 1"
+  },
+  "request": {
+    "rootId": "captured:74"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:74\" name=\"Parent\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:74"
+      ],
+      "nodes": {
+        "captured:74": {
+          "id": "captured:74",
+          "type": "FRAME",
+          "fields": {
+            "name": "Parent",
+            "visible": true,
+            "childrenIds": [
+              "captured:73"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:73": {
+          "id": "captured:73",
+          "type": "FRAME",
+          "fields": {
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FILL",
+            "maxHeight": 200,
+            "name": "Child",
+            "visible": true,
+            "width": 50,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

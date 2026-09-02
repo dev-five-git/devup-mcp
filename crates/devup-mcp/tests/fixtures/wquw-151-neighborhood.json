@@ -1,0 +1,479 @@
+{
+  "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+  "version": null,
+  "rootIds": [
+    "3686:1678"
+  ],
+  "nodes": [
+    {
+      "id": "3686:1678",
+      "type": "PAGE",
+      "fields": {
+        "name": "Phase2 Hand-off",
+        "parentId": null,
+        "childrenIds": [],
+        "x": 6627,
+        "y": 9863,
+        "width": 4938,
+        "height": 7429,
+        "childCount": 407,
+        "textPreview": "",
+        "projectionTruncated": false
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35481",
+      "type": "FRAME",
+      "fields": {
+        "name": "[FR-026] 본연체",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 6947,
+        "y": 9863,
+        "width": 4323,
+        "height": 97,
+        "childCount": 1,
+        "textPreview": "[FR-026] 본연체",
+        "pageChildIndex": 84
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35483",
+      "type": "FRAME",
+      "fields": {
+        "name": "이야기 작성",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 6947,
+        "y": 9984,
+        "width": 4323,
+        "height": 97,
+        "childCount": 1,
+        "textPreview": "이야기 작성",
+        "pageChildIndex": 187
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35485",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315498",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8946,
+        "y": 10106,
+        "width": 730,
+        "height": 76,
+        "childCount": 1,
+        "textPreview": "첫 작성글",
+        "pageChildIndex": 188
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35489",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315499",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 9729,
+        "y": 10106,
+        "width": 730,
+        "height": 76,
+        "childCount": 1,
+        "textPreview": "첫 글 이후 (문체변경불가)",
+        "pageChildIndex": 190
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35491",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315485",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 10521,
+        "y": 10106,
+        "width": 360,
+        "height": 76,
+        "childCount": 1,
+        "textPreview": "교정 변경 선택",
+        "pageChildIndex": 191
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35493",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315486",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 10910,
+        "y": 10106,
+        "width": 360,
+        "height": 76,
+        "childCount": 1,
+        "textPreview": "문체 변경 선택 (설명 추가)",
+        "pageChildIndex": 192
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35495",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315461",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 6947,
+        "y": 10200,
+        "width": 540,
+        "height": 158,
+        "childCount": 1,
+        "textPreview": "문체는 기존 설정 (담담체, 서정체, 강건체 3개) 유지. ‘본연체’는 문체가 아닌, AI가 교정에 얼마나 개입하는 지에 대한 옵션으로 변경",
+        "pageChildIndex": 193
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:36108",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-RECORD #recording",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 7513,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 2,
+        "textPreview": "주말 아침, 늦잠을 자는 편인지 부지런히 움직이는 편인지 주말 풍경에 대해 이야기해주세요 그건 어느 추운 겨울날이었어. 바깥에는 첫눈이 내려 온",
+        "pageChildIndex": 205
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:36059",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-RECORD #recording",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8037,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 3,
+        "textPreview": "주말 아침, 늦잠을 자는 편인지 부지런히 움직이는 편인지 주말 풍경에 대해 이야기해주세요 그건 어느 추운 겨울날이었어. 바깥에는 첫눈이 내려 온",
+        "pageChildIndex": 204
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35503",
+      "type": "FRAME",
+      "fields": {
+        "name": "Loading",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8560,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 2,
+        "textPreview": "기록해주신 이야기를 정리하고 있어요 잠시만 기다려주세요 기억을 더듬어 기록하는 시간은 그 자체로 훌륭한 여행이랍니다.",
+        "pageChildIndex": 197
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35518",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8946,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 3,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 198
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35569",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 9316,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 4,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 199
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:36144",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 9729,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 3,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 206
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35729",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 10099,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 4,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 201
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35887",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 10521,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 5,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 202
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35973",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 10910,
+        "y": 10200,
+        "width": 360,
+        "height": 740,
+        "childCount": 5,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 203
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35497",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315487",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 6947,
+        "y": 10409,
+        "width": 539,
+        "height": 124,
+        "childCount": 1,
+        "textPreview": "‘인터뷰형 기록하기’는 특성상 구어체를 사용하여 단답형으로 대답할 확률이 높으므로, 교정 옵션 제공 X",
+        "pageChildIndex": 194
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:36191",
+      "type": "VECTOR",
+      "fields": {
+        "name": "Frame 1321314908 --> A : STORY-F-RECORD #recording",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 7818.5,
+        "y": 10570,
+        "width": 218.5,
+        "height": 252.5,
+        "childCount": 0,
+        "textPreview": "",
+        "pageChildIndex": 207
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:36192",
+      "type": "VECTOR",
+      "fields": {
+        "name": "Alert --> Loading",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8372.5,
+        "y": 10570,
+        "width": 187.5,
+        "height": 148,
+        "childCount": 0,
+        "textPreview": "",
+        "pageChildIndex": 208
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:37116",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315500",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 9316,
+        "y": 10958,
+        "width": 626,
+        "height": 240,
+        "childCount": 3,
+        "textPreview": "선택지 설명 AI 담당자 배정 전 : AI 담당자가 문맥을 자연스럽게 수정해요 AI 담당자 배정 후 : ${담당자명}가 문맥을 자연스럽게 수정해",
+        "pageChildIndex": 196
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35499",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315497",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8051,
+        "y": 10978,
+        "width": 797,
+        "height": 240,
+        "childCount": 3,
+        "textPreview": "선택지 AI 담당자 배정 전 : AI 담당자와 함께 문체 다듬기 AI 담당자 배정 후 : ${담당자명}와 함께 문체 다듬기 예시 ) 담이와 함께",
+        "pageChildIndex": 195
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35487",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315491",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8946,
+        "y": 11266,
+        "width": 747,
+        "height": 76,
+        "childCount": 1,
+        "textPreview": "인터뷰형 작성하기 결과물에선 교정 설정 표시 X",
+        "pageChildIndex": 189
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3879:35652",
+      "type": "FRAME",
+      "fields": {
+        "name": "A : STORY-F-PROOFREAD",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 8946,
+        "y": 11364,
+        "width": 360,
+        "height": 740,
+        "childCount": 4,
+        "textPreview": "이야기가 글로 정리되었어요 사진은 책에 인쇄하기 위해 고화질 사진(긴 쪽 기준 최소 1000px)만 업로드할 수 있어요. TIP 각 단락을 선택",
+        "pageChildIndex": 200
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3997:45576",
+      "type": "FRAME",
+      "fields": {
+        "name": "Frame 1321315540",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 7307,
+        "y": 14723,
+        "width": 822,
+        "height": 124,
+        "childCount": 1,
+        "textPreview": "표지를 상시 수정할 수 있게 되면서 책 출판 과정의 표지 설정 변경 과정도 변경됩니다. 기존의 템플릿 선택 → 제목 설정의 2단계 Depth를 ",
+        "pageChildIndex": 293
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    {
+      "id": "3997:45578",
+      "type": "FRAME",
+      "fields": {
+        "name": "[FR-032] 표지 체험하기",
+        "parentId": "3686:1678",
+        "childrenIds": [],
+        "x": 9679,
+        "y": 14765,
+        "width": 1375,
+        "height": 97,
+        "childCount": 1,
+        "textPreview": "[FR-032] 표지 체험하기",
+        "pageChildIndex": 301
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  ],
+  "diagnostics": []
+}
+

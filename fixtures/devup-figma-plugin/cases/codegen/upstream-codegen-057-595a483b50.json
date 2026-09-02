@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-057-595a483b50",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders min/max width/height with px 1"
+  },
+  "request": {
+    "rootId": "captured:78"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:78\" name=\"MinMaxFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:78"
+      ],
+      "nodes": {
+        "captured:78": {
+          "id": "captured:78",
+          "type": "FRAME",
+          "fields": {
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "FILL",
+            "maxHeight": 120,
+            "maxWidth": 200,
+            "minHeight": 20,
+            "minWidth": 50,
+            "name": "MinMaxFrame",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

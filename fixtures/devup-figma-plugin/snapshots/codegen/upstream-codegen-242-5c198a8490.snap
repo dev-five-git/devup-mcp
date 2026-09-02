@@ -1,0 +1,12 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function SvgDetail() {
+  return (
+    <Center borderRadius="100px" flexDir="column" p="10px">
+      <Image aspectRatio="1" boxSize="28px" src="/icons/cog.svg" />
+    </Center>
+  )
+}"

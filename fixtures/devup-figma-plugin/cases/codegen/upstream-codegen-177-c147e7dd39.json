@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-177-c147e7dd39",
+  "operation": "tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "render real world component real world $ 32"
+  },
+  "request": {
+    "rootId": "109:83"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<section id=\"109:83\" name=\"Circle\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "109:83"
+      ],
+      "nodes": {
+        "109:83": {
+          "id": "109:83",
+          "type": "SECTION",
+          "fields": {
+            "name": "Circle",
+            "childrenIds": [
+              "109:72"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "109:72": {
+          "id": "109:72",
+          "type": "ELLIPSE",
+          "fields": {
+            "arcData": {
+              "endingAngle": 6.2831854820251465,
+              "innerRadius": 0,
+              "startingAngle": 0
+            },
+            "blendMode": "PASS_THROUGH",
+            "cornerRadius": 0,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {},
+                "color": {
+                  "b": 0.8509804010391235,
+                  "g": 0.8509804010391235,
+                  "r": 0.8509804010391235
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "height": 100,
+            "isAsset": true,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutPositioning": "AUTO",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "maxHeight": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "minWidth": null,
+            "name": "Ellipse 3622",
+            "opacity": 1,
+            "reactions": [],
+            "rotation": 0,
+            "strokes": [],
+            "visible": true,
+            "width": 50,
+            "childrenIds": [],
+            "parentId": "109:83"
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

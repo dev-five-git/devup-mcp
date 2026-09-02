@@ -1,0 +1,20 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface StatusProps {
+  status: 'success' | 'warning' | 'error'
+}
+
+export function Status({ status }: StatusProps) {
+  return (
+    <Image
+      src={{
+        success: "/icons/status=success.svg",
+        warning: "/icons/status=warning.svg",
+        error: "/icons/status=error.svg"
+      }[status]}
+    />
+  )
+}"

@@ -1,0 +1,14 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<VStack boxSize="100%" pos="relative">
+  <Box
+    h="100%"
+    left="300px"
+    pos="absolute"
+    top="50%"
+    transform="translateY(-50%)"
+  />
+</VStack>"

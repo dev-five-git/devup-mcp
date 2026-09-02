@@ -1,0 +1,42 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function GradientButton() {
+  return (
+    <Center
+      _active={{
+        "bg": "linear-gradient(90deg, #7E22CE 0%, #4338CA 100%)",
+        "opacity": "0.8"
+      }}
+      _disabled={{
+        "bg": "$gray200"
+      }}
+      _hover={{
+        "bg": "linear-gradient(90deg, #7E22CE 0%, #4338CA 100%)",
+        "boxShadow": "0 4px 6px -4px #0000001A, 0 10px 15px -3px #0000001A"
+      }}
+      bg="linear-gradient(90deg, #9333EA 0%, #4F46E5 100%)"
+      borderRadius="8px"
+      boxShadow="0 2px 4px -2px #0000001A, 0 4px 6px -1px #0000001A"
+      overflow="hidden"
+      px="30px"
+      py="12px"
+      transition="0.3ms ease-out"
+      transitionProperty="background,box-shadow,opacity"
+    >
+      <Text
+        color="#FFF"
+        fontFamily="Pretendard"
+        fontSize="16px"
+        fontWeight="700"
+        letterSpacing="-0.04em"
+        lineHeight="1.4"
+        wordBreak="keep-all"
+      >
+        자세히 알아보기 →
+      </Text>
+    </Center>
+  )
+}"

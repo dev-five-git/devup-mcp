@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-067-3ffe06a1a9",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders noise effect props 1"
+  },
+  "request": {
+    "rootId": "captured:92"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:92\" name=\"NoiseEffectFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:92"
+      ],
+      "nodes": {
+        "captured:92": {
+          "id": "captured:92",
+          "type": "FRAME",
+          "fields": {
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "radius": 0,
+                "type": "NOISE",
+                "visible": true
+              }
+            ],
+            "height": 70,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "NoiseEffectFrame",
+            "visible": true,
+            "width": 140,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

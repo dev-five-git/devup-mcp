@@ -1,0 +1,873 @@
+use std::{
+    collections::BTreeMap,
+    future::Future,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use devup_mcp_figma::{
+    AssetSelection, CollectedPayload, CollectionRequest, CollectionScope, DevupError, ErrorCode,
+    ExploreReadOptions, ResourceScope, SearchReadOptions, SectionReadOptions, SourcePolicy,
+};
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use tokio::sync::{Mutex, OwnedMutexGuard, watch};
+
+use super::delivery::{ProjectedOutput, RESOURCE_CHUNK_BYTES};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactRequestKey {
+    file_key: String,
+    node_id: Option<String>,
+    branch_key: Option<String>,
+    scope: CollectionScope,
+    resource_scope: ResourceScope,
+    include_context: bool,
+    metadata_only: bool,
+    variables_only: bool,
+    search: Option<SearchReadOptions>,
+    explore: Option<ExploreReadOptions>,
+    section: Option<SectionReadOptions>,
+    asset_selections: Vec<AssetSelection>,
+    reference_png: bool,
+    source_policy: SourcePolicy,
+}
+
+impl ArtifactRequestKey {
+    pub fn from_collection(request: &CollectionRequest, source_policy: SourcePolicy) -> Self {
+        let mut section = request.section.clone();
+        if let Some(section) = &mut section {
+            section.frame_ids.sort();
+            section.frame_ids.dedup();
+        }
+        let mut asset_selections = request.asset_selections.clone();
+        asset_selections.sort_by(|left, right| {
+            (&left.asset_id, left.format, left.scale).cmp(&(
+                &right.asset_id,
+                right.format,
+                right.scale,
+            ))
+        });
+        asset_selections.dedup();
+        Self {
+            file_key: request.target.file_key.clone(),
+            node_id: request.target.node_id.clone(),
+            branch_key: request.target.branch_key.clone(),
+            scope: request.scope,
+            resource_scope: request.resource_scope,
+            include_context: request.include_context,
+            metadata_only: request.metadata_only,
+            variables_only: request.variables_only,
+            search: request.search.clone(),
+            explore: request.explore.clone(),
+            section,
+            asset_selections,
+            reference_png: request.reference_png,
+            source_policy,
+        }
+    }
+
+    fn digest(&self) -> String {
+        sha256_hex(&serde_json::to_vec(self).unwrap_or_default())
+    }
+
+    fn capabilities(&self) -> ArtifactCapabilities {
+        let kind = if self.search.is_some() {
+            ArtifactKind::Search
+        } else if self.explore.is_some() {
+            ArtifactKind::Explore
+        } else if self
+            .section
+            .as_ref()
+            .is_some_and(|section| section.frame_ids.is_empty() && !section.all_screens)
+        {
+            ArtifactKind::SectionIndex
+        } else if self.variables_only {
+            ArtifactKind::ThemeOnly
+        } else {
+            ArtifactKind::Design
+        };
+        ArtifactCapabilities {
+            kind,
+            collection_scope: self.scope,
+            resource_scope: self.resource_scope,
+            asset_capture_count: self.asset_selections.len(),
+            asset_captures: self.asset_selections.clone(),
+            reference_png: self.reference_png,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ArtifactKind {
+    Design,
+    ThemeOnly,
+    Search,
+    Explore,
+    SectionIndex,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactCapabilities {
+    pub kind: ArtifactKind,
+    pub collection_scope: CollectionScope,
+    pub resource_scope: ResourceScope,
+    pub asset_capture_count: usize,
+    pub reference_png: bool,
+    #[serde(skip)]
+    asset_captures: Vec<AssetSelection>,
+}
+
+impl ArtifactCapabilities {
+    pub fn supports_asset_captures(&self, requested: &[AssetSelection]) -> bool {
+        requested
+            .iter()
+            .all(|capture| self.asset_captures.contains(capture))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArtifactLimits {
+    pub ttl: Duration,
+    pub max_entries: usize,
+    pub max_entry_bytes: usize,
+    pub max_total_bytes: usize,
+}
+
+impl Default for ArtifactLimits {
+    fn default() -> Self {
+        Self {
+            ttl: Duration::from_secs(10 * 60),
+            max_entries: 8,
+            max_entry_bytes: 32 * 1024 * 1024,
+            max_total_bytes: 128 * 1024 * 1024,
+        }
+    }
+}
+
+pub trait ArtifactClock: Send + Sync {
+    fn now_epoch_seconds(&self) -> u64;
+}
+
+#[derive(Debug)]
+struct SystemClock;
+
+impl ArtifactClock for SystemClock {
+    fn now_epoch_seconds(&self) -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtifactLookup {
+    pub artifact_id: String,
+    pub content_hash: String,
+    pub created_at_epoch_seconds: u64,
+    pub expires_at_epoch_seconds: u64,
+    pub size_bytes: usize,
+    pub cache_hit: bool,
+    pub capabilities: ArtifactCapabilities,
+    pub payload: Arc<CollectedPayload>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactStoreStats {
+    pub entry_count: usize,
+    pub total_bytes: usize,
+    pub max_entries: usize,
+    pub max_total_bytes: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedOutputManifest {
+    pub artifact_id: String,
+    pub output_id: String,
+    pub name: String,
+    pub mime_type: String,
+    pub raw_bytes: usize,
+    pub sha256: String,
+    pub chunk_count: usize,
+    pub chunk_bytes: usize,
+    pub is_binary: bool,
+    pub manifest_uri: String,
+    pub expires_at_epoch_seconds: u64,
+}
+
+#[derive(Debug)]
+struct AttachedOutput {
+    manifest: AttachedOutputManifest,
+    bytes: Arc<[u8]>,
+    ranges: Vec<(usize, usize)>,
+    allocation_bytes: usize,
+}
+
+#[derive(Debug)]
+struct Entry {
+    key_digest: String,
+    content_hash: String,
+    created_at: u64,
+    expires_at: u64,
+    size_bytes: usize,
+    last_access: u64,
+    capabilities: ArtifactCapabilities,
+    payload: Arc<CollectedPayload>,
+    outputs: BTreeMap<String, AttachedOutput>,
+    projections: BTreeMap<String, Vec<String>>,
+}
+
+type AcquisitionResult = Result<ArtifactLookup, DevupError>;
+
+#[derive(Default)]
+struct StoreState {
+    entries: BTreeMap<String, Entry>,
+    key_index: BTreeMap<String, String>,
+    in_flight: BTreeMap<String, watch::Receiver<Option<AcquisitionResult>>>,
+    total_bytes: usize,
+    access_sequence: u64,
+}
+
+#[derive(Clone)]
+pub struct ArtifactStore {
+    state: Arc<Mutex<StoreState>>,
+    clock: Arc<dyn ArtifactClock>,
+    limits: ArtifactLimits,
+}
+
+pub struct OutputReservation {
+    state: Option<OwnedMutexGuard<StoreState>>,
+    artifact_id: String,
+    projection_key: String,
+    staged: Vec<AttachedOutput>,
+    manifests: Vec<AttachedOutputManifest>,
+    allocation: usize,
+    created: bool,
+    max_total_bytes: usize,
+}
+
+impl OutputReservation {
+    pub fn manifests(&self) -> &[AttachedOutputManifest] {
+        &self.manifests
+    }
+
+    pub fn commit(mut self) -> Vec<AttachedOutputManifest> {
+        let Some(mut state) = self.state.take() else {
+            return self.manifests;
+        };
+        if !self.created {
+            return self.manifests;
+        }
+        while state.total_bytes.saturating_add(self.allocation) > self.max_total_bytes {
+            let lru_id = state
+                .entries
+                .iter()
+                .filter(|(id, _)| id.as_str() != self.artifact_id)
+                .min_by_key(|(_, entry)| entry.last_access)
+                .map(|(id, _)| id.clone())
+                .expect("output reservation validated enough evictable capacity");
+            remove_entry(&mut state, &lru_id);
+        }
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state
+            .entries
+            .get_mut(&self.artifact_id)
+            .expect("reserved artifact remains pinned by the store lock");
+        entry.last_access = access;
+        entry.size_bytes = entry.size_bytes.saturating_add(self.allocation);
+        let ids = self
+            .staged
+            .iter()
+            .map(|output| output.manifest.output_id.clone())
+            .collect::<Vec<_>>();
+        for output in self.staged.drain(..) {
+            entry
+                .outputs
+                .insert(output.manifest.output_id.clone(), output);
+        }
+        entry.projections.insert(self.projection_key, ids);
+        state.total_bytes = state.total_bytes.saturating_add(self.allocation);
+        self.manifests
+    }
+
+    pub fn rollback(self) {}
+}
+
+impl Default for ArtifactStore {
+    fn default() -> Self {
+        Self::with_limits(ArtifactLimits::default())
+    }
+}
+
+impl ArtifactStore {
+    pub fn with_limits(limits: ArtifactLimits) -> Self {
+        Self::with_clock(Arc::new(SystemClock), limits)
+    }
+
+    pub fn with_clock(clock: Arc<dyn ArtifactClock>, limits: ArtifactLimits) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(StoreState::default())),
+            clock,
+            limits,
+        }
+    }
+
+    pub async fn get_or_acquire<F, Fut>(
+        &self,
+        key: ArtifactRequestKey,
+        refresh: bool,
+        acquire: F,
+    ) -> Result<ArtifactLookup, DevupError>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<CollectedPayload, DevupError>>,
+    {
+        let key_digest = key.digest();
+        let capabilities = key.capabilities();
+        let (owner, mut receiver, sender) = {
+            let now = self.clock.now_epoch_seconds();
+            let mut state = self.state.lock().await;
+            self.prune_expired(&mut state, now);
+            if !refresh && let Some(hit) = lookup_by_key(&mut state, &key_digest, true) {
+                return Ok(hit);
+            }
+            if let Some(receiver) = state.in_flight.get(&key_digest) {
+                (false, receiver.clone(), None)
+            } else {
+                let (sender, receiver) = watch::channel(None);
+                state.in_flight.insert(key_digest.clone(), receiver.clone());
+                (true, receiver, Some(sender))
+            }
+        };
+
+        if !owner {
+            receiver
+                .wait_for(Option::is_some)
+                .await
+                .map_err(|_| acquisition_cancelled())?;
+            let mut result = receiver
+                .borrow()
+                .clone()
+                .ok_or_else(acquisition_cancelled)?;
+            if let Ok(hit) = &mut result {
+                hit.cache_hit = true;
+            }
+            return result;
+        }
+
+        let result = match acquire().await {
+            Ok(payload) => {
+                self.insert_with_digest(key_digest.clone(), capabilities, payload)
+                    .await
+            }
+            Err(error) => Err(error),
+        };
+        {
+            let mut state = self.state.lock().await;
+            state.in_flight.remove(&key_digest);
+        }
+        if let Some(sender) = sender {
+            let _ = sender.send(Some(result.clone()));
+        }
+        result
+    }
+
+    pub async fn insert(
+        &self,
+        key: ArtifactRequestKey,
+        payload: CollectedPayload,
+    ) -> Result<ArtifactLookup, DevupError> {
+        self.insert_with_digest(key.digest(), key.capabilities(), payload)
+            .await
+    }
+
+    pub async fn get(&self, artifact_id: &str) -> Option<ArtifactLookup> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        touch_entry(&mut state, artifact_id, true)
+    }
+
+    pub async fn lookup(&self, key: &ArtifactRequestKey) -> Option<ArtifactLookup> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        lookup_by_key(&mut state, &key.digest(), true)
+    }
+
+    pub async fn stats(&self) -> ArtifactStoreStats {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        ArtifactStoreStats {
+            entry_count: state.entries.len(),
+            total_bytes: state.total_bytes,
+            max_entries: self.limits.max_entries,
+            max_total_bytes: self.limits.max_total_bytes,
+        }
+    }
+
+    pub async fn attach_outputs(
+        &self,
+        artifact_id: &str,
+        projection_key: &str,
+        outputs: Vec<ProjectedOutput>,
+    ) -> Result<Vec<AttachedOutputManifest>, DevupError> {
+        Ok(self
+            .reserve_outputs(artifact_id, projection_key, outputs)
+            .await?
+            .commit())
+    }
+
+    pub async fn reserve_outputs(
+        &self,
+        artifact_id: &str,
+        projection_key: &str,
+        outputs: Vec<ProjectedOutput>,
+    ) -> Result<OutputReservation, DevupError> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.clone().lock_owned().await;
+        self.prune_expired(&mut state, now);
+        if let Some(ids) = state
+            .entries
+            .get(artifact_id)
+            .and_then(|entry| entry.projections.get(projection_key))
+            .cloned()
+        {
+            let entry = state
+                .entries
+                .get(artifact_id)
+                .ok_or_else(resource_expired)?;
+            let manifests = ids
+                .iter()
+                .map(|id| {
+                    entry
+                        .outputs
+                        .get(id)
+                        .map(|output| output.manifest.clone())
+                        .ok_or_else(resource_expired)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return Ok(OutputReservation {
+                state: Some(state),
+                artifact_id: artifact_id.to_owned(),
+                projection_key: projection_key.to_owned(),
+                staged: Vec::new(),
+                manifests,
+                allocation: 0,
+                created: false,
+                max_total_bytes: self.limits.max_total_bytes,
+            });
+        }
+        let expires_at = state
+            .entries
+            .get(artifact_id)
+            .map(|entry| entry.expires_at)
+            .ok_or_else(resource_expired)?;
+        let mut staged = Vec::with_capacity(outputs.len());
+        let mut staged_ids = BTreeMap::new();
+        for output in outputs {
+            if output.name.is_empty()
+                || !output
+                    .name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+                || output.mime_type.is_empty()
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "resource output 이름 또는 MIME 형식이 올바르지 않습니다.",
+                    false,
+                ));
+            }
+            let output_id = output.resource_id;
+            if !valid_output_id(&output_id)
+                || staged_ids.contains_key(&output_id)
+                || state
+                    .entries
+                    .get(artifact_id)
+                    .is_some_and(|entry| entry.outputs.contains_key(&output_id))
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "resource output ID가 중복되었거나 올바르지 않습니다.",
+                    true,
+                ));
+            }
+            staged_ids.insert(output_id.clone(), ());
+            let raw_bytes = output.bytes.len();
+            let ranges = output_chunk_ranges(&output.bytes, output.is_binary)?;
+            let encoded_bytes = if output.is_binary {
+                raw_bytes.div_ceil(3).saturating_mul(4)
+            } else {
+                0
+            };
+            let allocation_bytes = raw_bytes.saturating_add(encoded_bytes);
+            let manifest_uri =
+                format!("devup://artifact/{artifact_id}/outputs/{output_id}/manifest");
+            staged.push(AttachedOutput {
+                manifest: AttachedOutputManifest {
+                    artifact_id: artifact_id.to_owned(),
+                    output_id,
+                    name: output.name,
+                    mime_type: output.mime_type,
+                    raw_bytes,
+                    sha256: sha256_hex(&output.bytes),
+                    chunk_count: ranges.len(),
+                    chunk_bytes: RESOURCE_CHUNK_BYTES,
+                    is_binary: output.is_binary,
+                    manifest_uri,
+                    expires_at_epoch_seconds: expires_at,
+                },
+                bytes: Arc::from(output.bytes),
+                ranges,
+                allocation_bytes,
+            });
+        }
+        let allocation = staged
+            .iter()
+            .try_fold(0_usize, |sum, output| {
+                sum.checked_add(output.allocation_bytes)
+            })
+            .ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupFigmaResponseTooLarge,
+                    "resource allocation 크기가 안전한 범위를 초과했습니다.",
+                    false,
+                )
+            })?;
+        let entry_size = state
+            .entries
+            .get(artifact_id)
+            .map(|entry| entry.size_bytes)
+            .ok_or_else(resource_expired)?;
+        if entry_size.saturating_add(allocation) > self.limits.max_entry_bytes
+            || allocation > self.limits.max_total_bytes
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "resource output이 artifact 메모리 한도를 초과했습니다.",
+                false,
+            ));
+        }
+        let retained_bytes = state
+            .entries
+            .get(artifact_id)
+            .map(|entry| entry.size_bytes)
+            .ok_or_else(resource_expired)?;
+        if retained_bytes.saturating_add(allocation) > self.limits.max_total_bytes {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "resource output이 전체 메모리 한도를 초과했습니다.",
+                false,
+            ));
+        }
+        let manifests = staged
+            .iter()
+            .map(|output| output.manifest.clone())
+            .collect::<Vec<_>>();
+        Ok(OutputReservation {
+            state: Some(state),
+            artifact_id: artifact_id.to_owned(),
+            projection_key: projection_key.to_owned(),
+            staged,
+            manifests,
+            allocation,
+            created: true,
+            max_total_bytes: self.limits.max_total_bytes,
+        })
+    }
+
+    pub async fn detach_projection(&self, artifact_id: &str, projection_key: &str) -> bool {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        let removed_allocation = {
+            let Some(entry) = state.entries.get_mut(artifact_id) else {
+                return false;
+            };
+            let Some(ids) = entry.projections.remove(projection_key) else {
+                return false;
+            };
+            let allocation = ids
+                .into_iter()
+                .filter_map(|id| entry.outputs.remove(&id))
+                .map(|output| output.allocation_bytes)
+                .sum::<usize>();
+            entry.size_bytes = entry.size_bytes.saturating_sub(allocation);
+            allocation
+        };
+        state.total_bytes = state.total_bytes.saturating_sub(removed_allocation);
+        true
+    }
+
+    pub async fn read_output_chunk(
+        &self,
+        artifact_id: &str,
+        output_id: &str,
+        index: usize,
+    ) -> Option<Vec<u8>> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state.entries.get_mut(artifact_id)?;
+        entry.last_access = access;
+        let output = entry.outputs.get(output_id)?;
+        let (start, end) = *output.ranges.get(index)?;
+        Some(output.bytes[start..end].to_vec())
+    }
+
+    pub async fn output_manifest(
+        &self,
+        artifact_id: &str,
+        output_id: &str,
+    ) -> Option<AttachedOutputManifest> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state.entries.get_mut(artifact_id)?;
+        entry.last_access = access;
+        entry
+            .outputs
+            .get(output_id)
+            .map(|output| output.manifest.clone())
+    }
+
+    pub async fn output_manifests(&self) -> Vec<AttachedOutputManifest> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        state
+            .entries
+            .values()
+            .flat_map(|entry| entry.outputs.values())
+            .map(|output| output.manifest.clone())
+            .collect()
+    }
+
+    async fn insert_with_digest(
+        &self,
+        key_digest: String,
+        mut capabilities: ArtifactCapabilities,
+        payload: CollectedPayload,
+    ) -> Result<ArtifactLookup, DevupError> {
+        if payload.metadata.get("sectionIndex").is_some()
+            && payload.metadata.get("selectedRootIds").is_none()
+        {
+            capabilities.kind = ArtifactKind::SectionIndex;
+        }
+        let bytes = serde_json::to_vec(&payload).map_err(|error| {
+            DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                format!("Figma artifact를 직렬화할 수 없습니다: {error}"),
+                false,
+            )
+        })?;
+        if bytes.len() > self.limits.max_entry_bytes
+            || bytes.len() > self.limits.max_total_bytes
+            || self.limits.max_entries == 0
+        {
+            return Err(DevupError::with_details(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "Figma artifact가 메모리 캐시 한도를 초과했습니다.",
+                false,
+                json!({"artifactBytes": bytes.len()}),
+            ));
+        }
+        let now = self.clock.now_epoch_seconds();
+        let content_hash = sha256_hex(&bytes);
+        let payload = Arc::new(payload);
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        if let Some(previous_id) = state.key_index.remove(&key_digest) {
+            remove_entry(&mut state, &previous_id);
+        }
+        while state.entries.len() >= self.limits.max_entries
+            || state.total_bytes.saturating_add(bytes.len()) > self.limits.max_total_bytes
+        {
+            let Some(lru_id) = state
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.last_access)
+                .map(|(id, _)| id.clone())
+            else {
+                break;
+            };
+            remove_entry(&mut state, &lru_id);
+        }
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let last_access = state.access_sequence;
+        let artifact_id = unique_id(&state.entries);
+        let expires_at = now.saturating_add(self.limits.ttl.as_secs());
+        state.total_bytes = state.total_bytes.saturating_add(bytes.len());
+        state
+            .key_index
+            .insert(key_digest.clone(), artifact_id.clone());
+        state.entries.insert(
+            artifact_id.clone(),
+            Entry {
+                key_digest,
+                content_hash: content_hash.clone(),
+                created_at: now,
+                expires_at,
+                size_bytes: bytes.len(),
+                last_access,
+                capabilities: capabilities.clone(),
+                payload: payload.clone(),
+                outputs: BTreeMap::new(),
+                projections: BTreeMap::new(),
+            },
+        );
+        Ok(ArtifactLookup {
+            artifact_id,
+            content_hash,
+            created_at_epoch_seconds: now,
+            expires_at_epoch_seconds: expires_at,
+            size_bytes: bytes.len(),
+            cache_hit: false,
+            capabilities,
+            payload,
+        })
+    }
+
+    fn prune_expired(&self, state: &mut StoreState, now: u64) {
+        let ids = state
+            .entries
+            .iter()
+            .filter_map(|(id, entry)| (entry.expires_at <= now).then_some(id.clone()))
+            .collect::<Vec<_>>();
+        for id in ids {
+            remove_entry(state, &id);
+        }
+    }
+}
+
+fn lookup_by_key(
+    state: &mut StoreState,
+    key_digest: &str,
+    cache_hit: bool,
+) -> Option<ArtifactLookup> {
+    let artifact_id = state.key_index.get(key_digest)?.clone();
+    touch_entry(state, &artifact_id, cache_hit)
+}
+
+fn touch_entry(
+    state: &mut StoreState,
+    artifact_id: &str,
+    cache_hit: bool,
+) -> Option<ArtifactLookup> {
+    state.access_sequence = state.access_sequence.saturating_add(1);
+    let last_access = state.access_sequence;
+    let entry = state.entries.get_mut(artifact_id)?;
+    entry.last_access = last_access;
+    Some(ArtifactLookup {
+        artifact_id: artifact_id.to_owned(),
+        content_hash: entry.content_hash.clone(),
+        created_at_epoch_seconds: entry.created_at,
+        expires_at_epoch_seconds: entry.expires_at,
+        size_bytes: entry.size_bytes,
+        cache_hit,
+        capabilities: entry.capabilities.clone(),
+        payload: entry.payload.clone(),
+    })
+}
+
+fn remove_entry(state: &mut StoreState, artifact_id: &str) {
+    if let Some(entry) = state.entries.remove(artifact_id) {
+        state.total_bytes = state.total_bytes.saturating_sub(entry.size_bytes);
+        if state.key_index.get(&entry.key_digest) == Some(&artifact_id.to_owned()) {
+            state.key_index.remove(&entry.key_digest);
+        }
+    }
+}
+
+fn unique_id(entries: &BTreeMap<String, Entry>) -> String {
+    loop {
+        let mut bytes = [0_u8; 32];
+        rand::rng().fill_bytes(&mut bytes);
+        let id = URL_SAFE_NO_PAD.encode(bytes);
+        if !entries.contains_key(&id) {
+            return id;
+        }
+    }
+}
+
+fn valid_output_id(value: &str) -> bool {
+    value.len() == 22
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn output_chunk_ranges(bytes: &[u8], is_binary: bool) -> Result<Vec<(usize, usize)>, DevupError> {
+    let text = (!is_binary)
+        .then(|| std::str::from_utf8(bytes))
+        .transpose()
+        .map_err(|_| {
+            DevupError::new(
+                ErrorCode::DevupFigmaHandoffInvalid,
+                "text resource output은 UTF-8이어야 합니다.",
+                false,
+            )
+        })?;
+    if bytes.is_empty() {
+        return Ok(vec![(0, 0)]);
+    }
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    while start < bytes.len() {
+        let mut end = start.saturating_add(RESOURCE_CHUNK_BYTES).min(bytes.len());
+        if let Some(text) = text {
+            while end > start && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            if end == start {
+                return Err(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "text resource chunk 경계를 계산할 수 없습니다.",
+                    false,
+                ));
+            }
+        }
+        ranges.push((start, end));
+        start = end;
+    }
+    Ok(ranges)
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn acquisition_cancelled() -> DevupError {
+    DevupError::new(
+        ErrorCode::DevupFigmaDirectUnavailable,
+        "동일 Figma artifact 수집이 완료되기 전에 취소되었습니다.",
+        true,
+    )
+}
+
+fn resource_expired() -> DevupError {
+    DevupError::new(
+        ErrorCode::DevupFigmaHandoffExpired,
+        "resource artifact가 없거나 만료되었습니다.",
+        true,
+    )
+}

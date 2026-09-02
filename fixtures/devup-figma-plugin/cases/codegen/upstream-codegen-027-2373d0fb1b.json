@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-027-2373d0fb1b",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders aspect ratio when provided 1"
+  },
+  "request": {
+    "rootId": "captured:44"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:44\" name=\"AspectRatioFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:44"
+      ],
+      "nodes": {
+        "captured:44": {
+          "id": "captured:44",
+          "type": "FRAME",
+          "fields": {
+            "layoutSizingHorizontal": "FILL",
+            "layoutSizingVertical": "FILL",
+            "name": "AspectRatioFrame",
+            "targetAspectRatio": {
+              "x": 4,
+              "y": 3
+            },
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,80 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Location() {
+  return (
+    <VStack>
+      <PageHeader />
+      <VStack
+        alignItems="center"
+        bg="$containerBackground"
+        gap="60px"
+        overflow="hidden"
+        pb="120px"
+        pt="60px"
+        px="40px"
+      >
+        <Center borderBottom="solid 1px $border" gap="20px" maxW="1280px" w="100%">
+          <Component3 />
+          <Box bg="$border" borderRadius="50%" boxSize="8px" />
+          <Tab />
+        </Center>
+        <VStack maxW="1280px" w="100%">
+          <VStack>
+            <Flex border="solid 1px $border" overflow="hidden" pos="relative">
+              <Image flex="1" h="640px" objectFit="cover" src="/images/image 22.png" />
+              <Box left="570px" pos="absolute" top="80px">
+                <MapPin />
+              </Box>
+              <Box left="1019px" pos="absolute" top="131px">
+                <MapPin />
+              </Box>
+              <Box left="266px" pos="absolute" top="203px">
+                <MapPin />
+              </Box>
+              <Box left="660px" pos="absolute" top="413px">
+                <MapPin />
+              </Box>
+              <Box left="540px" pos="absolute" top="85px">
+                <MapPin />
+              </Box>
+              <Box left="558px" pos="absolute" top="125px">
+                <MapPin />
+              </Box>
+              <Box left="690px" pos="absolute" top="74px">
+                <MapPin />
+              </Box>
+              <Box left="593px" pos="absolute" top="97px">
+                <MapPin />
+              </Box>
+              <Flex
+                alignItems="center"
+                boxShadow="0 4px 8px 0 #00000026"
+                gap="10px"
+                left="50%"
+                overflow="hidden"
+                pos="absolute"
+                top="16px"
+                transform="translateX(-50%)"
+              >
+                <Component7 />
+                <Component6 />
+                <Component8 />
+                <Component9 />
+              </Flex>
+            </Flex>
+          </VStack>
+        </VStack>
+      </VStack>
+      <Footer />
+      <Box pos="absolute" right="50px" top="50%" transform="translateY(-50%)">
+        <FloatingButton />
+      </Box>
+      <Box left="0px" pos="absolute" top="0px" w="100%">
+        <Header />
+      </Box>
+    </VStack>
+  )
+}"

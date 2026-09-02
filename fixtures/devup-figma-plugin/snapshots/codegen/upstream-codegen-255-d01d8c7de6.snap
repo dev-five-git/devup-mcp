@@ -1,0 +1,16 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"{/* <Status status="error" /> */}
+<Box
+  bg="#FFF"
+  boxSize="24px"
+  h="48px"
+  maskImage="url(/icons/status=error.svg)"
+  maskPos="center"
+  maskRepeat="no-repeat"
+  maskSize="contain"
+  w="580px"
+/>"

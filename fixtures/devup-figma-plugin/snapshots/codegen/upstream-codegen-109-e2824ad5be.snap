@@ -1,0 +1,8 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Text boxSize="100%" color="#F00" typography="typographyHeading">
+  Heading
+</Text>"

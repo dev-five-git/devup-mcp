@@ -1,0 +1,34 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface ButtonProps {
+  size: 'sm' | 'md' | 'lg'
+  leftIcon: React.ReactNode
+  showLeftIcon?: boolean
+  rightIcon: React.ReactNode
+  showRightIcon?: boolean
+}
+
+export function Button({ size, leftIcon, showLeftIcon, rightIcon, showRightIcon }: ButtonProps) {
+  return (
+    <Box>
+      {showLeftIcon && leftIcon}
+      <Text
+        boxSize="100%"
+        color="#F00"
+        fontFamily="Arial"
+        fontSize="16px"
+        fontWeight="400"
+        letterSpacing="0px"
+        lineHeight="1.5px"
+        overflow="hidden"
+        textOverflow="ellipsis"
+      >
+        Submit
+      </Text>
+      {showRightIcon && rightIcon}
+    </Box>
+  )
+}"

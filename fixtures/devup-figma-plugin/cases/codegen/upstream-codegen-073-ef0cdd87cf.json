@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-073-ef0cdd87cf",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders text node with single drop shadow 1"
+  },
+  "request": {
+    "rootId": "captured:98"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<text id=\"captured:98\" name=\"TextWithShadow\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:98"
+      ],
+      "nodes": {
+        "captured:98": {
+          "id": "captured:98",
+          "type": "TEXT",
+          "fields": {
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "color": {
+                  "a": 0.5,
+                  "b": 0,
+                  "g": 0,
+                  "r": 0
+                },
+                "offset": {
+                  "x": 2,
+                  "y": 4
+                },
+                "radius": 6,
+                "type": "DROP_SHADOW",
+                "visible": true
+              }
+            ],
+            "name": "TextWithShadow",
+            "strokes": [],
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "Shadow",
+                "end": 6,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "style1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-132-9a7b0243b6",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders component set with press trigger 1"
+  },
+  "request": {
+    "rootId": "captured:165"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<component_set id=\"captured:165\" name=\"Button\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:165"
+      ],
+      "nodes": {
+        "captured:165": {
+          "id": "captured:165",
+          "type": "COMPONENT_SET",
+          "fields": {
+            "componentPropertyDefinitions": {},
+            "defaultVariant": {
+              "name": "Default",
+              "reactions": [],
+              "type": "COMPONENT",
+              "variantProperties": {},
+              "visible": true
+            },
+            "name": "Button",
+            "visible": true,
+            "childrenIds": [
+              "captured:163",
+              "captured:164"
+            ],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:163": {
+          "id": "captured:163",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Default",
+            "reactions": [],
+            "variantProperties": {},
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        },
+        "captured:164": {
+          "id": "captured:164",
+          "type": "COMPONENT",
+          "fields": {
+            "name": "Active",
+            "reactions": [
+              {
+                "actions": [],
+                "trigger": {
+                  "type": "ON_PRESS"
+                }
+              }
+            ],
+            "variantProperties": {},
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

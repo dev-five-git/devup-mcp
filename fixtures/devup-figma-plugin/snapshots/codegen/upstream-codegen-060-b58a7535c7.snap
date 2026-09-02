@@ -1,0 +1,9 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"<Grid gridTemplateColumns="repeat(2, 1fr)" gridTemplateRows="repeat(1, 1fr)" h="100px" w="200px">
+  <Box boxSize="100%" />
+  <Box boxSize="100%" />
+</Grid>"

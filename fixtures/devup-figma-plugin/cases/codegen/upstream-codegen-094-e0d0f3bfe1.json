@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-094-e0d0f3bfe1",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders frame with soft light blend mode 1"
+  },
+  "request": {
+    "rootId": "captured:119"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:119\" name=\"SoftLightBlendFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:119"
+      ],
+      "nodes": {
+        "captured:119": {
+          "id": "captured:119",
+          "type": "FRAME",
+          "fields": {
+            "blendMode": "SOFT_LIGHT",
+            "height": 50,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "SoftLightBlendFrame",
+            "opacity": 1,
+            "visible": true,
+            "width": 100,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

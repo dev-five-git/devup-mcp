@@ -1,0 +1,376 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+
+use crate::{DevupError, Diagnostic, ErrorCode, Snapshot, UpstreamResult};
+
+pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AssetFormat {
+    Png,
+    Jpg,
+    Svg,
+    Pdf,
+}
+
+impl AssetFormat {
+    pub fn mime_type(self) -> &'static str {
+        match self {
+            Self::Png => "image/png",
+            Self::Jpg => "image/jpeg",
+            Self::Svg => "image/svg+xml",
+            Self::Pdf => "application/pdf",
+        }
+    }
+
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpg => "jpg",
+            Self::Svg => "svg",
+            Self::Pdf => "pdf",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AssetStatus {
+    Available,
+    Exported,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetRequest {
+    pub asset_id: String,
+    pub node_id: String,
+    pub field: String,
+    pub image_hash: Option<String>,
+    pub format: AssetFormat,
+    pub scale: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetSelection {
+    pub asset_id: String,
+    pub format: AssetFormat,
+    pub scale: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetManifestEntry {
+    pub asset_id: String,
+    pub node_id: String,
+    pub field: String,
+    pub source_kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<AssetFormat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<u8>,
+    pub status: AssetStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_base64: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetManifest {
+    pub version: u32,
+    pub assets: Vec<AssetManifestEntry>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+pub fn discover_asset_manifest(snapshot: &Snapshot) -> AssetManifest {
+    let mut assets = Vec::new();
+    for node in snapshot.nodes.values() {
+        if let Some(fills) = node.typed_view().value("fills").and_then(Value::as_array) {
+            for (index, fill) in fills.iter().enumerate() {
+                if fill.get("type").and_then(Value::as_str) != Some("IMAGE") {
+                    continue;
+                }
+                let image_hash = fill
+                    .get("imageHash")
+                    .or_else(|| fill.get("imageRef"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+                assets.push(AssetManifestEntry {
+                    asset_id: format!("{}:fills:{index}", node.id),
+                    node_id: node.id.clone(),
+                    field: format!("fills/{index}"),
+                    source_kind: "image-fill".to_owned(),
+                    image_hash,
+                    format: None,
+                    scale: None,
+                    status: AssetStatus::Available,
+                    byte_length: None,
+                    sha256: None,
+                    mime_type: None,
+                    data_base64: None,
+                    output_path: None,
+                    error_code: None,
+                });
+            }
+        }
+        if matches!(
+            node.node_type.as_str(),
+            "VECTOR" | "BOOLEAN_OPERATION" | "STAR" | "LINE" | "ELLIPSE" | "POLYGON"
+        ) {
+            assets.push(AssetManifestEntry {
+                asset_id: format!("{}:node", node.id),
+                node_id: node.id.clone(),
+                field: "node".to_owned(),
+                source_kind: "vector-node".to_owned(),
+                image_hash: None,
+                format: None,
+                scale: None,
+                status: AssetStatus::Available,
+                byte_length: None,
+                sha256: None,
+                mime_type: None,
+                data_base64: None,
+                output_path: None,
+                error_code: None,
+            });
+        }
+    }
+    assets.sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
+    AssetManifest {
+        version: 1,
+        assets,
+        diagnostics: Vec::new(),
+    }
+}
+
+pub fn validate_asset_requests(
+    snapshot: &Snapshot,
+    requests: &[AssetRequest],
+) -> Result<(), DevupError> {
+    if requests.len() > 16 {
+        return Err(invalid("한 번에 export할 asset은 16개 이하여야 합니다."));
+    }
+    let available = discover_asset_manifest(snapshot);
+    let mut seen = std::collections::BTreeSet::new();
+    for request in requests {
+        if request.scale == 0 || request.scale > 4 || !seen.insert(request.asset_id.as_str()) {
+            return Err(invalid(
+                "asset 요청의 scale 또는 중복 ID가 올바르지 않습니다.",
+            ));
+        }
+        let Some(candidate) = available
+            .assets
+            .iter()
+            .find(|asset| asset.asset_id == request.asset_id)
+        else {
+            return Err(invalid("요청한 asset이 snapshot에 없습니다."));
+        };
+        if candidate.node_id != request.node_id
+            || candidate.field != request.field
+            || candidate.image_hash != request.image_hash
+        {
+            return Err(invalid("asset 요청이 snapshot source와 일치하지 않습니다."));
+        }
+    }
+    Ok(())
+}
+
+pub fn resolve_asset_selections(
+    snapshot: &Snapshot,
+    selections: &[AssetSelection],
+) -> Result<Vec<AssetRequest>, DevupError> {
+    if selections.len() > 16 {
+        return Err(invalid("한 번에 export할 asset은 16개 이하여야 합니다."));
+    }
+    let manifest = discover_asset_manifest(snapshot);
+    let mut seen = std::collections::BTreeSet::new();
+    let requests = selections
+        .iter()
+        .map(|selection| {
+            if selection.scale == 0
+                || selection.scale > 4
+                || !seen.insert(selection.asset_id.as_str())
+            {
+                return Err(invalid(
+                    "asset 선택의 scale 또는 중복 ID가 올바르지 않습니다.",
+                ));
+            }
+            let asset = manifest
+                .assets
+                .iter()
+                .find(|asset| asset.asset_id == selection.asset_id)
+                .ok_or_else(|| invalid("선택한 asset이 snapshot에 없습니다."))?;
+            Ok(AssetRequest {
+                asset_id: asset.asset_id.clone(),
+                node_id: asset.node_id.clone(),
+                field: asset.field.clone(),
+                image_hash: asset.image_hash.clone(),
+                format: selection.format,
+                scale: selection.scale,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    validate_asset_requests(snapshot, &requests)?;
+    Ok(requests)
+}
+
+pub fn asset_export_from_result(
+    result: &UpstreamResult,
+    file_key: &str,
+    version: Option<&str>,
+    request: &AssetRequest,
+) -> Result<AssetManifestEntry, DevupError> {
+    let descriptor = find_descriptor(&result.raw)
+        .ok_or_else(|| invalid("Figma MCP 응답에서 asset descriptor를 찾지 못했습니다."))?;
+    if descriptor.file_key != file_key
+        || descriptor.version.as_deref() != version
+        || descriptor.asset_id != request.asset_id
+        || descriptor.node_id != request.node_id
+        || descriptor.field != request.field
+        || descriptor.image_hash != request.image_hash
+        || descriptor.format != request.format
+        || descriptor.scale != request.scale
+    {
+        return Err(invalid(
+            "asset descriptor가 요청 대상 또는 버전과 다릅니다.",
+        ));
+    }
+    let source_kind = if request.image_hash.is_some() {
+        "image-fill"
+    } else {
+        "vector-node"
+    };
+    if descriptor.status == AssetStatus::Failed {
+        return Ok(AssetManifestEntry {
+            asset_id: request.asset_id.clone(),
+            node_id: request.node_id.clone(),
+            field: request.field.clone(),
+            source_kind: source_kind.to_owned(),
+            image_hash: request.image_hash.clone(),
+            format: Some(request.format),
+            scale: Some(request.scale),
+            status: AssetStatus::Failed,
+            byte_length: None,
+            sha256: None,
+            mime_type: None,
+            data_base64: None,
+            output_path: None,
+            error_code: descriptor.error_code,
+        });
+    }
+    let data = find_binary(&result.raw, request.format.mime_type())
+        .ok_or_else(|| invalid("asset export 응답에 요청한 binary가 없습니다."))?;
+    let bytes = STANDARD
+        .decode(data.as_bytes())
+        .map_err(|_| invalid("asset export binary의 base64가 올바르지 않습니다."))?;
+    if bytes.is_empty()
+        || bytes.len() > MAX_ASSET_BYTES
+        || descriptor.byte_length != Some(bytes.len())
+        || descriptor.sha256.as_deref() != Some(sha256_hex(&bytes).as_str())
+    {
+        return Err(invalid(
+            "asset export binary의 길이 또는 hash가 일치하지 않습니다.",
+        ));
+    }
+    Ok(AssetManifestEntry {
+        asset_id: request.asset_id.clone(),
+        node_id: request.node_id.clone(),
+        field: request.field.clone(),
+        source_kind: source_kind.to_owned(),
+        image_hash: request.image_hash.clone(),
+        format: Some(request.format),
+        scale: Some(request.scale),
+        status: AssetStatus::Exported,
+        byte_length: Some(bytes.len()),
+        sha256: descriptor.sha256,
+        mime_type: Some(request.format.mime_type().to_owned()),
+        data_base64: Some(data),
+        output_path: None,
+        error_code: None,
+    })
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetExportDescriptor {
+    kind: String,
+    file_key: String,
+    version: Option<String>,
+    asset_id: String,
+    node_id: String,
+    field: String,
+    image_hash: Option<String>,
+    format: AssetFormat,
+    scale: u8,
+    status: AssetStatus,
+    byte_length: Option<usize>,
+    sha256: Option<String>,
+    error_code: Option<String>,
+}
+
+fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {
+    if let Ok(descriptor) = serde_json::from_value::<AssetExportDescriptor>(value.clone())
+        && descriptor.kind == "devupAssetExport"
+    {
+        return Some(descriptor);
+    }
+    match value {
+        Value::Object(object) => object.values().find_map(find_descriptor),
+        Value::Array(values) => values.iter().find_map(find_descriptor),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|value| find_descriptor(&value)),
+        _ => None,
+    }
+}
+
+fn find_binary(value: &Value, mime_type: &str) -> Option<String> {
+    match value {
+        Value::Object(object) => {
+            let observed_mime = object.get("mimeType").and_then(Value::as_str);
+            if observed_mime == Some(mime_type)
+                && let Some(data) = object
+                    .get("data")
+                    .or_else(|| object.get("blob"))
+                    .and_then(Value::as_str)
+            {
+                return Some(data.to_owned());
+            }
+            object
+                .values()
+                .find_map(|value| find_binary(value, mime_type))
+        }
+        Value::Array(values) => values
+            .iter()
+            .find_map(|value| find_binary(value, mime_type)),
+        _ => None,
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn invalid(message: &str) -> DevupError {
+    DevupError::new(ErrorCode::DevupSnapshotUnsupported, message, false)
+}

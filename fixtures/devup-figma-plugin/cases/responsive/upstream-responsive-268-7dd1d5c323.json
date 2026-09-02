@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-responsive-268-7dd1d5c323",
+  "operation": "responsive-tsx",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "ResponsiveCodegen generateVariantOnlyMergedCode with structurally equivalent asset children merges asset-like children even when node names differ 1"
+  },
+  "request": {
+    "rootId": "fixture:root",
+    "operationInput": {
+      "treesByVariant": [
+        [
+          "up",
+          {
+            "children": [
+              {
+                "children": [],
+                "component": "Box",
+                "nodeName": "trend-up 1",
+                "nodeType": "FRAME",
+                "props": {
+                  "aspectRatio": "1",
+                  "bg": "$success",
+                  "boxSize": "16px",
+                  "maskImage": "url('/icons/trend-up 1.svg')",
+                  "maskPos": "center",
+                  "maskRepeat": "no-repeat",
+                  "maskSize": "contain"
+                }
+              }
+            ],
+            "component": "Center",
+            "nodeName": "Root",
+            "nodeType": "FRAME",
+            "props": {
+              "gap": "4px"
+            }
+          }
+        ],
+        [
+          "down",
+          {
+            "children": [
+              {
+                "children": [],
+                "component": "Box",
+                "nodeName": "trend-down 1",
+                "nodeType": "FRAME",
+                "props": {
+                  "aspectRatio": "1",
+                  "bg": "$error",
+                  "boxSize": "16px",
+                  "maskImage": "url('/icons/trend-down 1.svg')",
+                  "maskPos": "center",
+                  "maskRepeat": "no-repeat",
+                  "maskSize": "contain"
+                }
+              }
+            ],
+            "component": "Center",
+            "nodeName": "Root",
+            "nodeType": "FRAME",
+            "props": {
+              "gap": "4px"
+            }
+          }
+        ]
+      ],
+      "variantKey": "grpah"
+    }
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"fixture:root\" name=\"responsive-asset-merge\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "fixture:root"
+      ],
+      "nodes": {
+        "fixture:root": {
+          "id": "fixture:root",
+          "type": "FRAME",
+          "fields": {
+            "name": "responsive-asset-merge",
+            "childrenIds": []
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

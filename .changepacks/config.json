@@ -1,0 +1,5 @@
+{
+  "ignore": ["**", "!/crates/*/Cargo.toml"],
+  "baseBranch": "main",
+  "latestPackage": null
+}

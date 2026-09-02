@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-065-6c1be61067",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders layer blur effect props 1"
+  },
+  "request": {
+    "rootId": "captured:90"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<frame id=\"captured:90\" name=\"LayerBlurFrame\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:90"
+      ],
+      "nodes": {
+        "captured:90": {
+          "id": "captured:90",
+          "type": "FRAME",
+          "fields": {
+            "effects": [
+              {
+                "blendMode": "NORMAL",
+                "radius": 4,
+                "type": "LAYER_BLUR",
+                "visible": true
+              }
+            ],
+            "height": 80,
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "name": "LayerBlurFrame",
+            "visible": true,
+            "width": 120,
+            "childrenIds": [],
+            "parentId": null
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": null,
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

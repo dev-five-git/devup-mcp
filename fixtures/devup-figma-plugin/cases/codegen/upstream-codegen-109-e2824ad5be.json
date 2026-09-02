@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "upstream-codegen-109-e2824ad5be",
+  "operation": "snapshot",
+  "source": {
+    "repository": "dev-five-git/devup-figma-plugin",
+    "commit": "243db650f1d635ab5385546a2a297eae4ea93515",
+    "testId": "Codegen renders text node with textStyleId and typography 1"
+  },
+  "request": {
+    "rootId": "captured:134"
+  },
+  "payload": {
+    "target": {
+      "fileKey": "syntheticFixtureFile",
+      "nodeId": null,
+      "branchKey": null
+    },
+    "scope": "node",
+    "metadata": {
+      "content": [
+        {
+          "type": "text",
+          "text": "<text id=\"captured:134\" name=\"TypographyText\" />"
+        }
+      ]
+    },
+    "snapshot": {
+      "fileKey": "syntheticFixtureFile",
+      "version": "243db650",
+      "roots": [
+        "captured:134"
+      ],
+      "nodes": {
+        "captured:134": {
+          "id": "captured:134",
+          "type": "TEXT",
+          "fields": {
+            "effects": [],
+            "name": "TypographyText",
+            "strokes": [],
+            "textAutoResize": "HEIGHT",
+            "textTruncation": "DISABLED",
+            "visible": true,
+            "childrenIds": [],
+            "parentId": null,
+            "styledTextSegments": [
+              {
+                "characters": "Heading",
+                "end": 7,
+                "fills": [
+                  {
+                    "color": {
+                      "b": 0,
+                      "g": 0,
+                      "r": 1
+                    },
+                    "type": "SOLID"
+                  }
+                ],
+                "fontName": {
+                  "family": "Arial",
+                  "style": "Regular"
+                },
+                "fontSize": 16,
+                "fontWeight": 400,
+                "letterSpacing": {
+                  "unit": "PIXELS",
+                  "value": 0
+                },
+                "lineHeight": {
+                  "unit": "PIXELS",
+                  "value": 1.5
+                },
+                "listOptions": {
+                  "type": "NONE"
+                },
+                "start": 0,
+                "textCase": "ORIGINAL",
+                "textDecoration": "NONE",
+                "textStyleId": "text-style-1"
+              }
+            ]
+          },
+          "extra": {},
+          "fieldErrors": {}
+        }
+      },
+      "diagnostics": []
+    },
+    "variables": null,
+    "styles": {
+      "raw": {
+        "styles": [
+          {
+            "id": "text-style-1",
+            "name": "Typography/Heading",
+            "styleType": "TEXT"
+          }
+        ]
+      }
+    },
+    "completeness": "resolved-values-only",
+    "sourceVersion": "243db650"
+  }
+}

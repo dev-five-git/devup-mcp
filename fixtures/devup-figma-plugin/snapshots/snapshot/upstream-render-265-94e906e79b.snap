@@ -1,0 +1,19 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface IconButtonProps {
+  leftIcon: React.ReactNode
+  rightIcon: React.ReactNode
+}
+
+export function IconButton({ leftIcon, rightIcon }: IconButtonProps) {
+  return (
+    <Flex>
+      {leftIcon}
+      <Text>label</Text>
+      {rightIcon}
+    </Flex>
+  )
+}"

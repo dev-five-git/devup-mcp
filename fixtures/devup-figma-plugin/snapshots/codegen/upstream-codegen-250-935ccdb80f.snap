@@ -1,0 +1,65 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export interface ButtonProps {
+  size: 'Md' | 'Sm'
+  variant: 'primary' | 'white'
+}
+
+export function Button({ size, variant }: ButtonProps) {
+  return (
+    <Center
+      _active={{
+        "bg": {
+          primary: ["$primaryBold", null, null, null, "$primaryExBold"],
+          white: ["$background", null, null, null, "$backgroundBold"]
+        }[variant]
+      }}
+      _hover={{
+        "bg": {
+          primary: [null, null, null, null, "$primaryBold"],
+          white: [null, null, null, null, "$background"]
+        }[variant]
+      }}
+      bg={{
+        primary: "$primary",
+        white: "$containerBackground"
+      }[variant]}
+      border={variant === 'white' && "solid 1px $primaryAccent"}
+      borderRadius={{
+        Md: ["10px", null, null, null, "12px"],
+        Sm: ["8px", null, null, null, "10px"]
+      }[size]}
+      px={{
+        Md: ["30px", null, null, null, "40px"],
+        Sm: ["16px", null, null, null, "20px"]
+      }[size]}
+      py={{
+        Md: ["16px", null, null, null, "20px"],
+        Sm: ["12px", null, null, null, "14px"]
+      }[size]}
+      transition="0.2ms ease-out"
+      transitionProperty="background"
+    >
+      <Text
+        color={{
+          primary: "#FFF",
+          white: "$primaryAccent"
+        }[variant]}
+        fontFamily="Noto Sans KR"
+        fontSize={{
+          Md: ["16px", null, null, null, "20px"],
+          Sm: ["14px", null, null, null, "15px"]
+        }[size]}
+        fontWeight="500"
+        letterSpacing="-0.04em"
+        lineHeight="normal"
+        wordBreak="keep-all"
+      >
+        참가 신청하기
+      </Text>
+    </Center>
+  )
+}"

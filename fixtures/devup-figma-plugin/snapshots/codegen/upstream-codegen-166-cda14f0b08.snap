@@ -1,0 +1,68 @@
+---
+source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
+expression: actual
+---
+
+"export function Component1() {
+  return (
+    <Flex alignItems="center" gap="20px">
+      <Center
+        bg="#FFF"
+        borderRadius="30px"
+        flex="1"
+        flexDir="column"
+        h="100%"
+        p="40px"
+      >
+        <Text
+          color="#1A1A1A"
+          fontFamily="Pretendard"
+          fontSize="36px"
+          fontWeight="500"
+          letterSpacing="-0.06em"
+          lineHeight="1.6"
+        >
+          CARD 1
+        </Text>
+      </Center>
+      <Center
+        bg="#FFF"
+        borderRadius="30px"
+        flex="1"
+        flexDir="column"
+        h="100%"
+        p="40px"
+      >
+        <Text
+          color="#1A1A1A"
+          fontFamily="Pretendard"
+          fontSize="36px"
+          fontWeight="500"
+          letterSpacing="-0.06em"
+          lineHeight="1.6"
+        >
+          CARD 2
+        </Text>
+      </Center>
+      <Center
+        bg="#FFF"
+        borderRadius="30px"
+        flex="1"
+        flexDir="column"
+        h="100%"
+        p="40px"
+      >
+        <Text
+          color="#1A1A1A"
+          fontFamily="Pretendard"
+          fontSize="36px"
+          fontWeight="500"
+          letterSpacing="-0.06em"
+          lineHeight="1.6"
+        >
+          CARD 3
+        </Text>
+      </Center>
+    </Flex>
+  )
+}"
