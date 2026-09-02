@@ -136,6 +136,7 @@ impl FidelityReport {
             && self.typography.complete()
             && self.assets.complete()
             && self.layout.complete()
+            && self.impacts.approximated == 0
             && self.impacts.lossy == 0
             && self.impacts.failed == 0
     }

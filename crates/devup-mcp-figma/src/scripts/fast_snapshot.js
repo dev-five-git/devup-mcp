@@ -14,9 +14,6 @@ const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
 const skipped = new Set(["id", "type", "parent", "children"]);
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
 const MAX_ENVELOPE_CHUNK_BYTES = 512 * 1024;
-const MAX_INLINE_FIELD_BYTES = 64 * 1024;
-
-"__DEVUP_LARGE_VALUE_HELPERS__";
 
 function propertyNames(value) {
   const names = new Set();
@@ -67,18 +64,6 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
   return result;
 }
 
-function serializeField(nodeId, field, value, fieldErrors) {
-  const serialized = serialize(value);
-  const bytes = devupUtf8Encode(JSON.stringify(serialized));
-  if (bytes.length <= MAX_INLINE_FIELD_BYTES) return serialized;
-  const descriptor = devupLargeValueDescriptor(nodeId, field, serialized);
-  if (descriptor.$truncated) {
-    fieldErrors[field] =
-      `DEVUP_FIELD_VALUE_UNSUPPORTED:${bytes.length}>${DEVUP_MAX_LARGE_VALUE_BYTES}`;
-  }
-  return descriptor;
-}
-
 function snapshotNode(node) {
   const fields = {};
   const extra = {};
@@ -91,7 +76,7 @@ function snapshotNode(node) {
     try {
       const value = node[name];
       if (typeof value === "function") continue;
-      const serialized = serializeField(node.id, name, value, fieldErrors);
+      const serialized = serialize(value);
       (manifestSet.has(name) ? fields : extra)[name] = serialized;
     } catch (error) {
       fieldErrors[name] = String(error && error.message ? error.message : error);
@@ -99,12 +84,7 @@ function snapshotNode(node) {
   }
   if (node.type === "TEXT" && typeof node.getStyledTextSegments === "function") {
     try {
-      fields.styledTextSegments = serializeField(
-        node.id,
-        "styledTextSegments",
-        node.getStyledTextSegments(textSegmentManifest),
-        fieldErrors,
-      );
+      fields.styledTextSegments = serialize(node.getStyledTextSegments(textSegmentManifest));
     } catch (error) {
       fieldErrors.styledTextSegments = String(error && error.message ? error.message : error);
     }

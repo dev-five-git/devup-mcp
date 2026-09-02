@@ -490,6 +490,12 @@ async fn public_continuation_finishes_a_multi_call_host_collection() -> anyhow::
         .structured_content
         .unwrap();
     assert_eq!(after_fast["calls"][0]["tool"], "get_metadata");
+    assert_eq!(after_fast["collection"]["figmaToolCalls"], 2);
+    assert_eq!(after_fast["collection"]["fallbackUsed"], true);
+    assert_eq!(
+        after_fast["collection"]["fallbackReason"],
+        "descriptorMissing"
+    );
     let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
     let after_metadata = client
         .call_tool(

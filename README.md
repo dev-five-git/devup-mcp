@@ -19,18 +19,33 @@ host handoff 경로에는 Figma PAT, 사용자가 만든 OAuth app, 내장 clien
 
 ## 빌드와 설치
 
-Rust 1.98 이상이 필요합니다.
+Rust 1.98 이상이 필요합니다. compile-in Figma 탐색 행동 fixture를 직접 실행하려면 CI와 동일한 Node.js 24가 필요하며 제품 binary에는 Node가 필요하지 않습니다.
 
 ```bash
 cargo install --git https://github.com/dev-five-git/devup-mcp.git --branch owjs3901/figma-remote-mcp devup-mcp
 ```
 
+설치 또는 binary 교체 후에는 먼저 로컬 진단을 실행합니다.
+
+```bash
+devup-mcp --version
+devup-mcp --self-check
+```
+
+`--version`은 package version과 build ID를, `--self-check`는 network/OAuth 없이 binary,
+credential backend 초기화와 server 구성을 안전한 JSON으로 확인합니다. 둘 다 성공하지만
+등록된 connector가 `Transport closed`를 반환하면 MCP host가 교체 전 process의 종료된
+stdio pipe를 보유한 상태이므로 host의 MCP 연결을 재시작하거나 다시 등록해야 합니다.
+새로 실행된 server가 host가 보유한 이전 pipe를 스스로 복구할 수는 없습니다.
+
 소스에서 검증하려면 다음을 실행합니다.
 
 ```bash
 cargo fmt --all -- --check
+node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
+cargo test -p devup-mcp --test stdio_smoke
 cargo insta test --workspace --all-features --check
 cargo build --workspace --release
 ```
@@ -108,7 +123,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 URL을 새로 수집해 기존 fresh artifact를 우회합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
 
 `delivery`는 `auto | inline | resource`입니다. `auto`는 JSON escape, base64와 structured/text 이중 표현을 포함한 실제 MCP wire 크기를 계산해 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고, 그보다 큰 결과는 native MCP `ResourceLink`와 `devup://artifact/...` URI로 바꿉니다. 링크 URI는 JSON manifest를 가리키므로 link MIME은 `application/json`이고 payload MIME·길이·SHA-256은 `payload*` metadata로 분리합니다. `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
@@ -158,15 +173,16 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
   "limit": 50,
   "includeTextPreview": true,
+  "refresh": false,
   "sourcePolicy": "auto"
 }
 ```
 
-요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 원하는 후보의 canonical URL을 `devup_figma_to_ui`에 넘겨 정확한 화면만 변환합니다.
+요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_to_ui`에 넘겨 정확한 화면만 변환합니다.
 
 탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `devup_figma_to_json`만 file 전체 로컬 catalog를 수집합니다.
 
-`sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다.
+`sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 
 정확한 node 링크의 UI 변환은 우선 하나의 공식 `use_figma` 호출 안에서 subtree 전체와 실제 사용 리소스를 수집합니다. JSON envelope를 512 KiB 단위로 나누고 각 조각을 CRC가 있는 1×1 PNG에 담아 MCP 응답 크기 제한을 피하며, Rust는 MIME·base64·PNG 구조·청크 순서·schema·대상 ID·node graph·리소스 참조를 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`, `fallbackUsed`, node/variable/style 수와 byte/청크 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
 
@@ -193,6 +209,8 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 ### 실제 Figma JSON contract gate
 
 `crates/devup-mcp/tests/live_figma_contract.rs`는 기본적으로 ignore됩니다. `DEVUP_MCP_LIVE_FIGMA=1`을 설정하고 공식 MCP의 fast `use_figma` 결과를 stdin에 한 줄로 전달하면 실제 payload를 디스크에 쓰거나 출력하지 않고 envelope 무결성, serde round-trip, 요청 context, node/리소스 수와 DevupUI codegen을 검증하고 안전한 count/hash 요약만 출력합니다. 별도의 비-ignore corruption test는 깨진 fast 응답이 legacy metadata 수집으로 원자적으로 폴백하는지 확인합니다.
+
+`crates/devup-mcp-figma/tests/explore_script_behavior.mjs`는 compile-in `explore.js` 자체를 mock Figma scene graph에서 실행합니다. 두 단계 이상 중첩된 화면의 parent chain, 화면이 없는 1,000-node Section의 `projectionLimit * 8` 방문 상한, 필수 node만 남기는 14,000자 이하 fallback을 검증하며 CI의 Node 내장 test runner로 실행됩니다. 제품 binary와 기본 Cargo test에는 JavaScript runtime 의존성이 추가되지 않습니다.
 
 legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
 

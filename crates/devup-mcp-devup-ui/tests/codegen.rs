@@ -406,6 +406,39 @@ fn embedded_root_omits_only_selected_frame_geometry_and_position() {
     assert!(embedded.tsx.contains("top=\"12px\""));
 }
 
+#[test]
+fn fully_represented_absolute_frame_is_not_reported_as_a_fallback() {
+    let mut snapshot = snapshot();
+    let child = snapshot.nodes.get_mut("1:2").unwrap();
+    child.node_type = "FRAME".to_owned();
+    child.fields = serde_json::from_value(json!({
+        "name": "Exact absolute frame",
+        "parentId": "1:1",
+        "childrenIds": [],
+        "layoutPositioning": "ABSOLUTE",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "x": 10,
+        "y": 12,
+        "width": 100,
+        "height": 20
+    }))
+    .unwrap();
+
+    let output = generate_component(&snapshot, "1:1", &CodegenOptions::default()).unwrap();
+    assert!(output.tsx.contains("pos=\"absolute\""));
+    assert!(output.tsx.contains("left=\"10px\""));
+    assert!(output.tsx.contains("top=\"12px\""));
+    assert!(output.tsx.contains("w=\"100px\""));
+    assert!(output.tsx.contains("h=\"20px\""));
+    assert!(
+        !output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
+    );
+}
+
 fn component_root_opening(tsx: &str) -> &str {
     let start = tsx.find("    <").expect("component root");
     let end = tsx[start..].find('>').expect("root opening close") + start;

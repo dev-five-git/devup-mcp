@@ -137,6 +137,15 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     assert!(output.fidelity_report.layout.complete());
     assert_eq!(output.fidelity_report.impacts.lossy, 0);
     assert_eq!(output.fidelity_report.impacts.failed, 0);
+    assert_eq!(output.fidelity_report.impacts.approximated, 0);
+    assert!(output.fidelity_report.strict_compatible());
+    assert!(!output.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
+            && matches!(
+                diagnostic.node_id.as_deref(),
+                Some("3879:35540" | "3879:35564")
+            )
+    }));
     assert_eq!(
         output.projection_trace.entries.len(),
         payload.snapshot.nodes.len()

@@ -121,6 +121,99 @@ fn target(node_id: &str) -> FigmaTarget {
     .unwrap()
 }
 
+fn nested_wquw_section_projection() -> Snapshot {
+    let screen_ids = [
+        "3879:35518",
+        "3879:35519",
+        "3879:35520",
+        "3879:35521",
+        "3879:35522",
+        "3879:35523",
+        "3879:35524",
+        "3879:35525",
+        "3879:35526",
+        "3879:35527",
+    ];
+    let mut page = raw_node(
+        "0:1",
+        "PAGE",
+        "Phase2 Hand-off",
+        [0.0, 0.0, 5_000.0, 1_000.0],
+        1,
+        "",
+    );
+    page.fields.insert("parentId".to_owned(), json!(null));
+    page.fields
+        .insert("childrenIds".to_owned(), json!(["4217:7743"]));
+
+    let mut section = raw_node(
+        "4217:7743",
+        "SECTION",
+        "[FR-026] 본연체",
+        [0.0, 0.0, 4_400.0, 900.0],
+        11,
+        "",
+    );
+    section.fields.insert("parentId".to_owned(), json!("0:1"));
+    section.fields.insert(
+        "childrenIds".to_owned(),
+        json!(["3879:35481", "screen-wrapper"]),
+    );
+
+    let mut heading = raw_node(
+        "3879:35481",
+        "FRAME",
+        "[FR-026] 본연체",
+        [0.0, 0.0, 1_200.0, 80.0],
+        1,
+        "본연체",
+    );
+    heading
+        .fields
+        .insert("parentId".to_owned(), json!("4217:7743"));
+
+    let mut wrapper = raw_node(
+        "screen-wrapper",
+        "GROUP",
+        "Screens",
+        [0.0, 100.0, 4_400.0, 740.0],
+        10,
+        "",
+    );
+    wrapper
+        .fields
+        .insert("parentId".to_owned(), json!("4217:7743"));
+    wrapper
+        .fields
+        .insert("childrenIds".to_owned(), json!(screen_ids));
+
+    let mut nodes = vec![page, section, heading, wrapper];
+    for (index, id) in screen_ids.into_iter().enumerate() {
+        let mut screen = raw_node(
+            id,
+            "FRAME",
+            &format!("Screen {index}"),
+            [index as f64 * 400.0, 100.0, 360.0, 740.0],
+            1,
+            "",
+        );
+        screen
+            .fields
+            .insert("parentId".to_owned(), json!("screen-wrapper"));
+        nodes.push(screen);
+    }
+    Snapshot {
+        file_key: "85CgSws3o5XsLv7aAwWJyS".to_owned(),
+        version: None,
+        roots: vec!["0:1".to_owned()],
+        nodes: nodes
+            .into_iter()
+            .map(|node| (node.id.clone(), node))
+            .collect(),
+        diagnostics: Vec::new(),
+    }
+}
+
 #[test]
 fn classification_distinguishes_heading_screen_annotation_and_container() {
     let heading = ExploreNode::try_from(&raw_node(
@@ -239,6 +332,53 @@ fn exact_screen_anchor_is_returned_without_semantic_guessing() {
     assert_eq!(
         result.candidates[0].selection_reasons,
         ["exact-screen-anchor"]
+    );
+}
+
+#[test]
+fn nested_heading_uses_its_section_scope_without_replacing_the_public_anchor() {
+    let snapshot = nested_wquw_section_projection();
+    let heading = explore_snapshot(
+        &snapshot,
+        &target("3879:35481"),
+        &ExploreOptions { limit: 50 },
+    )
+    .unwrap();
+    let section = explore_snapshot(
+        &snapshot,
+        &target("4217:7743"),
+        &ExploreOptions { limit: 50 },
+    )
+    .unwrap();
+    let ids = |result: &devup_mcp_figma::ExploreResult| {
+        result
+            .candidates
+            .iter()
+            .map(|candidate| candidate.node.node_id.clone())
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(heading.anchor.node_id, "3879:35481");
+    assert_eq!(
+        heading.group.as_ref().unwrap().heading_node_id.as_deref(),
+        Some("3879:35481")
+    );
+    assert_eq!(ids(&heading), ids(&section));
+    assert_eq!(
+        ids(&heading),
+        [
+            "3879:35518",
+            "3879:35519",
+            "3879:35520",
+            "3879:35521",
+            "3879:35522",
+            "3879:35523",
+            "3879:35524",
+            "3879:35525",
+            "3879:35526",
+            "3879:35527",
+        ]
+        .map(str::to_owned)
     );
 }
 

@@ -1050,7 +1050,7 @@ fn render_node(
             false,
         ));
     }
-    add_fallback_diagnostics(node, context);
+    add_fallback_diagnostics(snapshot, node, context);
     let view = node.typed_view();
     let concrete_visibility = if context.inline_instances {
         view.value("componentPropertyReferences")
@@ -1412,7 +1412,7 @@ pub(super) fn render_static_attribute(name: &str, value: &str) -> String {
     format!("{name}=\"{escaped}\"")
 }
 
-fn add_fallback_diagnostics(node: &RawNode, context: &mut Context) {
+fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut Context) {
     use devup_mcp_figma::FidelityImpact;
 
     let view = node.typed_view();
@@ -1424,7 +1424,8 @@ fn add_fallback_diagnostics(node: &RawNode, context: &mut Context) {
             FidelityImpact::Lossy,
         ),
         (
-            view.string("layoutPositioning") == Some("ABSOLUTE"),
+            view.string("layoutPositioning") == Some("ABSOLUTE")
+                && !layout::absolute_layout_is_exact(snapshot, node),
             "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
             "절대 배치는 position props로 제한적으로 변환됩니다.",
             FidelityImpact::Approximated,

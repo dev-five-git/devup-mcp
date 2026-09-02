@@ -72,6 +72,10 @@ impl KeyringCredentialStore {
     fn entry() -> Result<keyring::Entry, DevupError> {
         keyring::Entry::new("devup-mcp", "figma-remote-mcp").map_err(keyring_error)
     }
+
+    pub fn probe() -> Result<(), DevupError> {
+        Self::entry().map(|_| ())
+    }
 }
 
 #[async_trait]

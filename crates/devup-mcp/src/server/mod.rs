@@ -15,7 +15,8 @@ use rmcp::{
     ErrorData, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, ErrorCode as McpErrorCode, JsonObject, ServerCapabilities, ServerInfo,
+        CallToolResult, ErrorCode as McpErrorCode, Implementation, JsonObject, ServerCapabilities,
+        ServerInfo,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -155,6 +156,19 @@ impl DevupServer {
             )
             .await;
         }
+        if !refresh
+            && let Some(artifact) = self.artifacts.lookup_related_explore(&artifact_key).await
+        {
+            return complete_operation(
+                operation,
+                &artifact.payload,
+                "artifact",
+                &artifact,
+                &self.output_policy,
+                &self.artifacts,
+            )
+            .await;
+        }
         if policy == SourcePolicy::Host {
             return self.begin_handoff(operation, request, artifact_key).await;
         }
@@ -243,11 +257,13 @@ impl DevupServer {
                 session_id,
                 expires_at_epoch_seconds,
                 calls,
+                collection,
             } => Ok(json!({
                 "status": "needs_figma",
                 "sessionId": session_id,
                 "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
                 "calls": calls,
+                "collection": collection,
                 "resumeTool": "devup_figma_continue"
             })),
             HandoffStep::Complete { operation, parts } => {
@@ -463,6 +479,7 @@ impl DevupServer {
             )));
         }
         let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
+        let requested_target = target.clone();
         let mut request = CollectionRequest::new(target, CollectionScope::Node);
         request.resource_scope = ResourceScope::None;
         request.explore = Some(ExploreReadOptions {
@@ -471,10 +488,13 @@ impl DevupServer {
         });
         let result = self
             .start_operation(
-                PendingOperation::Explore { limit: input.limit },
+                PendingOperation::Explore {
+                    limit: input.limit,
+                    target: requested_target,
+                },
                 request,
                 policy,
-                false,
+                input.refresh,
             )
             .await
             .map_err(to_mcp_error)?;
@@ -784,6 +804,7 @@ impl ServerHandler for DevupServer {
                 .enable_tools()
                 .build(),
         )
+        .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
         .with_instructions("Read Figma designs and generate DevupUI artifacts")
     }
 

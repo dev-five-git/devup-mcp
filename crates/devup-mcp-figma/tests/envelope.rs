@@ -43,6 +43,35 @@ fn valid_multi_image_envelope_round_trips() {
 }
 
 #[test]
+fn json_stringified_official_mcp_result_round_trips() {
+    let target = target();
+    let envelope = complete_envelope();
+    let mut result = upstream_result_with_split_pngs(envelope, 2);
+    result.raw = Value::String(result.raw.to_string());
+
+    let decoded = decode_fast_snapshot(&result, &target)
+        .expect("official handoff schema transports the MCP result as a JSON string");
+
+    assert_eq!(decoded.snapshot.root_ids, ["1:1"]);
+    assert_eq!(decoded.stats.chunk_count, 2);
+}
+
+#[test]
+fn oversized_stringified_upstream_result_is_rejected_before_json_decode() {
+    let result = UpstreamResult {
+        raw: Value::String(" ".repeat(16 * 1024 * 1024 + 1)),
+    };
+
+    let error = decode_fast_snapshot(&result, &target()).expect_err("oversized result string");
+
+    assert_eq!(
+        error.code,
+        devup_mcp_figma::ErrorCode::DevupFigmaResponseTooLarge
+    );
+    assert_eq!(error.details["category"], "upstreamResultJson");
+}
+
+#[test]
 fn valid_multi_root_envelope_requires_the_exact_ordered_root_set() {
     let envelope = mutate_envelope(|value| {
         value["source"]["rootId"] = json!("9:9");
@@ -286,6 +315,19 @@ fn valid_fast_theme_envelope_round_trips_and_validates_counts() {
     bad.raw["content"][0]["text"] = json!(descriptor.to_string());
     let error = decode_fast_theme(&bad, "fileKey123").expect_err("count mismatch");
     assert_eq!(error.details["category"], "variableCount");
+}
+
+#[test]
+fn json_stringified_fast_theme_result_round_trips() {
+    let envelope = theme_envelope();
+    let mut result = theme_upstream_result(envelope, 1);
+    result.raw = Value::String(result.raw.to_string());
+
+    let decoded =
+        decode_fast_theme(&result, "fileKey123").expect("stringified official theme envelope");
+
+    assert_eq!(decoded.stats.chunk_count, 1);
+    assert_eq!(decoded.resources.raw["localComplete"], true);
 }
 
 fn target() -> FigmaTarget {

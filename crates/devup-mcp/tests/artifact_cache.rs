@@ -8,11 +8,11 @@ use std::{
 };
 
 use devup_mcp::server::artifacts::{
-    ArtifactClock, ArtifactKind, ArtifactLimits, ArtifactRequestKey, ArtifactStore,
+    ArtifactClock, ArtifactKind, ArtifactLimits, ArtifactRequestKey, ArtifactStore, CacheReuseKind,
 };
 use devup_mcp_figma::{
     AssetFormat, AssetSelection, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectionStats, ExploreReadOptions, FigmaTarget, PayloadCompleteness, ResourceScope,
+    CollectionStats, ExploreReadOptions, FigmaTarget, PayloadCompleteness, RawNode, ResourceScope,
     SearchReadOptions, SectionReadOptions, Snapshot, SourcePolicy,
 };
 use serde_json::json;
@@ -78,6 +78,41 @@ fn payload(file_key: &str, node_id: &str, marker: &str) -> CollectedPayload {
         assets: Vec::new(),
         reference_png: None,
     }
+}
+
+fn explore_request(file_key: &str, node_id: &str, projection_limit: usize) -> CollectionRequest {
+    let mut request = request(file_key, node_id);
+    request.resource_scope = ResourceScope::None;
+    request.explore = Some(ExploreReadOptions {
+        projection_limit,
+        text_preview_limit: 0,
+    });
+    request
+}
+
+fn explore_payload(
+    file_key: &str,
+    node_id: &str,
+    covered_node_ids: &[&str],
+    marker: &str,
+) -> CollectedPayload {
+    let mut payload = payload(file_key, node_id, marker);
+    payload.snapshot.nodes = covered_node_ids
+        .iter()
+        .map(|id| {
+            (
+                (*id).to_owned(),
+                RawNode {
+                    id: (*id).to_owned(),
+                    node_type: "FRAME".to_owned(),
+                    fields: Default::default(),
+                    extra: Default::default(),
+                    field_errors: Default::default(),
+                },
+            )
+        })
+        .collect();
+    payload
 }
 
 #[tokio::test]
@@ -153,6 +188,7 @@ async fn reuses_same_request_until_expiry_and_refresh_bypasses_it() -> anyhow::R
             Ok(payload("file-one", "1:2", "first"))
         })
         .await?;
+    clock.set(103);
     let hit = store
         .get_or_acquire(key.clone(), false, || async {
             calls.fetch_add(1, Ordering::SeqCst);
@@ -162,7 +198,13 @@ async fn reuses_same_request_until_expiry_and_refresh_bypasses_it() -> anyhow::R
 
     assert_eq!(first.artifact_id, hit.artifact_id);
     assert!(!first.cache_hit);
+    assert_eq!(first.reuse_kind, CacheReuseKind::Miss);
+    assert_eq!(first.age_seconds, 0);
+    assert_eq!(first.remaining_ttl_seconds, 10);
     assert!(hit.cache_hit);
+    assert_eq!(hit.reuse_kind, CacheReuseKind::Exact);
+    assert_eq!(hit.age_seconds, 3);
+    assert_eq!(hit.remaining_ttl_seconds, 7);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 
     let refreshed = store
@@ -174,7 +216,7 @@ async fn reuses_same_request_until_expiry_and_refresh_bypasses_it() -> anyhow::R
     assert_ne!(refreshed.artifact_id, first.artifact_id);
     assert_eq!(calls.load(Ordering::SeqCst), 2);
 
-    clock.set(111);
+    clock.set(114);
     let expired = store
         .get_or_acquire(key, false, || async {
             calls.fetch_add(1, Ordering::SeqCst);
@@ -258,6 +300,178 @@ async fn concurrent_same_key_requests_share_one_acquisition() -> anyhow::Result<
     let right = right?;
 
     assert_eq!(left.artifact_id, right.artifact_id);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(left.cache_hit ^ right.cache_hit);
+    Ok(())
+}
+
+#[tokio::test]
+async fn concurrent_related_explore_waits_for_one_compatible_acquisition() -> anyhow::Result<()> {
+    let store = ArtifactStore::with_limits(limits());
+    let owner_key = ArtifactRequestKey::from_collection(
+        &explore_request("file-one", "1:1", 200),
+        SourcePolicy::Direct,
+    );
+    let follower_key = ArtifactRequestKey::from_collection(
+        &explore_request("file-one", "1:2", 50),
+        SourcePolicy::Direct,
+    );
+    let calls = Arc::new(AtomicUsize::new(0));
+    let started = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+
+    let owner = {
+        let store = store.clone();
+        let calls = calls.clone();
+        let started = started.clone();
+        let release = release.clone();
+        tokio::spawn(async move {
+            store
+                .get_or_acquire(owner_key, false, || async {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    started.notify_one();
+                    release.notified().await;
+                    Ok(explore_payload("file-one", "1:1", &["1:1", "1:2"], "owner"))
+                })
+                .await
+        })
+    };
+    started.notified().await;
+    let follower = {
+        let store = store.clone();
+        let calls = calls.clone();
+        tokio::spawn(async move {
+            store
+                .get_or_acquire(follower_key, false, || async {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(explore_payload("file-one", "1:2", &["1:2"], "follower"))
+                })
+                .await
+        })
+    };
+    tokio::task::yield_now().await;
+    release.notify_one();
+    let owner = owner.await??;
+    let follower = follower.await??;
+
+    assert_eq!(owner.artifact_id, follower.artifact_id);
+    assert_eq!(follower.reuse_kind, CacheReuseKind::RelatedNodeSuperset);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn concurrent_uncovered_explore_falls_through_to_its_own_acquisition() -> anyhow::Result<()> {
+    let store = ArtifactStore::with_limits(limits());
+    let owner_key = ArtifactRequestKey::from_collection(
+        &explore_request("file-one", "1:1", 200),
+        SourcePolicy::Direct,
+    );
+    let follower_key = ArtifactRequestKey::from_collection(
+        &explore_request("file-one", "9:9", 50),
+        SourcePolicy::Direct,
+    );
+    let calls = Arc::new(AtomicUsize::new(0));
+    let started = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+
+    let owner = {
+        let store = store.clone();
+        let calls = calls.clone();
+        let started = started.clone();
+        let release = release.clone();
+        tokio::spawn(async move {
+            store
+                .get_or_acquire(owner_key, false, || async {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    started.notify_one();
+                    release.notified().await;
+                    Ok(explore_payload("file-one", "1:1", &["1:1"], "owner"))
+                })
+                .await
+        })
+    };
+    started.notified().await;
+    let follower = {
+        let store = store.clone();
+        let calls = calls.clone();
+        tokio::spawn(async move {
+            store
+                .get_or_acquire(follower_key, false, || async {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(explore_payload("file-one", "9:9", &["9:9"], "follower"))
+                })
+                .await
+        })
+    };
+    tokio::task::yield_now().await;
+    release.notify_one();
+    let owner = owner.await??;
+    let follower = follower.await??;
+
+    assert_ne!(owner.artifact_id, follower.artifact_id);
+    assert_eq!(follower.reuse_kind, CacheReuseKind::Miss);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn cancelled_owner_does_not_poison_later_same_key_acquisitions() -> anyhow::Result<()> {
+    let store = ArtifactStore::with_limits(limits());
+    let key =
+        ArtifactRequestKey::from_collection(&request("file-one", "1:2"), SourcePolicy::Direct);
+    let started = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+
+    let owner = {
+        let store = store.clone();
+        let key = key.clone();
+        let started = started.clone();
+        let release = release.clone();
+        tokio::spawn(async move {
+            store
+                .get_or_acquire(key, false, || async {
+                    started.notify_one();
+                    release.notified().await;
+                    Ok(payload("file-one", "1:2", "cancelled"))
+                })
+                .await
+        })
+    };
+
+    started.notified().await;
+    owner.abort();
+    let _ = owner.await;
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let barrier = Arc::new(tokio::sync::Barrier::new(3));
+    let recover = |store: ArtifactStore| {
+        let key = key.clone();
+        let calls = calls.clone();
+        let barrier = barrier.clone();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            store
+                .get_or_acquire(key, false, || async {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    tokio::task::yield_now().await;
+                    Ok(payload("file-one", "1:2", "recovered"))
+                })
+                .await
+        })
+    };
+    let left = recover(store.clone());
+    let right = recover(store);
+    barrier.wait().await;
+    let (left, right) = tokio::time::timeout(Duration::from_millis(250), async {
+        tokio::try_join!(left, right)
+    })
+    .await??;
+    let left = left?;
+    let right = right?;
+
+    assert_eq!(left.artifact_id, right.artifact_id);
+    assert_eq!(left.payload.metadata["marker"], "recovered");
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert!(left.cache_hit ^ right.cache_hit);
     Ok(())

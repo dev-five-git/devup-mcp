@@ -32,7 +32,7 @@ fn official_mcp_payload_round_trips_without_value_logging() {
             CollectorStep::Call(call) => {
                 call_count += 1;
                 assert_eq!(call.call.tool_name(), "use_figma");
-                let raw = read_result(&mut input, call.call.tool_name());
+                let raw = read_live_result(&mut input, call.call.tool_name());
                 if call_count == 1 {
                     decode_fast_snapshot(&UpstreamResult { raw: raw.clone() }, &target)
                         .unwrap_or_else(|error| {
@@ -166,10 +166,27 @@ fn official_fast_theme_completes_in_one_call() {
     let CollectorStep::Call(call) = collector.advance().expect("fast theme call") else {
         panic!("expected fast theme call");
     };
-    let raw = read_result(&mut io::stdin().lock().lines(), call.call.tool_name());
+    let raw = read_live_result(&mut io::stdin().lock().lines(), call.call.tool_name());
     let decoded = decode_fast_theme(&UpstreamResult { raw: raw.clone() }, &target.file_key)
         .expect("fast theme envelope validation");
     assert_eq!(decoded.resources.raw["localComplete"], true);
+    assert_eq!(decoded.resources.raw["usedRemoteComplete"], true);
+    assert_eq!(decoded.resources.raw["unresolved"], json!([]));
+    assert_eq!(
+        decoded.resources.raw["collections"]
+            .as_array()
+            .map(Vec::len),
+        Some(8)
+    );
+    assert_eq!(
+        decoded.resources.raw["variables"].as_array().map(Vec::len),
+        Some(76)
+    );
+    assert_eq!(
+        decoded.resources.raw["styles"].as_array().map(Vec::len),
+        Some(65)
+    );
+    assert_eq!(decoded.stats.chunk_count, 1);
     collector
         .accept(&call.id, UpstreamResult { raw })
         .expect("accept fast theme");
@@ -178,6 +195,22 @@ fn official_fast_theme_completes_in_one_call() {
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
     assert_eq!(parts.stats.transport, "png-theme-envelope-v1");
+    assert!(!parts.stats.fallback_used);
+    assert_eq!(parts.stats.variable_count, 76);
+    assert_eq!(parts.stats.style_count, 65);
+    assert_eq!(parts.stats.envelope_chunks, 1);
+    println!(
+        "{}",
+        json!({
+            "collectionCount": 8,
+            "envelopeChunks": parts.stats.envelope_chunks,
+            "fallbackUsed": parts.stats.fallback_used,
+            "figmaToolCalls": parts.stats.figma_tool_calls,
+            "styleCount": parts.stats.style_count,
+            "transport": parts.stats.transport,
+            "variableCount": parts.stats.variable_count,
+        })
+    );
 }
 
 #[test]
@@ -211,4 +244,14 @@ fn read_result(lines: &mut impl Iterator<Item = io::Result<String>>, label: &str
         .unwrap_or_else(|| panic!("missing {label} stdin line"))
         .unwrap_or_else(|_| panic!("failed to read {label} stdin line"));
     serde_json::from_str(&line).unwrap_or_else(|_| panic!("invalid {label} JSON envelope"))
+}
+
+fn read_live_result(lines: &mut impl Iterator<Item = io::Result<String>>, label: &str) -> Value {
+    if let Ok(path) = std::env::var("DEVUP_MCP_LIVE_FIGMA_RESULT_PATH") {
+        let text = std::fs::read_to_string(path)
+            .unwrap_or_else(|_| panic!("failed to read {label} result path"));
+        return serde_json::from_str(&text)
+            .unwrap_or_else(|_| panic!("invalid {label} JSON envelope"));
+    }
+    read_result(lines, label)
 }

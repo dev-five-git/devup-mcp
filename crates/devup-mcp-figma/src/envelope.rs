@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{borrow::Cow, collections::BTreeSet};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::Deserialize;
@@ -16,6 +16,7 @@ const MAX_PNG_BYTES: usize = 11 * 1024 * 1024;
 const MAX_BASE64_PNG_BYTES: usize = MAX_PNG_BYTES.div_ceil(3) * 4;
 const MAX_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ENVELOPE_CHUNKS: usize = 32;
+const MAX_STRINGIFIED_RESULT_BYTES: usize = 16 * 1024 * 1024;
 
 type EnvelopeChunk<'a> = (u32, u32, &'a [u8]);
 
@@ -147,7 +148,8 @@ fn decode_fast_snapshot_for_roots(
     target: &FigmaTarget,
     expected_root_ids: &[String],
 ) -> Result<FastSnapshotPayload, DevupError> {
-    let descriptor = find_descriptor(&result.raw)?;
+    let raw = normalize_upstream_result(&result.raw)?;
+    let descriptor = find_descriptor(&raw)?;
     if descriptor.chunk_count == 0 {
         return Err(invalid("descriptorChunkCount"));
     }
@@ -155,7 +157,7 @@ fn decode_fast_snapshot_for_roots(
         return Err(too_large("chunkCount"));
     }
 
-    let images = find_images(&result.raw)?;
+    let images = find_images(&raw)?;
     if images.len() > descriptor.chunk_count {
         return Err(invalid("imageMultiplicity"));
     }
@@ -227,14 +229,15 @@ pub fn decode_fast_theme(
     result: &UpstreamResult,
     expected_file_key: &str,
 ) -> Result<FastThemePayload, DevupError> {
-    let descriptor = find_theme_descriptor(&result.raw)?;
+    let raw = normalize_upstream_result(&result.raw)?;
+    let descriptor = find_theme_descriptor(&raw)?;
     if descriptor.chunk_count == 0 {
         return Err(invalid("descriptorChunkCount"));
     }
     if descriptor.chunk_count > MAX_ENVELOPE_CHUNKS {
         return Err(too_large("chunkCount"));
     }
-    let images = find_images(&result.raw)?;
+    let images = find_images(&raw)?;
     if images.len() > descriptor.chunk_count {
         return Err(invalid("imageMultiplicity"));
     }
@@ -294,6 +297,20 @@ pub fn decode_fast_theme(
             chunk_count: descriptor.chunk_count,
         },
     })
+}
+
+fn normalize_upstream_result(value: &Value) -> Result<Cow<'_, Value>, DevupError> {
+    match value {
+        Value::String(text) => {
+            if text.len() > MAX_STRINGIFIED_RESULT_BYTES {
+                return Err(too_large("upstreamResultJson"));
+            }
+            serde_json::from_str(text)
+                .map(Cow::Owned)
+                .map_err(|_| invalid("upstreamResultJson"))
+        }
+        _ => Ok(Cow::Borrowed(value)),
+    }
 }
 
 fn find_images(value: &Value) -> Result<Vec<(&str, &str)>, DevupError> {
