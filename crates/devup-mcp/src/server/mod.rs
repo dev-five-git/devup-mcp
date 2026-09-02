@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod delivery;
+mod diagnostics;
 pub mod handoff;
 pub mod output;
 mod projection;
@@ -258,14 +259,18 @@ impl DevupServer {
                 expires_at_epoch_seconds,
                 calls,
                 collection,
-            } => Ok(json!({
-                "status": "needs_figma",
-                "sessionId": session_id,
-                "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
-                "calls": calls,
-                "collection": collection,
-                "resumeTool": "devup_figma_continue"
-            })),
+            } => {
+                let host_requirement = diagnostics::host_requirement().await;
+                Ok(json!({
+                    "status": "needs_figma",
+                    "sessionId": session_id,
+                    "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
+                    "calls": calls,
+                    "collection": collection,
+                    "resumeTool": "devup_figma_continue",
+                    "hostRequirement": host_requirement
+                }))
+            }
             HandoffStep::Complete { operation, parts } => {
                 let PendingOperation::Artifact {
                     operation,
@@ -315,13 +320,17 @@ fn permissive_object_output_schema() -> Arc<JsonObject> {
 #[tool_router]
 impl DevupServer {
     #[tool(
-        description = "Check, start, or clear Figma Remote MCP OAuth",
+        description = "Check, start, or clear Figma Remote MCP OAuth (action: status | login | logout | doctor)",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
         &self,
         Parameters(input): Parameters<AuthInput>,
     ) -> Result<CallToolResult, ErrorData> {
+        if input.action == "doctor" {
+            let status = self.services.auth.status().await.map_err(to_mcp_error)?;
+            return Ok(tool_result(diagnostics::doctor_report(status).await));
+        }
         let status = match input.action.as_str() {
             "status" => self.services.auth.status().await,
             "login" => self.services.auth.login().await,
@@ -329,7 +338,7 @@ impl DevupServer {
             _ => {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupAuthRequired,
-                    "action은 status, login 또는 logout이어야 합니다.",
+                    "action은 status, login, logout 또는 doctor여야 합니다.",
                     false,
                 )));
             }

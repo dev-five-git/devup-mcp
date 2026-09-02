@@ -3,6 +3,10 @@ use schemars::{Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// `action` is `status`, `login`, `logout`, or `doctor`. `doctor` never
+/// touches OAuth state; it measures which connection paths (direct OAuth,
+/// local Dev Mode MCP, host handoff) are currently usable and returns
+/// client-specific setup guidance. See `server::diagnostics`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthInput {
