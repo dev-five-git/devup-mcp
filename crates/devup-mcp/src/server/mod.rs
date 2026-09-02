@@ -14,7 +14,9 @@ use async_trait::async_trait;
 use rmcp::{
     ErrorData, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ErrorCode as McpErrorCode, ServerCapabilities, ServerInfo},
+    model::{
+        CallToolResult, ErrorCode as McpErrorCode, JsonObject, ServerCapabilities, ServerInfo,
+    },
     service::RequestContext,
     tool, tool_handler, tool_router,
 };
@@ -276,11 +278,29 @@ impl DevupServer {
     }
 }
 
+/// Every `devup_figma_*` tool response is a JSON object whose exact shape
+/// varies per operation, `status`, and `delivery` mode (see README). Rather
+/// than pin a schema per branch that would need constant re-syncing, this
+/// declares only what the MCP spec requires of `outputSchema` — root type
+/// `object` (SEP-2106) — with no constraint on properties.
+///
+/// This replaces `schema_for_output::<serde_json::Value>()`, whose root
+/// schema had no `type` field at all: schemars maps `Value` to the boolean
+/// JSON Schema `true`, and `into_root_schema_for` normalizes that to the
+/// empty object `{}` before `outputSchema` strips `title`/`description`,
+/// leaving a schema that satisfies "is an object" as a JSON value but not
+/// the MCP-mandated `"type": "object"` marker.
+fn permissive_object_output_schema() -> Arc<JsonObject> {
+    let mut schema = JsonObject::new();
+    schema.insert("type".to_owned(), json!("object"));
+    Arc::new(schema)
+}
+
 #[tool_router]
 impl DevupServer {
     #[tool(
         description = "Check, start, or clear Figma Remote MCP OAuth",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
         &self,
@@ -304,7 +324,7 @@ impl DevupServer {
 
     #[tool(
         description = "Convert a Figma design link to deterministic DevupUI TypeScript",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_to_ui(
         &self,
@@ -347,7 +367,7 @@ impl DevupServer {
 
     #[tool(
         description = "Convert Figma variables and styles to deterministic devup.json",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_to_json(
         &self,
@@ -387,7 +407,7 @@ impl DevupServer {
 
     #[tool(
         description = "Search Figma pages, sections, frames, and components by name",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_search(
         &self,
@@ -421,7 +441,7 @@ impl DevupServer {
 
     #[tool(
         description = "Explore screen candidates spatially related to a linked Figma node",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_explore(
         &self,
@@ -463,7 +483,7 @@ impl DevupServer {
 
     #[tool(
         description = "Continue a read-only Figma host handoff with an official MCP result",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_continue(
         &self,
@@ -487,7 +507,7 @@ impl DevupServer {
 
     #[tool(
         description = "Acquire a Figma design once and project multiple DevupUI artifacts",
-        output_schema = rmcp::handler::server::tool::schema_for_output::<Value>()
+        output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
         &self,

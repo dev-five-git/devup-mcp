@@ -1,5 +1,77 @@
 use devup_mcp::server::DevupServer;
 use rmcp::ServiceExt;
+use serde_json::Value;
+
+/// JSON Schema keywords whose value is itself a single (sub-)schema.
+const SINGLE_SCHEMA_KEYS: &[&str] = &[
+    "items",
+    "additionalProperties",
+    "additionalItems",
+    "contains",
+    "propertyNames",
+    "not",
+    "if",
+    "then",
+    "else",
+    "unevaluatedItems",
+    "unevaluatedProperties",
+];
+
+/// JSON Schema keywords whose value is a map of name -> schema.
+const MAP_SCHEMA_KEYS: &[&str] = &[
+    "properties",
+    "patternProperties",
+    "$defs",
+    "definitions",
+    "dependentSchemas",
+];
+
+/// JSON Schema keywords whose value is an array of schemas.
+const LIST_SCHEMA_KEYS: &[&str] = &["allOf", "anyOf", "oneOf", "prefixItems"];
+
+/// Recursively finds every position in `node` (a JSON Schema document rooted
+/// at `path`) where a bare boolean (`true`/`false`) appears where the JSON
+/// Schema 2020-12 spec expects a schema. Such booleans are spec-legal
+/// shorthand ("accept"/"reject" anything), but several MCP clients'
+/// tool-schema converters (opencode included) reject the entire `tools/list`
+/// response when they encounter one instead of an object, which is exactly
+/// how `devup_figma_continue`'s `serde_json::Value`-typed `result` field
+/// broke opencode compatibility. See `stdio_smoke.rs` for the raw-wire
+/// regression test that exercises this against the compiled binary.
+fn find_boolean_schemas(path: &str, node: &Value) -> Vec<String> {
+    let mut hits = Vec::new();
+    collect_boolean_schemas(path, node, &mut hits);
+    hits
+}
+
+fn collect_boolean_schemas(path: &str, node: &Value, hits: &mut Vec<String>) {
+    if node.is_boolean() {
+        hits.push(path.to_owned());
+        return;
+    }
+    let Some(object) = node.as_object() else {
+        return;
+    };
+    for key in SINGLE_SCHEMA_KEYS {
+        if let Some(child) = object.get(*key) {
+            collect_boolean_schemas(&format!("{path}.{key}"), child, hits);
+        }
+    }
+    for key in MAP_SCHEMA_KEYS {
+        if let Some(Value::Object(map)) = object.get(*key) {
+            for (name, child) in map {
+                collect_boolean_schemas(&format!("{path}.{key}.{name}"), child, hits);
+            }
+        }
+    }
+    for key in LIST_SCHEMA_KEYS {
+        if let Some(Value::Array(items)) = object.get(*key) {
+            for (index, child) in items.iter().enumerate() {
+                collect_boolean_schemas(&format!("{path}.{key}[{index}]"), child, hits);
+            }
+        }
+    }
+}
 
 #[tokio::test]
 async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
@@ -29,6 +101,39 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         tools.iter().all(|tool| tool.output_schema.is_some()),
         "native resource-link responses must preserve the previous structured output schemas"
     );
+
+    let mut boolean_schema_hits = Vec::new();
+    let mut missing_object_output_type = Vec::new();
+    for tool in &tools {
+        let input_schema = Value::Object((*tool.input_schema).clone());
+        boolean_schema_hits.extend(find_boolean_schemas(
+            &format!("{}.inputSchema", tool.name),
+            &input_schema,
+        ));
+        let Some(output_schema) = tool.output_schema.as_deref() else {
+            continue;
+        };
+        let output_schema = Value::Object(output_schema.clone());
+        boolean_schema_hits.extend(find_boolean_schemas(
+            &format!("{}.outputSchema", tool.name),
+            &output_schema,
+        ));
+        if output_schema.get("type") != Some(&serde_json::json!("object")) {
+            missing_object_output_type.push(tool.name.to_string());
+        }
+    }
+    assert!(
+        boolean_schema_hits.is_empty(),
+        "found boolean JSON Schema(s) at: {boolean_schema_hits:?}. A bare \
+         `true`/`false` anywhere in inputSchema/outputSchema makes several \
+         MCP clients (opencode included) drop the entire tools/list response."
+    );
+    assert!(
+        missing_object_output_type.is_empty(),
+        "outputSchema missing \"type\": \"object\" (MCP spec SEP-2106) for: \
+         {missing_object_output_type:?}"
+    );
+
     let mut names = tools
         .iter()
         .map(|tool| tool.name.to_string())
