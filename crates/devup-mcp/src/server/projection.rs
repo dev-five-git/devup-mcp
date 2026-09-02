@@ -459,6 +459,19 @@ pub(super) async fn complete_operation(
             };
             commit_delivery(attachment);
             result["outputPath"] = json!(written_path);
+            if status == "complete" {
+                // Unambiguous "this is the real, final answer" marker.
+                // Without it, an agent repeatedly seeing `needs_figma`
+                // intermediate steps has, in an observed real failure,
+                // concluded the conversion was "probably done" and moved
+                // on to hand-interpreting the raw node tree instead of
+                // waiting for this response.
+                result["deliverable"] = json!({
+                    "kind": "devup-ui-tsx",
+                    "isFinal": true,
+                    "note": "이 tsx가 최종 산출물이다. 이 값을 근거로 구현하라."
+                });
+            }
             Ok(result)
         }
         PendingOperation::ToJson {
@@ -1035,8 +1048,27 @@ pub(super) async fn complete_operation(
                     }),
                 ));
             }
-            result.insert("status".to_owned(), json!(quality.status()));
+            let final_status = quality.status();
+            result.insert("status".to_owned(), json!(final_status));
             result.insert("quality".to_owned(), json!(quality));
+            let tsx_produced =
+                section_tsx_projected || outputs.iter().any(|output| output == "tsx");
+            if final_status == "complete" && tsx_produced {
+                // Same unambiguous final-answer marker as devup_figma_to_ui
+                // — see that branch's comment for why this exists. Checked
+                // here (before `apply_delivery` may move `tsx`/each frame's
+                // `tsx` into `resources`) so the marker reflects whether a
+                // devup-ui TSX was actually produced, independent of how
+                // large output routed it for delivery.
+                result.insert(
+                    "deliverable".to_owned(),
+                    json!({
+                        "kind": "devup-ui-tsx",
+                        "isFinal": true,
+                        "note": "이 tsx가 최종 산출물이다. 이 값을 근거로 구현하라."
+                    }),
+                );
+            }
             let mut planned_outputs = Vec::new();
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {

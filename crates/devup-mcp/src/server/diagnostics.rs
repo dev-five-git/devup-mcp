@@ -103,6 +103,16 @@ pub async fn host_requirement() -> Value {
             "action": "stop-and-report",
             "message": "Figma MCP에 접근할 수 없으면 즉시 멈추고 보고하세요. 디자인 수치를 추측해서 구현하지 마세요.",
             "setupHint": "devup_figma_auth { action: \"doctor\" } 를 호출하면 사용 가능한 경로와 클라이언트별 설정 방법을 얻을 수 있습니다."
+        },
+        "resultContract": {
+            "expects": "공식 Figma MCP CallToolResult 원본 전체 (가공 금지)",
+            "ifHostFlattensToText": "호스트가 텍스트만 준다면 { \"content\": [{ \"type\": \"text\", \"text\": <원문 그대로> }] } 로만 감싸라.",
+            "neverFabricate": "structuredContent 등 없는 필드를 지어내지 마라. 두 번 이상 형식 오류가 나면 추측을 멈추고 보고하라."
+        },
+        "outputExpectation": {
+            "whatYouWillGet": "이 핸드오프가 완주하면 devup-mcp가 devup-ui TSX를 생성해 반환한다.",
+            "doNotHandInterpret": "use_figma가 반환한 노드 트리(좌표·크기·계층)를 직접 해석해서 devup-ui 코드를 작성하지 마라. 좌표 계산으로 레이아웃을 추론하지 마라. 그것이 devup-mcp가 존재하는 이유다.",
+            "ifConversionFails": "stop-and-report. 노드 트리를 근거로 UI를 손으로 작성하는 것은 금지된 폴백이다."
         }
     })
 }
@@ -213,6 +223,52 @@ mod tests {
         );
         assert!(value["steps"].as_array().unwrap().len() >= 4);
         assert!(value["localDevMode"]["reachable"].is_boolean());
+    }
+
+    #[tokio::test]
+    async fn host_requirement_always_carries_result_contract_and_output_expectation() {
+        let value = host_requirement().await;
+
+        // resultContract: tells the agent what to submit to
+        // devup_figma_continue, and explicitly forbids inventing envelope
+        // fields when the host only exposes flattened text.
+        assert!(
+            !value["resultContract"]["expects"]
+                .as_str()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            value["resultContract"]["ifHostFlattensToText"]
+                .as_str()
+                .unwrap()
+                .contains("content")
+        );
+        assert!(
+            value["resultContract"]["neverFabricate"]
+                .as_str()
+                .unwrap()
+                .contains("structuredContent")
+        );
+
+        // outputExpectation: the core deliverable of this task — bans
+        // hand-interpreting the node tree as a fallback when conversion
+        // stalls.
+        assert!(
+            value["outputExpectation"]["whatYouWillGet"]
+                .as_str()
+                .unwrap()
+                .contains("devup-ui")
+        );
+        let do_not_hand_interpret = value["outputExpectation"]["doNotHandInterpret"]
+            .as_str()
+            .unwrap();
+        assert!(do_not_hand_interpret.contains("노드 트리"));
+        assert!(do_not_hand_interpret.contains("devup-ui"));
+        assert_eq!(
+            value["outputExpectation"]["ifConversionFails"],
+            "stop-and-report. 노드 트리를 근거로 UI를 손으로 작성하는 것은 금지된 폴백이다."
+        );
     }
 
     #[tokio::test]

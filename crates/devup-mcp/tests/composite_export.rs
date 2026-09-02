@@ -136,6 +136,10 @@ async fn reference_png_is_acquired_once_and_delivered_as_a_binary_resource() -> 
         reference_png_base64()
     );
     assert_eq!(acquired["cache"]["capabilities"]["referencePng"], true);
+    // No tsx was requested/produced by this export, so no deliverable
+    // marker should be attached — it must not claim a devup-ui-tsx exists
+    // when only a reference PNG was exported.
+    assert!(acquired.get("deliverable").is_none());
     let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
 
     let delivered_result = call_result(
@@ -236,6 +240,11 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(first["cache"]["cacheHit"], false);
     assert!(first["cache"]["artifactId"].as_str().is_some());
     assert!(first["tsx"].as_str().unwrap().contains("$primary"));
+    // devup_figma_export must carry the same unambiguous final-answer
+    // marker as devup_figma_to_ui when it actually produced a tsx output.
+    assert_eq!(first["deliverable"]["kind"], "devup-ui-tsx");
+    assert_eq!(first["deliverable"]["isFinal"], true);
+    assert!(!first["deliverable"]["note"].as_str().unwrap().is_empty());
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
     assert_eq!(first["sourceMap"]["version"], 1);

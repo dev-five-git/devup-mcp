@@ -263,6 +263,7 @@ impl HandoffStore {
         call_id: &str,
         result: Value,
     ) -> Result<(), DevupError> {
+        let result = normalize_handoff_result(result)?;
         let encoded_len = serde_json::to_vec(&result)
             .map_err(|_| invalid("Figma handoff result를 JSON으로 읽을 수 없습니다."))?
             .len();
@@ -452,4 +453,116 @@ fn too_large(message: &str) -> DevupError {
         false,
         json!({"source": "host"}),
     )
+}
+
+/// Normalizes a `devup_figma_continue` `result` payload before it reaches
+/// the collector. This is the fix for a real observed failure: opencode's
+/// host handoff flattens an official Figma MCP `CallToolResult` down to
+/// plain text before the agent ever sees it, so the agent has no envelope
+/// to "pass through unchanged" — only a bare string. An agent that has
+/// nothing but that string has previously invented a plausible-looking
+/// `{"content":[{"type":"text","text":...}]}` wrapper by hand rather than
+/// submit the string directly, which is exactly the kind of fabrication
+/// this module exists to make unnecessary.
+///
+/// Two things happen here, and nothing else:
+///
+/// - A bare [`Value::String`] is promoted to the minimal MCP content-block
+///   envelope `{"content": [{"type": "text", "text": <string>}]}`. This is
+///   shape promotion only — the string itself is carried through
+///   byte-for-byte, never modified, parsed, or re-interpreted.
+/// - An object that has a `content` array but no `structuredContent` is
+///   passed through unchanged *as long as at least one content item is
+///   actually usable* (non-empty text, or image data). Every extraction
+///   path in this codebase's collector already tolerates content-only
+///   envelopes by design (`get_metadata`'s XML-text fallback,
+///   variable/snapshot JSON encoded as `content[].text`, image content for
+///   screenshots, ...), so rejecting these here would be a regression, not
+///   a fix.
+///
+/// The only case rejected outright: a `content` array with nothing usable
+/// in it and no `structuredContent` either. That shape gives every
+/// downstream extraction path nothing to work with regardless of which
+/// Figma tool the call was for, so failing fast here — with a
+/// schema-shaped, non-design-leaking error — is strictly better than
+/// letting the agent discover that after the collector's own, more
+/// generic rejection.
+///
+/// Never fabricates data: this function only ever promotes or rejects
+/// based on *shape*. It never invents a `structuredContent` value or edits
+/// the content the caller actually sent.
+fn normalize_handoff_result(result: Value) -> Result<Value, DevupError> {
+    let promoted = match result {
+        Value::String(text) => json!({ "content": [{ "type": "text", "text": text }] }),
+        other => other,
+    };
+    if let Value::Object(object) = &promoted
+        && let Some(Value::Array(content)) = object.get("content")
+        && !object.contains_key("structuredContent")
+        && !content.iter().any(has_usable_content_item)
+    {
+        return Err(missing_structured_content_error(&promoted));
+    }
+    Ok(promoted)
+}
+
+/// A content block counts as usable if it carries non-empty text, or
+/// non-empty image data — the two shapes this codebase's collector
+/// actually extracts from `content[]` today.
+fn has_usable_content_item(item: &Value) -> bool {
+    let has_text = item
+        .get("text")
+        .and_then(Value::as_str)
+        .is_some_and(|text| !text.trim().is_empty());
+    let has_image_data = item.get("type").and_then(Value::as_str) == Some("image")
+        && item
+            .get("data")
+            .and_then(Value::as_str)
+            .is_some_and(|data| !data.is_empty());
+    has_text || has_image_data
+}
+
+/// Builds the `DEVUP_FIGMA_HANDOFF_INVALID` / `missing_structured_content`
+/// rejection: the shape devup-mcp actually expects, the shape it received
+/// (key names and content block `type`s only — see [`received_shape`]),
+/// and explicit next-step guidance that forbids guessing the envelope.
+fn missing_structured_content_error(value: &Value) -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffInvalid,
+        "Figma handoff 결과에서 사용할 수 있는 content나 structuredContent를 찾지 못했습니다.",
+        false,
+        json!({
+            "reason": "missing_structured_content",
+            "expectedSchema": {
+                "content": [{ "type": "text", "text": "<string>" }],
+                "structuredContent": { "devupMetadata": "<object, 이 호출 종류에 필수>" }
+            },
+            "receivedShape": received_shape(value),
+            "howToFix": "공식 Figma MCP 응답을 가공하지 말고 원본 그대로 넘겨라. 호스트가 텍스트만 노출한다면 sourcePolicy 또는 수집 경로를 바꿔야 한다.",
+            "doNot": "봉투 필드를 추측해서 만들어 넣지 마라."
+        }),
+    )
+}
+
+/// Only key names and content-block `type` strings — never a value that
+/// could carry design text, tokens, or credentials. This is deliberate:
+/// the whole point of this error is to tell the agent what shape it sent
+/// without ever echoing anything from the design or the upstream response
+/// back into an error message.
+fn received_shape(value: &Value) -> Value {
+    let top_level_keys = match value {
+        Value::Object(object) => object.keys().cloned().collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+    let mut content_types = value
+        .get("content")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.get("type").and_then(Value::as_str))
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    content_types.sort();
+    content_types.dedup();
+    json!({ "topLevelKeys": top_level_keys, "contentTypes": content_types })
 }

@@ -394,6 +394,185 @@ async fn rejects_cross_session_calls_and_concurrent_replays() {
     );
 }
 
+/// The exact incident this fix addresses: an agent whose host flattens the
+/// official Figma MCP `get_metadata` response down to a bare string (no
+/// envelope at all — see `handoff.rs`'s `normalize_handoff_result` doc
+/// comment) submits that string directly. It must succeed without the
+/// agent inventing a `{"content":[...]}"` wrapper by hand.
+#[tokio::test]
+async fn accept_promotes_a_bare_non_json_string_to_a_content_envelope() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "get_metadata");
+
+    // Bare XML text, not JSON, not wrapped — exactly what a host that
+    // flattens tool results to plain text would hand the agent.
+    let bare_xml = "<frame id=\"1:2\" name=\"Synthetic Root\" x=\"0\" y=\"0\" width=\"320\" height=\"240\"><text id=\"1:3\" name=\"Synthetic Child\" x=\"8\" y=\"8\" width=\"100\" height=\"20\" /></frame>".to_owned();
+    store
+        .accept(&id, &calls[0].call_id, Value::String(bare_xml))
+        .await
+        .unwrap();
+
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
+}
+
+/// The "그대로 통과시키되" half of the normalization contract: a `content`
+/// array with usable text but no `structuredContent` must NOT be rejected.
+/// Every real extraction path in this codebase's collector already
+/// tolerates this shape by design (XML-text metadata, JSON-in-text
+/// snapshots, ...); rejecting it here would be a regression.
+#[tokio::test]
+async fn accept_passes_through_content_only_result_when_text_is_usable() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    let content_only = json!({
+        "content": [{
+            "type": "text",
+            "text": "<frame id=\"1:2\" name=\"Synthetic Root\" x=\"0\" y=\"0\" width=\"320\" height=\"240\"><text id=\"1:3\" name=\"Synthetic Child\" x=\"8\" y=\"8\" width=\"100\" height=\"20\" /></frame>"
+        }]
+    });
+    store
+        .accept(&id, &calls[0].call_id, content_only)
+        .await
+        .unwrap();
+}
+
+/// `structuredContent` presence always exempts a result from the
+/// no-usable-content rejection, regardless of what (if anything) is in
+/// `content` alongside it.
+#[tokio::test]
+async fn accept_passes_through_structured_content_even_with_an_empty_content_array() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    let mut with_empty_content = metadata_result();
+    with_empty_content["content"] = json!([]);
+    store
+        .accept(&id, &calls[0].call_id, with_empty_content)
+        .await
+        .unwrap();
+}
+
+/// The one case this fix does reject: a `content` array with nothing
+/// usable in it and no `structuredContent` either. Every reported field
+/// must be exactly the brief's `expectedSchema`/`receivedShape` contract,
+/// and `receivedShape` must never leak a value — only key names and
+/// content-block `type`s.
+#[tokio::test]
+async fn accept_rejects_empty_content_with_a_schema_shaped_error_that_leaks_no_values() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    let error = store
+        .accept(&id, &calls[0].call_id, json!({"content": []}))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+    assert_eq!(error.details["reason"], "missing_structured_content");
+    assert_eq!(
+        error.details["expectedSchema"]["content"][0]["type"],
+        "text"
+    );
+    assert!(
+        error.details["expectedSchema"]["structuredContent"]["devupMetadata"]
+            .as_str()
+            .unwrap()
+            .contains("필수")
+    );
+    assert_eq!(
+        error.details["receivedShape"]["topLevelKeys"],
+        json!(["content"])
+    );
+    assert_eq!(error.details["receivedShape"]["contentTypes"], json!([]));
+    assert!(
+        !error.details["howToFix"].as_str().unwrap().is_empty(),
+        "must tell the agent what to do next, not just that it failed"
+    );
+    assert!(error.details["doNot"].as_str().unwrap().contains("추측"));
+}
+
+/// Non-empty but still unusable content (an image block with no `data`, a
+/// whitespace-only text block) is rejected the same way, and the block
+/// `type`s are reported — but never the (here, absent) `data`/`text`
+/// values themselves.
+#[tokio::test]
+async fn accept_rejects_content_with_no_usable_items_reporting_types_not_values() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    let error = store
+        .accept(
+            &id,
+            &calls[0].call_id,
+            json!({"content": [{"type": "image"}, {"type": "text", "text": "   "}]}),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.details["reason"], "missing_structured_content");
+    assert_eq!(
+        error.details["receivedShape"]["contentTypes"],
+        json!(["image", "text"])
+    );
+    // The (absent) design/binary values must never appear in the error.
+    let rendered = error.details.to_string();
+    assert!(!rendered.contains("\"data\""));
+    assert!(!rendered.contains("\"text\":\"   \""));
+}
+
+/// An empty string, once promoted, carries no usable text — it must be
+/// rejected rather than silently accepted as "successful but empty".
+#[tokio::test]
+async fn accept_rejects_a_bare_empty_string() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    let error = store
+        .accept(&id, &calls[0].call_id, Value::String(String::new()))
+        .await
+        .unwrap_err();
+    assert_eq!(error.details["reason"], "missing_structured_content");
+}
+
 #[tokio::test]
 async fn enforces_the_aggregate_limit_across_sessions() {
     let payload = metadata_result();

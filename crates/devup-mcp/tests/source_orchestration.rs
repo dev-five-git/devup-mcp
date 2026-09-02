@@ -351,6 +351,112 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
     assert_eq!(output["collection"]["fallbackUsed"], true);
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
+
+    // The unambiguous final-answer marker: without it, an agent that only
+    // ever sees intermediate `needs_figma` steps has, in a real observed
+    // failure, concluded the conversion was "probably done" and started
+    // hand-interpreting the raw node tree instead of using this `tsx`.
+    assert_eq!(output["deliverable"]["kind"], "devup-ui-tsx");
+    assert_eq!(output["deliverable"]["isFinal"], true);
+    assert!(!output["deliverable"]["note"].as_str().unwrap().is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn host_completion_also_carries_the_deliverable_marker() -> anyhow::Result<()> {
+    let auth = Arc::new(AuthProbe {
+        status: AuthStatus::Disconnected,
+        logins: AtomicUsize::new(0),
+    });
+    let upstream = Arc::new(UpstreamProbe::unavailable());
+    let server = DevupServer::new(Services::new(auth, upstream));
+    let (server_transport, client_transport) = tokio::io::duplex(128 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let start = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_to_ui")
+                .with_arguments(input("host").as_object().cloned().unwrap()),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    // Neither the `needs_figma` step itself nor any of its host-requirement
+    // guidance is a deliverable: only the final `complete` response is.
+    assert_eq!(start["status"], "needs_figma");
+    assert!(start.get("deliverable").is_none());
+    assert!(
+        start["hostRequirement"]["outputExpectation"]["doNotHandInterpret"]
+            .as_str()
+            .is_some()
+    );
+
+    let session_id = start["sessionId"].as_str().unwrap();
+    let fast_call = start["calls"][0]["callId"].as_str().unwrap();
+    let after_fast = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": session_id,
+                    "callId": fast_call,
+                    "result": snapshot_result()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert!(after_fast.get("deliverable").is_none());
+
+    let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
+    let after_metadata = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": session_id,
+                    "callId": metadata_call,
+                    "result": metadata_result()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert!(after_metadata.get("deliverable").is_none());
+
+    let snapshot_call = after_metadata["calls"][0]["callId"].as_str().unwrap();
+    let complete = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": session_id,
+                    "callId": snapshot_call,
+                    "result": snapshot_result()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert_eq!(complete["status"], "complete");
+    assert_eq!(complete["deliverable"]["kind"], "devup-ui-tsx");
+    assert_eq!(complete["deliverable"]["isFinal"], true);
+
+    client.cancel().await?;
+    task.await??;
     Ok(())
 }
 

@@ -215,6 +215,64 @@ async fn needs_figma_always_carries_an_actionable_host_requirement() -> anyhow::
     Ok(())
 }
 
+/// The core deliverable of the handoff-completion fix: every `needs_figma`
+/// step must carry `hostRequirement.resultContract` (so the agent submits
+/// the right shape from the start) and `hostRequirement.outputExpectation`
+/// (so it never falls back to hand-interpreting `use_figma`'s raw node
+/// tree while waiting for devup-mcp's own TSX). See the real incident this
+/// fixes in `crates/devup-mcp/src/server/handoff.rs`'s module docs.
+#[tokio::test]
+async fn needs_figma_always_carries_result_contract_and_output_expectation() -> anyhow::Result<()> {
+    let result = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_to_ui",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "sourcePolicy": "auto"
+        }),
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+    assert_eq!(output["status"], "needs_figma");
+    let host_requirement = &output["hostRequirement"];
+
+    let result_contract = &host_requirement["resultContract"];
+    assert!(!result_contract["expects"].as_str().unwrap().is_empty());
+    assert!(
+        result_contract["ifHostFlattensToText"]
+            .as_str()
+            .unwrap()
+            .contains("content")
+    );
+    assert!(
+        result_contract["neverFabricate"]
+            .as_str()
+            .unwrap()
+            .contains("structuredContent")
+    );
+
+    let output_expectation = &host_requirement["outputExpectation"];
+    assert!(
+        output_expectation["whatYouWillGet"]
+            .as_str()
+            .unwrap()
+            .contains("devup-ui")
+    );
+    let do_not_hand_interpret = output_expectation["doNotHandInterpret"].as_str().unwrap();
+    assert!(do_not_hand_interpret.contains("노드 트리"));
+    assert!(do_not_hand_interpret.contains("devup-ui"));
+    assert!(
+        output_expectation["ifConversionFails"]
+            .as_str()
+            .unwrap()
+            .contains("stop-and-report")
+    );
+    Ok(())
+}
+
 #[tokio::test]
 async fn host_policy_needs_figma_also_carries_the_host_requirement() -> anyhow::Result<()> {
     let result = call_named_tool(
@@ -235,6 +293,18 @@ async fn host_policy_needs_figma_also_carries_the_host_requirement() -> anyhow::
     assert_eq!(
         output["hostRequirement"]["ifUnavailable"]["action"],
         "stop-and-report"
+    );
+    // resultContract/outputExpectation must be present regardless of which
+    // sourcePolicy triggered the handoff.
+    assert!(
+        output["hostRequirement"]["resultContract"]["expects"]
+            .as_str()
+            .is_some()
+    );
+    assert!(
+        output["hostRequirement"]["outputExpectation"]["doNotHandInterpret"]
+            .as_str()
+            .is_some()
     );
     Ok(())
 }
