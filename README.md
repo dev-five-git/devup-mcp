@@ -83,7 +83,13 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 {
   "status": "disconnected",
   "paths": {
-    "direct": { "available": false, "reason": "저장된 자격증명 없음. ..." },
+    "direct": {
+      "available": false,
+      "credentialSource": "none",
+      "tokenState": "absent",
+      "callbackPort": { "port": null, "free": null },
+      "reason": "저장된 자격증명 없음. ..."
+    },
     "localDevMode": { "endpoint": "http://127.0.0.1:3845/mcp", "reachable": false, "hint": "..." },
     "hostHandoff": { "expectedTool": "use_figma", "note": "..." }
   },
@@ -91,7 +97,17 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`paths.localDevMode.reachable`은 `127.0.0.1:3845`에 대한 300ms 이내 로컬 TCP 연결 확인 결과이며 실패해도 오류를 던지지 않습니다. `needs_figma` 응답에도 같은 프로브 결과가 `hostRequirement.localDevMode`로 포함됩니다. 자세한 제약과 3가지 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+`paths.localDevMode.reachable`은 `127.0.0.1:3845`에 대한 300ms 이내 로컬 TCP 연결 확인 결과이며 실패해도 오류를 던지지 않습니다. `needs_figma` 응답에도 같은 프로브 결과가 `hostRequirement.localDevMode`로 포함됩니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약과 3가지 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+
+### direct 경로에 사전 등록된 client 자격증명 주입하기
+
+Figma MCP Catalog에 승인된 client(예: 직접 waitlist로 등록해 발급받은 client)의 `client_id`/`client_secret`을 이미 가지고 있다면, devup-mcp에 다음 세 가지 방법 중 하나로 주입해 Dynamic Client Registration을 완전히 건너뛸 수 있습니다. 우선순위는 시작 인자 > 환경변수 > `configure`로 저장한 값입니다.
+
+- **시작 인자**: `devup-mcp --figma-client-id <id> --figma-client-secret <secret>`
+- **환경변수**: `DEVUP_FIGMA_CLIENT_ID`, `DEVUP_FIGMA_CLIENT_SECRET`
+- **도구**: `devup_figma_auth { "action": "configure", "clientId": "...", "clientSecret": "..." }` — OS credential store(시작 인자/환경변수와는 별도 항목)에 저장되어 프로세스를 재시작해도 유지됩니다.
+
+자격증명이 해석되면 `devup_figma_auth { "action": "login" }`은 registration 엔드포인트를 전혀 호출하지 않고 바로 authorization_code + PKCE 흐름으로 진입합니다. 자격증명이 없으면 기존과 동일하게 DCR을 시도하고, 403이면 host 핸드오프로 폴백합니다(하위호환 유지). devup-mcp는 자격증명이 있든 없든 DCR 요청의 `client_name`을 항상 정직하게 `"devup-mcp"`로 보냅니다 — 스스로를 `Codex`나 `Claude Code` 같은 다른 제품으로 신고하지 않습니다. `client_secret`은 로그, 에러, MCP 응답, `doctor` 출력 어디에도 노출되지 않으며 `doctor`는 `credentialSource`로 존재 여부만 보고합니다.
 
 ## Figma 연결 설정
 
@@ -131,6 +147,8 @@ Figma Remote MCP 등록 엔드포인트는 `POST https://api.figma.com/v1/oauth/
 ### 숨은 함정 — 콜백 포트 점유
 
 로컬 OAuth 콜백이 쓰는 포트를 OS나 보안 소프트웨어(예: 사내 보안 에이전트)가 이미 점유하고 있으면, 브라우저는 리다이렉트에 "성공"한 것처럼 보이지만 그 요청은 다른 프로세스로 전달됩니다. 클라이언트는 **아무 에러 없이** `Waiting for authorization...` 상태로 영원히 남습니다. 로그인이 멈춘 것처럼 보이면 가장 먼저 콜백 포트를 다른 프로세스가 쓰고 있지 않은지 확인하세요.
+
+기본값은 OS가 매번 빈 임시 포트를 골라주므로(`0`) 이 충돌을 피합니다. 사전 등록한 client의 `redirect_uri`가 고정 포트로 등록되어 있어 특정 포트를 고정해야 한다면 `devup-mcp --figma-callback-port <port>`를 지정하세요. 이 경우 devup-mcp는 그 포트가 이미 사용 중이면 **연결을 기다리지 않고** `DEVUP_FIGMA_CALLBACK_PORT_IN_USE` 오류를 즉시 반환합니다. `devup_figma_auth { "action": "doctor" }`의 `paths.direct.callbackPort.free`에서도 지정한 포트가 실제로 비어 있는지 실측한 값을 확인할 수 있습니다.
 
 ### opencode에서 direct 경로 미리 설정하기
 

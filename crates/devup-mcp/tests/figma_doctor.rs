@@ -12,13 +12,15 @@ use std::sync::{
 use async_trait::async_trait;
 use devup_mcp::server::{DevupAuth, DevupServer, Services};
 use devup_mcp_figma::{
-    AuthStatus, DevupError, ErrorCode, FigmaUpstream, ReadToolCall, UpstreamResult,
+    AuthStatus, ClientCredentialSource, DevupError, DirectPathSnapshot, ErrorCode, FigmaUpstream,
+    ReadToolCall, TokenState, UpstreamResult,
 };
 use rmcp::{
     ServiceExt,
     model::{CallToolRequestParams, CallToolResult},
 };
 use serde_json::{Map, Value, json};
+use tokio::sync::Mutex;
 
 struct AuthProbe {
     status: AuthStatus,
@@ -36,6 +38,45 @@ impl DevupAuth for AuthProbe {
 
     async fn logout(&self) -> Result<AuthStatus, DevupError> {
         Ok(AuthStatus::Disconnected)
+    }
+}
+
+/// A `DevupAuth` double that overrides `direct_path_snapshot` and
+/// `configure_client_credentials`, unlike the plain `AuthProbe` above
+/// which relies on the trait's default implementations. Used to verify
+/// the server plumbing actually calls through to these methods and
+/// surfaces their result verbatim, rather than the default fallback.
+struct RichAuthProbe {
+    status: AuthStatus,
+    snapshot: DirectPathSnapshot,
+    configured: Mutex<Option<(String, Option<String>)>>,
+}
+
+#[async_trait]
+impl DevupAuth for RichAuthProbe {
+    async fn status(&self) -> Result<AuthStatus, DevupError> {
+        Ok(self.status)
+    }
+
+    async fn login(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Connected)
+    }
+
+    async fn logout(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Disconnected)
+    }
+
+    async fn direct_path_snapshot(&self) -> Result<DirectPathSnapshot, DevupError> {
+        Ok(self.snapshot.clone())
+    }
+
+    async fn configure_client_credentials(
+        &self,
+        client_id: String,
+        client_secret: Option<String>,
+    ) -> Result<(), DevupError> {
+        *self.configured.lock().await = Some((client_id, client_secret));
+        Ok(())
     }
 }
 
@@ -306,5 +347,158 @@ async fn host_policy_needs_figma_also_carries_the_host_requirement() -> anyhow::
             .as_str()
             .is_some()
     );
+    Ok(())
+}
+
+/// A `DevupAuth` double that does not override `direct_path_snapshot`
+/// (like `AuthProbe`) must still produce a shape-complete `doctor`
+/// response via the trait's default implementation, so pre-existing
+/// `DevupAuth` implementors outside this crate keep compiling *and*
+/// keep working after this task's `credentialSource`/`tokenState`/
+/// `callbackPort` additions.
+#[tokio::test]
+async fn doctor_falls_back_to_default_direct_path_snapshot_for_plain_auth_doubles()
+-> anyhow::Result<()> {
+    let output = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({ "action": "doctor" }),
+    )
+    .await?
+    .structured_content
+    .unwrap();
+
+    assert_eq!(output["paths"]["direct"]["credentialSource"], "none");
+    assert_eq!(output["paths"]["direct"]["tokenState"], "absent");
+    assert!(output["paths"]["direct"]["callbackPort"]["port"].is_null());
+    assert!(output["paths"]["direct"]["callbackPort"]["free"].is_null());
+
+    let connected = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Connected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({ "action": "doctor" }),
+    )
+    .await?
+    .structured_content
+    .unwrap();
+    assert_eq!(connected["paths"]["direct"]["tokenState"], "valid");
+    Ok(())
+}
+
+/// The core deliverable of this task's `doctor` update: `paths.direct`
+/// must reflect the real, measured `credentialSource`/`tokenState`/
+/// `callbackPort` from a `DevupAuth` implementation that actually tracks
+/// them (here `RichAuthProbe`, standing in for the real `OAuthManager`).
+#[tokio::test]
+async fn doctor_reports_measured_credential_source_token_state_and_callback_port()
+-> anyhow::Result<()> {
+    let auth = RichAuthProbe {
+        status: AuthStatus::Disconnected,
+        snapshot: DirectPathSnapshot {
+            credential_source: ClientCredentialSource::CliArg,
+            token_state: TokenState::Expired,
+            callback_port: Some(19876),
+            callback_port_free: Some(false),
+        },
+        configured: Mutex::new(None),
+    };
+    let output = call_named_tool(
+        Arc::new(auth),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({ "action": "doctor" }),
+    )
+    .await?
+    .structured_content
+    .unwrap();
+
+    assert_eq!(output["paths"]["direct"]["credentialSource"], "cli-arg");
+    assert_eq!(output["paths"]["direct"]["tokenState"], "expired");
+    assert_eq!(output["paths"]["direct"]["callbackPort"]["port"], 19876);
+    assert_eq!(output["paths"]["direct"]["callbackPort"]["free"], false);
+    Ok(())
+}
+
+/// `devup_figma_auth {"action":"configure"}` must persist the given
+/// `clientId`/`clientSecret` via the auth backend, respond with only
+/// `{"status":"configured"}` (never echoing the secret back), and reject
+/// a missing `clientId` before ever calling the auth backend.
+#[tokio::test]
+async fn configure_action_persists_credentials_and_never_echoes_the_secret() -> anyhow::Result<()> {
+    let auth = Arc::new(RichAuthProbe {
+        status: AuthStatus::Disconnected,
+        snapshot: DirectPathSnapshot {
+            credential_source: ClientCredentialSource::None,
+            token_state: TokenState::Absent,
+            callback_port: None,
+            callback_port_free: None,
+        },
+        configured: Mutex::new(None),
+    });
+    let result = call_named_tool(
+        auth.clone(),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({
+            "action": "configure",
+            "clientId": "preregistered-client",
+            "clientSecret": "preregistered-secret"
+        }),
+    )
+    .await?;
+    let output = result.structured_content.unwrap();
+    assert_eq!(output, json!({ "status": "configured" }));
+    let raw = output.to_string();
+    assert!(!raw.contains("preregistered-secret"));
+
+    let captured = auth.configured.lock().await.clone();
+    assert_eq!(
+        captured,
+        Some((
+            "preregistered-client".to_owned(),
+            Some("preregistered-secret".to_owned())
+        ))
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn configure_action_without_client_id_is_rejected() -> anyhow::Result<()> {
+    let error = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({ "action": "configure" }),
+    )
+    .await
+    .expect_err("configure without clientId must fail");
+    assert!(error.to_string().contains("clientId"));
+    Ok(())
+}
+
+/// `DevupAuth` implementations that do not support persisting a client
+/// credential (the trait's default `configure_client_credentials`) must
+/// surface that as an explicit tool error, not silently succeed.
+#[tokio::test]
+async fn configure_action_fails_for_auth_backends_that_do_not_support_it() -> anyhow::Result<()> {
+    let error = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({ "action": "configure", "clientId": "preregistered-client" }),
+    )
+    .await
+    .expect_err("plain AuthProbe does not support configure");
+    assert!(!error.to_string().is_empty());
     Ok(())
 }

@@ -6,6 +6,7 @@ pub enum ErrorCode {
     DevupAuthRequired,
     DevupAuthCallbackTimeout,
     DevupAuthStateMismatch,
+    DevupFigmaCallbackPortInUse,
     DevupFigmaPermissionDenied,
     DevupFigmaRateLimited,
     DevupFigmaDirectUnavailable,

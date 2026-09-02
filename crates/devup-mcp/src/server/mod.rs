@@ -29,12 +29,13 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, ExploreCandidate,
-    ExploreKind, ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream,
+    AuthStatus, ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
+    DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode,
+    ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
     KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchReadOptions,
-    SectionCandidate, SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser,
-    fallback_allowed_for_error,
+    SecretString, SectionCandidate, SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser,
+    TokenState, fallback_allowed_for_error,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -60,6 +61,40 @@ pub trait DevupAuth: Send + Sync {
     async fn status(&self) -> Result<AuthStatus, DevupError>;
     async fn login(&self) -> Result<AuthStatus, DevupError>;
     async fn logout(&self) -> Result<AuthStatus, DevupError>;
+
+    /// Backs `devup_figma_auth {"action":"doctor"}`'s `paths.direct`
+    /// block. Default implementation derives a best-effort snapshot from
+    /// `status()` alone so existing `DevupAuth` test doubles keep
+    /// compiling without changes; `OAuthManager` overrides this with the
+    /// real credential-source/token-freshness/callback-port measurement.
+    async fn direct_path_snapshot(&self) -> Result<DirectPathSnapshot, DevupError> {
+        let status = self.status().await?;
+        Ok(DirectPathSnapshot {
+            credential_source: ClientCredentialSource::default(),
+            token_state: if status == AuthStatus::Connected {
+                TokenState::Valid
+            } else {
+                TokenState::Absent
+            },
+            callback_port: None,
+            callback_port_free: None,
+        })
+    }
+
+    /// Backs `devup_figma_auth {"action":"configure"}`. Default
+    /// implementation rejects: only auth backends that actually persist a
+    /// client credential (namely `OAuthManager`) support this.
+    async fn configure_client_credentials(
+        &self,
+        _client_id: String,
+        _client_secret: Option<String>,
+    ) -> Result<(), DevupError> {
+        Err(DevupError::new(
+            ErrorCode::DevupAuthRequired,
+            "이 auth 백엔드는 client 자격증명 설정을 지원하지 않습니다.",
+            false,
+        ))
+    }
 }
 
 #[async_trait]
@@ -77,6 +112,18 @@ impl<S: CredentialStore> DevupAuth for OAuthManager<S> {
         OAuthManager::logout(self).await?;
         Ok(AuthStatus::Disconnected)
     }
+
+    async fn direct_path_snapshot(&self) -> Result<DirectPathSnapshot, DevupError> {
+        OAuthManager::direct_path_snapshot(self).await
+    }
+
+    async fn configure_client_credentials(
+        &self,
+        client_id: String,
+        client_secret: Option<String>,
+    ) -> Result<(), DevupError> {
+        OAuthManager::configure_client_credentials(self, client_id, client_secret).await
+    }
 }
 
 #[derive(Clone)]
@@ -90,8 +137,21 @@ impl Services {
         Self { auth, upstream }
     }
 
-    fn production() -> Self {
-        let oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore);
+    fn production(figma_direct: crate::FigmaDirectConfig) -> Self {
+        let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)
+            .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
+        if figma_direct.callback_port.is_some() {
+            oauth = oauth.with_callback_port(figma_direct.callback_port);
+        }
+        if let Some(client_id) = figma_direct.client_id {
+            oauth = oauth.with_static_client_credentials(
+                ClientCredentials {
+                    client_id,
+                    client_secret: figma_direct.client_secret.map(SecretString::new),
+                },
+                figma_direct.credential_source,
+            );
+        }
         let upstream = RemoteFigmaClient::new(oauth.clone());
         Self::new(Arc::new(oauth), Arc::new(upstream))
     }
@@ -128,16 +188,23 @@ impl DevupServer {
         })
     }
 
+    pub fn production_with_config(
+        roots: Vec<std::path::PathBuf>,
+        figma_direct: crate::FigmaDirectConfig,
+    ) -> Result<Self, DevupError> {
+        Self::with_output_roots(Services::production(figma_direct), roots)
+    }
+
     pub fn production_with_output_roots(
         roots: Vec<std::path::PathBuf>,
     ) -> Result<Self, DevupError> {
-        Self::with_output_roots(Services::production(), roots)
+        Self::production_with_config(roots, crate::FigmaDirectConfig::default())
     }
 }
 
 impl Default for DevupServer {
     fn default() -> Self {
-        Self::new(Services::production())
+        Self::new(Services::production(crate::FigmaDirectConfig::default()))
     }
 }
 
@@ -324,7 +391,7 @@ fn permissive_object_output_schema() -> Arc<JsonObject> {
 #[tool_router]
 impl DevupServer {
     #[tool(
-        description = "Check, start, or clear Figma Remote MCP OAuth (action: status | login | logout | doctor)",
+        description = "Check, start, or clear Figma Remote MCP OAuth, or inject a pre-registered client credential to skip Dynamic Client Registration (action: status | login | logout | configure | doctor)",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
@@ -333,7 +400,30 @@ impl DevupServer {
     ) -> Result<CallToolResult, ErrorData> {
         if input.action == "doctor" {
             let status = self.services.auth.status().await.map_err(to_mcp_error)?;
-            return Ok(tool_result(diagnostics::doctor_report(status).await));
+            let direct = self
+                .services
+                .auth
+                .direct_path_snapshot()
+                .await
+                .map_err(to_mcp_error)?;
+            return Ok(tool_result(
+                diagnostics::doctor_report(status, direct).await,
+            ));
+        }
+        if input.action == "configure" {
+            let client_id = input.client_id.ok_or_else(|| {
+                to_mcp_error(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "configure에는 clientId가 필요합니다.",
+                    false,
+                ))
+            })?;
+            self.services
+                .auth
+                .configure_client_credentials(client_id, input.client_secret)
+                .await
+                .map_err(to_mcp_error)?;
+            return Ok(tool_result(json!({ "status": "configured" })));
         }
         let status = match input.action.as_str() {
             "status" => self.services.auth.status().await,
@@ -342,7 +432,7 @@ impl DevupServer {
             _ => {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupAuthRequired,
-                    "action은 status, login, logout 또는 doctor여야 합니다.",
+                    "action은 status, login, logout, configure 또는 doctor여야 합니다.",
                     false,
                 )));
             }

@@ -162,11 +162,15 @@ impl UpstreamFailureKind {
                 false,
             ),
         };
-        DevupError::with_details(
-            code,
-            message,
-            retryable,
-            json!({ "source": "direct", "status": status }),
-        )
+        let mut details = json!({ "source": "direct", "status": status });
+        if self == Self::CatalogRejected {
+            details["options"] = json!([
+                "Figma MCP Catalog waitlist에 devup-mcp 등록: https://www.figma.com/mcp-catalog/",
+                "devup_figma_auth { action: \"configure\", clientId, clientSecret }로 직접 확보한 client 자격증명 주입",
+                "Figma 데스크톱 앱의 로컬 Dev Mode MCP 사용 (OAuth 불필요)",
+                "호스트에 등록된 공식 Figma MCP로 handoff (sourcePolicy: auto 또는 host, 현재 기본 폴백)"
+            ]);
+        }
+        DevupError::with_details(code, message, retryable, details)
     }
 }

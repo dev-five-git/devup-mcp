@@ -22,7 +22,9 @@ pub use collector::{
 };
 
 pub use credentials::{
-    CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
+    ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,
+    KeyringCredentialStore, MemoryClientCredentialStore, MemoryCredentialStore,
+    StoredAuthorization,
 };
 pub use envelope::{
     FastSnapshotPayload, FastThemePayload, FastTransportStats, decode_fast_multi_snapshot,
@@ -39,7 +41,10 @@ pub use large_values::{
     LargeValueReadOptions, LargeValueUnsupported, MAX_LARGE_VALUE_BYTES,
     MAX_LARGE_VALUE_CHUNK_BYTES,
 };
-pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
+pub use oauth::{
+    AuthStatus, BrowserOpener, ClientCredentialSource, DirectPathSnapshot, OAuthManager,
+    SecretString, SystemBrowser, TokenState,
+};
 pub use payload::{
     CollectedPayload, PayloadCompleteness, PayloadCompletenessReport, PayloadStructure,
     ResourceAudit, validate_payload_context,

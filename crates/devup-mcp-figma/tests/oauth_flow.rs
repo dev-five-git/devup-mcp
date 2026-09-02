@@ -3,10 +3,13 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use axum::{
     Json, Router,
     extract::{Form, State},
+    http::StatusCode,
     routing::{get, post},
 };
 use devup_mcp_figma::{
-    AuthStatus, BrowserOpener, CredentialStore, MemoryCredentialStore, OAuthManager,
+    AuthStatus, BrowserOpener, ClientCredentialSource, ClientCredentials, CredentialStore,
+    DirectPathSnapshot, ErrorCode, MemoryClientCredentialStore, MemoryCredentialStore,
+    OAuthManager, SecretString, TokenState,
 };
 use serde_json::{Value, json};
 use tokio::{net::TcpListener, sync::Mutex};
@@ -163,4 +166,279 @@ async fn logout_clears_persisted_authorization() -> anyhow::Result<()> {
     manager.logout().await?;
     assert_eq!(manager.status().await?, AuthStatus::Disconnected);
     Ok(())
+}
+
+async fn register_forbidden(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> (StatusCode, String) {
+    *state.captured.registration.lock().await = Some(body);
+    // Real Figma returns a *plain-text* 403 body, not JSON — this is the
+    // exact shape that broke naive OAuth clients (see README.md). The
+    // fixture reproduces it so tests exercise the real failure mode.
+    (StatusCode::FORBIDDEN, "Forbidden".to_owned())
+}
+
+async fn spawn_mock_oauth_server(
+    register: axum::routing::MethodRouter<AppState>,
+) -> anyhow::Result<(String, Captured)> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let base = format!("http://{}", listener.local_addr()?);
+    let captured = Captured::default();
+    let app = Router::new()
+        .route(
+            "/.well-known/oauth-protected-resource/mcp",
+            get(protected_resource),
+        )
+        .route(
+            "/.well-known/oauth-authorization-server",
+            get(authorization_metadata),
+        )
+        .route("/register", register)
+        .route("/token", post(token))
+        .with_state(AppState {
+            base: base.clone(),
+            captured: captured.clone(),
+        });
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("mock OAuth server");
+    });
+    Ok((base, captured))
+}
+
+/// Core deliverable #1: when a pre-registered client credential is
+/// resolvable (here via `with_static_client_credentials`, standing in for
+/// `--figma-client-id`/`DEVUP_FIGMA_CLIENT_ID`), `login` must skip
+/// Dynamic Client Registration entirely — the `/register` endpoint must
+/// never be called — and use the given `client_id`/`client_secret` for the
+/// PKCE authorization-code exchange.
+#[tokio::test]
+async fn static_client_credentials_skip_dynamic_client_registration() -> anyhow::Result<()> {
+    let (base, captured) = spawn_mock_oauth_server(post(register)).await?;
+
+    let store = MemoryCredentialStore::default();
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+        .with_callback_timeout(Duration::from_secs(3))
+        .with_static_client_credentials(
+            ClientCredentials {
+                client_id: "preregistered-client".to_owned(),
+                client_secret: Some(SecretString::new("preregistered-secret")),
+            },
+            ClientCredentialSource::CliArg,
+        );
+    let authorization = manager.login(&CallbackOpener).await?;
+
+    assert!(
+        captured.registration.lock().await.is_none(),
+        "DCR must never be attempted once a client credential resolves"
+    );
+    assert_eq!(authorization.client_id, "preregistered-client");
+
+    let form = captured
+        .token_form
+        .lock()
+        .await
+        .clone()
+        .expect("token form");
+    assert_eq!(
+        form.get("client_id").map(String::as_str),
+        Some("preregistered-client")
+    );
+    assert_eq!(
+        form.get("client_secret").map(String::as_str),
+        Some("preregistered-secret")
+    );
+    Ok(())
+}
+
+/// Core deliverable #3 (README honesty policy): with no client credential
+/// resolvable, `login` still performs DCR with the literal, honest
+/// `client_name: "devup-mcp"` (never impersonating another product), and a
+/// 403 rejection (Figma's real response shape: plain-text `Forbidden`, not
+/// JSON) surfaces as a classified, actionable `DEVUP_FIGMA_CATALOG_REJECTED`
+/// error — not a generic network failure — carrying the four documented
+/// options without ever echoing the raw upstream body.
+#[tokio::test]
+async fn dcr_403_is_classified_as_catalog_rejected_with_actionable_options() -> anyhow::Result<()> {
+    let (base, captured) = spawn_mock_oauth_server(post(register_forbidden)).await?;
+
+    let store = MemoryCredentialStore::default();
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+        .with_callback_timeout(Duration::from_secs(3));
+    let error = manager
+        .login(&CallbackOpener)
+        .await
+        .expect_err("403 registration must fail login");
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaCatalogRejected);
+    let options = error.details["options"]
+        .as_array()
+        .expect("catalog-rejected errors carry actionable options");
+    assert_eq!(options.len(), 4);
+    assert!(
+        options
+            .iter()
+            .any(|option| option.as_str().unwrap_or_default().contains("configure"))
+    );
+    assert!(
+        options
+            .iter()
+            .any(|option| option.as_str().unwrap_or_default().contains("mcp-catalog"))
+    );
+    let serialized = serde_json::to_string(&error)?;
+    assert!(!serialized.contains("Forbidden"));
+
+    // Never even attempted the DCR registration under a spoofed name;
+    // confirm the honest, literal request that *did* go out.
+    let registration = captured
+        .registration
+        .lock()
+        .await
+        .clone()
+        .expect("registration attempt");
+    assert_eq!(registration["client_name"], "devup-mcp");
+    Ok(())
+}
+
+/// Core deliverable #2: a *configured* callback port that is already
+/// occupied must fail the bind attempt immediately with a specific,
+/// actionable error — never silently wait for a connection that will
+/// never arrive (the `MaEPSBroker.exe`-style trap documented in
+/// README.md).
+#[tokio::test]
+async fn occupied_callback_port_fails_immediately_instead_of_waiting() -> anyhow::Result<()> {
+    let (base, _captured) = spawn_mock_oauth_server(post(register)).await?;
+
+    // Bind a real listener to claim a genuinely free ephemeral port, then
+    // keep it alive so the manager's bind attempt on that exact port
+    // fails deterministically.
+    let occupier = TcpListener::bind("127.0.0.1:0").await?;
+    let occupied_port = occupier.local_addr()?.port();
+
+    let store = MemoryCredentialStore::default();
+    // A generous timeout: if the implementation regressed to "wait for a
+    // connection", this test would hang for the full duration instead of
+    // returning within milliseconds.
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+        .with_callback_timeout(Duration::from_secs(120))
+        .with_callback_port(Some(occupied_port));
+
+    let started = std::time::Instant::now();
+    let error = manager
+        .login(&CallbackOpener)
+        .await
+        .expect_err("bind on an occupied fixed port must fail");
+    let elapsed = started.elapsed();
+
+    assert_eq!(error.code, ErrorCode::DevupFigmaCallbackPortInUse);
+    assert!(
+        !error.retryable,
+        "occupied fixed port is not a retry-me error"
+    );
+    assert_eq!(error.details["port"], occupied_port);
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "must fail immediately on bind, not wait for the callback timeout: took {elapsed:?}"
+    );
+
+    drop(occupier);
+    Ok(())
+}
+
+/// Core deliverable #5 (`doctor`): `direct_path_snapshot` must reflect the
+/// real, measured state — which credential source is active, whether the
+/// stored token is still fresh, and whether a configured callback port is
+/// actually free right now — without ever exposing the secret itself.
+#[tokio::test]
+async fn direct_path_snapshot_reports_measured_credential_and_port_state() -> anyhow::Result<()> {
+    let credential_store = MemoryClientCredentialStore::default();
+    let manager = OAuthManager::with_endpoint(
+        "https://mcp.figma.com/mcp",
+        MemoryCredentialStore::default(),
+    )
+    .with_client_credential_store(Arc::new(credential_store));
+
+    // Nothing configured yet: no credential, no token, no fixed port.
+    let absent = manager.direct_path_snapshot().await?;
+    assert_eq!(absent.credential_source, ClientCredentialSource::None);
+    assert_eq!(absent.token_state, TokenState::Absent);
+    assert_eq!(absent.callback_port, None);
+    assert_eq!(absent.callback_port_free, None);
+
+    // `configure` persists a client credential; its source must now read
+    // "credential-store" (not "cli-arg"/"env" — those are for
+    // process-launch overrides only).
+    manager
+        .configure_client_credentials(
+            "configured-client".to_owned(),
+            Some("configured-secret".to_owned()),
+        )
+        .await?;
+    let configured = manager.direct_path_snapshot().await?;
+    assert_eq!(
+        configured.credential_source,
+        ClientCredentialSource::CredentialStore
+    );
+    let serialized = serde_json::to_string(&configured)?;
+    assert!(!serialized.contains("configured-secret"));
+
+    Ok(())
+}
+
+/// `doctor`'s callback-port probe must reflect the real bind state: free
+/// when unoccupied, occupied when another listener holds the exact port.
+#[tokio::test]
+async fn direct_path_snapshot_probes_the_real_callback_port_state() -> anyhow::Result<()> {
+    let manager = OAuthManager::with_endpoint(
+        "https://mcp.figma.com/mcp",
+        MemoryCredentialStore::default(),
+    );
+
+    let probe_listener = TcpListener::bind("127.0.0.1:0").await?;
+    let free_port = probe_listener.local_addr()?.port();
+    drop(probe_listener);
+    let free = manager
+        .clone()
+        .with_callback_port(Some(free_port))
+        .direct_path_snapshot()
+        .await?;
+    assert_eq!(free.callback_port, Some(free_port));
+    assert_eq!(free.callback_port_free, Some(true));
+
+    let occupier = TcpListener::bind("127.0.0.1:0").await?;
+    let occupied_port = occupier.local_addr()?.port();
+    let occupied = manager
+        .with_callback_port(Some(occupied_port))
+        .direct_path_snapshot()
+        .await?;
+    assert_eq!(occupied.callback_port_free, Some(false));
+    drop(occupier);
+
+    Ok(())
+}
+
+/// Security regression: a client secret configured via any path
+/// (`with_static_client_credentials` here, standing in for
+/// `--figma-client-secret`/`DEVUP_FIGMA_CLIENT_SECRET`) must never appear
+/// in `Debug` output of the credential itself or in any snapshot derived
+/// from it. `DirectPathSnapshot` structurally has no field capable of
+/// carrying it — this test pins that guarantee at the value level too.
+#[test]
+fn client_secret_never_appears_in_debug_output() {
+    let credentials = ClientCredentials {
+        client_id: "preregistered-client".to_owned(),
+        client_secret: Some(SecretString::new("super-secret-value")),
+    };
+    let debugged = format!("{credentials:?}");
+    assert!(!debugged.contains("super-secret-value"));
+    assert!(debugged.contains("REDACTED"));
+
+    let snapshot = DirectPathSnapshot {
+        credential_source: ClientCredentialSource::CliArg,
+        token_state: TokenState::Valid,
+        callback_port: Some(19876),
+        callback_port_free: Some(true),
+    };
+    let serialized = serde_json::to_string(&snapshot).expect("snapshot serializes");
+    assert!(!serialized.contains("super-secret-value"));
 }

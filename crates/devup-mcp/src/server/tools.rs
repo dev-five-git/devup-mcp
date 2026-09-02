@@ -3,14 +3,22 @@ use schemars::{Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// `action` is `status`, `login`, `logout`, or `doctor`. `doctor` never
-/// touches OAuth state; it measures which connection paths (direct OAuth,
-/// local Dev Mode MCP, host handoff) are currently usable and returns
-/// client-specific setup guidance. See `server::diagnostics`.
+/// `action` is `status`, `login`, `logout`, `configure`, or `doctor`.
+/// `doctor` never touches OAuth state; it measures which connection paths
+/// (direct OAuth, local Dev Mode MCP, host handoff) are currently usable
+/// and returns client-specific setup guidance. `configure` persists a
+/// pre-registered client credential (`clientId`, optional `clientSecret`)
+/// so later `login` calls skip Dynamic Client Registration entirely; the
+/// secret is stored in the OS credential store and never echoed back. See
+/// `server::diagnostics`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthInput {
     pub action: String,
+    #[serde(default)]
+    pub client_id: Option<String>,
+    #[serde(default)]
+    pub client_secret: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
