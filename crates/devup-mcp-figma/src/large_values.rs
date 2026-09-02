@@ -93,7 +93,7 @@ pub(crate) enum LargeValueResult {
     Unsupported(LargeValueUnsupported),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LargeValueAssembler {
     expected_file_key: String,
     expected_version: Option<String>,

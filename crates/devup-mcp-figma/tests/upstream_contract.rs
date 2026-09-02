@@ -217,19 +217,13 @@ fn explore_uses_a_bounded_spatial_projection() {
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
     assert_eq!(call.tool_name(), "use_figma");
-    assert!(code.contains("figma.getNodeByIdAsync"));
-    assert!(code.contains("current.type !== \"PAGE\""));
-    assert!(code.contains("projectionLimit"));
-    assert!(code.contains("textPreviewLimit"));
-    assert!(code.contains("projectionTruncated"));
-    assert!(code.contains("anchor.type === \"SECTION\""));
-    assert!(code.contains("breadcrumb"));
-    assert!(code.contains("visible"));
-    assert!(code.contains("sectionQueue"));
-    assert!(code.contains("120"));
-    assert!(code.contains("96"));
-    assert!(!code.contains("page.findAll"));
+    assert!(code.contains("3879:35481"));
+    assert!(code.contains("\"projectionLimit\":120"));
+    assert!(code.contains("\"textPreviewLimit\":96"));
+    assert!(!code.contains("__DEVUP_NODE_ID__"));
+    assert!(!code.contains("__DEVUP_EXPLORE__"));
     assert!(!code.contains("eval("));
+    assert!(!code.contains("Function("));
 }
 
 #[test]
@@ -353,9 +347,42 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
     assert!(!code.contains("maxPayloadBytes"));
     assert!(!code.contains("maxFieldBytes"));
     assert!(!code.contains("DEVUP_FIELD_VALUE_TRUNCATED"));
+    assert!(!code.contains("MAX_INLINE_FIELD_BYTES"));
+    assert!(!code.contains("devupLargeValueDescriptor"));
+    assert!(!code.contains("$largeValue"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
     assert_eq!(code.matches("figma.io.write(").count(), 1);
+}
+
+#[test]
+fn fast_snapshot_resolves_every_compiled_placeholder_after_inserting_the_section_probe() {
+    let call = ReadToolCall::fast_snapshot("file-key", "3879:35518");
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(code.contains("figma.getNodeByIdAsync(\"3879:35518\")"));
+    assert!(
+        !code.contains("__DEVUP_"),
+        "compiled fast snapshot leaked an unresolved template placeholder"
+    );
+}
+
+#[test]
+fn explore_never_reads_scene_only_visibility_from_a_page() {
+    let call = ReadToolCall::explore_snapshot(
+        "file-key",
+        "1:2",
+        ExploreReadOptions {
+            projection_limit: 200,
+            text_preview_limit: 160,
+        },
+    );
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+
+    assert!(!code.contains("page.visible"));
+    assert!(code.contains("visible: true"));
+    assert!(!code.contains("sectionQueue"));
+    assert!(code.contains("traversalLimit"));
 }
 
 #[test]

@@ -197,6 +197,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert!(explore_text.contains("url"));
     assert!(explore_text.contains("limit"));
     assert!(explore_text.contains("includeTextPreview"));
+    assert!(explore_text.contains("refresh"));
     assert!(explore_text.contains("sourcePolicy"));
     assert!(!explore_text.contains("code"));
 

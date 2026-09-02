@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -7,7 +7,8 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use devup_mcp_devup_ui::codegen::RootLayout;
 use devup_mcp_figma::{
-    CollectedParts, CollectorSession, CollectorStep, DevupError, ErrorCode, UpstreamResult,
+    CollectedParts, CollectionStats, CollectorSession, CollectorStep, DevupError, ErrorCode,
+    UpstreamResult,
 };
 use rand::Rng;
 use serde::Serialize;
@@ -58,6 +59,7 @@ pub enum PendingOperation {
     },
     Explore {
         limit: usize,
+        target: devup_mcp_figma::FigmaTarget,
     },
 }
 
@@ -76,6 +78,7 @@ pub enum HandoffStep {
         session_id: String,
         expires_at_epoch_seconds: u64,
         calls: Vec<HandoffCall>,
+        collection: CollectionStats,
     },
     Complete {
         operation: PendingOperation,
@@ -124,13 +127,22 @@ struct Session {
     expires_at: u64,
     result_bytes: usize,
     pending: BTreeMap<String, (String, HandoffCall)>,
+    consumed: BTreeSet<String>,
 }
 
 #[derive(Default)]
 struct StoreState {
     sessions: BTreeMap<String, Session>,
+    tombstones: BTreeMap<String, SessionTombstone>,
     total_result_bytes: usize,
 }
+
+#[derive(Debug, Clone, Copy)]
+struct SessionTombstone {
+    expires_at: u64,
+}
+
+const MAX_TOMBSTONES: usize = 64;
 
 #[derive(Clone)]
 pub struct HandoffStore {
@@ -180,13 +192,13 @@ impl HandoffStore {
         });
         let now = self.clock.now_epoch_seconds();
         let mut state = self.state.lock().await;
-        prune_expired(&mut state, now);
+        prune_expired(&mut state, now, self.limits.ttl.as_secs());
         if state.sessions.len() >= self.limits.max_sessions {
             return Err(too_large(
                 "동시에 유지할 수 있는 Figma handoff session 수를 초과했습니다.",
             ));
         }
-        let session_id = unique_id(&state.sessions);
+        let session_id = unique_id(&state.sessions, &state.tombstones);
         state.sessions.insert(
             session_id.clone(),
             Session {
@@ -195,6 +207,7 @@ impl HandoffStore {
                 expires_at: now.saturating_add(self.limits.ttl.as_secs()),
                 result_bytes: 0,
                 pending: BTreeMap::new(),
+                consumed: BTreeSet::new(),
             },
         );
         Ok(session_id)
@@ -203,7 +216,7 @@ impl HandoffStore {
     pub async fn next(&self, session_id: &str) -> Result<HandoffStep, DevupError> {
         let now = self.clock.now_epoch_seconds();
         let mut state = self.state.lock().await;
-        let mut session = take_session(&mut state, session_id, now)?;
+        let mut session = take_session(&mut state, session_id, now, self.limits.ttl.as_secs())?;
 
         loop {
             match session.collector.advance() {
@@ -224,11 +237,13 @@ impl HandoffStore {
                         .map(|(_, call)| call.clone())
                         .collect();
                     let expires_at_epoch_seconds = session.expires_at;
+                    let collection = session.collector.stats().clone();
                     put_session(&mut state, session_id.to_owned(), session);
                     return Ok(HandoffStep::NeedsFigma {
                         session_id: session_id.to_owned(),
                         expires_at_epoch_seconds,
                         calls,
+                        collection,
                     });
                 }
                 Ok(CollectorStep::Complete(parts)) => {
@@ -270,16 +285,32 @@ impl HandoffStore {
                 "Figma handoff result의 전체 메모리 한도를 초과했습니다.",
             ));
         }
-        let mut session = take_session(&mut state, session_id, now)?;
-        let Some((collector_call_id, _)) = session.pending.remove(call_id) else {
-            return Err(invalid(
+        let mut session = take_session(&mut state, session_id, now, self.limits.ttl.as_secs())?;
+        let Some((collector_call_id, _)) = session.pending.get(call_id) else {
+            let reason = if session.consumed.contains(call_id) {
+                "consumed"
+            } else {
+                "unknown_call"
+            };
+            put_session(&mut state, session_id.to_owned(), session);
+            return Err(invalid_reason(
                 "알 수 없거나 이미 처리한 Figma handoff call ID입니다.",
+                reason,
             ));
         };
-        session
-            .collector
-            .accept(&collector_call_id, UpstreamResult { raw: result })?;
+        let collector_call_id = collector_call_id.clone();
+        let mut accepted_collector = session.collector.clone();
+        if let Err(error) =
+            accepted_collector.accept(&collector_call_id, UpstreamResult { raw: result })
+        {
+            put_session(&mut state, session_id.to_owned(), session);
+            return Err(error);
+        }
+        session.collector = accepted_collector;
+        session.pending.remove(call_id);
+        session.consumed.insert(call_id.to_owned());
         session.result_bytes = session.result_bytes.saturating_add(encoded_len);
+        session.expires_at = now.saturating_add(self.limits.ttl.as_secs());
         put_session(&mut state, session_id.to_owned(), session);
         Ok(())
     }
@@ -294,19 +325,29 @@ impl HandoffStore {
     }
 }
 
-fn take_session(state: &mut StoreState, session_id: &str, now: u64) -> Result<Session, DevupError> {
+fn take_session(
+    state: &mut StoreState,
+    session_id: &str,
+    now: u64,
+    tombstone_ttl: u64,
+) -> Result<Session, DevupError> {
+    prune_tombstones(state, now);
     let Some(session) = state.sessions.remove(session_id) else {
-        return Err(invalid("존재하지 않는 Figma handoff session입니다."));
+        return if state.tombstones.contains_key(session_id) {
+            Err(expired())
+        } else {
+            Err(invalid_reason(
+                "존재하지 않는 Figma handoff session입니다.",
+                "unknown_session",
+            ))
+        };
     };
     state.total_result_bytes = state
         .total_result_bytes
         .saturating_sub(session.result_bytes);
     if session.expires_at <= now {
-        return Err(DevupError::new(
-            ErrorCode::DevupFigmaHandoffExpired,
-            "Figma handoff session이 만료되었습니다.",
-            true,
-        ));
+        remember_expired(state, session_id.to_owned(), now, tombstone_ttl);
+        return Err(expired());
     }
     Ok(session)
 }
@@ -318,7 +359,8 @@ fn put_session(state: &mut StoreState, session_id: String, session: Session) {
     state.sessions.insert(session_id, session);
 }
 
-fn prune_expired(state: &mut StoreState, now: u64) {
+fn prune_expired(state: &mut StoreState, now: u64, tombstone_ttl: u64) {
+    prune_tombstones(state, now);
     let expired = state
         .sessions
         .iter()
@@ -329,14 +371,42 @@ fn prune_expired(state: &mut StoreState, now: u64) {
             state.total_result_bytes = state
                 .total_result_bytes
                 .saturating_sub(session.result_bytes);
+            remember_expired(state, id, now, tombstone_ttl);
         }
     }
 }
 
-fn unique_id(sessions: &BTreeMap<String, Session>) -> String {
+fn remember_expired(state: &mut StoreState, id: String, now: u64, ttl: u64) {
+    if state.tombstones.len() >= MAX_TOMBSTONES
+        && let Some(oldest) = state
+            .tombstones
+            .iter()
+            .min_by_key(|(_, tombstone)| tombstone.expires_at)
+            .map(|(id, _)| id.clone())
+    {
+        state.tombstones.remove(&oldest);
+    }
+    state.tombstones.insert(
+        id,
+        SessionTombstone {
+            expires_at: now.saturating_add(ttl),
+        },
+    );
+}
+
+fn prune_tombstones(state: &mut StoreState, now: u64) {
+    state
+        .tombstones
+        .retain(|_, tombstone| tombstone.expires_at > now);
+}
+
+fn unique_id(
+    sessions: &BTreeMap<String, Session>,
+    tombstones: &BTreeMap<String, SessionTombstone>,
+) -> String {
     loop {
         let id = random_id();
-        if !sessions.contains_key(&id) {
+        if !sessions.contains_key(&id) && !tombstones.contains_key(&id) {
             return id;
         }
     }
@@ -354,6 +424,24 @@ fn invalid(message: &str) -> DevupError {
         message,
         false,
         json!({"source": "host"}),
+    )
+}
+
+fn invalid_reason(message: &str, reason: &str) -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffInvalid,
+        message,
+        false,
+        json!({"source": "host", "reason": reason}),
+    )
+}
+
+fn expired() -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffExpired,
+        "Figma handoff session이 만료되었습니다.",
+        true,
+        json!({"source": "host", "reason": "expired"}),
     )
 }
 

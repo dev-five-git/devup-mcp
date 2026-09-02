@@ -1,4 +1,5 @@
 use std::{
+    cmp::Reverse,
     collections::BTreeMap,
     future::Future,
     sync::Arc,
@@ -100,6 +101,46 @@ impl ArtifactRequestKey {
             reference_png: self.reference_png,
         }
     }
+
+    fn can_serve_explore(&self, requested: &Self) -> bool {
+        let (Some(cached_options), Some(requested_options)) =
+            (self.explore.as_ref(), requested.explore.as_ref())
+        else {
+            return false;
+        };
+        if cached_options.text_preview_limit != requested_options.text_preview_limit
+            || cached_options.projection_limit < requested_options.projection_limit
+        {
+            return false;
+        }
+        let mut cached_scope = self.clone();
+        let mut requested_scope = requested.clone();
+        cached_scope.node_id = None;
+        requested_scope.node_id = None;
+        cached_scope.explore = None;
+        requested_scope.explore = None;
+        cached_scope == requested_scope
+    }
+
+    fn explore_projection_limit(&self) -> usize {
+        self.explore
+            .as_ref()
+            .map_or(usize::MAX, |options| options.projection_limit)
+    }
+
+    fn explore_reuse_kind(&self, requested: &Self) -> Option<CacheReuseKind> {
+        self.can_serve_explore(requested).then(|| {
+            let same_node = self.node_id == requested.node_id;
+            let same_projection =
+                self.explore_projection_limit() == requested.explore_projection_limit();
+            match (same_node, same_projection) {
+                (true, true) => CacheReuseKind::Exact,
+                (true, false) => CacheReuseKind::Superset,
+                (false, true) => CacheReuseKind::RelatedNode,
+                (false, false) => CacheReuseKind::RelatedNodeSuperset,
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +151,16 @@ pub enum ArtifactKind {
     Search,
     Explore,
     SectionIndex,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CacheReuseKind {
+    Miss,
+    Exact,
+    RelatedNode,
+    Superset,
+    RelatedNodeSuperset,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,8 +224,11 @@ pub struct ArtifactLookup {
     pub content_hash: String,
     pub created_at_epoch_seconds: u64,
     pub expires_at_epoch_seconds: u64,
+    pub age_seconds: u64,
+    pub remaining_ttl_seconds: u64,
     pub size_bytes: usize,
     pub cache_hit: bool,
+    pub reuse_kind: CacheReuseKind,
     pub capabilities: ArtifactCapabilities,
     pub payload: Arc<CollectedPayload>,
 }
@@ -215,6 +269,7 @@ struct AttachedOutput {
 #[derive(Debug)]
 struct Entry {
     key_digest: String,
+    request_key: ArtifactRequestKey,
     content_hash: String,
     created_at: u64,
     expires_at: u64,
@@ -233,8 +288,15 @@ struct StoreState {
     entries: BTreeMap<String, Entry>,
     key_index: BTreeMap<String, String>,
     in_flight: BTreeMap<String, watch::Receiver<Option<AcquisitionResult>>>,
+    in_flight_keys: BTreeMap<String, ArtifactRequestKey>,
     total_bytes: usize,
     access_sequence: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InFlightWait {
+    Exact,
+    Compatible(CacheReuseKind),
 }
 
 #[derive(Clone)]
@@ -334,52 +396,133 @@ impl ArtifactStore {
     {
         let key_digest = key.digest();
         let capabilities = key.capabilities();
-        let (owner, mut receiver, sender) = {
-            let now = self.clock.now_epoch_seconds();
-            let mut state = self.state.lock().await;
-            self.prune_expired(&mut state, now);
-            if !refresh && let Some(hit) = lookup_by_key(&mut state, &key_digest, true) {
-                return Ok(hit);
-            }
-            if let Some(receiver) = state.in_flight.get(&key_digest) {
-                (false, receiver.clone(), None)
-            } else {
-                let (sender, receiver) = watch::channel(None);
-                state.in_flight.insert(key_digest.clone(), receiver.clone());
-                (true, receiver, Some(sender))
-            }
-        };
+        if refresh {
+            let payload = acquire().await?;
+            return self
+                .insert_with_digest(key, key_digest, capabilities, payload)
+                .await;
+        }
+        let mut acquire = Some(acquire);
+        loop {
+            let (owner, mut receiver, sender, wait_digest, wait_kind) = {
+                let now = self.clock.now_epoch_seconds();
+                let mut state = self.state.lock().await;
+                self.prune_expired(&mut state, now);
+                if let Some(hit) = lookup_by_key(&mut state, &key_digest, now, true) {
+                    return Ok(hit);
+                }
+                if let Some(receiver) = state.in_flight.get(&key_digest) {
+                    (
+                        false,
+                        receiver.clone(),
+                        None,
+                        key_digest.clone(),
+                        InFlightWait::Exact,
+                    )
+                } else if let Some((compatible_digest, reuse_kind)) = state
+                    .in_flight_keys
+                    .iter()
+                    .filter_map(|(digest, in_flight_key)| {
+                        in_flight_key.explore_reuse_kind(&key).map(|reuse_kind| {
+                            (
+                                digest.clone(),
+                                reuse_kind,
+                                in_flight_key.explore_projection_limit(),
+                            )
+                        })
+                    })
+                    .min_by_key(|(_, _, projection_limit)| *projection_limit)
+                    .map(|(digest, reuse_kind, _)| (digest, reuse_kind))
+                {
+                    let receiver = state
+                        .in_flight
+                        .get(&compatible_digest)
+                        .expect("in-flight request key has a matching receiver")
+                        .clone();
+                    (
+                        false,
+                        receiver,
+                        None,
+                        compatible_digest,
+                        InFlightWait::Compatible(reuse_kind),
+                    )
+                } else {
+                    let (sender, receiver) = watch::channel(None);
+                    state.in_flight.insert(key_digest.clone(), receiver.clone());
+                    state.in_flight_keys.insert(key_digest.clone(), key.clone());
+                    (
+                        true,
+                        receiver,
+                        Some(sender),
+                        key_digest.clone(),
+                        InFlightWait::Exact,
+                    )
+                }
+            };
 
-        if !owner {
-            receiver
-                .wait_for(Option::is_some)
-                .await
-                .map_err(|_| acquisition_cancelled())?;
-            let mut result = receiver
-                .borrow()
-                .clone()
-                .ok_or_else(acquisition_cancelled)?;
-            if let Ok(hit) = &mut result {
-                hit.cache_hit = true;
+            if !owner {
+                if receiver.wait_for(Option::is_some).await.is_err() {
+                    let mut state = self.state.lock().await;
+                    if state
+                        .in_flight
+                        .get(&wait_digest)
+                        .is_some_and(|current| current.same_channel(&receiver))
+                    {
+                        state.in_flight.remove(&wait_digest);
+                        state.in_flight_keys.remove(&wait_digest);
+                    }
+                    continue;
+                }
+                let mut result = receiver
+                    .borrow()
+                    .clone()
+                    .ok_or_else(acquisition_cancelled)?;
+                match (wait_kind, &mut result) {
+                    (InFlightWait::Exact, Ok(hit)) => {
+                        hit.cache_hit = true;
+                        hit.reuse_kind = CacheReuseKind::Exact;
+                    }
+                    (InFlightWait::Compatible(reuse_kind), Ok(hit))
+                        if key.node_id.as_ref().is_none_or(|node_id| {
+                            hit.payload.snapshot.nodes.contains_key(node_id)
+                        }) =>
+                    {
+                        let now = self.clock.now_epoch_seconds();
+                        hit.cache_hit = true;
+                        hit.reuse_kind = reuse_kind;
+                        hit.age_seconds = now.saturating_sub(hit.created_at_epoch_seconds);
+                        hit.remaining_ttl_seconds =
+                            hit.expires_at_epoch_seconds.saturating_sub(now);
+                    }
+                    (InFlightWait::Exact, Err(_)) => {}
+                    (InFlightWait::Compatible(_), _) => continue,
+                }
+                return result;
+            }
+
+            let acquire = acquire.take().ok_or_else(acquisition_cancelled)?;
+            let result = match acquire().await {
+                Ok(payload) => {
+                    self.insert_with_digest(
+                        key.clone(),
+                        key_digest.clone(),
+                        capabilities.clone(),
+                        payload,
+                    )
+                    .await
+                }
+                Err(error) => Err(error),
+            };
+            {
+                let mut state = self.state.lock().await;
+                state.in_flight.remove(&key_digest);
+                state.in_flight_keys.remove(&key_digest);
+            }
+            if let Some(sender) = sender {
+                let _ = sender.send(Some(result.clone()));
             }
             return result;
         }
-
-        let result = match acquire().await {
-            Ok(payload) => {
-                self.insert_with_digest(key_digest.clone(), capabilities, payload)
-                    .await
-            }
-            Err(error) => Err(error),
-        };
-        {
-            let mut state = self.state.lock().await;
-            state.in_flight.remove(&key_digest);
-        }
-        if let Some(sender) = sender {
-            let _ = sender.send(Some(result.clone()));
-        }
-        result
     }
 
     pub async fn insert(
@@ -387,7 +530,7 @@ impl ArtifactStore {
         key: ArtifactRequestKey,
         payload: CollectedPayload,
     ) -> Result<ArtifactLookup, DevupError> {
-        self.insert_with_digest(key.digest(), key.capabilities(), payload)
+        self.insert_with_digest(key.clone(), key.digest(), key.capabilities(), payload)
             .await
     }
 
@@ -395,14 +538,40 @@ impl ArtifactStore {
         let now = self.clock.now_epoch_seconds();
         let mut state = self.state.lock().await;
         self.prune_expired(&mut state, now);
-        touch_entry(&mut state, artifact_id, true)
+        touch_entry(&mut state, artifact_id, now, CacheReuseKind::Exact)
     }
 
     pub async fn lookup(&self, key: &ArtifactRequestKey) -> Option<ArtifactLookup> {
         let now = self.clock.now_epoch_seconds();
         let mut state = self.state.lock().await;
         self.prune_expired(&mut state, now);
-        lookup_by_key(&mut state, &key.digest(), true)
+        lookup_by_key(&mut state, &key.digest(), now, true)
+    }
+
+    pub async fn lookup_related_explore(&self, key: &ArtifactRequestKey) -> Option<ArtifactLookup> {
+        let requested_node_id = key.node_id.as_deref()?;
+        key.explore.as_ref()?;
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        let (artifact_id, reuse_kind) = state
+            .entries
+            .iter()
+            .filter_map(|(artifact_id, entry)| {
+                entry
+                    .request_key
+                    .explore_reuse_kind(key)
+                    .map(|reuse_kind| (artifact_id, entry, reuse_kind))
+            })
+            .filter(|(_, entry, _)| entry.payload.snapshot.nodes.contains_key(requested_node_id))
+            .min_by_key(|(_, entry, _)| {
+                (
+                    entry.request_key.explore_projection_limit(),
+                    Reverse(entry.last_access),
+                )
+            })
+            .map(|(artifact_id, _, reuse_kind)| (artifact_id.clone(), reuse_kind))?;
+        touch_entry(&mut state, &artifact_id, now, reuse_kind)
     }
 
     pub async fn stats(&self) -> ArtifactStoreStats {
@@ -661,6 +830,7 @@ impl ArtifactStore {
 
     async fn insert_with_digest(
         &self,
+        request_key: ArtifactRequestKey,
         key_digest: String,
         mut capabilities: ArtifactCapabilities,
         payload: CollectedPayload,
@@ -721,6 +891,7 @@ impl ArtifactStore {
             artifact_id.clone(),
             Entry {
                 key_digest,
+                request_key,
                 content_hash: content_hash.clone(),
                 created_at: now,
                 expires_at,
@@ -737,8 +908,11 @@ impl ArtifactStore {
             content_hash,
             created_at_epoch_seconds: now,
             expires_at_epoch_seconds: expires_at,
+            age_seconds: 0,
+            remaining_ttl_seconds: self.limits.ttl.as_secs(),
             size_bytes: bytes.len(),
             cache_hit: false,
+            reuse_kind: CacheReuseKind::Miss,
             capabilities,
             payload,
         })
@@ -759,16 +933,23 @@ impl ArtifactStore {
 fn lookup_by_key(
     state: &mut StoreState,
     key_digest: &str,
+    now: u64,
     cache_hit: bool,
 ) -> Option<ArtifactLookup> {
     let artifact_id = state.key_index.get(key_digest)?.clone();
-    touch_entry(state, &artifact_id, cache_hit)
+    let reuse_kind = if cache_hit {
+        CacheReuseKind::Exact
+    } else {
+        CacheReuseKind::Miss
+    };
+    touch_entry(state, &artifact_id, now, reuse_kind)
 }
 
 fn touch_entry(
     state: &mut StoreState,
     artifact_id: &str,
-    cache_hit: bool,
+    now: u64,
+    reuse_kind: CacheReuseKind,
 ) -> Option<ArtifactLookup> {
     state.access_sequence = state.access_sequence.saturating_add(1);
     let last_access = state.access_sequence;
@@ -779,8 +960,11 @@ fn touch_entry(
         content_hash: entry.content_hash.clone(),
         created_at_epoch_seconds: entry.created_at,
         expires_at_epoch_seconds: entry.expires_at,
+        age_seconds: now.saturating_sub(entry.created_at),
+        remaining_ttl_seconds: entry.expires_at.saturating_sub(now),
         size_bytes: entry.size_bytes,
-        cache_hit,
+        cache_hit: reuse_kind != CacheReuseKind::Miss,
+        reuse_kind,
         capabilities: entry.capabilities.clone(),
         payload: entry.payload.clone(),
     })

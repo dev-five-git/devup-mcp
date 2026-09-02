@@ -46,6 +46,33 @@ fn exact_node_fast_path_completes_in_one_call() {
 }
 
 #[test]
+fn exact_node_fast_path_accepts_the_stringified_handoff_contract() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast snapshot call expected")
+    };
+    let result = fast_envelope_result();
+    collector
+        .accept(
+            &fast_call.id,
+            UpstreamResult {
+                raw: Value::String(result.raw.to_string()),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("stringified fast snapshot should complete without fallback")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 1);
+    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert!(!parts.stats.fallback_used);
+}
+
+#[test]
 fn requested_reference_png_is_collected_after_the_design_snapshot() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
     request.resource_scope = ResourceScope::Used;

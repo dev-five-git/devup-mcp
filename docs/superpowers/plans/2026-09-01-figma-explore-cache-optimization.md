@@ -34,10 +34,10 @@
 - Consumes: `ArtifactRequestKey::from_collection`, `ExploreReadOptions`.
 - Produces: `FigmaExploreInput.refresh: bool` and compatible exact/related/superset lookup.
 
-- [ ] **Step 1: Write failing public integration tests** for refresh bypass and larger-projection reuse of a smaller related request.
-- [ ] **Step 2: Run the focused tests** and confirm cache miss/upstream count failures.
-- [ ] **Step 3: Implement minimal compatibility selection** with exact-first and smallest-sufficient projection ordering.
-- [ ] **Step 4: Run `cargo test -p devup-mcp --test figma_explore`** and confirm green.
+- [x] **Step 1: Write failing public integration tests** for refresh bypass and larger-projection reuse of a smaller related request.
+- [x] **Step 2: Run the focused tests** and confirm cache miss/upstream count failures.
+- [x] **Step 3: Implement minimal compatibility selection** with exact-first and smallest-sufficient projection ordering.
+- [x] **Step 4: Run `cargo test -p devup-mcp --test figma_explore`** and confirm green.
 
 ### Task 2: Cache Provenance and Current Request Statistics
 
@@ -50,10 +50,10 @@
 **Interfaces:**
 - Produces: `CacheReuseKind`, lookup age/TTL, avoided-call count, `cache.originCollection`, and zero current `collection` on hits.
 
-- [ ] **Step 1: Write failing response assertions** for `reuseKind`, age, TTL, avoided calls, origin statistics, and current statistics.
-- [ ] **Step 2: Run focused tests** and verify missing-field and stale-stat failures.
-- [ ] **Step 3: Add typed lookup provenance** and serialize it from the shared cache metadata helper.
-- [ ] **Step 4: Re-run artifact and explore tests** and confirm green.
+- [x] **Step 1: Write failing response assertions** for `reuseKind`, age, TTL, avoided calls, origin statistics, and current statistics.
+- [x] **Step 2: Run focused tests** and verify missing-field and stale-stat failures.
+- [x] **Step 3: Add typed lookup provenance** and serialize it from the shared cache metadata helper.
+- [x] **Step 4: Re-run artifact and explore tests** and confirm green.
 
 ### Task 3: Compatible Direct In-Flight Reuse
 
@@ -65,10 +65,10 @@
 - Consumes: explore compatibility from Task 1.
 - Produces: compatible follower waiting with node-coverage validation and independent fallback.
 
-- [ ] **Step 1: Write failing concurrent tests** proving a related request shares one acquisition and an uncovered request performs its own acquisition.
-- [ ] **Step 2: Run the focused tests** and confirm the related upstream count is two before implementation.
-- [ ] **Step 3: Track in-flight request keys** and wait for a compatible owner before exact acquisition.
-- [ ] **Step 4: Re-run cancellation, concurrency, and cache tests** and confirm green.
+- [x] **Step 1: Write failing concurrent tests** proving a related request shares one acquisition and an uncovered request performs its own acquisition.
+- [x] **Step 2: Run the focused tests** and confirm the related upstream count is two before implementation.
+- [x] **Step 3: Track in-flight request keys** and wait for a compatible owner before exact acquisition.
+- [x] **Step 4: Re-run cancellation, concurrency, and cache tests** and confirm green.
 
 ### Task 4: Dirty Build Identity
 
@@ -80,10 +80,10 @@
 **Interfaces:**
 - Produces: testable build-ID composition and `<commit>-dirty` for modified Git worktrees.
 
-- [ ] **Step 1: Write failing helper tests** for clean, dirty, unsafe, and source-unknown identities.
-- [ ] **Step 2: Run CLI tests** and confirm the dirty expectation fails.
-- [ ] **Step 3: Implement Git status detection and safe composition** without reading credentials or file contents.
-- [ ] **Step 4: Re-run CLI and stdio smoke tests** and confirm green.
+- [x] **Step 1: Write failing helper tests** for clean, dirty, unsafe, and source-unknown identities.
+- [x] **Step 2: Run CLI tests** and confirm the dirty expectation fails.
+- [x] **Step 3: Implement Git status detection and safe composition** without reading credentials or file contents.
+- [x] **Step 4: Re-run CLI and stdio smoke tests** and confirm green.
 
 ### Task 5: Full Verification and WQUW-151 Measurement
 
@@ -95,7 +95,7 @@
 - Consumes: completed cache behavior and installed release binary.
 - Produces: documented diagnostics and measured cold/exact/related/superset comparison.
 
-- [ ] **Step 1: Document refresh and cache diagnostics** with safe restart guidance.
-- [ ] **Step 2: Run formatting, Clippy, full workspace tests, Node script tests, and snapshot checks.**
-- [ ] **Step 3: Install the release binary and run `--self-check`.**
-- [ ] **Step 4: Measure WQUW-151** and report duration, cache kind, and Figma-call savings for every path.
+- [x] **Step 1: Document refresh and cache diagnostics** with safe restart guidance.
+- [x] **Step 2: Run formatting, Clippy, full workspace tests, Node script tests, and snapshot checks.**
+- [x] **Step 3: Install the release binary and run `--self-check`.**
+- [x] **Step 4: Measure WQUW-151** and report duration, cache kind, and Figma-call savings for every path.

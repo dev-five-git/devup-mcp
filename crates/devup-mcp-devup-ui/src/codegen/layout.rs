@@ -269,6 +269,57 @@ pub(super) fn push_layout_props(
     }
 }
 
+pub(super) fn absolute_layout_is_exact(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    if view.string("layoutPositioning") != Some("ABSOLUTE") {
+        return true;
+    }
+    let parent = snapshot.nodes.values().find(|candidate| {
+        candidate
+            .typed_view()
+            .child_ids()
+            .any(|child_id| child_id == node.id)
+    });
+    let has_geometry = ["x", "y", "width", "height"]
+        .into_iter()
+        .all(|field| view.number(field).is_some_and(f64::is_finite));
+    let constraints = view.value("constraints").and_then(Value::as_object);
+    let supported_constraint = |axis: &str| {
+        constraints
+            .and_then(|value| value.get(axis))
+            .and_then(Value::as_str)
+            .is_none_or(|value| matches!(value, "MIN" | "MAX"))
+    };
+    let no_rotation = view.number("rotation").is_none_or(|value| value == 0.0);
+    let exact_size = parent.is_some_and(|parent| {
+        if view.node_type() != "FRAME" {
+            return false;
+        }
+        if view.child_ids().next().is_none() {
+            return true;
+        }
+        let inferred_auto_layout = view
+            .value("inferredAutoLayout")
+            .and_then(Value::as_object)
+            .is_some();
+        let parent = parent.typed_view();
+        let horizontal = view.string("layoutSizingHorizontal") == Some("HUG")
+            && inferred_auto_layout
+            || matches!(
+                (view.number("width"), parent.number("width")),
+                (Some(width), Some(parent_width)) if width == parent_width
+            );
+        let vertical = view.string("layoutSizingVertical") == Some("HUG") && inferred_auto_layout;
+        horizontal && vertical
+    });
+    parent.is_some()
+        && has_geometry
+        && supported_constraint("horizontal")
+        && supported_constraint("vertical")
+        && no_rotation
+        && exact_size
+}
+
 fn child_shrinker(parent: &RawNode, dimension: &str) -> bool {
     let inferred = parent
         .typed_view()

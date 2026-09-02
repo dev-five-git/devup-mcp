@@ -152,6 +152,8 @@ pub struct FigmaExploreInput {
     pub include_text_preview: bool,
     #[serde(default = "default_source_policy")]
     pub source_policy: String,
+    #[serde(default)]
+    pub refresh: bool,
 }
 
 fn default_scope() -> String {

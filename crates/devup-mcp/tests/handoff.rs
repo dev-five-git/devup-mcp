@@ -89,6 +89,27 @@ async fn expires_sessions_after_ten_minutes() {
     clock.advance(601);
     let error = store.next(&id).await.unwrap_err();
     assert_eq!(error.code, ErrorCode::DevupFigmaHandoffExpired);
+    assert_eq!(error.details["reason"], "expired");
+}
+
+#[tokio::test]
+async fn expired_session_remains_distinguishable_after_pruning() {
+    let clock = Arc::new(FakeClock::default());
+    let store = HandoffStore::with_clock(clock.clone(), limits());
+    let expired_id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+
+    clock.advance(601);
+    store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let error = store.next(&expired_id).await.unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffExpired);
+    assert!(error.retryable);
+    assert_eq!(error.details["reason"], "expired");
 }
 
 #[tokio::test]
@@ -154,6 +175,107 @@ async fn uses_opaque_ids_and_consumes_each_call_once() {
         .await
         .unwrap_err();
     assert_eq!(replay.code, ErrorCode::DevupFigmaHandoffInvalid);
+    assert_eq!(replay.details["reason"], "consumed");
+}
+
+#[tokio::test]
+async fn accepted_results_renew_the_lease_but_polling_does_not() {
+    let clock = Arc::new(FakeClock::default());
+    let store = HandoffStore::with_clock(clock.clone(), limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma {
+        calls,
+        expires_at_epoch_seconds,
+        ..
+    } = store.next(&id).await.unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(expires_at_epoch_seconds, 600);
+
+    clock.advance(590);
+    store
+        .accept(&id, &calls[0].call_id, metadata_result())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma {
+        expires_at_epoch_seconds,
+        ..
+    } = store.next(&id).await.unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(expires_at_epoch_seconds, 1_190);
+
+    clock.advance(590);
+    let HandoffStep::NeedsFigma {
+        expires_at_epoch_seconds,
+        ..
+    } = store.next(&id).await.unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(expires_at_epoch_seconds, 1_190);
+    clock.advance(11);
+    assert_eq!(
+        store.next(&id).await.unwrap_err().code,
+        ErrorCode::DevupFigmaHandoffExpired
+    );
+}
+
+#[tokio::test]
+async fn invalid_call_id_does_not_destroy_the_session() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    let error = store
+        .accept(&id, "unknown-call-id", metadata_result())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+
+    store
+        .accept(&id, &calls[0].call_id, metadata_result())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
+}
+
+#[tokio::test]
+async fn collector_rejection_keeps_the_call_pending_for_a_corrected_result() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+
+    store
+        .accept(&id, &calls[0].call_id, json!({"malformed": true}))
+        .await
+        .unwrap_err();
+    store
+        .accept(&id, &calls[0].call_id, metadata_result())
+        .await
+        .unwrap();
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
 }
 
 #[tokio::test]
@@ -185,6 +307,46 @@ async fn removes_the_session_after_collection_completes() {
 
     let removed = store.next(&id).await.unwrap_err();
     assert_eq!(removed.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+#[tokio::test]
+async fn stringified_tool_results_are_normalized_at_the_handoff_boundary() {
+    let store = HandoffStore::with_limits(limits());
+    let id = store
+        .begin(PendingOperation::Collect, collector())
+        .await
+        .unwrap();
+
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "get_metadata");
+    store
+        .accept(
+            &id,
+            &calls[0].call_id,
+            Value::String(metadata_result().to_string()),
+        )
+        .await
+        .unwrap();
+
+    let HandoffStep::NeedsFigma { calls, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(calls[0].tool, "use_figma");
+    store
+        .accept(
+            &id,
+            &calls[0].call_id,
+            Value::String(snapshot_result().to_string()),
+        )
+        .await
+        .unwrap();
+
+    let HandoffStep::Complete { parts, .. } = store.next(&id).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(parts.snapshot_chunks.len(), 1);
 }
 
 #[tokio::test]

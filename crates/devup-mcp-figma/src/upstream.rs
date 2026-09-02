@@ -25,6 +25,9 @@ use super::{
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 const MAX_SSE_EVENT_SIZE: usize = 16 * 1024 * 1024;
 const REMOTE_SESSION_TTL: Duration = Duration::from_secs(30);
+const REMOTE_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+const REMOTE_LIST_TOOLS_TIMEOUT: Duration = Duration::from_secs(30);
+const REMOTE_CALL_TOOL_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const READ_ONLY_TOOL_NAMES: [&str; 6] = [
     "get_metadata",
     "get_variable_defs",
@@ -44,6 +47,8 @@ type RunningFigmaClient = rmcp::service::RunningService<rmcp::RoleClient, ()>;
 #[derive(Clone)]
 struct RemoteSessionCache {
     ttl: Duration,
+    connect_timeout: Duration,
+    list_tools_timeout: Duration,
     state: Arc<Mutex<Option<CachedRemoteSession>>>,
 }
 
@@ -60,8 +65,18 @@ struct CachedRemoteSession {
 
 impl RemoteSessionCache {
     fn new(ttl: Duration) -> Self {
+        Self::with_timeouts(ttl, REMOTE_CONNECT_TIMEOUT, REMOTE_LIST_TOOLS_TIMEOUT)
+    }
+
+    fn with_timeouts(
+        ttl: Duration,
+        connect_timeout: Duration,
+        list_tools_timeout: Duration,
+    ) -> Self {
         Self {
             ttl,
+            connect_timeout,
+            list_tools_timeout,
             state: Arc::new(Mutex::new(None)),
         }
     }
@@ -78,10 +93,14 @@ impl RemoteSessionCache {
         {
             return Ok(current.session.clone());
         }
-        let client = Arc::new(connect().await?);
-        let capabilities = client
-            .list_all_tools()
+        let client = Arc::new(
+            tokio::time::timeout(self.connect_timeout, connect())
+                .await
+                .map_err(|_| upstream_timeout_error(UpstreamFailureContext::Connect))??,
+        );
+        let capabilities = tokio::time::timeout(self.list_tools_timeout, client.list_all_tools())
             .await
+            .map_err(|_| upstream_timeout_error(UpstreamFailureContext::ListTools))?
             .map_err(|error| map_upstream_error(UpstreamFailureContext::ListTools, error))?
             .into_iter()
             .map(|tool| tool.name.to_string())
@@ -105,6 +124,32 @@ impl RemoteSessionCache {
             .is_some_and(|current| Arc::ptr_eq(&current.session.client, &session.client))
         {
             cached.take();
+        }
+    }
+
+    async fn call_tool(
+        &self,
+        session: &RemoteSession,
+        call: &ReadToolCall,
+        timeout: Duration,
+    ) -> Result<rmcp::model::CallToolResult, DevupError> {
+        let result = tokio::time::timeout(
+            timeout,
+            session.client.call_tool(
+                CallToolRequestParams::new(call.tool_name()).with_arguments(call.arguments()),
+            ),
+        )
+        .await;
+        match result {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(error)) => {
+                self.invalidate(session).await;
+                Err(map_upstream_error(UpstreamFailureContext::CallTool, error))
+            }
+            Err(_) => {
+                self.invalidate(session).await;
+                Err(upstream_timeout_error(UpstreamFailureContext::CallTool))
+            }
         }
     }
 }
@@ -207,9 +252,9 @@ impl BuiltinScript {
                 "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
                 include_str!("scripts/large_value_helpers.js"),
             )
+            .replace("\"__DEVUP_SECTION_INDEX_PROBE__\"", &section_index_probe)
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
             .replace("\"__DEVUP_ROOT_IDS__\"", &root_ids)
-            .replace("\"__DEVUP_SECTION_INDEX_PROBE__\"", &section_index_probe)
             .replace(
                 "\"__DEVUP_PLUGIN_API_MANIFEST__\"",
                 include_str!("plugin_api_manifest.json"),
@@ -646,6 +691,7 @@ pub struct RemoteFigmaClient<S: CredentialStore> {
     endpoint: String,
     oauth: OAuthManager<S>,
     sessions: RemoteSessionCache,
+    call_tool_timeout: Duration,
 }
 
 impl<S: CredentialStore> RemoteFigmaClient<S> {
@@ -654,6 +700,7 @@ impl<S: CredentialStore> RemoteFigmaClient<S> {
             endpoint: DEFAULT_FIGMA_MCP_ENDPOINT.to_owned(),
             oauth,
             sessions: RemoteSessionCache::new(REMOTE_SESSION_TTL),
+            call_tool_timeout: REMOTE_CALL_TOOL_TIMEOUT,
         }
     }
 
@@ -662,6 +709,7 @@ impl<S: CredentialStore> RemoteFigmaClient<S> {
             endpoint: endpoint.into(),
             oauth,
             sessions: RemoteSessionCache::new(REMOTE_SESSION_TTL),
+            call_tool_timeout: REMOTE_CALL_TOOL_TIMEOUT,
         }
     }
 
@@ -696,19 +744,10 @@ impl<S: CredentialStore> FigmaUpstream for RemoteFigmaClient<S> {
         if !session.capabilities.contains(call.tool_name()) {
             return Err(UpstreamFailureKind::CapabilityUnavailable.into_devup_error(None));
         }
-        let result = match session
-            .client
-            .call_tool(
-                CallToolRequestParams::new(call.tool_name()).with_arguments(call.arguments()),
-            )
-            .await
-        {
-            Ok(result) => result,
-            Err(error) => {
-                self.sessions.invalidate(&session).await;
-                return Err(map_upstream_error(UpstreamFailureContext::CallTool, error));
-            }
-        };
+        let result = self
+            .sessions
+            .call_tool(&session, &call, self.call_tool_timeout)
+            .await?;
         let raw = serde_json::to_value(result)
             .map_err(|error| map_upstream_error(UpstreamFailureContext::Decode, error))?;
         Ok(UpstreamResult { raw })
@@ -720,6 +759,24 @@ fn map_upstream_error<E: std::fmt::Display>(
     error: E,
 ) -> DevupError {
     upstream_failure_error(context, None, &error.to_string())
+}
+
+fn upstream_timeout_error(context: UpstreamFailureContext) -> DevupError {
+    let phase = match context {
+        UpstreamFailureContext::Connect => "connect",
+        UpstreamFailureContext::ListTools => "listTools",
+        UpstreamFailureContext::CallTool => "callTool",
+        UpstreamFailureContext::RegisterClient => "registerClient",
+        UpstreamFailureContext::Decode => "decode",
+    };
+    let mut error = UpstreamFailureKind::Transport.into_devup_error(None);
+    error.details = json!({
+        "source": "direct",
+        "status": null,
+        "reason": "timeout",
+        "phase": phase,
+    });
+    error
 }
 
 #[cfg(test)]
@@ -735,12 +792,59 @@ mod tests {
         service::RequestContext,
     };
 
+    use crate::ErrorCode;
+
     use super::*;
 
     #[derive(Clone)]
     struct CountingToolServer {
         list_calls: Arc<AtomicUsize>,
         tool_calls: Arc<AtomicUsize>,
+    }
+
+    #[derive(Clone)]
+    struct StalledToolServer {
+        stall_list: bool,
+        stall_call: bool,
+        fail_call: bool,
+    }
+
+    impl ServerHandler for StalledToolServer {
+        fn get_info(&self) -> ServerInfo {
+            ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        }
+
+        async fn list_tools(
+            &self,
+            _request: Option<PaginatedRequestParams>,
+            _context: RequestContext<RoleServer>,
+        ) -> Result<ListToolsResult, ErrorData> {
+            if self.stall_list {
+                std::future::pending().await
+            }
+            Ok(ListToolsResult {
+                tools: vec![Tool::new("get_metadata", "read metadata", Map::new())],
+                ..ListToolsResult::default()
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _request: CallToolRequestParams,
+            _context: RequestContext<RoleServer>,
+        ) -> Result<CallToolResponse, ErrorData> {
+            if self.stall_call {
+                std::future::pending().await
+            }
+            if self.fail_call {
+                return Err(ErrorData::new(
+                    rmcp::model::ErrorCode::INTERNAL_ERROR,
+                    "test failure",
+                    None,
+                ));
+            }
+            Ok(CallToolResult::success(vec![ContentBlock::text("ok")]).into())
+        }
     }
 
     impl ServerHandler for CountingToolServer {
@@ -784,6 +888,30 @@ mod tests {
             let server = CountingToolServer {
                 list_calls,
                 tool_calls,
+            }
+            .serve(server_transport)
+            .await
+            .expect("test MCP server starts");
+            let _ = server.waiting().await;
+        });
+        ().serve(client_transport)
+            .await
+            .map_err(|error| map_upstream_error(UpstreamFailureContext::Connect, error))
+    }
+
+    async fn connect_stalled_server(
+        connections: Arc<AtomicUsize>,
+        stall_list: bool,
+        stall_call: bool,
+        fail_call: bool,
+    ) -> Result<RunningFigmaClient, DevupError> {
+        connections.fetch_add(1, Ordering::SeqCst);
+        let (server_transport, client_transport) = tokio::io::duplex(4_096);
+        tokio::spawn(async move {
+            let server = StalledToolServer {
+                stall_list,
+                stall_call,
+                fail_call,
             }
             .serve(server_transport)
             .await
@@ -850,5 +978,120 @@ mod tests {
         assert_eq!(connections.load(Ordering::SeqCst), 2);
         assert_eq!(list_calls.load(Ordering::SeqCst), 2);
         assert!(!second.capabilities.contains("delete_node"));
+    }
+
+    #[tokio::test]
+    async fn stalled_capability_catalog_returns_a_bounded_safe_timeout() {
+        let connections = Arc::new(AtomicUsize::new(0));
+        let cache = RemoteSessionCache::with_timeouts(
+            Duration::from_secs(30),
+            Duration::from_millis(100),
+            Duration::from_millis(10),
+        );
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(250),
+            cache
+                .get_or_connect(|| connect_stalled_server(connections.clone(), true, false, false)),
+        )
+        .await
+        .expect("product deadline must complete before the test guard");
+        let Err(result) = result else {
+            panic!("stalled capability catalog must time out")
+        };
+
+        assert_eq!(result.code, ErrorCode::DevupFigmaDirectUnavailable);
+        assert!(result.retryable);
+        assert_eq!(result.details["reason"], "timeout");
+        assert_eq!(result.details["phase"], "listTools");
+    }
+
+    #[tokio::test]
+    async fn stalled_connection_returns_a_bounded_safe_timeout() {
+        let cache = RemoteSessionCache::with_timeouts(
+            Duration::from_secs(30),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+        );
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(250),
+            cache.get_or_connect(|| {
+                std::future::pending::<Result<RunningFigmaClient, DevupError>>()
+            }),
+        )
+        .await
+        .expect("product deadline must complete before the test guard");
+        let Err(result) = result else {
+            panic!("stalled connection must time out")
+        };
+
+        assert_eq!(result.code, ErrorCode::DevupFigmaDirectUnavailable);
+        assert!(result.retryable);
+        assert_eq!(result.details["reason"], "timeout");
+        assert_eq!(result.details["phase"], "connect");
+    }
+
+    #[tokio::test]
+    async fn stalled_tool_call_times_out_and_evicts_its_remote_session() {
+        let connections = Arc::new(AtomicUsize::new(0));
+        let cache = RemoteSessionCache::with_timeouts(
+            Duration::from_secs(30),
+            Duration::from_millis(100),
+            Duration::from_millis(100),
+        );
+        let session = cache
+            .get_or_connect(|| connect_stalled_server(connections.clone(), false, true, false))
+            .await
+            .expect("initial session");
+        let call = ReadToolCall::metadata("FileKey123", Some("1:2"));
+
+        let error = tokio::time::timeout(
+            Duration::from_millis(250),
+            cache.call_tool(&session, &call, Duration::from_millis(10)),
+        )
+        .await
+        .expect("product deadline must complete before the test guard")
+        .expect_err("stalled tool call must time out");
+        assert_eq!(error.code, ErrorCode::DevupFigmaDirectUnavailable);
+        assert!(error.retryable);
+        assert_eq!(error.details["reason"], "timeout");
+        assert_eq!(error.details["phase"], "callTool");
+
+        let replacement = cache
+            .get_or_connect(|| connect_stalled_server(connections.clone(), false, false, false))
+            .await
+            .expect("replacement session");
+        assert!(!Arc::ptr_eq(&session.client, &replacement.client));
+        assert_eq!(connections.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn ordinary_tool_error_evicts_its_remote_session() {
+        let connections = Arc::new(AtomicUsize::new(0));
+        let cache = RemoteSessionCache::with_timeouts(
+            Duration::from_secs(30),
+            Duration::from_millis(100),
+            Duration::from_millis(100),
+        );
+        let session = cache
+            .get_or_connect(|| connect_stalled_server(connections.clone(), false, false, true))
+            .await
+            .expect("initial session");
+        let call = ReadToolCall::metadata("FileKey123", Some("1:2"));
+
+        let error = cache
+            .call_tool(&session, &call, Duration::from_millis(100))
+            .await
+            .expect_err("ordinary remote tool error must be classified");
+        assert_eq!(error.code, ErrorCode::DevupFigmaDirectUnavailable);
+        assert!(error.retryable);
+
+        let replacement = cache
+            .get_or_connect(|| connect_stalled_server(connections.clone(), false, false, false))
+            .await
+            .expect("replacement session");
+        assert!(!Arc::ptr_eq(&session.client, &replacement.client));
+        assert_eq!(connections.load(Ordering::SeqCst), 2);
     }
 }

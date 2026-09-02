@@ -306,18 +306,39 @@ pub fn explore_snapshot(
         });
     }
 
-    if target_kind == TargetKind::Section {
+    let section_scope_id = if target_kind == TargetKind::Section {
+        Some(anchor.node_id.clone())
+    } else {
+        ancestor_ids(snapshot, &anchor.node_id, "")
+            .into_iter()
+            .find(|id| {
+                snapshot
+                    .nodes
+                    .get(id)
+                    .is_some_and(|node| node.node_type == "SECTION")
+            })
+    };
+
+    if let Some(section_scope_id) = section_scope_id {
+        let mut section_scope = ExploreNode::try_from(
+            snapshot
+                .nodes
+                .get(&section_scope_id)
+                .expect("resolved section scope exists"),
+        )?;
+        enrich_node(snapshot, &mut section_scope);
         let mut nodes = snapshot
             .nodes
             .values()
             .filter(|node| node.id != anchor.node_id)
+            .filter(|node| node.id != section_scope_id)
             .filter(|node| node.node_type == "FRAME")
             .filter_map(|node| {
                 let mut node = ExploreNode::try_from(node).ok()?;
                 enrich_node(snapshot, &mut node);
                 (node.visible
                     && node.kind == ExploreKind::Screen
-                    && is_descendant_of(snapshot, &node.node_id, &anchor.node_id))
+                    && is_descendant_of(snapshot, &node.node_id, &section_scope_id))
                 .then_some(node)
             })
             .collect::<Vec<_>>();
@@ -326,7 +347,7 @@ pub fn explore_snapshot(
             .map(|node| node.node_id.clone())
             .collect::<std::collections::BTreeSet<_>>();
         nodes.retain(|node| {
-            !ancestor_ids(snapshot, &node.node_id, &anchor.node_id)
+            !ancestor_ids(snapshot, &node.node_id, &section_scope_id)
                 .iter()
                 .any(|ancestor| screen_ids.contains(ancestor))
         });
@@ -342,16 +363,19 @@ pub fn explore_snapshot(
                 selection_reasons: vec!["screen-like".to_owned(), "inside-section".to_owned()],
             })
             .collect::<Vec<_>>();
-        let group_bounds = candidates.iter().fold(anchor.bounds, |bounds, candidate| {
-            bounds.union(candidate.node.bounds)
-        });
+        let group_bounds = candidates
+            .iter()
+            .fold(section_scope.bounds, |bounds, candidate| {
+                bounds.union(candidate.node.bounds)
+            });
         return Ok(ExploreResult {
             target_kind,
             group: Some(ExploreGroup {
                 title: anchor.name.clone(),
-                heading_node_id: None,
+                heading_node_id: (anchor.kind == ExploreKind::Heading)
+                    .then(|| anchor.node_id.clone()),
                 bounds: group_bounds,
-                notes: collect_section_notes(snapshot, &anchor.node_id)?,
+                notes: collect_section_notes(snapshot, &section_scope_id)?,
             }),
             anchor,
             candidates,

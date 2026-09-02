@@ -5,7 +5,7 @@ use devup_mcp_devup_ui::{
         CodegenOptions, generate_component, generate_component_set_target,
         generate_inlined_component_instance,
     },
-    provenance::{ProjectionDisposition, validate_fidelity},
+    provenance::{FidelityImpactCounts, FidelityReport, ProjectionDisposition, validate_fidelity},
     theme::{
         ThemeScope, VariableCollection, VariableDefinition, VariableMode, VariableSnapshot,
         VariableStyle, generate_devup_json,
@@ -64,6 +64,20 @@ fn fidelity_snapshot(characters: &str) -> Snapshot {
         .collect(),
         diagnostics: Vec::new(),
     }
+}
+
+#[test]
+fn strict_fidelity_rejects_an_approximated_impact() {
+    let report = FidelityReport {
+        syntax_valid: true,
+        impacts: FidelityImpactCounts {
+            approximated: 1,
+            ..FidelityImpactCounts::default()
+        },
+        ..FidelityReport::default()
+    };
+
+    assert!(!report.strict_compatible());
 }
 
 fn fidelity_options() -> CodegenOptions {

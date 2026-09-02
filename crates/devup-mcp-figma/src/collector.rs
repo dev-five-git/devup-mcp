@@ -192,7 +192,7 @@ struct PendingCall {
     order: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CollectorSession {
     request: CollectionRequest,
     queued: VecDeque<PendingCall>,
@@ -258,6 +258,10 @@ impl CollectorSession {
             next_id: 0,
             completed: false,
         }
+    }
+
+    pub fn stats(&self) -> &CollectionStats {
+        &self.stats
     }
 
     pub fn advance(&mut self) -> Result<CollectorStep, DevupError> {

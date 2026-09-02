@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use async_trait::async_trait;
 use devup_mcp::server::{DevupAuth, DevupServer, Services};
@@ -41,6 +44,32 @@ impl FigmaUpstream for ExploreUpstream {
             ReadToolCall::ExploreSnapshot { options, .. } => {
                 assert!(options.projection_limit >= 50);
                 assert_eq!(options.text_preview_limit, 160);
+                Ok(UpstreamResult { raw: projection() })
+            }
+            _ => Err(DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "unexpected test call",
+                false,
+            )),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CountingExploreUpstream {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl FigmaUpstream for CountingExploreUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        match call {
+            ReadToolCall::ExploreSnapshot { .. } => {
+                self.calls.fetch_add(1, Ordering::SeqCst);
                 Ok(UpstreamResult { raw: projection() })
             }
             _ => Err(DevupError::new(
@@ -115,6 +144,136 @@ fn input(source_policy: &str) -> Map<String, Value> {
 }
 
 #[tokio::test]
+async fn related_nodes_reuse_one_explore_projection_without_changing_the_requested_anchor()
+-> anyhow::Result<()> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let server = DevupServer::new(Services::new(
+        Arc::new(Auth(AuthStatus::Connected)),
+        Arc::new(CountingExploreUpstream {
+            calls: calls.clone(),
+        }),
+    ));
+    let (server_transport, client_transport) = tokio::io::duplex(128 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let heading = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    let mut screen_input = input("direct");
+    screen_input.insert(
+        "url".to_owned(),
+        json!("https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"),
+    );
+    screen_input.insert("limit".to_owned(), json!(10));
+    let screen = client
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(screen_input))
+        .await?
+        .structured_content
+        .unwrap();
+
+    assert_eq!(heading["anchor"]["nodeId"], "1:1");
+    assert_eq!(heading["cache"]["reuseKind"], "miss");
+    assert_eq!(heading["collection"]["figmaToolCalls"], 1);
+    assert_eq!(screen["anchor"]["nodeId"], "1:2");
+    assert_eq!(screen["source"]["nodeId"], "1:2");
+    assert_eq!(screen["cache"]["cacheHit"], true);
+    assert_eq!(screen["cache"]["reuseKind"], "related-node-superset");
+    assert_eq!(screen["cache"]["avoidedFigmaToolCalls"], 1);
+    assert_eq!(screen["cache"]["ageSeconds"], 0);
+    assert!(screen["cache"]["remainingTtlSeconds"].as_u64().unwrap() > 0);
+    assert_eq!(screen["cache"]["originCollection"]["figmaToolCalls"], 1);
+    assert_eq!(screen["collection"]["figmaToolCalls"], 0);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+    let mut different_projection = input("direct");
+    different_projection.insert(
+        "url".to_owned(),
+        json!("https://www.figma.com/design/FileKey123/Fixture?node-id=1-3"),
+    );
+    different_projection.insert("includeTextPreview".to_owned(), json!(false));
+    let different_projection = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_explore").with_arguments(different_projection),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert_eq!(different_projection["anchor"]["nodeId"], "1:3");
+    assert_eq!(different_projection["cache"]["cacheHit"], false);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn refresh_bypasses_an_exact_explore_cache_hit() -> anyhow::Result<()> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let server = DevupServer::new(Services::new(
+        Arc::new(Auth(AuthStatus::Connected)),
+        Arc::new(CountingExploreUpstream {
+            calls: calls.clone(),
+        }),
+    ));
+    let (server_transport, client_transport) = tokio::io::duplex(128 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let first = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    let exact = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    let mut refreshed_input = input("direct");
+    refreshed_input.insert("refresh".to_owned(), json!(true));
+    let refreshed = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_explore").with_arguments(refreshed_input),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+
+    assert_eq!(first["cache"]["cacheHit"], false);
+    assert_eq!(exact["cache"]["cacheHit"], true);
+    assert_eq!(exact["cache"]["reuseKind"], "exact");
+    assert_eq!(exact["collection"]["figmaToolCalls"], 0);
+    assert_eq!(exact["cache"]["originCollection"]["figmaToolCalls"], 1);
+    assert_eq!(refreshed["cache"]["cacheHit"], false);
+    assert_eq!(refreshed["cache"]["reuseKind"], "miss");
+    assert_ne!(
+        first["cache"]["artifactId"],
+        refreshed["cache"]["artifactId"]
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
 async fn direct_and_host_explore_return_identical_candidate_data() -> anyhow::Result<()> {
     let (client, task) = start_client(AuthStatus::Connected).await?;
     let direct = client
@@ -176,6 +335,132 @@ async fn direct_and_host_explore_return_identical_candidate_data() -> anyhow::Re
     }
     assert_eq!(direct["source"]["kind"], "direct");
     assert_eq!(complete["source"]["kind"], "host");
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn host_explore_accepts_the_public_string_result_contract() -> anyhow::Result<()> {
+    let (client, task) = start_client(AuthStatus::Connected).await?;
+    let start = client
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
+        .await?
+        .structured_content
+        .unwrap();
+
+    let complete = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": start["sessionId"],
+                    "callId": start["calls"][0]["callId"],
+                    "result": projection().to_string()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+
+    assert_eq!(complete["status"], "complete");
+    assert_eq!(complete["count"], 2);
+    assert_eq!(complete["source"]["kind"], "host");
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn completed_host_projection_serves_a_related_node_without_another_handoff()
+-> anyhow::Result<()> {
+    let (client, task) = start_client(AuthStatus::Connected).await?;
+    let start = client
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
+        .await?
+        .structured_content
+        .unwrap();
+    let completed = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": start["sessionId"],
+                    "callId": start["calls"][0]["callId"],
+                    "result": projection()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+    assert_eq!(completed["status"], "complete");
+
+    let mut related_input = input("host");
+    related_input.insert(
+        "url".to_owned(),
+        json!("https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"),
+    );
+    let related = client
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(related_input))
+        .await?
+        .structured_content
+        .unwrap();
+
+    assert_eq!(related["status"], "complete");
+    assert_eq!(related["anchor"]["nodeId"], "1:2");
+    assert_eq!(related["source"]["nodeId"], "1:2");
+    assert_eq!(related["source"]["kind"], "artifact");
+    assert_eq!(related["cache"]["cacheHit"], true);
+    assert_eq!(related["cache"]["reuseKind"], "related-node");
+    assert_eq!(related["collection"]["figmaToolCalls"], 0);
+    assert_eq!(related["cache"]["originCollection"]["figmaToolCalls"], 1);
+    assert!(related.get("calls").is_none());
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn host_explore_unwraps_a_stringified_official_mcp_envelope() -> anyhow::Result<()> {
+    let (client, task) = start_client(AuthStatus::Connected).await?;
+    let start = client
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
+        .await?
+        .structured_content
+        .unwrap();
+    let official_result = json!({
+        "content": [{"type": "text", "text": projection().to_string()}],
+        "isError": false
+    });
+
+    let complete = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_continue").with_arguments(
+                json!({
+                    "sessionId": start["sessionId"],
+                    "callId": start["calls"][0]["callId"],
+                    "result": official_result.to_string()
+                })
+                .as_object()
+                .cloned()
+                .unwrap(),
+            ),
+        )
+        .await?
+        .structured_content
+        .unwrap();
+
+    assert_eq!(complete["status"], "complete");
+    assert_eq!(complete["count"], 2);
 
     client.cancel().await?;
     task.await??;

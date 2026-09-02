@@ -6,8 +6,8 @@ use devup_mcp_devup_ui::{
     theme::{generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AssetManifest, AssetStatus, CollectedPayload, DevupError, ErrorCode, ExploreOptions,
-    SearchOptions, TargetKind, classify_target, explore_snapshot, search_snapshot,
+    AssetManifest, AssetStatus, CollectedPayload, CollectionStats, DevupError, ErrorCode,
+    ExploreOptions, SearchOptions, TargetKind, classify_target, explore_snapshot, search_snapshot,
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -322,10 +322,16 @@ fn projection_key(outputs: &[ProjectedOutput]) -> String {
 }
 
 pub(super) fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
+    let origin_collection = &artifact.payload.stats;
     json!({
         "artifactId": artifact.artifact_id,
         "contentHash": artifact.content_hash,
         "cacheHit": artifact.cache_hit,
+        "reuseKind": artifact.reuse_kind,
+        "ageSeconds": artifact.age_seconds,
+        "remainingTtlSeconds": artifact.remaining_ttl_seconds,
+        "avoidedFigmaToolCalls": if artifact.cache_hit { origin_collection.figma_tool_calls } else { 0 },
+        "originCollection": origin_collection,
         "capabilities": artifact.capabilities,
         "sizeBytes": artifact.size_bytes,
         "acquiredAt": format_epoch_rfc3339(artifact.created_at_epoch_seconds),
@@ -355,7 +361,11 @@ pub(super) async fn complete_operation(
     output_policy: &OutputPolicy,
     artifact_store: &ArtifactStore,
 ) -> Result<Value, DevupError> {
-    let collection = payload.stats.clone();
+    let collection = if artifact.cache_hit {
+        CollectionStats::default()
+    } else {
+        payload.stats.clone()
+    };
     let completeness_report = payload.completeness_report();
     match operation {
         PendingOperation::ToUi {
@@ -570,12 +580,8 @@ pub(super) async fn complete_operation(
                 }
             }))
         }
-        PendingOperation::Explore { limit } => {
-            let result = explore_snapshot(
-                &payload.snapshot,
-                &payload.target,
-                &ExploreOptions { limit },
-            )?;
+        PendingOperation::Explore { limit, target } => {
+            let result = explore_snapshot(&payload.snapshot, &target, &ExploreOptions { limit })?;
             let count = result.candidates.len();
             let quality = OutputQuality {
                 acquisition: acquisition_quality(&completeness_report, true),
@@ -599,8 +605,8 @@ pub(super) async fn complete_operation(
                 "cache": artifact_metadata(artifact),
                 "source": {
                     "kind": source_kind,
-                    "fileKey": payload.target.file_key,
-                    "nodeId": payload.target.node_id,
+                    "fileKey": target.file_key,
+                    "nodeId": target.node_id,
                     "version": payload.snapshot.version
                 }
             }))

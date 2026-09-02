@@ -160,7 +160,9 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
         ["10:3", "10:2"]
     );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
-    assert_eq!(all["collection"]["figmaToolCalls"], 1);
+    assert_eq!(all["collection"]["figmaToolCalls"], 0);
+    assert_eq!(all["cache"]["originCollection"]["figmaToolCalls"], 1);
+    assert_eq!(all["cache"]["avoidedFigmaToolCalls"], 1);
 
     let invalid = client
         .call_tool(
