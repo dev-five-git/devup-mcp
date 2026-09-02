@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
+  },
+  "note": "Add three read-only ground-truth tools so an agent can never fabricate a project identifier it never verified: devup_project_context reads a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns/enums fresh on every call (no session cache), returning a shared {found:false,guardrail:{action:'stop-and-report',...}} envelope instead of guessing when the target file is missing; devup_ui_validate parses DevupUI TSX with the existing oxc_parser/oxc_allocator/oxc_span stack via a new oxc_ast_visit-based walker and flags unknown $token references (with edit-distance-suggested existing tokens), hardcoded hex colors/px lengths that match an existing token, unknown props on Box/Flex/Text/Center/Grid/Image (checked against the published devup-ui Style Props API reference, not invented), and non-static values inside css()/globalCss()/keyframes() calls specifically -- verified against devup-ui's own docs and css-utils-literal-only ESLint rule that plain JSX style props (bg={dynamic}) are valid devup-ui and must not be flagged; devup_stack_diff detects drift across vespertide model -> sea-orm entity -> vespera route -> openapi.json -> devup-api client with every finding carrying an explicit low/medium confidence since none of the checks is a real compiler front end. Regression-tested against the exact incident that motivated this work: three agents independently inventing a $gray100 color token, a 16px bubble radius, and a 36px avatar size that did not exist in the real project devup.json.",
+  "date": "2026-09-02T00:00:00+09:00"
+}

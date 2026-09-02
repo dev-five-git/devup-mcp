@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dev-five-git/vespertide/refs/heads/main/schemas/model.schema.json",
+  "name": "message",
+  "columns": [
+    { "name": "id", "type": "uuid", "nullable": false, "primary_key": true },
+    { "name": "body", "type": "text", "nullable": false },
+    { "name": "author_id", "type": "integer", "nullable": false, "foreign_key": "user.id", "index": true },
+    {
+      "name": "status",
+      "type": { "kind": "enum", "name": "message_status", "values": ["draft", "sent", "deleted"] },
+      "nullable": false,
+      "default": "'draft'"
+    },
+    { "name": "created_at", "type": "timestamptz", "nullable": false, "default": "NOW()" }
+  ]
+}

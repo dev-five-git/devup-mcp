@@ -73,6 +73,13 @@ fn collect_boolean_schemas(path: &str, node: &Value, hits: &mut Vec<String>) {
     }
 }
 
+// NOTE: kept as `exposes_the_seven_read_only_devup_figma_tools` even though
+// this now asserts 10 tools (7 devup_figma_* + 3 ground-truth tools):
+// `fixtures/devup-figma-plugin/{ledger,coverage-registry}.json` reference
+// this exact Rust test symbol as coverage evidence for the pinned plugin
+// compatibility corpus, and the brief instructs not to touch the Figma
+// pipeline. Renaming this function would require rewriting ~40 fixture
+// entries in a file this task must not modify.
 #[tokio::test]
 async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
@@ -150,6 +157,9 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_figma_search",
             "devup_figma_to_json",
             "devup_figma_to_ui",
+            "devup_project_context",
+            "devup_stack_diff",
+            "devup_ui_validate",
         ]
     );
 

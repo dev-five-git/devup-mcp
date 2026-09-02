@@ -160,6 +160,49 @@ pub struct FigmaExploreInput {
     pub refresh: bool,
 }
 
+/// `scope` is `theme` (project `devup.json` tokens), `api` (project
+/// `openapi.json` endpoints/schemas), `db` (Vespertide `models/*.json`
+/// tables/columns), or `all`. Reads whichever target file(s) actually
+/// exist on disk at call time — never cached across calls, never inferred
+/// when missing. See `server::project_context`.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectContextInput {
+    pub scope: String,
+    #[serde(default)]
+    pub project_root: Option<String>,
+    #[serde(default)]
+    pub filter: Option<String>,
+}
+
+/// Validates devup-ui TSX against the rules in `server::project_context`'s
+/// sibling module `ui_validate` (crate `devup-mcp-devup-ui`): unknown
+/// `$token` references, hardcoded colors/lengths with an existing token,
+/// unknown props on known primitives, and non-literal values inside
+/// `css`/`globalCss`/`keyframes` calls. `strict: true` additionally fails
+/// `ok` on warning-severity violations.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UiValidateInput {
+    pub tsx: String,
+    #[serde(default)]
+    pub project_root: Option<String>,
+    #[serde(default)]
+    pub strict: bool,
+}
+
+/// `layers` selects which cross-layer drift checks to run
+/// (`db-entity`, `entity-route`, `route-openapi`, `openapi-client`);
+/// omitted or empty runs all four. See `server::stack_diff`.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StackDiffInput {
+    #[serde(default)]
+    pub project_root: Option<String>,
+    #[serde(default)]
+    pub layers: Vec<String>,
+}
+
 fn default_scope() -> String {
     "node".to_owned()
 }

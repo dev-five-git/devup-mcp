@@ -3,9 +3,12 @@ pub mod delivery;
 mod diagnostics;
 pub mod handoff;
 pub mod output;
+mod project_context;
+mod project_root;
 mod projection;
 mod quality;
 pub mod resources;
+mod stack_diff;
 mod tools;
 mod validation;
 
@@ -46,7 +49,8 @@ use validation::{
 
 pub use tools::{
     AuthInput, ContinueInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput,
-    FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput,
+    FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput, ProjectContextInput, StackDiffInput,
+    UiValidateInput,
 };
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -727,6 +731,63 @@ impl DevupServer {
                 policy,
                 input.refresh,
             )
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_project_context(
+        &self,
+        Parameters(input): Parameters<ProjectContextInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = project_context::run(
+            &input.scope,
+            input.project_root.as_deref(),
+            input.filter.as_deref(),
+        )
+        .await
+        .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths with a matching token, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_ui_validate(
+        &self,
+        Parameters(input): Parameters<UiValidateInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let theme_lookup = project_context::theme_for_validation(input.project_root.as_deref())
+            .map_err(to_mcp_error)?;
+        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+            &input.tsx,
+            theme_lookup.theme.as_ref(),
+            input.strict,
+        );
+        Ok(tool_result(json!({
+            "ok": report.ok,
+            "violations": report.violations,
+            "checkedTokens": report.checked_tokens,
+            "availableTokenCount": report.available_token_count,
+            "themeAvailable": theme_lookup.theme.is_some(),
+            "themeGuardrail": theme_lookup.guardrail,
+        })))
+    }
+
+    #[tool(
+        description = "Detect drift across the devup stack (vespertide model -> sea-orm entity -> vespera route -> openapi.json -> devup-api client); layers: db-entity | entity-route | route-openapi | openapi-client, omit for all. Text/JSON-based heuristics, not a compiler — every finding carries an explicit confidence",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_stack_diff(
+        &self,
+        Parameters(input): Parameters<StackDiffInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = stack_diff::run(input.project_root.as_deref(), &input.layers)
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))

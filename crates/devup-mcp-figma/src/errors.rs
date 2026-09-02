@@ -21,6 +21,8 @@ pub enum ErrorCode {
     DevupCodegenFailed,
     DevupThemeConflict,
     DevupCompatCorpusDrift,
+    DevupInvalidInput,
+    DevupProjectRootNotFound,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
