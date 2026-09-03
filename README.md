@@ -255,6 +255,8 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
+Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다.
+
 ### Figma 이름 검색
 
 ```json
