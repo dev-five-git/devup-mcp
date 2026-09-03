@@ -972,7 +972,8 @@ impl ServerHandler for DevupServer {
              4. 핸드오프로 받은 노드 트리를 직접 해석해 devup-ui 코드를 작성하지 마라. 좌표로 레이아웃을 추론하지 마라.\n\
              5. 핸드오프 단계에서는 요청된 도구를 요청된 arguments 그대로 실행하고, 원본 결과를 가공 없이 devup_figma_continue로 돌려줘라.\n\
              6. devup-mcp 호출이 실패하면 명시적으로 기록하라. 조용히 다른 방법으로 우회하지 마라.\n\
-             7. 색상·간격·radius·타이포 같은 UI 수치를 추측하지 마라. 확보하지 못했으면 멈추고 보고하라.",
+             7. 색상·간격·radius·타이포 같은 UI 수치를 추측하지 마라. 확보하지 못했으면 멈추고 보고하라.\n\
+             8. Section 링크는 전체 subtree로 구현하지 마라. selection_required의 후보를 확인하고 frameIds 또는 allScreens로 화면별 export를 계속하라.",
         )
     }
 
