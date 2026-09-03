@@ -1433,7 +1433,8 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
         (
             view.value("effects")
                 .and_then(serde_json::Value::as_array)
-                .is_some_and(|effects| !effects.is_empty()),
+                .is_some_and(|effects| !effects.is_empty())
+                && !style::effects_are_exact(&view),
             "DEVUP_CODEGEN_EFFECT_FALLBACK",
             "일부 Figma effect는 계산된 CSS로 변환되지 않을 수 있습니다.",
             FidelityImpact::Lossy,

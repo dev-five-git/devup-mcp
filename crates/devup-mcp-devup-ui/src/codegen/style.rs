@@ -961,6 +961,82 @@ fn push_effects(view: &TypedNode<'_>, component: &str, props: &mut Vec<Prop>) {
     }
 }
 
+/// Whether every visible effect on this node survives `push_effects` without
+/// loss. Mirrors that function case for case; the two must move together.
+///
+/// `DEVUP_CODEGEN_EFFECT_FALLBACK` used to fire whenever a node merely *had* an
+/// effects array. A plain drop shadow is present on nearly every real design,
+/// so that permanently pinned `projection` to `lossy` and made `strict: true`
+/// unusable, while saying nothing about what was actually lost.
+///
+/// Deliberately *not* counted as loss: `showShadowBehindNode`. CSS always
+/// paints a non-inset `box-shadow` behind the element's box, so the flag only
+/// changes rendering behind a translucent fill. Treating it as loss would put
+/// essentially every Figma shadow back into `lossy` for a difference that is
+/// usually invisible, recreating the problem this guard removes.
+pub(super) fn effects_are_exact(view: &TypedNode<'_>) -> bool {
+    let Some(effects) = view.value("effects").and_then(Value::as_array) else {
+        return true;
+    };
+    // `push_effects` picks `textShadow` for Text, which has no spread slot.
+    // `component.rs` resolves exactly this node type to the `Text` component.
+    let is_text = view.node_type() == "TEXT";
+    let visible = effects
+        .iter()
+        .filter(|effect| effect.get("visible").and_then(Value::as_bool) != Some(false))
+        .collect::<Vec<_>>();
+
+    // `push_effects` writes `filter` once per effect that maps to it, so two
+    // such effects would collide on a single prop and the later one wins.
+    let filter_writers = visible
+        .iter()
+        .filter(|effect| {
+            matches!(
+                effect.get("type").and_then(Value::as_str),
+                Some("LAYER_BLUR" | "NOISE" | "TEXTURE")
+            )
+        })
+        .count();
+    if filter_writers > 1 {
+        return false;
+    }
+
+    visible
+        .iter()
+        .all(|effect| match effect.get("type").and_then(Value::as_str) {
+            Some("DROP_SHADOW" | "INNER_SHADOW") => {
+                // Same fields `push_effects` requires before it emits a shadow;
+                // if any is missing the effect is dropped on the floor.
+                let renders = effect
+                    .get("offset")
+                    .and_then(|offset| {
+                        Some((offset.get("x")?.as_f64()?, offset.get("y")?.as_f64()?))
+                    })
+                    .is_some()
+                    && effect.get("radius").and_then(Value::as_f64).is_some()
+                    && effect.get("color").and_then(color_from).is_some();
+                // CSS shadows carry no per-shadow blend mode.
+                let blend_survives = effect
+                    .get("blendMode")
+                    .and_then(Value::as_str)
+                    .is_none_or(|mode| mode == "NORMAL");
+                // `text-shadow` has no spread component.
+                let spread_survives =
+                    !is_text || effect.get("spread").and_then(Value::as_f64).unwrap_or(0.0) == 0.0;
+                renders && blend_survives && spread_survives
+            }
+            // `push_effects` falls back to `blur(0px)` when the radius is
+            // missing or unparseable, which silently fabricates the blur away.
+            Some("LAYER_BLUR" | "BACKGROUND_BLUR") => {
+                effect.get("radius").and_then(Value::as_f64).is_some()
+            }
+            // `GLASS` is flattened to a plain backdrop blur, `NOISE`/`TEXTURE`
+            // become a no-op filter placeholder, and any other type is silently
+            // ignored. All of those are real losses.
+            _ => false,
+        })
+}
+
 fn zero_or_px(value: f64) -> String {
     if value == 0.0 {
         "0".to_owned()
