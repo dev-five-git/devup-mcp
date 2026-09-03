@@ -8,7 +8,13 @@ use crate::{
     collect_used_resource_refs, read_snapshot_cursor,
 };
 
-const MAX_TEXT_ENVELOPE_BYTES: usize = 15 * 1024;
+/// Decoder-side ceiling on a single text envelope. Deliberately larger than
+/// the 15 KiB the producing script budgets itself to: a relay that
+/// re-serializes the JSON (pretty-printing, different escaping) inflates the
+/// payload without changing its content, and rejecting that as `too_large`
+/// would fail a perfectly valid envelope. Still bounded, so a hostile or
+/// runaway response cannot be buffered without limit.
+const MAX_TEXT_ENVELOPE_BYTES: usize = 64 * 1024;
 const MAX_STRINGIFIED_RESULT_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -285,9 +291,17 @@ fn validate_envelope(
     {
         return Err(invalid("targetMismatch"));
     }
-    if envelope.integrity.utf8_bytes != utf8_bytes {
-        return Err(invalid("utf8Bytes"));
-    }
+    // `integrity.utf8Bytes` is deliberately NOT compared against the received
+    // byte length. It is the producer's self-measurement, so requiring exact
+    // equality meant the envelope had to arrive byte-for-byte identical —
+    // which no relay that re-serializes JSON can guarantee, and an MCP host
+    // that hands the result to an agent to pass on is exactly such a relay.
+    // Nothing is lost: truncation or corruption cannot slip past the checks
+    // below (a truncated JSON document fails to parse at all, and nodeCount /
+    // resourceRefCount / validate_resources are computed from the content
+    // rather than from its serialized form). It stays on the wire, and in
+    // `FastTransportStats`, purely as a reported size.
+    let _ = utf8_bytes;
 
     let mut node_ids = BTreeSet::new();
     for node in &envelope.snapshot.nodes {
@@ -346,9 +360,11 @@ fn validate_theme_envelope(
     if envelope.source.file_key != expected_file_key {
         return Err(invalid("targetMismatch"));
     }
-    if envelope.integrity.utf8_bytes != utf8_bytes {
-        return Err(invalid("utf8Bytes"));
-    }
+    // Not compared against the received length, for the same reason as
+    // `validate_envelope`: the collection/variable/style/unresolved counts
+    // below verify the content itself, and demanding a byte-exact match only
+    // broke relays that re-serialize JSON.
+    let _ = utf8_bytes;
     let resources = envelope
         .resources
         .as_object()
@@ -476,7 +492,7 @@ fn resource_ids<'a>(
 fn invalid(category: &'static str) -> DevupError {
     DevupError::with_details(
         ErrorCode::DevupSnapshotUnsupported,
-        "Figma fast snapshot envelope 검증에 실패했습니다.",
+        "Figma fast snapshot envelope validation failed.",
         false,
         json!({"category": category}),
     )
@@ -485,7 +501,7 @@ fn invalid(category: &'static str) -> DevupError {
 fn too_large(category: &'static str) -> DevupError {
     DevupError::with_details(
         ErrorCode::DevupFigmaResponseTooLarge,
-        "Figma fast snapshot envelope가 안전한 크기 제한을 초과했습니다.",
+        "Figma fast snapshot envelope exceeded the safe size limit.",
         false,
         json!({"category": category}),
     )

@@ -56,7 +56,7 @@ pub fn metadata_from_result_for_target(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "Figma MCP 응답에서 metadata를 찾지 못했습니다.",
+                "metadata not found in the Figma MCP response.",
                 false,
             )
         })
@@ -122,11 +122,31 @@ fn find_xml_metadata(
         Value::Array(values) => values
             .iter()
             .find_map(|value| find_xml_metadata(value, expected_file_key, expected_root_id)),
-        Value::String(text) if text.trim_start().starts_with('<') => {
-            parse_xml_metadata(text, expected_file_key, expected_root_id)
-        }
+        Value::String(text) => xml_slice(text)
+            .and_then(|xml| parse_xml_metadata(xml, expected_file_key, expected_root_id)),
         _ => None,
     }
+}
+
+/// Extracts the XML region from a `get_metadata` text response.
+///
+/// Figma no longer returns bare XML. When the user has the queried node
+/// selected in the desktop app, the response is *prepended* with a
+/// `Currently selected nodes:` block, and every response is *appended* with
+/// an `IMPORTANT: After you call this tool...` instruction footer. Requiring
+/// the text to start with `<` therefore made devup-mcp fail with
+/// `metadata not found in the Figma MCP response.` for the very common case
+/// of "the user is looking at the node they asked about".
+///
+/// Slicing between the first `<` and the last `>` keeps the pre-existing
+/// bare-XML input working unchanged, tolerates prose on either side, and
+/// still yields `None` for text that carries no element at all. Text that
+/// merely *contains* angle brackets is not a risk: `parse_xml_metadata`
+/// returns `None` unless it finds at least one element with an `id`.
+fn xml_slice(text: &str) -> Option<&str> {
+    let start = text.find('<')?;
+    let end = text.rfind('>')?;
+    (end > start).then(|| &text[start..=end])
 }
 
 fn parse_xml_metadata(
@@ -234,6 +254,66 @@ fn descendant_count(index: usize, nodes: &[XmlNode]) -> usize {
         .iter()
         .map(|child| descendant_count(*child, nodes))
         .sum::<usize>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const XML: &str = "<frame id=\"3997:48764\" name=\"A : STORY-INTRO\">\n  \
+                       <text id=\"3997:48777\" name=\"Prompt\" />\n</frame>";
+
+    fn parse(text: &str) -> Option<MetadataDocument> {
+        find_xml_metadata(
+            &Value::String(text.to_owned()),
+            "85CgSws3o5XsLv7aAwWJyS",
+            Some("3997:48764"),
+        )
+    }
+
+    #[test]
+    fn bare_xml_still_parses() {
+        let document = parse(XML).expect("bare XML");
+        assert_eq!(document.root_id, "3997:48764");
+        assert_eq!(document.nodes.len(), 2);
+    }
+
+    /// The regression this fix exists for: with the node selected in the
+    /// Figma desktop app, `get_metadata` prepends a selection block, which
+    /// used to make the whole legacy metadata path fail.
+    #[test]
+    fn a_selected_nodes_preamble_is_tolerated() {
+        let text = format!("Currently selected nodes:\n- 3997:48764: A : STORY-INTRO\n\n\n\n{XML}");
+        let document = parse(&text).expect("preamble must not break parsing");
+        assert_eq!(document.root_id, "3997:48764");
+        assert_eq!(document.nodes.len(), 2);
+    }
+
+    #[test]
+    fn an_instruction_footer_is_tolerated() {
+        let text = format!(
+            "{XML}\n\nIMPORTANT: After you call this tool, you MUST call get_design_context \
+             if trying to implement the design."
+        );
+        assert_eq!(parse(&text).expect("footer").root_id, "3997:48764");
+    }
+
+    #[test]
+    fn a_preamble_and_a_footer_together_are_tolerated() {
+        let text =
+            format!("Currently selected nodes:\n- 3997:48764: A\n\n{XML}\n\nIMPORTANT: do X.");
+        let document = parse(&text).expect("preamble and footer");
+        assert_eq!(document.root_id, "3997:48764");
+        assert_eq!(document.nodes.len(), 2);
+    }
+
+    #[test]
+    fn prose_without_any_element_is_still_rejected() {
+        assert!(parse("Currently selected nodes:\n- 3997:48764: A : STORY-INTRO").is_none());
+        assert!(parse("no angle brackets here at all").is_none());
+        // Angle brackets but no element carrying an `id`.
+        assert!(parse("a < b and c > d").is_none());
+    }
 }
 
 fn find_metadata(value: &Value) -> Option<MetadataDocument> {

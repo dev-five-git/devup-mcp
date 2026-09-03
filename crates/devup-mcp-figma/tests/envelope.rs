@@ -60,14 +60,24 @@ fn oversized_stringified_upstream_result_is_rejected_before_json_decode() {
     assert_eq!(error.details["category"], "upstreamResultJson");
 }
 
+/// The decoder's ceiling sits above the 15 KiB the producing script budgets
+/// itself to, so a relay that re-serializes the JSON (pretty-printing,
+/// different escaping) cannot inflate a valid envelope into a rejection.
+/// A bound still exists, and this pins both halves of that: comfortably over
+/// the producer's budget is accepted, far over the decoder's ceiling is not.
 #[test]
-fn a_text_envelope_over_the_15kb_safety_margin_is_rejected() {
-    let envelope = mutate_envelope(|value| {
+fn a_text_envelope_is_bounded_but_leaves_headroom_above_the_producer_budget() {
+    let inflated_by_a_relay = mutate_envelope(|value| {
         value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(20 * 1024));
     });
-    let result = text_upstream_result(&envelope);
+    decode_fast_snapshot(&text_upstream_result(&inflated_by_a_relay), &target())
+        .expect("20 KiB is over the producer budget but within the decoder's headroom");
 
-    let error = decode_fast_snapshot(&result, &target()).expect_err("oversized text envelope");
+    let oversized = mutate_envelope(|value| {
+        value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(96 * 1024));
+    });
+    let error = decode_fast_snapshot(&text_upstream_result(&oversized), &target())
+        .expect_err("oversized text envelope");
 
     assert_eq!(error.details["category"], "textEnvelope");
 }
@@ -168,17 +178,36 @@ fn schema_target_and_resource_integrity_are_validated() {
         &target(),
         "resourceMissing",
     );
+}
 
-    // Corrupt the utf8Bytes counter *after* finalization (finalize_envelope's
-    // convergence loop would otherwise just recompute a correct value).
-    let mut bad_utf8_count: Value = serde_json::from_slice(&complete_envelope()).unwrap();
-    bad_utf8_count["integrity"]["utf8Bytes"] = json!(1);
-    let bad_utf8_bytes = serde_json::to_vec(&bad_utf8_count).unwrap();
-    assert_category(
-        text_upstream_result(&bad_utf8_bytes),
-        &target(),
-        "utf8Bytes",
+/// `integrity.utf8Bytes` is the producer's self-measurement, and the envelope
+/// reaches devup-mcp through a relay that may re-serialize the JSON. Both a
+/// stale counter and a re-serialized (pretty-printed) payload must decode:
+/// the structural checks above are what actually detect corruption, so a byte
+/// count that disagrees with the received length is not an error.
+#[test]
+fn a_reserialized_envelope_decodes_even_though_its_byte_count_no_longer_matches() {
+    let original = complete_envelope();
+    let value: Value = serde_json::from_slice(&original).unwrap();
+    let declared = value["integrity"]["utf8Bytes"].as_u64().unwrap() as usize;
+
+    // Pretty-printing changes the byte length without changing the content —
+    // exactly what a re-serializing relay does.
+    let reserialized = serde_json::to_vec_pretty(&value).unwrap();
+    assert_ne!(
+        reserialized.len(),
+        declared,
+        "the pretty-printed payload must differ in length for this test to mean anything"
     );
+    decode_fast_snapshot(&text_upstream_result(&reserialized), &target())
+        .expect("a re-serialized envelope must still decode");
+
+    // A counter that is simply wrong is likewise not, by itself, corruption.
+    let mut stale = value;
+    stale["integrity"]["utf8Bytes"] = json!(1);
+    let stale = serde_json::to_vec(&stale).unwrap();
+    decode_fast_snapshot(&text_upstream_result(&stale), &target())
+        .expect("a stale utf8Bytes counter must not fail an otherwise valid envelope");
 }
 
 #[test]
@@ -374,7 +403,7 @@ fn complete_envelope() -> Vec<u8> {
                     "type": "TEXT",
                     "fields": {
                         "textStyleId": "S:style1",
-                        "characters": "테스트"
+                        "characters": "Test"
                     }
                 }
             ],
