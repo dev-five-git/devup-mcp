@@ -4,3 +4,7 @@
 .env.*
 !.env.example
 
+# Agent session state (oh-my-claudecode / omo), local to a working copy
+.omc/
+.omo/
+
