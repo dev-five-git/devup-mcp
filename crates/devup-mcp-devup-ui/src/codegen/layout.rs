@@ -302,6 +302,17 @@ pub(super) fn absolute_layout_is_exact(snapshot: &Snapshot, node: &RawNode) -> b
     };
     let no_rotation = view.number("rotation").is_none_or(|value| value == 0.0);
     let exact_size = parent.is_some_and(|parent| {
+        // A node pinned on both axes now emits those exact dimensions even
+        // when it has children, because the absolute branch of
+        // `push_layout_props` restates them rather than letting the children
+        // define the box. Keep this in step with that branch: judging such a
+        // node approximated would report a loss the output no longer has.
+        if view.string("layoutSizingHorizontal") == Some("FIXED")
+            && view.string("layoutSizingVertical") == Some("FIXED")
+            && view.child_ids().next().is_some()
+        {
+            return true;
+        }
         if view.node_type() != "FRAME" {
             return false;
         }
