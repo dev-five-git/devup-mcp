@@ -2,7 +2,7 @@
   "arcData", "backgroundStyleId", "blendMode",
   "bottomLeftRadius", "bottomRightRadius", "boundVariables", "characters", "clipsContent",
   "componentProperties", "componentPropertyDefinitions", "componentPropertyReferences", "constraints", "cornerRadius",
-  "counterAxisAlignItems", "dashPattern", "effects", "effectStyleId", "fills",
+  "counterAxisAlignItems", "dashPattern", "defaultVariant", "effects", "effectStyleId", "fills",
   "fillStyleId", "fontName", "fontSize", "gridColumnAnchorIndex", "gridColumnCount",
   "gridColumnGap", "gridRowAnchorIndex", "gridRowCount", "gridRowGap", "gridStyleId",
   "height", "inferredAutoLayout", "isAsset", "isMask", "itemSpacing",
