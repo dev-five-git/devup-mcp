@@ -457,7 +457,7 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
 /// describes the frame, so measure it rather than fall back to the frame's own
 /// padding fields, which linger from whenever it last had a layout and no
 /// longer place anything.
-fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
+pub(super) fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
     let view = node.typed_view();
     let (width, height) = (view.number("width")?, view.number("height")?);
     let mut bounds: Option<[f64; 4]> = None;

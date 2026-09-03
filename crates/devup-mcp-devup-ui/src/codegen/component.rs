@@ -1188,10 +1188,16 @@ fn render_node(
         context.root_layout,
         depth == 0,
     );
+    // A frame with no auto-layout places its children itself, and this keeps
+    // them resolvable. Once the gap around them is measurable it is emitted as
+    // padding instead, which puts them where they belong on its own — so the
+    // anchor is only still needed where nothing could be measured, as when the
+    // child fills the frame exactly or carries no position of its own.
     if !(depth == 0 && context.root_layout == RootLayout::Embedded)
         && asset.is_none()
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
+        && layout::children_inset(snapshot, node).is_none()
         && view.child_ids().any(|child| {
             snapshot
                 .nodes
