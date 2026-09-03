@@ -26,6 +26,21 @@ fn valid_multichunk_envelope_round_trips() {
     assert_eq!(decoded.stats.raw_bytes, envelope.len());
     assert!(decoded.stats.wire_bytes > envelope.len());
     assert_eq!(decoded.stats.chunk_count, 2);
+    assert_eq!(decoded.stats.transport, "png-chunked");
+}
+
+#[test]
+fn tagged_text_snapshot_envelope_round_trips_without_an_image() {
+    let envelope = complete_envelope();
+    let result = text_upstream_result(&envelope);
+
+    let decoded = decode_fast_snapshot(&result, &target()).expect("valid text envelope");
+
+    assert_eq!(decoded.snapshot.root_ids, ["1:1"]);
+    assert_eq!(decoded.stats.raw_bytes, envelope.len());
+    assert_eq!(decoded.stats.wire_bytes, envelope.len());
+    assert_eq!(decoded.stats.chunk_count, 0);
+    assert_eq!(decoded.stats.transport, "text");
 }
 
 #[test]
@@ -318,6 +333,18 @@ fn valid_fast_theme_envelope_round_trips_and_validates_counts() {
 }
 
 #[test]
+fn tagged_text_theme_envelope_round_trips_without_an_image() {
+    let envelope = theme_envelope();
+    let result = text_upstream_result(&envelope);
+
+    let decoded = decode_fast_theme(&result, "fileKey123").expect("valid text theme envelope");
+
+    assert_eq!(decoded.source_version.as_deref(), Some("v42"));
+    assert_eq!(decoded.stats.chunk_count, 0);
+    assert_eq!(decoded.stats.transport, "text");
+}
+
+#[test]
 fn json_stringified_fast_theme_result_round_trips() {
     let envelope = theme_envelope();
     let mut result = theme_upstream_result(envelope, 1);
@@ -340,6 +367,7 @@ fn target() -> FigmaTarget {
 
 fn complete_envelope() -> Vec<u8> {
     finalize_envelope(json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {
             "fileKey": "fileKey123",
@@ -391,6 +419,7 @@ fn complete_envelope() -> Vec<u8> {
 
 fn theme_envelope() -> Vec<u8> {
     finalize_envelope(json!({
+        "kind": "devupFastThemeEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "fileKey123", "version": "v42"},
         "resources": {
@@ -412,6 +441,17 @@ fn theme_envelope() -> Vec<u8> {
             "utf8Bytes": 0
         }
     }))
+}
+
+fn text_upstream_result(envelope: &[u8]) -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "content": [{
+                "type": "text",
+                "text": std::str::from_utf8(envelope).unwrap()
+            }]
+        }),
+    }
 }
 
 fn theme_upstream_result(envelope: Vec<u8>, chunk_count: usize) -> UpstreamResult {

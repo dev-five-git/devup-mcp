@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeSet};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 
 use crate::{
@@ -14,7 +14,9 @@ const ENVELOPE_CHUNK_TYPE: &[u8; 4] = b"duVp";
 const EXPECTED_IHDR: &[u8; 13] = &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0];
 const MAX_PNG_BYTES: usize = 11 * 1024 * 1024;
 const MAX_BASE64_PNG_BYTES: usize = MAX_PNG_BYTES.div_ceil(3) * 4;
-const MAX_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_SNAPSHOT_ENVELOPE_BYTES: usize = 1024 * 1024;
+const MAX_THEME_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_TEXT_ENVELOPE_BYTES: usize = 15 * 1024;
 const MAX_ENVELOPE_CHUNKS: usize = 32;
 const MAX_STRINGIFIED_RESULT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -22,6 +24,7 @@ type EnvelopeChunk<'a> = (u32, u32, &'a [u8]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FastTransportStats {
+    pub transport: &'static str,
     pub raw_bytes: usize,
     pub wire_bytes: usize,
     pub chunk_count: usize,
@@ -44,6 +47,8 @@ pub struct FastThemePayload {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Envelope {
+    #[serde(default)]
+    kind: Option<String>,
     schema_version: u32,
     source: EnvelopeSource,
     snapshot: SnapshotChunk,
@@ -83,6 +88,8 @@ struct EnvelopeDescriptor {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ThemeEnvelope {
+    #[serde(default)]
+    kind: Option<String>,
     schema_version: u32,
     source: ThemeEnvelopeSource,
     resources: Value,
@@ -149,6 +156,23 @@ fn decode_fast_snapshot_for_roots(
     expected_root_ids: &[String],
 ) -> Result<FastSnapshotPayload, DevupError> {
     let raw = normalize_upstream_result(&result.raw)?;
+    if let Some((envelope, utf8_bytes)) =
+        find_tagged_text::<Envelope>(&raw, "devupFastSnapshotEnvelope")?
+    {
+        validate_envelope(&envelope, None, target, expected_root_ids, utf8_bytes)?;
+        return Ok(FastSnapshotPayload {
+            snapshot: envelope.snapshot,
+            resources: UpstreamResult {
+                raw: envelope.resources,
+            },
+            stats: FastTransportStats {
+                transport: "text",
+                raw_bytes: utf8_bytes,
+                wire_bytes: utf8_bytes,
+                chunk_count: 0,
+            },
+        });
+    }
     let descriptor = find_descriptor(&raw)?;
     if descriptor.chunk_count == 0 {
         return Err(invalid("descriptorChunkCount"));
@@ -196,17 +220,14 @@ fn decode_fast_snapshot_for_roots(
     if chunks.len() != descriptor.chunk_count {
         return Err(invalid("descriptorChunkCount"));
     }
-    let envelope_bytes = join_envelope_chunks(chunks)?;
-    if envelope_bytes.len() > MAX_ENVELOPE_BYTES {
-        return Err(too_large("envelope"));
-    }
+    let envelope_bytes = join_envelope_chunks(chunks, MAX_SNAPSHOT_ENVELOPE_BYTES)?;
     let envelope_text =
         std::str::from_utf8(&envelope_bytes).map_err(|_| invalid("envelopeUtf8"))?;
     let envelope: Envelope =
         serde_json::from_str(envelope_text).map_err(|_| invalid("envelopeJson"))?;
     validate_envelope(
         &envelope,
-        &descriptor,
+        Some(&descriptor),
         target,
         expected_root_ids,
         envelope_bytes.len(),
@@ -218,6 +239,7 @@ fn decode_fast_snapshot_for_roots(
             raw: envelope.resources,
         },
         stats: FastTransportStats {
+            transport: "png-chunked",
             raw_bytes: envelope_bytes.len(),
             wire_bytes,
             chunk_count: descriptor.chunk_count,
@@ -230,6 +252,23 @@ pub fn decode_fast_theme(
     expected_file_key: &str,
 ) -> Result<FastThemePayload, DevupError> {
     let raw = normalize_upstream_result(&result.raw)?;
+    if let Some((envelope, utf8_bytes)) =
+        find_tagged_text::<ThemeEnvelope>(&raw, "devupFastThemeEnvelope")?
+    {
+        validate_theme_envelope(&envelope, None, expected_file_key, utf8_bytes)?;
+        return Ok(FastThemePayload {
+            resources: UpstreamResult {
+                raw: envelope.resources,
+            },
+            source_version: envelope.source.version,
+            stats: FastTransportStats {
+                transport: "text",
+                raw_bytes: utf8_bytes,
+                wire_bytes: utf8_bytes,
+                chunk_count: 0,
+            },
+        });
+    }
     let descriptor = find_theme_descriptor(&raw)?;
     if descriptor.chunk_count == 0 {
         return Err(invalid("descriptorChunkCount"));
@@ -272,17 +311,14 @@ pub fn decode_fast_theme(
     if chunks.len() != descriptor.chunk_count {
         return Err(invalid("descriptorChunkCount"));
     }
-    let envelope_bytes = join_envelope_chunks(chunks)?;
-    if envelope_bytes.len() > MAX_ENVELOPE_BYTES {
-        return Err(too_large("envelope"));
-    }
+    let envelope_bytes = join_envelope_chunks(chunks, MAX_THEME_ENVELOPE_BYTES)?;
     let envelope_text =
         std::str::from_utf8(&envelope_bytes).map_err(|_| invalid("envelopeUtf8"))?;
     let envelope: ThemeEnvelope =
         serde_json::from_str(envelope_text).map_err(|_| invalid("envelopeJson"))?;
     validate_theme_envelope(
         &envelope,
-        &descriptor,
+        Some(&descriptor),
         expected_file_key,
         envelope_bytes.len(),
     )?;
@@ -292,6 +328,7 @@ pub fn decode_fast_theme(
         },
         source_version: envelope.source.version,
         stats: FastTransportStats {
+            transport: "png-chunked",
             raw_bytes: envelope_bytes.len(),
             wire_bytes,
             chunk_count: descriptor.chunk_count,
@@ -310,6 +347,53 @@ fn normalize_upstream_result(value: &Value) -> Result<Cow<'_, Value>, DevupError
                 .map_err(|_| invalid("upstreamResultJson"))
         }
         _ => Ok(Cow::Borrowed(value)),
+    }
+}
+
+fn find_tagged_text<T: DeserializeOwned>(
+    value: &Value,
+    expected_kind: &str,
+) -> Result<Option<(T, usize)>, DevupError> {
+    fn collect<'a>(value: &'a Value, expected_kind: &str, found: &mut Vec<&'a str>) {
+        match value {
+            Value::Object(object) => {
+                if let Some(text) = object.get("text").and_then(Value::as_str)
+                    && serde_json::from_str::<Value>(text)
+                        .ok()
+                        .and_then(|value| {
+                            value.get("kind").and_then(Value::as_str).map(str::to_owned)
+                        })
+                        .as_deref()
+                        == Some(expected_kind)
+                {
+                    found.push(text);
+                }
+                for child in object.values() {
+                    collect(child, expected_kind, found);
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    collect(child, expected_kind, found);
+                }
+            }
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        }
+    }
+
+    let mut found = Vec::new();
+    collect(value, expected_kind, &mut found);
+    match found.as_slice() {
+        [] => Ok(None),
+        [text] => {
+            if text.len() > MAX_TEXT_ENVELOPE_BYTES {
+                return Err(too_large("textEnvelope"));
+            }
+            serde_json::from_str(text)
+                .map(|envelope| Some((envelope, text.len())))
+                .map_err(|_| invalid("envelopeJson"))
+        }
+        _ => Err(invalid("textEnvelopeMultiplicity")),
     }
 }
 
@@ -505,7 +589,10 @@ fn decode_png_envelope(png: &[u8]) -> Result<Vec<EnvelopeChunk<'_>>, DevupError>
     Ok(envelope_chunks)
 }
 
-fn join_envelope_chunks(chunks: Vec<EnvelopeChunk<'_>>) -> Result<Vec<u8>, DevupError> {
+fn join_envelope_chunks(
+    chunks: Vec<EnvelopeChunk<'_>>,
+    maximum_bytes: usize,
+) -> Result<Vec<u8>, DevupError> {
     let total = u32::try_from(chunks.len()).map_err(|_| too_large("chunkCount"))?;
     let mut byte_count = 0_usize;
     for (expected_sequence, (sequence, declared_total, bytes)) in chunks.iter().enumerate() {
@@ -515,7 +602,7 @@ fn join_envelope_chunks(chunks: Vec<EnvelopeChunk<'_>>) -> Result<Vec<u8>, Devup
         byte_count = byte_count
             .checked_add(bytes.len())
             .ok_or_else(|| too_large("envelope"))?;
-        if byte_count > MAX_ENVELOPE_BYTES {
+        if byte_count > maximum_bytes {
             return Err(too_large("envelope"));
         }
     }
@@ -528,12 +615,18 @@ fn join_envelope_chunks(chunks: Vec<EnvelopeChunk<'_>>) -> Result<Vec<u8>, Devup
 
 fn validate_envelope(
     envelope: &Envelope,
-    descriptor: &EnvelopeDescriptor,
+    descriptor: Option<&EnvelopeDescriptor>,
     target: &FigmaTarget,
     expected_root_ids: &[String],
     utf8_bytes: usize,
 ) -> Result<(), DevupError> {
-    if envelope.schema_version != 1 || descriptor.schema_version != 1 {
+    if envelope.schema_version != 1
+        || descriptor.is_some_and(|descriptor| descriptor.schema_version != 1)
+        || envelope
+            .kind
+            .as_deref()
+            .is_some_and(|kind| kind != "devupFastSnapshotEnvelope")
+    {
         return Err(invalid("schemaVersion"));
     }
     let target_root = target
@@ -543,12 +636,14 @@ fn validate_envelope(
     if envelope.source.file_key != target.file_key
         || envelope.snapshot.file_key != target.file_key
         || envelope.source.root_id != target_root
-        || descriptor.root_id != target_root
+        || descriptor.is_some_and(|descriptor| descriptor.root_id != target_root)
         || envelope.snapshot.root_ids != expected_root_ids
     {
         return Err(invalid("targetMismatch"));
     }
-    if envelope.integrity.utf8_bytes != utf8_bytes || descriptor.utf8_bytes != utf8_bytes {
+    if envelope.integrity.utf8_bytes != utf8_bytes
+        || descriptor.is_some_and(|descriptor| descriptor.utf8_bytes != utf8_bytes)
+    {
         return Err(invalid("utf8Bytes"));
     }
 
@@ -559,7 +654,7 @@ fn validate_envelope(
         }
     }
     if envelope.integrity.node_count != node_ids.len()
-        || descriptor.node_count != node_ids.len()
+        || descriptor.is_some_and(|descriptor| descriptor.node_count != node_ids.len())
         || !expected_root_ids
             .iter()
             .all(|root_id| node_ids.contains(root_id.as_str()))
@@ -576,9 +671,10 @@ fn validate_envelope(
 
     let refs = collect_used_resource_refs(std::slice::from_ref(&envelope.snapshot));
     if envelope.integrity.variable_ref_count != refs.variable_ids.len()
-        || descriptor.variable_ref_count != refs.variable_ids.len()
+        || descriptor
+            .is_some_and(|descriptor| descriptor.variable_ref_count != refs.variable_ids.len())
         || envelope.integrity.style_ref_count != refs.styles.len()
-        || descriptor.style_ref_count != refs.styles.len()
+        || descriptor.is_some_and(|descriptor| descriptor.style_ref_count != refs.styles.len())
     {
         return Err(invalid("resourceRefCount"));
     }
@@ -588,17 +684,25 @@ fn validate_envelope(
 
 fn validate_theme_envelope(
     envelope: &ThemeEnvelope,
-    descriptor: &ThemeEnvelopeDescriptor,
+    descriptor: Option<&ThemeEnvelopeDescriptor>,
     expected_file_key: &str,
     utf8_bytes: usize,
 ) -> Result<(), DevupError> {
-    if envelope.schema_version != 1 || descriptor.schema_version != 1 {
+    if envelope.schema_version != 1
+        || descriptor.is_some_and(|descriptor| descriptor.schema_version != 1)
+        || envelope
+            .kind
+            .as_deref()
+            .is_some_and(|kind| kind != "devupFastThemeEnvelope")
+    {
         return Err(invalid("schemaVersion"));
     }
     if envelope.source.file_key != expected_file_key {
         return Err(invalid("targetMismatch"));
     }
-    if envelope.integrity.utf8_bytes != utf8_bytes || descriptor.utf8_bytes != utf8_bytes {
+    if envelope.integrity.utf8_bytes != utf8_bytes
+        || descriptor.is_some_and(|descriptor| descriptor.utf8_bytes != utf8_bytes)
+    {
         return Err(invalid("utf8Bytes"));
     }
     let resources = envelope
@@ -614,25 +718,31 @@ fn validate_theme_envelope(
         .ok_or_else(|| invalid("unresolvedShape"))?;
     validate_theme_count(
         envelope.integrity.collection_count,
-        descriptor.collection_count,
+        descriptor.map_or(envelope.integrity.collection_count, |value| {
+            value.collection_count
+        }),
         collections.len(),
         "collectionCount",
     )?;
     validate_theme_count(
         envelope.integrity.variable_count,
-        descriptor.variable_count,
+        descriptor.map_or(envelope.integrity.variable_count, |value| {
+            value.variable_count
+        }),
         variables.len(),
         "variableCount",
     )?;
     validate_theme_count(
         envelope.integrity.style_count,
-        descriptor.style_count,
+        descriptor.map_or(envelope.integrity.style_count, |value| value.style_count),
         styles.len(),
         "styleCount",
     )?;
     validate_theme_count(
         envelope.integrity.unresolved_count,
-        descriptor.unresolved_count,
+        descriptor.map_or(envelope.integrity.unresolved_count, |value| {
+            value.unresolved_count
+        }),
         unresolved.len(),
         "unresolvedCount",
     )?;
