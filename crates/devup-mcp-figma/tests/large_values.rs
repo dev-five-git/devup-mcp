@@ -103,7 +103,7 @@ fn collector_resolves_every_descriptor_before_completing_the_snapshot() {
                     "fileKey":"FileKey123","version":"v1","rootIds":["1:2"],
                     "nodes":[
                         {"id":"1:2","type":"TEXT","fields":{"characters":{"$largeValue":descriptor()}},"extra":{},"fieldErrors":{}},
-                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
+                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"offset":0,"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
                     ],"diagnostics":[]
                 }),
             },
@@ -171,7 +171,7 @@ fn collector_marks_large_value_as_unsupported_when_upstream_rejects_continuation
                     "fileKey":"FileKey123","version":"v1","rootIds":["1:2"],
                     "nodes":[
                         {"id":"1:2","type":"TEXT","fields":{"characters":{"$largeValue":descriptor()}},"extra":{},"fieldErrors":{}},
-                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
+                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"offset":0,"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
                     ],"diagnostics":[]
                 }),
             },

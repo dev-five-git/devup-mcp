@@ -89,6 +89,76 @@ impl RawNode {
     }
 }
 
+/// Sentinel node ID every paginating snapshot script appends to report where
+/// the next page starts.
+pub const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
+
+/// Page state carried by the `__DEVUP_SNAPSHOT_CURSOR__` marker node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnapshotCursor {
+    pub offset: usize,
+    pub next_offset: usize,
+    pub complete: bool,
+    pub total_nodes: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotCursorError {
+    Duplicated,
+    Shape,
+}
+
+impl SnapshotCursorError {
+    pub fn korean_message(self) -> &'static str {
+        match self {
+            Self::Duplicated => "Figma snapshot 응답에 cursor가 중복되었습니다.",
+            Self::Shape => "Figma snapshot cursor 형식이 올바르지 않습니다.",
+        }
+    }
+
+    pub fn category(self) -> &'static str {
+        match self {
+            Self::Duplicated => "cursorMultiplicity",
+            Self::Shape => "cursorShape",
+        }
+    }
+}
+
+/// Reads the page cursor out of a node list without mutating it.
+///
+/// Both the legacy cursor collector and the fast envelope decoder go through
+/// here so the marker is parsed against exactly one field list - the two used
+/// to keep separate lists, and drifted apart.
+pub fn read_snapshot_cursor(
+    nodes: &[RawNode],
+) -> Result<Option<SnapshotCursor>, SnapshotCursorError> {
+    let markers = nodes
+        .iter()
+        .filter(|node| node.id == SNAPSHOT_CURSOR_ID)
+        .collect::<Vec<_>>();
+    let marker = match markers.as_slice() {
+        [] => return Ok(None),
+        [marker] => *marker,
+        _ => return Err(SnapshotCursorError::Duplicated),
+    };
+    if marker.node_type != "DEVUP_INTERNAL" {
+        return Err(SnapshotCursorError::Shape);
+    }
+    let view = marker.typed_view();
+    let index = |field: &str| {
+        view.value(field)
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or(SnapshotCursorError::Shape)
+    };
+    Ok(Some(SnapshotCursor {
+        offset: index("offset")?,
+        next_offset: index("nextOffset")?,
+        complete: view.bool("complete").ok_or(SnapshotCursorError::Shape)?,
+        total_nodes: index("totalNodes")?,
+    }))
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TypedNode<'a> {
     node: &'a RawNode,

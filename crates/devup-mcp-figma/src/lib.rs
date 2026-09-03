@@ -59,8 +59,9 @@ pub use section::{
 };
 pub use snapshot::{
     ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FidelityImpact,
-    FieldLocation, MissingChild, ParentMismatch, RawNode, Snapshot, SnapshotAudit, SnapshotChunk,
-    TypedNode, merge_chunks, snapshot_chunk_from_result,
+    FieldLocation, MissingChild, ParentMismatch, RawNode, SNAPSHOT_CURSOR_ID, Snapshot,
+    SnapshotAudit, SnapshotChunk, SnapshotCursor, SnapshotCursorError, TypedNode, merge_chunks,
+    read_snapshot_cursor, snapshot_chunk_from_result,
 };
 pub use source::{
     SelectedSource, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,

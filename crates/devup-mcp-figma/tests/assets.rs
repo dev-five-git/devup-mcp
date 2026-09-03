@@ -54,7 +54,7 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
                     "fileKey":"FileKey123","version":"v1","rootIds":["1:1"],
                     "nodes":[
                         serde_json::to_value(snapshot().nodes["1:1"].clone()).unwrap(),
-                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
+                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"offset":0,"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
                     ],"diagnostics":[]
                 }),
             },

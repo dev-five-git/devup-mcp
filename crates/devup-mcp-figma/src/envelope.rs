@@ -4,8 +4,8 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 
 use crate::{
-    DevupError, ErrorCode, FigmaTarget, RawNode, ResourceKind, SnapshotChunk, UpstreamResult,
-    collect_used_resource_refs, collector::SNAPSHOT_CURSOR_ID,
+    DevupError, ErrorCode, FigmaTarget, ResourceKind, SnapshotChunk, UpstreamResult,
+    collect_used_resource_refs, read_snapshot_cursor,
 };
 
 const MAX_TEXT_ENVELOPE_BYTES: usize = 15 * 1024;
@@ -131,7 +131,7 @@ fn decode_fast_snapshot_for_roots(
     else {
         return Err(invalid("textEnvelopeMissing"));
     };
-    let page = peek_page_cursor(&envelope.snapshot.nodes)?;
+    let page = peek_page_cursor(&envelope.snapshot)?;
     validate_envelope(&envelope, target, expected_root_ids, utf8_bytes, page)?;
     Ok(FastSnapshotPayload {
         snapshot: envelope.snapshot,
@@ -173,45 +173,28 @@ pub fn decode_fast_theme(
 }
 
 /// Whether an envelope's node list is a partial page of a larger, paginated
-/// fetch, derived from the `__DEVUP_SNAPSHOT_CURSOR__` marker node every fast
-/// snapshot script appends (`offset`, `nextOffset`, `complete`, `totalNodes`).
+/// fetch. Derived from the shared `__DEVUP_SNAPSHOT_CURSOR__` reader so the
+/// marker is only ever parsed against one field list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PageCursor {
     is_first_page: bool,
     is_final_page: bool,
 }
 
-fn peek_page_cursor(nodes: &[RawNode]) -> Result<PageCursor, DevupError> {
-    let marker = nodes
-        .iter()
-        .filter(|node| node.id == SNAPSHOT_CURSOR_ID)
-        .collect::<Vec<_>>();
-    match marker.as_slice() {
+fn peek_page_cursor(chunk: &SnapshotChunk) -> Result<PageCursor, DevupError> {
+    match read_snapshot_cursor(&chunk.nodes).map_err(|error| invalid(error.category()))? {
+        Some(cursor) => Ok(PageCursor {
+            is_first_page: cursor.offset == 0,
+            is_final_page: cursor.complete,
+        }),
         // No cursor marker at all: treat as a single, complete, self-contained
         // envelope (the shape every fast snapshot had before pagination).
-        // Real script output always includes the marker; this only matters
-        // for hand-built payloads (tests, older fixtures).
-        [] => Ok(PageCursor {
+        // Real script output always includes the marker; this only matters for
+        // hand-built payloads (tests, older fixtures).
+        None => Ok(PageCursor {
             is_first_page: true,
             is_final_page: true,
         }),
-        [marker] => {
-            if marker.node_type != "DEVUP_INTERNAL" {
-                return Err(invalid("cursorShape"));
-            }
-            let view = marker.typed_view();
-            let offset = view
-                .number("offset")
-                .ok_or_else(|| invalid("cursorShape"))?;
-            let complete = view
-                .bool("complete")
-                .ok_or_else(|| invalid("cursorShape"))?;
-            Ok(PageCursor {
-                is_first_page: offset == 0.0,
-                is_final_page: complete,
-            })
-        }
-        _ => Err(invalid("cursorMultiplicity")),
     }
 }
 

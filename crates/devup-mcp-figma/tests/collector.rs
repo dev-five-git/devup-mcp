@@ -1350,7 +1350,7 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
                         {"id": "1:2", "type": "FRAME", "fields": {"name": "Root", "childrenIds": ["1:3"]}, "extra": {}, "fieldErrors": {}},
-                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),
             },
@@ -1374,7 +1374,7 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
                         {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "완료", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
-                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),
             },

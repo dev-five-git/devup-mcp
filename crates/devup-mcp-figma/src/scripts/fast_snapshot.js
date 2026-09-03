@@ -21,21 +21,19 @@ const maxPayloadBytes = Math.min(
   Math.max(4096, Math.floor(Number(pageOptions.maxPayloadBytes) || 12000)),
 );
 const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
-const MAX_ENVELOPE_BYTES = 1024 * 1024;
 
-// Values that carry no information beyond "this field is at its default" are
-// dropped from the envelope. Consumers must treat an absent key exactly like
-// its default (this already holds for every accessor in the Rust codegen,
-// which reads through Option-returning TypedNode helpers).
-//
-// `""` is only dropped for *StyleId fields: Figma reports an unbound style
-// as `""`, and both consumers of these fields already treat `""` and
-// "field absent" identically —
-//   - `resources.rs::is_resource_id` rejects empty IDs before treating a
-//     *StyleId field as a real style reference (used by both the fast-path
-//     JS resource scanner above and the legacy Rust scanner), and
-//   - `codegen/text.rs` looks `textStyleId` up in a token map, where an
-//     empty-string key can never match (same `None` result as a missing key).
+// A field whose value equals its default carries no information the converter
+// can't recover from the key being absent, so it is dropped from the envelope.
+// Which fields qualify is NOT a judgement call: it is proven for every rule
+// below by `devup-mcp-devup-ui/tests/default_omission_golden.rs`, which
+// replays this exact omission over ten real screens (1,500+ nodes) and
+// requires the generated TSX to stay byte-identical. Keep the two tables in
+// sync with that test.
+
+// Figma reports an unbound style as `""`, and both readers of these fields
+// already treat `""` and "absent" the same: `resources.rs::is_resource_id`
+// rejects empty IDs, and `codegen/text.rs` looks the ID up in a token map
+// where an empty key can never match.
 const STYLE_ID_FIELDS = new Set([
   "backgroundStyleId",
   "effectStyleId",
@@ -44,26 +42,67 @@ const STYLE_ID_FIELDS = new Set([
   "strokeStyleId",
   "textStyleId",
 ]);
+
+// `codegen/layout.rs` compares `view.value("maxWidth") != Some(&Value::Null)`,
+// so for these two a present-null and an absent key take opposite branches.
+// Their null must survive.
+const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight"]);
+
+// Deliberately absent from this table, each because the converter branches on
+// the field's *presence* rather than its value: `opacity` (hover-variant
+// detection), `visible` (component registration snapshot), `layoutPositioning`
+// (compared against "AUTO"), and the per-corner radii / per-side stroke
+// weights (read as a group by the shorthand builders).
+const SCALAR_DEFAULTS = new Map([
+  ["rotation", 0],
+  ["cornerRadius", 0],
+  ["isAsset", false],
+  ["isMask", false],
+  ["clipsContent", false],
+  ["blendMode", "PASS_THROUGH"],
+  ["strokeAlign", "INSIDE"],
+  ["textCase", "ORIGINAL"],
+  ["textDecoration", "NONE"],
+  ["textAlignHorizontal", "LEFT"],
+  ["textAlignVertical", "TOP"],
+  ["counterAxisAlignItems", "MIN"],
+  ["primaryAxisAlignItems", "MIN"],
+  ["gridColumnCount", 0],
+  ["gridRowCount", 0],
+  ["gridColumnGap", 0],
+  ["gridRowGap", 0],
+  ["gridColumnAnchorIndex", -1],
+  ["gridRowAnchorIndex", -1],
+]);
+
+// Keys a styled text segment carries that the TEXT node itself does not, so
+// they must survive even when the node has a single segment.
+const SEGMENT_ONLY_KEYS = new Set([
+  "start",
+  "end",
+  "characters",
+  "fontWeight",
+  "textStyleId",
+  "fillStyleId",
+  "listOptions",
+  "indentation",
+  "hyperlink",
+]);
+
 function isOmittableDefault(value, name) {
-  if (value === null) return true;
-  if (Array.isArray(value) && value.length === 0) return true;
+  if (value === null) return !NULL_SENSITIVE_FIELDS.has(name);
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.keys(value).length === 0;
   if (value === "" && STYLE_ID_FIELDS.has(name)) return true;
-  return false;
+  return SCALAR_DEFAULTS.has(name) && SCALAR_DEFAULTS.get(name) === value;
 }
 
-function propertyNames(value) {
-  // Only ever look at the checked-in manifest. No prototype-chain walk, no
-  // "extra" bucket: an unlisted Figma Plugin API property is never collected.
-  const names = [];
-  for (const name of manifest) {
-    try {
-      if (name in value) names.push(name);
-    } catch (_) {}
-  }
-  return names;
-}
-
-function serialize(value, seen = new WeakSet(), depth = 0) {
+// One serializer for both node fields and variable/style resources. Resources
+// need the prototype chain walked (their data lives on accessors, not own
+// keys) and a few structural keys skipped; node fields never do, because the
+// manifest already names every property worth reading.
+const RESOURCE_SKIPPED_KEYS = new Set(["parent", "children", "consumers"]);
+function serialize(value, resource = false, seen = new WeakSet(), depth = 0) {
   if (value === null || ["string", "number", "boolean"].includes(typeof value)) return value;
   if (typeof value === "undefined") return { $undefined: true };
   if (typeof value === "bigint") return { $bigint: value.toString() };
@@ -77,20 +116,36 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
   ) {
     return { $nodeId: value.id, $nodeType: value.type };
   }
-  if (Array.isArray(value)) return value.map((item) => serialize(item, seen, depth + 1));
+  if (Array.isArray(value)) return value.map((item) => serialize(item, resource, seen, depth + 1));
   if (ArrayBuffer.isView(value)) {
     return { $binary: value.constructor.name, byteLength: value.byteLength };
   }
   if (value instanceof ArrayBuffer) return { $binary: "ArrayBuffer", byteLength: value.byteLength };
   if (seen.has(value)) return { $circular: true };
   seen.add(value);
+
+  let keys;
+  if (resource) {
+    const names = new Set(Object.keys(value));
+    let current = value;
+    while (current && current !== Object.prototype) {
+      for (const name of Object.getOwnPropertyNames(current)) names.add(name);
+      current = Object.getPrototypeOf(current);
+    }
+    keys = [...names].sort().filter((name) => !name.startsWith("_") && !RESOURCE_SKIPPED_KEYS.has(name));
+  } else {
+    keys = Object.keys(value).sort();
+  }
+
   const result = {};
-  for (const key of Object.keys(value).sort()) {
+  for (const key of keys) {
     try {
-      const serialized = serialize(value[key], seen, depth + 1);
+      const serialized = serialize(value[key], resource, seen, depth + 1);
       if (!(serialized && serialized.$unsupported === "function")) result[key] = serialized;
     } catch (error) {
-      result[key] = { $error: String(error && error.message ? error.message : error) };
+      result[key] = resource
+        ? { $error: "unavailable" }
+        : { $error: String(error && error.message ? error.message : error) };
     }
   }
   seen.delete(value);
@@ -100,12 +155,17 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
 function snapshotNode(node) {
   const fields = {};
   const fieldErrors = {};
-  fields.parentId = node.parent ? node.parent.id : null;
-  fields.childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
+  if (node.parent) fields.parentId = node.parent.id;
+  const childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
+  if (childrenIds.length > 0) fields.childrenIds = childrenIds;
 
-  for (const name of propertyNames(node)) {
+  // Only ever look at the checked-in manifest. No prototype-chain walk, no
+  // "extra" bucket: an unlisted Figma Plugin API property is never collected.
+  for (const name of manifest) {
+    let value;
     try {
-      const value = node[name];
+      if (!(name in node)) continue;
+      value = node[name];
       if (typeof value === "function") continue;
       const serialized = serialize(value);
       if (!isOmittableDefault(serialized, name)) fields[name] = serialized;
@@ -116,12 +176,27 @@ function snapshotNode(node) {
   if (node.type === "TEXT" && typeof node.getStyledTextSegments === "function") {
     try {
       const segments = serialize(node.getStyledTextSegments(textSegmentManifest));
-      if (!isOmittableDefault(segments)) fields.styledTextSegments = segments;
+      // A single segment restates typography the node already carries at the
+      // top level, and `codegen/text.rs` reads the node field first and only
+      // falls back to the segment. Keep just the keys that exist nowhere else.
+      // Proven over 269 real single-segment text nodes by
+      // `devup-mcp-devup-ui/tests/default_omission_golden.rs`.
+      if (segments.length === 1) {
+        const only = segments[0];
+        for (const key of Object.keys(only)) {
+          if (!SEGMENT_ONLY_KEYS.has(key)) delete only[key];
+        }
+      }
+      if (segments.length > 0) fields.styledTextSegments = segments;
     } catch (error) {
       fieldErrors.styledTextSegments = String(error && error.message ? error.message : error);
     }
   }
-  return { id: node.id, type: node.type, fields, extra: {}, fieldErrors };
+  // `extra` and `fieldErrors` are `#[serde(default)]` on the Rust `RawNode`,
+  // so an empty one is the same as an absent one on the wire.
+  const snapshotted = { id: node.id, type: node.type, fields };
+  if (Object.keys(fieldErrors).length > 0) snapshotted.fieldErrors = fieldErrors;
+  return snapshotted;
 }
 
 const allNodes = [];
@@ -156,34 +231,6 @@ function jsonByteLength(value) {
   return utf8ByteLength(JSON.stringify(value));
 }
 
-// Pack as many nodes as fit under maxPayloadBytes starting at offset. This is
-// the same dynamic, byte-budget-driven pagination the legacy cursor snapshot
-// already uses, applied to the fast (single-call, resource-inclusive) path.
-const pageNodeBudget = maxPayloadBytes - 1024;
-const pageNodes = [];
-let pagePayloadBytes = 2;
-for (let index = offset; index < allNodes.length; index += 1) {
-  const snapshotted = snapshotNode(allNodes[index]);
-  const nodeBytes = jsonByteLength(snapshotted) + (pageNodes.length ? 1 : 0);
-  if (pageNodes.length && pagePayloadBytes + nodeBytes > pageNodeBudget) break;
-  pageNodes.push(snapshotted);
-  pagePayloadBytes += nodeBytes;
-}
-const nextOffset = Math.min(allNodes.length, offset + pageNodes.length);
-const complete = nextOffset >= allNodes.length;
-const nodes = pageNodes;
-nodes.push({
-  id: "__DEVUP_SNAPSHOT_CURSOR__",
-  type: "DEVUP_INTERNAL",
-  // `offset` is what lets the Rust decoder tell a first page from a
-  // continuation page, which in turn decides whether the root must be
-  // present in this page. `nextOffset`/`complete`/`totalNodes` are the
-  // fields the shared `take_snapshot_cursor` reads.
-  fields: { offset, nextOffset, complete, totalNodes: allNodes.length },
-  extra: {},
-  fieldErrors: {},
-});
-
 function styleTypeForField(field) {
   if (field === "textStyleId") return "TEXT";
   if (["fillStyleId", "strokeStyleId", "backgroundStyleId"].includes(field)) return "PAINT";
@@ -192,11 +239,9 @@ function styleTypeForField(field) {
   return null;
 }
 
-const variableIds = new Set();
-const styleTypes = new Map();
-function scanResources(value, fieldName = "") {
+function scanResources(value, variableIds, styleTypes) {
   if (Array.isArray(value)) {
-    for (const child of value) scanResources(child, fieldName);
+    for (const child of value) scanResources(child, variableIds, styleTypes);
     return;
   }
   if (!value || typeof value !== "object") return;
@@ -220,178 +265,84 @@ function scanResources(value, fieldName = "") {
     ) {
       if (!styleTypes.has(child)) styleTypes.set(child, styleType);
     }
-    scanResources(child, field || fieldName);
+    scanResources(child, variableIds, styleTypes);
   }
 }
-// Only the nodes actually shipped in THIS page are scanned, so the resources
-// this page returns stay self-consistent with this page's own integrity
-// counters. The host (devup-mcp) merges resources across pages.
-scanResources(nodes);
 
-function resourcePropertyNames(value) {
-  const names = new Set(Object.keys(value));
-  let current = value;
-  while (current && current !== Object.prototype) {
-    for (const name of Object.getOwnPropertyNames(current)) names.add(name);
-    current = Object.getPrototypeOf(current);
-  }
-  return [...names].sort();
-}
+// Resolves every variable/style the given page of nodes references. Only the
+// nodes shipped in THIS page are scanned, so a page's resource block stays
+// consistent with its own integrity counters; devup-mcp merges across pages.
+async function collectResources(nodes) {
+  const variableIds = new Set();
+  const styleTypes = new Map();
+  scanResources(nodes, variableIds, styleTypes);
 
-function serializeResource(value, seen = new WeakSet(), depth = 0) {
-  if (value === null || ["string", "number", "boolean"].includes(typeof value)) return value;
-  if (typeof value === "undefined") return { $undefined: true };
-  if (typeof value === "bigint") return { $bigint: value.toString() };
-  if (["function", "symbol"].includes(typeof value)) return { $unsupported: typeof value };
-  if (depth > 12) return { $truncated: "max-depth" };
-  if (
-    typeof value === "object" &&
-    "parent" in value &&
-    typeof value.id === "string" &&
-    typeof value.type === "string"
-  ) {
-    return { $nodeId: value.id, $nodeType: value.type };
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => serializeResource(item, seen, depth + 1));
-  }
-  if (ArrayBuffer.isView(value)) {
-    return { $binary: value.constructor.name, byteLength: value.byteLength };
-  }
-  if (value instanceof ArrayBuffer) return { $binary: "ArrayBuffer", byteLength: value.byteLength };
-  if (seen.has(value)) return { $circular: true };
-  seen.add(value);
-  const result = {};
-  for (const name of resourcePropertyNames(value)) {
-    if (name.startsWith("_") || ["parent", "children", "consumers"].includes(name)) continue;
-    try {
-      const serialized = serializeResource(value[name], seen, depth + 1);
-      if (!(serialized && serialized.$unsupported === "function")) result[name] = serialized;
-    } catch (_) {
-      result[name] = { $error: "unavailable" };
-    }
-  }
-  seen.delete(value);
-  return result;
-}
+  const sortedVariableIds = [...variableIds].sort();
+  const sortedStyles = [...styleTypes.entries()]
+    .map(([id, styleType]) => ({ id, styleType }))
+    .sort((left, right) => left.id.localeCompare(right.id));
 
-const sortedVariableIds = [...variableIds].sort();
-const sortedStyles = [...styleTypes.entries()]
-  .map(([id, styleType]) => ({ id, styleType }))
-  .sort((left, right) => left.id.localeCompare(right.id));
-const variableJobs = sortedVariableIds.map(async (id) => {
-  try {
-    const variable = await figma.variables.getVariableByIdAsync(id);
-    return variable
-      ? {
-          kind: "variable",
-          value: serializeResource(variable),
-          collectionId: variable.variableCollectionId,
-        }
-      : { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
-  } catch (_) {
-    return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
-  }
-});
-const styleJobs = sortedStyles.map(async ({ id, styleType }) => {
-  try {
-    const style = await figma.getStyleByIdAsync(id);
-    if (!style) {
-      return { kind: "unresolved", value: { id, kind: "style", reason: "notFoundOrUnavailable" } };
-    }
-    return {
-      kind: "style",
-      value: {
-        ...serializeResource(style),
-        styleType,
-        value: serializeResource(
-          styleType === "PAINT"
-            ? style.paints
-            : styleType === "EFFECT"
-              ? style.effects
-              : styleType === "GRID"
-                ? style.layoutGrids
-                : style,
-        ),
-      },
-    };
-  } catch (_) {
-    return { kind: "unresolved", value: { id, kind: "style", reason: "notFoundOrUnavailable" } };
-  }
-});
-const resourceResults = await Promise.all([...variableJobs, ...styleJobs]);
-const collectionIds = [...new Set(resourceResults
-  .filter((result) => result.kind === "variable" && result.collectionId)
-  .map((result) => result.collectionId))].sort();
-const collectionJobs = collectionIds.map(async (id) => {
-  try {
-    const collection = await figma.variables.getVariableCollectionByIdAsync(id);
-    return collection ? serializeResource(collection) : null;
-  } catch (_) {
-    return null;
-  }
-});
-const collections = (await Promise.all(collectionJobs)).filter((collection) => collection !== null);
-const variables = resourceResults
-  .filter((result) => result.kind === "variable")
-  .map((result) => result.value);
-const styles = resourceResults
-  .filter((result) => result.kind === "style")
-  .map((result) => result.value);
-const unresolved = resourceResults
-  .filter((result) => result.kind === "unresolved")
-  .map((result) => result.value);
-
-function utf8Encode(value) {
-  const bytes = [];
-  for (let index = 0; index < value.length; index += 1) {
-    let codePoint = value.charCodeAt(index);
-    if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
-      const next = index + 1 < value.length ? value.charCodeAt(index + 1) : 0;
-      if (next >= 0xdc00 && next <= 0xdfff) {
-        codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (next - 0xdc00);
-        index += 1;
-      } else {
-        codePoint = 0xfffd;
+  const results = await Promise.all([
+    ...sortedVariableIds.map(async (id) => {
+      try {
+        const variable = await figma.variables.getVariableByIdAsync(id);
+        return variable
+          ? {
+              kind: "variable",
+              value: serialize(variable, true),
+              collectionId: variable.variableCollectionId,
+            }
+          : { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+      } catch (_) {
+        return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
       }
-    } else if (codePoint >= 0xdc00 && codePoint <= 0xdfff) {
-      codePoint = 0xfffd;
-    }
+    }),
+    ...sortedStyles.map(async ({ id, styleType }) => {
+      try {
+        const style = await figma.getStyleByIdAsync(id);
+        if (!style) {
+          return { kind: "unresolved", value: { id, kind: "style", reason: "notFoundOrUnavailable" } };
+        }
+        return {
+          kind: "style",
+          value: {
+            ...serialize(style, true),
+            styleType,
+            value: serialize(
+              styleType === "PAINT"
+                ? style.paints
+                : styleType === "EFFECT"
+                  ? style.effects
+                  : styleType === "GRID"
+                    ? style.layoutGrids
+                    : style,
+              true,
+            ),
+          },
+        };
+      } catch (_) {
+        return { kind: "unresolved", value: { id, kind: "style", reason: "notFoundOrUnavailable" } };
+      }
+    }),
+  ]);
 
-    if (codePoint < 0x80) {
-      bytes.push(codePoint);
-    } else if (codePoint < 0x800) {
-      bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
-    } else if (codePoint < 0x10000) {
-      bytes.push(
-        0xe0 | (codePoint >> 12),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
-    } else {
-      bytes.push(
-        0xf0 | (codePoint >> 18),
-        0x80 | ((codePoint >> 12) & 0x3f),
-        0x80 | ((codePoint >> 6) & 0x3f),
-        0x80 | (codePoint & 0x3f),
-      );
+  const collectionIds = [...new Set(results
+    .filter((result) => result.kind === "variable" && result.collectionId)
+    .map((result) => result.collectionId))].sort();
+  const collections = (await Promise.all(collectionIds.map(async (id) => {
+    try {
+      const collection = await figma.variables.getVariableCollectionByIdAsync(id);
+      return collection ? serialize(collection, true) : null;
+    } catch (_) {
+      return null;
     }
-  }
-  return new Uint8Array(bytes);
-}
+  }))).filter((collection) => collection !== null);
 
-const envelope = {
-  kind: "devupFastSnapshotEnvelope",
-  schemaVersion: 1,
-  source: { fileKey: figma.fileKey || "", rootId: envelopeRootId },
-  snapshot: {
-    fileKey: figma.fileKey || "",
-    version: null,
-    rootIds: roots.map((root) => root.id),
-    nodes,
-    diagnostics: [],
-  },
-  resources: {
+  const variables = results.filter((result) => result.kind === "variable").map((result) => result.value);
+  const styles = results.filter((result) => result.kind === "style").map((result) => result.value);
+  const unresolved = results.filter((result) => result.kind === "unresolved").map((result) => result.value);
+
+  return {
     collections,
     variables,
     styles,
@@ -401,34 +352,105 @@ const envelope = {
     localComplete: false,
     usedRemoteComplete: unresolved.length === 0,
     unresolved,
-  },
-  pagination: { offset, nextOffset, complete, totalNodes: allNodes.length },
-  integrity: {
-    nodeCount: nodes.length,
-    variableRefCount: sortedVariableIds.length,
-    styleRefCount: sortedStyles.length,
-    utf8Bytes: 0,
-  },
-};
+    $variableRefCount: sortedVariableIds.length,
+    $styleRefCount: sortedStyles.length,
+  };
+}
 
-let envelopeBytes = new Uint8Array();
-for (let attempt = 0; attempt < 8; attempt += 1) {
-  envelopeBytes = utf8Encode(JSON.stringify(envelope));
-  if (envelope.integrity.utf8Bytes === envelopeBytes.length) break;
-  envelope.integrity.utf8Bytes = envelopeBytes.length;
+// Packs as many nodes as fit under `budget`, starting at `offset`. Same
+// dynamic, byte-budget-driven pagination the legacy cursor snapshot uses.
+function packPage(budget) {
+  const pageNodes = [];
+  let payloadBytes = 2;
+  for (let index = offset; index < allNodes.length; index += 1) {
+    const snapshotted = snapshotNode(allNodes[index]);
+    const nodeBytes = jsonByteLength(snapshotted) + (pageNodes.length ? 1 : 0);
+    if (pageNodes.length && payloadBytes + nodeBytes > budget) break;
+    pageNodes.push(snapshotted);
+    payloadBytes += nodeBytes;
+  }
+  return pageNodes;
 }
-envelopeBytes = utf8Encode(JSON.stringify(envelope));
-if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
-  throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
+
+function buildEnvelope(pageNodes, resources) {
+  const nextOffset = Math.min(allNodes.length, offset + pageNodes.length);
+  const { $variableRefCount, $styleRefCount, ...resourceBlock } = resources;
+  const nodes = [
+    ...pageNodes,
+    {
+      id: "__DEVUP_SNAPSHOT_CURSOR__",
+      type: "DEVUP_INTERNAL",
+      // `offset` is what lets the Rust decoder tell a first page from a
+      // continuation page, which decides whether the root must be present
+      // here. All four fields are read by the shared `read_snapshot_cursor`.
+      fields: {
+        offset,
+        nextOffset,
+        complete: nextOffset >= allNodes.length,
+        totalNodes: allNodes.length,
+      },
+      extra: {},
+      fieldErrors: {},
+    },
+  ];
+  const envelope = {
+    kind: "devupFastSnapshotEnvelope",
+    schemaVersion: 1,
+    source: { fileKey: figma.fileKey || "", rootId: envelopeRootId },
+    snapshot: {
+      fileKey: figma.fileKey || "",
+      version: null,
+      rootIds: roots.map((root) => root.id),
+      nodes,
+      diagnostics: [],
+    },
+    resources: resourceBlock,
+    // No `pagination` mirror: the __DEVUP_SNAPSHOT_CURSOR__ marker node is the
+    // single source of truth for page state, and duplicating it is exactly how
+    // the two copies drifted apart before.
+    integrity: {
+      nodeCount: nodes.length,
+      variableRefCount: $variableRefCount,
+      styleRefCount: $styleRefCount,
+      utf8Bytes: 0,
+    },
+  };
+  // Writing the byte count into the envelope changes the envelope's own
+  // length, so iterate to the fixed point. `utf8ByteLength` measures without
+  // building a throwaway byte array.
+  let bytes = 0;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    bytes = utf8ByteLength(JSON.stringify(envelope));
+    if (envelope.integrity.utf8Bytes === bytes) break;
+    envelope.integrity.utf8Bytes = bytes;
+  }
+  if (envelope.integrity.utf8Bytes !== utf8ByteLength(JSON.stringify(envelope))) {
+    throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
+  }
+  return { envelope, bytes };
 }
-if (envelopeBytes.length > MAX_ENVELOPE_BYTES) {
-  throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+
+// The node budget alone can't bound the envelope: a page also carries every
+// variable/style its nodes reference, and that block is only sized once the
+// nodes are chosen. So pack, build, and if the whole envelope overshoots the
+// text limit, halve the node budget and try again. Fewer nodes can only
+// reference fewer resources, so this converges.
+let nodeBudget = maxPayloadBytes - 1024;
+let built = null;
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  const pageNodes = packPage(nodeBudget);
+  if (pageNodes.length === 0) throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
+  const candidate = buildEnvelope(pageNodes, await collectResources(pageNodes));
+  if (candidate.bytes <= MAX_TEXT_ENVELOPE_BYTES) {
+    built = candidate;
+    break;
+  }
+  if (pageNodes.length === 1) {
+    // A single node whose own resources blow the limit; no smaller page
+    // exists and there is no binary transport to fall back to.
+    throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+  }
+  nodeBudget = Math.floor(nodeBudget / 2);
 }
-if (envelopeBytes.length > MAX_TEXT_ENVELOPE_BYTES) {
-  // The byte budget above is sized to stay under this safety margin; a
-  // single misbehaving node (huge boundVariables/componentProperties tree)
-  // is the only way to reach here. Surface it as a hard error instead of
-  // silently falling back to an unsupported binary transport.
-  throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
-}
-return envelope;
+if (!built) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+return built.envelope;

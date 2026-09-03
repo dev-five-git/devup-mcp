@@ -1,5 +1,5 @@
 [
-  "absoluteBoundingBox", "annotations", "arcData", "backgroundStyleId", "blendMode",
+  "arcData", "backgroundStyleId", "blendMode",
   "bottomLeftRadius", "bottomRightRadius", "boundVariables", "characters", "clipsContent",
   "componentProperties", "componentPropertyDefinitions", "componentPropertyReferences", "constraints", "cornerRadius",
   "counterAxisAlignItems", "dashPattern", "effects", "effectStyleId", "fills",

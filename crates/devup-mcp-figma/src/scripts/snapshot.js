@@ -211,7 +211,10 @@ const nextOffset = Math.min(allNodes.length, offset + nodes.length);
 nodes.push({
   id: "__DEVUP_SNAPSHOT_CURSOR__",
   type: "DEVUP_INTERNAL",
+  // Same marker shape as the fast snapshot so both paths go through the one
+  // `read_snapshot_cursor` reader in Rust.
   fields: {
+    offset,
     nextOffset,
     complete: nextOffset >= allNodes.length,
     totalNodes: allNodes.length,

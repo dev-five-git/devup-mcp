@@ -17,12 +17,12 @@ use crate::{
     AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchLimits, BuiltinScript,
     DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler,
     LargeValueReadOptions, RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef,
-    SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotReadOptions, UnresolvedResource,
-    UpstreamResult, UsedResourceRefs, asset_export_from_result, build_section_index,
-    collect_used_resource_refs, decode_fast_multi_snapshot, decode_fast_snapshot,
-    decode_fast_theme, merge_chunks,
+    SNAPSHOT_CURSOR_ID, SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotCursor,
+    SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
+    asset_export_from_result, build_section_index, collect_used_resource_refs,
+    decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme, merge_chunks,
     metadata::{MetadataResult, metadata_from_result_for_target},
-    plan_batches, resolve_asset_selections, snapshot_chunk_from_result,
+    plan_batches, read_snapshot_cursor, resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
         merge_used_resource_results, merge_variable_results,
@@ -38,7 +38,7 @@ const USED_RESOURCE_BATCH_BYTES: usize = 12_000;
 // Consumer relations can be huge. Compact, bounded fragments are expanded
 // back to the exhaustive shape in Rust without dropping any relation.
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
-pub(crate) const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
+
 const MAX_REFERENCE_PNG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_REFERENCE_PNG_BASE64_BYTES: usize = MAX_REFERENCE_PNG_BYTES.div_ceil(3) * 4;
 const MAX_REFERENCE_PNG_DIMENSION: u32 = 8_192;
@@ -792,6 +792,7 @@ impl CollectorSession {
         // and enqueues any large-value follow-ups they declared.
         let total_nodes = chunk.nodes.len();
         let cursor = take_snapshot_cursor(&mut chunk)?.unwrap_or(SnapshotCursor {
+            offset: 0,
             next_offset: total_nodes,
             complete: true,
             total_nodes,
@@ -1980,53 +1981,14 @@ fn reference_png_decode_error(error: ImageError) -> DevupError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct SnapshotCursor {
-    next_offset: usize,
-    complete: bool,
-    total_nodes: usize,
-}
-
 fn take_snapshot_cursor(chunk: &mut SnapshotChunk) -> Result<Option<SnapshotCursor>, DevupError> {
-    let positions = chunk
-        .nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(index, node)| (node.id == SNAPSHOT_CURSOR_ID).then_some(index))
-        .collect::<Vec<_>>();
-    let Some(&position) = positions.first() else {
+    let Some(cursor) = read_snapshot_cursor(&chunk.nodes)
+        .map_err(|message| invalid_call(message.korean_message()))?
+    else {
         return Ok(None);
     };
-    if positions.len() != 1 {
-        return Err(invalid_call(
-            "Figma snapshot 응답에 cursor가 중복되었습니다.",
-        ));
-    }
-    let cursor = chunk.nodes.remove(position);
-    if cursor.node_type != "DEVUP_INTERNAL" {
-        return Err(invalid_call(
-            "Figma snapshot cursor 형식이 올바르지 않습니다.",
-        ));
-    }
-    let cursor = cursor.typed_view();
-    let next_offset = cursor
-        .value("nextOffset")
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| invalid_call("Figma snapshot cursor의 nextOffset이 없습니다."))?;
-    let complete = cursor
-        .bool("complete")
-        .ok_or_else(|| invalid_call("Figma snapshot cursor의 complete가 없습니다."))?;
-    let total_nodes = cursor
-        .value("totalNodes")
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| invalid_call("Figma snapshot cursor의 totalNodes가 없습니다."))?;
-    Ok(Some(SnapshotCursor {
-        next_offset,
-        complete,
-        total_nodes,
-    }))
+    chunk.nodes.retain(|node| node.id != SNAPSHOT_CURSOR_ID);
+    Ok(Some(cursor))
 }
 
 fn invalid_call(message: &str) -> DevupError {

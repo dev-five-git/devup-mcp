@@ -341,13 +341,38 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
 
     assert_eq!(call.tool_name(), "use_figma");
     assert!(code.contains("figma.getNodeByIdAsync"));
-    // Item A: node property collection no longer walks the prototype chain
-    // (that only remains for variable/style *resource* serialization, which
-    // has no manifest) and never buckets unlisted fields into "extra" — only
-    // the checked-in manifest is ever collected for a node.
+    // Node property collection no longer walks the prototype chain (that only
+    // remains for variable/style *resource* serialization, which has no
+    // manifest) and never buckets unlisted fields into "extra" — only the
+    // checked-in manifest is ever collected for a node.
     assert!(code.contains("for (const name of manifest)"));
     assert!(!code.contains("(manifestSet.has(name) ? fields : extra)"));
     assert!(!code.contains("const manifestSet = new Set(manifest)"));
+    // Default-valued fields are dropped; the tables must stay in sync with
+    // `devup-mcp-devup-ui/tests/default_omission_golden.rs`.
+    assert!(code.contains("const SCALAR_DEFAULTS = new Map(["));
+    assert!(code.contains(r#"const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight"]);"#));
+    // Presence-sensitive fields must never appear in the omission table.
+    for presence_sensitive in [
+        "[\"opacity\"",
+        "[\"visible\"",
+        "[\"layoutPositioning\"",
+        "[\"topLeftRadius\"",
+        "[\"strokeWeight\"",
+    ] {
+        assert!(
+            !code.contains(presence_sensitive),
+            "{presence_sensitive} must not be omittable"
+        );
+    }
+    // One serializer now covers both node fields and resources.
+    assert!(!code.contains("function serializeResource("));
+    assert!(!code.contains("function resourcePropertyNames("));
+    // Byte length is measured without building a throwaway byte array.
+    assert!(!code.contains("function utf8Encode("));
+    assert!(code.contains("utf8ByteLength(JSON.stringify(envelope))"));
+    // The cursor marker is the only page-state carrier; no `pagination` mirror.
+    assert!(!code.contains("pagination:"));
     assert!(code.contains("getStyledTextSegments(textSegmentManifest)"));
     for field in [
         "strokeTopWeight",
@@ -360,9 +385,13 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     assert!(code.contains("getVariableByIdAsync"));
     assert!(code.contains("getVariableCollectionByIdAsync"));
     assert!(code.contains("getStyleByIdAsync"));
-    assert!(code.contains("Promise.all([...variableJobs, ...styleJobs])"));
+    assert!(code.contains("async function collectResources(nodes)"));
     assert!(code.contains("usedVariableIds"));
     assert!(code.contains("usedStyleIds"));
+    // A page carries the resources its nodes reference, so the envelope is
+    // only bounded once both are built - the script must shrink the page and
+    // retry rather than emit an oversized envelope.
+    assert!(code.contains("nodeBudget = Math.floor(nodeBudget / 2)"));
     // Item B: PNG-chunked binary transport is gone entirely — text only,
     // dynamically byte-budgeted and cursor-paginated like the legacy path.
     assert!(!code.contains("duVp"));
@@ -377,12 +406,23 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     // be emitted. `offset` in particular is what distinguishes a first page
     // from a continuation page in `envelope.rs::peek_page_cursor`; omitting
     // it silently downgraded the whole fast path to legacy collection.
-    assert!(code.contains("fields: { offset, nextOffset, complete, totalNodes: allNodes.length }"));
-    assert!(code.contains("MAX_ENVELOPE_BYTES"));
+    for cursor_field in [
+        "        offset,",
+        "        nextOffset,",
+        "        complete: nextOffset >= allNodes.length,",
+        "        totalNodes: allNodes.length,",
+    ] {
+        assert!(
+            code.contains(cursor_field),
+            "cursor marker must emit {cursor_field}"
+        );
+    }
+    // The 15KB text limit is the only envelope ceiling left; the old 1MB
+    // companion check could never fire ahead of it.
     assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
+    assert!(!code.contains("MAX_ENVELOPE_BYTES"));
     assert!(code.contains("devupFastSnapshotEnvelope"));
     assert!(code.contains("DEVUP_TARGET_IS_SECTION"));
-    assert!(code.contains("0xfffd"));
     assert!(!code.contains("DEVUP_FIELD_VALUE_TRUNCATED"));
     assert!(!code.contains("MAX_INLINE_FIELD_BYTES"));
     assert!(!code.contains("devupLargeValueDescriptor"));
