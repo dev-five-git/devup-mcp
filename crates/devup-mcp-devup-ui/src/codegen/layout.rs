@@ -80,10 +80,17 @@ pub(super) fn push_layout_props(
         // An absolutely positioned node is out of flow, so nothing constrains
         // it from the outside and the branches above may leave it sizeless,
         // expecting its children to define the box. That is wrong whenever
-        // Figma pinned the size: a folded asset has no children left to
-        // measure, and a container whose children are smaller than the frame
-        // shrinks to the wrong size. Restate what Figma fixed.
-        if fixed_w && fixed_h && width.is_none() && height.is_none() {
+        // Figma pinned the size and nothing else accounts for it — a folded
+        // asset has no children left to measure at all. Where the gap around
+        // the children became padding, though, that padding and the content
+        // already add back up to the frame, and restating the size only says
+        // it twice.
+        if fixed_w
+            && fixed_h
+            && width.is_none()
+            && height.is_none()
+            && derived_padding(snapshot, node).is_none()
+        {
             width = view.number("width").map(px);
             height = view.number("height").map(px);
         }
@@ -457,6 +464,29 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
 /// describes the frame, so measure it rather than fall back to the frame's own
 /// padding fields, which linger from whenever it last had a layout and no
 /// longer place anything.
+/// The padding this node will actually be given from its children's placement.
+///
+/// A folded asset is excluded: its children are baked into the exported image
+/// and never laid out, so measuring a gap around them would describe a box
+/// nothing lives in.
+pub(super) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
+    let view = node.typed_view();
+    // Figma reports a frame it cannot infer a layout for as an explicit null,
+    // so presence alone does not mean there is a layout to read.
+    if view
+        .value("inferredAutoLayout")
+        .and_then(Value::as_object)
+        .is_some()
+        || view.string("layoutMode") != Some("NONE")
+    {
+        return None;
+    }
+    if super::style::asset_kind(snapshot, node).is_some() {
+        return None;
+    }
+    children_inset(snapshot, node)
+}
+
 pub(super) fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
     let view = node.typed_view();
     let (width, height) = (view.number("width")?, view.number("height")?);
@@ -494,9 +524,7 @@ pub(super) fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64
 fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let inferred = view.value("inferredAutoLayout").and_then(Value::as_object);
-    let derived = (inferred.is_none() && view.string("layoutMode") == Some("NONE"))
-        .then(|| children_inset(snapshot, node))
-        .flatten();
+    let derived = derived_padding(snapshot, node);
     let get = |name: &str| {
         inferred
             .and_then(|value| value.get(name))

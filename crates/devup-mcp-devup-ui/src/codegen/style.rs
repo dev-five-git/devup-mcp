@@ -525,10 +525,17 @@ fn paint_css(
             let name = source
                 .and_then(|node| node.typed_view().name())
                 .unwrap_or("pattern");
-            let extension = source
+            // A raster belongs with the images and a vector with the icons,
+            // which is the split every other asset reference follows. This one
+            // sent a png to the icon folder.
+            let raster = source
                 .and_then(|node| asset_kind(snapshot, node))
-                .map(|kind| if kind == AssetKind::Png { "png" } else { "svg" })
-                .unwrap_or("svg");
+                .is_some_and(|kind| kind == AssetKind::Png);
+            let (folder, extension) = if raster {
+                ("images", "png")
+            } else {
+                ("icons", "svg")
+            };
             let spacing = paint.get("spacing").and_then(Value::as_object);
             let x = spacing
                 .and_then(|value| value.get("x"))
@@ -560,7 +567,7 @@ fn paint_css(
                 .collect::<Vec<_>>()
                 .join(" ");
             Some(format!(
-                "url(/icons/{name}.{extension}){} repeat",
+                "url(/{folder}/{name}.{extension}){} repeat",
                 if position.is_empty() {
                     String::new()
                 } else {

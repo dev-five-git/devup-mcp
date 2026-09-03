@@ -57,6 +57,45 @@ fn a_folded_asset_does_not_anchor_children_it_no_longer_has() {
 }
 
 #[test]
+fn a_raster_pattern_is_referenced_from_the_image_folder() {
+    // A png is an image and an svg is an icon, which is the split every other
+    // asset reference follows. Pattern fills sent both to the icon folder.
+    let tsx = generate(
+        "1:wall",
+        json!([
+            {
+                "id": "1:wall", "type": "FRAME",
+                "fields": {
+                    "name": "Wall", "childrenIds": [],
+                    "width": 200.0, "height": 100.0,
+                    "fills": [{
+                        "type": "PATTERN", "visible": true,
+                        "sourceNodeId": "1:tile",
+                        "spacing": {"x": 0.0, "y": 0.0}
+                    }]
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:tile", "type": "FRAME",
+                "fields": {
+                    "name": "Tile", "childrenIds": [], "isAsset": true,
+                    "width": 20.0, "height": 20.0,
+                    "fills": [{"type": "IMAGE", "visible": true, "scaleMode": "FILL", "imageHash": "h"}]
+                },
+                "extra": {}, "fieldErrors": {}
+            }
+        ]),
+    );
+
+    assert!(
+        tsx.contains("/images/Tile.png"),
+        "a raster pattern is an image: {tsx}"
+    );
+    assert!(!tsx.contains("/icons/Tile"), "{tsx}");
+}
+
+#[test]
 fn separate_image_fills_do_not_claim_the_same_file() {
     // Two fills on one node are two different images. A single hard-coded
     // reference gave both the same URL, so the layered background repeated one
