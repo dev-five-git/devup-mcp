@@ -1,19 +1,21 @@
-"__DEVUP_SECTION_INDEX_PROBE__";
-
 const requestedRootIds = "__DEVUP_ROOT_IDS__";
 if (!Array.isArray(requestedRootIds) || requestedRootIds.length === 0) {
   throw new Error("DEVUP_ROOTS_INVALID");
 }
 const roots = await Promise.all(requestedRootIds.map((id) => figma.getNodeByIdAsync(id)));
 if (roots.some((root) => !root)) throw new Error("DEVUP_NODE_NOT_FOUND");
+if (roots.length === 1 && roots[0].type === "SECTION") {
+  throw new Error("DEVUP_TARGET_IS_SECTION");
+}
 const envelopeRootId = "__DEVUP_NODE_ID__";
 
 const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
 const manifestSet = new Set(manifest);
 const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
 const skipped = new Set(["id", "type", "parent", "children"]);
-const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
+const MAX_ENVELOPE_BYTES = 1024 * 1024;
 const MAX_ENVELOPE_CHUNK_BYTES = 512 * 1024;
+const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
 
 function propertyNames(value) {
   const names = new Set();
@@ -298,6 +300,7 @@ function utf8Encode(value) {
 }
 
 const envelope = {
+  kind: "devupFastSnapshotEnvelope",
   schemaVersion: 1,
   source: { fileKey: figma.fileKey || "", rootId: envelopeRootId },
   snapshot: {
@@ -339,6 +342,7 @@ if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
 if (envelopeBytes.length > MAX_ENVELOPE_BYTES) {
   throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 }
+if (envelopeBytes.length <= MAX_TEXT_ENVELOPE_BYTES) return envelope;
 
 function crc32(bytes) {
   let crc = 0xffffffff;

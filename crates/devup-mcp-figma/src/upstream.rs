@@ -236,23 +236,11 @@ impl BuiltinScript {
             })
             .unwrap_or_else(|| json!({}));
         let asset = serde_json::to_string(&asset).expect("asset options serialize");
-        let section_index_probe = if self == Self::FastSnapshotEnvelope {
-            let mut probe = include_str!("scripts/section_index.js").replacen(
-                "if (section.type !== \"SECTION\") throw new Error(\"DEVUP_SECTION_REQUIRED\");",
-                "if (section.type === \"SECTION\") {",
-                1,
-            );
-            probe.push_str("\n}");
-            format!("{{\n{probe}\n}}")
-        } else {
-            String::new()
-        };
         source
             .replace(
                 "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
                 include_str!("scripts/large_value_helpers.js"),
             )
-            .replace("\"__DEVUP_SECTION_INDEX_PROBE__\"", &section_index_probe)
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
             .replace("\"__DEVUP_ROOT_IDS__\"", &root_ids)
             .replace(

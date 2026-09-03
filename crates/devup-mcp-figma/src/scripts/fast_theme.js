@@ -1,5 +1,6 @@
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
 const MAX_ENVELOPE_CHUNK_BYTES = 512 * 1024;
+const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
 
 function propertyNames(value) {
   const names = new Set(Object.keys(value));
@@ -236,6 +237,7 @@ function utf8Encode(value) {
 }
 
 const envelope = {
+  kind: "devupFastThemeEnvelope",
   schemaVersion: 1,
   source: { fileKey: figma.fileKey || "", version: null },
   resources: {
@@ -269,6 +271,7 @@ if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
   throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
 }
 if (envelopeBytes.length > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+if (envelopeBytes.length <= MAX_TEXT_ENVELOPE_BYTES) return envelope;
 
 function crc32(bytes) {
   let crc = 0xffffffff;

@@ -343,6 +343,9 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
     assert!(code.contains("devup-fast-snapshot-${sequence + 1}-of-${chunkCount}.png"));
     assert!(code.contains("devupFastSnapshotDescriptor"));
     assert!(code.contains("MAX_ENVELOPE_BYTES"));
+    assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
+    assert!(code.contains("devupFastSnapshotEnvelope"));
+    assert!(code.contains("DEVUP_TARGET_IS_SECTION"));
     assert!(code.contains("0xfffd"));
     assert!(!code.contains("maxPayloadBytes"));
     assert!(!code.contains("maxFieldBytes"));
@@ -356,11 +359,11 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
 }
 
 #[test]
-fn fast_snapshot_resolves_every_compiled_placeholder_after_inserting_the_section_probe() {
+fn fast_snapshot_resolves_every_compiled_placeholder_for_the_requested_root() {
     let call = ReadToolCall::fast_snapshot("file-key", "3879:35518");
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
-    assert!(code.contains("figma.getNodeByIdAsync(\"3879:35518\")"));
+    assert!(code.contains("const requestedRootIds = [\"3879:35518\"]"));
     assert!(
         !code.contains("__DEVUP_"),
         "compiled fast snapshot leaked an unresolved template placeholder"
@@ -411,6 +414,8 @@ fn fast_theme_collects_complete_local_theme_and_used_remote_resources_read_only(
     assert!(code.contains("devup-fast-theme-${sequence + 1}-of-${chunkCount}.png"));
     assert!(code.contains("duVp"));
     assert!(code.contains("MAX_ENVELOPE_BYTES"));
+    assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
+    assert!(code.contains("devupFastThemeEnvelope"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
     for mutation in [
