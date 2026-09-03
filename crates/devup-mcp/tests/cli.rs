@@ -151,6 +151,7 @@ fn no_arguments_use_the_startup_current_directory() -> anyhow::Result<()> {
     assert_eq!(config.figma_client_id, None);
     assert_eq!(config.figma_client_secret, None);
     assert_eq!(config.figma_callback_port, None);
+    assert_eq!(config.figma_client_name, None);
     Ok(())
 }
 
@@ -207,6 +208,31 @@ fn figma_client_id_and_secret_reject_missing_or_empty_values() {
     assert!(parse_cli_args([OsString::from("--figma-client-secret"), OsString::from("")]).is_err());
 }
 
+/// The DCR `client_name` is what Figma's catalog allowlist is matched
+/// against, so it is configurable at launch. It is trimmed, and a blank
+/// value is an error rather than a silently-sent empty identity.
+#[test]
+fn figma_client_name_flag_populates_server_config_and_rejects_blank_values() -> anyhow::Result<()> {
+    let action = parse_cli_args([
+        OsString::from("--figma-client-name"),
+        OsString::from("  Acme Registered Client  "),
+    ])?;
+    let CliAction::Serve(config) = action else {
+        panic!("--figma-client-name must start the server")
+    };
+    assert_eq!(
+        config.figma_client_name.as_deref(),
+        Some("Acme Registered Client")
+    );
+
+    assert!(parse_cli_args([OsString::from("--figma-client-name")]).is_err());
+    assert!(parse_cli_args([OsString::from("--figma-client-name"), OsString::from("")]).is_err());
+    assert!(
+        parse_cli_args([OsString::from("--figma-client-name"), OsString::from("   ")]).is_err()
+    );
+    Ok(())
+}
+
 #[test]
 fn version_and_self_check_are_rejected_when_combined_with_figma_flags() {
     // `--version`/`--self-check` must only win when they are the *sole*
@@ -237,13 +263,16 @@ fn resolve_figma_direct_config_prioritizes_cli_arg_over_env() {
         Some("cli-client".to_owned()),
         Some("cli-secret".to_owned()),
         Some(19876),
+        Some("Cli Client Name".to_owned()),
         Some("env-client".to_owned()),
         Some("env-secret".to_owned()),
+        Some("Env Client Name".to_owned()),
     );
     assert_eq!(resolved.client_id.as_deref(), Some("cli-client"));
     assert_eq!(resolved.client_secret.as_deref(), Some("cli-secret"));
     assert_eq!(resolved.credential_source, ClientCredentialSource::CliArg);
     assert_eq!(resolved.callback_port, Some(19876));
+    assert_eq!(resolved.client_name.as_deref(), Some("Cli Client Name"));
 }
 
 #[test]
@@ -252,23 +281,74 @@ fn resolve_figma_direct_config_falls_back_to_env_then_to_none() {
         None,
         None,
         None,
+        None,
         Some("env-client".to_owned()),
         Some("env-secret".to_owned()),
+        Some("Env Client Name".to_owned()),
     );
     assert_eq!(env_only.client_id.as_deref(), Some("env-client"));
     assert_eq!(env_only.credential_source, ClientCredentialSource::Env);
+    assert_eq!(env_only.client_name.as_deref(), Some("Env Client Name"));
 
-    let neither = resolve_figma_direct_config(None, None, None, None, None);
+    let neither = resolve_figma_direct_config(None, None, None, None, None, None, None);
     assert_eq!(neither.client_id, None);
     assert_eq!(neither.client_secret, None);
     assert_eq!(neither.credential_source, ClientCredentialSource::None);
+    assert_eq!(neither.client_name, None);
 
     // Callback port is independent of credential source: it always comes
     // from the cli-arg value regardless of which credential source won.
-    let callback_port_only = resolve_figma_direct_config(None, None, Some(19876), None, None);
+    let callback_port_only =
+        resolve_figma_direct_config(None, None, Some(19876), None, None, None, None);
     assert_eq!(callback_port_only.callback_port, Some(19876));
     assert_eq!(
         callback_port_only.credential_source,
         ClientCredentialSource::None
+    );
+}
+
+/// The client name lives on the Dynamic Client Registration path, which a
+/// pre-registered `client_id` skips outright — so it must resolve
+/// independently of the credential pair, and be available even when no
+/// credential is configured at all (exactly the case where DCR runs).
+#[test]
+fn resolve_figma_direct_config_resolves_client_name_independently_of_credentials() {
+    let name_without_credentials = resolve_figma_direct_config(
+        None,
+        None,
+        None,
+        Some("Acme Registered Client".to_owned()),
+        None,
+        None,
+        None,
+    );
+    assert_eq!(
+        name_without_credentials.client_name.as_deref(),
+        Some("Acme Registered Client")
+    );
+    assert_eq!(name_without_credentials.client_id, None);
+    assert_eq!(
+        name_without_credentials.credential_source,
+        ClientCredentialSource::None
+    );
+
+    // No cli-arg name: the env value carries even when the winning
+    // credential source is the cli arg.
+    let env_name_with_cli_credentials = resolve_figma_direct_config(
+        Some("cli-client".to_owned()),
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some("Env Client Name".to_owned()),
+    );
+    assert_eq!(
+        env_name_with_cli_credentials.client_name.as_deref(),
+        Some("Env Client Name")
+    );
+    assert_eq!(
+        env_name_with_cli_credentials.credential_source,
+        ClientCredentialSource::CliArg
     );
 }

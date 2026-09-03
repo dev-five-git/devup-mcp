@@ -42,8 +42,8 @@ pub use large_values::{
     MAX_LARGE_VALUE_CHUNK_BYTES,
 };
 pub use oauth::{
-    AuthStatus, BrowserOpener, ClientCredentialSource, DirectPathSnapshot, OAuthManager,
-    SecretString, SystemBrowser, TokenState,
+    AuthStatus, BrowserOpener, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot,
+    OAuthManager, SecretString, SystemBrowser, TokenState,
 };
 pub use payload::{
     CollectedPayload, PayloadCompleteness, PayloadCompletenessReport, PayloadStructure,

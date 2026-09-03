@@ -8,8 +8,8 @@ use axum::{
 };
 use devup_mcp_figma::{
     AuthStatus, BrowserOpener, ClientCredentialSource, ClientCredentials, CredentialStore,
-    DirectPathSnapshot, ErrorCode, MemoryClientCredentialStore, MemoryCredentialStore,
-    OAuthManager, SecretString, TokenState,
+    DEFAULT_CLIENT_NAME, DirectPathSnapshot, ErrorCode, MemoryClientCredentialStore,
+    MemoryCredentialStore, OAuthManager, SecretString, TokenState,
 };
 use serde_json::{Value, json};
 use tokio::{net::TcpListener, sync::Mutex};
@@ -124,7 +124,7 @@ async fn login_discovers_registers_uses_pkce_and_stores_tokens() -> anyhow::Resu
         .await
         .clone()
         .expect("registration");
-    assert_eq!(registration["client_name"], "devup-mcp");
+    assert_eq!(registration["client_name"], DEFAULT_CLIENT_NAME);
     assert_eq!(registration["token_endpoint_auth_method"], "none");
     assert!(
         registration["redirect_uris"][0]
@@ -165,6 +165,79 @@ async fn logout_clears_persisted_authorization() -> anyhow::Result<()> {
     let manager = OAuthManager::with_endpoint("https://mcp.figma.com/mcp", store);
     manager.logout().await?;
     assert_eq!(manager.status().await?, AuthStatus::Disconnected);
+    Ok(())
+}
+
+/// Mirrors Figma's real Dynamic Client Registration: its authorization
+/// server advertises only `client_secret_basic`/`client_secret_post`, so
+/// registration issues a confidential client with a secret.
+async fn register_confidential(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    *state.captured.registration.lock().await = Some(body);
+    Json(json!({"client_id": "dynamic-client", "client_secret": "dynamic-secret"}))
+}
+
+/// Regression: a secret issued by Dynamic Client Registration must reach the
+/// authorization-code exchange. Discarding it made every real Figma login
+/// fail with a bare `400` from `/v1/oauth/token` — after registration and
+/// browser consent had both already succeeded, which made the failure look
+/// like a network fault rather than a missing credential.
+#[tokio::test]
+async fn a_dcr_issued_client_secret_is_used_for_the_token_exchange_and_refresh()
+-> anyhow::Result<()> {
+    let (base, captured) = spawn_mock_oauth_server(post(register_confidential)).await?;
+
+    let store = MemoryCredentialStore::default();
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store.clone())
+        .with_callback_timeout(Duration::from_secs(3));
+    let authorization = manager.login(&CallbackOpener).await?;
+
+    let form = captured
+        .token_form
+        .lock()
+        .await
+        .clone()
+        .expect("token form");
+    assert_eq!(
+        form.get("client_secret").map(String::as_str),
+        Some("dynamic-secret"),
+        "the DCR-issued secret must be sent to the token endpoint"
+    );
+
+    // It is kept with the authorization it belongs to, so a later refresh —
+    // which has no operator-configured credential to fall back on — can send
+    // it too. The secret must never surface in Debug output.
+    assert_eq!(
+        authorization
+            .client_secret
+            .as_ref()
+            .map(SecretString::expose),
+        Some("dynamic-secret")
+    );
+    assert!(!format!("{authorization:?}").contains("dynamic-secret"));
+
+    // Force the stored token to look expired so `access_token` refreshes.
+    let mut expired = CredentialStore::load(&store).await?.expect("authorization");
+    expired.expires_at = Some(0);
+    CredentialStore::save(&store, &expired).await?;
+    manager.access_token().await?;
+    let refresh_form = captured
+        .token_form
+        .lock()
+        .await
+        .clone()
+        .expect("refresh form");
+    assert_eq!(
+        refresh_form.get("grant_type").map(String::as_str),
+        Some("refresh_token")
+    );
+    assert_eq!(
+        refresh_form.get("client_secret").map(String::as_str),
+        Some("dynamic-secret"),
+        "refresh must carry the DCR-issued secret as well"
+    );
     Ok(())
 }
 
@@ -251,9 +324,9 @@ async fn static_client_credentials_skip_dynamic_client_registration() -> anyhow:
     Ok(())
 }
 
-/// Core deliverable #3 (README honesty policy): with no client credential
-/// resolvable, `login` still performs DCR with the literal, honest
-/// `client_name: "devup-mcp"` (never impersonating another product), and a
+/// Core deliverable #3: with no client credential resolvable and no
+/// operator-supplied override, `login` performs DCR under
+/// `DEFAULT_CLIENT_NAME`, and a
 /// 403 rejection (Figma's real response shape: plain-text `Forbidden`, not
 /// JSON) surfaces as a classified, actionable `DEVUP_FIGMA_CATALOG_REJECTED`
 /// error — not a generic network failure — carrying the four documented
@@ -288,15 +361,80 @@ async fn dcr_403_is_classified_as_catalog_rejected_with_actionable_options() -> 
     let serialized = serde_json::to_string(&error)?;
     assert!(!serialized.contains("Forbidden"));
 
-    // Never even attempted the DCR registration under a spoofed name;
-    // confirm the honest, literal request that *did* go out.
+    // Confirm the request that actually went out carried the compiled
+    // default, so a 403 here is attributable to the allowlist rather than
+    // to a stray per-process override.
     let registration = captured
         .registration
         .lock()
         .await
         .clone()
         .expect("registration attempt");
-    assert_eq!(registration["client_name"], "devup-mcp");
+    assert_eq!(registration["client_name"], DEFAULT_CLIENT_NAME);
+    Ok(())
+}
+
+/// The compiled default is a deployment decision, not an implementation
+/// detail: devup-mcp is distributed to be installed into Codex, and the
+/// literal name `devup-mcp` is not on Figma's catalog allowlist, so
+/// defaulting to it would make `direct` unreachable out of the box. Pin
+/// the value so flipping it is a deliberate, reviewed edit rather than a
+/// silent drift — and pin that the override still wins over it.
+#[test]
+fn default_client_name_is_codex_and_remains_overridable() {
+    assert_eq!(DEFAULT_CLIENT_NAME, "Codex");
+}
+
+/// Figma admits `/register` only for `client_name` values on its catalog
+/// allowlist, so an operator whose client was admitted under a different
+/// name must be able to supply it at launch
+/// (`--figma-client-name`/`DEVUP_FIGMA_CLIENT_NAME`) without a rebuild.
+/// The override must reach the registration body verbatim — and only the
+/// name changes: PKCE, redirect_uri and the token exchange are untouched.
+#[tokio::test]
+async fn configured_client_name_is_sent_verbatim_to_dynamic_client_registration()
+-> anyhow::Result<()> {
+    let (base, captured) = spawn_mock_oauth_server(post(register)).await?;
+
+    let store = MemoryCredentialStore::default();
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+        .with_callback_timeout(Duration::from_secs(3))
+        .with_client_name("Acme Registered Client");
+    manager.login(&CallbackOpener).await?;
+
+    let registration = captured
+        .registration
+        .lock()
+        .await
+        .clone()
+        .expect("registration attempt");
+    assert_eq!(registration["client_name"], "Acme Registered Client");
+    assert_eq!(registration["token_endpoint_auth_method"], "none");
+    assert!(
+        registration["redirect_uris"][0]
+            .as_str()
+            .expect("redirect uri")
+            .starts_with("http://127.0.0.1:")
+    );
+
+    let snapshot = manager.direct_path_snapshot().await?;
+    assert_eq!(snapshot.client_name, "Acme Registered Client");
+    Ok(())
+}
+
+/// A blank override is operator error (an unset env var expanding to an
+/// empty string, say) and must never be sent as the client's identity —
+/// it falls back to the honest default instead.
+#[tokio::test]
+async fn blank_client_name_override_falls_back_to_the_default() -> anyhow::Result<()> {
+    let manager = OAuthManager::with_endpoint(
+        "https://mcp.figma.com/mcp",
+        MemoryCredentialStore::default(),
+    )
+    .with_client_name("   ");
+
+    let snapshot = manager.direct_path_snapshot().await?;
+    assert_eq!(snapshot.client_name, DEFAULT_CLIENT_NAME);
     Ok(())
 }
 
@@ -438,6 +576,7 @@ fn client_secret_never_appears_in_debug_output() {
         token_state: TokenState::Valid,
         callback_port: Some(19876),
         callback_port_free: Some(true),
+        client_name: DEFAULT_CLIENT_NAME.to_owned(),
     };
     let serialized = serde_json::to_string(&snapshot).expect("snapshot serializes");
     assert!(!serialized.contains("super-secret-value"));

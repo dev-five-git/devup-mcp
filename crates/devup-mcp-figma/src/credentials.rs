@@ -10,6 +10,19 @@ use super::{DevupError, ErrorCode, SecretString};
 #[serde(rename_all = "camelCase")]
 pub struct StoredAuthorization {
     pub client_id: String,
+    /// The secret issued alongside `client_id` by Dynamic Client
+    /// Registration, when the authorization server issues one.
+    ///
+    /// Figma's does: its metadata advertises only `client_secret_basic` and
+    /// `client_secret_post`, so a DCR-registered client is confidential and
+    /// every token/refresh request must carry the secret. It is kept next to
+    /// the `client_id` it belongs to rather than in the user-facing client
+    /// credential store, which holds credentials the operator supplied.
+    ///
+    /// `#[serde(default)]` keeps authorizations written before this field
+    /// existed readable from the keyring.
+    #[serde(default)]
+    pub client_secret: Option<SecretString>,
     pub access_token: String,
     pub refresh_token: Option<String>,
     pub expires_at: Option<u64>,
@@ -85,7 +98,7 @@ impl CredentialStore for KeyringCredentialStore {
             Ok(json) => serde_json::from_str(&json).map(Some).map_err(|_| {
                 DevupError::new(
                     ErrorCode::DevupAuthRequired,
-                    "저장된 Figma 인증 정보를 읽을 수 없습니다. 다시 로그인하세요.",
+                    "Cannot read the stored Figma credentials. Log in again.",
                     false,
                 )
             }),
@@ -118,7 +131,7 @@ impl CredentialStore for KeyringCredentialStore {
 fn keyring_error(_error: keyring::Error) -> DevupError {
     DevupError::new(
         ErrorCode::DevupAuthRequired,
-        "운영체제 보안 저장소에 Figma 인증 정보를 저장할 수 없습니다.",
+        "Cannot store Figma credentials in the OS secure store.",
         false,
     )
 }
@@ -126,7 +139,7 @@ fn keyring_error(_error: keyring::Error) -> DevupError {
 fn credential_task_error() -> DevupError {
     DevupError::new(
         ErrorCode::DevupAuthRequired,
-        "Figma 인증 저장소 작업을 완료하지 못했습니다.",
+        "Failed to complete the Figma credential store operation.",
         true,
     )
 }
@@ -208,7 +221,7 @@ impl ClientCredentialStore for KeyringClientCredentialStore {
             Ok(json) => serde_json::from_str(&json).map(Some).map_err(|_| {
                 DevupError::new(
                     ErrorCode::DevupAuthRequired,
-                    "저장된 Figma client 자격증명을 읽을 수 없습니다. 다시 configure하세요.",
+                    "Cannot read the stored Figma client credentials. Run configure again.",
                     false,
                 )
             }),

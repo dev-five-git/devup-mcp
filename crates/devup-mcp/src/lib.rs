@@ -16,6 +16,9 @@ pub struct ServerConfig {
     /// From `--figma-callback-port`. `None` preserves the pre-existing
     /// OS-assigned-port behavior.
     pub figma_callback_port: Option<u16>,
+    /// From `--figma-client-name`. `None` keeps devup-mcp's own literal
+    /// name for Dynamic Client Registration.
+    pub figma_client_name: Option<String>,
 }
 
 /// Fully resolved Figma direct-connection configuration: cli-arg values
@@ -29,6 +32,11 @@ pub struct FigmaDirectConfig {
     pub client_secret: Option<String>,
     pub credential_source: ClientCredentialSource,
     pub callback_port: Option<u16>,
+    /// `client_name` for Dynamic Client Registration. `None` keeps
+    /// [`devup_mcp_figma::DEFAULT_CLIENT_NAME`]. Resolved independently of
+    /// the client-id/secret pair: a pre-registered credential skips DCR
+    /// entirely, so the two settings are never both in play.
+    pub client_name: Option<String>,
 }
 
 /// Resolves the effective Figma direct-connection client credential from
@@ -41,15 +49,22 @@ pub fn resolve_figma_direct_config(
     cli_client_id: Option<String>,
     cli_client_secret: Option<String>,
     cli_callback_port: Option<u16>,
+    cli_client_name: Option<String>,
     env_client_id: Option<String>,
     env_client_secret: Option<String>,
+    env_client_name: Option<String>,
 ) -> FigmaDirectConfig {
+    // Resolved independently of the credential pair below: a client name
+    // only matters on the Dynamic Client Registration path, which a
+    // pre-registered client_id skips outright.
+    let client_name = cli_client_name.or(env_client_name);
     if let Some(client_id) = cli_client_id {
         return FigmaDirectConfig {
             client_id: Some(client_id),
             client_secret: cli_client_secret,
             credential_source: ClientCredentialSource::CliArg,
             callback_port: cli_callback_port,
+            client_name,
         };
     }
     if let Some(client_id) = env_client_id {
@@ -58,24 +73,30 @@ pub fn resolve_figma_direct_config(
             client_secret: env_client_secret,
             credential_source: ClientCredentialSource::Env,
             callback_port: cli_callback_port,
+            client_name,
         };
     }
     FigmaDirectConfig {
         callback_port: cli_callback_port,
+        client_name,
         ..FigmaDirectConfig::default()
     }
 }
 
-/// Reads `DEVUP_FIGMA_CLIENT_ID`/`DEVUP_FIGMA_CLIENT_SECRET`, treating an
-/// empty value the same as an unset one.
-fn env_figma_client_credentials() -> (Option<String>, Option<String>) {
-    let client_id = std::env::var("DEVUP_FIGMA_CLIENT_ID")
-        .ok()
-        .filter(|value| !value.is_empty());
-    let client_secret = std::env::var("DEVUP_FIGMA_CLIENT_SECRET")
-        .ok()
-        .filter(|value| !value.is_empty());
-    (client_id, client_secret)
+/// Reads `DEVUP_FIGMA_CLIENT_ID`/`DEVUP_FIGMA_CLIENT_SECRET`/
+/// `DEVUP_FIGMA_CLIENT_NAME`, treating an empty value the same as an
+/// unset one.
+fn env_figma_client_credentials() -> (Option<String>, Option<String>, Option<String>) {
+    let read = |key: &str| {
+        std::env::var(key)
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+    };
+    (
+        read("DEVUP_FIGMA_CLIENT_ID"),
+        read("DEVUP_FIGMA_CLIENT_SECRET"),
+        read("DEVUP_FIGMA_CLIENT_NAME"),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,11 +131,13 @@ where
     let mut figma_client_id: Option<String> = None;
     let mut figma_client_secret: Option<String> = None;
     let mut figma_callback_port: Option<u16> = None;
+    let mut figma_client_name: Option<String> = None;
     while let Some(argument) = arguments.next() {
         let no_other_options_yet = roots.is_empty()
             && figma_client_id.is_none()
             && figma_client_secret.is_none()
-            && figma_callback_port.is_none();
+            && figma_callback_port.is_none()
+            && figma_client_name.is_none();
         match argument.to_str() {
             Some("--version" | "-V") if no_other_options_yet && arguments.peek().is_none() => {
                 return Ok(CliAction::Version);
@@ -124,57 +147,69 @@ where
             }
             Some("--allow-write-root") => {
                 let root = arguments.next().ok_or_else(|| {
-                    anyhow::anyhow!("--allow-write-root에는 폴더 경로가 필요합니다.")
+                    anyhow::anyhow!("--allow-write-root requires a directory path.")
                 })?;
                 let root = PathBuf::from(root);
                 if !root.is_dir() {
-                    anyhow::bail!("--allow-write-root는 존재하는 폴더여야 합니다.");
+                    anyhow::bail!("--allow-write-root must be an existing directory.");
                 }
                 roots.push(root);
             }
             Some("--figma-client-id") => {
                 let value = arguments
                     .next()
-                    .ok_or_else(|| anyhow::anyhow!("--figma-client-id에는 값이 필요합니다."))?;
+                    .ok_or_else(|| anyhow::anyhow!("--figma-client-id requires a value."))?;
                 let value = value
                     .to_str()
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("--figma-client-id는 UTF-8 문자열이어야 합니다.")
-                    })?
+                    .ok_or_else(|| anyhow::anyhow!("--figma-client-id must be a UTF-8 string."))?
                     .to_owned();
                 if value.is_empty() {
-                    anyhow::bail!("--figma-client-id는 빈 문자열일 수 없습니다.");
+                    anyhow::bail!("--figma-client-id must not be empty.");
                 }
                 figma_client_id = Some(value);
             }
             Some("--figma-client-secret") => {
                 let value = arguments
                     .next()
-                    .ok_or_else(|| anyhow::anyhow!("--figma-client-secret에는 값이 필요합니다."))?;
+                    .ok_or_else(|| anyhow::anyhow!("--figma-client-secret requires a value."))?;
                 let value = value
                     .to_str()
                     .ok_or_else(|| {
-                        anyhow::anyhow!("--figma-client-secret는 UTF-8 문자열이어야 합니다.")
+                        anyhow::anyhow!("--figma-client-secret must be a UTF-8 string.")
                     })?
                     .to_owned();
                 if value.is_empty() {
-                    anyhow::bail!("--figma-client-secret는 빈 문자열일 수 없습니다.");
+                    anyhow::bail!("--figma-client-secret must not be empty.");
                 }
                 figma_client_secret = Some(value);
             }
+            Some("--figma-client-name") => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("--figma-client-name requires a value."))?;
+                let value = value
+                    .to_str()
+                    .ok_or_else(|| anyhow::anyhow!("--figma-client-name must be a UTF-8 string."))?
+                    .trim()
+                    .to_owned();
+                if value.is_empty() {
+                    anyhow::bail!("--figma-client-name must not be empty.");
+                }
+                figma_client_name = Some(value);
+            }
             Some("--figma-callback-port") => {
                 let value = arguments.next().ok_or_else(|| {
-                    anyhow::anyhow!("--figma-callback-port에는 포트 번호가 필요합니다.")
+                    anyhow::anyhow!("--figma-callback-port requires a port number.")
                 })?;
                 let value = value.to_str().ok_or_else(|| {
-                    anyhow::anyhow!("--figma-callback-port는 UTF-8 문자열이어야 합니다.")
+                    anyhow::anyhow!("--figma-callback-port must be a UTF-8 string.")
                 })?;
                 figma_callback_port = Some(value.parse::<u16>().map_err(|_| {
-                    anyhow::anyhow!("--figma-callback-port는 1-65535 사이 숫자여야 합니다.")
+                    anyhow::anyhow!("--figma-callback-port must be a number between 1 and 65535.")
                 })?);
             }
-            Some(flag) => anyhow::bail!("지원하지 않는 devup-mcp 인자입니다: {flag}"),
-            None => anyhow::bail!("devup-mcp 인자는 UTF-8 flag여야 합니다."),
+            Some(flag) => anyhow::bail!("Unsupported devup-mcp argument: {flag}"),
+            None => anyhow::bail!("devup-mcp arguments must be UTF-8 flags."),
         }
     }
     if roots.is_empty() {
@@ -185,14 +220,22 @@ where
         figma_client_id,
         figma_client_secret,
         figma_callback_port,
+        figma_client_name,
     }))
 }
 
 pub fn self_check() -> SelfCheckReport {
     let credential_ok = devup_mcp_figma::KeyringCredentialStore::probe().is_ok();
-    let (env_client_id, env_client_secret) = env_figma_client_credentials();
-    let figma_direct =
-        resolve_figma_direct_config(None, None, None, env_client_id, env_client_secret);
+    let (env_client_id, env_client_secret, env_client_name) = env_figma_client_credentials();
+    let figma_direct = resolve_figma_direct_config(
+        None,
+        None,
+        None,
+        None,
+        env_client_id,
+        env_client_secret,
+        env_client_name,
+    );
     let server_ok = std::env::current_dir()
         .ok()
         .and_then(|root| server::DevupServer::production_with_config(vec![root], figma_direct).ok())
@@ -221,13 +264,15 @@ pub async fn run_stdio() -> anyhow::Result<()> {
 pub async fn run_stdio_with_config(config: ServerConfig) -> anyhow::Result<()> {
     use rmcp::ServiceExt;
 
-    let (env_client_id, env_client_secret) = env_figma_client_credentials();
+    let (env_client_id, env_client_secret, env_client_name) = env_figma_client_credentials();
     let figma_direct = resolve_figma_direct_config(
         config.figma_client_id.clone(),
         config.figma_client_secret.clone(),
         config.figma_callback_port,
+        config.figma_client_name.clone(),
         env_client_id,
         env_client_secret,
+        env_client_name,
     );
     let service =
         server::DevupServer::production_with_config(config.allowed_write_roots, figma_direct)?

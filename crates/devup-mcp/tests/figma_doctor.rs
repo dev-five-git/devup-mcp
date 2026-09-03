@@ -12,8 +12,8 @@ use std::sync::{
 use async_trait::async_trait;
 use devup_mcp::server::{DevupAuth, DevupServer, Services};
 use devup_mcp_figma::{
-    AuthStatus, ClientCredentialSource, DevupError, DirectPathSnapshot, ErrorCode, FigmaUpstream,
-    ReadToolCall, TokenState, UpstreamResult,
+    AuthStatus, ClientCredentialSource, DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot,
+    ErrorCode, FigmaUpstream, ReadToolCall, TokenState, UpstreamResult,
 };
 use rmcp::{
     ServiceExt,
@@ -151,14 +151,28 @@ async fn doctor_action_reports_measured_paths_and_client_setup_data() -> anyhow:
     assert!(client_setup["constraints"]["redirectUri"].is_string());
     assert!(client_setup["constraints"]["callbackPortCaution"].is_string());
     assert!(client_setup["constraints"]["personalAccessToken"].is_string());
-    assert!(client_setup["opencode"]["example"]["mcp"]["figma"]["oauth"].is_object());
+    // Codex is the primary, self-contained install path; the other hosts
+    // remain reachable but demoted under `otherHosts`.
+    assert_eq!(client_setup["codex"]["primary"], true);
     assert!(
-        client_setup["claudeCode"]
+        client_setup["codex"]["installDevupMcp"]["toml"]
+            .as_str()
+            .unwrap()
+            .contains("[mcp_servers.devup-mcp]")
+    );
+    assert!(
+        client_setup["codex"]["officialFigmaMcp"]
             .as_str()
             .unwrap()
             .contains("figma")
     );
-    assert!(client_setup["codex"].as_str().unwrap().contains("figma"));
+    assert!(client_setup["otherHosts"]["opencode"]["example"]["mcp"]["figma"]["oauth"].is_object());
+    assert!(
+        client_setup["otherHosts"]["claudeCode"]
+            .as_str()
+            .unwrap()
+            .contains("figma")
+    );
     assert_eq!(
         client_setup["localDevMode"]["endpoint"],
         "http://127.0.0.1:3845/mcp"
@@ -240,7 +254,7 @@ async fn needs_figma_always_carries_an_actionable_host_requirement() -> anyhow::
         host_requirement["ifUnavailable"]["message"]
             .as_str()
             .unwrap()
-            .contains("추측")
+            .contains("guessing")
     );
     assert!(
         host_requirement["ifUnavailable"]["setupHint"]
@@ -303,7 +317,7 @@ async fn needs_figma_always_carries_result_contract_and_output_expectation() -> 
             .contains("devup-ui")
     );
     let do_not_hand_interpret = output_expectation["doNotHandInterpret"].as_str().unwrap();
-    assert!(do_not_hand_interpret.contains("노드 트리"));
+    assert!(do_not_hand_interpret.contains("node tree"));
     assert!(do_not_hand_interpret.contains("devup-ui"));
     assert!(
         output_expectation["ifConversionFails"]
@@ -405,6 +419,7 @@ async fn doctor_reports_measured_credential_source_token_state_and_callback_port
             token_state: TokenState::Expired,
             callback_port: Some(19876),
             callback_port_free: Some(false),
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
         },
         configured: Mutex::new(None),
     };
@@ -438,6 +453,7 @@ async fn configure_action_persists_credentials_and_never_echoes_the_secret() -> 
             token_state: TokenState::Absent,
             callback_port: None,
             callback_port_free: None,
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
         },
         configured: Mutex::new(None),
     });

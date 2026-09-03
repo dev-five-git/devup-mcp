@@ -29,7 +29,9 @@
 
 use std::time::Duration;
 
-use devup_mcp_figma::{AuthStatus, ClientCredentialSource, DirectPathSnapshot};
+use devup_mcp_figma::{
+    AuthStatus, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot,
+};
 use serde_json::{Value, json};
 
 /// Loopback address the Figma desktop app's local Dev Mode MCP server binds
@@ -64,11 +66,11 @@ pub async fn local_dev_mode_reachable() -> bool {
 fn local_dev_mode_hint(reachable: bool) -> String {
     if reachable {
         format!(
-            "{LOCAL_DEV_MODE_ENDPOINT}가 응답하고 있습니다. 호스트에 이 로컬 Dev Mode MCP가 등록되어 있다면 OAuth 없이 그 도구를 바로 사용할 수 있습니다."
+            "{LOCAL_DEV_MODE_ENDPOINT} is responding. If the host has this local Dev Mode MCP registered, you can use its tools directly without OAuth."
         )
     } else {
         format!(
-            "{LOCAL_DEV_MODE_ENDPOINT}가 응답하지 않습니다. Figma 데스크톱 앱 → Preferences → Dev Mode MCP 서버를 켜면 OAuth 없이 사용할 수 있습니다 (Dev 또는 Full 시트가 있는 유료 플랜 필요)."
+            "{LOCAL_DEV_MODE_ENDPOINT} is not responding. Enable Figma desktop app -> Preferences -> Dev Mode MCP server to use it without OAuth (requires a paid plan with a Dev or Full seat)."
         )
     }
 }
@@ -87,12 +89,12 @@ fn local_dev_mode_hint(reachable: bool) -> String {
 pub async fn host_requirement() -> Value {
     let reachable = local_dev_mode_reachable().await;
     json!({
-        "reason": "devup-mcp는 Figma에 직접 접속하지 않습니다. 호스트에 등록된 공식 Figma MCP가 이 read-only 호출을 대신 실행해야 합니다.",
+        "reason": "devup-mcp does not connect to Figma directly. The official Figma MCP registered on the host must run this read-only call on its behalf.",
         "steps": [
-            "이 세션에 등록된 공식 Figma MCP를 찾으세요. 흔한 이름: figma, figma-desktop, figma-local, figma-remote-mcp.",
-            "calls[].tool 이름의 도구를 calls[].arguments 그대로 호출하세요. arguments의 code 필드를 절대 수정하지 마세요.",
-            "받은 원본 결과를 가공 없이 devup_figma_continue { sessionId, callId, result } 로 넘기세요.",
-            "status가 needs_figma면 만료(expiresAt) 전까지 반복하세요."
+            "Find the official Figma MCP registered in this session. Common names: figma, figma-desktop, figma-local, figma-remote-mcp.",
+            "Call the tool named in calls[].tool with calls[].arguments exactly as given. Never modify the code field in arguments.",
+            "Pass the raw result through unchanged to devup_figma_continue { sessionId, callId, result }.",
+            "While status is needs_figma, repeat until expiresAt."
         ],
         "localDevMode": {
             "endpoint": LOCAL_DEV_MODE_ENDPOINT,
@@ -101,18 +103,18 @@ pub async fn host_requirement() -> Value {
         },
         "ifUnavailable": {
             "action": "stop-and-report",
-            "message": "Figma MCP에 접근할 수 없으면 즉시 멈추고 보고하세요. 디자인 수치를 추측해서 구현하지 마세요.",
-            "setupHint": "devup_figma_auth { action: \"doctor\" } 를 호출하면 사용 가능한 경로와 클라이언트별 설정 방법을 얻을 수 있습니다."
+            "message": "If no Figma MCP is reachable, stop immediately and report. Do not implement by guessing design values.",
+            "setupHint": "Call devup_figma_auth { action: \"doctor\" } to get the usable connection paths and client-specific setup instructions."
         },
         "resultContract": {
-            "expects": "공식 Figma MCP CallToolResult 원본 전체 (가공 금지)",
-            "ifHostFlattensToText": "호스트가 텍스트만 준다면 { \"content\": [{ \"type\": \"text\", \"text\": <원문 그대로> }] } 로만 감싸라.",
-            "neverFabricate": "structuredContent 등 없는 필드를 지어내지 마라. 두 번 이상 형식 오류가 나면 추측을 멈추고 보고하라."
+            "expects": "The complete raw official Figma MCP CallToolResult (no processing)",
+            "ifHostFlattensToText": "If the host gives text only, wrap it as nothing more than { \"content\": [{ \"type\": \"text\", \"text\": <verbatim original> }] }.",
+            "neverFabricate": "Do not invent fields you were not given, such as structuredContent. After two or more format errors, stop guessing and report."
         },
         "outputExpectation": {
-            "whatYouWillGet": "이 핸드오프가 완주하면 devup-mcp가 devup-ui TSX를 생성해 반환한다.",
-            "doNotHandInterpret": "use_figma가 반환한 노드 트리(좌표·크기·계층)를 직접 해석해서 devup-ui 코드를 작성하지 마라. 좌표 계산으로 레이아웃을 추론하지 마라. 그것이 devup-mcp가 존재하는 이유다.",
-            "ifConversionFails": "stop-and-report. 노드 트리를 근거로 UI를 손으로 작성하는 것은 금지된 폴백이다."
+            "whatYouWillGet": "Once this handoff completes, devup-mcp generates and returns the devup-ui TSX.",
+            "doNotHandInterpret": "Do not hand-interpret the node tree (coordinates, sizes, hierarchy) use_figma returned to write devup-ui code. Do not infer layout from coordinate math. That is exactly why devup-mcp exists.",
+            "ifConversionFails": "stop-and-report. Hand-writing the UI from the node tree is a forbidden fallback."
         }
     })
 }
@@ -147,16 +149,21 @@ pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Va
                     "port": direct.callback_port,
                     "free": direct.callback_port_free
                 },
+                "registrationClientName": {
+                    "value": direct.client_name,
+                    "isDefault": direct.client_name == DEFAULT_CLIENT_NAME,
+                    "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
+                },
                 "reason": direct_reason(direct_available, direct.credential_source)
             },
             "localDevMode": {
                 "endpoint": LOCAL_DEV_MODE_ENDPOINT,
                 "reachable": reachable,
-                "hint": "Figma 데스크톱 → Preferences → Dev Mode MCP 서버 활성화 (Dev/Full 시트 필요)"
+                "hint": "Figma desktop -> Preferences -> enable the Dev Mode MCP server (requires a Dev/Full seat)"
             },
             "hostHandoff": {
                 "expectedTool": "use_figma",
-                "note": "devup-mcp 내부에서는 확인 불가합니다. 호스트가 공식 Figma MCP를 노출해야 합니다."
+                "note": "Cannot be verified from inside devup-mcp. The host must expose the official Figma MCP."
             }
         },
         "clientSetup": client_setup()
@@ -173,21 +180,23 @@ fn direct_reason(
     credential_source: ClientCredentialSource,
 ) -> &'static str {
     if direct_available {
-        return "저장된 자격증명이 있습니다.";
+        return "A stored credential is present.";
     }
     match credential_source {
         ClientCredentialSource::None => {
-            "저장된 자격증명 없음. Figma는 allowlist된 client_name으로 등록한 client에만 \
-             Dynamic Client Registration을 허용합니다. devup_figma_auth { action: \"configure\", \
-             clientId, clientSecret }로 직접 확보한 client 자격증명을 등록하거나, Figma MCP \
-             Catalog waitlist(https://www.figma.com/mcp-catalog/)에 등록하거나, 로컬 Dev Mode \
-             MCP를 사용하거나, 호스트 핸드오프(sourcePolicy: auto 또는 host)를 사용하세요."
+            "No stored credential. Run devup_figma_auth { action: \"login\" }: with no \
+             pre-registered credential it falls back to Dynamic Client Registration under the \
+             default allowlisted client_name (see registrationClientName). If that returns 403, \
+             the allowlist rejected the name — register a client credential you obtained yourself \
+             via devup_figma_auth { action: \"configure\", clientId, clientSecret }, join the \
+             Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/), use the local Dev \
+             Mode MCP, or use the host handoff (sourcePolicy: auto or host)."
         }
         ClientCredentialSource::CliArg
         | ClientCredentialSource::Env
         | ClientCredentialSource::CredentialStore => {
-            "사전 등록된 client 자격증명이 있습니다. devup_figma_auth { action: \"login\" } 으로 \
-             인증하면 direct 경로를 사용할 수 있습니다."
+            "A pre-registered client credential is present. Authenticate with devup_figma_auth \
+             { action: \"login\" } to use the direct path."
         }
     }
 }
@@ -196,34 +205,46 @@ fn client_setup() -> Value {
     json!({
         "constraints": {
             "registerEndpoint": "POST https://api.figma.com/v1/oauth/mcp/register",
-            "clientNameAllowlist": "Figma는 등록 요청의 client_name을 정확히 일치하는 allowlist로만 승인합니다(예: Codex, Claude Code는 200; OpenCode, opencode, Cursor, VS Code는 403). 승인되지 않은 이름은 JSON이 아닌 평문 'Forbidden' 본문과 함께 403을 반환하므로 여러 클라이언트의 OAuth 오류 파싱까지 함께 깨집니다. 신규 client 등록은 waitlist를 통해서만 가능합니다: https://www.figma.com/mcp-catalog/",
-            "redirectUri": "redirect_uri는 경로가 정확히 /callback이어야 하고 호스트는 127.0.0.1이어야 합니다(200). localhost 호스트나 /mcp/oauth/callback 같은 다른 경로는 400으로 거절됩니다.",
-            "callbackPortCaution": "OS나 보안 소프트웨어가 로컬 OAuth 콜백 포트를 이미 점유하고 있으면 브라우저는 리다이렉트에 성공한 것처럼 보이지만, 그 요청은 다른 프로세스로 전달되어 클라이언트는 에러 없이 'Waiting for authorization...' 상태로 무한 대기합니다. 콜백 포트를 다른 프로세스가 쓰고 있지 않은지 먼저 확인하세요.",
-            "personalAccessToken": "Figma PAT(figd_...)는 Authorization: Bearer, X-Figma-Token 어느 방식으로도 원격 MCP에서 지원되지 않습니다."
+            "clientNameAllowlist": "Figma approves a registration request's client_name only against an exact-match allowlist (e.g. Codex and Claude Code get 200; OpenCode, opencode, Cursor, and VS Code get 403). A non-approved name returns 403 with a plain-text 'Forbidden' body instead of JSON, which also breaks OAuth error parsing in several clients. Registering a new client is only possible through the waitlist: https://www.figma.com/mcp-catalog/",
+            "redirectUri": "redirect_uri must use exactly the path /callback and the host 127.0.0.1 (200). A localhost host, or another path such as /mcp/oauth/callback, is rejected with 400.",
+            "callbackPortCaution": "If the OS or security software already occupies the local OAuth callback port, the browser looks like it redirected successfully, but that request goes to the other process and the client waits forever at 'Waiting for authorization...' with no error. Check first that no other process is using the callback port.",
+            "personalAccessToken": "A Figma PAT (figd_...) is not supported by the remote MCP through either Authorization: Bearer or X-Figma-Token."
         },
-        "opencode": {
-            "hint": "mcp.<name>.oauth에 clientId/clientSecret/scope/callbackPort/redirectUri를 직접 지정하면 Dynamic Client Registration을 건너뜁니다. clientId/clientSecret은 allowlist된 client_name으로 직접 등록해 발급받아야 합니다.",
-            "example": {
-                "mcp": {
-                    "figma": {
-                        "type": "remote",
-                        "url": "https://mcp.figma.com/mcp",
-                        "oauth": {
-                            "clientId": "<allowlist된 client_name으로 등록해 발급받은 client_id>",
-                            "clientSecret": "<allowlist된 client_name으로 등록해 발급받은 client_secret>",
-                            "scope": "mcp:connect",
-                            "callbackPort": 19876,
-                            "redirectUri": "http://127.0.0.1:19876/callback"
+        "codex": {
+            "primary": true,
+            "hint": "The intended host. devup-mcp registers under client_name Codex by default, so devup_figma_auth { action: \"login\" } completes from a Codex install with no extra flags and no client_id/client_secret. Add --figma-client-name only once your own client is admitted to the Figma MCP catalog.",
+            "installDevupMcp": {
+                "file": "~/.codex/config.toml",
+                "toml": "[mcp_servers.devup-mcp]\ncommand = \"devup-mcp\"\nargs = [\"--allow-write-root\", \"<project path>\"]",
+                "then": "Restart Codex, then call devup_figma_auth { action: \"login\" } once to store the token."
+            },
+            "officialFigmaMcp": "codex mcp add figma --url https://mcp.figma.com/mcp"
+        },
+        "otherHosts": {
+            "note": "Reference only — devup-mcp targets Codex. Kept for the host-handoff path (sourcePolicy: auto or host) when devup-mcp runs elsewhere.",
+            "claudeCode": "claude mcp add --transport http figma https://mcp.figma.com/mcp",
+            "opencode": {
+                "hint": "Setting clientId/clientSecret/scope/callbackPort/redirectUri directly under mcp.<name>.oauth skips Dynamic Client Registration. clientId/clientSecret must be issued to you by registering yourself under an allowlisted client_name.",
+                "example": {
+                    "mcp": {
+                        "figma": {
+                            "type": "remote",
+                            "url": "https://mcp.figma.com/mcp",
+                            "oauth": {
+                                "clientId": "<client_id issued by registering under an allowlisted client_name>",
+                                "clientSecret": "<client_secret issued by registering under an allowlisted client_name>",
+                                "scope": "mcp:connect",
+                                "callbackPort": 19876,
+                                "redirectUri": "http://127.0.0.1:19876/callback"
+                            }
                         }
                     }
                 }
             }
         },
-        "claudeCode": "claude mcp add --transport http figma https://mcp.figma.com/mcp",
-        "codex": "codex mcp add figma --url https://mcp.figma.com/mcp",
         "localDevMode": {
             "endpoint": LOCAL_DEV_MODE_ENDPOINT,
-            "hint": "OAuth가 필요 없습니다. Figma 데스크톱 앱에서 Dev Mode MCP 서버를 켜면 어떤 MCP 클라이언트에서도 동일하게 동작합니다. Dev 또는 Full 시트가 있는 유료 플랜이 필요합니다."
+            "hint": "No OAuth needed. Turning on the Dev Mode MCP server in the Figma desktop app behaves identically from any MCP client. Requires a paid plan with a Dev or Full seat."
         }
     })
 }
@@ -299,11 +320,11 @@ mod tests {
         let do_not_hand_interpret = value["outputExpectation"]["doNotHandInterpret"]
             .as_str()
             .unwrap();
-        assert!(do_not_hand_interpret.contains("노드 트리"));
+        assert!(do_not_hand_interpret.contains("node tree"));
         assert!(do_not_hand_interpret.contains("devup-ui"));
         assert_eq!(
             value["outputExpectation"]["ifConversionFails"],
-            "stop-and-report. 노드 트리를 근거로 UI를 손으로 작성하는 것은 금지된 폴백이다."
+            "stop-and-report. Hand-writing the UI from the node tree is a forbidden fallback."
         );
     }
 
@@ -313,6 +334,7 @@ mod tests {
             token_state: devup_mcp_figma::TokenState::Absent,
             callback_port: None,
             callback_port_free: None,
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
         }
     }
 
@@ -334,7 +356,55 @@ mod tests {
             "use_figma"
         );
         assert!(disconnected["clientSetup"]["constraints"]["clientNameAllowlist"].is_string());
-        assert!(disconnected["clientSetup"]["opencode"]["example"].is_object());
+        assert!(disconnected["clientSetup"]["otherHosts"]["opencode"]["example"].is_object());
+    }
+
+    /// Codex is the host devup-mcp is installed into, so `clientSetup`
+    /// must lead with a self-contained Codex install path — the other
+    /// hosts stay available but demoted, so they cannot be mistaken for
+    /// the primary route.
+    #[tokio::test]
+    async fn client_setup_leads_with_codex_and_demotes_the_other_hosts() {
+        let report = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
+        let setup = &report["clientSetup"];
+
+        assert_eq!(setup["codex"]["primary"], true);
+        let toml = setup["codex"]["installDevupMcp"]["toml"]
+            .as_str()
+            .expect("codex install snippet");
+        assert!(toml.contains("[mcp_servers.devup-mcp]"));
+        assert!(setup["codex"]["hint"].as_str().unwrap().contains("Codex"));
+
+        // Demoted, not deleted: still reachable for the host-handoff path.
+        assert!(setup["otherHosts"]["claudeCode"].is_string());
+        assert!(setup["otherHosts"]["opencode"]["example"].is_object());
+        assert!(setup["claudeCode"].is_null());
+        assert!(setup["opencode"].is_null());
+    }
+
+    /// The `client_name` DCR will actually send is the single fact that
+    /// decides whether `/register` returns 200 or a plain-text 403, so
+    /// `doctor` must report it — and must say plainly when it is still the
+    /// (non-allowlisted) default rather than an operator-supplied name.
+    #[tokio::test]
+    async fn doctor_report_surfaces_the_registration_client_name_and_whether_it_is_default() {
+        let default_report =
+            doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
+        let default_name = &default_report["paths"]["direct"]["registrationClientName"];
+        assert_eq!(default_name["value"], DEFAULT_CLIENT_NAME);
+        assert_eq!(default_name["isDefault"], true);
+
+        let overridden = doctor_report(
+            AuthStatus::Disconnected,
+            DirectPathSnapshot {
+                client_name: "Acme Registered Client".to_owned(),
+                ..absent_direct_snapshot()
+            },
+        )
+        .await;
+        let overridden_name = &overridden["paths"]["direct"]["registrationClientName"];
+        assert_eq!(overridden_name["value"], "Acme Registered Client");
+        assert_eq!(overridden_name["isDefault"], false);
     }
 
     #[tokio::test]
@@ -344,6 +414,7 @@ mod tests {
             token_state: devup_mcp_figma::TokenState::Expired,
             callback_port: Some(19876),
             callback_port_free: Some(false),
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
         };
         let report = doctor_report(AuthStatus::Disconnected, snapshot).await;
         assert_eq!(report["paths"]["direct"]["credentialSource"], "cli-arg");
@@ -375,6 +446,7 @@ mod tests {
             token_state: devup_mcp_figma::TokenState::Valid,
             callback_port: Some(19876),
             callback_port_free: Some(true),
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
         };
         let report = doctor_report(AuthStatus::Connected, snapshot).await;
         assert!(report["paths"]["direct"].get("clientSecret").is_none());

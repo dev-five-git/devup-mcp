@@ -31,8 +31,8 @@ use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
     AuthStatus, ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload,
     CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
-    DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode,
-    ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
+    DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
+    ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
     KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchReadOptions,
     SecretString, SectionCandidate, SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser,
     TokenState, fallback_allowed_for_error,
@@ -78,6 +78,7 @@ pub trait DevupAuth: Send + Sync {
             },
             callback_port: None,
             callback_port_free: None,
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
         })
     }
 
@@ -91,7 +92,7 @@ pub trait DevupAuth: Send + Sync {
     ) -> Result<(), DevupError> {
         Err(DevupError::new(
             ErrorCode::DevupAuthRequired,
-            "이 auth 백엔드는 client 자격증명 설정을 지원하지 않습니다.",
+            "This auth backend does not support configuring client credentials.",
             false,
         ))
     }
@@ -142,6 +143,9 @@ impl Services {
             .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
         if figma_direct.callback_port.is_some() {
             oauth = oauth.with_callback_port(figma_direct.callback_port);
+        }
+        if let Some(client_name) = figma_direct.client_name {
+            oauth = oauth.with_client_name(client_name);
         }
         if let Some(client_id) = figma_direct.client_id {
             oauth = oauth.with_static_client_credentials(
@@ -252,7 +256,7 @@ impl DevupServer {
             }
             return Err(DevupError::with_details(
                 ErrorCode::DevupAuthRequired,
-                "Figma direct 연결을 사용하려면 devup_figma_auth login이 필요합니다.",
+                "Using the Figma direct connection requires devup_figma_auth login.",
                 false,
                 json!({"source": "direct"}),
             ));
@@ -350,7 +354,7 @@ impl DevupServer {
                 else {
                     return Err(DevupError::new(
                         ErrorCode::DevupFigmaHandoffInvalid,
-                        "Figma handoff artifact key가 없습니다.",
+                        "The Figma handoff artifact key is missing.",
                         false,
                     ));
                 };
@@ -414,7 +418,7 @@ impl DevupServer {
             let client_id = input.client_id.ok_or_else(|| {
                 to_mcp_error(DevupError::new(
                     ErrorCode::DevupInvalidInput,
-                    "configure에는 clientId가 필요합니다.",
+                    "configure requires clientId.",
                     false,
                 ))
             })?;
@@ -432,7 +436,7 @@ impl DevupServer {
             _ => {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupAuthRequired,
-                    "action은 status, login, logout, configure 또는 doctor여야 합니다.",
+                    "action must be status, login, logout, configure, or doctor.",
                     false,
                 )));
             }
@@ -453,7 +457,7 @@ impl DevupServer {
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "UI 변환 링크에는 node-id가 필요합니다.",
+                "A UI conversion link requires a node-id.",
                 false,
             ))
         })?;
@@ -570,14 +574,14 @@ impl DevupServer {
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma 주변 화면 탐색에는 node-id가 필요합니다.",
+                "Exploring neighboring Figma screens requires a node-id.",
                 false,
             ))
         })?;
         if !(1..=100).contains(&input.limit) {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "탐색 limit은 1 이상 100 이하여야 합니다.",
+                "The explore limit must be between 1 and 100 inclusive.",
                 false,
             )));
         }
@@ -642,7 +646,7 @@ impl DevupServer {
         {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "assetRequests를 사용하려면 outputs에 assetManifest가 필요합니다.",
+                "Using assetRequests requires assetManifest in outputs.",
                 false,
             )));
         }
@@ -650,7 +654,7 @@ impl DevupServer {
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "referencePng는 단일 Figma 링크 대상에서만 수집할 수 있습니다.",
+                "referencePng can only be collected for a single Figma link target.",
                 false,
             )));
         }
@@ -665,14 +669,14 @@ impl DevupServer {
             if input.url.is_some() || input.refresh {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupFigmaHandoffInvalid,
-                    "artifactId는 url 또는 refresh와 함께 사용할 수 없습니다.",
+                    "artifactId cannot be used together with url or refresh.",
                     false,
                 )));
             }
             let artifact = self.artifacts.get(artifact_id).await.ok_or_else(|| {
                 to_mcp_error(DevupError::new(
                     ErrorCode::DevupFigmaHandoffExpired,
-                    "Figma artifact가 없거나 만료되었습니다.",
+                    "The Figma artifact is missing or expired.",
                     true,
                 ))
             })?;
@@ -684,7 +688,7 @@ impl DevupServer {
                 let index = section_index_from_payload(&artifact.payload).ok_or_else(|| {
                     to_mcp_error(DevupError::new(
                         ErrorCode::DevupFigmaHandoffInvalid,
-                        "Section index artifact payload가 올바르지 않습니다.",
+                        "The Section index artifact payload is invalid.",
                         false,
                     ))
                 })?;
@@ -694,7 +698,7 @@ impl DevupServer {
                 if collection_scope != CollectionScope::Node {
                     return Err(to_mcp_error(DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "Section Frame 수집 scope는 node여야 합니다.",
+                        "The Section Frame collection scope must be node.",
                         false,
                     )));
                 }
@@ -768,7 +772,7 @@ impl DevupServer {
         let url = input.url.as_deref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaHandoffInvalid,
-                "url 또는 artifactId 중 하나가 필요합니다.",
+                "Either url or artifactId is required.",
                 false,
             ))
         })?;
@@ -776,7 +780,7 @@ impl DevupServer {
         if input.outputs.iter().any(|output| output == "tsx") && target.node_id.is_none() {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "TSX export 링크에는 node-id가 필요합니다.",
+                "A TSX export link requires a node-id.",
                 false,
             )));
         }
@@ -941,7 +945,7 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
         "file" => Ok(ThemeScope::File),
         _ => Err(DevupError::new(
             ErrorCode::DevupThemeConflict,
-            "scope는 node, page 또는 file이어야 합니다.",
+            "scope must be node, page, or file.",
             false,
         )),
     }
@@ -966,14 +970,14 @@ impl ServerHandler for DevupServer {
         )
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
         .with_instructions(
-            "1. Figma 디자인을 코드로 옮기는 작업에서 devup-mcp가 1차 소스다. 다른 출처로 이를 대체하지 마라.\n\
-             2. 구현이 목적이면 devup_figma_export를 먼저 호출하고 tsx, rawSnapshot, sourceMap을 함께 받아라.\n\
-             3. get_design_context, 스크린샷, 시각적 추론은 검증 보조일 뿐이다. devup-mcp 출력을 덮어쓰지 마라.\n\
-             4. 핸드오프로 받은 노드 트리를 직접 해석해 devup-ui 코드를 작성하지 마라. 좌표로 레이아웃을 추론하지 마라.\n\
-             5. 핸드오프 단계에서는 요청된 도구를 요청된 arguments 그대로 실행하고, 원본 결과를 가공 없이 devup_figma_continue로 돌려줘라.\n\
-             6. devup-mcp 호출이 실패하면 명시적으로 기록하라. 조용히 다른 방법으로 우회하지 마라.\n\
-             7. 색상·간격·radius·타이포 같은 UI 수치를 추측하지 마라. 확보하지 못했으면 멈추고 보고하라.\n\
-             8. Section 링크는 전체 subtree로 구현하지 마라. selection_required의 후보를 확인하고 frameIds 또는 allScreens로 화면별 export를 계속하라.",
+            "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
+             2. When the goal is implementation, call devup_figma_export first and take tsx, rawSnapshot, and sourceMap together.\n\
+             3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
+             4. Do not hand-interpret a node tree received from a handoff to write devup-ui code. Do not infer layout from coordinates.\n\
+             5. In a handoff step, run the requested tool with the requested arguments exactly, and return the raw result unchanged via devup_figma_continue.\n\
+             6. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
+             7. Do not guess UI values such as color, spacing, radius, or typography. If you could not obtain them, stop and report.\n\
+             8. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with per-screen export via frameIds or allScreens.",
         )
     }
 
