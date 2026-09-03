@@ -1,6 +1,6 @@
 use quick_xml::{Reader, XmlVersion, events::Event};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::{DevupError, ErrorCode, UpstreamResult};
 
@@ -54,12 +54,50 @@ pub fn metadata_from_result_for_target(
         })
         .or_else(|| find_top_level_pages(&result.raw).map(MetadataResult::TopLevelPages))
         .ok_or_else(|| {
-            DevupError::new(
+            DevupError::with_details(
                 ErrorCode::DevupSnapshotUnsupported,
                 "metadata not found in the Figma MCP response.",
                 false,
+                observed_response_shape(&result.raw),
             )
         })
+}
+
+/// Summarises what actually arrived when metadata could not be parsed.
+///
+/// This failure is intermittent, and reporting only that metadata was "not
+/// found" gave no way to tell an empty response from a relayed error string or
+/// an envelope shape the parser does not yet recognise — so every occurrence
+/// had to be reproduced live to learn anything. Carrying the observed shape
+/// with the error makes a single occurrence diagnosable.
+fn observed_response_shape(value: &Value) -> Value {
+    fn previews(value: &Value, found: &mut Vec<String>) {
+        if found.len() >= 4 {
+            return;
+        }
+        match value {
+            Value::Object(object) => object.values().for_each(|child| previews(child, found)),
+            Value::Array(values) => values.iter().for_each(|child| previews(child, found)),
+            Value::String(text) if !text.is_empty() => {
+                let mut preview: String = text.chars().take(200).collect();
+                if text.chars().count() > 200 {
+                    preview.push('…');
+                }
+                found.push(preview);
+            }
+            _ => {}
+        }
+    }
+
+    let mut texts = Vec::new();
+    previews(value, &mut texts);
+    json!({
+        "topLevelKeys": match value {
+            Value::Object(object) => object.keys().cloned().collect::<Vec<_>>(),
+            _ => Vec::new(),
+        },
+        "textPreviews": texts,
+    })
 }
 
 fn find_top_level_pages(value: &Value) -> Option<Vec<MetadataNode>> {

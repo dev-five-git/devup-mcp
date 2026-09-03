@@ -371,6 +371,36 @@ pub(crate) fn is_section_error_result(value: &Value) -> bool {
         && value.to_string().contains("DEVUP_TARGET_IS_SECTION")
 }
 
+/// The message carried by an upstream result that reports a failure.
+///
+/// A Section target was only the first error delivered this way. Anything
+/// upstream refuses — a tool-call rate limit above all — arrives as a
+/// *successful* MCP call carrying `isError`, and handing that to the
+/// collector made it hunt for data the response never contained. It then
+/// blamed the parser: "metadata not found in the Figma MCP response", or
+/// the same for snapshot data, variable batches and asset descriptors,
+/// depending only on which step happened to receive it. The real reason
+/// was in the response the whole time, so return it and let the caller
+/// read it.
+pub(crate) fn upstream_error_message(value: &Value) -> Option<String> {
+    if value.get("isError").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    fn first_text(value: &Value) -> Option<String> {
+        match value {
+            Value::Object(object) => object
+                .get("text")
+                .and_then(Value::as_str)
+                .filter(|text| text.len() > 16)
+                .map(str::to_owned)
+                .or_else(|| object.values().find_map(first_text)),
+            Value::Array(values) => values.iter().find_map(first_text),
+            _ => None,
+        }
+    }
+    Some(first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned()))
+}
+
 fn take_session(
     state: &mut StoreState,
     session_id: &str,

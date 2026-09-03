@@ -4,7 +4,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
     AssetFormat, AssetRequest, AssetSelection, AssetStatus, CollectionRequest, CollectionScope,
     CollectorSession, CollectorStep, FigmaTarget, RawNode, ReadToolCall, Snapshot, UpstreamResult,
-    asset_export_from_result, discover_asset_manifest,
+    asset_export_from_result, discover_asset_manifest, validate_asset_requests,
 };
 use serde_json::{Map, json};
 use sha2::Digest as _;
@@ -219,6 +219,58 @@ fn manifest_preserves_image_and_vector_source_details_without_exporting_bytes() 
     );
     assert_eq!(manifest.assets[0].status, AssetStatus::Available);
     assert!(manifest.assets[0].data_base64.is_none());
+}
+
+fn hidden_asset_snapshot() -> Snapshot {
+    Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["1:1".to_owned()],
+        nodes: [node(
+            "1:1",
+            "FRAME",
+            json!({
+                "childrenIds": [],
+                "visible": false,
+                "isAsset": true,
+                "fills": [{"type": "IMAGE", "imageHash": "image-hash-123", "scaleMode": "FILL"}]
+            }),
+        )]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    }
+}
+
+#[test]
+fn hidden_node_is_reported_as_unexportable_instead_of_available() {
+    let manifest = discover_asset_manifest(&hidden_asset_snapshot());
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].status, AssetStatus::Failed);
+    assert_eq!(
+        manifest.assets[0].error_code.as_deref(),
+        Some("DEVUP_ASSET_NODE_HIDDEN")
+    );
+}
+
+#[test]
+fn requesting_a_hidden_asset_is_rejected_with_the_reason() {
+    let error = validate_asset_requests(
+        &hidden_asset_snapshot(),
+        &[AssetRequest {
+            asset_id: "1:1:fills:0".to_owned(),
+            node_id: "1:1".to_owned(),
+            field: "fills/0".to_owned(),
+            image_hash: Some("image-hash-123".to_owned()),
+            format: AssetFormat::Png,
+            scale: 1,
+        }],
+    )
+    .expect_err("a hidden node cannot be exported, so the request must be refused");
+
+    assert!(format!("{error:?}").contains("hidden"), "{error:?}");
 }
 
 fn manifest_for(roots: &[&str], nodes: Vec<RawNode>) -> devup_mcp_figma::AssetManifest {

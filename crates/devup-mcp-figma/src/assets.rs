@@ -316,6 +316,20 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
         ),
     };
 
+    // Figma refuses to export a node that has no visible layers, so a hidden
+    // node can never produce bytes. Advertising it as available promised
+    // something the export would always refuse, and the caller only found out
+    // once the failure surfaced from inside Figma, far from its cause.
+    let hidden = node.typed_view().bool("visible") == Some(false);
+    let (status, error_code) = if hidden {
+        (
+            AssetStatus::Failed,
+            Some("DEVUP_ASSET_NODE_HIDDEN".to_owned()),
+        )
+    } else {
+        (AssetStatus::Available, None)
+    };
+
     AssetManifestEntry {
         asset_id,
         node_id: node.id.clone(),
@@ -324,13 +338,13 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
         image_hash,
         format: None,
         scale: None,
-        status: AssetStatus::Available,
+        status,
         byte_length: None,
         sha256: None,
         mime_type: None,
         data_base64: None,
         output_path: None,
-        error_code: None,
+        error_code,
     }
 }
 
@@ -361,6 +375,14 @@ pub fn validate_asset_requests(
             || candidate.image_hash != request.image_hash
         {
             return Err(invalid("asset request does not match the snapshot source."));
+        }
+        // Reject what the manifest already knows cannot be exported, so the
+        // reason travels with the rejection instead of arriving later as an
+        // opaque failure from inside Figma.
+        if candidate.status == AssetStatus::Failed {
+            return Err(invalid(
+                "The requested asset cannot be exported: the node is hidden in Figma.",
+            ));
         }
     }
     Ok(())
