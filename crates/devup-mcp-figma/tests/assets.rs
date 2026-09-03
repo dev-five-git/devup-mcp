@@ -25,7 +25,7 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
     let mut request = CollectionRequest::new(target, CollectionScope::Node);
     request.asset_selections = vec![AssetSelection {
-        asset_id: "1:1:fills:1".to_owned(),
+        asset_id: "1:1:fills:0".to_owned(),
         format: AssetFormat::Png,
         scale: 2,
     }];
@@ -68,14 +68,14 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
     let ReadToolCall::AssetExport { request, .. } = asset_call.call else {
         panic!("asset export call")
     };
-    assert_eq!(request.asset_id, "1:1:fills:1");
+    assert_eq!(request.asset_id, "1:1:fills:0");
     collector
         .accept(
             &asset_call.id,
             UpstreamResult {
                 raw: json!({
                     "kind":"devupAssetExport","fileKey":"FileKey123","version":"v1",
-                    "assetId":"1:1:fills:1","nodeId":"1:1","field":"fills/1",
+                    "assetId":"1:1:fills:0","nodeId":"1:1","field":"fills/0",
                     "imageHash":"image-hash-123","format":"png","scale":2,
                     "status":"failed","byteLength":null,"sha256":null,
                     "errorCode":"DEVUP_ASSET_EXPORT_FAILED"
@@ -187,24 +187,15 @@ fn snapshot() -> Snapshot {
         file_key: "FileKey123".to_owned(),
         version: Some("v1".to_owned()),
         roots: vec!["1:1".to_owned()],
-        nodes: [
-            node(
-                "1:1",
-                "FRAME",
-                json!({
-                    "childrenIds": ["1:2"],
-                    "fills": [
-                        {"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}},
-                        {"type": "IMAGE", "imageHash": "image-hash-123", "scaleMode": "FILL"}
-                    ]
-                }),
-            ),
-            node(
-                "1:2",
-                "VECTOR",
-                json!({"parentId": "1:1", "childrenIds": [], "fills": []}),
-            ),
-        ]
+        nodes: [node(
+            "1:1",
+            "FRAME",
+            json!({
+                "childrenIds": [],
+                "isAsset": true,
+                "fills": [{"type": "IMAGE", "imageHash": "image-hash-123", "scaleMode": "FILL"}]
+            }),
+        )]
         .into_iter()
         .map(|node| (node.id.clone(), node))
         .collect(),
@@ -217,19 +208,153 @@ fn manifest_preserves_image_and_vector_source_details_without_exporting_bytes() 
     let manifest = discover_asset_manifest(&snapshot());
 
     assert_eq!(manifest.version, 1);
-    assert_eq!(manifest.assets.len(), 2);
-    assert_eq!(manifest.assets[0].asset_id, "1:1:fills:1");
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "1:1:fills:0");
     assert_eq!(manifest.assets[0].node_id, "1:1");
-    assert_eq!(manifest.assets[0].field, "fills/1");
+    assert_eq!(manifest.assets[0].field, "fills/0");
     assert_eq!(manifest.assets[0].source_kind, "image-fill");
     assert_eq!(
         manifest.assets[0].image_hash.as_deref(),
         Some("image-hash-123")
     );
     assert_eq!(manifest.assets[0].status, AssetStatus::Available);
-    assert_eq!(manifest.assets[1].asset_id, "1:2:node");
-    assert_eq!(manifest.assets[1].source_kind, "vector-node");
-    assert!(manifest.assets[1].data_base64.is_none());
+    assert!(manifest.assets[0].data_base64.is_none());
+}
+
+fn manifest_for(roots: &[&str], nodes: Vec<RawNode>) -> devup_mcp_figma::AssetManifest {
+    discover_asset_manifest(&Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: roots.iter().map(|root| (*root).to_owned()).collect(),
+        nodes: nodes
+            .into_iter()
+            .map(|node| (node.id.clone(), node))
+            .collect(),
+        diagnostics: Vec::new(),
+    })
+}
+
+#[test]
+fn icon_container_wins_over_its_vector_fragments() {
+    let manifest = manifest_for(
+        &["3997:46297"],
+        vec![
+            node(
+                "3997:46297",
+                "FRAME",
+                json!({"name": "input", "childrenIds": ["3997:46298", "3997:46301"]}),
+            ),
+            node(
+                "3997:46298",
+                "FRAME",
+                json!({
+                    "name": "kakao-talk_2111496 1",
+                    "parentId": "3997:46297",
+                    "isAsset": true,
+                    "childrenIds": ["3997:46299", "3997:46300"]
+                }),
+            ),
+            node(
+                "3997:46299",
+                "VECTOR",
+                json!({"name": "Vector", "parentId": "3997:46298"}),
+            ),
+            node(
+                "3997:46300",
+                "VECTOR",
+                json!({"name": "Vector", "parentId": "3997:46298"}),
+            ),
+            node(
+                "3997:46301",
+                "TEXT",
+                json!({"name": "카카오로 공유하기", "parentId": "3997:46297"}),
+            ),
+        ],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "3997:46298:node");
+    assert_eq!(manifest.assets[0].node_id, "3997:46298");
+    assert_eq!(manifest.assets[0].field, "node");
+    assert_eq!(manifest.assets[0].source_kind, "vector-node");
+    assert_eq!(manifest.assets[0].image_hash, None);
+}
+
+#[test]
+fn bare_vector_is_an_svg_asset_but_text_is_not() {
+    let manifest = manifest_for(
+        &["1:vector", "1:text"],
+        vec![
+            node("1:vector", "VECTOR", json!({})),
+            node("1:text", "TEXT", json!({})),
+        ],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "1:vector:node");
+    assert_eq!(manifest.assets[0].source_kind, "vector-node");
+}
+
+#[test]
+fn decorated_single_child_containers_do_not_replace_their_children() {
+    let manifest = manifest_for(
+        &["1:padding", "1:filled"],
+        vec![
+            node(
+                "1:padding",
+                "FRAME",
+                json!({"childrenIds": ["1:padding-vector"], "paddingLeft": 8}),
+            ),
+            node(
+                "1:padding-vector",
+                "VECTOR",
+                json!({"parentId": "1:padding"}),
+            ),
+            node(
+                "1:filled",
+                "FRAME",
+                json!({
+                    "childrenIds": ["1:filled-vector"],
+                    "fills": [{"type": "SOLID", "visible": true}]
+                }),
+            ),
+            node("1:filled-vector", "VECTOR", json!({"parentId": "1:filled"})),
+        ],
+    );
+
+    let asset_ids = manifest
+        .assets
+        .iter()
+        .map(|asset| asset.asset_id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        asset_ids,
+        vec!["1:filled-vector:node", "1:padding-vector:node"]
+    );
+}
+
+#[test]
+fn asset_leaf_with_one_non_tiled_image_fill_is_a_png_asset() {
+    let manifest = manifest_for(
+        &["1:image"],
+        vec![node(
+            "1:image",
+            "RECTANGLE",
+            json!({
+                "isAsset": true,
+                "fills": [{"type": "IMAGE", "scaleMode": "FILL", "imageRef": "image-ref-123"}]
+            }),
+        )],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "1:image:fills:0");
+    assert_eq!(manifest.assets[0].field, "fills/0");
+    assert_eq!(manifest.assets[0].source_kind, "image-fill");
+    assert_eq!(
+        manifest.assets[0].image_hash.as_deref(),
+        Some("image-ref-123")
+    );
 }
 
 #[test]

@@ -250,7 +250,7 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(first["sourceMap"]["version"], 1);
     assert_eq!(
         first["assetManifest"]["assets"][0]["assetId"],
-        "1:2:fills:1"
+        "1:3:fills:0"
     );
     assert_eq!(first["assetManifest"]["assets"][0]["status"], "available");
     assert!(first["sourceMap"]["tsx"].as_array().is_some_and(|entries| {
@@ -412,7 +412,7 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["tsx", "assetManifest"],
             "sourcePolicy": "direct",
-            "assetRequests": [{"assetId":"1:2:fills:1","format":"png","scale":2}]
+            "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
         }),
     )
     .await?;
@@ -455,7 +455,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
             "sourcePolicy": "direct",
             "delivery": "resource",
             "assetRequests": [{
-                "assetId":"1:2:fills:1",
+                "assetId":"1:3:fills:0",
                 "format":"png",
                 "scale":2,
                 "outputPath": output_path.to_string_lossy()
@@ -527,7 +527,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
             "sourcePolicy": "direct",
             "delivery": "resource",
             "assetRequests": [{
-                "assetId":"1:2:fills:1",
+                "assetId":"1:3:fills:0",
                 "format":"png",
                 "scale":2,
                 "outputPath": output_path.to_string_lossy()
@@ -633,18 +633,18 @@ async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::R
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["assetManifest"],
             "sourcePolicy": "direct",
-            "assetRequests": [{"assetId":"1:2:fills:1","format":"png","scale":2}]
+            "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
         }),
     )
     .await?;
     let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
     assert_eq!(acquired["cache"]["capabilities"]["assetCaptureCount"], 1);
-    assert!(!serde_json::to_string(&acquired["cache"]["capabilities"])?.contains("1:2:fills:1"));
+    assert!(!serde_json::to_string(&acquired["cache"]["capabilities"])?.contains("1:3:fills:0"));
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
 
     for request in [
-        json!({"assetId":"1:2:fills:1","format":"svg","scale":2}),
-        json!({"assetId":"1:2:fills:1","format":"png","scale":1}),
+        json!({"assetId":"1:3:fills:0","format":"svg","scale":2}),
+        json!({"assetId":"1:3:fills:0","format":"png","scale":1}),
     ] {
         let reused = client
             .call_tool(
@@ -772,25 +772,39 @@ fn fast_envelope_result(partial: bool, lossy: bool) -> UpstreamResult {
             "fileKey": "FileKey123",
             "version": "v1",
             "rootIds": ["1:2"],
-            "nodes": [{
-                "id": "1:2",
-                "type": "FRAME",
-                "fields": {
-                    "name": "Synthetic",
-                    "childrenIds": [],
-                    "layoutMode": "VERTICAL",
-                    "width": 320,
-                    "height": 240,
-                    "fills": [{
-                        "type": "SOLID",
-                        "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
-                        "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
-                    }, {"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}],
-                    "boundVariables": {"fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]}
+            "nodes": [
+                {
+                    "id": "1:2",
+                    "type": "FRAME",
+                    "fields": {
+                        "name": "Synthetic",
+                        "childrenIds": ["1:3"],
+                        "layoutMode": "VERTICAL",
+                        "width": 320,
+                        "height": 240,
+                        "fills": [{
+                            "type": "SOLID",
+                            "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
+                            "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
+                        }, {"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}],
+                        "boundVariables": {"fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]}
+                    },
+                    "extra": {},
+                    "fieldErrors": {}
                 },
-                "extra": {},
-                "fieldErrors": {}
-            }],
+                {
+                    "id": "1:3",
+                    "type": "RECTANGLE",
+                    "fields": {
+                        "name": "Synthetic asset",
+                        "parentId": "1:2",
+                        "isAsset": true,
+                        "fills": [{"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}]
+                    },
+                    "extra": {},
+                    "fieldErrors": {}
+                }
+            ],
             "diagnostics": []
         },
         "resources": {
@@ -812,7 +826,7 @@ fn fast_envelope_result(partial: bool, lossy: bool) -> UpstreamResult {
             "unresolved": []
         },
         "integrity": {
-            "nodeCount": 1,
+            "nodeCount": 2,
             "variableRefCount": 1,
             "styleRefCount": 0,
             "utf8Bytes": 0

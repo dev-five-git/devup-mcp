@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{DevupError, Diagnostic, ErrorCode, Snapshot, UpstreamResult};
+use crate::{DevupError, Diagnostic, ErrorCode, RawNode, Snapshot, UpstreamResult};
 
 pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 
@@ -99,64 +99,238 @@ pub struct AssetManifest {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AssetNode {
+    Svg,
+    Png {
+        fill_index: usize,
+        image_hash: Option<String>,
+    },
+}
+
 pub fn discover_asset_manifest(snapshot: &Snapshot) -> AssetManifest {
     let mut assets = Vec::new();
-    for node in snapshot.nodes.values() {
-        if let Some(fills) = node.typed_view().value("fills").and_then(Value::as_array) {
-            for (index, fill) in fills.iter().enumerate() {
-                if fill.get("type").and_then(Value::as_str) != Some("IMAGE") {
-                    continue;
-                }
-                let image_hash = fill
-                    .get("imageHash")
-                    .or_else(|| fill.get("imageRef"))
-                    .and_then(Value::as_str)
-                    .map(str::to_owned);
-                assets.push(AssetManifestEntry {
-                    asset_id: format!("{}:fills:{index}", node.id),
-                    node_id: node.id.clone(),
-                    field: format!("fills/{index}"),
-                    source_kind: "image-fill".to_owned(),
-                    image_hash,
-                    format: None,
-                    scale: None,
-                    status: AssetStatus::Available,
-                    byte_length: None,
-                    sha256: None,
-                    mime_type: None,
-                    data_base64: None,
-                    output_path: None,
-                    error_code: None,
-                });
-            }
+    let mut pending = snapshot.roots.iter().rev().cloned().collect::<Vec<_>>();
+    let mut visited = std::collections::BTreeSet::new();
+
+    while let Some(node_id) = pending.pop() {
+        let Some(node) = snapshot.nodes.get(&node_id) else {
+            continue;
+        };
+        if !visited.insert(node_id) {
+            continue;
         }
-        if matches!(
-            node.node_type.as_str(),
-            "VECTOR" | "BOOLEAN_OPERATION" | "STAR" | "LINE" | "ELLIPSE" | "POLYGON"
-        ) {
-            assets.push(AssetManifestEntry {
-                asset_id: format!("{}:node", node.id),
-                node_id: node.id.clone(),
-                field: "node".to_owned(),
-                source_kind: "vector-node".to_owned(),
-                image_hash: None,
-                format: None,
-                scale: None,
-                status: AssetStatus::Available,
-                byte_length: None,
-                sha256: None,
-                mime_type: None,
-                data_base64: None,
-                output_path: None,
-                error_code: None,
-            });
+
+        if let Some(asset) = compute_asset_node(snapshot, node, false) {
+            assets.push(manifest_entry(node, asset));
+            continue;
         }
+
+        let child_ids = node.typed_view().child_ids().collect::<Vec<_>>();
+        pending.extend(child_ids.into_iter().rev().map(str::to_owned));
     }
+
     assets.sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
     AssetManifest {
         version: 1,
         assets,
         diagnostics: Vec::new(),
+    }
+}
+
+fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetNode> {
+    let view = node.typed_view();
+    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
+        || view
+            .value("inferredAutoLayout")
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(Value::as_str)
+            == Some("GRID")
+    {
+        return None;
+    }
+
+    if has_smart_animate_reaction(node)
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .is_some_and(has_smart_animate_reaction)
+    {
+        return None;
+    }
+
+    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+        return Some(AssetNode::Svg);
+    }
+
+    if view.node_type() == "ELLIPSE"
+        && view
+            .value("arcData")
+            .and_then(|arc_data| arc_data.get("innerRadius"))
+            .and_then(Value::as_f64)
+            .is_some_and(|inner_radius| inner_radius != 0.0)
+    {
+        return Some(AssetNode::Svg);
+    }
+
+    let child_ids = view.child_ids().collect::<Vec<_>>();
+    if child_ids.is_empty() {
+        return compute_leaf_asset(node, nested);
+    }
+
+    if child_ids.len() == 1 {
+        if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
+            .into_iter()
+            .any(|field| view.number(field).is_some_and(|padding| padding > 0.0))
+            || fills(node).is_some_and(|fills| fills.iter().any(is_visible_fill))
+        {
+            return None;
+        }
+
+        return snapshot
+            .nodes
+            .get(child_ids[0])
+            .and_then(|child| compute_asset_node(snapshot, child, true));
+    }
+
+    let mut visible_children = Vec::new();
+    for child_id in child_ids {
+        let child = snapshot.nodes.get(child_id)?;
+        if child.typed_view().bool("visible") != Some(false) {
+            visible_children.push(child);
+        }
+    }
+
+    visible_children
+        .into_iter()
+        .all(|child| compute_asset_node(snapshot, child, true) == Some(AssetNode::Svg))
+        .then_some(AssetNode::Svg)
+}
+
+fn compute_leaf_asset(node: &RawNode, nested: bool) -> Option<AssetNode> {
+    let node_fills = fills(node);
+    if node_fills.is_some_and(|fills| {
+        fills.iter().any(|fill| {
+            is_visible_fill(fill)
+                && (fill_type(fill) == Some("PATTERN")
+                    || (fill_type(fill) == Some("IMAGE")
+                        && fill.get("scaleMode").and_then(Value::as_str) == Some("TILE")))
+        })
+    }) {
+        return None;
+    }
+
+    if node.typed_view().bool("isAsset") == Some(true) {
+        if let Some((fill_index, fill)) = node_fills.and_then(|fills| {
+            fills.iter().enumerate().find(|(_, fill)| {
+                is_visible_fill(fill)
+                    && fill_type(fill) == Some("IMAGE")
+                    && fill.get("scaleMode").and_then(Value::as_str) != Some("TILE")
+            })
+        }) {
+            if node_fills.is_some_and(|fills| fills.len() == 1) {
+                return Some(AssetNode::Png {
+                    fill_index,
+                    image_hash: fill
+                        .get("imageHash")
+                        .or_else(|| fill.get("imageRef"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                });
+            }
+            return None;
+        }
+
+        if node_fills.is_none_or(|fills| {
+            fills
+                .iter()
+                .all(|fill| is_visible_fill(fill) && fill_type(fill) == Some("SOLID"))
+        }) {
+            return nested.then_some(AssetNode::Svg);
+        }
+
+        return Some(AssetNode::Svg);
+    }
+
+    (nested
+        && node_fills.is_some_and(|fills| {
+            fills.iter().all(|fill| {
+                !is_visible_fill(fill)
+                    || !matches!(fill_type(fill), Some("IMAGE" | "VIDEO" | "PATTERN"))
+            })
+        }))
+    .then_some(AssetNode::Svg)
+}
+
+fn fills(node: &RawNode) -> Option<&Vec<Value>> {
+    node.typed_view().value("fills").and_then(Value::as_array)
+}
+
+fn fill_type(fill: &Value) -> Option<&str> {
+    fill.get("type").and_then(Value::as_str)
+}
+
+fn is_visible_fill(fill: &Value) -> bool {
+    fill.get("visible").and_then(Value::as_bool) != Some(false)
+}
+
+fn has_smart_animate_reaction(node: &RawNode) -> bool {
+    node.typed_view()
+        .value("reactions")
+        .and_then(Value::as_array)
+        .is_some_and(|reactions| {
+            reactions.iter().any(|reaction| {
+                reaction
+                    .get("actions")
+                    .and_then(Value::as_array)
+                    .is_some_and(|actions| {
+                        actions.iter().any(|action| {
+                            action.get("type").and_then(Value::as_str) == Some("NODE")
+                                && action
+                                    .get("transition")
+                                    .and_then(|transition| transition.get("type"))
+                                    .and_then(Value::as_str)
+                                    == Some("SMART_ANIMATE")
+                        })
+                    })
+            })
+        })
+}
+
+fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
+    let (asset_id, field, source_kind, image_hash) = match asset {
+        AssetNode::Svg => (
+            format!("{}:node", node.id),
+            "node".to_owned(),
+            "vector-node".to_owned(),
+            None,
+        ),
+        AssetNode::Png {
+            fill_index,
+            image_hash,
+        } => (
+            format!("{}:fills:{fill_index}", node.id),
+            format!("fills/{fill_index}"),
+            "image-fill".to_owned(),
+            image_hash,
+        ),
+    };
+
+    AssetManifestEntry {
+        asset_id,
+        node_id: node.id.clone(),
+        field,
+        source_kind,
+        image_hash,
+        format: None,
+        scale: None,
+        status: AssetStatus::Available,
+        byte_length: None,
+        sha256: None,
+        mime_type: None,
+        data_base64: None,
+        output_path: None,
+        error_code: None,
     }
 }
 

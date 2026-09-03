@@ -583,39 +583,9 @@ expression: output.source_map
         "start": 1035,
         "end": 1057
       },
-      "nodeId": "I3879:35525;17:2032",
+      "nodeId": "3879:35525",
       "property": "node",
-      "assetId": "I3879:35525;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
-      "nodeId": "I3879:35525;17:2034",
-      "property": "node",
-      "assetId": "I3879:35525;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
-      "nodeId": "I3879:35525;17:2036",
-      "property": "node",
-      "assetId": "I3879:35525;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
-      "nodeId": "I3879:35525;17:2038",
-      "property": "node",
-      "assetId": "I3879:35525;17:2038:node",
+      "assetId": "3879:35525:node",
       "resolution": "asset"
     },
     {
@@ -1001,9 +971,9 @@ expression: output.source_map
         "start": 1620,
         "end": 1653
       },
-      "nodeId": "3879:35531",
+      "nodeId": "3879:35530",
       "property": "node",
-      "assetId": "3879:35531:node",
+      "assetId": "3879:35530:node",
       "resolution": "asset"
     },
     {
@@ -1387,9 +1357,9 @@ expression: output.source_map
         "start": 2292,
         "end": 2325
       },
-      "nodeId": "I3879:35534;20:3849",
+      "nodeId": "3879:35534",
       "property": "node",
-      "assetId": "I3879:35534;20:3849:node",
+      "assetId": "3879:35534:node",
       "resolution": "asset"
     },
     {
@@ -2034,9 +2004,9 @@ expression: output.source_map
         "start": 4044,
         "end": 4077
       },
-      "nodeId": "3879:35542",
+      "nodeId": "3879:35541",
       "property": "node",
-      "assetId": "3879:35542:node",
+      "assetId": "3879:35541:node",
       "resolution": "asset"
     },
     {
@@ -2358,39 +2328,9 @@ expression: output.source_map
         "start": 4746,
         "end": 4768
       },
-      "nodeId": "I3879:35545;1690:32934;17:2032",
+      "nodeId": "I3879:35545;1690:32934",
       "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 4746,
-        "end": 4768
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 4746,
-        "end": 4768
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 4746,
-        "end": 4768
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2038:node",
+      "assetId": "I3879:35545;1690:32934:node",
       "resolution": "asset"
     },
     {
@@ -2927,39 +2867,9 @@ expression: output.source_map
         "start": 5637,
         "end": 5659
       },
-      "nodeId": "I3879:35549;1690:32934;17:2032",
+      "nodeId": "I3879:35549;1690:32934",
       "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 5637,
-        "end": 5659
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 5637,
-        "end": 5659
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 5637,
-        "end": 5659
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2038:node",
+      "assetId": "I3879:35549;1690:32934:node",
       "resolution": "asset"
     },
     {
@@ -3505,39 +3415,9 @@ expression: output.source_map
         "start": 7248,
         "end": 7270
       },
-      "nodeId": "I3879:35553;1690:32934;17:2032",
+      "nodeId": "I3879:35553;1690:32934",
       "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 7248,
-        "end": 7270
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 7248,
-        "end": 7270
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 7248,
-        "end": 7270
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2038:node",
+      "assetId": "I3879:35553;1690:32934:node",
       "resolution": "asset"
     },
     {
@@ -4179,39 +4059,9 @@ expression: output.source_map
         "start": 9339,
         "end": 9361
       },
-      "nodeId": "I3879:35557;1690:32934;17:2032",
+      "nodeId": "I3879:35557;1690:32934",
       "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 9339,
-        "end": 9361
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 9339,
-        "end": 9361
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 9339,
-        "end": 9361
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2038:node",
+      "assetId": "I3879:35557;1690:32934:node",
       "resolution": "asset"
     },
     {
@@ -4757,39 +4607,9 @@ expression: output.source_map
         "start": 11592,
         "end": 11614
       },
-      "nodeId": "I3879:35561;1690:32934;17:2032",
+      "nodeId": "I3879:35561;1690:32934",
       "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 11592,
-        "end": 11614
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 11592,
-        "end": 11614
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 11592,
-        "end": 11614
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2038:node",
+      "assetId": "I3879:35561;1690:32934:node",
       "resolution": "asset"
     },
     {
