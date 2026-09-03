@@ -65,6 +65,10 @@ pub struct FigmaExportInput {
     #[serde(default)]
     pub artifact_id: Option<String>,
     #[serde(default = "default_outputs")]
+    #[schemars(extend("items" = serde_json::json!({
+        "type": "string",
+        "enum": super::validation::EXPORT_OUTPUTS,
+    })))]
     pub outputs: Vec<String>,
     #[serde(default)]
     pub component_name: Option<String>,
@@ -97,6 +101,7 @@ pub struct FigmaExportInput {
 pub struct FigmaAssetRequestInput {
     pub asset_id: String,
     #[serde(default = "default_asset_format")]
+    #[schemars(extend("enum" = ["png", "jpg", "svg", "pdf"]))]
     pub format: String,
     #[serde(default = "default_asset_scale")]
     pub scale: u8,

@@ -478,7 +478,12 @@ pub fn asset_export_from_result(
         // search does not read" — three very different bugs.
         DevupError::with_details(
             ErrorCode::DevupSnapshotUnsupported,
-            "asset export response does not contain the requested binary.",
+            format!(
+                "Figma exported the asset but did not return the {} bytes. \
+                     Upstream returns written files as an attachment only for png; \
+                     svg is carried inline. Request png or svg instead.",
+                request.format.extension()
+            ),
             false,
             json!({
                 "expectedMimeType": request.format.mime_type(),

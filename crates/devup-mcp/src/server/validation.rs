@@ -10,6 +10,20 @@ use super::{
     tools::FigmaAssetRequestInput,
 };
 
+/// The export outputs this server understands.
+///
+/// The JSON schema for `outputs` advertises this same constant, so a caller
+/// can discover the set instead of learning it one rejection at a time, and
+/// the published schema cannot drift from what is actually accepted.
+pub(crate) const EXPORT_OUTPUTS: [&str; 6] = [
+    "tsx",
+    "devupJson",
+    "rawSnapshot",
+    "sourceMap",
+    "assetManifest",
+    "referencePng",
+];
+
 pub(super) fn validate_artifact_projection(
     artifact: &ArtifactLookup,
     outputs: &[String],
@@ -85,13 +99,13 @@ pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
         ));
     }
     for output in outputs {
-        if !matches!(
-            output.as_str(),
-            "tsx" | "devupJson" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
-        ) {
+        if !EXPORT_OUTPUTS.contains(&output.as_str()) {
             return Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                format!("Unsupported export output: {output}"),
+                format!(
+                    "Unsupported export output: {output}. Supported: {}.",
+                    EXPORT_OUTPUTS.join(", ")
+                ),
                 false,
             ));
         }
