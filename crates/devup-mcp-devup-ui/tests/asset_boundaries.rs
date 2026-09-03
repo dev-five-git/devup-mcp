@@ -19,6 +19,31 @@ fn generate(root_id: &str, nodes: Value) -> String {
 }
 
 #[test]
+fn separate_image_fills_do_not_claim_the_same_file() {
+    // Two fills on one node are two different images. A single hard-coded
+    // reference gave both the same URL, so the layered background repeated one
+    // picture and whichever was exported last overwrote the other on disk.
+    let tsx = generate(
+        "1:card",
+        json!([{
+            "id": "1:card", "type": "FRAME",
+            "fields": {
+                "name": "Card", "childrenIds": [],
+                "width": 125.0, "height": 100.0,
+                "fills": [
+                    {"type": "IMAGE", "visible": true, "scaleMode": "FILL", "imageHash": "aaa"},
+                    {"type": "IMAGE", "visible": true, "scaleMode": "FILL", "imageHash": "bbb"}
+                ]
+            },
+            "extra": {}, "fieldErrors": {}
+        }]),
+    );
+
+    assert!(tsx.contains("/images/Card.png"), "{tsx}");
+    assert!(tsx.contains("/images/Card-1.png"), "{tsx}");
+}
+
+#[test]
 fn image_filled_asset_container_preserves_text_children() {
     let tsx = generate(
         "1:cover",
@@ -42,7 +67,9 @@ fn image_filled_asset_container_preserves_text_children() {
         ]),
     );
 
-    assert!(tsx.contains("bg=\"url(/icons/image.png) center/cover no-repeat\""));
+    // The fill names the node it came from, so two different images cannot
+    // claim the same file. The name has a space, hence the quoting.
+    assert!(tsx.contains("bg=\"url('/images/Book cover.png') center/cover no-repeat\""));
     assert!(tsx.contains("Preserved title"));
     assert!(!tsx.contains("<Image"));
 }

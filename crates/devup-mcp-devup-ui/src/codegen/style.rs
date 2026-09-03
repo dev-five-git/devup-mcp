@@ -434,28 +434,60 @@ fn background_css(
 ) -> Option<String> {
     let view = node.typed_view();
     let paints = view.value("fills")?.as_array()?;
+    // Keep each paint's own index. CSS layers run back to front, so the order
+    // here is reversed, but an image fill is identified in the asset manifest
+    // as `{nodeId}:fills:{index}` against the original order — a reference
+    // built from the reversed position would name the wrong asset.
     let visible = paints
         .iter()
-        .filter(|paint| {
+        .enumerate()
+        .filter(|(_, paint)| {
             paint.get("visible").and_then(Value::as_bool) != Some(false)
                 && paint.get("opacity").and_then(Value::as_f64) != Some(0.0)
         })
         .rev()
         .collect::<Vec<_>>();
     let mut css = Vec::new();
-    for (index, paint) in visible.iter().enumerate() {
-        let is_last = index + 1 == visible.len();
-        if let Some(value) = paint_css(snapshot, node, paint, is_last, variable_tokens) {
+    for (layer, (fill_index, paint)) in visible.iter().enumerate() {
+        let is_last = layer + 1 == visible.len();
+        if let Some(value) = paint_css(snapshot, node, paint, *fill_index, is_last, variable_tokens)
+        {
             css.push(value);
         }
     }
     (!css.is_empty()).then(|| css.join(", "))
 }
 
+/// The file an image fill refers to.
+///
+/// Every image fill once resolved to a single hard-coded `/icons/image.png`,
+/// which lost three separate things: a raster was pointed at the icon folder,
+/// unrelated images from different nodes all claimed the same file and so
+/// overwrote one another on disk, and two fills on one node produced the
+/// identical URL twice over. The manifest identifies a fill as
+/// `{nodeId}:fills:{index}`, so the reference keeps the node's name and, past
+/// the first fill, its index — a lone fill keeps the plain
+/// `/images/{name}.png` the `<Image>` element already emits, so the two agree
+/// on the same asset.
+fn image_fill_source(node: &RawNode, fill_index: usize) -> String {
+    let name = node.typed_view().name().unwrap_or("Asset");
+    let source = if fill_index == 0 {
+        format!("/images/{name}.png")
+    } else {
+        format!("/images/{name}-{fill_index}.png")
+    };
+    if source.contains(' ') {
+        format!("'{source}'")
+    } else {
+        source
+    }
+}
+
 fn paint_css(
     snapshot: &Snapshot,
     node: &RawNode,
     paint: &Value,
+    fill_index: usize,
     last: bool,
     variable_tokens: &std::collections::BTreeMap<String, String>,
 ) -> Option<String> {
@@ -482,7 +514,10 @@ fn paint_css(
                 Some("TILE") => "repeat",
                 _ => "center/cover no-repeat",
             };
-            Some(format!("url(/icons/image.png) {fit}"))
+            Some(format!(
+                "url({}) {fit}",
+                image_fill_source(node, fill_index)
+            ))
         }
         "PATTERN" => {
             let source_id = paint.get("sourceNodeId").and_then(Value::as_str)?;
