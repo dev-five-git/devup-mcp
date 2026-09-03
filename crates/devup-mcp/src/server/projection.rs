@@ -719,8 +719,9 @@ pub(super) async fn complete_operation(
                 result.insert(
                     "nextAction".to_owned(),
                     json!({
-                        "tool": "devup_figma_export",
-                        "choose": ["frameIds", "allScreens"]
+                        "why": "이 링크는 Section이며 내부에 화면이 여러 개 있습니다. 한 번에 전부 수집하면 크기 한도를 넘습니다.",
+                        "how": "screens[] 중 대상 화면의 canonicalUrl 로 재호출하거나, 전부 필요하면 allScreens:true 를 쓰세요.",
+                        "doNot": "Section 전체를 한 번에 수집하려 하지 마세요."
                     }),
                 );
                 return Ok(Value::Object(result));

@@ -99,6 +99,18 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
+    assert_eq!(
+        selection["nextAction"]["why"],
+        "이 링크는 Section이며 내부에 화면이 여러 개 있습니다. 한 번에 전부 수집하면 크기 한도를 넘습니다."
+    );
+    assert_eq!(
+        selection["nextAction"]["how"],
+        "screens[] 중 대상 화면의 canonicalUrl 로 재호출하거나, 전부 필요하면 allScreens:true 를 쓰세요."
+    );
+    assert_eq!(
+        selection["nextAction"]["doNot"],
+        "Section 전체를 한 번에 수집하려 하지 마세요."
+    );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
     let artifact_id = selection["cache"]["artifactId"].as_str().unwrap();
     assert_eq!(selection["cache"]["capabilities"]["kind"], "section-index");
