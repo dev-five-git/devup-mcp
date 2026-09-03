@@ -116,6 +116,16 @@ pub struct CollectedParts {
     pub stats: CollectionStats,
     pub assets: Vec<AssetManifestEntry>,
     pub reference_png: Option<ReferencePng>,
+    pub failures: Vec<ScreenFailure>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenFailure {
+    pub node_id: String,
+    pub error_code: ErrorCode,
+    pub message: String,
+    pub retryable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,6 +230,7 @@ pub struct CollectorSession {
     fast_multi_resources: Option<UpstreamResult>,
     fast_multi_has_large_values: bool,
     section_fallback_roots: BTreeSet<String>,
+    screen_failures: Vec<ScreenFailure>,
     next_id: usize,
     completed: bool,
 }
@@ -255,6 +266,7 @@ impl CollectorSession {
             fast_multi_resources: None,
             fast_multi_has_large_values: false,
             section_fallback_roots: BTreeSet::new(),
+            screen_failures: Vec::new(),
             next_id: 0,
             completed: false,
         }
@@ -515,6 +527,7 @@ impl CollectorSession {
                 stats: self.stats.clone(),
                 assets: std::mem::take(&mut self.asset_results),
                 reference_png: self.reference_png.take(),
+                failures: std::mem::take(&mut self.screen_failures),
             })));
         }
         Ok(CollectorStep::AwaitingResults)
@@ -565,6 +578,27 @@ impl CollectorSession {
                 "알 수 없거나 이미 처리한 Figma call ID입니다.",
             ));
         };
+        if pending.kind == CallKind::FastSnapshot && is_section_target_error(error) {
+            let pending = self
+                .pending
+                .remove(call_id)
+                .ok_or_else(|| invalid_call("fast Section probe call이 없습니다."))?;
+            self.consumed.insert(call_id.to_owned());
+            let node_id = pending
+                .planned
+                .expected_node_id
+                .ok_or_else(|| invalid_call("fast Section probe의 node ID가 없습니다."))?;
+            self.request.section = Some(SectionReadOptions {
+                frame_ids: Vec::new(),
+                all_screens: false,
+            });
+            self.enqueue(
+                ReadToolCall::section_index(&self.request.target.file_key, &node_id),
+                Some(node_id),
+                CallKind::SectionIndex,
+            );
+            return Ok(true);
+        }
         if pending.kind == CallKind::Asset {
             let pending = self
                 .pending
@@ -587,6 +621,31 @@ impl CollectorSession {
                 return Err(invalid_call("large value call 형식이 올바르지 않습니다."));
             };
             self.record_large_value_unsupported(&options, "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM")?;
+            return Ok(true);
+        }
+        if pending.kind == CallKind::Snapshot
+            && pending
+                .planned
+                .expected_node_id
+                .as_ref()
+                .is_some_and(|node_id| self.section_fallback_roots.contains(node_id))
+        {
+            let pending = self
+                .pending
+                .remove(call_id)
+                .ok_or_else(|| invalid_call("Section legacy call이 없습니다."))?;
+            self.consumed.insert(call_id.to_owned());
+            let node_id = pending
+                .planned
+                .expected_node_id
+                .ok_or_else(|| invalid_call("Section legacy call의 node ID가 없습니다."))?;
+            self.section_fallback_roots.remove(&node_id);
+            self.screen_failures.push(ScreenFailure {
+                node_id,
+                error_code: error.code,
+                message: error.message.clone(),
+                retryable: error.retryable,
+            });
             return Ok(true);
         }
         if !matches!(
@@ -643,7 +702,7 @@ impl CollectorSession {
             }
         };
         self.metadata = Some(json!({
-            "transport": "png-theme-envelope-v1",
+            "transport": payload.stats.transport,
             "collectionCount": payload.resources.raw["collections"]
                 .as_array().map_or(0, Vec::len),
             "variableCount": payload.resources.raw["variables"]
@@ -652,7 +711,7 @@ impl CollectorSession {
                 .as_array().map_or(0, Vec::len)
         }));
         self.source_version = payload.source_version;
-        self.stats.transport = "png-theme-envelope-v1".to_owned();
+        self.stats.transport = payload.stats.transport.to_owned();
         self.stats.raw_bytes = payload.stats.raw_bytes;
         self.stats.wire_bytes = payload.stats.wire_bytes;
         self.stats.envelope_chunks = payload.stats.chunk_count;
@@ -695,14 +754,14 @@ impl CollectorSession {
             .clone()
             .ok_or_else(|| invalid_call("Figma fast snapshot에는 node ID가 필요합니다."))?;
         self.metadata = Some(json!({
-            "transport": "png-envelope-v1",
+            "transport": payload.stats.transport,
             "rootId": root_id,
             "nodeCount": payload.snapshot.nodes.len()
         }));
         self.root_node_id = Some(root_id);
         self.source_version = payload.snapshot.version.clone();
         self.metadata_root_ids = payload.snapshot.root_ids.clone();
-        self.stats.transport = "png-envelope-v1".to_owned();
+        self.stats.transport = payload.stats.transport.to_owned();
         self.stats.raw_bytes = payload.stats.raw_bytes;
         self.stats.wire_bytes = payload.stats.wire_bytes;
         self.stats.envelope_chunks = payload.stats.chunk_count;
@@ -727,6 +786,7 @@ impl CollectorSession {
         self.variables = None;
         self.large_values.clear();
         self.section_fallback_roots.clear();
+        self.screen_failures.clear();
         self.asset_results.clear();
         self.assets_scheduled = self.request.asset_selections.is_empty();
         self.reference_png = None;
@@ -893,15 +953,17 @@ impl CollectorSession {
                     self.enqueue_section_legacy_root(root_id);
                 }
             } else {
-                self.enqueue(
-                    ReadToolCall::multi_root_snapshot(
-                        &self.request.target.file_key,
-                        section_id,
-                        batch.root_ids,
-                    ),
-                    Some(section_id.to_owned()),
-                    CallKind::FastMultiRoot,
-                );
+                for root_id in batch.root_ids {
+                    self.enqueue(
+                        ReadToolCall::multi_root_snapshot(
+                            &self.request.target.file_key,
+                            section_id,
+                            vec![root_id],
+                        ),
+                        Some(section_id.to_owned()),
+                        CallKind::FastMultiRoot,
+                    );
+                }
             }
         }
         Ok(())
@@ -947,15 +1009,17 @@ impl CollectorSession {
                     self.enqueue_section_legacy_root(root_id);
                 }
             } else {
-                self.enqueue(
-                    ReadToolCall::multi_root_snapshot(
-                        &self.request.target.file_key,
-                        &section_id,
-                        batch.root_ids,
-                    ),
-                    Some(section_id.clone()),
-                    CallKind::FastMultiRoot,
-                );
+                for root_id in batch.root_ids {
+                    self.enqueue(
+                        ReadToolCall::multi_root_snapshot(
+                            &self.request.target.file_key,
+                            &section_id,
+                            vec![root_id],
+                        ),
+                        Some(section_id.clone()),
+                        CallKind::FastMultiRoot,
+                    );
+                }
             }
         }
         Ok(())
@@ -1000,7 +1064,7 @@ impl CollectorSession {
         self.fast_multi_has_large_values |= !descriptors_in_chunk(&payload.snapshot)?.is_empty();
         merge_fast_resources(&mut self.fast_multi_resources, payload.resources)?;
         self.stats.transport = if self.section_fallback_roots.is_empty() {
-            "png-multi-root-envelope-v1"
+            payload.stats.transport
         } else {
             "hybrid-multi-root-cursor"
         }
@@ -1080,10 +1144,15 @@ impl CollectorSession {
         }
         let snapshot = merge_chunks(chunks)?;
         let observed = snapshot.roots.iter().collect::<BTreeSet<_>>();
+        let failed = self
+            .screen_failures
+            .iter()
+            .map(|failure| failure.node_id.as_str())
+            .collect::<BTreeSet<_>>();
         if self
             .section_selected_roots
             .iter()
-            .any(|root_id| !observed.contains(root_id))
+            .any(|root_id| !observed.contains(root_id) && !failed.contains(root_id.as_str()))
         {
             return Err(invalid_call(
                 "Section snapshot에 선택된 root가 모두 포함되지 않았습니다.",
@@ -1092,7 +1161,12 @@ impl CollectorSession {
         Ok(vec![SnapshotChunk {
             file_key: snapshot.file_key,
             version: snapshot.version,
-            root_ids: self.section_selected_roots.clone(),
+            root_ids: self
+                .section_selected_roots
+                .iter()
+                .filter(|root_id| observed.contains(*root_id))
+                .cloned()
+                .collect(),
             nodes: snapshot.nodes.into_values().collect(),
             diagnostics: snapshot.diagnostics,
         }])
@@ -1902,6 +1976,14 @@ fn fallback_category(error: &DevupError) -> String {
         .and_then(Value::as_str)
         .map(str::to_owned)
         .unwrap_or_else(|| format!("{:?}", error.code))
+}
+
+fn is_section_target_error(error: &DevupError) -> bool {
+    error.message.contains("DEVUP_TARGET_IS_SECTION")
+        || error
+            .details
+            .to_string()
+            .contains("DEVUP_TARGET_IS_SECTION")
 }
 
 fn fast_call_fallback_allowed(error: &DevupError) -> bool {

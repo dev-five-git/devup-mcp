@@ -479,5 +479,6 @@ fn payload() -> CollectedPayload {
         stats: CollectionStats::default(),
         assets: Vec::new(),
         reference_png: None,
+        failures: Vec::new(),
     }
 }

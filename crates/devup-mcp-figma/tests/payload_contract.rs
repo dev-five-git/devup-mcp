@@ -43,6 +43,7 @@ fn synthetic_parts() -> CollectedParts {
         stats: CollectionStats::default(),
         assets: Vec::new(),
         reference_png: None,
+        failures: Vec::new(),
     }
 }
 

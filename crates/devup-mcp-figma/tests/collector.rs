@@ -35,7 +35,7 @@ fn exact_node_fast_path_completes_in_one_call() {
     assert_eq!(parts.snapshot_chunks.len(), 1);
     assert_eq!(parts.snapshot_chunks[0].nodes.len(), 1);
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert_eq!(parts.stats.transport, "png-chunked");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.node_count, 1);
     assert_eq!(parts.stats.variable_count, 0);
@@ -68,7 +68,7 @@ fn exact_node_fast_path_accepts_the_stringified_handoff_contract() {
         panic!("stringified fast snapshot should complete without fallback")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert_eq!(parts.stats.transport, "png-chunked");
     assert!(!parts.stats.fallback_used);
 }
 
@@ -781,7 +781,7 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("valid fast theme should complete in one call")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-theme-envelope-v1");
+    assert_eq!(parts.stats.transport, "png-chunked");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.variable_count, 1);
     assert_eq!(parts.stats.style_count, 1);
@@ -1474,13 +1474,108 @@ fn section_collection_indexes_before_planning_selected_roots() {
         .accept(&index_call.id, compact_section_index())
         .unwrap();
 
-    let CollectorStep::Call(batch_call) = collector.advance().unwrap() else {
-        panic!("one bounded multi-root call expected")
+    let CollectorStep::Call(first_root_call) = collector.advance().unwrap() else {
+        panic!("first selected root call expected")
     };
-    let arguments = batch_call.call.arguments();
-    let code = arguments["code"].as_str().unwrap();
-    assert!(code.contains("[\"10:3\",\"10:2\"]"));
-    assert_eq!(batch_call.expected_node_id.as_deref(), Some("10:1"));
+    let CollectorStep::Call(second_root_call) = collector.advance().unwrap() else {
+        panic!("second selected root call expected")
+    };
+    assert_eq!(multi_root_ids(&first_root_call.call), ["10:3"]);
+    assert_eq!(multi_root_ids(&second_root_call.call), ["10:2"]);
+    assert_eq!(first_root_call.expected_node_id.as_deref(), Some("10:1"));
+}
+
+#[test]
+fn rejected_exact_section_probe_pivots_to_the_compact_index() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast section probe expected")
+    };
+
+    let recovered = collector
+        .reject(
+            &fast_call.id,
+            &DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "Error: DEVUP_TARGET_IS_SECTION",
+                false,
+            ),
+        )
+        .unwrap();
+
+    assert!(recovered);
+    let CollectorStep::Call(index_call) = collector.advance().unwrap() else {
+        panic!("compact section index expected")
+    };
+    assert!(
+        index_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("subtreeNodeCount")
+    );
+}
+
+#[test]
+fn failed_fast_and_legacy_section_root_is_reported_without_losing_siblings() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec!["root-0".to_owned(), "root-1".to_owned()],
+        all_screens: false,
+    });
+    request.cached_section_index = Some(section_index_with_node_counts(&[3_000, 3_000]));
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &second.id,
+            fast_multi_envelope_result(&["root-1"], &["variable-success"]),
+        )
+        .unwrap();
+    assert!(
+        collector
+            .reject(
+                &first.id,
+                &DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, "fast failed", true,)
+            )
+            .unwrap()
+    );
+    let CollectorStep::Call(legacy) = collector.advance().unwrap() else {
+        panic!("legacy retry expected")
+    };
+    assert!(
+        collector
+            .reject(
+                &legacy.id,
+                &DevupError::new(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "legacy failed",
+                    true,
+                )
+            )
+            .unwrap()
+    );
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("successful sibling should complete")
+    };
+    assert_eq!(
+        merge_chunks(parts.snapshot_chunks).unwrap().roots,
+        ["root-1"]
+    );
+    assert_eq!(parts.failures.len(), 1);
+    assert_eq!(parts.failures[0].node_id, "root-0");
+    assert_eq!(
+        parts.failures[0].error_code,
+        ErrorCode::DevupFigmaDirectUnavailable
+    );
 }
 
 #[test]

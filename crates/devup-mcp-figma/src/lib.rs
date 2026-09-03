@@ -18,7 +18,7 @@ mod variables;
 
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
-    CollectorStep, PlannedCall, ReferencePng, SectionReadOptions,
+    CollectorStep, PlannedCall, ReferencePng, ScreenFailure, SectionReadOptions,
 };
 
 pub use credentials::{
