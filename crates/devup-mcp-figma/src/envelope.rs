@@ -58,13 +58,17 @@ struct EnvelopeSource {
     root_id: String,
 }
 
+/// The producer also emits `utf8Bytes` here. It is deliberately absent: it is
+/// the producer's measurement of its own serialized form, so comparing it
+/// against what arrived only rejected relays that re-serialize the JSON.
+/// Corruption is caught by the counts below plus `validate_resources`, which
+/// read the content itself. Serde ignores the extra key on the wire.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EnvelopeIntegrity {
     node_count: usize,
     variable_ref_count: usize,
     style_ref_count: usize,
-    utf8_bytes: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,6 +89,7 @@ struct ThemeEnvelopeSource {
     version: Option<String>,
 }
 
+/// `utf8Bytes` is omitted for the same reason as [`EnvelopeIntegrity`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ThemeEnvelopeIntegrity {
@@ -92,7 +97,6 @@ struct ThemeEnvelopeIntegrity {
     variable_count: usize,
     style_count: usize,
     unresolved_count: usize,
-    utf8_bytes: usize,
 }
 
 pub fn decode_fast_snapshot(
@@ -138,7 +142,7 @@ fn decode_fast_snapshot_for_roots(
         return Err(invalid("textEnvelopeMissing"));
     };
     let page = peek_page_cursor(&envelope.snapshot)?;
-    validate_envelope(&envelope, target, expected_root_ids, utf8_bytes, page)?;
+    validate_envelope(&envelope, target, expected_root_ids, page)?;
     Ok(FastSnapshotPayload {
         snapshot: envelope.snapshot,
         resources: UpstreamResult {
@@ -163,7 +167,7 @@ pub fn decode_fast_theme(
     else {
         return Err(invalid("textEnvelopeMissing"));
     };
-    validate_theme_envelope(&envelope, expected_file_key, utf8_bytes)?;
+    validate_theme_envelope(&envelope, expected_file_key)?;
     Ok(FastThemePayload {
         resources: UpstreamResult {
             raw: envelope.resources,
@@ -269,7 +273,6 @@ fn validate_envelope(
     envelope: &Envelope,
     target: &FigmaTarget,
     expected_root_ids: &[String],
-    utf8_bytes: usize,
     page: PageCursor,
 ) -> Result<(), DevupError> {
     if envelope.schema_version != 1
@@ -291,18 +294,6 @@ fn validate_envelope(
     {
         return Err(invalid("targetMismatch"));
     }
-    // `integrity.utf8Bytes` is deliberately NOT compared against the received
-    // byte length. It is the producer's self-measurement, so requiring exact
-    // equality meant the envelope had to arrive byte-for-byte identical —
-    // which no relay that re-serializes JSON can guarantee, and an MCP host
-    // that hands the result to an agent to pass on is exactly such a relay.
-    // Nothing is lost: truncation or corruption cannot slip past the checks
-    // below (a truncated JSON document fails to parse at all, and nodeCount /
-    // resourceRefCount / validate_resources are computed from the content
-    // rather than from its serialized form). It stays on the wire, and in
-    // `FastTransportStats`, purely as a reported size.
-    let _ = utf8_bytes;
-
     let mut node_ids = BTreeSet::new();
     for node in &envelope.snapshot.nodes {
         if !node_ids.insert(node.id.as_str()) {
@@ -347,7 +338,6 @@ fn validate_envelope(
 fn validate_theme_envelope(
     envelope: &ThemeEnvelope,
     expected_file_key: &str,
-    utf8_bytes: usize,
 ) -> Result<(), DevupError> {
     if envelope.schema_version != 1
         || envelope
@@ -360,11 +350,6 @@ fn validate_theme_envelope(
     if envelope.source.file_key != expected_file_key {
         return Err(invalid("targetMismatch"));
     }
-    // Not compared against the received length, for the same reason as
-    // `validate_envelope`: the collection/variable/style/unresolved counts
-    // below verify the content itself, and demanding a byte-exact match only
-    // broke relays that re-serialize JSON.
-    let _ = utf8_bytes;
     let resources = envelope
         .resources
         .as_object()

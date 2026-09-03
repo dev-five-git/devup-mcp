@@ -256,6 +256,31 @@ fn descendant_count(index: usize, nodes: &[XmlNode]) -> usize {
         .sum::<usize>()
 }
 
+fn find_metadata(value: &Value) -> Option<MetadataDocument> {
+    if let Ok(document) = serde_json::from_value::<MetadataDocument>(value.clone())
+        && !document.file_key.is_empty()
+        && !document.root_id.is_empty()
+    {
+        return Some(document);
+    }
+    match value {
+        Value::Object(object) => {
+            if let Some(Value::String(text)) = object.get("text")
+                && let Ok(parsed) = serde_json::from_str::<Value>(text)
+                && let Some(document) = find_metadata(&parsed)
+            {
+                return Some(document);
+            }
+            object.values().find_map(find_metadata)
+        }
+        Value::Array(values) => values.iter().find_map(find_metadata),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|parsed| find_metadata(&parsed)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,30 +338,5 @@ mod tests {
         assert!(parse("no angle brackets here at all").is_none());
         // Angle brackets but no element carrying an `id`.
         assert!(parse("a < b and c > d").is_none());
-    }
-}
-
-fn find_metadata(value: &Value) -> Option<MetadataDocument> {
-    if let Ok(document) = serde_json::from_value::<MetadataDocument>(value.clone())
-        && !document.file_key.is_empty()
-        && !document.root_id.is_empty()
-    {
-        return Some(document);
-    }
-    match value {
-        Value::Object(object) => {
-            if let Some(Value::String(text)) = object.get("text")
-                && let Ok(parsed) = serde_json::from_str::<Value>(text)
-                && let Some(document) = find_metadata(&parsed)
-            {
-                return Some(document);
-            }
-            object.values().find_map(find_metadata)
-        }
-        Value::Array(values) => values.iter().find_map(find_metadata),
-        Value::String(text) => serde_json::from_str::<Value>(text)
-            .ok()
-            .and_then(|parsed| find_metadata(&parsed)),
-        _ => None,
     }
 }
