@@ -251,7 +251,7 @@ pub(super) fn push_layout_props(
     }
 
     push_auto_layout(node, component, props);
-    push_padding(node, props);
+    push_padding(snapshot, node, props);
     if view.bool("clipsContent") == Some(true) {
         string_prop(props, "overflow", "hidden");
     }
@@ -434,13 +434,65 @@ fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     }
 }
 
-fn push_padding(node: &RawNode, props: &mut Vec<Prop>) {
+/// The gap between a frame's edges and the box its children occupy.
+///
+/// Figma reports this as the padding of the auto-layout it infers for a frame
+/// that has none. When it declines to infer one the same quantity still
+/// describes the frame, so measure it rather than fall back to the frame's own
+/// padding fields, which linger from whenever it last had a layout and no
+/// longer place anything.
+fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
+    let view = node.typed_view();
+    let (width, height) = (view.number("width")?, view.number("height")?);
+    let mut bounds: Option<[f64; 4]> = None;
+    for child in view.child_ids().filter_map(|id| snapshot.nodes.get(id)) {
+        let child = child.typed_view();
+        if child.bool("visible") == Some(false) {
+            continue;
+        }
+        let (Some(x), Some(y), Some(child_width), Some(child_height)) = (
+            child.number("x"),
+            child.number("y"),
+            child.number("width"),
+            child.number("height"),
+        ) else {
+            continue;
+        };
+        bounds = Some(match bounds {
+            Some([left, top, right, bottom]) => [
+                left.min(x),
+                top.min(y),
+                right.max(x + child_width),
+                bottom.max(y + child_height),
+            ],
+            None => [x, y, x + child_width, y + child_height],
+        });
+    }
+    let [left, top, right, bottom] = bounds?;
+    let inset = [top, width - right, height - bottom, left];
+    // Children can sit outside the frame, and a negative padding describes
+    // nothing.
+    inset.iter().all(|edge| *edge >= 0.0).then_some(inset)
+}
+
+fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let inferred = view.value("inferredAutoLayout").and_then(Value::as_object);
+    let derived = (inferred.is_none() && view.string("layoutMode") == Some("NONE"))
+        .then(|| children_inset(snapshot, node))
+        .flatten();
     let get = |name: &str| {
         inferred
             .and_then(|value| value.get(name))
             .and_then(Value::as_f64)
+            .or_else(|| {
+                derived.map(|[top, right, bottom, left]| match name {
+                    "paddingTop" => top,
+                    "paddingRight" => right,
+                    "paddingBottom" => bottom,
+                    _ => left,
+                })
+            })
             .or_else(|| view.number(name))
     };
     let [Some(top), Some(right), Some(bottom), Some(left)] = [
@@ -454,20 +506,28 @@ fn push_padding(node: &RawNode, props: &mut Vec<Prop>) {
     if top == 0.0 && right == 0.0 && bottom == 0.0 && left == 0.0 {
         return;
     }
+    // A zero padding is the default, so naming it says nothing. Emitting it
+    // only because the other axis happened to be padded left props like
+    // `px="0px"` sitting next to a real `py`.
+    let mut push = |name: &str, value: f64| {
+        if value != 0.0 {
+            string_prop(props, name, px(value));
+        }
+    };
     if top == right && right == bottom && bottom == left {
-        string_prop(props, "p", px(top));
+        push("p", top);
     } else {
         if top == bottom {
-            string_prop(props, "py", px(top));
+            push("py", top);
         } else {
-            string_prop(props, "pt", px(top));
-            string_prop(props, "pb", px(bottom));
+            push("pt", top);
+            push("pb", bottom);
         }
         if left == right {
-            string_prop(props, "px", px(left));
+            push("px", left);
         } else {
-            string_prop(props, "pl", px(left));
-            string_prop(props, "pr", px(right));
+            push("pl", left);
+            push("pr", right);
         }
     }
 }

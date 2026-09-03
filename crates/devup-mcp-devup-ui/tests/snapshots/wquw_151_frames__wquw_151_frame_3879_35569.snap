@@ -1,5 +1,6 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
+assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -394,6 +395,7 @@ export function Wquw151Frame387935569() {
         left="50%"
         overflow="hidden"
         pos="absolute"
+        pt="109px"
         top="0px"
         transform="translateX(-50%)"
         w="100%"
@@ -404,11 +406,10 @@ export function Wquw151Frame387935569() {
           boxShadow="0 -8px 20px 0 #00000026"
           overflow="hidden"
           pb="12px"
-          pt="0px"
           px="12px"
           w="360px"
         >
-          <VStack pb="12px" pt="0px" px="0px">
+          <VStack pb="12px">
             <VStack gap="4px" pos="relative" px="12px" py="20px">
               <VStack gap="4px">
                 <Text color="$text" typography="h6" wordBreak="keep-all">
