@@ -525,16 +525,22 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
             string_prop(props, name, px(value));
         }
     };
-    if top == right && right == bottom && bottom == left {
+    // Compare the values as they will be written. Insets measured from a
+    // child's position carry the arithmetic's noise — a 20px box around a
+    // 14.285714px child gives 2.857142686 on one side and 2.857143163 on the
+    // other — and those are the same padding to anyone reading the result.
+    // Comparing the raw floats split it into four separate sides.
+    let same = |left: f64, right: f64| px(left) == px(right);
+    if same(top, right) && same(right, bottom) && same(bottom, left) {
         push("p", top);
     } else {
-        if top == bottom {
+        if same(top, bottom) {
             push("py", top);
         } else {
             push("pt", top);
             push("pb", bottom);
         }
-        if left == right {
+        if same(left, right) {
             push("px", left);
         } else {
             push("pl", left);
