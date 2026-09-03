@@ -316,13 +316,8 @@ impl DevupServer {
                         // Every other upstream refusal arrives the same way.
                         // Report what upstream said instead of letting the
                         // collector misread the response as missing data.
-                        Ok(result) => match handoff::upstream_error_message(&result.raw) {
-                            Some(message) => {
-                                let error = DevupError::new(
-                                    ErrorCode::DevupSnapshotUnsupported,
-                                    message,
-                                    false,
-                                );
+                        Ok(result) => match handoff::upstream_error(&result.raw) {
+                            Some(error) => {
                                 if !collector.reject(&call_id, &error)? {
                                     return Err(error);
                                 }

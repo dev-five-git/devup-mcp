@@ -92,6 +92,16 @@ async fn a_rate_limited_upstream_reports_its_own_reason_not_a_parse_failure() ->
         !reported.contains("not found in the Figma MCP response"),
         "the refusal must not be reported as missing data: {reported}"
     );
+    // A quota refusal clears on its own, so reporting it as permanent would
+    // tell the caller to give up on something that fixes itself.
+    assert!(
+        reported.contains("DEVUP_FIGMA_RATE_LIMITED"),
+        "a quota refusal must be classified as one: {reported}"
+    );
+    assert!(
+        reported.contains("\"retryable\":true"),
+        "a quota refusal must be retryable: {reported}"
+    );
 
     client.cancel().await?;
     task.abort();

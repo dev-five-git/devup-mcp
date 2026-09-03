@@ -382,7 +382,7 @@ pub(crate) fn is_section_error_result(value: &Value) -> bool {
 /// depending only on which step happened to receive it. The real reason
 /// was in the response the whole time, so return it and let the caller
 /// read it.
-pub(crate) fn upstream_error_message(value: &Value) -> Option<String> {
+pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     if value.get("isError").and_then(Value::as_bool) != Some(true) {
         return None;
     }
@@ -398,7 +398,30 @@ pub(crate) fn upstream_error_message(value: &Value) -> Option<String> {
             _ => None,
         }
     }
-    Some(first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned()))
+    let message = first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned());
+
+    // A quota refusal is the one upstream failure that clears on its own,
+    // so it must not be reported as a permanent one. Figma meters reads
+    // per minute alongside a daily or monthly allowance, and a single
+    // refreshed export spends roughly fifteen calls, so the per-minute
+    // ceiling is reached long before the longer-term one.
+    let lowered = message.to_lowercase();
+    if lowered.contains("tool call limit") || lowered.contains("rate limit") {
+        return Some(DevupError::with_details(
+            ErrorCode::DevupFigmaRateLimited,
+            message,
+            true,
+            json!({
+                "resets": "Per-minute limits clear within a minute; the daily or monthly allowance resets on its own schedule.",
+                "costHint": "A refreshed export spends about 15 Figma tool calls, so avoid refresh when a cached artifact will do.",
+            }),
+        ));
+    }
+    Some(DevupError::new(
+        ErrorCode::DevupSnapshotUnsupported,
+        message,
+        false,
+    ))
 }
 
 fn take_session(
