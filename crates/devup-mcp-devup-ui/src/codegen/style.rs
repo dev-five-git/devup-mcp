@@ -154,7 +154,14 @@ fn uniform_asset_color(snapshot: &Snapshot, node: &RawNode) -> Option<String> {
                     if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
                         return false;
                     }
-                    let Some(color) = paint.get("color").and_then(color_from) else {
+                    // Must go through `color_from_paint`, not `color_from` on the
+                    // raw `color`: Figma splits a translucent solid across
+                    // `color.a` and the paint's own `opacity`, and the effective
+                    // alpha is the product. Formatting `color` alone silently
+                    // drops `opacity` and renders the asset fully opaque, which
+                    // also made this path disagree with `first_solid_color` on
+                    // byte-identical input.
+                    let Some(color) = color_from_paint(paint) else {
                         return false;
                     };
                     colors.push(color);
