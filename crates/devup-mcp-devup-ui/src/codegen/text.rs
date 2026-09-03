@@ -94,6 +94,10 @@ pub(super) fn push_text_props(
             string_prop(props, "display", "-webkit-box");
         }
     }
+    // Reads the designer's own truncation setting, which Figma always
+    // reports — provided it is collected. It was missing from the field
+    // manifest, so this saw nothing and every text claimed an ellipsis the
+    // design never asked for.
     if view.string("textTruncation") != Some("DISABLED")
         && view.string("layoutSizingHorizontal") != Some("HUG")
     {

@@ -7,12 +7,13 @@
   "gridColumnGap", "gridRowAnchorIndex", "gridRowCount", "gridRowGap", "gridStyleId",
   "height", "inferredAutoLayout", "isAsset", "isMask", "itemSpacing",
   "layoutGrow", "layoutMode", "layoutPositioning", "layoutSizingHorizontal", "layoutSizingVertical",
-  "letterSpacing", "lineHeight", "maxHeight", "maxWidth", "minHeight",
+  "letterSpacing", "lineHeight", "maxHeight", "maxLines", "maxWidth", "minHeight",
   "minWidth", "name", "opacity", "paddingBottom", "paddingLeft",
   "paddingRight", "paddingTop", "primaryAxisAlignItems", "reactions", "rotation",
   "strokeAlign", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight", "strokes",
   "strokeStyleId", "strokeTopWeight", "strokeWeight", "targetAspectRatio", "textAlignHorizontal",
   "textAlignVertical", "textAutoResize", "textCase", "textDecoration", "textStyleId",
+  "textTruncation",
   "topLeftRadius", "topRightRadius", "variantProperties", "visible", "width",
   "x", "y"
 ]
