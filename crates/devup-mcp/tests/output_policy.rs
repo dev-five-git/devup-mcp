@@ -1,11 +1,15 @@
 use std::{
     fs::{self, File, FileTimes},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use devup_mcp::server::output::{OutputPolicy, OutputTransaction};
 
+/// Deliberately returns the spelling `std::env::temp_dir()` gives, symlinks and
+/// all. On macOS that is under `/var/folders`, which resolves to
+/// `/private/var/folders`, so configuring a policy from this exercises the case
+/// where the configured root and the canonical root differ.
 fn unique_temp_dir(label: &str) -> anyhow::Result<PathBuf> {
     let path = std::env::temp_dir().join(format!(
         "devup-mcp-{label}-{}-{}",
@@ -14,6 +18,12 @@ fn unique_temp_dir(label: &str) -> anyhow::Result<PathBuf> {
     ));
     fs::create_dir_all(&path)?;
     Ok(path)
+}
+
+/// Where the policy will actually report files, which is the canonical location
+/// rather than the configured spelling. Assertions compare against this.
+fn canonical(path: &Path) -> PathBuf {
+    dunce::canonicalize(path).expect("canonicalize an existing temp directory")
 }
 
 #[test]
@@ -25,11 +35,16 @@ fn resolves_only_files_inside_preopened_roots() -> anyhow::Result<()> {
     let relative = policy.resolve("nested/Component.tsx")?;
     assert_eq!(
         relative.display_path(),
-        root.join("nested").join("Component.tsx")
+        canonical(&root).join("nested").join("Component.tsx")
     );
+    // Spelled exactly as the root was configured, which on macOS is not the
+    // canonical path. This must resolve, and must report the canonical one.
     let absolute_path = root.join("theme").join("devup.json");
     let absolute = policy.resolve(absolute_path.to_str().unwrap())?;
-    assert_eq!(absolute.display_path(), absolute_path);
+    assert_eq!(
+        absolute.display_path(),
+        canonical(&root).join("theme").join("devup.json")
+    );
 
     for invalid in [
         "",
@@ -49,6 +64,57 @@ fn resolves_only_files_inside_preopened_roots() -> anyhow::Result<()> {
     drop(absolute);
     drop(policy);
     fs::remove_dir_all(root)?;
+    fs::remove_dir_all(outside)?;
+    Ok(())
+}
+
+/// A root reached through a symlink is canonicalised when the policy opens it,
+/// so the path devup-mcp reports back no longer shares a prefix with the one
+/// the caller was given. Before this was handled, every such `outputPath` was
+/// refused with "outputPath is outside the allowed root" — which on macOS is
+/// not an edge case at all, since `/tmp` and `std::env::temp_dir()` both reach
+/// their targets through `/var -> /private/var`.
+///
+/// Asserted here with an explicit symlink so the guarantee holds on every
+/// platform with symlinks, instead of only where the OS happens to provide one.
+#[cfg(unix)]
+#[test]
+fn accepts_a_root_reached_through_a_symlink_in_either_spelling() -> anyhow::Result<()> {
+    use std::os::unix::fs::symlink;
+
+    let real = unique_temp_dir("symlink-spelling")?;
+    let link = real.with_file_name(format!(
+        "{}-link",
+        real.file_name().unwrap().to_string_lossy()
+    ));
+    symlink(&real, &link)?;
+
+    // Configured through the symlink, exactly as a client whose project path
+    // traverses one would.
+    let policy = OutputPolicy::from_roots(vec![link.clone()])?;
+    let expected = canonical(&real).join("Component.tsx");
+
+    let through_link = policy.resolve(link.join("Component.tsx").to_str().unwrap())?;
+    assert_eq!(through_link.display_path(), expected);
+
+    // The resolved spelling must keep working too.
+    let through_real = policy.resolve(expected.to_str().unwrap())?;
+    assert_eq!(through_real.display_path(), expected);
+
+    // Accepting both spellings must not accept an escape through either.
+    let outside = unique_temp_dir("symlink-spelling-outside")?;
+    assert!(
+        policy
+            .resolve(outside.join("escape.tsx").to_str().unwrap())
+            .is_err()
+    );
+    assert!(policy.resolve("../escape.tsx").is_err());
+
+    drop(through_link);
+    drop(through_real);
+    drop(policy);
+    fs::remove_file(&link)?;
+    fs::remove_dir_all(real)?;
     fs::remove_dir_all(outside)?;
     Ok(())
 }
@@ -117,10 +183,16 @@ fn commits_multiple_outputs_only_after_every_stage_succeeds() -> anyhow::Result<
         b"export const Component = 1;\n"
     );
     assert_eq!(fs::read(root.join("theme/devup.json"))?, br#"{"theme":{}}"#);
-    assert_eq!(paths["tsx"], root.join("Component.tsx").to_string_lossy());
+    assert_eq!(
+        paths["tsx"],
+        canonical(&root).join("Component.tsx").to_string_lossy()
+    );
     assert_eq!(
         paths["devupJson"],
-        root.join("theme").join("devup.json").to_string_lossy()
+        canonical(&root)
+            .join("theme")
+            .join("devup.json")
+            .to_string_lossy()
     );
 
     drop(policy);

@@ -26,4 +26,8 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+# Also a normal dependency. Tests need it too, to canonicalise an expected path
+# the same way OutputPolicy does — std::fs::canonicalize would return a `\\?\`
+# UNC path on Windows and never match.
+dunce.workspace = true
 reqwest.workspace = true

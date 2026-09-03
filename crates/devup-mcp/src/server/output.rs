@@ -22,7 +22,23 @@ pub struct OutputPolicy {
 
 struct OutputRoot {
     dir: Dir,
+    /// The canonical location. Every path devup-mcp reports back is built from
+    /// this, so a caller always learns where a file actually landed.
     display_path: PathBuf,
+    /// The spelling this root was configured with, which may reach
+    /// `display_path` through a symlink.
+    ///
+    /// On macOS that is the normal case rather than an edge case: `/tmp` and
+    /// `/var` are symlinks into `/private`, and `std::env::temp_dir()` returns
+    /// a path under `/var/folders`. A client then passes an `outputPath` under
+    /// the same unresolved prefix it was given, which no longer shares a
+    /// prefix with the canonicalised root. Keeping both spellings lets
+    /// [`OutputPolicy::resolve`] accept either without loosening a single
+    /// check: whatever remains after the prefix is stripped still goes through
+    /// `normalize_relative_file`, which rejects `..`, absolute components and
+    /// unsafe names, and symlinked ancestors inside the root are still
+    /// refused by `reject_existing_symlink_ancestors`.
+    requested_path: PathBuf,
 }
 
 #[derive(Clone)]
@@ -98,7 +114,11 @@ impl OutputPolicy {
             }
             let dir = Dir::open_ambient_dir(&display_path, ambient_authority())
                 .map_err(|error| invalid_path(format!("Cannot open the output root: {error}")))?;
-            opened.push(Arc::new(OutputRoot { dir, display_path }));
+            opened.push(Arc::new(OutputRoot {
+                dir,
+                display_path,
+                requested_path: root,
+            }));
         }
         Ok(Self {
             roots: Arc::new(opened),
@@ -115,7 +135,11 @@ impl OutputPolicy {
             self.roots
                 .iter()
                 .find_map(|root| {
+                    // Either spelling of the root is accepted: the resolved
+                    // one, and the one it was configured with. See
+                    // `OutputRoot::requested_path` for why the two differ.
                     path.strip_prefix(&root.display_path)
+                        .or_else(|_| path.strip_prefix(&root.requested_path))
                         .ok()
                         .map(|relative| (root.clone(), relative.to_path_buf()))
                 })
