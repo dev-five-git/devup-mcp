@@ -290,7 +290,7 @@ Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection
 
 `sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 
-정확한 node 링크의 UI 변환은 우선 하나의 공식 `use_figma` 호출 안에서 subtree 전체와 실제 사용 리소스를 수집합니다. JSON envelope를 512 KiB 단위로 나누고 각 조각을 CRC가 있는 1×1 PNG에 담아 MCP 응답 크기 제한을 피하며, Rust는 MIME·base64·PNG 구조·청크 순서·schema·대상 ID·node graph·리소스 참조를 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`, `fallbackUsed`, node/variable/style 수와 byte/청크 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
+정확한 node 링크의 UI 변환은 하나 이상의 공식 `use_figma` 호출 안에서 subtree와 실제 사용 리소스를 수집합니다. 수집 스크립트는 checked-in manifest(devup-ui 변환기가 실제로 읽는 필드만)만 확인하고 — 프로토타입 체인 전체를 훑거나 미분류 필드를 `extra`에 담지 않습니다 — `null`/빈 배열/미바인딩 style ID 같은 기본값은 봉투에서 생략합니다. 결과는 항상 텍스트(`devupFastSnapshotEnvelope`)이며 PNG 같은 바이너리 transport는 없습니다. 한 subtree가 15KB 텍스트 한도를 넘으면 같은 스크립트를 `offset`을 옮겨 다시 호출하는 방식으로 텍스트 페이지네이션합니다 — 각 라운드는 그 라운드가 보낸 node에서만 리소스를 스캔해 자기 완결적이며, Rust가 여러 라운드의 node와 리소스를 병합합니다. Rust는 schema·대상 ID·node graph·리소스 참조·(페이지 중이 아닐 때의) 자식 완전성을 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`(`text` | `text-paginated` | `legacy-cursor`), `fallbackUsed`, node/variable/style 수와 byte 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
 
 완전성 등급은 다음과 같습니다.
 
@@ -301,7 +301,7 @@ Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection
 ## 읽기 전용·개인정보 보호
 
 - upstream 호출은 `get_metadata`, `get_variable_defs`, `get_design_context`, `get_code_connect_map`, `get_screenshot`과 내장된 read-only `use_figma` script로 닫혀 있습니다.
-- 사용자 입력 JavaScript를 받지 않으며 Figma document mutation API를 호출하지 않습니다. `figma.io.write`는 공식 MCP 응답으로 검증 가능한 1×1 PNG를 반환하는 transport에만 사용하며 Figma 파일을 변경하지 않습니다.
+- 사용자 입력 JavaScript를 받지 않으며 Figma document mutation API를 호출하지 않습니다. `figma.io.write`는 asset export(`devup_figma_export`의 `assetRequests`)에만 read-only로 사용하며 Figma 파일을 변경하지 않습니다. fast snapshot/theme envelope는 항상 텍스트로만 반환되며 바이너리 transport를 쓰지 않습니다.
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
