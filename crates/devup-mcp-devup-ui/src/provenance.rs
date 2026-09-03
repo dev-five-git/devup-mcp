@@ -4,7 +4,7 @@ use devup_mcp_figma::{DevupError, ErrorCode, FidelityImpact, Snapshot, discover_
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::codegen::CodegenOutput;
+use crate::codegen::{CodegenOutput, asset_kind};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
@@ -125,7 +125,18 @@ pub struct FidelityReport {
     pub assets: FidelityCoverage,
     pub layout: FidelityCoverage,
     pub impacts: FidelityImpactCounts,
+    /// The `nodeId#property` layout pairs the generated TSX does not account
+    /// for, bounded by [`MAX_REPORTED_UNCOVERED`]. Reporting only a ratio left
+    /// a shortfall untriageable: nothing said whether the layout was wrong or
+    /// merely expressed another way. Purely informational — it does not feed
+    /// `impacts`, `strict_compatible`, or the reported status.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uncovered_layout: Vec<String>,
 }
+
+/// Enough to see the shape of a shortfall without turning a diagnostic into a
+/// second payload.
+const MAX_REPORTED_UNCOVERED: usize = 40;
 
 impl FidelityReport {
     pub fn strict_compatible(&self) -> bool {
@@ -388,26 +399,41 @@ pub fn validate_fidelity(
         .iter()
         .filter(|node_id| !has_asset_ancestor(node_id, &parents, &asset_nodes))
         .flat_map(|node_id| {
-            LAYOUT_FIELDS.iter().filter_map(|field| {
+            let is_asset = asset_nodes.contains(*node_id);
+            LAYOUT_FIELDS.iter().filter_map(move |field| {
                 snapshot
                     .nodes
                     .get(*node_id)
-                    .filter(|node| layout_field_is_semantic(snapshot, node, field))
+                    .filter(|node| {
+                        (!is_asset || !asset_layout_field_is_internal(field))
+                            && layout_field_is_semantic(snapshot, node, field)
+                    })
                     .map(|_| ((*node_id).to_owned(), (*field).to_owned()))
             })
         })
         .collect::<BTreeSet<_>>();
-    let covered_layout = layout
-        .iter()
-        .filter(|(node_id, property)| {
-            output.source_map.entries.iter().any(|entry| {
+    let (covered_layout, uncovered_layout) = {
+        let mut covered = 0usize;
+        // Which pairs were not represented, not just how many. A count alone
+        // cannot distinguish "the layout is wrong" from "the same layout is
+        // expressed differently", so a shortfall was previously impossible to
+        // act on or even to triage.
+        let mut uncovered = Vec::new();
+        for (node_id, property) in &layout {
+            let represented = output.source_map.entries.iter().any(|entry| {
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx)
                         .is_some_and(|source| layout_source_matches(property, source))
-            })
-        })
-        .count();
+            });
+            if represented {
+                covered += 1;
+            } else if uncovered.len() < MAX_REPORTED_UNCOVERED {
+                uncovered.push(format!("{node_id}#{property}"));
+            }
+        }
+        (covered, uncovered)
+    };
     let mut impacts = FidelityImpactCounts::default();
     for diagnostic in &output.diagnostics {
         match diagnostic.fidelity_impact() {
@@ -426,6 +452,7 @@ pub fn validate_fidelity(
         assets: FidelityCoverage::new(assets.len(), covered_assets),
         layout: FidelityCoverage::new(layout.len(), covered_layout),
         impacts,
+        uncovered_layout,
     })
 }
 
@@ -442,6 +469,18 @@ fn has_asset_ancestor(
         parent = parents.get(parent_id).map(String::as_str);
     }
     false
+}
+
+fn asset_layout_field_is_internal(field: &str) -> bool {
+    matches!(
+        field,
+        "layoutMode"
+            | "itemSpacing"
+            | "paddingTop"
+            | "paddingRight"
+            | "paddingBottom"
+            | "paddingLeft"
+    )
 }
 
 fn layout_field_is_semantic(
@@ -494,84 +533,7 @@ fn layout_field_is_semantic(
 }
 
 fn projects_as_asset(snapshot: &Snapshot, node: &devup_mcp_figma::RawNode) -> bool {
-    fn nested(snapshot: &Snapshot, node: &devup_mcp_figma::RawNode) -> bool {
-        if projects_as_asset(snapshot, node) {
-            return true;
-        }
-        let view = node.typed_view();
-        if view.node_type() == "TEXT" || view.child_ids().next().is_some() {
-            return false;
-        }
-        view.value("fills")
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|fills| {
-                fills.iter().all(|paint| {
-                    paint.get("visible").and_then(serde_json::Value::as_bool) == Some(false)
-                        || paint.get("type").and_then(serde_json::Value::as_str) == Some("SOLID")
-                })
-            })
-    }
-
-    let view = node.typed_view();
-    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
-        || view
-            .value("inferredAutoLayout")
-            .and_then(serde_json::Value::as_object)
-            .and_then(|layout| layout.get("layoutMode"))
-            .and_then(serde_json::Value::as_str)
-            == Some("GRID")
-    {
-        return false;
-    }
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON")
-        || (view.node_type() == "ELLIPSE"
-            && view
-                .value("arcData")
-                .and_then(|value| value.get("innerRadius"))
-                .and_then(serde_json::Value::as_f64)
-                .is_some_and(|value| value != 0.0))
-    {
-        return true;
-    }
-    let fills = view.value("fills").and_then(serde_json::Value::as_array);
-    if view.bool("isAsset") == Some(true)
-        && fills.is_some_and(|fills| {
-            (fills.len() == 1
-                && fills[0].get("type").and_then(serde_json::Value::as_str) == Some("IMAGE")
-                && fills[0]
-                    .get("scaleMode")
-                    .and_then(serde_json::Value::as_str)
-                    != Some("TILE"))
-                || (!fills.is_empty()
-                    && !fills.iter().all(|paint| {
-                        paint.get("type").and_then(serde_json::Value::as_str) == Some("SOLID")
-                            && paint.get("visible").and_then(serde_json::Value::as_bool)
-                                == Some(true)
-                    }))
-        })
-    {
-        return true;
-    }
-    let children = view
-        .child_ids()
-        .filter_map(|id| snapshot.nodes.get(id))
-        .collect::<Vec<_>>();
-    if children.is_empty()
-        || (children.len() == 1
-            && !children.iter().all(|child| {
-                matches!(
-                    child.typed_view().node_type(),
-                    "VECTOR" | "STAR" | "POLYGON"
-                )
-            })
-            && matches!(
-                view.string("layoutMode"),
-                Some("HORIZONTAL" | "VERTICAL" | "GRID")
-            ))
-    {
-        return false;
-    }
-    children.into_iter().all(|child| nested(snapshot, child))
+    asset_kind(snapshot, node).is_some()
 }
 
 fn semantic_nodes<'a>(snapshot: &'a Snapshot, root_id: &str) -> BTreeSet<&'a str> {

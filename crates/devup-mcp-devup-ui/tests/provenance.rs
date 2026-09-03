@@ -319,6 +319,88 @@ fn strict_fidelity_requires_layout_property_mappings_not_only_node_trace() {
 }
 
 #[test]
+fn asset_boundaries_exclude_internal_and_descendant_layout_fields() {
+    let snapshot = Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["root".to_owned()],
+        nodes: [
+            node(
+                "root",
+                "FRAME",
+                json!({
+                    "name": "Host", "childrenIds": ["asset"],
+                    "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}}]
+                }),
+            ),
+            node(
+                "asset",
+                "FRAME",
+                json!({
+                    "name": "Folded icon", "parentId": "root",
+                    "childrenIds": ["glyph-left", "glyph-right"],
+                    "layoutMode": "HORIZONTAL", "layoutPositioning": "ABSOLUTE",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "itemSpacing": 4, "paddingTop": 1, "paddingRight": 2,
+                    "paddingBottom": 3, "paddingLeft": 4,
+                    "width": 24, "height": 24, "x": 0, "y": 0
+                }),
+            ),
+            node(
+                "glyph-left",
+                "FRAME",
+                json!({
+                    "name": "Left glyph", "parentId": "asset", "childrenIds": [],
+                    "isAsset": true, "width": 10, "height": 20
+                }),
+            ),
+            node(
+                "glyph-right",
+                "FRAME",
+                json!({
+                    "name": "Right glyph", "parentId": "asset", "childrenIds": [],
+                    "isAsset": true, "width": 10, "height": 20
+                }),
+            ),
+        ]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    };
+
+    let output = generate_component(&snapshot, "root", &CodegenOptions::default()).unwrap();
+
+    assert!(output.tsx.contains("<Image"), "{}", output.tsx);
+    assert_eq!(output.fidelity_report.layout.total, 3);
+    assert_eq!(
+        output.fidelity_report.layout.covered, 3,
+        "tsx: {}\nuncovered: {:?}",
+        output.tsx, output.fidelity_report.uncovered_layout
+    );
+    assert!(output.fidelity_report.uncovered_layout.is_empty());
+
+    let mut missing_external_geometry = output.clone();
+    missing_external_geometry
+        .source_map
+        .entries
+        .retain(|entry| {
+            entry.node_id.as_deref() != Some("asset")
+                || !matches!(
+                    entry.property.as_deref(),
+                    Some("height" | "layoutPositioning" | "width")
+                )
+        });
+    let report = validate_fidelity(&snapshot, "root", &missing_external_geometry).unwrap();
+    assert_eq!(report.layout.total, 3);
+    assert_eq!(report.layout.covered, 0);
+    assert_eq!(
+        report.uncovered_layout,
+        ["asset#height", "asset#layoutPositioning", "asset#width"]
+    );
+}
+
+#[test]
 fn strict_fidelity_requires_source_asset_identity_mapping() {
     let snapshot = Snapshot {
         file_key: "FileKey123".to_owned(),

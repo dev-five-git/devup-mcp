@@ -9,13 +9,13 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum AssetKind {
+pub(crate) enum AssetKind {
     Svg,
     SvgMask,
     Png,
 }
 
-pub(super) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
+pub(crate) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
     asset_kind_nested(snapshot, node, false)
 }
 
