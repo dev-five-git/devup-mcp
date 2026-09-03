@@ -258,8 +258,13 @@ pub(super) fn push_layout_props(
     if view.bool("clipsContent") == Some(true) {
         string_prop(props, "overflow", "hidden");
     }
+    // An absolutely positioned child needs a positioned ancestor to resolve
+    // against — but a node folded into a single asset has no children left in
+    // the output, so there is nothing to anchor and the containing block would
+    // exist for no one.
     if !embedded_root
         && !is_page_root
+        && super::style::asset_kind(snapshot, node).is_none()
         && view.child_ids().any(|child| {
             snapshot.nodes.get(child).is_some_and(|child| {
                 child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")

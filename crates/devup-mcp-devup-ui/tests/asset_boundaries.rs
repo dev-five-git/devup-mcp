@@ -19,6 +19,44 @@ fn generate(root_id: &str, nodes: Value) -> String {
 }
 
 #[test]
+fn a_folded_asset_does_not_anchor_children_it_no_longer_has() {
+    // The vectors inside are baked into the exported icon, so nothing is left
+    // to position against and a containing block would serve no one.
+    let tsx = generate(
+        "1:button",
+        json!([
+            {
+                "id": "1:button", "type": "FRAME",
+                "fields": {
+                    "name": "clear button", "childrenIds": ["1:ring"],
+                    "width": 24.0, "height": 24.0
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:ring", "type": "ELLIPSE",
+                "fields": {
+                    "name": "Ellipse", "parentId": "1:button", "childrenIds": [],
+                    "layoutPositioning": "ABSOLUTE",
+                    "width": 24.0, "height": 24.0, "x": 0.0, "y": 0.0,
+                    "fills": [{"type": "SOLID", "visible": true, "color": {"r": 0.0, "g": 0.0, "b": 0.0}}]
+                },
+                "extra": {}, "fieldErrors": {}
+            }
+        ]),
+    );
+
+    assert!(
+        tsx.contains("/icons/clear button.svg"),
+        "expected a folded asset: {tsx}"
+    );
+    assert!(
+        !tsx.contains("pos=\"relative\""),
+        "a folded asset has no children to anchor: {tsx}"
+    );
+}
+
+#[test]
 fn separate_image_fills_do_not_claim_the_same_file() {
     // Two fills on one node are two different images. A single hard-coded
     // reference gave both the same URL, so the layered background repeated one
