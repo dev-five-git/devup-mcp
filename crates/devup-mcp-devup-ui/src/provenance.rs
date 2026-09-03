@@ -500,8 +500,19 @@ fn layout_field_is_semantic(
                     .child_ids()
                     .any(|child| child == node.id)
         });
-    let component_canvas_dimension = matches!(field, "width" | "height") && component_set_parent;
-    if component_canvas_dimension {
+    // A frame sitting on a page or section is the canvas the design was drawn
+    // on, and its own dimensions are deliberately left unsaid so the result is
+    // not pinned to that size. Counting them would report a shortfall for
+    // something the output declines to claim on purpose. Kept in step with the
+    // same test in `codegen::layout`.
+    let canvas_parent = component_set_parent
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .map(|parent| parent.node_type.as_str())
+            .or_else(|| view.string("parentType"))
+            .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
+    if matches!(field, "width" | "height") && canvas_parent {
         return false;
     }
     match field {

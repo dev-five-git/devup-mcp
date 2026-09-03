@@ -769,3 +769,41 @@ fn slice<'a>(tsx: &'a str, entry: &devup_mcp_devup_ui::provenance::ProvenanceEnt
     let range = entry.generated_range.as_ref().unwrap();
     &tsx[range.start..range.end]
 }
+
+#[test]
+fn a_canvas_root_dimension_is_not_counted_as_an_unmet_layout_fact() {
+    // The screen's own size is deliberately left unsaid so the result is not
+    // pinned to the width it was drawn at. Counting it would report a
+    // shortfall for something the output declines to claim on purpose.
+    let snapshot = Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["1:1".to_owned()],
+        nodes: [node(
+            "1:1",
+            "FRAME",
+            json!({
+                "name": "Screen", "childrenIds": [], "layoutMode": "VERTICAL",
+                "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                "width": 360, "height": 800,
+                "parentId": "0:page", "parentType": "SECTION"
+            }),
+        )]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    };
+
+    let output = generate_component(&snapshot, "1:1", &CodegenOptions::default()).expect("codegen");
+    let report = validate_fidelity(&snapshot, "1:1", &output).expect("fidelity");
+
+    assert!(
+        !report
+            .uncovered_layout
+            .iter()
+            .any(|entry| entry.ends_with("#width") || entry.ends_with("#height")),
+        "canvas geometry must not be reported as unmet: {:?}",
+        report.uncovered_layout
+    );
+}
