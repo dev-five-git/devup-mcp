@@ -16,129 +16,173 @@ pub(super) enum AssetKind {
 }
 
 pub(super) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
-    let view = node.typed_view();
-    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET") {
-        return None;
-    }
-    if view
-        .value("inferredAutoLayout")
-        .and_then(Value::as_object)
-        .and_then(|layout| layout.get("layoutMode"))
-        .and_then(Value::as_str)
-        == Some("GRID")
-    {
-        return None;
-    }
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON")
-        || (view.node_type() == "ELLIPSE"
-            && view
-                .value("arcData")
-                .and_then(|value| value.get("innerRadius"))
-                .and_then(Value::as_f64)
-                .is_some_and(|value| value != 0.0))
-    {
-        return Some(if uniform_asset_color(snapshot, node).is_some() {
-            AssetKind::SvgMask
-        } else {
-            AssetKind::Svg
-        });
-    }
-    let fills = view.value("fills").and_then(Value::as_array);
-    if view.bool("isAsset") == Some(true) {
-        if fills.is_some_and(|fills| {
-            fills.len() == 1
-                && fills[0].get("type").and_then(Value::as_str) == Some("IMAGE")
-                && fills[0].get("scaleMode").and_then(Value::as_str) != Some("TILE")
-        }) {
-            return Some(AssetKind::Png);
-        }
-        if fills.is_some_and(|fills| {
-            !fills.is_empty()
-                && !fills.iter().all(|paint| {
-                    paint.get("type").and_then(Value::as_str) == Some("SOLID")
-                        && paint.get("visible").and_then(Value::as_bool) == Some(true)
-                })
-        }) {
-            return Some(if uniform_asset_color(snapshot, node).is_some() {
-                AssetKind::SvgMask
-            } else {
-                AssetKind::Svg
-            });
-        }
-    }
-    if view.child_ids().next().is_some() {
-        let children = view
-            .child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .collect::<Vec<_>>();
-        let direct_vectors = children.iter().all(|child| {
-            matches!(
-                child.typed_view().node_type(),
-                "VECTOR" | "STAR" | "POLYGON"
-            )
-        });
-        if view.bool("isAsset") == Some(true) && first_solid_color(view.value("fills")).is_some() {
-            return None;
-        }
-        if children.len() == 1
-            && !direct_vectors
-            && matches!(
-                view.string("layoutMode"),
-                Some("HORIZONTAL" | "VERTICAL" | "GRID")
-            )
-        {
-            return None;
-        }
-        if !children.is_empty()
-            && children.iter().all(|child| {
-                matches!(
-                    asset_kind_nested(snapshot, child),
-                    Some(AssetKind::Svg | AssetKind::SvgMask)
-                )
-            })
-        {
-            return Some(if uniform_asset_color(snapshot, node).is_some() {
-                AssetKind::SvgMask
-            } else {
-                AssetKind::Svg
-            });
-        }
-    }
-    None
+    asset_kind_nested(snapshot, node, false)
 }
 
-fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
-    if let Some(kind) = asset_kind(snapshot, node) {
-        return Some(kind);
-    }
+fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
     let view = node.typed_view();
-    if view.node_type() == "TEXT" {
+    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
+        || view
+            .value("inferredAutoLayout")
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(Value::as_str)
+            == Some("GRID")
+    {
         return None;
     }
-    if view.child_ids().next().is_some() {
+
+    if has_smart_animate_reaction(node)
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .is_some_and(has_smart_animate_reaction)
+    {
         return None;
     }
-    let fills = view.value("fills").and_then(Value::as_array)?;
-    if fills.iter().any(|paint| {
-        paint.get("visible").and_then(Value::as_bool) != Some(false)
-            && paint.get("type").and_then(Value::as_str) != Some("SOLID")
-    }) {
-        return None;
+
+    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+        return Some(svg_asset_kind(snapshot, node));
     }
-    if fills.iter().any(|paint| {
-        paint.get("visible").and_then(Value::as_bool) != Some(false)
-            && matches!(
-                paint.get("type").and_then(Value::as_str),
-                Some("IMAGE" | "VIDEO" | "PATTERN")
+
+    if view.node_type() == "ELLIPSE"
+        && view
+            .value("arcData")
+            .and_then(|arc_data| arc_data.get("innerRadius"))
+            .and_then(Value::as_f64)
+            .is_some_and(|inner_radius| inner_radius != 0.0)
+    {
+        return Some(svg_asset_kind(snapshot, node));
+    }
+
+    let child_ids = view.child_ids().collect::<Vec<_>>();
+    if child_ids.is_empty() {
+        return leaf_asset_kind(snapshot, node, nested);
+    }
+
+    if child_ids.len() == 1 {
+        if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
+            .into_iter()
+            .any(|field| view.number(field).is_some_and(|padding| padding > 0.0))
+            || fills(node).is_some_and(|fills| fills.iter().any(is_visible_fill))
+        {
+            return None;
+        }
+
+        return match snapshot
+            .nodes
+            .get(child_ids[0])
+            .and_then(|child| asset_kind_nested(snapshot, child, true))
+        {
+            Some(AssetKind::Png) => Some(AssetKind::Png),
+            Some(AssetKind::Svg | AssetKind::SvgMask) => Some(svg_asset_kind(snapshot, node)),
+            None => None,
+        };
+    }
+
+    let mut visible_children = Vec::new();
+    for child_id in child_ids {
+        let child = snapshot.nodes.get(child_id)?;
+        if child.typed_view().bool("visible") != Some(false) {
+            visible_children.push(child);
+        }
+    }
+
+    visible_children
+        .into_iter()
+        .all(|child| {
+            matches!(
+                asset_kind_nested(snapshot, child, true),
+                Some(AssetKind::Svg | AssetKind::SvgMask)
             )
-    }) {
-        None
-    } else {
-        Some(if uniform_asset_color(snapshot, node).is_some() {
-            AssetKind::SvgMask
-        } else {
-            AssetKind::Svg
         })
+        .then(|| svg_asset_kind(snapshot, node))
+}
+
+fn leaf_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
+    let node_fills = fills(node);
+    if node_fills.is_some_and(|fills| {
+        fills.iter().any(|fill| {
+            is_visible_fill(fill)
+                && (fill_type(fill) == Some("PATTERN")
+                    || (fill_type(fill) == Some("IMAGE")
+                        && fill.get("scaleMode").and_then(Value::as_str) == Some("TILE")))
+        })
+    }) {
+        return None;
+    }
+
+    if node.typed_view().bool("isAsset") == Some(true) {
+        if node_fills.is_some_and(|fills| {
+            fills.iter().any(|fill| {
+                is_visible_fill(fill)
+                    && fill_type(fill) == Some("IMAGE")
+                    && fill.get("scaleMode").and_then(Value::as_str) != Some("TILE")
+            })
+        }) {
+            return (node_fills.is_some_and(|fills| fills.len() == 1)).then_some(AssetKind::Png);
+        }
+
+        if node_fills.is_none_or(|fills| {
+            fills
+                .iter()
+                .all(|fill| is_visible_fill(fill) && fill_type(fill) == Some("SOLID"))
+        }) {
+            return nested.then(|| svg_asset_kind(snapshot, node));
+        }
+
+        return Some(svg_asset_kind(snapshot, node));
+    }
+
+    (nested
+        && node_fills.is_some_and(|fills| {
+            fills.iter().all(|fill| {
+                !is_visible_fill(fill)
+                    || !matches!(fill_type(fill), Some("IMAGE" | "VIDEO" | "PATTERN"))
+            })
+        }))
+    .then(|| svg_asset_kind(snapshot, node))
+}
+
+fn fills(node: &RawNode) -> Option<&Vec<Value>> {
+    node.typed_view().value("fills").and_then(Value::as_array)
+}
+
+fn fill_type(fill: &Value) -> Option<&str> {
+    fill.get("type").and_then(Value::as_str)
+}
+
+fn is_visible_fill(fill: &Value) -> bool {
+    fill.get("visible").and_then(Value::as_bool) != Some(false)
+}
+
+fn has_smart_animate_reaction(node: &RawNode) -> bool {
+    node.typed_view()
+        .value("reactions")
+        .and_then(Value::as_array)
+        .is_some_and(|reactions| {
+            reactions.iter().any(|reaction| {
+                reaction
+                    .get("actions")
+                    .and_then(Value::as_array)
+                    .is_some_and(|actions| {
+                        actions.iter().any(|action| {
+                            action.get("type").and_then(Value::as_str) == Some("NODE")
+                                && action
+                                    .get("transition")
+                                    .and_then(|transition| transition.get("type"))
+                                    .and_then(Value::as_str)
+                                    == Some("SMART_ANIMATE")
+                        })
+                    })
+            })
+        })
+}
+
+fn svg_asset_kind(snapshot: &Snapshot, node: &RawNode) -> AssetKind {
+    if uniform_asset_color(snapshot, node).is_some() {
+        AssetKind::SvgMask
+    } else {
+        AssetKind::Svg
     }
 }
 
