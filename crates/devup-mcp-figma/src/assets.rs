@@ -1,6 +1,6 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::{DevupError, Diagnostic, ErrorCode, Snapshot, UpstreamResult};
@@ -275,11 +275,36 @@ pub fn asset_export_from_result(
             error_code: descriptor.error_code,
         });
     }
-    let data = find_binary(&result.raw, request.format.mime_type())
-        .ok_or_else(|| invalid("asset export response does not contain the requested binary."))?;
-    let bytes = STANDARD
-        .decode(data.as_bytes())
-        .map_err(|_| invalid("asset export binary base64 is invalid."))?;
+    let payload = find_payload(&result.raw, request.format.mime_type()).ok_or_else(|| {
+        // Which shapes the response *did* carry. Without this the failure is
+        // indistinguishable between "no attachment came back", "it came back
+        // under a different mime type" and "it came back in a field this
+        // search does not read" — three very different bugs.
+        DevupError::with_details(
+            ErrorCode::DevupSnapshotUnsupported,
+            "asset export response does not contain the requested binary.",
+            false,
+            json!({
+                "expectedMimeType": request.format.mime_type(),
+                "observed": observed_payload_shapes(&result.raw),
+            }),
+        )
+    })?;
+    let (bytes, data) = match payload {
+        AssetPayload::Base64(data) => {
+            let bytes = STANDARD
+                .decode(data.as_bytes())
+                .map_err(|_| invalid("asset export binary base64 is invalid."))?;
+            (bytes, data)
+        }
+        // Re-encoded so every consumer downstream still receives base64,
+        // regardless of how the upstream happened to carry the payload.
+        AssetPayload::Text(text) => {
+            let bytes = text.into_bytes();
+            let data = STANDARD.encode(&bytes);
+            (bytes, data)
+        }
+    };
     if bytes.is_empty()
         || bytes.len() > MAX_ASSET_BYTES
         || descriptor.byte_length != Some(bytes.len())
@@ -341,27 +366,97 @@ fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {
     }
 }
 
-fn find_binary(value: &Value, mime_type: &str) -> Option<String> {
+/// How an upstream carried the exported asset.
+enum AssetPayload {
+    /// An image content block or a blob resource, which are base64.
+    Base64(String),
+    /// A text resource. MCP models a text-based document — SVG being the one
+    /// devup-mcp exports — as `text` holding the document itself rather than
+    /// base64 of it, so an SVG export used to be invisible to a search that
+    /// only looked for `data`/`blob` and every request failed with "asset
+    /// export response does not contain the requested binary".
+    Text(String),
+}
+
+fn find_payload(value: &Value, mime_type: &str) -> Option<AssetPayload> {
     match value {
         Value::Object(object) => {
-            let observed_mime = object.get("mimeType").and_then(Value::as_str);
-            if observed_mime == Some(mime_type)
-                && let Some(data) = object
+            if object.get("mimeType").and_then(Value::as_str) == Some(mime_type) {
+                // Base64 first: when a payload offers both, the binary form is
+                // the exact bytes, while `text` may be a lossy preview.
+                if let Some(data) = object
                     .get("data")
                     .or_else(|| object.get("blob"))
                     .and_then(Value::as_str)
-            {
-                return Some(data.to_owned());
+                {
+                    return Some(AssetPayload::Base64(data.to_owned()));
+                }
+                if let Some(text) = object.get("text").and_then(Value::as_str) {
+                    return Some(AssetPayload::Text(text.to_owned()));
+                }
             }
             object
                 .values()
-                .find_map(|value| find_binary(value, mime_type))
+                .find_map(|value| find_payload(value, mime_type))
         }
         Value::Array(values) => values
             .iter()
-            .find_map(|value| find_binary(value, mime_type)),
+            .find_map(|value| find_payload(value, mime_type)),
+        // The descriptor — and, for SVG, the payload inlined beside it —
+        // arrives as JSON inside a text content block, so the search has to
+        // step through that encoding exactly as `find_descriptor` does.
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .and_then(|value| find_payload(&value, mime_type)),
         _ => None,
     }
+}
+
+/// Describes every payload-carrying object in a response by its `type` and
+/// `mimeType` and which of `data`/`blob`/`text` it holds, without ever
+/// including the payload itself. Bounded so a large response cannot turn a
+/// diagnostic into another problem.
+fn observed_payload_shapes(value: &Value) -> Vec<String> {
+    fn walk(value: &Value, found: &mut Vec<String>) {
+        if found.len() >= 12 {
+            return;
+        }
+        match value {
+            Value::Object(object) => {
+                let carriers: Vec<&str> = ["data", "blob", "text", "uri"]
+                    .into_iter()
+                    .filter(|key| object.contains_key(*key))
+                    .collect();
+                if !carriers.is_empty() {
+                    let kind = object
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .unwrap_or("<no type>");
+                    let mime = object
+                        .get("mimeType")
+                        .and_then(Value::as_str)
+                        .unwrap_or("<no mimeType>");
+                    found.push(format!(
+                        "type={kind} mimeType={mime} carries=[{}]",
+                        carriers.join(",")
+                    ));
+                }
+                for child in object.values() {
+                    walk(child, found);
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    walk(child, found);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut found = Vec::new();
+    walk(value, &mut found);
+    found
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

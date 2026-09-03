@@ -996,7 +996,11 @@ impl ServerHandler for DevupServer {
              5. In a handoff step, run the requested tool with the requested arguments exactly, and return the raw result unchanged via devup_figma_continue.\n\
              6. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
              7. Do not guess UI values such as color, spacing, radius, or typography. If you could not obtain them, stop and report.\n\
-             8. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with per-screen export via frameIds or allScreens.",
+             8. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with per-screen export via frameIds or allScreens.\n\
+             9. The generated component name comes from the Figma layer name and is a starting point, not a contract. Rename it to fit the codebase, and rename a name that is meaningless or not a valid identifier.\n\
+             10. An asset path in the output, such as a maskImage or Image src, is a placeholder built from the layer name. Rename the file to fit the project. If the asset varies per usage, lift it into a prop instead of hardcoding it.\n\
+             11. A fixed asset such as an icon must actually be exported, never referenced by a path that does not exist yet. Read assetManifest for the asset IDs, then call devup_figma_export again with assetRequests, giving each entry an outputPath under an allowed write root, and make the path in the code match the path you wrote.\n\
+             12. Prefer delivery: \"resource\" for assets and large outputs. devup-mcp then returns devup://artifact/... resource links to read on demand instead of inlining bytes in every response.",
         )
     }
 

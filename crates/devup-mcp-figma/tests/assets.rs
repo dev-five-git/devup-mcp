@@ -7,6 +7,7 @@ use devup_mcp_figma::{
     asset_export_from_result, discover_asset_manifest,
 };
 use serde_json::{Map, json};
+use sha2::Digest as _;
 
 fn node(id: &str, node_type: &str, fields: serde_json::Value) -> RawNode {
     RawNode {
@@ -93,6 +94,91 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "DEVUP_ASSET_EXPORT_FAILED")
+    );
+}
+
+/// Figma's remote MCP returns a written PNG as an image attachment but does
+/// not return a written `.svg` at all — the response carries only the
+/// descriptor, as JSON inside a text block. So an SVG export inlines its own
+/// payload beside the descriptor, and the payload search has to step through
+/// that JSON encoding to reach it. Before this, every SVG request failed with
+/// "asset export response does not contain the requested binary" while PNG
+/// worked, and the error said nothing about why.
+#[test]
+fn an_svg_payload_inlined_beside_the_descriptor_is_decoded_from_its_text() {
+    let svg = "<svg width=\"2\" height=\"2\" xmlns=\"http://www.w3.org/2000/svg\"></svg>";
+    let bytes = svg.as_bytes();
+    let sha256: String = sha2::Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let descriptor = json!({
+        "kind": "devupAssetExport", "fileKey": "FileKey123", "version": "v1",
+        "assetId": "1:2:node", "nodeId": "1:2", "field": "node",
+        "imageHash": null, "format": "svg", "scale": 1,
+        "status": "exported", "byteLength": bytes.len(), "sha256": sha256,
+        "mimeType": "image/svg+xml", "text": svg, "errorCode": null
+    });
+    // Exactly how it arrives: the descriptor serialized into a text block.
+    let result = UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": descriptor.to_string()}]}),
+    };
+    let request = AssetRequest {
+        asset_id: "1:2:node".to_owned(),
+        node_id: "1:2".to_owned(),
+        field: "node".to_owned(),
+        image_hash: None,
+        format: AssetFormat::Svg,
+        scale: 1,
+    };
+
+    let entry = asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
+        .expect("an inlined SVG payload must decode");
+
+    assert_eq!(entry.status, AssetStatus::Exported);
+    assert_eq!(entry.byte_length, Some(bytes.len()));
+    assert_eq!(entry.mime_type.as_deref(), Some("image/svg+xml"));
+    // Re-encoded to base64 so every consumer downstream is shape-independent.
+    let decoded = STANDARD
+        .decode(entry.data_base64.expect("payload").as_bytes())
+        .expect("base64");
+    assert_eq!(decoded, bytes);
+}
+
+/// A response that carries no payload at all must say what it *did* carry,
+/// so "nothing came back", "wrong mime type" and "unread field" stay
+/// distinguishable instead of collapsing into one opaque sentence.
+#[test]
+fn a_missing_asset_payload_reports_the_shapes_that_were_present() {
+    let descriptor = json!({
+        "kind": "devupAssetExport", "fileKey": "FileKey123", "version": "v1",
+        "assetId": "1:2:node", "nodeId": "1:2", "field": "node",
+        "imageHash": null, "format": "svg", "scale": 1,
+        "status": "exported", "byteLength": 10, "sha256": "00", "errorCode": null
+    });
+    let result = UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": descriptor.to_string()}]}),
+    };
+    let request = AssetRequest {
+        asset_id: "1:2:node".to_owned(),
+        node_id: "1:2".to_owned(),
+        field: "node".to_owned(),
+        image_hash: None,
+        format: AssetFormat::Svg,
+        scale: 1,
+    };
+
+    let error = asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
+        .expect_err("no payload is an error");
+
+    assert_eq!(error.details["expectedMimeType"], "image/svg+xml");
+    let observed = error.details["observed"].as_array().expect("observed");
+    assert!(
+        observed.iter().any(|entry| entry
+            .as_str()
+            .unwrap_or_default()
+            .contains("carries=[text]")),
+        "the diagnostic must name the shapes that were present: {observed:?}"
     );
 }
 
