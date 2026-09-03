@@ -1,17 +1,40 @@
 name: CI
 
+# One workflow, matching devup-ui and the other org projects: verification,
+# changepacks version management, binary builds and release publication all
+# live here rather than in a second file that can drift out of step.
+#
+# Release flow (driven by changepacks/action, not by hand):
+#   1. A pull request touching crates/ must carry a changepack. `changepacks`
+#      comments the detected packs; `changepack-required` makes it a gate.
+#   2. On push to main with pending changepacks, the action opens an
+#      "Update Versions" pull request that runs `changepacks update`.
+#   3. Merging that PR leaves no changepacks, so the action cuts tags and
+#      *draft* releases and reports them in `pending_releases`.
+#   4. `build` compiles every MCP binary for all three platforms and uploads
+#      them onto those drafts.
+#   5. `finalize` publishes the drafts, but only once the uploads succeeded —
+#      so a release is never visible without its binaries attached.
+
 on:
-  pull_request:
   push:
     branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  # A release is cut from the workspace version, and that version only moves
-  # when `changepacks update` consumes a changepack log. A pull request that
-  # touches a crate without leaving a log is therefore unreleasable: the work
-  # merges, no version bump follows, and release.yml never fires. Catch it
-  # here rather than at release time.
-  changepack:
+  # The action comments the changepack status on a pull request but does not
+  # fail it. A crate change that ships without a changepack never moves the
+  # version, so it never releases — this turns that silent outcome into a
+  # red check with the command to fix it.
+  changepack-required:
     name: changepack required
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -82,3 +105,129 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo insta test --workspace --all-features --check
       - run: cargo build --workspace --release
+
+  changepacks:
+    name: changepacks
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # changepacks diffs HEAD against the previous release commit; the
+          # default shallow fetch grafts away every parent, so that lookup
+          # fails and the release never publishes.
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: changepacks/action@main
+        id: changepacks
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          create_release: true
+    outputs:
+      changepacks: ${{ steps.changepacks.outputs.changepacks }}
+      release_assets_urls: ${{ steps.changepacks.outputs.release_assets_urls }}
+      pending_releases: ${{ steps.changepacks.outputs.pending_releases }}
+
+  build:
+    name: build (${{ matrix.os }})
+    needs: changepacks
+    # Only when a draft release is actually waiting for assets. On a pull
+    # request, or on a push that merely opened the Update Versions PR, there
+    # is nothing to attach to.
+    if: >-
+      needs.changepacks.outputs.pending_releases != ''
+      && needs.changepacks.outputs.pending_releases != '{}'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: x86_64-unknown-linux-gnu
+            suffix: linux-x86_64
+            ext: ""
+          - os: windows-latest
+            targets: x86_64-pc-windows-msvc
+            suffix: windows-x86_64
+            ext: ".exe"
+          - os: macos-latest
+            # Fused into one universal binary so a single macOS asset runs on
+            # both Apple Silicon and Intel.
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+            suffix: macos-universal
+            ext: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binaries
+        shell: bash
+        env:
+          TARGETS: ${{ matrix.targets }}
+          SUFFIX: ${{ matrix.suffix }}
+          EXT: ${{ matrix.ext }}
+          OS: ${{ matrix.os }}
+        run: |
+          set -euo pipefail
+          for target in $TARGETS; do
+            rustup target add "$target"
+            cargo build --release --target "$target" -p devup-mcp -p devup-mcp-visual
+          done
+          mkdir -p dist
+          for bin in devup-mcp devup-mcp-visual; do
+            out="dist/${bin}-${SUFFIX}${EXT}"
+            if [ "$OS" = "macos-latest" ]; then
+              lipo -create -output "$out" \
+                "target/aarch64-apple-darwin/release/${bin}" \
+                "target/x86_64-apple-darwin/release/${bin}"
+              file "$out"
+            else
+              set -- $TARGETS
+              cp "target/$1/release/${bin}${EXT}" "$out"
+            fi
+          done
+          ls -l dist
+      - name: Upload binaries onto the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET_URLS: ${{ needs.changepacks.outputs.release_assets_urls }}
+        run: |
+          set -euo pipefail
+          # release_assets_urls maps project path -> asset upload URL. The
+          # binaries belong to the devup-mcp crate; the library crates get
+          # their own releases with no assets.
+          upload="$(printf '%s' "$ASSET_URLS" \
+            | jq -r '.["crates/devup-mcp/Cargo.toml"] // empty')"
+          if [ -z "$upload" ]; then
+            echo "no asset upload URL for crates/devup-mcp/Cargo.toml" >&2
+            printf '%s\n' "$ASSET_URLS" >&2
+            exit 1
+          fi
+          # Drop the RFC 6570 template suffix, e.g. "{?name,label}".
+          upload="${upload%%\{*}"
+          for file in dist/*; do
+            name="$(basename "$file")"
+            echo "uploading $name"
+            curl --fail-with-body -sS -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "${upload}?name=${name}" >/dev/null
+          done
+
+  finalize:
+    name: finalize release
+    needs: [changepacks, build]
+    if: >-
+      needs.changepacks.outputs.pending_releases != ''
+      && needs.changepacks.outputs.pending_releases != '{}'
+    runs-on: ubuntu-latest
+    steps:
+      # Finalize-only: the action neither installs changepacks nor touches the
+      # repository here, so no checkout is needed. Running it after `build`
+      # is what guarantees a published release always has its binaries.
+      - uses: changepacks/action@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          finalize_releases: ${{ needs.changepacks.outputs.pending_releases }}

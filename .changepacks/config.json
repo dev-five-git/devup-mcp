@@ -1,5 +1,5 @@
 {
   "ignore": ["**", "!/crates/*/Cargo.toml"],
   "baseBranch": "main",
-  "latestPackage": null
+  "latestPackage": "crates/devup-mcp/Cargo.toml"
 }
