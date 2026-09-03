@@ -175,7 +175,11 @@ const nodes = pageNodes;
 nodes.push({
   id: "__DEVUP_SNAPSHOT_CURSOR__",
   type: "DEVUP_INTERNAL",
-  fields: { nextOffset, complete, totalNodes: allNodes.length },
+  // `offset` is what lets the Rust decoder tell a first page from a
+  // continuation page, which in turn decides whether the root must be
+  // present in this page. `nextOffset`/`complete`/`totalNodes` are the
+  // fields the shared `take_snapshot_cursor` reads.
+  fields: { offset, nextOffset, complete, totalNodes: allNodes.length },
   extra: {},
   fieldErrors: {},
 });

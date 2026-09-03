@@ -373,7 +373,11 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     assert!(!code.contains("crc32"));
     assert!(code.contains("maxPayloadBytes"));
     assert!(code.contains("__DEVUP_SNAPSHOT_CURSOR__"));
-    assert!(code.contains("nextOffset"));
+    // Every field the Rust decoder reads off the cursor marker must actually
+    // be emitted. `offset` in particular is what distinguishes a first page
+    // from a continuation page in `envelope.rs::peek_page_cursor`; omitting
+    // it silently downgraded the whole fast path to legacy collection.
+    assert!(code.contains("fields: { offset, nextOffset, complete, totalNodes: allNodes.length }"));
     assert!(code.contains("MAX_ENVELOPE_BYTES"));
     assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
     assert!(code.contains("devupFastSnapshotEnvelope"));

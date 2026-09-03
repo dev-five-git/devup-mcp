@@ -271,6 +271,21 @@ fn a_continuation_page_may_omit_the_root_that_a_prior_page_already_sent() {
 }
 
 #[test]
+fn a_cursor_marker_missing_offset_is_rejected() {
+    // Regression: the script once emitted the marker without `offset`, so
+    // every real fast snapshot failed `peek_page_cursor` and silently fell
+    // back to legacy cursor collection.
+    let bad = mutate_envelope(|value| {
+        push_cursor_marker(value, 0, 2, true, 2);
+        value["snapshot"]["nodes"][2]["fields"]
+            .as_object_mut()
+            .unwrap()
+            .remove("offset");
+    });
+    assert_category(text_upstream_result(&bad), &target(), "cursorShape");
+}
+
+#[test]
 fn duplicate_cursor_markers_are_rejected() {
     let bad = mutate_envelope(|value| {
         push_cursor_marker(value, 0, 2, true, 2);
