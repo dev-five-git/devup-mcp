@@ -19,12 +19,15 @@ pub(super) fn push_layout_props(
             .any(|child| child == node.id)
     });
     let is_root = snapshot.roots.iter().any(|root| root == &node.id);
-    let is_page_root = parent.is_some_and(|parent| {
-        matches!(
-            parent.typed_view().node_type(),
-            "SECTION" | "PAGE" | "COMPONENT_SET"
-        )
-    });
+    // The parent of a collected root sits outside the collected subtree, so it
+    // cannot be looked up and the node's recorded parent type is the only
+    // account of it. Without that fallback a screen read as having no parent at
+    // all and its canvas width was emitted as a real constraint, pinning the
+    // result to a device size that does not exist.
+    let is_page_root = parent
+        .map(|parent| parent.typed_view().node_type())
+        .or_else(|| view.string("parentType"))
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
     let fixed_w = view.string("layoutSizingHorizontal") == Some("FIXED");
     let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");

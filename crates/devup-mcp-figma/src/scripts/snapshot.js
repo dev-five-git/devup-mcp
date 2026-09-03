@@ -160,6 +160,12 @@ function snapshotNode(node) {
   const extra = {};
   const fieldErrors = {};
   fields.parentId = node.parent ? node.parent.id : null;
+  // Only the root needs this. Its parent lies outside the collected subtree,
+  // so the id alone says nothing, and the parent's type is what decides
+  // whether the root's width is a real constraint or merely the canvas the
+  // design was drawn on. Every other node's parent is collected and can be
+  // read directly.
+  if (node.parent && node.id === root.id) fields.parentType = node.parent.type;
   fields.childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
 
   for (const name of propertyNames(node)) {

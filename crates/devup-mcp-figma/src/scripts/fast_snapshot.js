@@ -156,6 +156,15 @@ function snapshotNode(node) {
   const fields = {};
   const fieldErrors = {};
   if (node.parent) fields.parentId = node.parent.id;
+  // Only a root needs this. Its parent lies outside the collected subtree, so
+  // the id alone says nothing, and the parent's type is what decides whether
+  // the root's width is a real constraint or merely the canvas the design was
+  // drawn on. Every other node's parent is collected and can be read directly,
+  // so recording it there would be repetition — and repeated across a whole
+  // screen it was enough to push the payload into chunked delivery.
+  if (node.parent && requestedRootIds.includes(node.id)) {
+    fields.parentType = node.parent.type;
+  }
   const childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
   if (childrenIds.length > 0) fields.childrenIds = childrenIds;
 
