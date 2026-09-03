@@ -250,7 +250,7 @@ pub(super) fn push_layout_props(
         string_prop(props, "flex", "1");
     }
 
-    push_auto_layout(node, component, props);
+    push_auto_layout(snapshot, node, component, props);
     push_padding(snapshot, node, props);
     if view.bool("clipsContent") == Some(true) {
         string_prop(props, "overflow", "hidden");
@@ -359,7 +359,7 @@ fn child_shrinker(parent: &RawNode, dimension: &str) -> bool {
     }
 }
 
-fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
+fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let Some(layout) = view.value("inferredAutoLayout").and_then(Value::as_object) else {
         return;
@@ -422,8 +422,16 @@ fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     if component == "Center" && mode == Some("VERTICAL") {
         string_prop(props, "flexDir", "column");
     }
-    if view.child_ids().count() > 1 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
-    {
+    // Spacing only means something between things that are actually there. A
+    // hidden child is not rendered, so a frame holding one visible child and
+    // one `display: none` sibling has nothing to space apart, and naming a gap
+    // implies a separation the design does not have.
+    let visible_children = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| child.typed_view().bool("visible") != Some(false))
+        .count();
+    if visible_children > 1 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN") {
         let gap = layout
             .get("itemSpacing")
             .and_then(Value::as_f64)

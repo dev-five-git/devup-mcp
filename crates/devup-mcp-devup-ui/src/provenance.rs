@@ -520,7 +520,17 @@ fn layout_field_is_semantic(
                     .is_none_or(|value| value == "FIXED")
         }
         "itemSpacing" => {
-            view.child_ids().count() > 1
+            // Spacing describes the distance between rendered siblings, so a
+            // hidden child leaves nothing to space apart and the generated code
+            // rightly omits the gap. Counting it here would report a shortfall
+            // for a fact that was deliberately not expressed. Kept in step with
+            // the same test in `codegen::layout`.
+            let visible_children = view
+                .child_ids()
+                .filter_map(|id| snapshot.nodes.get(id))
+                .filter(|child| child.typed_view().bool("visible") != Some(false))
+                .count();
+            visible_children > 1
                 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
                 && !projects_as_asset(snapshot, node)
                 && view.number(field).is_some_and(|value| value != 0.0)
