@@ -241,7 +241,7 @@ async fn resource_protocol_lists_manifests_and_round_trips_chunks() -> anyhow::R
             payload(),
         )
         .await?;
-    let original = "가나다".repeat(100_000).into_bytes();
+    let original = "€€€".repeat(100_000).into_bytes();
     let attached = store
         .attach_outputs(
             &artifact.artifact_id,

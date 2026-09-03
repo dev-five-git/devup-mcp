@@ -111,8 +111,8 @@ pub enum SnapshotCursorError {
 impl SnapshotCursorError {
     pub fn korean_message(self) -> &'static str {
         match self {
-            Self::Duplicated => "Figma snapshot 응답에 cursor가 중복되었습니다.",
-            Self::Shape => "Figma snapshot cursor 형식이 올바르지 않습니다.",
+            Self::Duplicated => "Figma snapshot response contains duplicate cursors.",
+            Self::Shape => "Figma snapshot cursor format is invalid.",
         }
     }
 
@@ -416,7 +416,7 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
     let first = chunks.first().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "병합할 Figma snapshot이 없습니다.",
+            "No Figma snapshot to merge.",
             false,
         )
     })?;
@@ -431,7 +431,7 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
         if chunk.file_key != file_key || chunk.version != version {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaVersionChanged,
-                "수집 중 Figma 파일 버전이 변경되었습니다. 다시 시도하세요.",
+                "The Figma file version changed during collection. Try again.",
                 true,
             ));
         }
@@ -445,7 +445,7 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
                 if existing != &node {
                     return Err(DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "동일한 Figma node에 서로 다른 snapshot 데이터가 반환되었습니다.",
+                        "Different snapshot data was returned for the same Figma node.",
                         true,
                     ));
                 }
@@ -469,7 +469,7 @@ pub fn snapshot_chunk_from_result(result: &UpstreamResult) -> Result<SnapshotChu
     find_snapshot(&result.raw).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "Figma MCP 응답에서 snapshot 데이터를 찾지 못했습니다.",
+            "snapshot data not found in the Figma MCP response.",
             false,
         )
     })

@@ -159,7 +159,7 @@ pub fn not_found_response(message: impl Into<String>, searched_paths: Vec<String
 /// distinct from "found a project root but the target file is missing"
 /// ([`not_found_response`] with a scope-specific message), since the two
 /// failures call for different next steps from the caller.
-pub const PROJECT_ROOT_NOT_FOUND_MESSAGE: &str = "프로젝트 루트를 찾지 못했습니다. devup.json, package.json, Cargo.toml, .git 중 하나가 있는 디렉터리를 찾지 못했습니다. 토큰·엔드포인트·컬럼 이름을 추측해서 코드를 작성하지 마세요.";
+pub const PROJECT_ROOT_NOT_FOUND_MESSAGE: &str = "No project root found. No directory containing devup.json, package.json, Cargo.toml, or .git was found. Do not write code by guessing token, endpoint, or column names.";
 
 /// Path displayed as-is (already OS-native), used consistently across the
 /// three tools so `searchedPaths` entries are directly copy-pasteable.

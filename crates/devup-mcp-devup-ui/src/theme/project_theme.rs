@@ -217,7 +217,7 @@ pub fn parse_project_theme(source: &str) -> Result<ProjectTheme, DevupError> {
     let root: Value = serde_json::from_str(source).map_err(|error| {
         DevupError::with_details(
             ErrorCode::DevupInvalidInput,
-            "devup.json을 JSON으로 파싱하지 못했습니다.",
+            "Failed to parse devup.json as JSON.",
             false,
             serde_json::json!({ "parseError": error.to_string() }),
         )

@@ -94,17 +94,17 @@ fn projection() -> Value {
             },
             {
                 "id": "1:1", "type": "FRAME",
-                "fields": {"name": "[FR-026] 본연체", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 0, "width": 1200, "height": 80, "childCount": 1, "textPreview": "본연체"},
+                "fields": {"name": "[FR-026] Base Style", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 0, "width": 1200, "height": 80, "childCount": 1, "textPreview": "Base Style"},
                 "extra": {}, "fieldErrors": {}
             },
             {
                 "id": "1:2", "type": "FRAME",
-                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 120, "width": 360, "height": 740, "childCount": 12, "textPreview": "이야기가 글로 정리되었어요"},
+                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 120, "width": 360, "height": 740, "childCount": 12, "textPreview": "Your story has been written up"},
                 "extra": {}, "fieldErrors": {}
             },
             {
                 "id": "1:3", "type": "FRAME",
-                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 400, "y": 120, "width": 360, "height": 740, "childCount": 13, "textPreview": "공개 설정 나만 보기"},
+                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 400, "y": 120, "width": 360, "height": 740, "childCount": 13, "textPreview": "Visibility: only me"},
                 "extra": {}, "fieldErrors": {}
             }
         ],

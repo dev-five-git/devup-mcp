@@ -118,57 +118,57 @@ impl UpstreamFailureKind {
         let (code, message, retryable) = match self {
             Self::CatalogRejected => (
                 ErrorCode::DevupFigmaCatalogRejected,
-                "이 client는 Figma MCP Catalog에서 승인되지 않았습니다.",
+                "This client is not approved in the Figma MCP Catalog.",
                 false,
             ),
             Self::AuthUnavailable => (
                 ErrorCode::DevupAuthRequired,
-                "Figma direct 연결 인증을 사용할 수 없습니다.",
+                "Figma direct connection authentication is unavailable.",
                 false,
             ),
             Self::CapabilityUnavailable => (
                 ErrorCode::DevupFigmaDirectUnavailable,
-                "Figma direct 연결에 필요한 읽기 capability가 없습니다.",
+                "The read capability required for a Figma direct connection is missing.",
                 false,
             ),
             Self::PermissionDenied => (
                 ErrorCode::DevupFigmaPermissionDenied,
-                "Figma 파일을 읽을 권한이 없습니다.",
+                "No permission to read this Figma file.",
                 false,
             ),
             Self::RateLimited => (
                 ErrorCode::DevupFigmaRateLimited,
-                "Figma 요청 한도에 도달했습니다.",
+                "Figma request rate limit reached.",
                 true,
             ),
             Self::NodeNotFound => (
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma node를 찾지 못했습니다.",
+                "Figma node not found.",
                 false,
             ),
             Self::VersionChanged => (
                 ErrorCode::DevupFigmaVersionChanged,
-                "수집 중 Figma 파일 버전이 변경되었습니다.",
+                "The Figma file version changed during collection.",
                 true,
             ),
             Self::Transport => (
                 ErrorCode::DevupFigmaDirectUnavailable,
-                "Figma direct 연결을 완료하지 못했습니다.",
+                "Failed to complete the Figma direct connection.",
                 true,
             ),
             Self::InvalidResponse => (
                 ErrorCode::DevupSnapshotUnsupported,
-                "Figma MCP 응답을 안전하게 해석하지 못했습니다.",
+                "Failed to safely interpret the Figma MCP response.",
                 false,
             ),
         };
         let mut details = json!({ "source": "direct", "status": status });
         if self == Self::CatalogRejected {
             details["options"] = json!([
-                "Figma MCP Catalog waitlist에 devup-mcp 등록: https://www.figma.com/mcp-catalog/",
-                "devup_figma_auth { action: \"configure\", clientId, clientSecret }로 직접 확보한 client 자격증명 주입",
-                "Figma 데스크톱 앱의 로컬 Dev Mode MCP 사용 (OAuth 불필요)",
-                "호스트에 등록된 공식 Figma MCP로 handoff (sourcePolicy: auto 또는 host, 현재 기본 폴백)"
+                "Register devup-mcp on the Figma MCP Catalog waitlist: https://www.figma.com/mcp-catalog/",
+                "Inject client credentials you obtained yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }",
+                "Use the local Dev Mode MCP in the Figma desktop app (no OAuth needed)",
+                "Hand off to the official Figma MCP registered on the host (sourcePolicy: auto or host, the current default fallback)"
             ]);
         }
         DevupError::with_details(code, message, retryable, details)

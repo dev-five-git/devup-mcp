@@ -107,7 +107,7 @@ pub fn validate_devup_ui_tsx(
             rule: "invalid-syntax",
             severity: Severity::Error,
             byte_range: [start, end],
-            message: format!("TSX가 TypeScript+JSX 문법 검증을 통과하지 못했습니다: {diagnostic}"),
+            message: format!("TSX failed TypeScript+JSX syntax validation: {diagnostic}"),
             suggestion: None,
         });
     }
@@ -164,7 +164,7 @@ impl<'t> TsxVisitor<'t> {
                     rule: "unknown-token",
                     severity: Severity::Error,
                     byte_range: [span.start as usize, span.end as usize],
-                    message: format!("${token}은(는) devup.json에 정의되어 있지 않습니다."),
+                    message: format!("${token} is not defined in devup.json."),
                     suggestion: if suggestions.is_empty() {
                         None
                     } else {
@@ -190,7 +190,7 @@ impl<'t> TsxVisitor<'t> {
                 severity: Severity::Warning,
                 byte_range: [span.start as usize, span.end as usize],
                 message: format!(
-                    "{prop_name}에 하드코딩된 색상 {text}을(를) 사용했습니다. devup.json 토큰 사용을 고려하세요."
+                    "{prop_name} uses hardcoded color {text}. Consider using a devup.json token."
                 ),
                 suggestion: match suggestion {
                     Some(tokens) if !tokens.is_empty() => Some(format!(
@@ -215,7 +215,7 @@ impl<'t> TsxVisitor<'t> {
                 severity: Severity::Warning,
                 byte_range: [span.start as usize, span.end as usize],
                 message: format!(
-                    "{prop_name}에 하드코딩된 길이 {text}을(를) 사용했습니다. devup.json 토큰 사용을 고려하세요."
+                    "{prop_name} uses hardcoded length {text}. Consider using a devup.json token."
                 ),
                 suggestion: match suggestion {
                     Some(tokens) if !tokens.is_empty() => Some(format!(
@@ -244,7 +244,7 @@ impl<'t> TsxVisitor<'t> {
             severity: Severity::Error,
             byte_range: [span.start as usize, span.end as usize],
             message: format!(
-                "{prop_name}은(는) {}이(가) 인식하는 prop이 아닙니다.",
+                "{prop_name} is not a prop recognized by {}.",
                 self.element_stack
                     .last()
                     .and_then(|name| name.as_deref())
@@ -282,7 +282,7 @@ impl<'t> TsxVisitor<'t> {
                         property.value.span().end as usize,
                     ],
                     message: format!(
-                        "{call_name}({{ {key}: ... }})는 정적으로 분석 가능한 리터럴 값만 허용합니다. 변수나 표현식은 zero-runtime 추출을 깨뜨립니다."
+                        "{call_name}({{ {key}: ... }}) accepts only statically analyzable literal values. Variables or expressions break zero-runtime extraction."
                     ),
                     suggestion: None,
                 });

@@ -165,14 +165,14 @@ pub fn validate_asset_requests(
     requests: &[AssetRequest],
 ) -> Result<(), DevupError> {
     if requests.len() > 16 {
-        return Err(invalid("한 번에 export할 asset은 16개 이하여야 합니다."));
+        return Err(invalid("At most 16 assets can be exported at once."));
     }
     let available = discover_asset_manifest(snapshot);
     let mut seen = std::collections::BTreeSet::new();
     for request in requests {
         if request.scale == 0 || request.scale > 4 || !seen.insert(request.asset_id.as_str()) {
             return Err(invalid(
-                "asset 요청의 scale 또는 중복 ID가 올바르지 않습니다.",
+                "asset request has an invalid scale or a duplicate ID.",
             ));
         }
         let Some(candidate) = available
@@ -180,13 +180,13 @@ pub fn validate_asset_requests(
             .iter()
             .find(|asset| asset.asset_id == request.asset_id)
         else {
-            return Err(invalid("요청한 asset이 snapshot에 없습니다."));
+            return Err(invalid("The requested asset is not in the snapshot."));
         };
         if candidate.node_id != request.node_id
             || candidate.field != request.field
             || candidate.image_hash != request.image_hash
         {
-            return Err(invalid("asset 요청이 snapshot source와 일치하지 않습니다."));
+            return Err(invalid("asset request does not match the snapshot source."));
         }
     }
     Ok(())
@@ -197,7 +197,7 @@ pub fn resolve_asset_selections(
     selections: &[AssetSelection],
 ) -> Result<Vec<AssetRequest>, DevupError> {
     if selections.len() > 16 {
-        return Err(invalid("한 번에 export할 asset은 16개 이하여야 합니다."));
+        return Err(invalid("At most 16 assets can be exported at once."));
     }
     let manifest = discover_asset_manifest(snapshot);
     let mut seen = std::collections::BTreeSet::new();
@@ -209,14 +209,14 @@ pub fn resolve_asset_selections(
                 || !seen.insert(selection.asset_id.as_str())
             {
                 return Err(invalid(
-                    "asset 선택의 scale 또는 중복 ID가 올바르지 않습니다.",
+                    "asset selection has an invalid scale or a duplicate ID.",
                 ));
             }
             let asset = manifest
                 .assets
                 .iter()
                 .find(|asset| asset.asset_id == selection.asset_id)
-                .ok_or_else(|| invalid("선택한 asset이 snapshot에 없습니다."))?;
+                .ok_or_else(|| invalid("The selected asset is not in the snapshot."))?;
             Ok(AssetRequest {
                 asset_id: asset.asset_id.clone(),
                 node_id: asset.node_id.clone(),
@@ -238,7 +238,7 @@ pub fn asset_export_from_result(
     request: &AssetRequest,
 ) -> Result<AssetManifestEntry, DevupError> {
     let descriptor = find_descriptor(&result.raw)
-        .ok_or_else(|| invalid("Figma MCP 응답에서 asset descriptor를 찾지 못했습니다."))?;
+        .ok_or_else(|| invalid("asset descriptor not found in the Figma MCP response."))?;
     if descriptor.file_key != file_key
         || descriptor.version.as_deref() != version
         || descriptor.asset_id != request.asset_id
@@ -249,7 +249,7 @@ pub fn asset_export_from_result(
         || descriptor.scale != request.scale
     {
         return Err(invalid(
-            "asset descriptor가 요청 대상 또는 버전과 다릅니다.",
+            "asset descriptor target or version does not match the request.",
         ));
     }
     let source_kind = if request.image_hash.is_some() {
@@ -276,17 +276,17 @@ pub fn asset_export_from_result(
         });
     }
     let data = find_binary(&result.raw, request.format.mime_type())
-        .ok_or_else(|| invalid("asset export 응답에 요청한 binary가 없습니다."))?;
+        .ok_or_else(|| invalid("asset export response does not contain the requested binary."))?;
     let bytes = STANDARD
         .decode(data.as_bytes())
-        .map_err(|_| invalid("asset export binary의 base64가 올바르지 않습니다."))?;
+        .map_err(|_| invalid("asset export binary base64 is invalid."))?;
     if bytes.is_empty()
         || bytes.len() > MAX_ASSET_BYTES
         || descriptor.byte_length != Some(bytes.len())
         || descriptor.sha256.as_deref() != Some(sha256_hex(&bytes).as_str())
     {
         return Err(invalid(
-            "asset export binary의 길이 또는 hash가 일치하지 않습니다.",
+            "asset export binary length or hash does not match.",
         ));
     }
     Ok(AssetManifestEntry {

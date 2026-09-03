@@ -46,7 +46,7 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
         if !ALL_LAYERS.contains(&layer.as_str()) {
             return Err(DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
-                "layers 항목은 db-entity, entity-route, route-openapi, openapi-client 중 하나여야 합니다.",
+                "Each layers entry must be one of db-entity, entity-route, route-openapi, openapi-client.",
                 false,
                 json!({ "invalidLayer": layer }),
             ));
@@ -58,7 +58,7 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
         None => std::env::current_dir().map_err(|error| {
             DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
-                "현재 디렉터리를 확인하지 못했습니다.",
+                "Could not determine the current directory.",
                 false,
                 json!({ "ioError": error.to_string() }),
             )
@@ -106,7 +106,7 @@ fn db_entity_layer(model_dirs: &[PathBuf]) -> Value {
     if model_dirs.is_empty() {
         return json!({
             "checked": false,
-            "reason": "models/ 디렉터리를 찾지 못했습니다 (Vespertide 모델 없음).",
+            "reason": "No models/ directory found (no Vespertide models).",
             "drifts": [],
         });
     }
@@ -148,7 +148,7 @@ fn db_entity_layer(model_dirs: &[PathBuf]) -> Value {
                     "table": table,
                     "kind": "entity-not-generated",
                     "message": format!(
-                        "{table} 모델에 대응하는 sea-orm entity({})를 찾지 못했습니다. `vespertide export --orm seaorm`을 실행했는지 확인하세요.",
+                        "No sea-orm entity ({}) found for the {table} model. Check that `vespertide export --orm seaorm` was run.",
                         display_path(&entity_path)
                     ),
                     "confidence": "low",
@@ -243,7 +243,7 @@ fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
     if model_dirs.is_empty() {
         return json!({
             "checked": false,
-            "reason": "models/ 디렉터리를 찾지 못했습니다 (Vespertide 모델 없음).",
+            "reason": "No models/ directory found (no Vespertide models).",
             "drifts": [],
         });
     }
@@ -262,7 +262,7 @@ fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
             drifts.push(json!({
                 "kind": "no-routes-dir",
                 "message": format!(
-                    "{}에 라우트 파일이 없어 entity-route 대응을 확인할 수 없습니다.",
+                    "No route files under {}, so entity-route correspondence cannot be checked.",
                     display_path(&routes_dir)
                 ),
                 "confidence": "low",
@@ -299,7 +299,7 @@ fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
                         "column": column_name,
                         "kind": "column-never-referenced-in-routes",
                         "message": format!(
-                            "{table}.{column_name}을(를) 참조하는 라우트를 찾지 못했습니다. 의도적으로 내부 전용 컬럼일 수 있습니다."
+                            "No route referencing {table}.{column_name} was found. It may be an intentionally internal-only column."
                         ),
                         "confidence": "low",
                     }));
@@ -387,7 +387,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     if routes_dirs.is_empty() && openapi_files.is_empty() {
         return json!({
             "checked": false,
-            "reason": "src/routes/도, openapi.json도 찾지 못했습니다.",
+            "reason": "Found neither src/routes/ nor openapi.json.",
             "drifts": [],
         });
     }
@@ -427,7 +427,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     if routes_dirs.is_empty() {
         return json!({
             "checked": false,
-            "reason": "src/routes/를 찾지 못해 코드 쪽 라우트를 확인할 수 없습니다.",
+            "reason": "No src/routes/ found, so the code-side routes cannot be checked.",
             "openapiSpecsFound": specs_checked,
             "drifts": [],
         });
@@ -435,7 +435,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     if openapi_files.is_empty() {
         return json!({
             "checked": false,
-            "reason": "openapi.json을 찾지 못해 스펙과 비교할 수 없습니다.",
+            "reason": "No openapi.json found, so there is no spec to compare against.",
             "codeRoutesFound": code_routes.len(),
             "drifts": [],
         });
@@ -454,7 +454,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     if !stale_spec.is_empty() {
         drifts.push(json!({
             "kind": "route-missing-from-openapi",
-            "message": "코드에 있는 라우트가 openapi.json에 없습니다. 스펙이 낡았을 수 있습니다 (재빌드 필요).",
+            "message": "A route present in the code is missing from openapi.json. The spec may be stale (rebuild needed).",
             "routes": stale_spec,
             "confidence": "medium",
         }));
@@ -462,7 +462,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     if !stale_code_or_merged.is_empty() {
         drifts.push(json!({
             "kind": "openapi-path-not-found-in-scanned-routes",
-            "message": "openapi.json에 있는 경로를 스캔한 라우트 파일에서 찾지 못했습니다. merge된 하위 앱이거나 라우트 매크로 형식이 달라 스캔이 놓쳤을 수 있습니다.",
+            "message": "A path in openapi.json was not found in the scanned route files. It may come from a merged sub-app, or the scan may have missed a non-standard route macro form.",
             "routes": stale_code_or_merged,
             "confidence": "low",
         }));
@@ -632,14 +632,14 @@ fn openapi_client_layer(root: &Path) -> Value {
     if ts_files.is_empty() {
         return json!({
             "checked": false,
-            "reason": "프론트엔드 .ts/.tsx 파일을 찾지 못했습니다.",
+            "reason": "No frontend .ts/.tsx files found.",
             "drifts": [],
         });
     }
     if openapi_files.is_empty() {
         return json!({
             "checked": false,
-            "reason": "openapi.json을 찾지 못해 프론트엔드 호출을 검증할 수 없습니다.",
+            "reason": "No openapi.json found, so frontend calls cannot be verified.",
             "drifts": [],
         });
     }
@@ -682,7 +682,7 @@ fn openapi_client_layer(root: &Path) -> Value {
                     "file": relative_or_absolute(root, file),
                     "callSite": call_site,
                     "identifier": identifier,
-                    "message": "프론트엔드가 호출하는 엔드포인트/operationId를 openapi.json에서 찾지 못했습니다.",
+                    "message": "The endpoint/operationId the frontend calls was not found in openapi.json.",
                     "confidence": "low",
                 }));
             }

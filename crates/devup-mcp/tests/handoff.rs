@@ -617,7 +617,7 @@ async fn accept_rejects_empty_content_with_a_schema_shaped_error_that_leaks_no_v
         error.details["expectedSchema"]["structuredContent"]["devupMetadata"]
             .as_str()
             .unwrap()
-            .contains("필수")
+            .contains("required")
     );
     assert_eq!(
         error.details["receivedShape"]["topLevelKeys"],
@@ -628,7 +628,7 @@ async fn accept_rejects_empty_content_with_a_schema_shaped_error_that_leaks_no_v
         !error.details["howToFix"].as_str().unwrap().is_empty(),
         "must tell the agent what to do next, not just that it failed"
     );
-    assert!(error.details["doNot"].as_str().unwrap().contains("추측"));
+    assert!(error.details["doNot"].as_str().unwrap().contains("guess"));
 }
 
 /// Non-empty but still unusable content (an image block with no `data`, a

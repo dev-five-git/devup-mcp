@@ -202,7 +202,7 @@ impl HandoffStore {
         prune_expired(&mut state, now, self.limits.ttl.as_secs());
         if state.sessions.len() >= self.limits.max_sessions {
             return Err(too_large(
-                "동시에 유지할 수 있는 Figma handoff session 수를 초과했습니다.",
+                "Exceeded the number of Figma handoff sessions that can be held at once.",
             ));
         }
         let session_id = unique_id(&state.sessions, &state.tombstones);
@@ -273,12 +273,12 @@ impl HandoffStore {
     ) -> Result<(), DevupError> {
         let result = normalize_handoff_result(result)?;
         let encoded_len = serde_json::to_vec(&result)
-            .map_err(|_| invalid("Figma handoff result를 JSON으로 읽을 수 없습니다."))?
+            .map_err(|_| invalid("Cannot read the Figma handoff result as JSON."))?
             .len();
         if encoded_len > self.limits.max_result_bytes {
             self.remove(session_id).await;
             return Err(too_large(
-                "Figma handoff result의 허용 크기를 초과했습니다.",
+                "The Figma handoff result exceeded the allowed size.",
             ));
         }
 
@@ -291,7 +291,7 @@ impl HandoffStore {
                     .saturating_sub(session.result_bytes);
             }
             return Err(too_large(
-                "Figma handoff result의 전체 메모리 한도를 초과했습니다.",
+                "Figma handoff results exceeded the total memory limit.",
             ));
         }
         let mut session = take_session(&mut state, session_id, now, self.limits.ttl.as_secs())?;
@@ -303,7 +303,7 @@ impl HandoffStore {
             };
             put_session(&mut state, session_id.to_owned(), session);
             return Err(invalid_reason(
-                "알 수 없거나 이미 처리한 Figma handoff call ID입니다.",
+                "Unknown or already-consumed Figma handoff call ID.",
                 reason,
             ));
         };
@@ -375,7 +375,7 @@ fn take_session(
             Err(expired())
         } else {
             Err(invalid_reason(
-                "존재하지 않는 Figma handoff session입니다.",
+                "No such Figma handoff session.",
                 "unknown_session",
             ))
         };
@@ -477,7 +477,7 @@ fn invalid_reason(message: &str, reason: &str) -> DevupError {
 fn expired() -> DevupError {
     DevupError::with_details(
         ErrorCode::DevupFigmaHandoffExpired,
-        "Figma handoff session이 만료되었습니다.",
+        "The Figma handoff session has expired.",
         true,
         json!({"source": "host", "reason": "expired"}),
     )
@@ -505,13 +505,13 @@ fn detect_tool_mismatch(requested_tool: &str, call_id: &str, value: &Value) -> O
     }
     Some(DevupError::with_details(
         ErrorCode::DevupFigmaHandoffInvalid,
-        "요청한 도구가 아닌 다른 Figma 도구의 결과로 보입니다.",
+        "This looks like the result of a different Figma tool than the one requested.",
         false,
         json!({
             "reason": "tool_mismatch",
             "requested": { "tool": requested_tool, "callId": call_id },
-            "hint": "요청한 도구가 아닌 다른 도구의 결과로 보입니다. calls[].tool 을 그대로 실행하세요.",
-            "doNot": "다른 Figma 도구로 대체하거나, 결과를 가공해 형식을 맞추려 하지 마세요."
+            "hint": "This looks like the result of a tool other than the one requested. Run calls[].tool exactly as given.",
+            "doNot": "Do not substitute another Figma tool, and do not reshape the result to fit the expected format."
         }),
     ))
 }
@@ -626,17 +626,17 @@ fn has_usable_content_item(item: &Value) -> bool {
 fn missing_structured_content_error(value: &Value) -> DevupError {
     DevupError::with_details(
         ErrorCode::DevupFigmaHandoffInvalid,
-        "Figma handoff 결과에서 사용할 수 있는 content나 structuredContent를 찾지 못했습니다.",
+        "Found no usable content or structuredContent in the Figma handoff result.",
         false,
         json!({
             "reason": "missing_structured_content",
             "expectedSchema": {
                 "content": [{ "type": "text", "text": "<string>" }],
-                "structuredContent": { "devupMetadata": "<object, 이 호출 종류에 필수>" }
+                "structuredContent": { "devupMetadata": "<object, required for this call kind>" }
             },
             "receivedShape": received_shape(value),
-            "howToFix": "공식 Figma MCP 응답을 가공하지 말고 원본 그대로 넘겨라. 호스트가 텍스트만 노출한다면 sourcePolicy 또는 수집 경로를 바꿔야 한다.",
-            "doNot": "봉투 필드를 추측해서 만들어 넣지 마라."
+            "howToFix": "Pass the official Figma MCP response through verbatim, without processing it. If the host exposes text only, change sourcePolicy or the collection path.",
+            "doNot": "Do not guess and fabricate envelope fields."
         }),
     )
 }

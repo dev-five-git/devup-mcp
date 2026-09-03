@@ -197,7 +197,7 @@ fn search_uses_a_compiled_read_only_page_projection() {
         "file-key",
         "0:1",
         SearchReadOptions {
-            query: "본연체".to_owned(),
+            query: "Essence".to_owned(),
             node_types: vec!["FRAME".to_owned()],
             match_kind: "normalized".to_owned(),
             limit: 20,
@@ -208,7 +208,7 @@ fn search_uses_a_compiled_read_only_page_projection() {
     assert_eq!(call.tool_name(), "use_figma");
     assert!(code.contains("figma.setCurrentPageAsync(page)"));
     assert!(code.contains("page.findAll"));
-    assert!(code.contains("본연체"));
+    assert!(code.contains("Essence"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
 }

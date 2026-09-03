@@ -655,7 +655,7 @@ impl ArtifactStore {
             {
                 return Err(DevupError::new(
                     ErrorCode::DevupFigmaHandoffInvalid,
-                    "resource output 이름 또는 MIME 형식이 올바르지 않습니다.",
+                    "The resource output name or MIME type is invalid.",
                     false,
                 ));
             }
@@ -669,7 +669,7 @@ impl ArtifactStore {
             {
                 return Err(DevupError::new(
                     ErrorCode::DevupFigmaHandoffInvalid,
-                    "resource output ID가 중복되었거나 올바르지 않습니다.",
+                    "The resource output ID is duplicated or invalid.",
                     true,
                 ));
             }
@@ -711,7 +711,7 @@ impl ArtifactStore {
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupFigmaResponseTooLarge,
-                    "resource allocation 크기가 안전한 범위를 초과했습니다.",
+                    "The resource allocation size exceeded the safe range.",
                     false,
                 )
             })?;
@@ -725,7 +725,7 @@ impl ArtifactStore {
         {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "resource output이 artifact 메모리 한도를 초과했습니다.",
+                "The resource output exceeded the artifact memory limit.",
                 false,
             ));
         }
@@ -737,7 +737,7 @@ impl ArtifactStore {
         if retained_bytes.saturating_add(allocation) > self.limits.max_total_bytes {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "resource output이 전체 메모리 한도를 초과했습니다.",
+                "The resource output exceeded the total memory limit.",
                 false,
             ));
         }
@@ -843,7 +843,7 @@ impl ArtifactStore {
         let bytes = serde_json::to_vec(&payload).map_err(|error| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                format!("Figma artifact를 직렬화할 수 없습니다: {error}"),
+                format!("Cannot serialize the Figma artifact: {error}"),
                 false,
             )
         })?;
@@ -853,7 +853,7 @@ impl ArtifactStore {
         {
             return Err(DevupError::with_details(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "Figma artifact가 메모리 캐시 한도를 초과했습니다.",
+                "The Figma artifact exceeded the memory cache limit.",
                 false,
                 json!({"artifactBytes": bytes.len()}),
             ));
@@ -1004,7 +1004,7 @@ fn output_chunk_ranges(bytes: &[u8], is_binary: bool) -> Result<Vec<(usize, usiz
         .map_err(|_| {
             DevupError::new(
                 ErrorCode::DevupFigmaHandoffInvalid,
-                "text resource output은 UTF-8이어야 합니다.",
+                "A text resource output must be UTF-8.",
                 false,
             )
         })?;
@@ -1022,7 +1022,7 @@ fn output_chunk_ranges(bytes: &[u8], is_binary: bool) -> Result<Vec<(usize, usiz
             if end == start {
                 return Err(DevupError::new(
                     ErrorCode::DevupFigmaHandoffInvalid,
-                    "text resource chunk 경계를 계산할 수 없습니다.",
+                    "Cannot compute the text resource chunk boundary.",
                     false,
                 ));
             }
@@ -1043,7 +1043,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 fn acquisition_cancelled() -> DevupError {
     DevupError::new(
         ErrorCode::DevupFigmaDirectUnavailable,
-        "동일 Figma artifact 수집이 완료되기 전에 취소되었습니다.",
+        "Collection of the same Figma artifact was cancelled before it completed.",
         true,
     )
 }
@@ -1051,7 +1051,7 @@ fn acquisition_cancelled() -> DevupError {
 fn resource_expired() -> DevupError {
     DevupError::new(
         ErrorCode::DevupFigmaHandoffExpired,
-        "resource artifact가 없거나 만료되었습니다.",
+        "The resource artifact is missing or expired.",
         true,
     )
 }

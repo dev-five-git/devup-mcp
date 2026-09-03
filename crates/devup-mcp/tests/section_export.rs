@@ -100,15 +100,15 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
     );
     assert_eq!(
         selection["nextAction"]["why"],
-        "이 링크는 Section이며 내부에 화면이 여러 개 있습니다. 한 번에 전부 수집하면 크기 한도를 넘습니다."
+        "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit."
     );
     assert_eq!(
         selection["nextAction"]["how"],
-        "screens[] 중 대상 화면의 canonicalUrl 로 재호출하거나, 전부 필요하면 allScreens:true 를 쓰세요."
+        "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen."
     );
     assert_eq!(
         selection["nextAction"]["doNot"],
-        "Section 전체를 한 번에 수집하려 하지 마세요."
+        "Do not try to collect the whole Section at once."
     );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
     let artifact_id = selection["cache"]["artifactId"].as_str().unwrap();

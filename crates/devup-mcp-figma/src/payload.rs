@@ -149,7 +149,7 @@ pub fn validate_payload_context(
     {
         return Err(DevupError::new(
             crate::ErrorCode::DevupFigmaHandoffInvalid,
-            "Figma payload가 요청한 파일 또는 node와 일치하지 않습니다.",
+            "Figma payload does not match the requested file or node.",
             false,
         ));
     }

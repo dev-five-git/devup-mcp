@@ -40,10 +40,10 @@ fn projection(nodes_reversed: bool, truncated: bool) -> Snapshot {
         raw_node(
             "1:1",
             "FRAME",
-            "[FR-026] 본연체",
+            "[FR-026] Essence",
             [0.0, 0.0, 1200.0, 80.0],
             1,
-            "본연체",
+            "Essence",
         ),
         raw_node(
             "1:2",
@@ -51,7 +51,7 @@ fn projection(nodes_reversed: bool, truncated: bool) -> Snapshot {
             "A : STORY-F-PROOFREAD",
             [0.0, 120.0, 360.0, 740.0],
             12,
-            "이야기가 글로 정리되었어요",
+            "Your story has been written up",
         ),
         raw_node(
             "1:3",
@@ -59,7 +59,7 @@ fn projection(nodes_reversed: bool, truncated: bool) -> Snapshot {
             "A : STORY-F-PROOFREAD",
             [400.0, 120.0, 360.0, 740.0],
             13,
-            "공개 설정 나만 보기",
+            "Visibility: only me",
         ),
         raw_node(
             "1:4",
@@ -67,15 +67,15 @@ fn projection(nodes_reversed: bool, truncated: bool) -> Snapshot {
             "Annotation",
             [800.0, 140.0, 180.0, 40.0],
             0,
-            "개발 참고",
+            "Dev note",
         ),
         raw_node(
             "2:1",
             "FRAME",
-            "[FR-027] 다음 기능",
+            "[FR-027] Next feature",
             [0.0, 1000.0, 1200.0, 80.0],
             1,
-            "다음 기능",
+            "Next feature",
         ),
         raw_node(
             "2:2",
@@ -83,7 +83,7 @@ fn projection(nodes_reversed: bool, truncated: bool) -> Snapshot {
             "A : NEXT",
             [0.0, 1120.0, 360.0, 740.0],
             8,
-            "다음 화면",
+            "Next screen",
         ),
     ];
     if nodes_reversed {
@@ -149,7 +149,7 @@ fn nested_wquw_section_projection() -> Snapshot {
     let mut section = raw_node(
         "4217:7743",
         "SECTION",
-        "[FR-026] 본연체",
+        "[FR-026] Essence",
         [0.0, 0.0, 4_400.0, 900.0],
         11,
         "",
@@ -163,10 +163,10 @@ fn nested_wquw_section_projection() -> Snapshot {
     let mut heading = raw_node(
         "3879:35481",
         "FRAME",
-        "[FR-026] 본연체",
+        "[FR-026] Essence",
         [0.0, 0.0, 1_200.0, 80.0],
         1,
-        "본연체",
+        "Essence",
     );
     heading
         .fields
@@ -219,10 +219,10 @@ fn classification_distinguishes_heading_screen_annotation_and_container() {
     let heading = ExploreNode::try_from(&raw_node(
         "1:1",
         "FRAME",
-        "[FR-026] 본연체",
+        "[FR-026] Essence",
         [0.0, 0.0, 1200.0, 80.0],
         1,
-        "본연체",
+        "Essence",
     ))
     .unwrap();
     let screen = ExploreNode::try_from(&raw_node(
@@ -231,7 +231,7 @@ fn classification_distinguishes_heading_screen_annotation_and_container() {
         "Screen",
         [0.0, 120.0, 360.0, 740.0],
         12,
-        "화면",
+        "Screen",
     ))
     .unwrap();
     let annotation = ExploreNode::try_from(&raw_node(
@@ -240,7 +240,7 @@ fn classification_distinguishes_heading_screen_annotation_and_container() {
         "Note",
         [0.0, 120.0, 120.0, 30.0],
         0,
-        "참고",
+        "Note",
     ))
     .unwrap();
     let container = ExploreNode::try_from(&raw_node(
@@ -269,7 +269,7 @@ fn heading_group_keeps_duplicate_states_and_stops_at_the_next_heading() {
     .unwrap();
 
     assert_eq!(result.anchor.kind, ExploreKind::Heading);
-    assert_eq!(result.group.as_ref().unwrap().title, "[FR-026] 본연체");
+    assert_eq!(result.group.as_ref().unwrap().title, "[FR-026] Essence");
     assert_eq!(
         result
             .candidates

@@ -50,14 +50,14 @@ pub(super) fn projected_outputs_from_result(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "referencePng resource에 base64 data가 없습니다.",
+                    "The referencePng resource has no base64 data.",
                     false,
                 )
             })?;
         let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "referencePng resource의 base64가 올바르지 않습니다.",
+                "The referencePng resource base64 is invalid.",
                 false,
             )
         })?;
@@ -101,7 +101,7 @@ fn encode_projected_json(value: &Value) -> Result<Vec<u8>, DevupError> {
     serde_json::to_vec(value).map_err(|error| {
         DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            format!("resource output을 JSON으로 직렬화할 수 없습니다: {error}"),
+            format!("Cannot serialize the resource output to JSON: {error}"),
             false,
         )
     })
@@ -130,7 +130,7 @@ pub(super) async fn apply_delivery(
     let result = result.as_object_mut().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
-            "resource delivery 결과가 JSON object가 아닙니다.",
+            "The resource delivery result is not a JSON object.",
             false,
         )
     })?;
@@ -211,7 +211,7 @@ fn materialize_asset_resource_references(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "asset resource에 대응하는 manifest 항목이 없습니다.",
+                    "No manifest entry matches this asset resource.",
                     false,
                 )
             })?;
@@ -234,7 +234,7 @@ fn materialize_asset_resource_references(
             encode_projected_json(result.get("assetManifest").ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "asset manifest resource가 없습니다.",
+                    "The asset manifest resource is missing.",
                     false,
                 )
             })?)?;
@@ -251,35 +251,35 @@ fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutp
         let data = asset.data_base64.as_deref().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset binary가 artifact에 없습니다.",
+                "The exported asset binary is not in the artifact.",
                 false,
             )
         })?;
         let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset binary의 base64가 올바르지 않습니다.",
+                "The exported asset binary base64 is invalid.",
                 false,
             )
         })?;
         let mime_type = asset.mime_type.as_deref().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset MIME 형식이 없습니다.",
+                "The exported asset has no MIME type.",
                 false,
             )
         })?;
         let expected_hash = asset.sha256.as_deref().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset hash가 없습니다.",
+                "The exported asset has no hash.",
                 false,
             )
         })?;
         if asset.byte_length != Some(bytes.len()) || expected_hash != sha256_hex(&bytes) {
             return Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset 길이 또는 hash가 일치하지 않습니다.",
+                "The exported asset length or hash does not match.",
                 false,
             ));
         }
@@ -378,7 +378,7 @@ pub(super) async fn complete_operation(
             let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupFigmaNodeNotFound,
-                    "UI 변환 payload에는 node ID가 필요합니다.",
+                    "A UI conversion payload requires a node ID.",
                     false,
                 )
             })?;
@@ -469,7 +469,7 @@ pub(super) async fn complete_operation(
                 result["deliverable"] = json!({
                     "kind": "devup-ui-tsx",
                     "isFinal": true,
-                    "note": "이 tsx가 최종 산출물이다. 이 값을 근거로 구현하라."
+                    "note": "This tsx is the final deliverable. Implement from this value."
                 });
             }
             Ok(result)
@@ -483,7 +483,7 @@ pub(super) async fn complete_operation(
             let result = payload.variables.as_ref().ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "Figma 변수/style 수집 결과가 없습니다.",
+                    "There is no Figma variable/style collection result.",
                     false,
                 )
             })?;
@@ -664,14 +664,14 @@ pub(super) async fn complete_operation(
             if !frame_ids.is_empty() && all_screens {
                 return Err(DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "frameIds와 allScreens는 동시에 사용할 수 없습니다.",
+                    "frameIds and allScreens cannot be used together.",
                     false,
                 ));
             }
             if target_kind != TargetKind::Section && (!frame_ids.is_empty() || all_screens) {
                 return Err(DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "frameIds와 allScreens는 Section artifact에서만 사용할 수 있습니다.",
+                    "frameIds and allScreens can only be used on a Section artifact.",
                     false,
                 ));
             }
@@ -719,9 +719,9 @@ pub(super) async fn complete_operation(
                 result.insert(
                     "nextAction".to_owned(),
                     json!({
-                        "why": "이 링크는 Section이며 내부에 화면이 여러 개 있습니다. 한 번에 전부 수집하면 크기 한도를 넘습니다.",
-                        "how": "screens[] 중 대상 화면의 canonicalUrl 로 재호출하거나, 전부 필요하면 allScreens:true 를 쓰세요.",
-                        "doNot": "Section 전체를 한 번에 수집하려 하지 마세요."
+                        "why": "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit.",
+                        "how": "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen.",
+                        "doNot": "Do not try to collect the whole Section at once."
                     }),
                 );
                 return Ok(Value::Object(result));
@@ -762,7 +762,7 @@ pub(super) async fn complete_operation(
                     if requested.len() != frame_ids.len() {
                         return Err(DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "frameIds에 중복 node가 있습니다.",
+                            "frameIds contains a duplicate node.",
                             false,
                         ));
                     }
@@ -773,7 +773,7 @@ pub(super) async fn complete_operation(
                         return Err(DevupError::new(
                             ErrorCode::DevupFigmaNodeNotFound,
                             format!(
-                                "Section 내부 screen frame이 아니거나 존재하지 않습니다: {node_id}"
+                                "Not a screen frame inside the Section, or it does not exist: {node_id}"
                             ),
                             false,
                         ));
@@ -852,7 +852,7 @@ pub(super) async fn complete_operation(
                 let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupFigmaNodeNotFound,
-                        "TSX export payload에는 node ID가 필요합니다.",
+                        "A TSX export payload requires a node ID.",
                         false,
                     )
                 })?;
@@ -887,7 +887,7 @@ pub(super) async fn complete_operation(
                 let variables = payload.variables.as_ref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "Figma 변수/style 수집 결과가 없습니다.",
+                        "There is no Figma variable/style collection result.",
                         false,
                     )
                 })?;
@@ -916,7 +916,7 @@ pub(super) async fn complete_operation(
                 let raw = serde_json::to_value(&payload.snapshot).map_err(|error| {
                     DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        format!("raw snapshot을 직렬화할 수 없습니다: {error}"),
+                        format!("Cannot serialize the raw snapshot: {error}"),
                         false,
                     )
                 })?;
@@ -955,7 +955,7 @@ pub(super) async fn complete_operation(
                 let reference = payload.reference_png.as_ref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupFigmaHandoffInvalid,
-                        "artifact에 요청한 reference PNG가 없습니다. URL로 다시 수집하세요.",
+                        "The requested reference PNG is not in the artifact. Re-collect it from the URL.",
                         false,
                     )
                 })?;
@@ -964,7 +964,7 @@ pub(super) async fn complete_operation(
                     .map_err(|_| {
                         DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "artifact reference PNG의 base64가 올바르지 않습니다.",
+                            "The artifact reference PNG base64 is invalid.",
                             false,
                         )
                     })?;
@@ -977,7 +977,7 @@ pub(super) async fn complete_operation(
                 {
                     return Err(DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "artifact reference PNG의 길이 또는 hash가 일치하지 않습니다.",
+                        "The artifact reference PNG length or hash does not match.",
                         false,
                     ));
                 }
@@ -1013,7 +1013,7 @@ pub(super) async fn complete_operation(
                         return Err(DevupError::new(
                             ErrorCode::DevupFigmaHandoffInvalid,
                             format!(
-                                "artifact에 요청한 정확한 asset export가 없습니다. URL로 다시 수집하세요: {}",
+                                "The exact requested asset export is not in the artifact. Re-collect it from the URL: {}",
                                 capture.asset_id
                             ),
                             false,
@@ -1056,7 +1056,7 @@ pub(super) async fn complete_operation(
                 return Err(DevupError::with_details(
                     ErrorCode::DevupSnapshotUnsupported,
                     format!(
-                        "strict export는 exact/complete output만 허용합니다: status={}, quality={}",
+                        "strict export only allows exact/complete output: status={}, quality={}",
                         quality.status(),
                         serde_json::to_string(&quality).unwrap_or_default()
                     ),
@@ -1085,7 +1085,7 @@ pub(super) async fn complete_operation(
                     json!({
                         "kind": "devup-ui-tsx",
                         "isFinal": true,
-                        "note": "이 tsx가 최종 산출물이다. 이 값을 근거로 구현하라."
+                        "note": "This tsx is the final deliverable. Implement from this value."
                     }),
                 );
             }
@@ -1115,14 +1115,14 @@ pub(super) async fn complete_operation(
                     let data = asset.data_base64.as_deref().ok_or_else(|| {
                         DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "export된 asset binary가 artifact에 없습니다.",
+                            "The exported asset binary is not in the artifact.",
                             false,
                         )
                     })?;
                     let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
                         DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "export된 asset binary의 base64가 올바르지 않습니다.",
+                            "The exported asset binary base64 is invalid.",
                             false,
                         )
                     })?;
@@ -1178,7 +1178,7 @@ pub(super) async fn complete_operation(
         }
         PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
-            "내부 수집 operation은 MCP artifact로 완료할 수 없습니다.",
+            "An internal collect operation cannot be completed from an MCP artifact.",
             false,
         )),
     }

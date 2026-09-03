@@ -135,7 +135,7 @@ async fn project_context_returns_stop_and_report_guardrail_when_devup_json_is_ab
         output["guardrail"]["message"]
             .as_str()
             .unwrap()
-            .contains("추측")
+            .contains("guessing")
     );
     assert!(
         !output["guardrail"]["searchedPaths"]

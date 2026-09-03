@@ -59,7 +59,7 @@ pub fn generate_component(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -98,7 +98,7 @@ pub fn generate_legacy_component(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -179,7 +179,7 @@ pub fn generate_component_set_target(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 component set을 찾지 못했습니다.",
+            "Component set was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -229,7 +229,7 @@ pub fn generate_component_set_target(
     .ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            format!("component set에서 '{target_name}' 출력을 찾지 못했습니다."),
+            format!("Output '{target_name}' was not found in the component set."),
             false,
         )
     })?;
@@ -282,14 +282,14 @@ pub fn generate_inlined_component_instance(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "inline instance root를 찾지 못했습니다.",
+            "Inline instance root was not found.",
             false,
         )
     })?;
     let instance = snapshot.nodes.get(instance_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "inline할 component instance를 찾지 못했습니다.",
+            "Component instance to inline was not found.",
             false,
         )
     })?;
@@ -320,7 +320,7 @@ pub fn generate_inlined_component_instance(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("'{name}' component set을 찾지 못했습니다."),
+                format!("Component set '{name}' was not found."),
                 false,
             )
         })?;
@@ -341,7 +341,7 @@ pub fn generate_inlined_component_instance(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("'{name}' instance variant를 찾지 못했습니다."),
+                format!("Instance variant '{name}' was not found."),
                 false,
             )
         })?;
@@ -431,7 +431,7 @@ pub fn render_component_registration_snapshot(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "component registration root를 찾지 못했습니다.",
+            "Component registration root was not found.",
             false,
         )
     })?;
@@ -453,7 +453,7 @@ pub fn render_component_registration_snapshot(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupFigmaNodeNotFound,
-                    format!("registration 대상 '{target_name}'을 찾지 못했습니다."),
+                    format!("Registration target '{target_name}' was not found."),
                     false,
                 )
             })?
@@ -963,7 +963,7 @@ fn generate_node_marked(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -1046,7 +1046,7 @@ fn render_node(
     if !visiting.insert(node.id.clone()) {
         return Err(DevupError::new(
             ErrorCode::DevupCodegenFailed,
-            "Figma node 트리에 순환 참조가 있습니다.",
+            "Figma node tree contains a circular reference.",
             false,
         ));
     }
@@ -1420,14 +1420,14 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
         (
             view.bool("isMask") == Some(true),
             "DEVUP_CODEGEN_MASK_FALLBACK",
-            "Mask는 기본 Box 렌더링으로 보존됩니다.",
+            "Mask is preserved as a plain Box rendering.",
             FidelityImpact::Lossy,
         ),
         (
             view.string("layoutPositioning") == Some("ABSOLUTE")
                 && !layout::absolute_layout_is_exact(snapshot, node),
             "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
-            "절대 배치는 position props로 제한적으로 변환됩니다.",
+            "Absolute positioning is converted to position props with limited fidelity.",
             FidelityImpact::Approximated,
         ),
         (
@@ -1436,7 +1436,7 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
                 .is_some_and(|effects| !effects.is_empty())
                 && !style::effects_are_exact(&view),
             "DEVUP_CODEGEN_EFFECT_FALLBACK",
-            "일부 Figma effect는 계산된 CSS로 변환되지 않을 수 있습니다.",
+            "Some Figma effects may not be converted into computed CSS.",
             FidelityImpact::Lossy,
         ),
     ];

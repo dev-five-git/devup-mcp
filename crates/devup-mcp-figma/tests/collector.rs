@@ -582,7 +582,7 @@ fn official_top_level_pages() -> UpstreamResult {
         raw: json!({
             "content": [{
                 "type": "text",
-                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: 표지\n- 12:34: 본문: 교정"
+                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: Cover\n- 12:34: Body: Proofread"
             }]
         }),
     }
@@ -600,7 +600,7 @@ fn file_page_metadata() -> UpstreamResult {
                         {
                             "id": "0:1",
                             "type": "PAGE",
-                            "name": "표지",
+                            "name": "Cover",
                             "childrenIds": ["1:2"],
                             "descendantCount": 1
                         },
@@ -681,7 +681,7 @@ fn metadata_only_file_collection_completes_without_snapshot_calls() {
     second.raw["structuredContent"]["devupMetadata"]["nodes"] = json!([{
         "id": "12:34",
         "type": "PAGE",
-        "name": "본문: 교정",
+        "name": "Body: Proofread",
         "childrenIds": [],
         "descendantCount": 0
     }]);
@@ -1373,7 +1373,7 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                 raw: json!({
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
-                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "완료", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "Done", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
                         {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),

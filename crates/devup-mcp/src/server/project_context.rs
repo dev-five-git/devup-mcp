@@ -41,7 +41,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
         None => std::env::current_dir().map_err(|error| {
             DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
-                "현재 디렉터리를 확인하지 못했습니다.",
+                "Could not determine the current directory.",
                 false,
                 json!({ "ioError": error.to_string() }),
             )
@@ -66,7 +66,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
         return Ok(ThemeLookup {
             theme: None,
             guardrail: Some(guardrail_object(
-                "devup.json을 찾지 못했습니다. $token 참조를 검증할 수 없어 unknown-token 검사를 건너뜁니다. 존재하지 않는 토큰을 추측해서 사용하지 마세요.",
+                "No devup.json found. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.",
                 vec![display_path(&root.join("devup.json"))],
             )),
         });
@@ -74,7 +74,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
     let source = std::fs::read_to_string(&file).map_err(|error| {
         DevupError::with_details(
             ErrorCode::DevupInvalidInput,
-            "devup.json을 읽지 못했습니다.",
+            "Could not read devup.json.",
             false,
             json!({ "path": display_path(&file), "ioError": error.to_string() }),
         )
@@ -94,7 +94,7 @@ pub async fn run(
     if !["theme", "api", "db", "all"].contains(&scope) {
         return Err(DevupError::new(
             ErrorCode::DevupInvalidInput,
-            "scope는 theme, api, db 또는 all이어야 합니다.",
+            "scope must be theme, api, db, or all.",
             false,
         ));
     }
@@ -103,7 +103,7 @@ pub async fn run(
         None => std::env::current_dir().map_err(|error| {
             DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
-                "현재 디렉터리를 확인하지 못했습니다.",
+                "Could not determine the current directory.",
                 false,
                 json!({ "ioError": error.to_string() }),
             )
@@ -149,7 +149,7 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
     files.dedup();
     if files.is_empty() {
         return not_found_response(
-            "devup.json을 찾지 못했습니다. 색상·타이포그래피·길이·그림자 토큰 이름을 추측해서 코드를 작성하지 마세요.",
+            "No devup.json found. Do not write code by guessing color, typography, length, or shadow token names.",
             vec![display_path(&root.join("devup.json"))],
         );
     }
@@ -233,7 +233,7 @@ fn api_scope(root: &Path, filter: Option<&str>) -> Value {
     let files = find_files_named(root, "openapi.json", 4);
     if files.is_empty() {
         return not_found_response(
-            "openapi.json을 찾지 못했습니다. API 엔드포인트나 스키마 이름을 추측해서 코드를 작성하지 마세요.",
+            "No openapi.json found. Do not write code by guessing API endpoint or schema names.",
             vec![format!("{} (up to depth 4)", display_path(root))],
         );
     }
@@ -373,7 +373,7 @@ fn db_scope(root: &Path, filter: Option<&str>) -> Value {
     model_files.dedup();
     if model_files.is_empty() {
         return not_found_response(
-            "Vespertide 모델(models/*.json)을 찾지 못했습니다. 테이블·컬럼 이름이나 타입을 추측해서 코드를 작성하지 마세요.",
+            "No Vespertide models (models/*.json) found. Do not write code by guessing table or column names or types.",
             vec![format!(
                 "{} (models/*.json, up to depth 4)",
                 display_path(root)

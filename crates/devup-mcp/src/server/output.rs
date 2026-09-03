@@ -82,18 +82,22 @@ impl CommitHook for NoopCommitHook {}
 impl OutputPolicy {
     pub fn from_roots(roots: Vec<PathBuf>) -> Result<Self, DevupError> {
         if roots.is_empty() {
-            return Err(invalid_path("허용할 output root가 하나 이상 필요합니다."));
+            return Err(invalid_path(
+                "At least one allowed output root is required.",
+            ));
         }
         let mut opened = Vec::with_capacity(roots.len());
         for root in roots {
             let display_path = dunce::canonicalize(&root).map_err(|error| {
-                invalid_path(format!("output root를 확인할 수 없습니다: {error}"))
+                invalid_path(format!("Cannot resolve the output root: {error}"))
             })?;
             if !display_path.is_dir() {
-                return Err(invalid_path("output root는 존재하는 폴더여야 합니다."));
+                return Err(invalid_path(
+                    "The output root must be an existing directory.",
+                ));
             }
             let dir = Dir::open_ambient_dir(&display_path, ambient_authority())
-                .map_err(|error| invalid_path(format!("output root를 열 수 없습니다: {error}")))?;
+                .map_err(|error| invalid_path(format!("Cannot open the output root: {error}")))?;
             opened.push(Arc::new(OutputRoot { dir, display_path }));
         }
         Ok(Self {
@@ -104,7 +108,7 @@ impl OutputPolicy {
     pub fn resolve(&self, requested: &str) -> Result<OutputTarget, DevupError> {
         let path = Path::new(requested);
         if requested.trim().is_empty() {
-            return Err(invalid_path("outputPath는 파일 경로여야 합니다."));
+            return Err(invalid_path("outputPath must be a file path."));
         }
 
         let (root, relative_path) = if path.is_absolute() {
@@ -115,7 +119,7 @@ impl OutputPolicy {
                         .ok()
                         .map(|relative| (root.clone(), relative.to_path_buf()))
                 })
-                .ok_or_else(|| invalid_path("outputPath가 허용된 root 밖에 있습니다."))?
+                .ok_or_else(|| invalid_path("outputPath is outside the allowed root."))?
         } else {
             (self.roots[0].clone(), path.to_path_buf())
         };
@@ -146,7 +150,7 @@ impl OutputTransaction {
     ) -> Result<(), DevupError> {
         if !self.targets.insert(target.display_path.clone()) {
             return Err(invalid_path(
-                "둘 이상의 output이 같은 파일 경로를 사용할 수 없습니다.",
+                "Two or more outputs cannot use the same file path.",
             ));
         }
         let parent = target
@@ -154,7 +158,9 @@ impl OutputTransaction {
             .parent()
             .unwrap_or_else(|| Path::new(""));
         target.root.dir.create_dir_all(parent).map_err(|error| {
-            transaction_error(format!("output 상위 폴더를 만들 수 없습니다: {error}"))
+            transaction_error(format!(
+                "Cannot create the output parent directory: {error}"
+            ))
         })?;
         reject_existing_symlink_ancestors(&target.root, &target.relative_path)?;
         let temp_path = unique_sibling(&target.relative_path, "tmp");
@@ -163,13 +169,13 @@ impl OutputTransaction {
             .dir
             .open_with(&temp_path, OpenOptions::new().write(true).create_new(true))
             .map_err(|error| {
-                transaction_error(format!("output staging 파일을 만들 수 없습니다: {error}"))
+                transaction_error(format!("Cannot create the output staging file: {error}"))
             })?;
         if let Err(error) = file.write_all(contents).and_then(|()| file.sync_all()) {
             drop(file);
             let _ = target.root.dir.remove_file(&temp_path);
             return Err(transaction_error(format!(
-                "output staging 파일을 기록할 수 없습니다: {error}"
+                "Cannot write the output staging file: {error}"
             )));
         }
         drop(file);
@@ -202,14 +208,14 @@ impl OutputTransaction {
             {
                 Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
                     return Err(transaction_error(
-                        "output target은 일반 파일이거나 아직 존재하지 않아야 합니다.",
+                        "The output target must be a regular file or not exist yet.",
                     ));
                 }
                 Ok(_) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => {
                     return Err(transaction_error(format!(
-                        "output target을 확인할 수 없습니다: {error}"
+                        "Cannot inspect the output target: {error}"
                     )));
                 }
             }
@@ -220,7 +226,7 @@ impl OutputTransaction {
             let rollback = self.rollback(hook);
             return if rollback.failures.is_empty() {
                 Err(transaction_error(format!(
-                    "output transaction commit에 실패했습니다: {error}"
+                    "The output transaction commit failed: {error}"
                 )))
             } else {
                 Err(transaction_rollback_error(error, rollback))
@@ -325,7 +331,7 @@ impl OutputTransaction {
                     })
                 } else {
                     Err(std::io::Error::other(
-                        "replacement target를 제거하지 못해 backup을 복원하지 않았습니다.",
+                        "Did not restore the backup because the replacement target could not be removed.",
                     ))
                 };
                 if let Err(error) = restore {
@@ -389,17 +395,15 @@ fn normalize_relative_file(path: &Path) -> Result<PathBuf, DevupError> {
             Component::Normal(value) if safe_component(value) => normalized.push(value),
             Component::CurDir => {}
             Component::Normal(_) => {
-                return Err(invalid_path(
-                    "outputPath에 안전하지 않은 파일명이 있습니다.",
-                ));
+                return Err(invalid_path("outputPath contains an unsafe file name."));
             }
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(invalid_path("outputPath는 허용 root를 벗어날 수 없습니다."));
+                return Err(invalid_path("outputPath cannot escape the allowed root."));
             }
         }
     }
     if normalized.as_os_str().is_empty() || normalized.file_name().is_none() {
-        return Err(invalid_path("outputPath는 파일 경로여야 합니다."));
+        return Err(invalid_path("outputPath must be a file path."));
     }
     Ok(normalized)
 }
@@ -420,17 +424,17 @@ fn reject_existing_symlink_ancestors(
         match root.dir.symlink_metadata(&current) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 return Err(invalid_path(
-                    "outputPath 상위 경로의 symlink 또는 junction은 허용하지 않습니다.",
+                    "A symlink or junction in an outputPath ancestor is not allowed.",
                 ));
             }
             Ok(metadata) if !metadata.is_dir() => {
-                return Err(invalid_path("outputPath 상위 경로가 폴더가 아닙니다."));
+                return Err(invalid_path("An outputPath ancestor is not a directory."));
             }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
             Err(error) => {
                 return Err(invalid_path(format!(
-                    "outputPath 상위 경로를 확인할 수 없습니다: {error}"
+                    "Cannot inspect an outputPath ancestor: {error}"
                 )));
             }
         }
@@ -464,7 +468,7 @@ fn transaction_rollback_error(
         .collect::<Vec<_>>();
     DevupError::with_details(
         ErrorCode::DevupCodegenFailed,
-        format!("output transaction commit과 rollback에 실패했습니다: {commit_error}"),
+        format!("The output transaction commit and rollback both failed: {commit_error}"),
         false,
         json!({
             "phase": "rollback",
@@ -506,7 +510,7 @@ fn verify_fingerprint(
         Ok(())
     } else {
         Err(std::io::Error::other(
-            "복원된 output의 길이 또는 hash가 원본 backup과 일치하지 않습니다.",
+            "The restored output's length or hash does not match the original backup.",
         ))
     }
 }

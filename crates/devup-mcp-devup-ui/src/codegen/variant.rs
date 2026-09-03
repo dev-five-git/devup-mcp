@@ -51,7 +51,7 @@ pub(super) fn generate_variant_component_set(
     let set = snapshot.nodes.get(set_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "variant component set을 찾지 못했습니다.",
+            "Variant component set was not found.",
             false,
         )
     })?;
@@ -95,7 +95,7 @@ pub(super) fn generate_variant_component_set(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupCodegenFailed,
-                "component set에 variant component가 없습니다.",
+                "Component set has no variant components.",
                 false,
             )
         })?;
@@ -181,7 +181,7 @@ pub(super) fn generate_variant_component_set(
             .into_iter()
             .map(|node_id| Diagnostic {
                 code: "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK".to_owned(),
-                message: "non-default variant의 중첩 차이를 default variant 구조로 대체했습니다."
+                message: "Nesting differences in the non-default variant were replaced with the default variant structure."
                     .to_owned(),
                 node_id: Some(node_id),
                 severity: Some(DiagnosticSeverity::Warning),

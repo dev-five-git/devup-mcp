@@ -285,7 +285,7 @@ pub fn validate_fidelity(
     {
         return Err(DevupError::with_details(
             ErrorCode::DevupCodegenFailed,
-            "projection trace가 source node를 정확히 한 번씩 설명하지 못했습니다.",
+            "Projection trace did not account for each source node exactly once.",
             false,
             json!({
                 "missingNodeIds": missing,
