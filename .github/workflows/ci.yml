@@ -6,6 +6,61 @@ on:
     branches: [main]
 
 jobs:
+  # A release is cut from the workspace version, and that version only moves
+  # when `changepacks update` consumes a changepack log. A pull request that
+  # touches a crate without leaving a log is therefore unreleasable: the work
+  # merges, no version bump follows, and release.yml never fires. Catch it
+  # here rather than at release time.
+  changepack:
+    name: changepack required
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Require a changepack for crate changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+
+          crate_changes="$(printf '%s\n' "$changed" | grep -E '^crates/' || true)"
+          if [ -z "$crate_changes" ]; then
+            echo "No crate sources touched; a changepack is not required."
+            exit 0
+          fi
+
+          log_changes="$(printf '%s\n' "$changed" \
+            | grep -E '^\.changepacks/changepack_log_.*\.json$' || true)"
+          if [ -n "$log_changes" ]; then
+            echo "Changepack present:"
+            printf '  %s\n' $log_changes
+            exit 0
+          fi
+
+          {
+            echo "This pull request changes crate sources but adds no changepack log."
+            echo
+            echo "Without one the workspace version never moves, so the change"
+            echo "ships to main and is never released."
+            echo
+            echo "    cargo install changepacks"
+            echo "    changepacks"
+            echo
+            echo "Pick the affected crates, choose Major/Minor/Patch, and write"
+            echo "the release note, then commit the generated"
+            echo ".changepacks/changepack_log_*.json alongside your change."
+            echo
+            echo "--- crate files changed without a changepack ---"
+            printf '  %s\n' $crate_changes
+          } >&2
+          exit 1
+
   verify:
     strategy:
       matrix:

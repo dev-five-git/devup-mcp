@@ -1,0 +1,180 @@
+name: release
+
+# Fires when a changepacks version bump lands on main.
+#
+# `changepacks update` rewrites the workspace version from the accumulated
+# `.changepacks/changepack_log_*.json` entries, so the version in Cargo.toml
+# is the single source of truth for "a release happened". This workflow keys
+# off that rather than off a manual dispatch: the tag `v<version>` is created
+# only when it does not already exist, which makes the job idempotent — an
+# unrelated push to main re-runs it and it exits at the detect step.
+#
+# Every crate in the workspace sets `version.workspace = true`, so one bump
+# releases the whole set together.
+
+on:
+  push:
+    branches: [main]
+  # Escape hatch for re-cutting a release whose upload failed. Detection still
+  # applies, so this cannot produce a duplicate tag.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: detect version bump
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # Pinned rather than the runner default: the workspace is edition 2024 /
+      # resolver 3, which an older preinstalled cargo refuses to parse, and
+      # `cargo metadata` is how the version is read.
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          # cargo metadata rather than grepping Cargo.toml: the version lives
+          # in [workspace.package] and is inherited, so the literal is not in
+          # the crate manifests at all.
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "devup-mcp") | .version')"
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "could not read the devup-mcp version from cargo metadata" >&2
+            exit 1
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          if git rev-parse "v$version" >/dev/null 2>&1; then
+            echo "v$version is already tagged; nothing to release"
+            echo "should_release=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "v$version is new; releasing"
+            echo "should_release=true" >>"$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: build (${{ matrix.os }})
+    needs: detect
+    if: needs.detect.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: x86_64-unknown-linux-gnu
+            suffix: linux-x86_64
+            ext: ""
+          - os: windows-latest
+            targets: x86_64-pc-windows-msvc
+            suffix: windows-x86_64
+            ext: ".exe"
+          - os: macos-latest
+            # Fused below into one universal binary so a single macOS asset
+            # runs on both Apple Silicon and Intel.
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+            suffix: macos-universal
+            ext: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.98.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build release binaries
+        shell: bash
+        env:
+          TARGETS: ${{ matrix.targets }}
+          SUFFIX: ${{ matrix.suffix }}
+          EXT: ${{ matrix.ext }}
+          OS: ${{ matrix.os }}
+        run: |
+          set -euo pipefail
+          for target in $TARGETS; do
+            rustup target add "$target"
+            cargo build --release --target "$target" \
+              -p devup-mcp -p devup-mcp-visual
+          done
+          mkdir -p dist
+          for bin in devup-mcp devup-mcp-visual; do
+            out="dist/${bin}-${SUFFIX}${EXT}"
+            if [ "$OS" = "macos-latest" ]; then
+              lipo -create -output "$out" \
+                "target/aarch64-apple-darwin/release/${bin}" \
+                "target/x86_64-apple-darwin/release/${bin}"
+              file "$out"
+            else
+              set -- $TARGETS
+              cp "target/$1/release/${bin}${EXT}" "$out"
+            fi
+          done
+          ls -l dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.suffix }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: publish GitHub release
+    needs: [detect, build]
+    if: needs.detect.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - name: Collect assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # download-artifact lays each artifact out as artifacts/<name>/<file>.
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -l dist
+          # Six assets: two binaries across three platforms. Fail loudly rather
+          # than cutting a release that silently omits a platform.
+          count="$(find dist -type f | wc -l)"
+          if [ "$count" -ne 6 ]; then
+            echo "expected 6 assets, found $count" >&2
+            exit 1
+          fi
+      - name: Extract this version's changepack notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          # `changepacks update` consumes the logs, so on the release commit
+          # they may already be gone. Fall back to the commit subject rather
+          # than failing the release over a missing changelog.
+          notes=""
+          if compgen -G '.changepacks/changepack_log_*.json' >/dev/null; then
+            notes="$(jq -rs 'map(.note // empty) | join("\n\n")' \
+              .changepacks/changepack_log_*.json || true)"
+          fi
+          if [ -z "$notes" ]; then
+            notes="$(git log -1 --pretty=%s)"
+          fi
+          {
+            echo "body<<CHANGEPACK_NOTES_EOF"
+            echo "$notes"
+            echo "CHANGEPACK_NOTES_EOF"
+          } >>"$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.detect.outputs.version }}
+          name: v${{ needs.detect.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+          files: dist/*
+          fail_on_unmatched_files: true
