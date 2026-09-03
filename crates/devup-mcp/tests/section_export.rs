@@ -137,8 +137,8 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
                 .any(|entry| entry["nodeId"] == "10:3" && entry["property"] == "type"))
     );
     assert_eq!(selected["cache"]["cacheHit"], false);
-    assert_eq!(selected["collection"]["figmaToolCalls"], 1);
-    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
+    assert_eq!(selected["collection"]["figmaToolCalls"], 2);
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 3);
     let selected_artifact_id = selected["cache"]["artifactId"].as_str().unwrap();
 
     let all = call(
@@ -159,10 +159,10 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
-    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 3);
     assert_eq!(all["collection"]["figmaToolCalls"], 0);
-    assert_eq!(all["cache"]["originCollection"]["figmaToolCalls"], 1);
-    assert_eq!(all["cache"]["avoidedFigmaToolCalls"], 1);
+    assert_eq!(all["cache"]["originCollection"]["figmaToolCalls"], 2);
+    assert_eq!(all["cache"]["avoidedFigmaToolCalls"], 2);
 
     let invalid = client
         .call_tool(

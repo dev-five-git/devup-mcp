@@ -643,6 +643,7 @@ pub(super) async fn complete_operation(
             result.insert("completenessReport".to_owned(), json!(&completeness_report));
             result.insert("collection".to_owned(), json!(collection));
             result.insert("cache".to_owned(), artifact_metadata(artifact));
+            result.insert("failures".to_owned(), json!(&payload.failures));
             result.insert(
                 "source".to_owned(),
                 json!({
@@ -715,6 +716,13 @@ pub(super) async fn complete_operation(
                         "truncated": candidates.len() == 100
                     }),
                 );
+                result.insert(
+                    "nextAction".to_owned(),
+                    json!({
+                        "tool": "devup_figma_export",
+                        "choose": ["frameIds", "allScreens"]
+                    }),
+                );
                 return Ok(Value::Object(result));
             }
 
@@ -735,8 +743,16 @@ pub(super) async fn complete_operation(
                     .iter()
                     .map(|candidate| (candidate.node.node_id.as_str(), candidate))
                     .collect::<std::collections::BTreeMap<_, _>>();
+                let failed_ids = payload
+                    .failures
+                    .iter()
+                    .map(|failure| failure.node_id.as_str())
+                    .collect::<std::collections::BTreeSet<_>>();
                 let selected = if all_screens {
-                    candidates.iter().collect::<Vec<_>>()
+                    candidates
+                        .iter()
+                        .filter(|candidate| !failed_ids.contains(candidate.node.node_id.as_str()))
+                        .collect::<Vec<_>>()
                 } else {
                     let requested = frame_ids
                         .iter()
@@ -763,7 +779,10 @@ pub(super) async fn complete_operation(
                     }
                     candidates
                         .iter()
-                        .filter(|candidate| requested.contains(candidate.node.node_id.as_str()))
+                        .filter(|candidate| {
+                            requested.contains(candidate.node.node_id.as_str())
+                                && !failed_ids.contains(candidate.node.node_id.as_str())
+                        })
                         .collect::<Vec<_>>()
                 };
                 let mut frames = Vec::with_capacity(selected.len());
