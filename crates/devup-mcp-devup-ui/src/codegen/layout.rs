@@ -469,7 +469,7 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
 /// A folded asset is excluded: its children are baked into the exported image
 /// and never laid out, so measuring a gap around them would describe a box
 /// nothing lives in.
-pub(super) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
+pub(crate) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
     let view = node.typed_view();
     // Figma reports a frame it cannot infer a layout for as an explicit null,
     // so presence alone does not mean there is a layout to read.

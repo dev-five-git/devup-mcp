@@ -4,7 +4,7 @@ use devup_mcp_figma::{DevupError, ErrorCode, FidelityImpact, Snapshot, discover_
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::codegen::{CodegenOutput, asset_kind};
+use crate::codegen::{CodegenOutput, asset_kind, derived_padding};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
@@ -513,6 +513,16 @@ fn layout_field_is_semantic(
             .or_else(|| view.string("parentType"))
             .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
     if matches!(field, "width" | "height") && canvas_parent {
+        return false;
+    }
+    // An out-of-flow node whose children's inset became padding takes its size
+    // from that padding plus its content, so the size is not restated and
+    // counting it would report a shortfall for something said another way.
+    // Kept in step with the same test in `codegen::layout`.
+    if matches!(field, "width" | "height")
+        && view.string("layoutPositioning") == Some("ABSOLUTE")
+        && derived_padding(snapshot, node).is_some()
+    {
         return false;
     }
     match field {
