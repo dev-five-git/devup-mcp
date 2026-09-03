@@ -18,11 +18,19 @@ fn exact_node_fast_path_completes_in_one_call() {
         panic!("fast snapshot call expected")
     };
     assert_eq!(fast_call.call.tool_name(), "use_figma");
+    let arguments = fast_call.call.arguments();
+    assert!(!arguments.contains_key("nodeId"));
     assert!(
-        fast_call.call.arguments()["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastSnapshotDescriptor")
+            .contains("devupFastSnapshotEnvelope")
+    );
+    assert!(
+        !arguments["code"]
+            .as_str()
+            .unwrap()
+            .contains("figma.io.write")
     );
 
     collector
@@ -35,7 +43,7 @@ fn exact_node_fast_path_completes_in_one_call() {
     assert_eq!(parts.snapshot_chunks.len(), 1);
     assert_eq!(parts.snapshot_chunks[0].nodes.len(), 1);
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-chunked");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.node_count, 1);
     assert_eq!(parts.stats.variable_count, 0);
@@ -68,7 +76,7 @@ fn exact_node_fast_path_accepts_the_stringified_handoff_contract() {
         panic!("stringified fast snapshot should complete without fallback")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-chunked");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
 }
 
@@ -302,7 +310,7 @@ fn malformed_fast_result_restarts_legacy_from_metadata() {
     assert!(parts.stats.fallback_used);
     assert_eq!(
         parts.stats.fallback_reason.as_deref(),
-        Some("descriptorMissing")
+        Some("textEnvelopeMissing")
     );
     assert_eq!(parts.stats.node_count, 1);
 }
@@ -422,6 +430,7 @@ fn valid_reference_png_base64() -> &'static str {
 
 fn fast_envelope_result() -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "1:2"},
         "snapshot": {
@@ -460,42 +469,20 @@ fn fast_envelope_result() -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "1:2",
-        "nodeCount": 1,
-        "variableRefCount": 0,
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
+    // No binary transport exists any more: fast snapshots are always plain
+    // text. Omitting the `__DEVUP_SNAPSHOT_CURSOR__` marker node is treated
+    // by the decoder as a single, already-complete page.
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }
 
 fn fast_theme_envelope_result() -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastThemeEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "version": "v2"},
         "resources": {
@@ -524,58 +511,12 @@ fn fast_theme_envelope_result() -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastThemeDescriptor",
-        "schemaVersion": 1,
-        "collectionCount": 1,
-        "variableCount": 1,
-        "styleCount": 1,
-        "unresolvedCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
-}
-
-fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(chunk_type);
-    output.extend_from_slice(data);
-    let mut crc_input = Vec::with_capacity(4 + data.len());
-    crc_input.extend_from_slice(chunk_type);
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }
 
 fn file_target() -> FigmaTarget {
@@ -767,11 +708,13 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("fast theme call expected")
     };
     assert_eq!(fast_theme.call.tool_name(), "use_figma");
+    let arguments = fast_theme.call.arguments();
+    assert!(!arguments.contains_key("nodeId"));
     assert!(
-        fast_theme.call.arguments()["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastThemeDescriptor")
+            .contains("devupFastThemeEnvelope")
     );
     collector
         .accept(&fast_theme.id, fast_theme_envelope_result())
@@ -781,7 +724,7 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("valid fast theme should complete in one call")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-chunked");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.variable_count, 1);
     assert_eq!(parts.stats.style_count, 1);
@@ -1916,6 +1859,7 @@ fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> Upstr
         .map(|id| json!({"id": id, "name": id}))
         .collect::<Vec<_>>();
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "10:1"},
         "snapshot": {
@@ -1950,35 +1894,10 @@ fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> Upstr
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "10:1",
-        "nodeCount": root_ids.len(),
-        "variableRefCount": variable_ids.len(),
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }

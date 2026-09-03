@@ -70,6 +70,12 @@ pub struct HandoffCall {
     pub server: &'static str,
     pub tool: &'static str,
     pub arguments: Value,
+    /// The Figma node this call targets, tracked outside `arguments` because
+    /// the official `use_figma` schema forbids a `nodeId` argument
+    /// (`additionalProperties: false`). Absent for calls with no single
+    /// target node (e.g. the file-wide page catalog).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -228,6 +234,7 @@ impl HandoffStore {
                         server: "figma",
                         tool: planned.call.tool_name(),
                         arguments: Value::Object(planned.call.arguments()),
+                        node_id: planned.expected_node_id.clone(),
                     };
                     session.pending.insert(call_id, (planned.id, handoff_call));
                 }

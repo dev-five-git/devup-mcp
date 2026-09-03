@@ -1,5 +1,4 @@
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
-const MAX_ENVELOPE_CHUNK_BYTES = 512 * 1024;
 const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
 
 function propertyNames(value) {
@@ -271,56 +270,11 @@ if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
   throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
 }
 if (envelopeBytes.length > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
-if (envelopeBytes.length <= MAX_TEXT_ENVELOPE_BYTES) return envelope;
-
-function crc32(bytes) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-  }
-  return (crc ^ 0xffffffff) >>> 0;
+if (envelopeBytes.length > MAX_TEXT_ENVELOPE_BYTES) {
+  // No binary transport exists any more (real-world hosts silently
+  // discarded the old PNG-chunked image attachments). A file-wide theme
+  // that doesn't fit as text falls back to the legacy per-resource
+  // collection path, which already handles arbitrarily large theme scopes.
+  throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 }
-function u32(value) {
-  return new Uint8Array([(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]);
-}
-function ascii(value) {
-  return new Uint8Array([...value].map((character) => character.charCodeAt(0)));
-}
-function concat(parts) {
-  const output = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
-  let offset = 0;
-  for (const part of parts) {
-    output.set(part, offset);
-    offset += part.length;
-  }
-  return output;
-}
-function pngChunk(type, data) {
-  const typeBytes = ascii(type);
-  return concat([u32(data.length), typeBytes, data, u32(crc32(concat([typeBytes, data])))]);
-}
-
-const chunkCount = Math.ceil(envelopeBytes.length / MAX_ENVELOPE_CHUNK_BYTES);
-for (let sequence = 0; sequence < chunkCount; sequence += 1) {
-  const start = sequence * MAX_ENVELOPE_CHUNK_BYTES;
-  const end = Math.min(envelopeBytes.length, start + MAX_ENVELOPE_CHUNK_BYTES);
-  const png = concat([
-    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])),
-    pngChunk("duVp", concat([u32(sequence), u32(chunkCount), envelopeBytes.slice(start, end)])),
-    pngChunk("IDAT", new Uint8Array([120, 1, 1, 5, 0, 250, 255, 0, 0, 0, 0, 0, 5, 0, 1])),
-    pngChunk("IEND", new Uint8Array()),
-  ]);
-  figma.io.write(`devup-fast-theme-${sequence + 1}-of-${chunkCount}.png`, png);
-}
-return {
-  kind: "devupFastThemeDescriptor",
-  schemaVersion: 1,
-  collectionCount: collections.length,
-  variableCount: variables.length,
-  styleCount: styles.length,
-  unresolvedCount: unresolved.length,
-  utf8Bytes: envelopeBytes.length,
-  chunkCount,
-};
+return envelope;

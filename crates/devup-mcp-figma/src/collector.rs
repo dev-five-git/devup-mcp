@@ -38,7 +38,7 @@ const USED_RESOURCE_BATCH_BYTES: usize = 12_000;
 // Consumer relations can be huge. Compact, bounded fragments are expanded
 // back to the exhaustive shape in Rust without dropping any relation.
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
-const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
+pub(crate) const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
 const MAX_REFERENCE_PNG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_REFERENCE_PNG_BASE64_BYTES: usize = MAX_REFERENCE_PNG_BYTES.div_ceil(3) * 4;
 const MAX_REFERENCE_PNG_DIMENSION: u32 = 8_192;
@@ -157,7 +157,10 @@ impl Default for CollectionStats {
     fn default() -> Self {
         Self {
             figma_tool_calls: 0,
-            transport: "legacy-cursor".to_owned(),
+            // Text (optionally paginated) is the default, primary path now;
+            // "legacy-cursor" only ever appears once a fast call actually
+            // falls back (see `restart_legacy`).
+            transport: "text".to_owned(),
             fallback_used: false,
             fallback_reason: None,
             node_count: 0,
@@ -229,6 +232,13 @@ pub struct CollectorSession {
     section_selected_roots: Vec<String>,
     fast_multi_resources: Option<UpstreamResult>,
     fast_multi_has_large_values: bool,
+    /// Resources merged across rounds of the paginated single-root fast
+    /// snapshot (`accept_fast_snapshot`). Distinct from `fast_multi_resources`,
+    /// which is scoped to Section multi-root batching; the two paths are
+    /// mutually exclusive (`fast_path_eligible` requires `section.is_none()`).
+    fast_snapshot_resources: Option<UpstreamResult>,
+    fast_snapshot_has_large_values: bool,
+    fast_snapshot_rounds: usize,
     section_fallback_roots: BTreeSet<String>,
     screen_failures: Vec<ScreenFailure>,
     next_id: usize,
@@ -265,6 +275,9 @@ impl CollectorSession {
             section_selected_roots: Vec::new(),
             fast_multi_resources: None,
             fast_multi_has_large_values: false,
+            fast_snapshot_resources: None,
+            fast_snapshot_has_large_values: false,
+            fast_snapshot_rounds: 0,
             section_fallback_roots: BTreeSet::new(),
             screen_failures: Vec::new(),
             next_id: 0,
@@ -753,21 +766,69 @@ impl CollectorSession {
             .node_id
             .clone()
             .ok_or_else(|| invalid_call("Figma fast snapshot에는 node ID가 필요합니다."))?;
-        self.metadata = Some(json!({
-            "transport": payload.stats.transport,
-            "rootId": root_id,
-            "nodeCount": payload.snapshot.nodes.len()
-        }));
-        self.root_node_id = Some(root_id);
+        self.root_node_id = Some(root_id.clone());
         self.source_version = payload.snapshot.version.clone();
         self.metadata_root_ids = payload.snapshot.root_ids.clone();
-        self.stats.transport = payload.stats.transport.to_owned();
-        self.stats.raw_bytes = payload.stats.raw_bytes;
-        self.stats.wire_bytes = payload.stats.wire_bytes;
-        self.stats.envelope_chunks = payload.stats.chunk_count;
+        self.fast_snapshot_rounds = self.fast_snapshot_rounds.saturating_add(1);
+        self.stats.raw_bytes = self.stats.raw_bytes.saturating_add(payload.stats.raw_bytes);
+        self.stats.wire_bytes = self
+            .stats
+            .wire_bytes
+            .saturating_add(payload.stats.wire_bytes);
         let has_large_values = !descriptors_in_chunk(&payload.snapshot)?.is_empty();
-        self.variables = (!has_large_values).then_some(payload.resources);
-        self.record_snapshot_chunk(order, payload.snapshot)?;
+        if has_large_values {
+            self.fast_snapshot_has_large_values = true;
+        } else {
+            merge_fast_resources(&mut self.fast_snapshot_resources, payload.resources)?;
+        }
+
+        let mut chunk = payload.snapshot;
+        // The script always appends a `__DEVUP_SNAPSHOT_CURSOR__` marker node
+        // (same convention as the legacy cursor snapshot) reporting whether
+        // more pages remain; `take_snapshot_cursor` strips it and returns
+        // that state. A missing marker (only possible for hand-built,
+        // pre-pagination-shaped payloads) is treated as a single complete
+        // page. `record_snapshot_chunk` then stores this page's real nodes
+        // and enqueues any large-value follow-ups they declared.
+        let total_nodes = chunk.nodes.len();
+        let cursor = take_snapshot_cursor(&mut chunk)?.unwrap_or(SnapshotCursor {
+            next_offset: total_nodes,
+            complete: true,
+            total_nodes,
+        });
+        self.record_snapshot_chunk(order, chunk)?;
+
+        if cursor.complete {
+            self.stats.transport = if self.fast_snapshot_rounds > 1 {
+                "text-paginated"
+            } else {
+                "text"
+            }
+            .to_owned();
+            self.stats.envelope_chunks = 0;
+            self.variables = (!self.fast_snapshot_has_large_values)
+                .then(|| self.fast_snapshot_resources.take())
+                .flatten();
+            self.metadata = Some(json!({
+                "transport": &self.stats.transport,
+                "rootId": root_id,
+                "nodeCount": cursor.total_nodes,
+                "pageCount": self.fast_snapshot_rounds
+            }));
+        } else {
+            self.enqueue(
+                ReadToolCall::fast_snapshot_page(
+                    &self.request.target.file_key,
+                    &root_id,
+                    SnapshotReadOptions {
+                        offset: cursor.next_offset,
+                        ..SnapshotReadOptions::default()
+                    },
+                ),
+                Some(root_id),
+                CallKind::FastSnapshot,
+            );
+        }
         Ok(())
     }
 
@@ -785,6 +846,9 @@ impl CollectorSession {
         self.variable_batches.clear();
         self.variables = None;
         self.large_values.clear();
+        self.fast_snapshot_resources = None;
+        self.fast_snapshot_has_large_values = false;
+        self.fast_snapshot_rounds = 0;
         self.section_fallback_roots.clear();
         self.screen_failures.clear();
         self.asset_results.clear();

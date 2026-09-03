@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp::server::{DevupAuth, DevupServer, Services};
 use devup_mcp_figma::{
     AuthStatus, BuiltinScript, DevupError, ErrorCode, FigmaUpstream, ReadToolCall, UpstreamResult,
@@ -272,6 +271,7 @@ fn multi_root_envelope(root_ids: &[String]) -> UpstreamResult {
         })
         .collect::<Vec<_>>();
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "10:1"},
         "snapshot": {
@@ -285,55 +285,19 @@ fn multi_root_envelope(root_ids: &[String]) -> UpstreamResult {
         },
         "integrity": {"nodeCount": root_ids.len(), "variableRefCount": 0, "styleRefCount": 0, "utf8Bytes": 0}
     });
-    let bytes = loop {
+    let _bytes = loop {
         let bytes = serde_json::to_vec(&envelope).unwrap();
         if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
             break bytes;
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut chunk = Vec::with_capacity(bytes.len() + 8);
-    chunk.extend_from_slice(&0_u32.to_be_bytes());
-    chunk.extend_from_slice(&1_u32.to_be_bytes());
-    chunk.extend_from_slice(&bytes);
-    push_chunk(&mut png, b"duVp", &chunk);
-    push_chunk(
-        &mut png,
-        b"IDAT",
-        &[0x78, 1, 1, 5, 0, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1],
-    );
-    push_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor", "schemaVersion": 1, "rootId": "10:1",
-        "nodeCount": root_ids.len(), "variableRefCount": 0, "styleRefCount": 0,
-        "utf8Bytes": bytes.len(), "chunkCount": 1
-    });
+    // No binary transport exists any more: fast snapshots are always plain
+    // text (`devupFastSnapshotEnvelope`). Omitting the cursor marker node is
+    // treated by the decoder as a single, already-complete page.
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
-}
-
-fn push_chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(kind);
-    output.extend_from_slice(data);
-    let mut crc_input = kind.to_vec();
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }

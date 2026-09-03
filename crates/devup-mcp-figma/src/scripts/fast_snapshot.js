@@ -10,26 +10,57 @@ if (roots.length === 1 && roots[0].type === "SECTION") {
 const envelopeRootId = "__DEVUP_NODE_ID__";
 
 const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
-const manifestSet = new Set(manifest);
 const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
-const skipped = new Set(["id", "type", "parent", "children"]);
-const MAX_ENVELOPE_BYTES = 1024 * 1024;
-const MAX_ENVELOPE_CHUNK_BYTES = 512 * 1024;
+const pageOptions = "__DEVUP_SNAPSHOT__";
+const offset = Math.max(0, Math.floor(Number(pageOptions.offset) || 0));
+// Upper bound for one round's serialized payload. Kept well under the ~20,500
+// character Figma MCP text-response limit so a page always survives as text
+// (no PNG fallback exists any more).
+const maxPayloadBytes = Math.min(
+  18000,
+  Math.max(4096, Math.floor(Number(pageOptions.maxPayloadBytes) || 12000)),
+);
 const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
+const MAX_ENVELOPE_BYTES = 1024 * 1024;
+
+// Values that carry no information beyond "this field is at its default" are
+// dropped from the envelope. Consumers must treat an absent key exactly like
+// its default (this already holds for every accessor in the Rust codegen,
+// which reads through Option-returning TypedNode helpers).
+//
+// `""` is only dropped for *StyleId fields: Figma reports an unbound style
+// as `""`, and both consumers of these fields already treat `""` and
+// "field absent" identically —
+//   - `resources.rs::is_resource_id` rejects empty IDs before treating a
+//     *StyleId field as a real style reference (used by both the fast-path
+//     JS resource scanner above and the legacy Rust scanner), and
+//   - `codegen/text.rs` looks `textStyleId` up in a token map, where an
+//     empty-string key can never match (same `None` result as a missing key).
+const STYLE_ID_FIELDS = new Set([
+  "backgroundStyleId",
+  "effectStyleId",
+  "fillStyleId",
+  "gridStyleId",
+  "strokeStyleId",
+  "textStyleId",
+]);
+function isOmittableDefault(value, name) {
+  if (value === null) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  if (value === "" && STYLE_ID_FIELDS.has(name)) return true;
+  return false;
+}
 
 function propertyNames(value) {
-  const names = new Set();
-  let current = value;
-  while (current && current !== Object.prototype) {
-    for (const name of Object.getOwnPropertyNames(current)) names.add(name);
-    current = Object.getPrototypeOf(current);
-  }
+  // Only ever look at the checked-in manifest. No prototype-chain walk, no
+  // "extra" bucket: an unlisted Figma Plugin API property is never collected.
+  const names = [];
   for (const name of manifest) {
     try {
-      if (name in value) names.add(name);
+      if (name in value) names.push(name);
     } catch (_) {}
   }
-  return [...names].sort();
+  return names;
 }
 
 function serialize(value, seen = new WeakSet(), depth = 0) {
@@ -68,30 +99,29 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
 
 function snapshotNode(node) {
   const fields = {};
-  const extra = {};
   const fieldErrors = {};
   fields.parentId = node.parent ? node.parent.id : null;
   fields.childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
 
   for (const name of propertyNames(node)) {
-    if (skipped.has(name) || name.startsWith("_")) continue;
     try {
       const value = node[name];
       if (typeof value === "function") continue;
       const serialized = serialize(value);
-      (manifestSet.has(name) ? fields : extra)[name] = serialized;
+      if (!isOmittableDefault(serialized, name)) fields[name] = serialized;
     } catch (error) {
       fieldErrors[name] = String(error && error.message ? error.message : error);
     }
   }
   if (node.type === "TEXT" && typeof node.getStyledTextSegments === "function") {
     try {
-      fields.styledTextSegments = serialize(node.getStyledTextSegments(textSegmentManifest));
+      const segments = serialize(node.getStyledTextSegments(textSegmentManifest));
+      if (!isOmittableDefault(segments)) fields.styledTextSegments = segments;
     } catch (error) {
       fieldErrors.styledTextSegments = String(error && error.message ? error.message : error);
     }
   }
-  return { id: node.id, type: node.type, fields, extra, fieldErrors };
+  return { id: node.id, type: node.type, fields, extra: {}, fieldErrors };
 }
 
 const allNodes = [];
@@ -104,7 +134,51 @@ for (let index = 0; index < queue.length; index += 1) {
   allNodes.push(node);
   if ("children" in node) queue.push(...node.children);
 }
-const nodes = allNodes.map(snapshotNode);
+if (offset >= allNodes.length && allNodes.length > 0) {
+  throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
+}
+
+function utf8ByteLength(value) {
+  let bytes = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length) {
+      bytes += 4;
+      index += 1;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+function jsonByteLength(value) {
+  return utf8ByteLength(JSON.stringify(value));
+}
+
+// Pack as many nodes as fit under maxPayloadBytes starting at offset. This is
+// the same dynamic, byte-budget-driven pagination the legacy cursor snapshot
+// already uses, applied to the fast (single-call, resource-inclusive) path.
+const pageNodeBudget = maxPayloadBytes - 1024;
+const pageNodes = [];
+let pagePayloadBytes = 2;
+for (let index = offset; index < allNodes.length; index += 1) {
+  const snapshotted = snapshotNode(allNodes[index]);
+  const nodeBytes = jsonByteLength(snapshotted) + (pageNodes.length ? 1 : 0);
+  if (pageNodes.length && pagePayloadBytes + nodeBytes > pageNodeBudget) break;
+  pageNodes.push(snapshotted);
+  pagePayloadBytes += nodeBytes;
+}
+const nextOffset = Math.min(allNodes.length, offset + pageNodes.length);
+const complete = nextOffset >= allNodes.length;
+const nodes = pageNodes;
+nodes.push({
+  id: "__DEVUP_SNAPSHOT_CURSOR__",
+  type: "DEVUP_INTERNAL",
+  fields: { nextOffset, complete, totalNodes: allNodes.length },
+  extra: {},
+  fieldErrors: {},
+});
 
 function styleTypeForField(field) {
   if (field === "textStyleId") return "TEXT";
@@ -145,6 +219,9 @@ function scanResources(value, fieldName = "") {
     scanResources(child, field || fieldName);
   }
 }
+// Only the nodes actually shipped in THIS page are scanned, so the resources
+// this page returns stay self-consistent with this page's own integrity
+// counters. The host (devup-mcp) merges resources across pages.
 scanResources(nodes);
 
 function resourcePropertyNames(value) {
@@ -321,6 +398,7 @@ const envelope = {
     usedRemoteComplete: unresolved.length === 0,
     unresolved,
   },
+  pagination: { offset, nextOffset, complete, totalNodes: allNodes.length },
   integrity: {
     nodeCount: nodes.length,
     variableRefCount: sortedVariableIds.length,
@@ -342,75 +420,11 @@ if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
 if (envelopeBytes.length > MAX_ENVELOPE_BYTES) {
   throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 }
-if (envelopeBytes.length <= MAX_TEXT_ENVELOPE_BYTES) return envelope;
-
-function crc32(bytes) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
+if (envelopeBytes.length > MAX_TEXT_ENVELOPE_BYTES) {
+  // The byte budget above is sized to stay under this safety margin; a
+  // single misbehaving node (huge boundVariables/componentProperties tree)
+  // is the only way to reach here. Surface it as a hard error instead of
+  // silently falling back to an unsupported binary transport.
+  throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 }
-
-function u32(value) {
-  return new Uint8Array([
-    (value >>> 24) & 0xff,
-    (value >>> 16) & 0xff,
-    (value >>> 8) & 0xff,
-    value & 0xff,
-  ]);
-}
-
-function ascii(value) {
-  return new Uint8Array([...value].map((character) => character.charCodeAt(0)));
-}
-
-function concat(parts) {
-  const length = parts.reduce((sum, part) => sum + part.length, 0);
-  const output = new Uint8Array(length);
-  let offset = 0;
-  for (const part of parts) {
-    output.set(part, offset);
-    offset += part.length;
-  }
-  return output;
-}
-
-function pngChunk(type, data) {
-  const typeBytes = ascii(type);
-  return concat([u32(data.length), typeBytes, data, u32(crc32(concat([typeBytes, data])))]);
-}
-
-const chunkCount = Math.ceil(envelopeBytes.length / MAX_ENVELOPE_CHUNK_BYTES);
-for (let sequence = 0; sequence < chunkCount; sequence += 1) {
-  const start = sequence * MAX_ENVELOPE_CHUNK_BYTES;
-  const end = Math.min(envelopeBytes.length, start + MAX_ENVELOPE_CHUNK_BYTES);
-  const envelopeChunk = pngChunk(
-    "duVp",
-    concat([u32(sequence), u32(chunkCount), envelopeBytes.slice(start, end)]),
-  );
-  const png = concat([
-    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])),
-    envelopeChunk,
-    pngChunk(
-      "IDAT",
-      new Uint8Array([120, 1, 1, 5, 0, 250, 255, 0, 0, 0, 0, 0, 5, 0, 1]),
-    ),
-    pngChunk("IEND", new Uint8Array()),
-  ]);
-  figma.io.write(`devup-fast-snapshot-${sequence + 1}-of-${chunkCount}.png`, png);
-}
-return {
-  kind: "devupFastSnapshotDescriptor",
-  schemaVersion: 1,
-  rootId: envelopeRootId,
-  nodeCount: nodes.length,
-  variableRefCount: sortedVariableIds.length,
-  styleRefCount: sortedStyles.length,
-  utf8Bytes: envelopeBytes.length,
-  chunkCount,
-};
+return envelope;

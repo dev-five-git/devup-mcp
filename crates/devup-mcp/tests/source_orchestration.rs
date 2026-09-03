@@ -288,11 +288,28 @@ async fn auto_disconnected_returns_handoff_without_starting_oauth() -> anyhow::R
     assert_eq!(output["status"], "needs_figma");
     assert_eq!(output["resumeTool"], "devup_figma_continue");
     assert_eq!(output["calls"][0]["tool"], "use_figma");
+    // The real `use_figma` schema is `{ fileKey, code, description, skillNames? }`
+    // with `additionalProperties: false` — `nodeId` must never be an argument
+    // key, and `description` is required.
+    let arguments = output["calls"][0]["arguments"]
+        .as_object()
+        .expect("use_figma arguments object");
+    assert!(!arguments.contains_key("nodeId"));
+    assert!(arguments["description"].as_str().unwrap().contains("node"));
+    assert_eq!(output["calls"][0]["nodeId"], "1:2");
     assert!(
-        output["calls"][0]["arguments"]["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastSnapshotDescriptor")
+            .contains("devupFastSnapshotEnvelope")
+    );
+    // The old PNG-chunked binary transport was proven not to survive real
+    // hosts and has been removed entirely.
+    assert!(
+        !arguments["code"]
+            .as_str()
+            .unwrap()
+            .contains("figma.io.write")
     );
     assert!(output["expiresAt"].as_str().unwrap().contains('T'));
     assert!(output["expiresAt"].as_str().unwrap().ends_with('Z'));
@@ -598,9 +615,12 @@ async fn public_continuation_finishes_a_multi_call_host_collection() -> anyhow::
     assert_eq!(after_fast["calls"][0]["tool"], "get_metadata");
     assert_eq!(after_fast["collection"]["figmaToolCalls"], 2);
     assert_eq!(after_fast["collection"]["fallbackUsed"], true);
+    // `snapshot_result()` is a bare SnapshotChunk-shaped result, not tagged
+    // with `"kind": "devupFastSnapshotEnvelope"`, so decoding never finds a
+    // fast text envelope at all (no PNG fallback exists any more either).
     assert_eq!(
         after_fast["collection"]["fallbackReason"],
-        "descriptorMissing"
+        "textEnvelopeMissing"
     );
     let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
     let after_metadata = client
