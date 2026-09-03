@@ -382,6 +382,28 @@ pub(crate) fn is_section_error_result(value: &Value) -> bool {
 /// depending only on which step happened to receive it. The real reason
 /// was in the response the whole time, so return it and let the caller
 /// read it.
+/// The wait Figma asked for, in seconds, wherever it appears.
+///
+/// Figma's REST API answers a 429 with `Retry-After`. The MCP relay does
+/// not forward response headers today, so this usually finds nothing — but
+/// reading it costs nothing and is the only authoritative answer to "when
+/// can I retry", which otherwise has to be guessed.
+fn retry_after_seconds(value: &Value) -> Option<u64> {
+    match value {
+        Value::Object(object) => object
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case("retry-after") || *key == "retryAfter")
+            .and_then(|(_, found)| {
+                found
+                    .as_u64()
+                    .or_else(|| found.as_str().and_then(|text| text.parse().ok()))
+            })
+            .or_else(|| object.values().find_map(retry_after_seconds)),
+        Value::Array(values) => values.iter().find_map(retry_after_seconds),
+        _ => None,
+    }
+}
+
 pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     if value.get("isError").and_then(Value::as_bool) != Some(true) {
         return None;
@@ -401,20 +423,37 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     let message = first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned());
 
     // A quota refusal is the one upstream failure that clears on its own,
-    // so it must not be reported as a permanent one. Figma meters reads
-    // per minute alongside a daily or monthly allowance, and a single
-    // refreshed export spends roughly fifteen calls, so the per-minute
-    // ceiling is reached long before the longer-term one.
+    // so it must not be reported as a permanent one.
     let lowered = message.to_lowercase();
     if lowered.contains("tool call limit") || lowered.contains("rate limit") {
+        let mut details = json!({
+            // Figma meters reads with a leaky bucket, so there is no reset
+            // hour to wait for: capacity drains back continuously. Saying
+            // an allowance "resets tomorrow" would invite waiting for a
+            // rollover that never happens, and it explains why small
+            // requests slip through while a large one still fails.
+            "recovery": "Figma meters reads with a leaky bucket, so capacity returns gradually rather than resetting at a fixed time. Retry after a short wait; a small request may succeed while a large one is still refused.",
+            "costHint": "A refreshed export spends about 15 Figma tool calls, so prefer a cached artifact over refresh.",
+        });
+        // The REST API states the exact wait in `Retry-After`, and names
+        // the ceiling in `X-Figma-Rate-Limit-Type`. The MCP relay does not
+        // forward either today, so read them when present rather than
+        // guessing, and say plainly when they are absent.
+        match retry_after_seconds(value) {
+            Some(seconds) => {
+                details["retryAfterSeconds"] = json!(seconds);
+            }
+            None => {
+                details["whichLimit"] = json!(
+                    "Not stated. Figma applies a per-minute ceiling alongside a daily or monthly allowance, and the MCP response does not say which was reached."
+                );
+            }
+        }
         return Some(DevupError::with_details(
             ErrorCode::DevupFigmaRateLimited,
             message,
             true,
-            json!({
-                "resets": "Per-minute limits clear within a minute; the daily or monthly allowance resets on its own schedule.",
-                "costHint": "A refreshed export spends about 15 Figma tool calls, so avoid refresh when a cached artifact will do.",
-            }),
+            details,
         ));
     }
     Some(DevupError::new(

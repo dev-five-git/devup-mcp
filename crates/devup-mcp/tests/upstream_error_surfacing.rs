@@ -55,6 +55,70 @@ impl FigmaUpstream for RateLimitedUpstream {
     }
 }
 
+/// Same refusal, but with the wait Figma's REST API states in `Retry-After`.
+/// The MCP relay does not forward it today; this pins that it is used the
+/// moment it appears, rather than the caller being told to guess.
+#[derive(Debug)]
+struct RateLimitedWithRetryAfter;
+
+#[async_trait]
+impl FigmaUpstream for RateLimitedWithRetryAfter {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        Ok(UpstreamResult {
+            raw: json!({
+                "content": [{"type": "text", "text": RATE_LIMIT_TEXT}],
+                "isError": true,
+                "headers": {"Retry-After": 42}
+            }),
+        })
+    }
+}
+
+#[tokio::test]
+async fn a_stated_retry_after_is_reported_instead_of_a_guess() -> anyhow::Result<()> {
+    let server = DevupServer::new(Services::new(
+        Arc::new(ConnectedAuth),
+        Arc::new(RateLimitedWithRetryAfter),
+    ));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let arguments: Map<String, Value> = json!({
+        "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
+        "outputs": ["tsx"],
+        "sourcePolicy": "direct"
+    })
+    .as_object()
+    .cloned()
+    .expect("arguments object");
+
+    let reported = client
+        .call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(arguments))
+        .await
+        .expect_err("a refused collection must fail")
+        .to_string();
+
+    assert!(
+        reported.contains("\"retryAfterSeconds\":42"),
+        "the stated wait must be surfaced: {reported}"
+    );
+    assert!(
+        !reported.contains("Not stated"),
+        "a stated wait must not also be reported as unstated: {reported}"
+    );
+
+    client.cancel().await?;
+    task.abort();
+    Ok(())
+}
+
 #[tokio::test]
 async fn a_rate_limited_upstream_reports_its_own_reason_not_a_parse_failure() -> anyhow::Result<()>
 {
@@ -101,6 +165,18 @@ async fn a_rate_limited_upstream_reports_its_own_reason_not_a_parse_failure() ->
     assert!(
         reported.contains("\"retryable\":true"),
         "a quota refusal must be retryable: {reported}"
+    );
+    // Figma meters with a leaky bucket, so promising a reset would send the
+    // caller waiting for a rollover that never arrives.
+    assert!(
+        reported.contains("leaky bucket"),
+        "recovery must be described as gradual: {reported}"
+    );
+    // This relay forwards no Retry-After, so the response must admit that
+    // rather than pick a ceiling on the caller's behalf.
+    assert!(
+        reported.contains("Not stated"),
+        "an unstated ceiling must be reported as unstated: {reported}"
     );
 
     client.cancel().await?;
