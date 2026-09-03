@@ -306,6 +306,23 @@ impl HandoffStore {
             put_session(&mut state, session_id.to_owned(), session);
             return Err(error);
         }
+        if is_section_error_result(&result) {
+            let mut rejected_collector = session.collector.clone();
+            let error = DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "DEVUP_TARGET_IS_SECTION",
+                false,
+            );
+            if rejected_collector.reject(&collector_call_id, &error)? {
+                session.collector = rejected_collector;
+                session.pending.remove(call_id);
+                session.consumed.insert(call_id.to_owned());
+                session.result_bytes = session.result_bytes.saturating_add(encoded_len);
+                session.expires_at = now.saturating_add(self.limits.ttl.as_secs());
+                put_session(&mut state, session_id.to_owned(), session);
+                return Ok(());
+            }
+        }
         let mut result = result;
         strip_get_metadata_tail(&mut result);
         let mut accepted_collector = session.collector.clone();
@@ -332,6 +349,11 @@ impl HandoffStore {
                 .saturating_sub(session.result_bytes);
         }
     }
+}
+
+fn is_section_error_result(value: &Value) -> bool {
+    value.get("isError").and_then(Value::as_bool) == Some(true)
+        && value.to_string().contains("DEVUP_TARGET_IS_SECTION")
 }
 
 fn take_session(
