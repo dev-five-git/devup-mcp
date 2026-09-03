@@ -196,6 +196,75 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
     Ok(())
 }
 
+/// The real fast snapshot script does not return a Section snapshot: it throws
+/// `DEVUP_TARGET_IS_SECTION`, and MCP delivers a thrown error as a *successful*
+/// call whose result carries `isError`.
+///
+/// `SectionUpstream` above answers the very first call with the index, so it
+/// never exercises that step — which is how the direct path came to hand the
+/// thrown error straight to `accept` and fail with "snapshot data not found",
+/// leaving a Section link with no way to discover the screens inside it. The
+/// handoff path had always converted it into a rejection.
+#[derive(Debug, Default)]
+struct ThrowingSectionUpstream(AtomicUsize);
+
+#[async_trait]
+impl FigmaUpstream for ThrowingSectionUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        // Keyed on call order rather than script variant, so the test pins the
+        // recovery itself and not which script the collector retries with.
+        if self.0.fetch_add(1, Ordering::SeqCst) == 0 {
+            return Ok(UpstreamResult {
+                raw: json!({
+                    "content": [{"type": "text", "text": "Error: DEVUP_TARGET_IS_SECTION"}],
+                    "isError": true
+                }),
+            });
+        }
+        Ok(compact_section_index_result())
+    }
+}
+
+#[tokio::test]
+async fn a_thrown_section_error_on_the_direct_path_returns_selectable_screens() -> anyhow::Result<()>
+{
+    let upstream = Arc::new(ThrowingSectionUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let selection = call(
+        &client,
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
+            "outputs": ["tsx"],
+            "sourcePolicy": "direct"
+        }),
+    )
+    .await?;
+
+    assert_eq!(selection["status"], "selection_required");
+    assert_eq!(selection["targetKind"], "section");
+    assert!(selection.get("tsx").is_none());
+    let candidates = selection["selection"]["candidates"]
+        .as_array()
+        .expect("a Section answers with the screens inside it");
+    assert!(!candidates.is_empty());
+    // The throw, then the index retry.
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
 #[test]
 fn actual_wquw_151_section_fixture_preserves_the_ten_screen_index() {
     let fixture: Value = serde_json::from_str(include_str!("fixtures/wquw-151-section.json"))

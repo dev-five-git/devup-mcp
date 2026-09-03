@@ -358,7 +358,15 @@ impl HandoffStore {
     }
 }
 
-fn is_section_error_result(value: &Value) -> bool {
+/// Whether an upstream result is the fast snapshot script reporting that its
+/// target is a Section.
+///
+/// MCP reports a thrown script error as a *successful* tool call whose result
+/// carries `isError`, so this cannot be spotted by matching on `Err`. Both the
+/// handoff path and the direct path in `server::mod` need the same test: a
+/// Section has no single screen to convert, and the collector answers it by
+/// switching to the section index and offering selectable screens instead.
+pub(crate) fn is_section_error_result(value: &Value) -> bool {
     value.get("isError").and_then(Value::as_bool) == Some(true)
         && value.to_string().contains("DEVUP_TARGET_IS_SECTION")
 }

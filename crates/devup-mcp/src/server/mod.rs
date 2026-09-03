@@ -294,6 +294,25 @@ impl DevupServer {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
                     match self.services.upstream.call_read_tool(planned.call).await {
+                        // A Section target is not a failed call — the script
+                        // throws, and MCP delivers that as a successful result
+                        // carrying `isError`. Handing it to `accept` made the
+                        // collector look for snapshot data that was never
+                        // there and report "snapshot data not found", hiding
+                        // the one thing the caller needed to know. Rejecting
+                        // it lets the collector switch to the section index
+                        // and answer with the screens inside, which is what
+                        // the handoff path has always done.
+                        Ok(result) if handoff::is_section_error_result(&result.raw) => {
+                            let error = DevupError::new(
+                                ErrorCode::DevupSnapshotUnsupported,
+                                "DEVUP_TARGET_IS_SECTION",
+                                false,
+                            );
+                            if !collector.reject(&call_id, &error)? {
+                                return Err(error);
+                            }
+                        }
                         Ok(result) => collector.accept(&call_id, result)?,
                         Err(error) if collector.reject(&call_id, &error)? => continue,
                         Err(error) => return Err(error),
