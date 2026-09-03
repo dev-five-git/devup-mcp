@@ -74,6 +74,16 @@ pub(super) fn push_layout_props(
             };
             height = Some("100%".to_owned());
         }
+        // An absolutely positioned node is out of flow, so nothing constrains
+        // it from the outside and the branches above may leave it sizeless,
+        // expecting its children to define the box. That is wrong whenever
+        // Figma pinned the size: a folded asset has no children left to
+        // measure, and a container whose children are smaller than the frame
+        // shrinks to the wrong size. Restate what Figma fixed.
+        if fixed_w && fixed_h && width.is_none() && height.is_none() {
+            width = view.number("width").map(px);
+            height = view.number("height").map(px);
+        }
     } else if is_page_root {
         // Figma page roots define the component canvas; their editor dimensions
         // are not emitted as runtime constraints.
