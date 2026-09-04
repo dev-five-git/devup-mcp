@@ -347,7 +347,10 @@ async fn dcr_403_is_classified_as_catalog_rejected_with_actionable_options() -> 
     let options = error.details["options"]
         .as_array()
         .expect("catalog-rejected errors carry actionable options");
-    assert_eq!(options.len(), 4);
+    // Three, not four: the local Dev Mode MCP was offered here and cannot
+    // serve devup-mcp at all, since it has no use_figma to run a collection
+    // with. An option that cannot work costs a turn to discover.
+    assert_eq!(options.len(), 3);
     assert!(
         options
             .iter()

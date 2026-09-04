@@ -139,11 +139,6 @@ async fn doctor_action_reports_measured_paths_and_client_setup_data() -> anyhow:
     assert_eq!(output["status"], "disconnected");
     assert_eq!(output["paths"]["direct"]["available"], false);
     assert!(output["paths"]["direct"]["reason"].is_string());
-    assert_eq!(
-        output["paths"]["localDevMode"]["endpoint"],
-        "http://127.0.0.1:3845/mcp"
-    );
-    assert!(output["paths"]["localDevMode"]["reachable"].is_boolean());
     assert_eq!(output["paths"]["hostHandoff"]["expectedTool"], "use_figma");
 
     let client_setup = &output["clientSetup"];
@@ -172,10 +167,6 @@ async fn doctor_action_reports_measured_paths_and_client_setup_data() -> anyhow:
             .as_str()
             .unwrap()
             .contains("figma")
-    );
-    assert_eq!(
-        client_setup["localDevMode"]["endpoint"],
-        "http://127.0.0.1:3845/mcp"
     );
 
     // No actual credential material, ever. `clientSetup` legitimately
@@ -261,11 +252,6 @@ async fn needs_figma_always_carries_an_actionable_host_requirement() -> anyhow::
             .as_str()
             .unwrap()
             .contains("doctor")
-    );
-    assert!(host_requirement["localDevMode"]["reachable"].is_boolean());
-    assert_eq!(
-        host_requirement["localDevMode"]["endpoint"],
-        "http://127.0.0.1:3845/mcp"
     );
     Ok(())
 }
@@ -516,5 +502,52 @@ async fn configure_action_fails_for_auth_backends_that_do_not_support_it() -> an
     .await
     .expect_err("plain AuthProbe does not support configure");
     assert!(!error.to_string().is_empty());
+    Ok(())
+}
+
+/// The Figma desktop app's local Dev Mode MCP serves six read tools and
+/// `use_figma` is not among them, so every collection devup-mcp performs —
+/// snapshot, explore, section index, theme — has no tool there to run. Its
+/// tools also address whatever the desktop app currently has open rather than
+/// a file key. It was reported as a third connection path and described as
+/// usable without OAuth, and an agent that believed it spent its turn finding
+/// out otherwise. Nothing devup-mcp says should name it.
+#[tokio::test]
+async fn nothing_offers_the_local_dev_mode_server_as_a_path() -> anyhow::Result<()> {
+    let doctor = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_auth",
+        json!({ "action": "doctor" }),
+    )
+    .await?
+    .structured_content
+    .unwrap();
+    let handoff = call_named_tool(
+        Arc::new(AuthProbe {
+            status: AuthStatus::Disconnected,
+        }),
+        Arc::new(UnavailableUpstream::default()),
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "sourcePolicy": "host"
+        }),
+    )
+    .await?
+    .structured_content
+    .unwrap();
+
+    for (label, value) in [("doctor", &doctor), ("export handoff", &handoff)] {
+        let rendered = serde_json::to_string(value)?;
+        for forbidden in ["localDevMode", "3845", "Dev Mode"] {
+            assert!(
+                !rendered.contains(forbidden),
+                "{label} still names the local Dev Mode server via {forbidden:?}"
+            );
+        }
+    }
     Ok(())
 }

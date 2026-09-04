@@ -167,7 +167,6 @@ impl UpstreamFailureKind {
             details["options"] = json!([
                 "Register devup-mcp on the Figma MCP Catalog waitlist: https://www.figma.com/mcp-catalog/",
                 "Inject client credentials you obtained yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }",
-                "Use the local Dev Mode MCP in the Figma desktop app (no OAuth needed)",
                 "Hand off to the official Figma MCP registered on the host (sourcePolicy: auto or host, the current default fallback)"
             ]);
         }

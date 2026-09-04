@@ -13,8 +13,8 @@
 //!   and tells the agent exactly which tool to call, what not to touch, and
 //!   to stop and report rather than guess when no Figma MCP is reachable.
 //! - [`doctor_report`] backs the `devup_figma_auth {"action":"doctor"}`
-//!   action and reports which of the three connection paths (direct OAuth,
-//!   local Dev Mode MCP, host handoff) are actually usable right now, plus
+//!   action and reports which of the two connection paths (direct OAuth,
+//!   host handoff) are actually usable right now, plus
 //!   client-specific setup data for the constraints that were verified by
 //!   hand (client_name allowlist, redirect_uri shape, the silent callback
 //!   port collision, PAT rejection).
@@ -22,58 +22,21 @@
 //! All facts embedded here (allowlist behavior, redirect_uri constraints,
 //! the callback-port trap) were measured against the real Figma Remote MCP
 //! registration endpoint; see `README.md`'s "Figma 연결 설정" section for
-//! the same data in prose form. `doctor_report` performs exactly one
-//! network-free-adjacent probe (a bounded local TCP connect) and no
-//! external HTTP calls, so it stays cheap enough to call on every
-//! diagnosis.
-
-use std::time::Duration;
+//! the same data in prose form. `doctor_report` makes no network call at
+//! all, so it stays cheap enough to call on every diagnosis.
+//!
+//! The Figma desktop app's local Dev Mode MCP was reported here as a third
+//! path, probed for and described as usable without OAuth. It is not one:
+//! it serves six read tools and `use_figma` is not among them, so every
+//! collection devup-mcp performs — snapshot, explore, section index, theme —
+//! has no tool to run. Its tools also take only a node id, addressing
+//! whatever the desktop app currently has open rather than a file key.
+//! Naming it as a path sent agents to a dead end, so it is named nowhere.
 
 use devup_mcp_figma::{
     AuthStatus, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot,
 };
 use serde_json::{Value, json};
-
-/// Loopback address the Figma desktop app's local Dev Mode MCP server binds
-/// when enabled. OAuth-free; reachable regardless of which MCP client host
-/// is in use.
-pub const LOCAL_DEV_MODE_ADDR: &str = "127.0.0.1:3845";
-/// The MCP endpoint URL for the local Dev Mode server (same host/port as
-/// [`LOCAL_DEV_MODE_ADDR`], with the `/mcp` path Figma serves it on).
-pub const LOCAL_DEV_MODE_ENDPOINT: &str = "http://127.0.0.1:3845/mcp";
-
-/// Upper bound on how long a local reachability probe may block a tool
-/// call. Deliberately short: this is a same-host TCP connect, not a network
-/// round trip, so anything slower than a few hundred milliseconds means the
-/// port simply is not listening.
-const PROBE_TIMEOUT: Duration = Duration::from_millis(300);
-
-/// Best-effort, error-swallowing TCP reachability probe. A refused
-/// connection, a timeout, or any other I/O failure is reported as `false`
-/// rather than propagated: a diagnostic probe must never fail the request
-/// it is trying to help diagnose.
-async fn probe_reachable(addr: &str, timeout: Duration) -> bool {
-    tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr))
-        .await
-        .is_ok_and(|connection| connection.is_ok())
-}
-
-/// Probes [`LOCAL_DEV_MODE_ADDR`] with a short timeout. Never errors.
-pub async fn local_dev_mode_reachable() -> bool {
-    probe_reachable(LOCAL_DEV_MODE_ADDR, PROBE_TIMEOUT).await
-}
-
-fn local_dev_mode_hint(reachable: bool) -> String {
-    if reachable {
-        format!(
-            "{LOCAL_DEV_MODE_ENDPOINT} is responding. If the host has this local Dev Mode MCP registered, you can use its tools directly without OAuth."
-        )
-    } else {
-        format!(
-            "{LOCAL_DEV_MODE_ENDPOINT} is not responding. Enable Figma desktop app -> Preferences -> Dev Mode MCP server to use it without OAuth (requires a paid plan with a Dev or Full seat)."
-        )
-    }
-}
 
 /// Builds the `hostRequirement` block attached to every `needs_figma`
 /// handoff step. This is the single most important payload in this module:
@@ -83,11 +46,9 @@ fn local_dev_mode_hint(reachable: bool) -> String {
 /// instead of stopping is unacceptable. `ifUnavailable.action` is always
 /// the literal string `"stop-and-report"`; do not remove or soften it.
 ///
-/// Performs exactly one bounded local TCP probe
-/// ([`local_dev_mode_reachable`]); never makes an external network call and
-/// never fails the handoff it is attached to.
+/// Makes no network call of any kind and never fails the handoff it is
+/// attached to.
 pub async fn host_requirement() -> Value {
-    let reachable = local_dev_mode_reachable().await;
     json!({
         "reason": "devup-mcp does not connect to Figma directly. The official Figma MCP registered on the host must run this read-only call on its behalf.",
         "steps": [
@@ -96,11 +57,6 @@ pub async fn host_requirement() -> Value {
             "Pass the raw result through unchanged to devup_figma_continue { sessionId, callId, result }.",
             "While status is needs_figma, repeat until expiresAt."
         ],
-        "localDevMode": {
-            "endpoint": LOCAL_DEV_MODE_ENDPOINT,
-            "reachable": reachable,
-            "hint": local_dev_mode_hint(reachable)
-        },
         "ifUnavailable": {
             "action": "stop-and-report",
             "message": "If no Figma MCP is reachable, stop immediately and report. Do not implement by guessing design values.",
@@ -136,7 +92,6 @@ pub async fn host_requirement() -> Value {
 /// the stored token is fresh, and — when a fixed callback port is
 /// configured — whether it is actually free right now.
 pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Value {
-    let reachable = local_dev_mode_reachable().await;
     let direct_available = status == AuthStatus::Connected;
     json!({
         "status": status,
@@ -155,11 +110,6 @@ pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Va
                     "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
                 },
                 "reason": direct_reason(direct_available, direct.credential_source)
-            },
-            "localDevMode": {
-                "endpoint": LOCAL_DEV_MODE_ENDPOINT,
-                "reachable": reachable,
-                "hint": "Figma desktop -> Preferences -> enable the Dev Mode MCP server (requires a Dev/Full seat)"
             },
             "hostHandoff": {
                 "expectedTool": "use_figma",
@@ -189,8 +139,8 @@ fn direct_reason(
              default allowlisted client_name (see registrationClientName). If that returns 403, \
              the allowlist rejected the name — register a client credential you obtained yourself \
              via devup_figma_auth { action: \"configure\", clientId, clientSecret }, join the \
-             Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/), use the local Dev \
-             Mode MCP, or use the host handoff (sourcePolicy: auto or host)."
+             Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/), or use the host \
+             handoff (sourcePolicy: auto or host)."
         }
         ClientCredentialSource::CliArg
         | ClientCredentialSource::Env
@@ -241,10 +191,6 @@ fn client_setup() -> Value {
                     }
                 }
             }
-        },
-        "localDevMode": {
-            "endpoint": LOCAL_DEV_MODE_ENDPOINT,
-            "hint": "No OAuth needed. Turning on the Dev Mode MCP server in the Figma desktop app behaves identically from any MCP client. Requires a paid plan with a Dev or Full seat."
         }
     })
 }
@@ -252,21 +198,6 @@ fn client_setup() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn reports_reachable_when_a_listener_is_bound() {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap().to_string();
-        assert!(probe_reachable(&addr, PROBE_TIMEOUT).await);
-    }
-
-    #[tokio::test]
-    async fn reports_unreachable_without_erroring_when_the_port_is_closed() {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap().to_string();
-        drop(listener);
-        assert!(!probe_reachable(&addr, PROBE_TIMEOUT).await);
-    }
 
     #[tokio::test]
     async fn host_requirement_always_instructs_stop_and_report_when_unavailable() {
@@ -279,7 +210,6 @@ mod tests {
                 .is_empty()
         );
         assert!(value["steps"].as_array().unwrap().len() >= 4);
-        assert!(value["localDevMode"]["reachable"].is_boolean());
     }
 
     #[tokio::test]
@@ -347,10 +277,6 @@ mod tests {
         let disconnected = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
         assert_eq!(disconnected["status"], "disconnected");
         assert_eq!(disconnected["paths"]["direct"]["available"], false);
-        assert_eq!(
-            disconnected["paths"]["localDevMode"]["endpoint"],
-            LOCAL_DEV_MODE_ENDPOINT
-        );
         assert_eq!(
             disconnected["paths"]["hostHandoff"]["expectedTool"],
             "use_figma"

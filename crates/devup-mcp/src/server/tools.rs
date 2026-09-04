@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 /// `action` is `status`, `login`, `logout`, `configure`, or `doctor`.
 /// `doctor` never touches OAuth state; it measures which connection paths
-/// (direct OAuth, local Dev Mode MCP, host handoff) are currently usable
+/// (direct OAuth, host handoff) are currently usable
 /// and returns client-specific setup guidance. `configure` persists a
 /// pre-registered client credential (`clientId`, optional `clientSecret`)
 /// so later `login` calls skip Dynamic Client Registration entirely; the
