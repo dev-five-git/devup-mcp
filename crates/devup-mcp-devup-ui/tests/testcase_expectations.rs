@@ -102,21 +102,41 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
     // Pair by proximity rather than by a fixed direction: a case sits above its
     // note in one section and beside it in another, so any rule about which way
     // to look holds for one layout and silently pairs nothing in the next.
-    expectations
-        .into_iter()
-        .filter_map(|(at, expected)| {
-            shapes
-                .iter()
-                .min_by(|left, right| {
-                    let distance = |(x, y): (f64, f64)| (x - at.0).powi(2) + (y - at.1).powi(2);
-                    distance(left.0).total_cmp(&distance(right.0))
-                })
-                .map(|(_, node_id)| Case {
-                    expected,
-                    node_id: node_id.clone(),
-                })
-        })
-        .collect()
+    //
+    // One note, one case. Letting each note take whatever is nearest lets them
+    // crowd onto the same case, and a note whose case is far away claims the
+    // commentary lying beside it instead — a difference reported against a
+    // paragraph of Korean prose. Closest pairs are settled first, and each side
+    // is spoken for once.
+    let mut pairs = Vec::with_capacity(expectations.len() * shapes.len());
+    for (note, (at, _)) in expectations.iter().enumerate() {
+        for (case, (case_at, _)) in shapes.iter().enumerate() {
+            let distance = (case_at.0 - at.0).powi(2) + (case_at.1 - at.1).powi(2);
+            pairs.push((distance, note, case));
+        }
+    }
+    pairs.sort_by(|left, right| {
+        left.0
+            .total_cmp(&right.0)
+            .then_with(|| left.1.cmp(&right.1))
+            .then_with(|| left.2.cmp(&right.2))
+    });
+
+    let mut spoken_for_note = vec![false; expectations.len()];
+    let mut spoken_for_case = vec![false; shapes.len()];
+    let mut cases = Vec::new();
+    for (_, note, case) in pairs {
+        if spoken_for_note[note] || spoken_for_case[case] {
+            continue;
+        }
+        spoken_for_note[note] = true;
+        spoken_for_case[case] = true;
+        cases.push(Case {
+            expected: expectations[note].1.clone(),
+            node_id: shapes[case].1.clone(),
+        });
+    }
+    cases
 }
 
 #[test]
