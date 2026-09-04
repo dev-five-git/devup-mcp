@@ -15,6 +15,12 @@
 //! ways, and normalising toward the note would have broken three goldens and
 //! moved away from the reference implementation.
 //!
+//! The size a case states is the same kind of shorthand. Every note here ends
+//! `boxSize="150px"`, we emit nothing, and reading that as a defect and
+//! restoring the size broke thirty-eight goldens — among them the very cases
+//! being read. A shape on a page carries the canvas it was drawn on, not a size
+//! anyone chose, and the plugin drops it; the note writes down what was drawn.
+//!
 //! So a difference here is a question: check the corpus before treating it as
 //! a defect. Where the corpus agrees with us the note is shorthand; where it
 //! agrees with the note, that is ours to fix.
@@ -45,21 +51,25 @@ struct Case {
 }
 
 fn cases(snapshot: &Snapshot) -> Vec<Case> {
-    let node = |id: &str| snapshot.nodes.get(id);
-    let x_of = |id: &str| {
-        node(id)
-            .and_then(|n| n.typed_view().number("x"))
-            .unwrap_or(f64::MAX)
+    let centre = |id: &str| {
+        let view = snapshot.nodes.get(id)?.typed_view();
+        let (x, y) = (view.number("x")?, view.number("y")?);
+        let (w, h) = (
+            view.number("width").unwrap_or(0.0),
+            view.number("height").unwrap_or(0.0),
+        );
+        Some((x + w / 2.0, y + h / 2.0))
     };
 
-    // A case frame holds the shape; the Code frame beside it holds the text.
-    let mut roots: Vec<&String> = snapshot.roots.iter().collect();
-    roots.sort_by(|left, right| x_of(left).total_cmp(&x_of(right)));
-
-    let mut expectations: Vec<(f64, String)> = Vec::new();
-    let mut shapes: Vec<(f64, String)> = Vec::new();
-    for root in roots {
-        let Some(raw) = node(root) else { continue };
+    // A case frame holds the shape; a Code frame beside it holds the text that
+    // says what the shape should produce.
+    let mut expectations: Vec<((f64, f64), String)> = Vec::new();
+    let mut shapes: Vec<((f64, f64), String)> = Vec::new();
+    for root in &snapshot.roots {
+        let Some(raw) = snapshot.nodes.get(root) else {
+            continue;
+        };
+        let Some(at) = centre(root) else { continue };
         let view = raw.typed_view();
         let text = view
             .child_ids()
@@ -73,23 +83,34 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
                     .map(str::to_owned)
             });
         match text {
-            Some(text) => expectations.push((x_of(root), normalise(&text))),
+            Some(text) => expectations.push((at, normalise(&text))),
             None => {
-                if let Some(shape) = view.child_ids().next() {
-                    shapes.push((x_of(root), shape.to_owned()));
-                }
+                // A case is sometimes wrapped in a frame that only positions it
+                // and sometimes stands as the root itself, so neither the root
+                // nor its first child is right on its own. A lone child is the
+                // wrapped case; anything else is the case.
+                let children = view.child_ids().collect::<Vec<_>>();
+                let shape = match children.as_slice() {
+                    [only] => (*only).to_owned(),
+                    _ => root.clone(),
+                };
+                shapes.push((at, shape));
             }
         }
     }
 
-    // Each expectation belongs to the nearest shape to its right.
+    // Pair by proximity rather than by a fixed direction: a case sits above its
+    // note in one section and beside it in another, so any rule about which way
+    // to look holds for one layout and silently pairs nothing in the next.
     expectations
         .into_iter()
         .filter_map(|(at, expected)| {
             shapes
                 .iter()
-                .filter(|(shape_at, _)| *shape_at >= at)
-                .min_by(|left, right| left.0.total_cmp(&right.0))
+                .min_by(|left, right| {
+                    let distance = |(x, y): (f64, f64)| (x - at.0).powi(2) + (y - at.1).powi(2);
+                    distance(left.0).total_cmp(&distance(right.0))
+                })
                 .map(|(_, node_id)| Case {
                     expected,
                     node_id: node_id.clone(),

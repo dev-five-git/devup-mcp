@@ -49,6 +49,82 @@ fn index_contains_only_top_level_visible_screens_in_visual_order() -> anyhow::Re
 }
 
 #[test]
+fn index_offers_small_cases_standing_beside_screen_shaped_notes() -> anyhow::Result<()> {
+    // Screen shape is a guess for finding screens on an ungrouped page. A
+    // Section of cases annotated with tall notes turns that guess upside down:
+    // the notes measure like screens and the cases do not, so the index offered
+    // every note and hid every case — an answer that looked complete.
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=20-1")?;
+    let nodes = [
+        node(
+            "20:1",
+            "SECTION",
+            json!({
+                "name": "Gradient", "parentId": "0:1", "visible": true,
+                "childrenIds": ["20:2", "20:3", "20:4"],
+                "absoluteBoundingBox": {"x": 0, "y": 0, "width": 1600, "height": 1600}
+            }),
+        ),
+        node(
+            "20:2",
+            "FRAME",
+            json!({
+                "name": "Code", "parentId": "20:1", "visible": true, "childrenIds": [],
+                "absoluteBoundingBox": {"x": 0, "y": 300, "width": 600, "height": 391}
+            }),
+        ),
+        node(
+            "20:3",
+            "FRAME",
+            json!({
+                "name": "Case", "parentId": "20:1", "visible": true, "childrenIds": [],
+                "absoluteBoundingBox": {"x": 0, "y": 0, "width": 150, "height": 150}
+            }),
+        ),
+        node(
+            "20:4",
+            "TEXT",
+            json!({
+                "name": "Label", "parentId": "20:1", "visible": true, "childrenIds": [],
+                "characters": "Gradient", "absoluteBoundingBox": {"x": 0, "y": 700, "width": 90, "height": 24}
+            }),
+        ),
+    ]
+    .into_iter()
+    .map(|node| (node.id.clone(), node))
+    .collect::<BTreeMap<_, _>>();
+    let snapshot = Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["20:1".to_owned()],
+        nodes,
+        diagnostics: Vec::new(),
+    };
+
+    let index = build_section_index(&snapshot, &target)?;
+
+    let offered = index
+        .candidates
+        .iter()
+        .map(|candidate| candidate.node_id.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        offered.contains(&"20:2"),
+        "the note still stands: {offered:?}"
+    );
+    assert!(
+        offered.contains(&"20:3"),
+        "the case is what was asked for: {offered:?}"
+    );
+    assert!(
+        !offered.contains(&"20:4"),
+        "text on a Section labels it: {offered:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn selection_and_batches_are_strict_bounded_and_deterministic() -> anyhow::Result<()> {
     let target =
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1")?;

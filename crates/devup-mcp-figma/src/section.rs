@@ -160,20 +160,36 @@ pub fn build_section_index(
         }
     }
     // A Section is answered with the screens inside it, because converting one
-    // whole is too much. A Section holding none — a catalogue of small cases, a
-    // page of components, anything not phone or desktop shaped — produced an
-    // empty list, and the caller was told to select from nothing with no way
-    // forward. Its own children are the honest answer there: they are what the
-    // Section actually offers.
-    if screen_nodes.is_empty() {
-        screen_nodes = section
-            .typed_view()
-            .child_ids()
-            .filter_map(|child_id| snapshot.nodes.get(child_id))
-            .filter_map(|child| ExploreNode::try_from(child).ok())
-            .filter(|child| child.visible)
-            .collect();
-    }
+    // whole is too much. But a Section is an explicit grouping, and screen shape
+    // is a guess used to find screens on a page that has no grouping: applied
+    // here it silently drops whatever is not phone or desktop shaped. A section
+    // of small cases offered nothing at all, and — worse, because it looked
+    // like an answer — a section mixing tall notes with small cases offered the
+    // notes and hid every case. What the Section holds is what it offers, so its
+    // own children stand alongside the screens found within it.
+    let found_screen_ids = screen_nodes
+        .iter()
+        .map(|node| node.node_id.clone())
+        .collect::<BTreeSet<_>>();
+    let children = section
+        .typed_view()
+        .child_ids()
+        .filter_map(|child_id| snapshot.nodes.get(child_id))
+        // Text lying directly on a Section is how designers label one, not
+        // something to convert. Text that is content sits inside a frame.
+        .filter(|child| child.node_type != "TEXT")
+        .filter_map(|child| ExploreNode::try_from(child).ok())
+        .filter(|child| child.visible)
+        .filter(|child| !found_screen_ids.contains(&child.node_id))
+        // A child holding a screen would offer that screen twice over, once
+        // whole and once inside itself.
+        .filter(|child| {
+            !found_screen_ids
+                .iter()
+                .any(|screen| is_descendant(snapshot, screen, &child.node_id))
+        })
+        .collect::<Vec<_>>();
+    screen_nodes.extend(children);
     let screen_ids = screen_nodes
         .iter()
         .map(|node| node.node_id.clone())
