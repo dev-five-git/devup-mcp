@@ -159,6 +159,21 @@ pub fn build_section_index(
             screen_nodes.push(explore);
         }
     }
+    // A Section is answered with the screens inside it, because converting one
+    // whole is too much. A Section holding none — a catalogue of small cases, a
+    // page of components, anything not phone or desktop shaped — produced an
+    // empty list, and the caller was told to select from nothing with no way
+    // forward. Its own children are the honest answer there: they are what the
+    // Section actually offers.
+    if screen_nodes.is_empty() {
+        screen_nodes = section
+            .typed_view()
+            .child_ids()
+            .filter_map(|child_id| snapshot.nodes.get(child_id))
+            .filter_map(|child| ExploreNode::try_from(child).ok())
+            .filter(|child| child.visible)
+            .collect();
+    }
     let screen_ids = screen_nodes
         .iter()
         .map(|node| node.node_id.clone())

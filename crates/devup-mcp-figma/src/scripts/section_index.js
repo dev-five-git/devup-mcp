@@ -89,6 +89,16 @@ for (let index = 0; index < queue.length && traversalCount < MAX_TRAVERSED_NODES
   }
   if ("children" in node) queue.push(...node.children);
 }
+// Nothing screen shaped inside means the search found nothing to offer, and
+// the caller is left selecting from an empty list. The Section's own children
+// are what it actually holds, so carry them instead — a catalogue of small
+// cases or a page of components has no screens by this measure.
+if (candidateNodes.length === 0 && "children" in section) {
+  for (const node of section.children) {
+    const box = bounds(node);
+    if (box && node.visible !== false) candidateNodes.push({ node, box });
+  }
+}
 candidateNodes.sort((left, right) =>
   left.box.y - right.box.y
     || left.box.x - right.box.x
