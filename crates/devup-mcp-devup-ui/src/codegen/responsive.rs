@@ -780,12 +780,19 @@ fn render_merged(tree: &Tree, depth: usize) -> String {
         );
     }
 
+    // A shape spelled out in place of the component it came from still says
+    // which component that was, or a reader has nothing to go on when the
+    // change belongs upstream.
+    let comment = match &tree.leading_comment {
+        Some(comment) => format!("{indent}{{/* {comment} */}}\n"),
+        None => String::new(),
+    };
     let component = &tree.component;
     if children.is_empty() {
         if multiline {
-            format!("{indent}<{component}{opening}\n{indent}/>")
+            format!("{comment}{indent}<{component}{opening}\n{indent}/>")
         } else {
-            format!("{indent}<{component}{opening} />")
+            format!("{comment}{indent}<{component}{opening} />")
         }
     } else {
         let close_open = if multiline {
@@ -794,7 +801,7 @@ fn render_merged(tree: &Tree, depth: usize) -> String {
             ">".to_owned()
         };
         format!(
-            "{indent}<{component}{opening}{close_open}\n{}\n{indent}</{component}>",
+            "{comment}{indent}<{component}{opening}{close_open}\n{}\n{indent}</{component}>",
             children.join("\n")
         )
     }

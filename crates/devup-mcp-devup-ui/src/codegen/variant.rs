@@ -31,6 +31,9 @@ pub(super) struct Tree {
     /// The variant options this node is drawn at, when it is not drawn at all
     /// of them. Rendered as the condition guarding it.
     pub drawn_when: Vec<String>,
+    /// A JSX comment to write immediately above this node, naming the
+    /// component it was spelled out from.
+    pub leading_comment: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -342,32 +345,62 @@ pub(super) const POSITION_PROPS: [&str; 7] = [
 
 /// A component property's name as it is written in code.
 ///
-/// Figma names the first variant property for the editor's language, so a file
-/// authored in Korean calls it `속성 1`. The plugin rewrites that word, and
-/// without doing the same the generated prop would not match the definition
-/// the plugin emits for the same component.
+/// This is the plugin's `sanitizePropertyName`. Figma names the first variant
+/// property for the editor's language, so a file authored in Korean calls it
+/// `속성 1` — and a file where someone typed it in English calls it
+/// `Property 1`. Both become one identifier, and which one matters: the
+/// definition the plugin emits for the same component declares that exact name.
+///
+/// Note what it does *not* do. The first word keeps its case, so `Property 1`
+/// is `Property1` and not `property1`; folding it turned `leftIcon` into
+/// `lefticon`. And only a trailing `#<digits>:<digits>` is stripped, since
+/// that is Figma's own suffix rather than a character a name may not contain.
 fn instance_property_name(raw: &str) -> String {
-    let base = raw
-        .split('#')
-        .next()
-        .unwrap_or(raw)
-        .replace("속성", "property");
-    // A name that is already one word is already what it is called in code.
-    // Folding case here turned `leftIcon` into `lefticon`.
-    if !base.contains(char::is_whitespace) {
-        return base;
+    let stripped = raw
+        .rsplit_once('#')
+        .filter(|(_, suffix)| {
+            suffix.split_once(':').is_some_and(|(left, right)| {
+                !left.is_empty()
+                    && !right.is_empty()
+                    && left.bytes().all(|byte| byte.is_ascii_digit())
+                    && right.bytes().all(|byte| byte.is_ascii_digit())
+            })
+        })
+        .map_or(raw, |(base, _)| base);
+
+    // The Korean word takes any space after it with it, so `속성 1` is
+    // `property1` rather than `property 1` waiting to be camel-cased.
+    let mut normalized = String::with_capacity(stripped.len());
+    let mut rest = stripped.trim();
+    while let Some(at) = rest.find("속성") {
+        normalized.push_str(&rest[..at]);
+        normalized.push_str("property");
+        rest = rest[at + "속성".len()..].trim_start();
     }
-    let mut name = String::with_capacity(base.len());
-    for (index, word) in base.split_whitespace().enumerate() {
-        if index == 0 {
-            name.push_str(&word.to_lowercase());
-        } else {
-            let mut characters = word.chars();
-            if let Some(first) = characters.next() {
-                name.extend(first.to_uppercase());
-                name.push_str(characters.as_str());
-            }
+    normalized.push_str(rest);
+
+    let mut name = String::with_capacity(normalized.len());
+    let mut capitalize = false;
+    for character in normalized.chars() {
+        if character.is_whitespace() || character == '-' || character == '_' {
+            capitalize = true;
+            continue;
         }
+        if capitalize {
+            name.extend(character.to_uppercase());
+            capitalize = false;
+        } else {
+            name.push(character);
+        }
+    }
+    if name.starts_with(|character: char| character.is_ascii_digit()) {
+        name.insert(0, '_');
+    }
+    name.retain(|character| {
+        character.is_ascii_alphanumeric() || character == '_' || character == '$'
+    });
+    if name.is_empty() || name.bytes().all(|byte| byte.is_ascii_digit()) {
+        return "variant".to_owned();
     }
     name
 }
@@ -402,30 +435,47 @@ fn project_tree_inner(
         // body is one masked Box, so the reference costs a file and an import
         // and says less than the Box does. The plugin does the same, and marks
         // the spot with a `{/* <Logo /> */}` comment.
-        let expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
-        if is_asset_leaf(&expanded) {
-            return Ok(expanded);
-        }
         let mut props = BTreeMap::new();
-        // The variant each width picked. These are the instance's own choice,
-        // not something to merge — a component answers for its own widths.
-        if let Some(properties) = view.value("componentProperties").and_then(Value::as_object) {
-            for (raw, definition) in properties {
-                if definition.get("type").and_then(Value::as_str) != Some("VARIANT") {
-                    continue;
-                }
-                let name = instance_property_name(raw);
-                if RESERVED_VARIANT_KEYS
-                    .iter()
-                    .any(|reserved| name.eq_ignore_ascii_case(reserved))
-                {
-                    continue;
-                }
-                if let Some(value) = definition.get("value").and_then(Value::as_str) {
-                    props.insert(name, value.to_owned());
-                }
+        for (raw, definition) in view
+            .value("componentProperties")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+        {
+            if definition.get("type").and_then(Value::as_str) != Some("VARIANT") {
+                continue;
+            }
+            let name = instance_property_name(raw);
+            if RESERVED_VARIANT_KEYS
+                .iter()
+                .any(|reserved| name.eq_ignore_ascii_case(reserved))
+            {
+                continue;
+            }
+            if let Some(value) = definition.get("value").and_then(Value::as_str) {
+                props.insert(name, value.to_owned());
             }
         }
+        let mut expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
+        if is_asset_leaf(&expanded) {
+            // Spelling the shape out loses which component it came from, and
+            // that is the one thing a reader needs to change it in the right
+            // place. The reference leaves the call it declined to write.
+            let attributes = props
+                .iter()
+                .map(|(name, value)| format!(" {name}=\"{value}\""))
+                .collect::<Vec<_>>()
+                .join("");
+            expanded.leading_comment = Some(format!(
+                "<{}{attributes} />",
+                referenced_component_name(snapshot, view.name())
+            ));
+            return Ok(expanded);
+        }
+        // The variant each width picked, collected above. These are the
+        // instance's own choice, not something to merge — a component answers
+        // for its own widths.
+
         // Where the instance sits. `<Header />` has nowhere to put this, so the
         // renderer gives it a Box; keeping the values here lets them merge
         // across widths first.
@@ -456,6 +506,7 @@ fn project_tree_inner(
             is_component: true,
             visible_when: visible_when(&view),
             drawn_when: Vec::new(),
+            leading_comment: None,
         });
     }
     let asset = style::asset_kind(snapshot, node);
@@ -574,6 +625,7 @@ fn project_tree_inner(
         is_component: false,
         visible_when: visible_when(&view),
         drawn_when: Vec::new(),
+        leading_comment: None,
     })
 }
 
@@ -686,7 +738,7 @@ fn merged_props(
                 path.unwrap_or_default(),
                 &prop,
             )?;
-            Some((prop, render_expression_attr(&expression)))
+            Some((prop.clone(), render_expression_attr(&prop, &expression)))
         })
         .collect()
 }
@@ -1443,6 +1495,10 @@ fn render_tree(
     // A node a boolean property switches on is written as that condition. The
     // brace has to wrap the whole element, so it is applied after the element
     // is rendered rather than woven into it.
+    let rendered = match &tree.leading_comment {
+        Some(comment) => format!("{indent}{{/* {comment} */}}\n{rendered}"),
+        None => rendered,
+    };
     let guards = tree
         .visible_when
         .iter()
@@ -1468,11 +1524,26 @@ fn render_tree(
         .fold(rendered, |rendered, node_id| mark_node(node_id, rendered))
 }
 
-fn render_expression_attr(expression: &Expression) -> String {
+/// `typography` names a token, and devup-ui types it by the literal. Handing it
+/// a map indexed at runtime widens every entry to `string` and the token is no
+/// longer one, so the object is frozen: `({ lg: "buttonLg", … } as const)[size]`.
+/// It is the only prop that needs it, which is how the reference writes it too.
+fn needs_const(prop: &str) -> bool {
+    prop == "typography"
+}
+
+fn render_expression_attr(prop: &str, expression: &Expression) -> String {
     match expression {
         Expression::Literal(value) => format!("=\"{value}\""),
-        Expression::Conditional(prop, option, value) => {
-            format!("={{{prop} === '{option}' && \"{value}\"}}")
+        Expression::Conditional(name, option, value) => {
+            format!("={{{name} === '{option}' && \"{value}\"}}")
+        }
+        Expression::Variant(name, _) if needs_const(prop) => {
+            let rendered = render_expression_value(expression, 0);
+            let object = rendered
+                .strip_suffix(&format!("[{name}]"))
+                .unwrap_or(&rendered);
+            format!("={{({object} as const)[{name}]}}")
         }
         _ => format!("={{{}}}", render_expression_value(expression, 0)),
     }

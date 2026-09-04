@@ -91,6 +91,19 @@ fn components_are_referenced_and_shapes_are_spelled_out() {
             "{inlined} is an asset and should have been spelled out"
         );
     }
+    // Spelling it out loses which component it came from, and that is the one
+    // thing a reader needs to change it in the right place. The name is the one
+    // the definition declares: `Icons` types its property `Property 1` where
+    // every other component in this file uses the Korean `속성 1`, and the two
+    // sanitize differently.
+    assert!(merged.tsx.contains("{/* <Logo /> */}"), "{}", merged.tsx);
+    assert!(
+        merged
+            .tsx
+            .contains(r#"{/* <Icons Property1="search" /> */}"#),
+        "{}",
+        merged.tsx
+    );
     assert!(merged.tsx.contains(r#"<Header property1="transparent" />"#));
     // `effect` names the interaction state a variant stands for, and the
     // definition folds those into `_hover` / `_active`. A call site has no
