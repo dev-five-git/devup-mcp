@@ -258,17 +258,25 @@ impl DevupAuth for LoginAuth {
     }
 }
 
+/// Converting says what it needs rather than reaching for the browser on its
+/// own. A tool that logs a user in as a side effect of asking for code decides
+/// something they did not ask it to decide, and the request that provoked it is
+/// gone by the time they see the window.
 #[tokio::test]
-async fn conversion_returns_host_handoff_without_starting_oauth() -> anyhow::Result<()> {
+async fn conversion_asks_to_be_logged_in_rather_than_starting_oauth() -> anyhow::Result<()> {
     let auth = Arc::new(LoginAuth::default());
-    let output = call_tool_with_auth(
+    let error = call_tool_with_auth(
         auth.clone(),
         "devup_figma_to_ui",
         json!({"url": "https://figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481"}),
     )
-    .await?;
+    .await
+    .expect_err("a disconnected direct path cannot convert");
 
-    assert_eq!(output["status"], "needs_figma");
+    assert!(
+        error.to_string().contains("devup_figma_auth login"),
+        "the error should name the action that fixes it: {error}"
+    );
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
     Ok(())
 }

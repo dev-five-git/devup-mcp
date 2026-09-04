@@ -15,11 +15,11 @@ pub struct FigmaTarget {
 impl FigmaTarget {
     pub fn parse(input: &str) -> Result<Self, DevupError> {
         let url = Url::parse(input)
-            .map_err(|_| DevupError::unsupported_file("올바른 Figma 링크가 아닙니다."))?;
+            .map_err(|_| DevupError::unsupported_file("Not a valid Figma link."))?;
         if url.scheme() != "https" || !matches!(url.host_str(), Some("figma.com" | "www.figma.com"))
         {
             return Err(DevupError::unsupported_file(
-                "HTTPS Figma 디자인 링크만 사용할 수 있습니다.",
+                "Only HTTPS Figma design links are supported.",
             ));
         }
 
@@ -34,7 +34,7 @@ impl FigmaTarget {
             }
             _ => {
                 return Err(DevupError::unsupported_file(
-                    "지원하는 Figma design, file 또는 branch 링크가 아닙니다.",
+                    "Not a supported Figma design, file, or branch link.",
                 ));
             }
         };
@@ -65,7 +65,7 @@ fn validate_key(key: &str) -> Result<(), DevupError> {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
     {
         return Err(DevupError::unsupported_file(
-            "Figma 파일 또는 브랜치 키 형식이 올바르지 않습니다.",
+            "Figma file or branch key format is invalid.",
         ));
     }
     Ok(())
@@ -78,7 +78,7 @@ fn normalize_node_id(node_id: &str) -> Result<String, DevupError> {
         format!("{left}:{right}")
     } else {
         return Err(DevupError::unsupported_file(
-            "Figma node-id 형식이 올바르지 않습니다.",
+            "Figma node-id format is invalid.",
         ));
     };
 
@@ -90,7 +90,7 @@ fn normalize_node_id(node_id: &str) -> Result<String, DevupError> {
             && right.bytes().all(|byte| byte.is_ascii_digit()));
     if !valid {
         return Err(DevupError::unsupported_file(
-            "Figma node-id 형식이 올바르지 않습니다.",
+            "Figma node-id format is invalid.",
         ));
     }
     Ok(normalized)

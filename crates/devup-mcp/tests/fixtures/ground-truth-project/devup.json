@@ -1,0 +1,25 @@
+{
+  "theme": {
+    "colors": {
+      "default": {
+        "captionLight": "#8a8a8a",
+        "backgroundLight": "#fafafa",
+        "primaryColor": "#3366ff"
+      },
+      "dark": {
+        "captionLight": "#cccccc",
+        "backgroundLight": "#111111",
+        "primaryColor": "#6699ff"
+      }
+    },
+    "typography": {
+      "body1": { "fontSize": "14px", "lineHeight": "20px" }
+    },
+    "length": {
+      "default": { "sm": "8px", "md": "16px", "lg": "24px" }
+    },
+    "shadow": {
+      "default": { "card": "0 1px 2px rgba(0,0,0,0.1)" }
+    }
+  }
+}

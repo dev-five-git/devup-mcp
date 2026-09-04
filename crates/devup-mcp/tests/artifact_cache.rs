@@ -77,6 +77,7 @@ fn payload(file_key: &str, node_id: &str, marker: &str) -> CollectedPayload {
         stats: CollectionStats::default(),
         assets: Vec::new(),
         reference_png: None,
+        failures: Vec::new(),
     }
 }
 

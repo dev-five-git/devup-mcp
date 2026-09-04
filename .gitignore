@@ -4,3 +4,12 @@
 .env.*
 !.env.example
 
+# Agent session state (oh-my-claudecode / omo), local to a working copy
+.omc/
+.omo/
+
+# Snapshots captured from a live Figma file to iterate on codegen without
+# spending the tool-call allowance. Scratch, not ground truth: the pinned
+# corpus under fixtures/devup-figma-plugin is what decides correctness.
+/fixtures/local-screens/
+

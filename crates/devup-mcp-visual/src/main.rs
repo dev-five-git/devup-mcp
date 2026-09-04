@@ -30,7 +30,7 @@ fn run(arguments: Vec<String>) -> Result<bool, String> {
         let option = arguments[index].as_str();
         let value = arguments
             .get(index + 1)
-            .ok_or_else(|| format!("{option} 값이 필요합니다."))?;
+            .ok_or_else(|| format!("{option} requires a value."))?;
         match option {
             "--reference" => reference = Some(PathBuf::from(value)),
             "--actual" => actual = Some(PathBuf::from(value)),
@@ -38,20 +38,20 @@ fn run(arguments: Vec<String>) -> Result<bool, String> {
             "--channel-tolerance" => {
                 options.channel_tolerance = value
                     .parse()
-                    .map_err(|_| "channel tolerance가 올바르지 않습니다.".to_owned())?;
+                    .map_err(|_| "channel tolerance is not a valid value.".to_owned())?;
             }
             "--max-changed-ratio" => {
                 options.max_changed_ratio = value
                     .parse()
-                    .map_err(|_| "max changed ratio가 올바르지 않습니다.".to_owned())?;
+                    .map_err(|_| "max changed ratio is not a valid value.".to_owned())?;
             }
-            _ => return Err(format!("알 수 없는 option입니다: {option}")),
+            _ => return Err(format!("Unsupported option: {option}")),
         }
         index += 2;
     }
     let report = compare_png(
-        reference.ok_or_else(|| "--reference가 필요합니다.".to_owned())?,
-        actual.ok_or_else(|| "--actual이 필요합니다.".to_owned())?,
+        reference.ok_or_else(|| "--reference is required.".to_owned())?,
+        actual.ok_or_else(|| "--actual is required.".to_owned())?,
         &options,
     )
     .map_err(|error| error.to_string())?;

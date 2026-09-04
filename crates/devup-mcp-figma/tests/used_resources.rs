@@ -64,7 +64,7 @@ fn scanner_collects_bound_variables_and_every_supported_style_field() {
                 "gridStyleId": "S:grid",
                 "backgroundStyleId": "S:background",
                 "styledTextSegments": [{
-                    "characters": "[1. 이름]",
+                    "characters": "[1. Name]",
                     "textStyleId": "S:text-emphasis",
                     "boundVariables": {
                         "fills": [{"type": "VARIABLE_ALIAS", "id": "VariableID:90:12"}]

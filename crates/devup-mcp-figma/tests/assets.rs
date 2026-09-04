@@ -4,9 +4,10 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
     AssetFormat, AssetRequest, AssetSelection, AssetStatus, CollectionRequest, CollectionScope,
     CollectorSession, CollectorStep, FigmaTarget, RawNode, ReadToolCall, Snapshot, UpstreamResult,
-    asset_export_from_result, discover_asset_manifest,
+    asset_export_from_result, discover_asset_manifest, validate_asset_requests,
 };
 use serde_json::{Map, json};
+use sha2::Digest as _;
 
 fn node(id: &str, node_type: &str, fields: serde_json::Value) -> RawNode {
     RawNode {
@@ -24,7 +25,7 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
     let mut request = CollectionRequest::new(target, CollectionScope::Node);
     request.asset_selections = vec![AssetSelection {
-        asset_id: "1:1:fills:1".to_owned(),
+        asset_id: "1:1:fills:0".to_owned(),
         format: AssetFormat::Png,
         scale: 2,
     }];
@@ -54,7 +55,7 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
                     "fileKey":"FileKey123","version":"v1","rootIds":["1:1"],
                     "nodes":[
                         serde_json::to_value(snapshot().nodes["1:1"].clone()).unwrap(),
-                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
+                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"offset":0,"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
                     ],"diagnostics":[]
                 }),
             },
@@ -67,14 +68,14 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
     let ReadToolCall::AssetExport { request, .. } = asset_call.call else {
         panic!("asset export call")
     };
-    assert_eq!(request.asset_id, "1:1:fills:1");
+    assert_eq!(request.asset_id, "1:1:fills:0");
     collector
         .accept(
             &asset_call.id,
             UpstreamResult {
                 raw: json!({
                     "kind":"devupAssetExport","fileKey":"FileKey123","version":"v1",
-                    "assetId":"1:1:fills:1","nodeId":"1:1","field":"fills/1",
+                    "assetId":"1:1:fills:0","nodeId":"1:1","field":"fills/0",
                     "imageHash":"image-hash-123","format":"png","scale":2,
                     "status":"failed","byteLength":null,"sha256":null,
                     "errorCode":"DEVUP_ASSET_EXPORT_FAILED"
@@ -96,29 +97,105 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
     );
 }
 
+/// Figma's remote MCP returns a written PNG as an image attachment but does
+/// not return a written `.svg` at all — the response carries only the
+/// descriptor, as JSON inside a text block. So an SVG export inlines its own
+/// payload beside the descriptor, and the payload search has to step through
+/// that JSON encoding to reach it. Before this, every SVG request failed with
+/// "asset export response does not contain the requested binary" while PNG
+/// worked, and the error said nothing about why.
+#[test]
+fn an_svg_payload_inlined_beside_the_descriptor_is_decoded_from_its_text() {
+    let svg = "<svg width=\"2\" height=\"2\" xmlns=\"http://www.w3.org/2000/svg\"></svg>";
+    let bytes = svg.as_bytes();
+    let sha256: String = sha2::Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let descriptor = json!({
+        "kind": "devupAssetExport", "fileKey": "FileKey123", "version": "v1",
+        "assetId": "1:2:node", "nodeId": "1:2", "field": "node",
+        "imageHash": null, "format": "svg", "scale": 1,
+        "status": "exported", "byteLength": bytes.len(), "sha256": sha256,
+        "mimeType": "image/svg+xml", "text": svg, "errorCode": null
+    });
+    // Exactly how it arrives: the descriptor serialized into a text block.
+    let result = UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": descriptor.to_string()}]}),
+    };
+    let request = AssetRequest {
+        asset_id: "1:2:node".to_owned(),
+        node_id: "1:2".to_owned(),
+        field: "node".to_owned(),
+        image_hash: None,
+        format: AssetFormat::Svg,
+        scale: 1,
+    };
+
+    let entry = asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
+        .expect("an inlined SVG payload must decode");
+
+    assert_eq!(entry.status, AssetStatus::Exported);
+    assert_eq!(entry.byte_length, Some(bytes.len()));
+    assert_eq!(entry.mime_type.as_deref(), Some("image/svg+xml"));
+    // Re-encoded to base64 so every consumer downstream is shape-independent.
+    let decoded = STANDARD
+        .decode(entry.data_base64.expect("payload").as_bytes())
+        .expect("base64");
+    assert_eq!(decoded, bytes);
+}
+
+/// A response that carries no payload at all must say what it *did* carry,
+/// so "nothing came back", "wrong mime type" and "unread field" stay
+/// distinguishable instead of collapsing into one opaque sentence.
+#[test]
+fn a_missing_asset_payload_reports_the_shapes_that_were_present() {
+    let descriptor = json!({
+        "kind": "devupAssetExport", "fileKey": "FileKey123", "version": "v1",
+        "assetId": "1:2:node", "nodeId": "1:2", "field": "node",
+        "imageHash": null, "format": "svg", "scale": 1,
+        "status": "exported", "byteLength": 10, "sha256": "00", "errorCode": null
+    });
+    let result = UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": descriptor.to_string()}]}),
+    };
+    let request = AssetRequest {
+        asset_id: "1:2:node".to_owned(),
+        node_id: "1:2".to_owned(),
+        field: "node".to_owned(),
+        image_hash: None,
+        format: AssetFormat::Svg,
+        scale: 1,
+    };
+
+    let error = asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
+        .expect_err("no payload is an error");
+
+    assert_eq!(error.details["expectedMimeType"], "image/svg+xml");
+    let observed = error.details["observed"].as_array().expect("observed");
+    assert!(
+        observed.iter().any(|entry| entry
+            .as_str()
+            .unwrap_or_default()
+            .contains("carries=[text]")),
+        "the diagnostic must name the shapes that were present: {observed:?}"
+    );
+}
+
 fn snapshot() -> Snapshot {
     Snapshot {
         file_key: "FileKey123".to_owned(),
         version: Some("v1".to_owned()),
         roots: vec!["1:1".to_owned()],
-        nodes: [
-            node(
-                "1:1",
-                "FRAME",
-                json!({
-                    "childrenIds": ["1:2"],
-                    "fills": [
-                        {"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}},
-                        {"type": "IMAGE", "imageHash": "image-hash-123", "scaleMode": "FILL"}
-                    ]
-                }),
-            ),
-            node(
-                "1:2",
-                "VECTOR",
-                json!({"parentId": "1:1", "childrenIds": [], "fills": []}),
-            ),
-        ]
+        nodes: [node(
+            "1:1",
+            "FRAME",
+            json!({
+                "childrenIds": [],
+                "isAsset": true,
+                "fills": [{"type": "IMAGE", "imageHash": "image-hash-123", "scaleMode": "FILL"}]
+            }),
+        )]
         .into_iter()
         .map(|node| (node.id.clone(), node))
         .collect(),
@@ -131,19 +208,205 @@ fn manifest_preserves_image_and_vector_source_details_without_exporting_bytes() 
     let manifest = discover_asset_manifest(&snapshot());
 
     assert_eq!(manifest.version, 1);
-    assert_eq!(manifest.assets.len(), 2);
-    assert_eq!(manifest.assets[0].asset_id, "1:1:fills:1");
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "1:1:fills:0");
     assert_eq!(manifest.assets[0].node_id, "1:1");
-    assert_eq!(manifest.assets[0].field, "fills/1");
+    assert_eq!(manifest.assets[0].field, "fills/0");
     assert_eq!(manifest.assets[0].source_kind, "image-fill");
     assert_eq!(
         manifest.assets[0].image_hash.as_deref(),
         Some("image-hash-123")
     );
     assert_eq!(manifest.assets[0].status, AssetStatus::Available);
-    assert_eq!(manifest.assets[1].asset_id, "1:2:node");
-    assert_eq!(manifest.assets[1].source_kind, "vector-node");
-    assert!(manifest.assets[1].data_base64.is_none());
+    assert!(manifest.assets[0].data_base64.is_none());
+}
+
+fn hidden_asset_snapshot() -> Snapshot {
+    Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["1:1".to_owned()],
+        nodes: [node(
+            "1:1",
+            "FRAME",
+            json!({
+                "childrenIds": [],
+                "visible": false,
+                "isAsset": true,
+                "fills": [{"type": "IMAGE", "imageHash": "image-hash-123", "scaleMode": "FILL"}]
+            }),
+        )]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    }
+}
+
+#[test]
+fn hidden_node_is_reported_as_unexportable_instead_of_available() {
+    let manifest = discover_asset_manifest(&hidden_asset_snapshot());
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].status, AssetStatus::Failed);
+    assert_eq!(
+        manifest.assets[0].error_code.as_deref(),
+        Some("DEVUP_ASSET_NODE_HIDDEN")
+    );
+}
+
+#[test]
+fn requesting_a_hidden_asset_is_rejected_with_the_reason() {
+    let error = validate_asset_requests(
+        &hidden_asset_snapshot(),
+        &[AssetRequest {
+            asset_id: "1:1:fills:0".to_owned(),
+            node_id: "1:1".to_owned(),
+            field: "fills/0".to_owned(),
+            image_hash: Some("image-hash-123".to_owned()),
+            format: AssetFormat::Png,
+            scale: 1,
+        }],
+    )
+    .expect_err("a hidden node cannot be exported, so the request must be refused");
+
+    assert!(format!("{error:?}").contains("hidden"), "{error:?}");
+}
+
+fn manifest_for(roots: &[&str], nodes: Vec<RawNode>) -> devup_mcp_figma::AssetManifest {
+    discover_asset_manifest(&Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: roots.iter().map(|root| (*root).to_owned()).collect(),
+        nodes: nodes
+            .into_iter()
+            .map(|node| (node.id.clone(), node))
+            .collect(),
+        diagnostics: Vec::new(),
+    })
+}
+
+#[test]
+fn icon_container_wins_over_its_vector_fragments() {
+    let manifest = manifest_for(
+        &["3997:46297"],
+        vec![
+            node(
+                "3997:46297",
+                "FRAME",
+                json!({"name": "input", "childrenIds": ["3997:46298", "3997:46301"]}),
+            ),
+            node(
+                "3997:46298",
+                "FRAME",
+                json!({
+                    "name": "kakao-talk_2111496 1",
+                    "parentId": "3997:46297",
+                    "isAsset": true,
+                    "childrenIds": ["3997:46299", "3997:46300"]
+                }),
+            ),
+            node(
+                "3997:46299",
+                "VECTOR",
+                json!({"name": "Vector", "parentId": "3997:46298"}),
+            ),
+            node(
+                "3997:46300",
+                "VECTOR",
+                json!({"name": "Vector", "parentId": "3997:46298"}),
+            ),
+            node(
+                "3997:46301",
+                "TEXT",
+                json!({"name": "카카오로 공유하기", "parentId": "3997:46297"}),
+            ),
+        ],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "3997:46298:node");
+    assert_eq!(manifest.assets[0].node_id, "3997:46298");
+    assert_eq!(manifest.assets[0].field, "node");
+    assert_eq!(manifest.assets[0].source_kind, "vector-node");
+    assert_eq!(manifest.assets[0].image_hash, None);
+}
+
+#[test]
+fn bare_vector_is_an_svg_asset_but_text_is_not() {
+    let manifest = manifest_for(
+        &["1:vector", "1:text"],
+        vec![
+            node("1:vector", "VECTOR", json!({})),
+            node("1:text", "TEXT", json!({})),
+        ],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "1:vector:node");
+    assert_eq!(manifest.assets[0].source_kind, "vector-node");
+}
+
+#[test]
+fn decorated_single_child_containers_do_not_replace_their_children() {
+    let manifest = manifest_for(
+        &["1:padding", "1:filled"],
+        vec![
+            node(
+                "1:padding",
+                "FRAME",
+                json!({"childrenIds": ["1:padding-vector"], "paddingLeft": 8}),
+            ),
+            node(
+                "1:padding-vector",
+                "VECTOR",
+                json!({"parentId": "1:padding"}),
+            ),
+            node(
+                "1:filled",
+                "FRAME",
+                json!({
+                    "childrenIds": ["1:filled-vector"],
+                    "fills": [{"type": "SOLID", "visible": true}]
+                }),
+            ),
+            node("1:filled-vector", "VECTOR", json!({"parentId": "1:filled"})),
+        ],
+    );
+
+    let asset_ids = manifest
+        .assets
+        .iter()
+        .map(|asset| asset.asset_id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        asset_ids,
+        vec!["1:filled-vector:node", "1:padding-vector:node"]
+    );
+}
+
+#[test]
+fn asset_leaf_with_one_non_tiled_image_fill_is_a_png_asset() {
+    let manifest = manifest_for(
+        &["1:image"],
+        vec![node(
+            "1:image",
+            "RECTANGLE",
+            json!({
+                "isAsset": true,
+                "fills": [{"type": "IMAGE", "scaleMode": "FILL", "imageRef": "image-ref-123"}]
+            }),
+        )],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    assert_eq!(manifest.assets[0].asset_id, "1:image:fills:0");
+    assert_eq!(manifest.assets[0].field, "fills/0");
+    assert_eq!(manifest.assets[0].source_kind, "image-fill");
+    assert_eq!(
+        manifest.assets[0].image_hash.as_deref(),
+        Some("image-ref-123")
+    );
 }
 
 #[test]

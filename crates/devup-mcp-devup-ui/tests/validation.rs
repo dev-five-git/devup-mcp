@@ -6,7 +6,7 @@ fn syntax_accepts_nested_typescript_jsx() {
     let source = r#"
         import { Text, VStack } from "@devup-ui/react";
         export function Proofread(): JSX.Element {
-            return <VStack><Text typography="body">본문</Text></VStack>;
+            return <VStack><Text typography="body">Body</Text></VStack>;
         }
     "#;
     let report = validate_tsx(source).expect("valid TSX");
@@ -16,13 +16,13 @@ fn syntax_accepts_nested_typescript_jsx() {
 #[test]
 fn syntax_rejects_invalid_tsx_without_echoing_source_text() {
     for source in [
-        "export function Broken() { return <VStack><Text>비밀 본문</VStack>; }",
-        "export function Broken() { return <Text color=\"red>비밀 본문</Text>; }",
-        "export function Broken() { return <Text>{비밀 본문 + }</Text>; }",
+        "export function Broken() { return <VStack><Text>secret body</VStack>; }",
+        "export function Broken() { return <Text color=\"red>secret body</Text>; }",
+        "export function Broken() { return <Text>{secret body + }</Text>; }",
     ] {
         let error = validate_tsx(source).expect_err("invalid TSX");
         assert_eq!(error.code, ErrorCode::DevupCodegenFailed);
-        assert!(!error.to_string().contains("비밀 본문"));
+        assert!(!error.to_string().contains("secret body"));
         assert!(
             error.details["errorCount"]
                 .as_u64()

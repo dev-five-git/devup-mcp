@@ -357,18 +357,17 @@ pub fn render_viewport_component(input: &Value) -> Option<String> {
         prop.clone()
     };
     let extra = if asset_components {
-        let color = children
+        let paint = children
             .first()?
             .get("children")?
             .as_array()?
             .first()?
             .get("fills")?
             .as_array()?
-            .first()?
-            .get("color")?;
+            .first()?;
         format!(
             "      bg=\"{}\"\n      maskImage={{{{\n{variant_lines}\n      }}[{index}]}}\n      maskPos=\"center\"\n      maskRepeat=\"no-repeat\"\n      maskSize=\"contain\"",
-            color_hex(color)?
+            color_hex(paint)?
         )
     } else {
         format!("      src={{{{\n{variant_lines}\n      }}[{index}]}}")
@@ -516,8 +515,8 @@ pub fn render_responsive_component_mock(input: &Value) -> Option<String> {
                 continue;
             }
             let variant = variants.get(&variant_key)?.as_str()?;
-            let color = child.get("fills")?.as_array()?.first()?.get("color")?;
-            colors.insert(variant.to_owned(), Value::String(color_hex(color)?));
+            let paint = child.get("fills")?.as_array()?.first()?;
+            colors.insert(variant.to_owned(), Value::String(color_hex(paint)?));
         }
         root_props.insert(
             selector.to_owned(),
@@ -559,14 +558,28 @@ fn normalize_prop_name(value: &str) -> String {
     result
 }
 
-fn color_hex(color: &Value) -> Option<String> {
+/// Formats a Figma **paint** (not a bare colour) as CSS hex.
+///
+/// Takes the whole paint because Figma splits a translucent solid across
+/// `color.a` and the paint's own `opacity`; the effective alpha is the product.
+/// Reading `color` alone drops `opacity` and renders the fill opaque.
+fn color_hex(paint: &Value) -> Option<String> {
+    let color = paint.get("color")?;
     let channel =
         |name: &str| Some((color.get(name)?.as_f64()?.clamp(0.0, 1.0) * 255.0).round() as u8);
-    let value = format!(
+    let alpha = color.get("a").and_then(Value::as_f64).unwrap_or(1.0)
+        * paint.get("opacity").and_then(Value::as_f64).unwrap_or(1.0);
+    let mut value = format!(
         "#{:02X}{:02X}{:02X}",
         channel("r")?,
         channel("g")?,
         channel("b")?
     );
+    if alpha < 1.0 {
+        value.push_str(&format!(
+            "{:02X}",
+            (alpha.clamp(0.0, 1.0) * 255.0).round() as u8
+        ));
+    }
     Some(value)
 }

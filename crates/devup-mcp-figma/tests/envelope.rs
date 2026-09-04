@@ -1,19 +1,21 @@
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
     FigmaTarget, UpstreamResult, decode_fast_multi_snapshot, decode_fast_snapshot,
     decode_fast_theme,
 };
 use serde_json::{Value, json};
 
-const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+// No binary (PNG-chunked) transport exists any more — real-world hosts
+// silently discarded the old image attachments, so it never actually worked
+// end to end. Fast snapshots and fast themes are delivered as plain text
+// only now; a node subtree that doesn't fit in one round is paginated across
+// several text rounds instead (see the `paginated_*` tests below).
 
 #[test]
-fn valid_multichunk_envelope_round_trips() {
-    let target = target();
+fn valid_snapshot_envelope_round_trips_without_an_image() {
     let envelope = complete_envelope();
-    let result = upstream_result(envelope.clone(), 2);
+    let result = text_upstream_result(&envelope);
 
-    let decoded = decode_fast_snapshot(&result, &target).expect("valid envelope");
+    let decoded = decode_fast_snapshot(&result, &target()).expect("valid text envelope");
 
     assert_eq!(decoded.snapshot.file_key, "fileKey123");
     assert_eq!(decoded.snapshot.root_ids, ["1:1"]);
@@ -24,36 +26,23 @@ fn valid_multichunk_envelope_round_trips() {
     );
     assert_eq!(decoded.resources.raw["styles"].as_array().unwrap().len(), 1);
     assert_eq!(decoded.stats.raw_bytes, envelope.len());
-    assert!(decoded.stats.wire_bytes > envelope.len());
-    assert_eq!(decoded.stats.chunk_count, 2);
-}
-
-#[test]
-fn valid_multi_image_envelope_round_trips() {
-    let target = target();
-    let envelope = complete_envelope();
-    let result = upstream_result_with_split_pngs(envelope.clone(), 2);
-
-    let decoded = decode_fast_snapshot(&result, &target).expect("valid split envelope");
-
-    assert_eq!(decoded.snapshot.nodes.len(), 2);
-    assert_eq!(decoded.stats.raw_bytes, envelope.len());
-    assert_eq!(decoded.stats.chunk_count, 2);
-    assert!(decoded.stats.wire_bytes > envelope.len());
+    assert_eq!(decoded.stats.wire_bytes, envelope.len());
+    assert_eq!(decoded.stats.chunk_count, 0);
+    assert_eq!(decoded.stats.transport, "text");
 }
 
 #[test]
 fn json_stringified_official_mcp_result_round_trips() {
     let target = target();
     let envelope = complete_envelope();
-    let mut result = upstream_result_with_split_pngs(envelope, 2);
+    let mut result = text_upstream_result(&envelope);
     result.raw = Value::String(result.raw.to_string());
 
     let decoded = decode_fast_snapshot(&result, &target)
         .expect("official handoff schema transports the MCP result as a JSON string");
 
     assert_eq!(decoded.snapshot.root_ids, ["1:1"]);
-    assert_eq!(decoded.stats.chunk_count, 2);
+    assert_eq!(decoded.stats.transport, "text");
 }
 
 #[test]
@@ -71,17 +60,62 @@ fn oversized_stringified_upstream_result_is_rejected_before_json_decode() {
     assert_eq!(error.details["category"], "upstreamResultJson");
 }
 
+/// The decoder's ceiling sits above the 15 KiB the producing script budgets
+/// itself to, so a relay that re-serializes the JSON (pretty-printing,
+/// different escaping) cannot inflate a valid envelope into a rejection.
+/// A bound still exists, and this pins both halves of that: comfortably over
+/// the producer's budget is accepted, far over the decoder's ceiling is not.
+#[test]
+fn a_text_envelope_is_bounded_but_leaves_headroom_above_the_producer_budget() {
+    let inflated_by_a_relay = mutate_envelope(|value| {
+        value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(20 * 1024));
+    });
+    decode_fast_snapshot(&text_upstream_result(&inflated_by_a_relay), &target())
+        .expect("20 KiB is over the producer budget but within the decoder's headroom");
+
+    let oversized = mutate_envelope(|value| {
+        value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(96 * 1024));
+    });
+    let error = decode_fast_snapshot(&text_upstream_result(&oversized), &target())
+        .expect_err("oversized text envelope");
+
+    assert_eq!(error.details["category"], "textEnvelope");
+}
+
+#[test]
+fn missing_fast_envelope_text_is_rejected() {
+    let result = UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": "not an envelope"}]}),
+    };
+
+    let error = decode_fast_snapshot(&result, &target()).expect_err("no tagged envelope");
+
+    assert_eq!(error.details["category"], "textEnvelopeMissing");
+}
+
+#[test]
+fn duplicate_tagged_envelopes_are_rejected() {
+    let envelope = complete_envelope();
+    let text = std::str::from_utf8(&envelope).unwrap();
+    let result = UpstreamResult {
+        raw: json!({"content": [
+            {"type": "text", "text": text},
+            {"type": "text", "text": text}
+        ]}),
+    };
+
+    let error = decode_fast_snapshot(&result, &target()).expect_err("duplicate envelope text");
+
+    assert_eq!(error.details["category"], "textEnvelopeMultiplicity");
+}
+
 #[test]
 fn valid_multi_root_envelope_requires_the_exact_ordered_root_set() {
     let envelope = mutate_envelope(|value| {
         value["source"]["rootId"] = json!("9:9");
         value["snapshot"]["rootIds"] = json!(["1:1", "1:2"]);
     });
-    let mut result = upstream_result(envelope, 1);
-    let mut descriptor: Value =
-        serde_json::from_str(result.raw["content"][0]["text"].as_str().unwrap()).unwrap();
-    descriptor["rootId"] = json!("9:9");
-    result.raw["content"][0]["text"] = json!(descriptor.to_string());
+    let result = text_upstream_result(&envelope);
     let section_target = FigmaTarget {
         node_id: Some("9:9".to_owned()),
         ..target()
@@ -105,139 +139,20 @@ fn valid_multi_root_envelope_requires_the_exact_ordered_root_set() {
 }
 
 #[test]
-fn out_of_order_chunks_are_rejected() {
-    let envelope = complete_envelope();
-    let png = envelope_png_with_order(&envelope, &[1, 0]);
-    let result = upstream_result_with_png(png, envelope.len(), 2);
-
-    let error = decode_fast_snapshot(&result, &target()).expect_err("out of order chunks");
-
-    assert_eq!(error.details["category"], "envelopeChunkSequence");
-}
-
-#[test]
-fn noncanonical_png_header_is_rejected() {
-    let envelope = complete_envelope();
-    let png = envelope_png_with_ihdr(&envelope, &[0, 0, 0, 2, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let result = upstream_result_with_png(png, envelope.len(), 1);
-
-    let error = decode_fast_snapshot(&result, &target()).expect_err("noncanonical PNG");
-
-    assert_eq!(error.details["category"], "pngIhdr");
-}
-
-#[test]
-fn png_without_idat_is_rejected() {
-    let envelope = complete_envelope();
-    let mut png = PNG_SIGNATURE.to_vec();
-    push_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut data = Vec::with_capacity(envelope.len() + 8);
-    data.extend_from_slice(&0_u32.to_be_bytes());
-    data.extend_from_slice(&1_u32.to_be_bytes());
-    data.extend_from_slice(&envelope);
-    push_chunk(&mut png, b"duVp", &data);
-    push_chunk(&mut png, b"IEND", &[]);
-
-    assert_category(
-        upstream_result_with_png(png, envelope.len(), 1),
-        &target(),
-        "pngIdat",
-    );
-}
-
-#[test]
-fn invalid_utf8_is_rejected_before_json_decode() {
-    let bytes = vec![0xff, 0xfe, 0xfd];
-    let result = upstream_result_with_png(envelope_png(&bytes, 1), bytes.len(), 1);
-
-    let error = decode_fast_snapshot(&result, &target()).expect_err("invalid UTF-8");
-
-    assert_eq!(error.details["category"], "envelopeUtf8");
-}
-
-#[test]
-fn corrupt_transport_shapes_are_rejected_without_panicking() {
-    let envelope = complete_envelope();
-
-    let mut bad_signature = envelope_png(&envelope, 1);
-    bad_signature[0] = 0;
-    assert_category(
-        upstream_result_with_png(bad_signature, envelope.len(), 1),
-        &target(),
-        "pngSignature",
-    );
-
-    let mut bad_crc = envelope_png(&envelope, 1);
-    let marker = bad_crc
-        .windows(4)
-        .position(|window| window == b"duVp")
-        .unwrap();
-    bad_crc[marker + 12] ^= 1;
-    assert_category(
-        upstream_result_with_png(bad_crc, envelope.len(), 1),
-        &target(),
-        "pngCrc",
-    );
-
-    let mut truncated = envelope_png(&envelope, 1);
-    truncated.pop();
-    assert_category(
-        upstream_result_with_png(truncated, envelope.len(), 1),
-        &target(),
-        "pngLength",
-    );
-
-    assert_category(
-        upstream_result_with_png(
-            envelope_png_with_order(&envelope, &[0, 0]),
-            envelope.len(),
-            2,
-        ),
-        &target(),
-        "envelopeChunkSequence",
-    );
-}
-
-#[test]
-fn image_content_contract_is_strict() {
-    let envelope = complete_envelope();
-
-    let mut missing = upstream_result(envelope.clone(), 1);
-    missing.raw["content"].as_array_mut().unwrap().truncate(1);
-    assert_category(missing, &target(), "imageMissing");
-
-    let mut wrong_mime = upstream_result(envelope.clone(), 1);
-    wrong_mime.raw["content"][1]["mimeType"] = Value::from("image/jpeg");
-    assert_category(wrong_mime, &target(), "imageMime");
-
-    let mut duplicate = upstream_result_with_split_pngs(envelope.clone(), 2);
-    let repeated = duplicate.raw["content"][1].clone();
-    duplicate.raw["content"]
-        .as_array_mut()
-        .unwrap()
-        .push(repeated);
-    assert_category(duplicate, &target(), "imageMultiplicity");
-
-    let oversized = vec![0_u8; 11 * 1024 * 1024 + 1];
-    let error = decode_fast_snapshot(
-        &upstream_result_with_png(oversized, envelope.len(), 1),
-        &target(),
-    )
-    .expect_err("oversized PNG");
-    assert_eq!(error.details["category"], "png");
-}
-
-#[test]
-fn schema_target_graph_and_resource_integrity_are_validated() {
+fn schema_target_and_resource_integrity_are_validated() {
     let unsupported = mutate_envelope(|value| value["schemaVersion"] = Value::from(2));
-    assert_category(upstream_result(unsupported, 1), &target(), "schemaVersion");
+    assert_category(
+        text_upstream_result(&unsupported),
+        &target(),
+        "schemaVersion",
+    );
 
     let wrong_target = FigmaTarget {
         file_key: "otherFileKey".to_owned(),
         ..target()
     };
     assert_category(
-        upstream_result(complete_envelope(), 1),
+        text_upstream_result(&complete_envelope()),
         &wrong_target,
         "targetMismatch",
     );
@@ -250,45 +165,169 @@ fn schema_target_graph_and_resource_integrity_are_validated() {
             .push(duplicate);
     });
     assert_category(
-        upstream_result(duplicate_node, 1),
+        text_upstream_result(&duplicate_node),
         &target(),
         "duplicateNode",
-    );
-
-    let dangling_child = mutate_envelope(|value| {
-        value["snapshot"]["nodes"][0]["fields"]["childrenIds"][0] = Value::from("9:9");
-    });
-    assert_category(
-        upstream_result(dangling_child, 1),
-        &target(),
-        "danglingChild",
     );
 
     let missing_resource = mutate_envelope(|value| {
         value["resources"]["variables"] = json!([]);
     });
     assert_category(
-        upstream_result(missing_resource, 1),
+        text_upstream_result(&missing_resource),
         &target(),
         "resourceMissing",
     );
 }
 
+/// `integrity.utf8Bytes` is the producer's self-measurement, and the envelope
+/// reaches devup-mcp through a relay that may re-serialize the JSON. Both a
+/// stale counter and a re-serialized (pretty-printed) payload must decode:
+/// the structural checks above are what actually detect corruption, so a byte
+/// count that disagrees with the received length is not an error.
 #[test]
-fn descriptor_must_match_the_binary_envelope() {
-    let mut result = upstream_result(complete_envelope(), 2);
-    let descriptor_text = result.raw["content"][0]["text"].as_str().unwrap();
-    let mut descriptor: Value = serde_json::from_str(descriptor_text).unwrap();
-    descriptor["nodeCount"] = Value::from(99);
-    result.raw["content"][0]["text"] = Value::from(descriptor.to_string());
+fn a_reserialized_envelope_decodes_even_though_its_byte_count_no_longer_matches() {
+    let original = complete_envelope();
+    let value: Value = serde_json::from_slice(&original).unwrap();
+    let declared = value["integrity"]["utf8Bytes"].as_u64().unwrap() as usize;
 
-    assert_category(result, &target(), "nodeCount");
+    // Pretty-printing changes the byte length without changing the content —
+    // exactly what a re-serializing relay does.
+    let reserialized = serde_json::to_vec_pretty(&value).unwrap();
+    assert_ne!(
+        reserialized.len(),
+        declared,
+        "the pretty-printed payload must differ in length for this test to mean anything"
+    );
+    decode_fast_snapshot(&text_upstream_result(&reserialized), &target())
+        .expect("a re-serialized envelope must still decode");
+
+    // A counter that is simply wrong is likewise not, by itself, corruption.
+    let mut stale = value;
+    stale["integrity"]["utf8Bytes"] = json!(1);
+    let stale = serde_json::to_vec(&stale).unwrap();
+    decode_fast_snapshot(&text_upstream_result(&stale), &target())
+        .expect("a stale utf8Bytes counter must not fail an otherwise valid envelope");
+}
+
+#[test]
+fn a_complete_single_page_envelope_still_requires_full_child_containment() {
+    // No cursor marker at all: treated as a single complete page, so a
+    // dangling child (referencing a node that was never sent) is rejected
+    // exactly like the pre-pagination behavior.
+    let dangling_child = mutate_envelope(|value| {
+        value["snapshot"]["nodes"][0]["fields"]["childrenIds"][0] = Value::from("9:9");
+    });
+    assert_category(
+        text_upstream_result(&dangling_child),
+        &target(),
+        "danglingChild",
+    );
+}
+
+#[test]
+fn a_final_page_with_an_explicit_cursor_still_requires_full_child_containment() {
+    let dangling_child = mutate_envelope(|value| {
+        value["snapshot"]["nodes"][0]["fields"]["childrenIds"][0] = Value::from("9:9");
+        push_cursor_marker(value, 0, 2, true, 2);
+    });
+    assert_category(
+        text_upstream_result(&dangling_child),
+        &target(),
+        "danglingChild",
+    );
+}
+
+#[test]
+fn a_non_final_page_may_reference_children_that_have_not_arrived_yet() {
+    // node "1:2" (the second real node) is deliberately left out of this
+    // page; the root's childrenIds still references it. Because the page
+    // reports `complete: false`, this is expected — the child is assumed to
+    // arrive in a later round — and must not be rejected as dangling.
+    let first_page = mutate_envelope(|value| {
+        let nodes = value["snapshot"]["nodes"].as_array_mut().unwrap();
+        nodes.truncate(1);
+        value["integrity"]["nodeCount"] = json!(1);
+        // No boundVariables/textStyleId left in this page, so no resources
+        // are referenced by it.
+        value["snapshot"]["nodes"][0]["fields"]
+            .as_object_mut()
+            .unwrap()
+            .remove("boundVariables");
+        value["integrity"]["variableRefCount"] = json!(0);
+        value["integrity"]["styleRefCount"] = json!(0);
+        value["resources"]["variables"] = json!([]);
+        value["resources"]["styles"] = json!([]);
+        push_cursor_marker(value, 0, 1, false, 2);
+    });
+    let result = text_upstream_result(&first_page);
+
+    let decoded = decode_fast_snapshot(&result, &target()).expect("valid first page");
+    assert_eq!(decoded.snapshot.nodes.len(), 2); // real node + cursor marker
+}
+
+#[test]
+fn a_first_page_that_omits_the_root_is_still_rejected() {
+    // The root must always be present on the first page (BFS visits it at
+    // index 0); a first page (offset == 0) that omits it is a real error.
+    let missing_root = mutate_envelope(|value| {
+        let nodes = value["snapshot"]["nodes"].as_array_mut().unwrap();
+        nodes.remove(0);
+        value["integrity"]["nodeCount"] = json!(1);
+        value["integrity"]["variableRefCount"] = json!(0);
+        value["integrity"]["styleRefCount"] = json!(1);
+        value["resources"]["variables"] = json!([]);
+        push_cursor_marker(value, 0, 1, false, 2);
+    });
+    assert_category(text_upstream_result(&missing_root), &target(), "nodeCount");
+}
+
+#[test]
+fn a_continuation_page_may_omit_the_root_that_a_prior_page_already_sent() {
+    let second_page = mutate_envelope(|value| {
+        let nodes = value["snapshot"]["nodes"].as_array_mut().unwrap();
+        nodes.remove(0);
+        value["integrity"]["nodeCount"] = json!(1);
+        value["integrity"]["variableRefCount"] = json!(0);
+        value["integrity"]["styleRefCount"] = json!(1);
+        value["resources"]["variables"] = json!([]);
+        push_cursor_marker(value, 1, 2, true, 2);
+    });
+    let result = text_upstream_result(&second_page);
+
+    let decoded = decode_fast_snapshot(&result, &target()).expect("valid continuation page");
+    assert_eq!(decoded.snapshot.nodes.len(), 2); // real node + cursor marker
+}
+
+#[test]
+fn a_cursor_marker_missing_offset_is_rejected() {
+    // Regression: the script once emitted the marker without `offset`, so
+    // every real fast snapshot failed `peek_page_cursor` and silently fell
+    // back to legacy cursor collection.
+    let bad = mutate_envelope(|value| {
+        push_cursor_marker(value, 0, 2, true, 2);
+        value["snapshot"]["nodes"][2]["fields"]
+            .as_object_mut()
+            .unwrap()
+            .remove("offset");
+    });
+    assert_category(text_upstream_result(&bad), &target(), "cursorShape");
+}
+
+#[test]
+fn duplicate_cursor_markers_are_rejected() {
+    let bad = mutate_envelope(|value| {
+        push_cursor_marker(value, 0, 2, true, 2);
+        push_cursor_marker(value, 0, 2, true, 2);
+        value["integrity"]["nodeCount"] = json!(4);
+    });
+    assert_category(text_upstream_result(&bad), &target(), "cursorMultiplicity");
 }
 
 #[test]
 fn valid_fast_theme_envelope_round_trips_and_validates_counts() {
     let envelope = theme_envelope();
-    let result = theme_upstream_result(envelope.clone(), 1);
+    let result = theme_text_upstream_result(&envelope);
 
     let decoded = decode_fast_theme(&result, "fileKey123").expect("valid fast theme");
 
@@ -307,26 +346,24 @@ fn valid_fast_theme_envelope_round_trips_and_validates_counts() {
     assert_eq!(decoded.resources.raw["styles"].as_array().unwrap().len(), 1);
     assert_eq!(decoded.resources.raw["localComplete"], true);
     assert_eq!(decoded.stats.raw_bytes, envelope.len());
+    assert_eq!(decoded.stats.transport, "text");
 
-    let mut bad = theme_upstream_result(envelope, 1);
-    let descriptor = bad.raw["content"][0]["text"].as_str().unwrap();
-    let mut descriptor: Value = serde_json::from_str(descriptor).unwrap();
-    descriptor["variableCount"] = json!(2);
-    bad.raw["content"][0]["text"] = json!(descriptor.to_string());
-    let error = decode_fast_theme(&bad, "fileKey123").expect_err("count mismatch");
+    let bad = mutate_theme_envelope(|value| value["integrity"]["variableCount"] = json!(2));
+    let error = decode_fast_theme(&theme_text_upstream_result(&bad), "fileKey123")
+        .expect_err("count mismatch");
     assert_eq!(error.details["category"], "variableCount");
 }
 
 #[test]
 fn json_stringified_fast_theme_result_round_trips() {
     let envelope = theme_envelope();
-    let mut result = theme_upstream_result(envelope, 1);
+    let mut result = theme_text_upstream_result(&envelope);
     result.raw = Value::String(result.raw.to_string());
 
     let decoded =
         decode_fast_theme(&result, "fileKey123").expect("stringified official theme envelope");
 
-    assert_eq!(decoded.stats.chunk_count, 1);
+    assert_eq!(decoded.stats.transport, "text");
     assert_eq!(decoded.resources.raw["localComplete"], true);
 }
 
@@ -340,6 +377,7 @@ fn target() -> FigmaTarget {
 
 fn complete_envelope() -> Vec<u8> {
     finalize_envelope(json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {
             "fileKey": "fileKey123",
@@ -365,7 +403,7 @@ fn complete_envelope() -> Vec<u8> {
                     "type": "TEXT",
                     "fields": {
                         "textStyleId": "S:style1",
-                        "characters": "테스트"
+                        "characters": "Test"
                     }
                 }
             ],
@@ -390,7 +428,12 @@ fn complete_envelope() -> Vec<u8> {
 }
 
 fn theme_envelope() -> Vec<u8> {
-    finalize_envelope(json!({
+    finalize_theme_envelope(theme_envelope_value())
+}
+
+fn theme_envelope_value() -> Value {
+    json!({
+        "kind": "devupFastThemeEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "fileKey123", "version": "v42"},
         "resources": {
@@ -411,29 +454,50 @@ fn theme_envelope() -> Vec<u8> {
             "unresolvedCount": 0,
             "utf8Bytes": 0
         }
-    }))
+    })
 }
 
-fn theme_upstream_result(envelope: Vec<u8>, chunk_count: usize) -> UpstreamResult {
-    let png = envelope_png(&envelope, chunk_count);
-    let descriptor = json!({
-        "kind": "devupFastThemeDescriptor",
-        "schemaVersion": 1,
-        "collectionCount": 1,
-        "variableCount": 1,
-        "styleCount": 1,
-        "unresolvedCount": 0,
-        "utf8Bytes": envelope.len(),
-        "chunkCount": chunk_count
-    });
+fn text_upstream_result(envelope: &[u8]) -> UpstreamResult {
     UpstreamResult {
         raw: json!({
-            "content": [
-                {"type": "text", "text": descriptor.to_string()},
-                {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
-            ]
+            "content": [{
+                "type": "text",
+                "text": std::str::from_utf8(envelope).unwrap()
+            }]
         }),
     }
+}
+
+fn theme_text_upstream_result(envelope: &[u8]) -> UpstreamResult {
+    text_upstream_result(envelope)
+}
+
+/// Appends the `__DEVUP_SNAPSHOT_CURSOR__` marker node every fast snapshot
+/// script emits, mirroring the shape `take_snapshot_cursor` parses, and
+/// updates `integrity.nodeCount` to include it (matching real script output,
+/// which always counts the marker in the same `nodes` array it serializes).
+fn push_cursor_marker(
+    value: &mut Value,
+    offset: u64,
+    next_offset: u64,
+    complete: bool,
+    total_nodes: u64,
+) {
+    let nodes = value["snapshot"]["nodes"].as_array_mut().unwrap();
+    let real_node_count = nodes.len() as u64;
+    nodes.push(json!({
+        "id": "__DEVUP_SNAPSHOT_CURSOR__",
+        "type": "DEVUP_INTERNAL",
+        "fields": {
+            "offset": offset,
+            "nextOffset": next_offset,
+            "complete": complete,
+            "totalNodes": total_nodes
+        },
+        "extra": {},
+        "fieldErrors": {}
+    }));
+    value["integrity"]["nodeCount"] = json!(real_node_count + 1);
 }
 
 fn mutate_envelope(mutate: impl FnOnce(&mut Value)) -> Vec<u8> {
@@ -442,7 +506,21 @@ fn mutate_envelope(mutate: impl FnOnce(&mut Value)) -> Vec<u8> {
     finalize_envelope(value)
 }
 
-fn finalize_envelope(mut value: Value) -> Vec<u8> {
+fn mutate_theme_envelope(mutate: impl FnOnce(&mut Value)) -> Vec<u8> {
+    let mut value = theme_envelope_value();
+    mutate(&mut value);
+    finalize_theme_envelope(value)
+}
+
+fn finalize_envelope(value: Value) -> Vec<u8> {
+    finalize_utf8_bytes(value)
+}
+
+fn finalize_theme_envelope(value: Value) -> Vec<u8> {
+    finalize_utf8_bytes(value)
+}
+
+fn finalize_utf8_bytes(mut value: Value) -> Vec<u8> {
     for _ in 0..8 {
         let bytes = serde_json::to_vec(&value).unwrap();
         let length = bytes.len() as u64;
@@ -457,159 +535,4 @@ fn finalize_envelope(mut value: Value) -> Vec<u8> {
 fn assert_category(result: UpstreamResult, target: &FigmaTarget, expected: &str) {
     let error = decode_fast_snapshot(&result, target).expect_err(expected);
     assert_eq!(error.details["category"], expected);
-}
-
-fn upstream_result(envelope: Vec<u8>, chunk_count: usize) -> UpstreamResult {
-    let png = envelope_png(&envelope, chunk_count);
-    upstream_result_with_png(png, envelope.len(), chunk_count)
-}
-
-fn upstream_result_with_png(
-    png: Vec<u8>,
-    envelope_length: usize,
-    chunk_count: usize,
-) -> UpstreamResult {
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "1:1",
-        "nodeCount": 2,
-        "variableRefCount": 1,
-        "styleRefCount": 1,
-        "utf8Bytes": envelope_length,
-        "chunkCount": chunk_count
-    });
-    UpstreamResult {
-        raw: json!({
-            "content": [
-                {"type": "text", "text": descriptor.to_string()},
-                {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
-            ]
-        }),
-    }
-}
-
-fn upstream_result_with_split_pngs(envelope: Vec<u8>, chunk_count: usize) -> UpstreamResult {
-    assert!(chunk_count > 0 && chunk_count <= envelope.len());
-    let per_chunk = envelope.len().div_ceil(chunk_count);
-    let payloads = envelope.chunks(per_chunk).collect::<Vec<_>>();
-    assert_eq!(payloads.len(), chunk_count);
-    let mut content = vec![json!({
-        "type": "text",
-        "text": json!({
-            "kind": "devupFastSnapshotDescriptor",
-            "schemaVersion": 1,
-            "rootId": "1:1",
-            "nodeCount": 2,
-            "variableRefCount": 1,
-            "styleRefCount": 1,
-            "utf8Bytes": envelope.len(),
-            "chunkCount": chunk_count
-        }).to_string()
-    })];
-    for (sequence, payload) in payloads.into_iter().enumerate() {
-        let png = envelope_png_for_chunk(payload, sequence, chunk_count);
-        content.push(json!({
-            "type": "image",
-            "data": STANDARD.encode(png),
-            "mimeType": "image/png"
-        }));
-    }
-    UpstreamResult {
-        raw: json!({"content": content}),
-    }
-}
-
-fn envelope_png(envelope: &[u8], chunk_count: usize) -> Vec<u8> {
-    assert!(chunk_count > 0 && chunk_count <= envelope.len());
-    let order = (0..chunk_count).collect::<Vec<_>>();
-    envelope_png_with_order(envelope, &order)
-}
-
-fn envelope_png_with_ihdr(envelope: &[u8], ihdr: &[u8; 13]) -> Vec<u8> {
-    let mut png = PNG_SIGNATURE.to_vec();
-    push_chunk(&mut png, b"IHDR", ihdr);
-    let mut data = Vec::with_capacity(envelope.len() + 8);
-    data.extend_from_slice(&0_u32.to_be_bytes());
-    data.extend_from_slice(&1_u32.to_be_bytes());
-    data.extend_from_slice(envelope);
-    push_chunk(&mut png, b"duVp", &data);
-    push_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_chunk(&mut png, b"IEND", &[]);
-    png
-}
-
-fn envelope_png_for_chunk(payload: &[u8], sequence: usize, total: usize) -> Vec<u8> {
-    let mut png = PNG_SIGNATURE.to_vec();
-    push_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut data = Vec::with_capacity(payload.len() + 8);
-    data.extend_from_slice(&(sequence as u32).to_be_bytes());
-    data.extend_from_slice(&(total as u32).to_be_bytes());
-    data.extend_from_slice(payload);
-    push_chunk(&mut png, b"duVp", &data);
-    push_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_chunk(&mut png, b"IEND", &[]);
-    png
-}
-
-fn envelope_png_with_order(envelope: &[u8], order: &[usize]) -> Vec<u8> {
-    let chunk_count = order.len();
-    assert!(chunk_count > 0 && chunk_count <= envelope.len());
-    let mut png = PNG_SIGNATURE.to_vec();
-    push_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-
-    let per_chunk = envelope.len().div_ceil(chunk_count);
-    let payloads = envelope.chunks(per_chunk).collect::<Vec<_>>();
-    assert_eq!(payloads.len(), chunk_count);
-    for &sequence in order {
-        let payload = payloads[sequence];
-        let mut data = Vec::with_capacity(payload.len() + 8);
-        data.extend_from_slice(&(sequence as u32).to_be_bytes());
-        data.extend_from_slice(&(chunk_count as u32).to_be_bytes());
-        data.extend_from_slice(payload);
-        push_chunk(&mut png, b"duVp", &data);
-    }
-
-    push_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_chunk(&mut png, b"IEND", &[]);
-    png
-}
-
-fn push_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(chunk_type);
-    output.extend_from_slice(data);
-    let mut crc_input = Vec::with_capacity(4 + data.len());
-    crc_input.extend_from_slice(chunk_type);
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }

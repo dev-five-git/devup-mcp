@@ -49,18 +49,18 @@ impl SectionIndex {
     ) -> Result<Vec<String>, DevupError> {
         if all_screens && !frame_ids.is_empty() {
             return Err(invalid_selection(
-                "frameIds와 allScreens는 동시에 사용할 수 없습니다.",
+                "frameIds and allScreens cannot be used together.",
             ));
         }
         if !all_screens && frame_ids.is_empty() {
             return Err(invalid_selection(
-                "Section root 수집에는 frameIds 또는 allScreens가 필요합니다.",
+                "Section root collection requires frameIds or allScreens.",
             ));
         }
         if self.truncated && all_screens {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "잘린 Section index에서는 allScreens를 사용할 수 없습니다.",
+                "allScreens cannot be used with a truncated Section index.",
                 false,
             ));
         }
@@ -69,7 +69,7 @@ impl SectionIndex {
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
         if requested.len() != frame_ids.len() {
-            return Err(invalid_selection("frameIds에 중복 node가 있습니다."));
+            return Err(invalid_selection("frameIds contains duplicate nodes."));
         }
         let candidates = self
             .candidates
@@ -79,7 +79,7 @@ impl SectionIndex {
         if let Some(foreign) = requested.difference(&candidates).next() {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("Section 내부 screen frame이 아니거나 존재하지 않습니다: {foreign}"),
+                format!("Not a screen frame inside the Section, or it does not exist: {foreign}"),
                 false,
             ));
         }
@@ -122,27 +122,25 @@ pub fn build_section_index(
 ) -> Result<SectionIndex, DevupError> {
     if snapshot.file_key != target.file_key {
         return Err(invalid_selection(
-            "Section index의 file key가 요청과 다릅니다.",
+            "Section index file key does not match the request.",
         ));
     }
     let section_id = target.node_id.as_deref().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Section index에는 node-id가 필요합니다.",
+            "Section index requires a node-id.",
             false,
         )
     })?;
     let section = snapshot.nodes.get(section_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Section index에서 대상 node를 찾지 못했습니다.",
+            "Target node not found for the Section index.",
             false,
         )
     })?;
     if section.node_type != "SECTION" {
-        return Err(invalid_selection(
-            "Section index 대상은 SECTION이어야 합니다.",
-        ));
+        return Err(invalid_selection("Section index target must be a SECTION."));
     }
     let section_node = ExploreNode::try_from(section)?;
     let mut screen_nodes = Vec::new();
@@ -161,6 +159,34 @@ pub fn build_section_index(
             screen_nodes.push(explore);
         }
     }
+    // A Section is answered with the screens inside it, because converting one
+    // whole is too much. But a Section is an explicit grouping, and screen shape
+    // is a guess used to find screens on a page that has no grouping: applied
+    // here it silently drops whatever is not phone or desktop shaped. A section
+    // of small cases offered nothing at all, and — worse, because it looked
+    // like an answer — a section mixing tall notes with small cases offered the
+    // notes and hid every case. What the Section holds is what it offers, so its
+    // own children stand alongside the screens found within it.
+    let found_screen_ids = screen_nodes
+        .iter()
+        .map(|node| node.node_id.clone())
+        .collect::<BTreeSet<_>>();
+    let children = section
+        .typed_view()
+        .child_ids()
+        .filter_map(|child_id| snapshot.nodes.get(child_id))
+        .filter_map(|child| ExploreNode::try_from(child).ok())
+        .filter(|child| child.visible)
+        .filter(|child| !found_screen_ids.contains(&child.node_id))
+        // A child holding a screen would offer that screen twice over, once
+        // whole and once inside itself.
+        .filter(|child| {
+            !found_screen_ids
+                .iter()
+                .any(|screen| is_descendant(snapshot, screen, &child.node_id))
+        })
+        .collect::<Vec<_>>();
+    screen_nodes.extend(children);
     let screen_ids = screen_nodes
         .iter()
         .map(|node| node.node_id.clone())
@@ -247,7 +273,9 @@ pub fn plan_batches(
     limits: BatchLimits,
 ) -> Result<Vec<SectionBatch>, DevupError> {
     if limits.max_estimated_bytes == 0 || limits.max_nodes == 0 {
-        return Err(invalid_selection("Section batch 상한은 0보다 커야 합니다."));
+        return Err(invalid_selection(
+            "Section batch limits must be greater than 0.",
+        ));
     }
     let selected = index.select(selected_root_ids, false)?;
     let by_id = index
@@ -266,7 +294,7 @@ pub fn plan_batches(
             let candidate = by_id
                 .get(root_id.as_str())
                 .copied()
-                .ok_or_else(|| invalid_selection("Section batch candidate가 없습니다."))?;
+                .ok_or_else(|| invalid_selection("Section batch candidate is missing."))?;
             let rank = visual_rank[&root_id];
             Ok((rank, root_id, candidate))
         })

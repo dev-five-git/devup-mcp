@@ -94,17 +94,17 @@ fn projection() -> Value {
             },
             {
                 "id": "1:1", "type": "FRAME",
-                "fields": {"name": "[FR-026] 본연체", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 0, "width": 1200, "height": 80, "childCount": 1, "textPreview": "본연체"},
+                "fields": {"name": "[FR-026] Base Style", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 0, "width": 1200, "height": 80, "childCount": 1, "textPreview": "Base Style"},
                 "extra": {}, "fieldErrors": {}
             },
             {
                 "id": "1:2", "type": "FRAME",
-                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 120, "width": 360, "height": 740, "childCount": 12, "textPreview": "이야기가 글로 정리되었어요"},
+                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 0, "y": 120, "width": 360, "height": 740, "childCount": 12, "textPreview": "Your story has been written up"},
                 "extra": {}, "fieldErrors": {}
             },
             {
                 "id": "1:3", "type": "FRAME",
-                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 400, "y": 120, "width": 360, "height": 740, "childCount": 13, "textPreview": "공개 설정 나만 보기"},
+                "fields": {"name": "A : STORY-F-PROOFREAD", "parentId": "0:1", "childrenIds": [], "x": 400, "y": 120, "width": 360, "height": 740, "childCount": 13, "textPreview": "Visibility: only me"},
                 "extra": {}, "fieldErrors": {}
             }
         ],
@@ -267,200 +267,6 @@ async fn refresh_bypasses_an_exact_explore_cache_hit() -> anyhow::Result<()> {
         refreshed["cache"]["artifactId"]
     );
     assert_eq!(calls.load(Ordering::SeqCst), 2);
-
-    client.cancel().await?;
-    task.await??;
-    Ok(())
-}
-
-#[tokio::test]
-async fn direct_and_host_explore_return_identical_candidate_data() -> anyhow::Result<()> {
-    let (client, task) = start_client(AuthStatus::Connected).await?;
-    let direct = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    let start = client
-        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
-        .await?
-        .structured_content
-        .unwrap();
-    assert_eq!(start["status"], "needs_figma");
-    assert_eq!(start["calls"].as_array().unwrap().len(), 1);
-    assert_eq!(start["calls"][0]["tool"], "use_figma");
-    let code = start["calls"][0]["arguments"]["code"].as_str().unwrap();
-    assert!(code.contains("projectionTruncated"));
-    assert!(!code.contains("getVariableByIdAsync"));
-
-    let complete = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": start["sessionId"],
-                    "callId": start["calls"][0]["callId"],
-                    "result": projection()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-
-    // Explore is an intentionally shallow spatial projection. Its candidate data is
-    // complete for the operation, while the preserved graph correctly reports that
-    // descendants represented by childCount were not included in the snapshot.
-    assert_eq!(direct["status"], "complete");
-    assert_eq!(complete["status"], "complete");
-    assert_eq!(direct["quality"]["acquisition"], "expected-projection");
-    assert_eq!(complete["quality"]["acquisition"], "expected-projection");
-    assert_eq!(direct["quality"]["projection"], "not-requested");
-    assert!(
-        !direct["completenessReport"]["snapshot"]["childCountMismatches"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
-    assert_eq!(direct["anchor"]["kind"], "heading");
-    assert_eq!(direct["targetKind"], "other");
-    assert_eq!(direct["count"], 2);
-    assert_eq!(direct["candidates"][0]["node"]["nodeId"], "1:2");
-    for field in ["anchor", "group", "candidates", "truncated", "diagnostics"] {
-        assert_eq!(direct[field], complete[field], "source changed {field}");
-    }
-    assert_eq!(direct["source"]["kind"], "direct");
-    assert_eq!(complete["source"]["kind"], "host");
-
-    client.cancel().await?;
-    task.await??;
-    Ok(())
-}
-
-#[tokio::test]
-async fn host_explore_accepts_the_public_string_result_contract() -> anyhow::Result<()> {
-    let (client, task) = start_client(AuthStatus::Connected).await?;
-    let start = client
-        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
-        .await?
-        .structured_content
-        .unwrap();
-
-    let complete = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": start["sessionId"],
-                    "callId": start["calls"][0]["callId"],
-                    "result": projection().to_string()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-
-    assert_eq!(complete["status"], "complete");
-    assert_eq!(complete["count"], 2);
-    assert_eq!(complete["source"]["kind"], "host");
-
-    client.cancel().await?;
-    task.await??;
-    Ok(())
-}
-
-#[tokio::test]
-async fn completed_host_projection_serves_a_related_node_without_another_handoff()
--> anyhow::Result<()> {
-    let (client, task) = start_client(AuthStatus::Connected).await?;
-    let start = client
-        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
-        .await?
-        .structured_content
-        .unwrap();
-    let completed = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": start["sessionId"],
-                    "callId": start["calls"][0]["callId"],
-                    "result": projection()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    assert_eq!(completed["status"], "complete");
-
-    let mut related_input = input("host");
-    related_input.insert(
-        "url".to_owned(),
-        json!("https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"),
-    );
-    let related = client
-        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(related_input))
-        .await?
-        .structured_content
-        .unwrap();
-
-    assert_eq!(related["status"], "complete");
-    assert_eq!(related["anchor"]["nodeId"], "1:2");
-    assert_eq!(related["source"]["nodeId"], "1:2");
-    assert_eq!(related["source"]["kind"], "artifact");
-    assert_eq!(related["cache"]["cacheHit"], true);
-    assert_eq!(related["cache"]["reuseKind"], "related-node");
-    assert_eq!(related["collection"]["figmaToolCalls"], 0);
-    assert_eq!(related["cache"]["originCollection"]["figmaToolCalls"], 1);
-    assert!(related.get("calls").is_none());
-
-    client.cancel().await?;
-    task.await??;
-    Ok(())
-}
-
-#[tokio::test]
-async fn host_explore_unwraps_a_stringified_official_mcp_envelope() -> anyhow::Result<()> {
-    let (client, task) = start_client(AuthStatus::Connected).await?;
-    let start = client
-        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input("host")))
-        .await?
-        .structured_content
-        .unwrap();
-    let official_result = json!({
-        "content": [{"type": "text", "text": projection().to_string()}],
-        "isError": false
-    });
-
-    let complete = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": start["sessionId"],
-                    "callId": start["calls"][0]["callId"],
-                    "result": official_result.to_string()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-
-    assert_eq!(complete["status"], "complete");
-    assert_eq!(complete["count"], 2);
 
     client.cancel().await?;
     task.await??;

@@ -17,12 +17,12 @@ use crate::{
     AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchLimits, BuiltinScript,
     DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler,
     LargeValueReadOptions, RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef,
-    SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotReadOptions, UnresolvedResource,
-    UpstreamResult, UsedResourceRefs, asset_export_from_result, build_section_index,
-    collect_used_resource_refs, decode_fast_multi_snapshot, decode_fast_snapshot,
-    decode_fast_theme, merge_chunks,
+    SNAPSHOT_CURSOR_ID, SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotCursor,
+    SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
+    asset_export_from_result, build_section_index, collect_used_resource_refs,
+    decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme, merge_chunks,
     metadata::{MetadataResult, metadata_from_result_for_target},
-    plan_batches, resolve_asset_selections, snapshot_chunk_from_result,
+    plan_batches, read_snapshot_cursor, resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
         merge_used_resource_results, merge_variable_results,
@@ -38,7 +38,7 @@ const USED_RESOURCE_BATCH_BYTES: usize = 12_000;
 // Consumer relations can be huge. Compact, bounded fragments are expanded
 // back to the exhaustive shape in Rust without dropping any relation.
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
-const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
+
 const MAX_REFERENCE_PNG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_REFERENCE_PNG_BASE64_BYTES: usize = MAX_REFERENCE_PNG_BYTES.div_ceil(3) * 4;
 const MAX_REFERENCE_PNG_DIMENSION: u32 = 8_192;
@@ -116,6 +116,16 @@ pub struct CollectedParts {
     pub stats: CollectionStats,
     pub assets: Vec<AssetManifestEntry>,
     pub reference_png: Option<ReferencePng>,
+    pub failures: Vec<ScreenFailure>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenFailure {
+    pub node_id: String,
+    pub error_code: ErrorCode,
+    pub message: String,
+    pub retryable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -147,7 +157,10 @@ impl Default for CollectionStats {
     fn default() -> Self {
         Self {
             figma_tool_calls: 0,
-            transport: "legacy-cursor".to_owned(),
+            // Text (optionally paginated) is the default, primary path now;
+            // "legacy-cursor" only ever appears once a fast call actually
+            // falls back (see `restart_legacy`).
+            transport: "text".to_owned(),
             fallback_used: false,
             fallback_reason: None,
             node_count: 0,
@@ -219,7 +232,15 @@ pub struct CollectorSession {
     section_selected_roots: Vec<String>,
     fast_multi_resources: Option<UpstreamResult>,
     fast_multi_has_large_values: bool,
+    /// Resources merged across rounds of the paginated single-root fast
+    /// snapshot (`accept_fast_snapshot`). Distinct from `fast_multi_resources`,
+    /// which is scoped to Section multi-root batching; the two paths are
+    /// mutually exclusive (`fast_path_eligible` requires `section.is_none()`).
+    fast_snapshot_resources: Option<UpstreamResult>,
+    fast_snapshot_has_large_values: bool,
+    fast_snapshot_rounds: usize,
     section_fallback_roots: BTreeSet<String>,
+    screen_failures: Vec<ScreenFailure>,
     next_id: usize,
     completed: bool,
 }
@@ -254,7 +275,11 @@ impl CollectorSession {
             section_selected_roots: Vec::new(),
             fast_multi_resources: None,
             fast_multi_has_large_values: false,
+            fast_snapshot_resources: None,
+            fast_snapshot_has_large_values: false,
+            fast_snapshot_rounds: 0,
             section_fallback_roots: BTreeSet::new(),
+            screen_failures: Vec::new(),
             next_id: 0,
             completed: false,
         }
@@ -266,7 +291,9 @@ impl CollectorSession {
 
     pub fn advance(&mut self) -> Result<CollectorStep, DevupError> {
         if self.completed {
-            return Err(invalid_call("완료된 Figma 수집 session입니다."));
+            return Err(invalid_call(
+                "This Figma collection session is already complete.",
+            ));
         }
         if self.section_index.is_none()
             && let Some(index) = self.request.cached_section_index.take()
@@ -276,10 +303,12 @@ impl CollectorSession {
         }
         if self.metadata.is_none() && self.pending.is_empty() && self.queued.is_empty() {
             if self.request.section.is_some() && self.section_index.is_none() {
-                let node_id =
-                    self.request.target.node_id.clone().ok_or_else(|| {
-                        invalid_call("Figma Section index에는 node ID가 필요합니다.")
-                    })?;
+                let node_id = self
+                    .request
+                    .target
+                    .node_id
+                    .clone()
+                    .ok_or_else(|| invalid_call("Figma Section index requires a node ID."))?;
                 self.enqueue(
                     ReadToolCall::section_index(&self.request.target.file_key, &node_id),
                     Some(node_id),
@@ -298,7 +327,7 @@ impl CollectorSession {
             }
             if let Some(options) = self.request.explore.clone() {
                 let node_id = self.request.target.node_id.clone().ok_or_else(|| {
-                    invalid_call("Figma 주변 화면 탐색에는 node ID가 필요합니다.")
+                    invalid_call("Figma nearby-screen exploration requires a node ID.")
                 })?;
                 self.enqueue(
                     ReadToolCall::explore_snapshot(
@@ -320,10 +349,12 @@ impl CollectorSession {
                 return self.advance();
             }
             if self.fast_path_eligible() && !self.fast_attempted {
-                let node_id =
-                    self.request.target.node_id.clone().ok_or_else(|| {
-                        invalid_call("Figma fast snapshot에는 node ID가 필요합니다.")
-                    })?;
+                let node_id = self
+                    .request
+                    .target
+                    .node_id
+                    .clone()
+                    .ok_or_else(|| invalid_call("Figma fast snapshot requires a node ID."))?;
                 self.fast_attempted = true;
                 self.enqueue(
                     ReadToolCall::fast_snapshot(&self.request.target.file_key, &node_id),
@@ -397,7 +428,7 @@ impl CollectorSession {
             && self.queued.is_empty()
         {
             let node_id = self.request.target.node_id.clone().ok_or_else(|| {
-                invalid_call("Figma reference PNG 수집에는 node ID가 필요합니다.")
+                invalid_call("Figma reference PNG collection requires a node ID.")
             })?;
             self.reference_png_scheduled = true;
             self.enqueue(
@@ -413,10 +444,9 @@ impl CollectorSession {
             && self.variables.is_none()
             && self.queued.is_empty()
         {
-            let node_id = self
-                .root_node_id
-                .clone()
-                .ok_or_else(|| invalid_call("Figma 변수 수집에 사용할 root node ID가 없습니다."))?;
+            let node_id = self.root_node_id.clone().ok_or_else(|| {
+                invalid_call("No root node ID available for Figma variable collection.")
+            })?;
             self.enqueue(
                 ReadToolCall::snapshot(
                     &self.request.target.file_key,
@@ -437,7 +467,7 @@ impl CollectorSession {
             let catalog = self
                 .variable_catalog
                 .take()
-                .ok_or_else(|| invalid_call("Figma 변수 catalog가 없습니다."))?;
+                .ok_or_else(|| invalid_call("Figma variable catalog is missing."))?;
             self.variables = Some(merge_variable_results(
                 catalog,
                 std::mem::take(&mut self.variable_batches).into_values(),
@@ -463,7 +493,7 @@ impl CollectorSession {
             let refs = self
                 .used_resource_refs
                 .take()
-                .ok_or_else(|| invalid_call("사용된 Figma 리소스 참조가 없습니다."))?;
+                .ok_or_else(|| invalid_call("Used Figma resource references are missing."))?;
             let merged = merge_used_resource_results(
                 &refs,
                 std::mem::take(&mut self.variable_batches).into_values(),
@@ -479,7 +509,7 @@ impl CollectorSession {
                     &mut combined,
                     result
                         .take()
-                        .ok_or_else(|| invalid_call("fallback resource 결과가 없습니다."))?,
+                        .ok_or_else(|| invalid_call("fallback resource result is missing."))?,
                 )?;
                 result = combined;
             }
@@ -515,6 +545,7 @@ impl CollectorSession {
                 stats: self.stats.clone(),
                 assets: std::mem::take(&mut self.asset_results),
                 reference_png: self.reference_png.take(),
+                failures: std::mem::take(&mut self.screen_failures),
             })));
         }
         Ok(CollectorStep::AwaitingResults)
@@ -524,7 +555,7 @@ impl CollectorSession {
         let pending = self
             .pending
             .remove(call_id)
-            .ok_or_else(|| invalid_call("알 수 없거나 이미 처리한 Figma call ID입니다."))?;
+            .ok_or_else(|| invalid_call("Unknown or already-handled Figma call ID."))?;
         self.consumed.insert(call_id.to_owned());
         match pending.kind {
             CallKind::FastSnapshot => {
@@ -561,18 +592,37 @@ impl CollectorSession {
 
     pub fn reject(&mut self, call_id: &str, error: &DevupError) -> Result<bool, DevupError> {
         let Some(pending) = self.pending.get(call_id) else {
-            return Err(invalid_call(
-                "알 수 없거나 이미 처리한 Figma call ID입니다.",
-            ));
+            return Err(invalid_call("Unknown or already-handled Figma call ID."));
         };
+        if pending.kind == CallKind::FastSnapshot && is_section_target_error(error) {
+            let pending = self
+                .pending
+                .remove(call_id)
+                .ok_or_else(|| invalid_call("fast Section probe call is missing."))?;
+            self.consumed.insert(call_id.to_owned());
+            let node_id = pending
+                .planned
+                .expected_node_id
+                .ok_or_else(|| invalid_call("fast Section probe node ID is missing."))?;
+            self.request.section = Some(SectionReadOptions {
+                frame_ids: Vec::new(),
+                all_screens: false,
+            });
+            self.enqueue(
+                ReadToolCall::section_index(&self.request.target.file_key, &node_id),
+                Some(node_id),
+                CallKind::SectionIndex,
+            );
+            return Ok(true);
+        }
         if pending.kind == CallKind::Asset {
             let pending = self
                 .pending
                 .remove(call_id)
-                .ok_or_else(|| invalid_call("asset call이 없습니다."))?;
+                .ok_or_else(|| invalid_call("asset call is missing."))?;
             self.consumed.insert(call_id.to_owned());
             let ReadToolCall::AssetExport { request, .. } = pending.planned.call else {
-                return Err(invalid_call("asset call 형식이 올바르지 않습니다."));
+                return Err(invalid_call("asset call format is invalid."));
             };
             self.record_asset_failure(*request, "DEVUP_ASSET_EXPORT_FAILED");
             return Ok(true);
@@ -581,12 +631,37 @@ impl CollectorSession {
             let pending = self
                 .pending
                 .remove(call_id)
-                .ok_or_else(|| invalid_call("large value call이 없습니다."))?;
+                .ok_or_else(|| invalid_call("large value call is missing."))?;
             self.consumed.insert(call_id.to_owned());
             let ReadToolCall::LargeValue { options, .. } = pending.planned.call else {
-                return Err(invalid_call("large value call 형식이 올바르지 않습니다."));
+                return Err(invalid_call("large value call format is invalid."));
             };
             self.record_large_value_unsupported(&options, "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM")?;
+            return Ok(true);
+        }
+        if pending.kind == CallKind::Snapshot
+            && pending
+                .planned
+                .expected_node_id
+                .as_ref()
+                .is_some_and(|node_id| self.section_fallback_roots.contains(node_id))
+        {
+            let pending = self
+                .pending
+                .remove(call_id)
+                .ok_or_else(|| invalid_call("Section legacy call is missing."))?;
+            self.consumed.insert(call_id.to_owned());
+            let node_id = pending
+                .planned
+                .expected_node_id
+                .ok_or_else(|| invalid_call("Section legacy call node ID is missing."))?;
+            self.section_fallback_roots.remove(&node_id);
+            self.screen_failures.push(ScreenFailure {
+                node_id,
+                error_code: error.code,
+                message: error.message.clone(),
+                retryable: error.retryable,
+            });
             return Ok(true);
         }
         if !matches!(
@@ -601,7 +676,7 @@ impl CollectorSession {
         let pending = self
             .pending
             .remove(call_id)
-            .ok_or_else(|| invalid_call("fast call이 없습니다."))?;
+            .ok_or_else(|| invalid_call("fast call is missing."))?;
         self.consumed.insert(call_id.to_owned());
         if pending.kind == CallKind::FastMultiRoot {
             self.fallback_multi_root_batch(&pending.planned, fallback_category(error))?;
@@ -643,7 +718,7 @@ impl CollectorSession {
             }
         };
         self.metadata = Some(json!({
-            "transport": "png-theme-envelope-v1",
+            "transport": payload.stats.transport,
             "collectionCount": payload.resources.raw["collections"]
                 .as_array().map_or(0, Vec::len),
             "variableCount": payload.resources.raw["variables"]
@@ -652,7 +727,7 @@ impl CollectorSession {
                 .as_array().map_or(0, Vec::len)
         }));
         self.source_version = payload.source_version;
-        self.stats.transport = "png-theme-envelope-v1".to_owned();
+        self.stats.transport = payload.stats.transport.to_owned();
         self.stats.raw_bytes = payload.stats.raw_bytes;
         self.stats.wire_bytes = payload.stats.wire_bytes;
         self.stats.envelope_chunks = payload.stats.chunk_count;
@@ -693,22 +768,71 @@ impl CollectorSession {
             .target
             .node_id
             .clone()
-            .ok_or_else(|| invalid_call("Figma fast snapshot에는 node ID가 필요합니다."))?;
-        self.metadata = Some(json!({
-            "transport": "png-envelope-v1",
-            "rootId": root_id,
-            "nodeCount": payload.snapshot.nodes.len()
-        }));
-        self.root_node_id = Some(root_id);
+            .ok_or_else(|| invalid_call("Figma fast snapshot requires a node ID."))?;
+        self.root_node_id = Some(root_id.clone());
         self.source_version = payload.snapshot.version.clone();
         self.metadata_root_ids = payload.snapshot.root_ids.clone();
-        self.stats.transport = "png-envelope-v1".to_owned();
-        self.stats.raw_bytes = payload.stats.raw_bytes;
-        self.stats.wire_bytes = payload.stats.wire_bytes;
-        self.stats.envelope_chunks = payload.stats.chunk_count;
+        self.fast_snapshot_rounds = self.fast_snapshot_rounds.saturating_add(1);
+        self.stats.raw_bytes = self.stats.raw_bytes.saturating_add(payload.stats.raw_bytes);
+        self.stats.wire_bytes = self
+            .stats
+            .wire_bytes
+            .saturating_add(payload.stats.wire_bytes);
         let has_large_values = !descriptors_in_chunk(&payload.snapshot)?.is_empty();
-        self.variables = (!has_large_values).then_some(payload.resources);
-        self.record_snapshot_chunk(order, payload.snapshot)?;
+        if has_large_values {
+            self.fast_snapshot_has_large_values = true;
+        } else {
+            merge_fast_resources(&mut self.fast_snapshot_resources, payload.resources)?;
+        }
+
+        let mut chunk = payload.snapshot;
+        // The script always appends a `__DEVUP_SNAPSHOT_CURSOR__` marker node
+        // (same convention as the legacy cursor snapshot) reporting whether
+        // more pages remain; `take_snapshot_cursor` strips it and returns
+        // that state. A missing marker (only possible for hand-built,
+        // pre-pagination-shaped payloads) is treated as a single complete
+        // page. `record_snapshot_chunk` then stores this page's real nodes
+        // and enqueues any large-value follow-ups they declared.
+        let total_nodes = chunk.nodes.len();
+        let cursor = take_snapshot_cursor(&mut chunk)?.unwrap_or(SnapshotCursor {
+            offset: 0,
+            next_offset: total_nodes,
+            complete: true,
+            total_nodes,
+        });
+        self.record_snapshot_chunk(order, chunk)?;
+
+        if cursor.complete {
+            self.stats.transport = if self.fast_snapshot_rounds > 1 {
+                "text-paginated"
+            } else {
+                "text"
+            }
+            .to_owned();
+            self.stats.envelope_chunks = 0;
+            self.variables = (!self.fast_snapshot_has_large_values)
+                .then(|| self.fast_snapshot_resources.take())
+                .flatten();
+            self.metadata = Some(json!({
+                "transport": &self.stats.transport,
+                "rootId": root_id,
+                "nodeCount": cursor.total_nodes,
+                "pageCount": self.fast_snapshot_rounds
+            }));
+        } else {
+            self.enqueue(
+                ReadToolCall::fast_snapshot_page(
+                    &self.request.target.file_key,
+                    &root_id,
+                    SnapshotReadOptions {
+                        offset: cursor.next_offset,
+                        ..SnapshotReadOptions::default()
+                    },
+                ),
+                Some(root_id),
+                CallKind::FastSnapshot,
+            );
+        }
         Ok(())
     }
 
@@ -726,7 +850,11 @@ impl CollectorSession {
         self.variable_batches.clear();
         self.variables = None;
         self.large_values.clear();
+        self.fast_snapshot_resources = None;
+        self.fast_snapshot_has_large_values = false;
+        self.fast_snapshot_rounds = 0;
         self.section_fallback_roots.clear();
+        self.screen_failures.clear();
         self.asset_results.clear();
         self.assets_scheduled = self.request.asset_selections.is_empty();
         self.reference_png = None;
@@ -762,13 +890,13 @@ impl CollectorSession {
         let catalog = snapshot_chunk_from_result(&result)?;
         if catalog.file_key != planned.expected_file_key {
             return Err(invalid_call(
-                "Figma page catalog의 file key가 요청과 다릅니다.",
+                "Figma page catalog file key does not match the request.",
             ));
         }
         if catalog.root_ids.is_empty() {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma page catalog가 비어 있습니다.",
+                "Figma page catalog is empty.",
                 false,
             ));
         }
@@ -776,7 +904,7 @@ impl CollectorSession {
             .request
             .search
             .clone()
-            .ok_or_else(|| invalid_call("검색 설정 없이 page catalog를 수집했습니다."))?;
+            .ok_or_else(|| invalid_call("Collected a page catalog without search options."))?;
         self.metadata = Some(result.raw);
         self.root_node_id = catalog.root_ids.first().cloned();
         self.source_version = catalog.version.clone();
@@ -807,17 +935,16 @@ impl CollectorSession {
         let chunk = snapshot_chunk_from_result(&result)?;
         if chunk.file_key != planned.expected_file_key {
             return Err(invalid_call(
-                "Figma 탐색 projection의 file key가 요청과 다릅니다.",
+                "Figma exploration projection file key does not match the request.",
             ));
         }
-        let expected_node_id = planned
-            .expected_node_id
-            .as_deref()
-            .ok_or_else(|| invalid_call("Figma 탐색 projection의 expected node ID가 없습니다."))?;
+        let expected_node_id = planned.expected_node_id.as_deref().ok_or_else(|| {
+            invalid_call("Figma exploration projection expected node ID is missing.")
+        })?;
         if !chunk.nodes.iter().any(|node| node.id == expected_node_id) {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma 탐색 projection에서 anchor node를 찾지 못했습니다.",
+                "anchor node not found in the Figma exploration projection.",
                 false,
             ));
         }
@@ -838,18 +965,18 @@ impl CollectorSession {
         let chunk = snapshot_chunk_from_result(&result)?;
         if chunk.file_key != planned.expected_file_key {
             return Err(invalid_call(
-                "Figma Section index의 file key가 요청과 다릅니다.",
+                "Figma Section index file key does not match the request.",
             ));
         }
         let section_id = planned
             .expected_node_id
             .as_deref()
-            .ok_or_else(|| invalid_call("Figma Section index의 node ID가 없습니다."))?;
+            .ok_or_else(|| invalid_call("Figma Section index node ID is missing."))?;
         if chunk.root_ids.as_slice() != [section_id]
             || !chunk.nodes.iter().any(|node| node.id == section_id)
         {
             return Err(invalid_call(
-                "Figma Section index가 요청한 Section과 일치하지 않습니다.",
+                "Figma Section index does not match the requested Section.",
             ));
         }
         let snapshot = merge_chunks(vec![chunk.clone()])?;
@@ -858,7 +985,7 @@ impl CollectorSession {
             .request
             .section
             .clone()
-            .ok_or_else(|| invalid_call("Section read options가 없습니다."))?;
+            .ok_or_else(|| invalid_call("Section read options are missing."))?;
         self.source_version = index.source_version.clone();
         self.root_node_id = Some(section_id.to_owned());
         self.metadata_root_ids = chunk.root_ids.clone();
@@ -893,15 +1020,17 @@ impl CollectorSession {
                     self.enqueue_section_legacy_root(root_id);
                 }
             } else {
-                self.enqueue(
-                    ReadToolCall::multi_root_snapshot(
-                        &self.request.target.file_key,
-                        section_id,
-                        batch.root_ids,
-                    ),
-                    Some(section_id.to_owned()),
-                    CallKind::FastMultiRoot,
-                );
+                for root_id in batch.root_ids {
+                    self.enqueue(
+                        ReadToolCall::multi_root_snapshot(
+                            &self.request.target.file_key,
+                            section_id,
+                            vec![root_id],
+                        ),
+                        Some(section_id.to_owned()),
+                        CallKind::FastMultiRoot,
+                    );
+                }
             }
         }
         Ok(())
@@ -912,14 +1041,14 @@ impl CollectorSession {
             || self.request.target.node_id.as_deref() != Some(index.section.node_id.as_str())
         {
             return Err(invalid_call(
-                "cached Section index가 요청한 Section과 일치하지 않습니다.",
+                "cached Section index does not match the requested Section.",
             ));
         }
         let options = self
             .request
             .section
             .clone()
-            .ok_or_else(|| invalid_call("cached Section index에 선택 설정이 없습니다."))?;
+            .ok_or_else(|| invalid_call("cached Section index has no selection options."))?;
         let selected = index.select(&options.frame_ids, options.all_screens)?;
         let batches = plan_batches(&index, &selected, BatchLimits::default())?;
         self.source_version = index.source_version.clone();
@@ -939,7 +1068,7 @@ impl CollectorSession {
             .target
             .node_id
             .clone()
-            .ok_or_else(|| invalid_call("cached Section index의 Section ID가 없습니다."))?;
+            .ok_or_else(|| invalid_call("cached Section index Section ID is missing."))?;
         for batch in batches {
             if batch.oversized {
                 self.mark_section_legacy("oversized-section-root".to_owned());
@@ -947,15 +1076,17 @@ impl CollectorSession {
                     self.enqueue_section_legacy_root(root_id);
                 }
             } else {
-                self.enqueue(
-                    ReadToolCall::multi_root_snapshot(
-                        &self.request.target.file_key,
-                        &section_id,
-                        batch.root_ids,
-                    ),
-                    Some(section_id.clone()),
-                    CallKind::FastMultiRoot,
-                );
+                for root_id in batch.root_ids {
+                    self.enqueue(
+                        ReadToolCall::multi_root_snapshot(
+                            &self.request.target.file_key,
+                            &section_id,
+                            vec![root_id],
+                        ),
+                        Some(section_id.clone()),
+                        CallKind::FastMultiRoot,
+                    );
+                }
             }
         }
         Ok(())
@@ -973,9 +1104,7 @@ impl CollectorSession {
             ..
         } = &planned.call
         else {
-            return Err(invalid_call(
-                "multi-root snapshot call 형식이 올바르지 않습니다.",
-            ));
+            return Err(invalid_call("multi-root snapshot call format is invalid."));
         };
         let payload = match decode_fast_multi_snapshot(&result, &self.request.target, root_ids) {
             Ok(payload) => payload,
@@ -990,7 +1119,7 @@ impl CollectorSession {
         {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaVersionChanged,
-                "multi-root 수집 중 Figma 파일 버전이 변경되었습니다.",
+                "The Figma file version changed during multi-root collection.",
                 true,
             ));
         }
@@ -1000,7 +1129,7 @@ impl CollectorSession {
         self.fast_multi_has_large_values |= !descriptors_in_chunk(&payload.snapshot)?.is_empty();
         merge_fast_resources(&mut self.fast_multi_resources, payload.resources)?;
         self.stats.transport = if self.section_fallback_roots.is_empty() {
-            "png-multi-root-envelope-v1"
+            payload.stats.transport
         } else {
             "hybrid-multi-root-cursor"
         }
@@ -1029,14 +1158,10 @@ impl CollectorSession {
             ..
         } = &planned.call
         else {
-            return Err(invalid_call(
-                "multi-root fallback call 형식이 올바르지 않습니다.",
-            ));
+            return Err(invalid_call("multi-root fallback call format is invalid."));
         };
         if root_ids.is_empty() {
-            return Err(invalid_call(
-                "multi-root fallback에 선택된 root가 없습니다.",
-            ));
+            return Err(invalid_call("multi-root fallback has no selected roots."));
         }
         self.mark_section_legacy(reason);
         for root_id in root_ids {
@@ -1080,19 +1205,29 @@ impl CollectorSession {
         }
         let snapshot = merge_chunks(chunks)?;
         let observed = snapshot.roots.iter().collect::<BTreeSet<_>>();
+        let failed = self
+            .screen_failures
+            .iter()
+            .map(|failure| failure.node_id.as_str())
+            .collect::<BTreeSet<_>>();
         if self
             .section_selected_roots
             .iter()
-            .any(|root_id| !observed.contains(root_id))
+            .any(|root_id| !observed.contains(root_id) && !failed.contains(root_id.as_str()))
         {
             return Err(invalid_call(
-                "Section snapshot에 선택된 root가 모두 포함되지 않았습니다.",
+                "Section snapshot does not include all selected roots.",
             ));
         }
         Ok(vec![SnapshotChunk {
             file_key: snapshot.file_key,
             version: snapshot.version,
-            root_ids: self.section_selected_roots.clone(),
+            root_ids: self
+                .section_selected_roots
+                .iter()
+                .filter(|root_id| observed.contains(*root_id))
+                .cloned()
+                .collect(),
             nodes: snapshot.nodes.into_values().collect(),
             diagnostics: snapshot.diagnostics,
         }])
@@ -1110,7 +1245,7 @@ impl CollectorSession {
             let key = (descriptor.node_id.clone(), descriptor.field.clone());
             if self.large_values.contains_key(&key) {
                 return Err(invalid_call(
-                    "동일한 Figma large value descriptor가 중복되었습니다.",
+                    "Duplicate Figma large value descriptor for the same field.",
                 ));
             }
             let options = LargeValueReadOptions::from_descriptor(
@@ -1141,7 +1276,7 @@ impl CollectorSession {
         result: UpstreamResult,
     ) -> Result<(), DevupError> {
         let ReadToolCall::LargeValue { options, .. } = &planned.call else {
-            return Err(invalid_call("large value call 형식이 올바르지 않습니다."));
+            return Err(invalid_call("large value call format is invalid."));
         };
         let result = large_value_from_result(&result)?;
         if let LargeValueResult::Unsupported(unsupported) = result {
@@ -1154,7 +1289,7 @@ impl CollectorSession {
                 || unsupported.error_code != "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM"
             {
                 return Err(invalid_call(
-                    "large value unsupported 응답이 요청과 일치하지 않습니다.",
+                    "large value unsupported response does not match the request.",
                 ));
             }
             return self.record_large_value_unsupported(options, &unsupported.error_code);
@@ -1164,7 +1299,7 @@ impl CollectorSession {
         };
         if fragment.offset != options.offset {
             return Err(invalid_call(
-                "large value fragment offset이 요청과 일치하지 않습니다.",
+                "large value fragment offset does not match the request.",
             ));
         }
         let key = (options.node_id.clone(), options.field.clone());
@@ -1173,19 +1308,19 @@ impl CollectorSession {
         let assembler = self
             .large_values
             .get_mut(&key)
-            .ok_or_else(|| invalid_call("large value assembler가 없습니다."))?;
+            .ok_or_else(|| invalid_call("large value assembler is missing."))?;
         assembler.push(fragment)?;
         if complete {
             let assembler = self
                 .large_values
                 .remove(&key)
-                .ok_or_else(|| invalid_call("large value assembler가 없습니다."))?;
+                .ok_or_else(|| invalid_call("large value assembler is missing."))?;
             let descriptor = assembler.descriptor().clone();
             let value = assembler.finish()?;
             replace_descriptor(&mut self.snapshot_chunks, &descriptor, value)?;
         } else {
             if next_offset <= options.offset {
-                return Err(invalid_call("large value cursor가 진행되지 않았습니다."));
+                return Err(invalid_call("large value cursor did not advance."));
             }
             let descriptor = assembler.descriptor().clone();
             let next = LargeValueReadOptions::from_descriptor(
@@ -1211,7 +1346,7 @@ impl CollectorSession {
         let assembler = self
             .large_values
             .remove(&key)
-            .ok_or_else(|| invalid_call("large value assembler가 없습니다."))?;
+            .ok_or_else(|| invalid_call("large value assembler is missing."))?;
         let descriptor = assembler.descriptor().clone();
         replace_descriptor(
             &mut self.snapshot_chunks,
@@ -1235,7 +1370,7 @@ impl CollectorSession {
             chunk.diagnostics.push(crate::Diagnostic {
                 code: error_code.to_owned(),
                 message:
-                    "Figma upstream에서 큰 필드를 다시 읽을 수 없어 명시적 marker를 유지했습니다."
+                    "Figma upstream could not re-read the large field, so an explicit marker was kept."
                         .to_owned(),
                 node_id: Some(descriptor.node_id),
                 severity: Some(crate::DiagnosticSeverity::Warning),
@@ -1257,7 +1392,7 @@ impl CollectorSession {
             version, request, ..
         } = &planned.call
         else {
-            return Err(invalid_call("asset call 형식이 올바르지 않습니다."));
+            return Err(invalid_call("asset call format is invalid."));
         };
         let exported = asset_export_from_result(
             &result,
@@ -1282,29 +1417,29 @@ impl CollectorSession {
         result: UpstreamResult,
     ) -> Result<(), DevupError> {
         let ReadToolCall::Screenshot { file_key, node_id } = &planned.call else {
-            return Err(invalid_call("reference PNG call 형식이 올바르지 않습니다."));
+            return Err(invalid_call("reference PNG call format is invalid."));
         };
         if file_key != &planned.expected_file_key
             || planned.expected_node_id.as_deref() != Some(node_id.as_str())
         {
             return Err(invalid_call(
-                "reference PNG call의 Figma 대상이 요청과 다릅니다.",
+                "reference PNG call Figma target does not match the request.",
             ));
         }
         let data_base64 = take_single_png_data(result.raw)?;
         if data_base64.len() > MAX_REFERENCE_PNG_BASE64_BYTES {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "Figma reference PNG가 허용 크기를 초과했습니다.",
+                "Figma reference PNG exceeds the allowed size.",
                 false,
             ));
         }
         let bytes = STANDARD
             .decode(data_base64.as_bytes())
-            .map_err(|_| invalid_call("Figma reference PNG의 base64가 올바르지 않습니다."))?;
+            .map_err(|_| invalid_call("Figma reference PNG base64 is invalid."))?;
         if bytes.is_empty() || bytes.len() > MAX_REFERENCE_PNG_BYTES {
             return Err(invalid_call(
-                "Figma reference PNG의 형식 또는 크기가 올바르지 않습니다.",
+                "Figma reference PNG format or size is invalid.",
             ));
         }
         validate_reference_png(&bytes)?;
@@ -1352,7 +1487,7 @@ impl CollectorSession {
         {
             chunk.diagnostics.push(crate::Diagnostic {
                 code: error_code.to_owned(),
-                message: "요청한 Figma asset을 export하지 못해 layout 출력은 유지했습니다."
+                message: "Failed to export the requested Figma asset; layout output was kept."
                     .to_owned(),
                 node_id: Some(request.node_id.clone()),
                 severity: Some(crate::DiagnosticSeverity::Warning),
@@ -1379,7 +1514,7 @@ impl CollectorSession {
         if let MetadataResult::TopLevelPages(pages) = metadata {
             if planned.expected_node_id.is_some() {
                 return Err(invalid_call(
-                    "page metadata 요청에 top-level page 목록이 반환되었습니다.",
+                    "A page metadata request returned the top-level page list.",
                 ));
             }
             self.record_metadata(result.raw);
@@ -1420,14 +1555,16 @@ impl CollectorSession {
             unreachable!("top-level page metadata is handled above")
         };
         if document.file_key != self.request.target.file_key {
-            return Err(invalid_call("Figma metadata의 file key가 요청과 다릅니다."));
+            return Err(invalid_call(
+                "Figma metadata file key does not match the request.",
+            ));
         }
         if let (Some(existing), Some(incoming)) = (&self.source_version, &document.version)
             && existing != incoming
         {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaVersionChanged,
-                "metadata 수집 중 Figma 파일 버전이 변경되었습니다.",
+                "The Figma file version changed during metadata collection.",
                 true,
             ));
         }
@@ -1447,7 +1584,7 @@ impl CollectorSession {
         let root = document.root().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma metadata에서 대상 node를 찾지 못했습니다.",
+                "Target node not found in the Figma metadata.",
                 false,
             )
         })?;
@@ -1537,12 +1674,14 @@ impl CollectorSession {
     ) -> Result<(), DevupError> {
         let mut chunk = snapshot_chunk_from_result(&result)?;
         if chunk.file_key != planned.expected_file_key {
-            return Err(invalid_call("Figma snapshot의 file key가 요청과 다릅니다."));
+            return Err(invalid_call(
+                "Figma snapshot file key does not match the request.",
+            ));
         }
         if chunk.version != self.source_version {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaVersionChanged,
-                "수집 중 Figma 파일 버전이 변경되었습니다.",
+                "The Figma file version changed during collection.",
                 true,
             ));
         }
@@ -1560,23 +1699,23 @@ impl CollectorSession {
             let expected_next = options
                 .offset
                 .checked_add(chunk.nodes.len())
-                .ok_or_else(|| invalid_call("Figma snapshot cursor offset이 넘쳤습니다."))?;
+                .ok_or_else(|| invalid_call("Figma snapshot cursor offset overflowed."))?;
             if cursor.next_offset != expected_next || cursor.next_offset > cursor.total_nodes {
                 return Err(invalid_call(
-                    "Figma snapshot cursor가 수집한 node 범위와 일치하지 않습니다.",
+                    "Figma snapshot cursor does not match the collected node range.",
                 ));
             }
             if cursor.complete != (cursor.next_offset >= cursor.total_nodes) {
                 return Err(invalid_call(
-                    "Figma snapshot cursor의 완료 상태가 node 수와 일치하지 않습니다.",
+                    "Figma snapshot cursor completion state does not match the node count.",
                 ));
             }
             if !cursor.complete {
                 if chunk.nodes.is_empty() {
-                    return Err(invalid_call("Figma snapshot cursor가 진행되지 않았습니다."));
+                    return Err(invalid_call("Figma snapshot cursor did not advance."));
                 }
                 let node_id = planned.expected_node_id.clone().ok_or_else(|| {
-                    invalid_call("Figma snapshot cursor의 root node ID가 없습니다.")
+                    invalid_call("Figma snapshot cursor root node ID is missing.")
                 })?;
                 self.enqueue(
                     ReadToolCall::snapshot_chunk(
@@ -1598,10 +1737,9 @@ impl CollectorSession {
 
     fn accept_variable_catalog(&mut self, result: UpstreamResult) -> Result<(), DevupError> {
         let catalog = catalog_from_result(&result)?;
-        let node_id = self
-            .root_node_id
-            .clone()
-            .ok_or_else(|| invalid_call("Figma 변수 batch에 사용할 root node ID가 없습니다."))?;
+        let node_id = self.root_node_id.clone().ok_or_else(|| {
+            invalid_call("No root node ID available for the Figma variable batch.")
+        })?;
         for variable_ids in catalog.variable_ids.chunks(VARIABLE_BATCH_SIZE) {
             self.enqueue(
                 ReadToolCall::resource_batch(
@@ -1651,7 +1789,7 @@ impl CollectorSession {
             .collect::<Vec<_>>();
         let refs = collect_used_resource_refs(&chunks);
         let node_id = self.root_node_id.clone().ok_or_else(|| {
-            invalid_call("사용된 Figma 리소스 batch에 사용할 root node ID가 없습니다.")
+            invalid_call("No root node ID available for the used Figma resource batch.")
         })?;
         for batch in used_resource_batches(&refs)? {
             self.enqueue(
@@ -1680,7 +1818,7 @@ impl CollectorSession {
             let diagnostic = crate::Diagnostic {
                 code: "DEVUP_RESOURCE_UNRESOLVED".to_owned(),
                 message: format!(
-                    "Figma 리소스를 확인할 수 없어 raw 값으로 대체했습니다: field={}, resourceId={}",
+                    "Could not resolve the Figma resource; substituted the raw value: field={}, resourceId={}",
                     occurrence.field, occurrence.resource_id
                 ),
                 node_id: Some(occurrence.node_id.clone()),
@@ -1713,11 +1851,11 @@ impl CollectorSession {
         batch: &VariableBatchResult,
     ) -> Result<(), DevupError> {
         let node_id = self.root_node_id.clone().ok_or_else(|| {
-            invalid_call("Figma style consumer 수집에 사용할 root node ID가 없습니다.")
+            invalid_call("No root node ID available for Figma style consumer collection.")
         })?;
         for style in &batch.styles {
             let Some(object) = style.as_object() else {
-                return Err(invalid_call("Figma style batch 형식이 올바르지 않습니다."));
+                return Err(invalid_call("Figma style batch format is invalid."));
             };
             let Some(consumer_count) = object.get("$consumerCount").and_then(Value::as_u64) else {
                 continue;
@@ -1725,11 +1863,11 @@ impl CollectorSession {
             let id = object
                 .get("id")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid_call("Figma style ID가 없습니다."))?;
+                .ok_or_else(|| invalid_call("Figma style ID is missing."))?;
             let style_type = object
                 .get("styleType")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid_call("Figma style type이 없습니다."))?;
+                .ok_or_else(|| invalid_call("Figma style type is missing."))?;
             for start in (0..consumer_count as usize).step_by(STYLE_CONSUMER_BATCH_SIZE) {
                 let end = (start + STYLE_CONSUMER_BATCH_SIZE).min(consumer_count as usize);
                 self.enqueue(
@@ -1773,25 +1911,25 @@ impl CollectorSession {
 
 fn take_single_png_data(value: Value) -> Result<String, DevupError> {
     let result = serde_json::from_value::<CallToolResult>(value)
-        .map_err(|_| invalid_call("Figma screenshot 응답 형식이 올바르지 않습니다."))?;
+        .map_err(|_| invalid_call("Figma screenshot response format is invalid."))?;
     if result.is_error == Some(true) || result.content.len() != 1 {
         return Err(invalid_call(
-            "Figma screenshot 응답에는 image/png content가 정확히 하나 있어야 합니다.",
+            "Figma screenshot response must contain exactly one image/png content block.",
         ));
     }
     let content = result
         .content
         .into_iter()
         .next()
-        .ok_or_else(|| invalid_call("Figma screenshot 응답에 image/png content가 없습니다."))?;
+        .ok_or_else(|| invalid_call("Figma screenshot response has no image/png content."))?;
     let ContentBlock::Image(image) = content else {
         return Err(invalid_call(
-            "Figma screenshot 응답에는 image/png content가 정확히 하나 있어야 합니다.",
+            "Figma screenshot response must contain exactly one image/png content block.",
         ));
     };
     if image.mime_type != "image/png" {
         return Err(invalid_call(
-            "Figma screenshot 응답의 MIME 형식이 image/png가 아닙니다.",
+            "Figma screenshot response MIME type is not image/png.",
         ));
     }
     Ok(image.data)
@@ -1808,7 +1946,7 @@ fn validate_reference_png(bytes: &[u8]) -> Result<(), DevupError> {
     let decoded_bytes = usize::try_from(decoder.total_bytes()).map_err(|_| {
         DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "Figma reference PNG의 decoded 크기가 허용 범위를 초과했습니다.",
+            "Figma reference PNG decoded size exceeds the allowed range.",
             false,
         )
     })?;
@@ -1820,7 +1958,7 @@ fn validate_reference_png(bytes: &[u8]) -> Result<(), DevupError> {
     {
         return Err(DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "Figma reference PNG의 dimensions 또는 decoded 크기가 허용 범위를 초과했습니다.",
+            "Figma reference PNG dimensions or decoded size exceed the allowed range.",
             false,
         ));
     }
@@ -1834,61 +1972,22 @@ fn reference_png_decode_error(error: ImageError) -> DevupError {
     if matches!(error, ImageError::Limits(_)) {
         DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "Figma reference PNG의 dimensions 또는 decoded 크기가 허용 범위를 초과했습니다.",
+            "Figma reference PNG dimensions or decoded size exceed the allowed range.",
             false,
         )
     } else {
-        invalid_call("Figma reference PNG 데이터가 손상되었습니다.")
+        invalid_call("Figma reference PNG data is corrupted.")
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct SnapshotCursor {
-    next_offset: usize,
-    complete: bool,
-    total_nodes: usize,
 }
 
 fn take_snapshot_cursor(chunk: &mut SnapshotChunk) -> Result<Option<SnapshotCursor>, DevupError> {
-    let positions = chunk
-        .nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(index, node)| (node.id == SNAPSHOT_CURSOR_ID).then_some(index))
-        .collect::<Vec<_>>();
-    let Some(&position) = positions.first() else {
+    let Some(cursor) = read_snapshot_cursor(&chunk.nodes)
+        .map_err(|message| invalid_call(message.korean_message()))?
+    else {
         return Ok(None);
     };
-    if positions.len() != 1 {
-        return Err(invalid_call(
-            "Figma snapshot 응답에 cursor가 중복되었습니다.",
-        ));
-    }
-    let cursor = chunk.nodes.remove(position);
-    if cursor.node_type != "DEVUP_INTERNAL" {
-        return Err(invalid_call(
-            "Figma snapshot cursor 형식이 올바르지 않습니다.",
-        ));
-    }
-    let cursor = cursor.typed_view();
-    let next_offset = cursor
-        .value("nextOffset")
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| invalid_call("Figma snapshot cursor의 nextOffset이 없습니다."))?;
-    let complete = cursor
-        .bool("complete")
-        .ok_or_else(|| invalid_call("Figma snapshot cursor의 complete가 없습니다."))?;
-    let total_nodes = cursor
-        .value("totalNodes")
-        .and_then(Value::as_u64)
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| invalid_call("Figma snapshot cursor의 totalNodes가 없습니다."))?;
-    Ok(Some(SnapshotCursor {
-        next_offset,
-        complete,
-        total_nodes,
-    }))
+    chunk.nodes.retain(|node| node.id != SNAPSHOT_CURSOR_ID);
+    Ok(Some(cursor))
 }
 
 fn invalid_call(message: &str) -> DevupError {
@@ -1902,6 +2001,14 @@ fn fallback_category(error: &DevupError) -> String {
         .and_then(Value::as_str)
         .map(str::to_owned)
         .unwrap_or_else(|| format!("{:?}", error.code))
+}
+
+fn is_section_target_error(error: &DevupError) -> bool {
+    error.message.contains("DEVUP_TARGET_IS_SECTION")
+        || error
+            .details
+            .to_string()
+            .contains("DEVUP_TARGET_IS_SECTION")
 }
 
 fn fast_call_fallback_allowed(error: &DevupError) -> bool {
@@ -1949,11 +2056,11 @@ fn merge_fast_resources(
     let current = current
         .raw
         .as_object_mut()
-        .ok_or_else(|| invalid_call("기존 multi-root resource 형식이 올바르지 않습니다."))?;
+        .ok_or_else(|| invalid_call("Existing multi-root resource format is invalid."))?;
     let incoming = incoming
         .raw
         .as_object()
-        .ok_or_else(|| invalid_call("multi-root resource 형식이 올바르지 않습니다."))?;
+        .ok_or_else(|| invalid_call("multi-root resource format is invalid."))?;
     for field in ["collections", "variables", "styles", "usedRemoteVariables"] {
         let mut values = BTreeMap::<String, Value>::new();
         for value in current
@@ -1972,13 +2079,13 @@ fn merge_fast_resources(
             let id = value
                 .get("id")
                 .and_then(Value::as_str)
-                .ok_or_else(|| invalid_call("multi-root resource ID가 없습니다."))?;
+                .ok_or_else(|| invalid_call("multi-root resource ID is missing."))?;
             if let Some(previous) = values.get(id)
                 && previous != value
             {
                 return Err(DevupError::new(
                     ErrorCode::DevupFigmaVersionChanged,
-                    "multi-root resource 내용이 batch 사이에서 달라졌습니다.",
+                    "multi-root resource contents differ between batches.",
                     true,
                 ));
             }
@@ -2006,7 +2113,7 @@ fn merge_fast_resources(
                 value
                     .as_str()
                     .map(str::to_owned)
-                    .ok_or_else(|| invalid_call("multi-root resource ID 형식이 올바르지 않습니다."))
+                    .ok_or_else(|| invalid_call("multi-root resource ID format is invalid."))
             })
             .collect::<Result<BTreeSet<_>, _>>()?;
         current.insert(
@@ -2028,7 +2135,7 @@ fn merge_fast_resources(
         )
         .map(|value| serde_json::to_string(value).map(|key| (key, value.clone())))
         .collect::<Result<BTreeMap<_, _>, _>>()
-        .map_err(|_| invalid_call("multi-root unresolved resource를 직렬화할 수 없습니다."))?;
+        .map_err(|_| invalid_call("Could not serialize the multi-root unresolved resource."))?;
     current.insert(
         "unresolved".to_owned(),
         Value::Array(unresolved.into_values().collect()),
@@ -2073,7 +2180,7 @@ fn used_resource_batches(refs: &UsedResourceRefs) -> Result<Vec<ResourceBatch>, 
         if current.variable_ids.is_empty() && current.styles.is_empty() {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "단일 Figma 리소스 ID가 안전한 batch 크기를 초과했습니다.",
+                "A single Figma resource ID exceeds the safe batch size.",
                 false,
             ));
         }
@@ -2086,7 +2193,7 @@ fn used_resource_batches(refs: &UsedResourceRefs) -> Result<Vec<ResourceBatch>, 
         if !used_resource_batch_fits(&current) {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "단일 Figma 리소스 ID가 안전한 batch 크기를 초과했습니다.",
+                "A single Figma resource ID exceeds the safe batch size.",
                 false,
             ));
         }

@@ -18,11 +18,13 @@ mod variables;
 
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
-    CollectorStep, PlannedCall, ReferencePng, SectionReadOptions,
+    CollectorStep, PlannedCall, ReferencePng, ScreenFailure, SectionReadOptions,
 };
 
 pub use credentials::{
-    CredentialStore, KeyringCredentialStore, MemoryCredentialStore, StoredAuthorization,
+    ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,
+    KeyringCredentialStore, MemoryClientCredentialStore, MemoryCredentialStore,
+    StoredAuthorization,
 };
 pub use envelope::{
     FastSnapshotPayload, FastThemePayload, FastTransportStats, decode_fast_multi_snapshot,
@@ -39,7 +41,10 @@ pub use large_values::{
     LargeValueReadOptions, LargeValueUnsupported, MAX_LARGE_VALUE_BYTES,
     MAX_LARGE_VALUE_CHUNK_BYTES,
 };
-pub use oauth::{AuthStatus, BrowserOpener, OAuthManager, SecretString, SystemBrowser};
+pub use oauth::{
+    AuthStatus, BrowserOpener, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot,
+    OAuthManager, SecretString, SystemBrowser, TokenState,
+};
 pub use payload::{
     CollectedPayload, PayloadCompleteness, PayloadCompletenessReport, PayloadStructure,
     ResourceAudit, validate_payload_context,
@@ -54,12 +59,12 @@ pub use section::{
 };
 pub use snapshot::{
     ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FidelityImpact,
-    FieldLocation, MissingChild, ParentMismatch, RawNode, Snapshot, SnapshotAudit, SnapshotChunk,
-    TypedNode, merge_chunks, snapshot_chunk_from_result,
+    FieldLocation, MissingChild, ParentMismatch, RawNode, SNAPSHOT_CURSOR_ID, Snapshot,
+    SnapshotAudit, SnapshotChunk, SnapshotCursor, SnapshotCursorError, TypedNode, merge_chunks,
+    read_snapshot_cursor, snapshot_chunk_from_result,
 };
 pub use source::{
-    SelectedSource, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,
-    classify_upstream_failure, fallback_allowed, fallback_allowed_for_error,
+    SourcePolicy, UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure,
     upstream_failure_error,
 };
 pub use upstream::{

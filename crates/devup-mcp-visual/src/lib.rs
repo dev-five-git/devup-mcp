@@ -63,9 +63,9 @@ pub enum VisualError {
 impl std::fmt::Display for VisualError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Image(error) => write!(formatter, "PNG를 읽거나 쓸 수 없습니다: {error}"),
+            Self::Image(error) => write!(formatter, "Could not read or write the PNG: {error}"),
             Self::InvalidThreshold => {
-                formatter.write_str("max_changed_ratio는 0 이상 1 이하여야 합니다.")
+                formatter.write_str("max_changed_ratio must be between 0 and 1 inclusive.")
             }
         }
     }

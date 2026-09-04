@@ -136,6 +136,10 @@ async fn reference_png_is_acquired_once_and_delivered_as_a_binary_resource() -> 
         reference_png_base64()
     );
     assert_eq!(acquired["cache"]["capabilities"]["referencePng"], true);
+    // No tsx was requested/produced by this export, so no deliverable
+    // marker should be attached — it must not claim a devup-ui-tsx exists
+    // when only a reference PNG was exported.
+    assert!(acquired.get("deliverable").is_none());
     let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
 
     let delivered_result = call_result(
@@ -236,12 +240,17 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(first["cache"]["cacheHit"], false);
     assert!(first["cache"]["artifactId"].as_str().is_some());
     assert!(first["tsx"].as_str().unwrap().contains("$primary"));
+    // devup_figma_export must carry the same unambiguous final-answer
+    // marker as devup_figma_to_ui when it actually produced a tsx output.
+    assert_eq!(first["deliverable"]["kind"], "devup-ui-tsx");
+    assert_eq!(first["deliverable"]["isFinal"], true);
+    assert!(!first["deliverable"]["note"].as_str().unwrap().is_empty());
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
     assert_eq!(first["sourceMap"]["version"], 1);
     assert_eq!(
         first["assetManifest"]["assets"][0]["assetId"],
-        "1:2:fills:1"
+        "1:3:fills:0"
     );
     assert_eq!(first["assetManifest"]["assets"][0]["status"], "available");
     assert!(first["sourceMap"]["tsx"].as_array().is_some_and(|entries| {
@@ -403,7 +412,7 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["tsx", "assetManifest"],
             "sourcePolicy": "direct",
-            "assetRequests": [{"assetId":"1:2:fills:1","format":"png","scale":2}]
+            "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
         }),
     )
     .await?;
@@ -446,7 +455,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
             "sourcePolicy": "direct",
             "delivery": "resource",
             "assetRequests": [{
-                "assetId":"1:2:fills:1",
+                "assetId":"1:3:fills:0",
                 "format":"png",
                 "scale":2,
                 "outputPath": output_path.to_string_lossy()
@@ -518,7 +527,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
             "sourcePolicy": "direct",
             "delivery": "resource",
             "assetRequests": [{
-                "assetId":"1:2:fills:1",
+                "assetId":"1:3:fills:0",
                 "format":"png",
                 "scale":2,
                 "outputPath": output_path.to_string_lossy()
@@ -624,18 +633,18 @@ async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::R
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["assetManifest"],
             "sourcePolicy": "direct",
-            "assetRequests": [{"assetId":"1:2:fills:1","format":"png","scale":2}]
+            "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
         }),
     )
     .await?;
     let artifact_id = acquired["cache"]["artifactId"].as_str().unwrap();
     assert_eq!(acquired["cache"]["capabilities"]["assetCaptureCount"], 1);
-    assert!(!serde_json::to_string(&acquired["cache"]["capabilities"])?.contains("1:2:fills:1"));
+    assert!(!serde_json::to_string(&acquired["cache"]["capabilities"])?.contains("1:3:fills:0"));
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
 
     for request in [
-        json!({"assetId":"1:2:fills:1","format":"svg","scale":2}),
-        json!({"assetId":"1:2:fills:1","format":"png","scale":1}),
+        json!({"assetId":"1:3:fills:0","format":"svg","scale":2}),
+        json!({"assetId":"1:3:fills:0","format":"png","scale":1}),
     ] {
         let reused = client
             .call_tool(
@@ -756,31 +765,46 @@ async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
 
 fn fast_envelope_result(partial: bool, lossy: bool) -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "1:2"},
         "snapshot": {
             "fileKey": "FileKey123",
             "version": "v1",
             "rootIds": ["1:2"],
-            "nodes": [{
-                "id": "1:2",
-                "type": "FRAME",
-                "fields": {
-                    "name": "Synthetic",
-                    "childrenIds": [],
-                    "layoutMode": "VERTICAL",
-                    "width": 320,
-                    "height": 240,
-                    "fills": [{
-                        "type": "SOLID",
-                        "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
-                        "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
-                    }, {"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}],
-                    "boundVariables": {"fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]}
+            "nodes": [
+                {
+                    "id": "1:2",
+                    "type": "FRAME",
+                    "fields": {
+                        "name": "Synthetic",
+                        "childrenIds": ["1:3"],
+                        "layoutMode": "VERTICAL",
+                        "width": 320,
+                        "height": 240,
+                        "fills": [{
+                            "type": "SOLID",
+                            "color": {"r": 0, "g": 0.4, "b": 1, "a": 1},
+                            "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "v"}}
+                        }, {"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}],
+                        "boundVariables": {"fills": [{"type": "VARIABLE_ALIAS", "id": "v"}]}
+                    },
+                    "extra": {},
+                    "fieldErrors": {}
                 },
-                "extra": {},
-                "fieldErrors": {}
-            }],
+                {
+                    "id": "1:3",
+                    "type": "RECTANGLE",
+                    "fields": {
+                        "name": "Synthetic asset",
+                        "parentId": "1:2",
+                        "isAsset": true,
+                        "fills": [{"type":"IMAGE","imageHash":"image-hash-123","scaleMode":"FILL"}]
+                    },
+                    "extra": {},
+                    "fieldErrors": {}
+                }
+            ],
             "diagnostics": []
         },
         "resources": {
@@ -802,7 +826,7 @@ fn fast_envelope_result(partial: bool, lossy: bool) -> UpstreamResult {
             "unresolved": []
         },
         "integrity": {
-            "nodeCount": 1,
+            "nodeCount": 2,
             "variableRefCount": 1,
             "styleRefCount": 0,
             "utf8Bytes": 0
@@ -826,36 +850,14 @@ fn fast_envelope_result(partial: bool, lossy: bool) -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
+    let _ = envelope_bytes;
 
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "1:2",
-        "nodeCount": 1,
-        "variableRefCount": 1,
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    // No binary transport exists any more: fast snapshots are always plain
+    // text (`devupFastSnapshotEnvelope`). Omitting the cursor marker node is
+    // treated by the decoder as a single, already-complete page.
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }
@@ -882,25 +884,4 @@ fn asset_export_result(
 
 fn reference_png_base64() -> &'static str {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-}
-
-fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(chunk_type);
-    output.extend_from_slice(data);
-    let mut crc_input = Vec::with_capacity(4 + data.len());
-    crc_input.extend_from_slice(chunk_type);
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }

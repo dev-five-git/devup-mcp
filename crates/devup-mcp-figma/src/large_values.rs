@@ -131,12 +131,12 @@ impl LargeValueAssembler {
             || fragment.sha256 != self.descriptor.sha256
         {
             return Err(invalid(
-                "large value fragment의 대상 또는 버전이 요청과 다릅니다.",
+                "large value fragment target or version does not match the request.",
             ));
         }
         let bytes = STANDARD
             .decode(fragment.data_base64.as_bytes())
-            .map_err(|_| invalid("large value fragment의 base64가 올바르지 않습니다."))?;
+            .map_err(|_| invalid("large value fragment base64 is invalid."))?;
         if bytes.is_empty()
             || bytes.len() > self.descriptor.cursor.max_chunk_bytes
             || bytes.len() > MAX_LARGE_VALUE_CHUNK_BYTES
@@ -145,14 +145,12 @@ impl LargeValueAssembler {
             || fragment.next_offset > self.descriptor.byte_length
             || fragment.complete != (fragment.next_offset == self.descriptor.byte_length)
         {
-            return Err(invalid(
-                "large value fragment의 byte 범위가 올바르지 않습니다.",
-            ));
+            return Err(invalid("large value fragment byte range is invalid."));
         }
         if let Some(existing) = self.fragments.get(&fragment.offset) {
             if existing != &bytes {
                 return Err(invalid(
-                    "large value fragment가 같은 offset에서 충돌합니다.",
+                    "large value fragments conflict at the same offset.",
                 ));
             }
             return Ok(());
@@ -164,13 +162,15 @@ impl LargeValueAssembler {
 
     pub fn finish(self) -> Result<Value, DevupError> {
         if !self.saw_complete {
-            return Err(invalid("large value fragment의 마지막 범위가 없습니다."));
+            return Err(invalid(
+                "large value fragment for the final range is missing.",
+            ));
         }
         let mut output = Vec::with_capacity(self.descriptor.byte_length);
         for (offset, bytes) in self.fragments {
             if offset != output.len() {
                 return Err(invalid(
-                    "large value fragment 범위가 누락되었거나 겹칩니다.",
+                    "large value fragment ranges are missing or overlapping.",
                 ));
             }
             output.extend_from_slice(&bytes);
@@ -179,11 +179,11 @@ impl LargeValueAssembler {
             || sha256_hex(&output) != self.descriptor.sha256
         {
             return Err(invalid(
-                "large value fragment의 길이 또는 hash가 일치하지 않습니다.",
+                "large value fragment length or hash does not match.",
             ));
         }
         serde_json::from_slice(&output)
-            .map_err(|_| invalid("large value fragment를 JSON 값으로 복원할 수 없습니다."))
+            .map_err(|_| invalid("large value fragment cannot be restored as a JSON value."))
     }
 }
 
@@ -196,14 +196,12 @@ pub(crate) fn descriptors_in_chunk(
             let Some(raw) = value.get("$largeValue") else {
                 continue;
             };
-            let descriptor: LargeValueDescriptor =
-                serde_json::from_value(raw.clone()).map_err(|_| {
-                    invalid("snapshot의 large value descriptor 형식이 올바르지 않습니다.")
-                })?;
+            let descriptor: LargeValueDescriptor = serde_json::from_value(raw.clone())
+                .map_err(|_| invalid("snapshot large value descriptor format is invalid."))?;
             validate_descriptor(&descriptor)?;
             if descriptor.node_id != node.id || descriptor.field != *field {
                 return Err(invalid(
-                    "snapshot의 large value descriptor 대상이 필드와 다릅니다.",
+                    "snapshot large value descriptor target does not match its field.",
                 ));
             }
             descriptors.push(descriptor);
@@ -222,7 +220,7 @@ pub(crate) fn large_value_from_result(
     result: &UpstreamResult,
 ) -> Result<LargeValueResult, DevupError> {
     find_large_value_result(&result.raw)
-        .ok_or_else(|| invalid("Figma MCP 응답에서 large value fragment를 찾지 못했습니다."))
+        .ok_or_else(|| invalid("large value fragment not found in the Figma MCP response."))
 }
 
 pub(crate) fn replace_descriptor(
@@ -240,22 +238,24 @@ pub(crate) fn replace_descriptor(
                 .fields
                 .get_mut(&descriptor.field)
                 .or_else(|| node.extra.get_mut(&descriptor.field))
-                .ok_or_else(|| invalid("large value descriptor가 가리키는 필드가 없습니다."))?;
+                .ok_or_else(|| {
+                    invalid("field referenced by the large value descriptor is missing.")
+                })?;
             let observed: LargeValueDescriptor = serde_json::from_value(
                 slot.get("$largeValue")
                     .cloned()
-                    .ok_or_else(|| invalid("large value descriptor marker가 없습니다."))?,
+                    .ok_or_else(|| invalid("large value descriptor marker is missing."))?,
             )
-            .map_err(|_| invalid("large value descriptor marker가 올바르지 않습니다."))?;
+            .map_err(|_| invalid("large value descriptor marker is invalid."))?;
             if observed != *descriptor {
-                return Err(invalid("large value descriptor가 수집 중 변경되었습니다."));
+                return Err(invalid("large value descriptor changed during collection."));
             }
             *slot = value;
             node.field_errors.remove(&descriptor.field);
             return Ok(());
         }
     }
-    Err(invalid("large value descriptor의 node를 찾지 못했습니다."))
+    Err(invalid("node for the large value descriptor not found."))
 }
 
 fn validate_descriptor(descriptor: &LargeValueDescriptor) -> Result<(), DevupError> {
@@ -272,9 +272,7 @@ fn validate_descriptor(descriptor: &LargeValueDescriptor) -> Result<(), DevupErr
         || descriptor.cursor.max_chunk_bytes == 0
         || descriptor.cursor.max_chunk_bytes > MAX_LARGE_VALUE_CHUNK_BYTES
     {
-        return Err(invalid(
-            "large value descriptor의 범위 또는 hash가 올바르지 않습니다.",
-        ));
+        return Err(invalid("large value descriptor range or hash is invalid."));
     }
     Ok(())
 }

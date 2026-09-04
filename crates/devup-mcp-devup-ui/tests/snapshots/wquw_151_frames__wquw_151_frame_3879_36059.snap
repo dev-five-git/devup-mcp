@@ -1,5 +1,6 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
+assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -18,23 +19,20 @@ export function Wquw151Frame387936059() {
         h="66px"
         justifyContent="space-between"
         overflow="hidden"
-        px="0px"
         py="8px"
         w="360px"
       >
-        <Center aspectRatio="1" h="100%" w="50px">
-          <Box
-            aspectRatio="1"
-            bg="$caption"
-            boxSize="32px"
-            maskImage="url(/icons/Icons.svg)"
-            maskPos="center"
-            maskRepeat="no-repeat"
-            maskSize="contain"
-            transform="rotate(180deg)"
-          />
-        </Center>
-        <Center h="100%" px="20px" py="0px">
+        <Box
+          aspectRatio="1"
+          bg="$caption"
+          h="100%"
+          maskImage="url('/icons/Frame 26086041.svg')"
+          maskPos="center"
+          maskRepeat="no-repeat"
+          maskSize="contain"
+          w="50px"
+        />
+        <Center h="100%" px="20px">
           <Flex alignItems="center" gap="6px">
             <Box
               aspectRatio="1"
@@ -123,6 +121,8 @@ export function Wquw151Frame387936059() {
         left="50%"
         overflow="hidden"
         pos="absolute"
+        px="20px"
+        py="196.5px"
         top="0px"
         transform="translateX(-50%)"
         w="100%"

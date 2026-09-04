@@ -233,7 +233,7 @@ pub fn generate_devup_json(
             });
             diagnostics.push(Diagnostic {
                 code: "DEVUP_THEME_COLLECTION_MISSING".to_owned(),
-                message: format!("변수 '{}'의 collection을 찾지 못했습니다.", variable.name),
+                message: format!("Collection for variable '{}' was not found.", variable.name),
                 node_id: None,
                 severity: Some(DiagnosticSeverity::Warning),
                 resource_kind: Some("variable".to_owned()),
@@ -259,7 +259,7 @@ pub fn generate_devup_json(
                 diagnostics.push(Diagnostic {
                     code: "DEVUP_THEME_ALIAS_CYCLE".to_owned(),
                     message: format!(
-                        "변수 '{}'의 alias를 안전하게 해석하지 못했습니다.",
+                        "Alias for variable '{}' could not be resolved safely.",
                         variable.name
                     ),
                     node_id: None,
@@ -371,7 +371,7 @@ pub fn generate_devup_json(
         diagnostics.push(Diagnostic {
             code: "DEVUP_THEME_TOKEN_CONFLICT".to_owned(),
             message: format!(
-                "동일한 theme token에 서로 다른 값이 있어 결정적 우선순위를 적용했습니다: token={token}, mode={mode}"
+                "The same theme token had conflicting values; applied deterministic precedence: token={token}, mode={mode}"
             ),
             node_id: None,
             severity: Some(DiagnosticSeverity::Warning),
@@ -446,7 +446,7 @@ pub fn generate_devup_json(
     let mut output = serde_json::to_string_pretty(&Value::Object(root)).map_err(|_| {
         DevupError::new(
             ErrorCode::DevupThemeConflict,
-            "devup.json을 직렬화하지 못했습니다.",
+            "Failed to serialize devup.json.",
             false,
         )
     })?;
@@ -540,7 +540,7 @@ pub fn variable_snapshot_from_result(
     find_variable_snapshot(&result.raw).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupThemeConflict,
-            "Figma MCP 응답에서 변수 snapshot을 찾지 못했습니다.",
+            "Variable snapshot was not found in the Figma MCP response.",
             false,
         )
     })

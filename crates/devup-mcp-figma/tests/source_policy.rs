@@ -1,31 +1,6 @@
 use devup_mcp_figma::{
-    ErrorCode, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,
-    classify_upstream_failure, fallback_allowed, fallback_allowed_for_error,
-    upstream_failure_error,
+    ErrorCode, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure,
 };
-
-#[test]
-fn auto_falls_back_only_for_identity_or_capability_failures() {
-    use UpstreamFailureKind::{
-        AuthUnavailable, CapabilityUnavailable, CatalogRejected, NodeNotFound, PermissionDenied,
-        RateLimited, VersionChanged,
-    };
-
-    for kind in [
-        CatalogRejected,
-        AuthUnavailable,
-        CapabilityUnavailable,
-        PermissionDenied,
-    ] {
-        assert!(fallback_allowed(SourcePolicy::Auto, kind), "{kind:?}");
-        assert!(!fallback_allowed(SourcePolicy::Direct, kind), "{kind:?}");
-        assert!(!fallback_allowed(SourcePolicy::Host, kind), "{kind:?}");
-    }
-
-    for kind in [RateLimited, NodeNotFound, VersionChanged] {
-        assert!(!fallback_allowed(SourcePolicy::Auto, kind), "{kind:?}");
-    }
-}
 
 #[test]
 fn classifies_upstream_failures_from_boundary_metadata() {
@@ -96,7 +71,6 @@ fn public_policy_and_error_codes_have_stable_json_values() {
         serde_json::to_value(SourcePolicy::Direct).unwrap(),
         "direct"
     );
-    assert_eq!(serde_json::to_value(SourcePolicy::Host).unwrap(), "host");
     let codes = [
         (
             ErrorCode::DevupFigmaDirectUnavailable,
@@ -140,28 +114,4 @@ fn classified_errors_never_copy_the_raw_upstream_message() {
     assert!(serialized.contains("\"status\":403"));
     assert!(!serialized.contains("figma-secret-token"));
     assert!(!serialized.contains("Authorization"));
-}
-
-#[test]
-fn auto_can_decide_fallback_from_the_safe_public_error() {
-    let catalog = upstream_failure_error(
-        UpstreamFailureContext::Connect,
-        Some(403),
-        "Figma MCP Catalog rejected bearer-secret",
-    );
-    assert!(fallback_allowed_for_error(SourcePolicy::Auto, &catalog));
-    assert!(!fallback_allowed_for_error(SourcePolicy::Direct, &catalog));
-
-    let rate_limited =
-        upstream_failure_error(UpstreamFailureContext::CallTool, Some(429), "bearer-secret");
-    assert!(!fallback_allowed_for_error(
-        SourcePolicy::Auto,
-        &rate_limited
-    ));
-    assert_eq!(rate_limited.code, ErrorCode::DevupFigmaRateLimited);
-    assert!(
-        !serde_json::to_string(&rate_limited)
-            .unwrap()
-            .contains("bearer-secret")
-    );
 }

@@ -18,11 +18,19 @@ fn exact_node_fast_path_completes_in_one_call() {
         panic!("fast snapshot call expected")
     };
     assert_eq!(fast_call.call.tool_name(), "use_figma");
+    let arguments = fast_call.call.arguments();
+    assert!(!arguments.contains_key("nodeId"));
     assert!(
-        fast_call.call.arguments()["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastSnapshotDescriptor")
+            .contains("devupFastSnapshotEnvelope")
+    );
+    assert!(
+        !arguments["code"]
+            .as_str()
+            .unwrap()
+            .contains("figma.io.write")
     );
 
     collector
@@ -35,7 +43,7 @@ fn exact_node_fast_path_completes_in_one_call() {
     assert_eq!(parts.snapshot_chunks.len(), 1);
     assert_eq!(parts.snapshot_chunks[0].nodes.len(), 1);
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.node_count, 1);
     assert_eq!(parts.stats.variable_count, 0);
@@ -68,7 +76,7 @@ fn exact_node_fast_path_accepts_the_stringified_handoff_contract() {
         panic!("stringified fast snapshot should complete without fallback")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
 }
 
@@ -302,7 +310,7 @@ fn malformed_fast_result_restarts_legacy_from_metadata() {
     assert!(parts.stats.fallback_used);
     assert_eq!(
         parts.stats.fallback_reason.as_deref(),
-        Some("descriptorMissing")
+        Some("textEnvelopeMissing")
     );
     assert_eq!(parts.stats.node_count, 1);
 }
@@ -422,6 +430,7 @@ fn valid_reference_png_base64() -> &'static str {
 
 fn fast_envelope_result() -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "1:2"},
         "snapshot": {
@@ -460,42 +469,20 @@ fn fast_envelope_result() -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "1:2",
-        "nodeCount": 1,
-        "variableRefCount": 0,
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
+    // No binary transport exists any more: fast snapshots are always plain
+    // text. Omitting the `__DEVUP_SNAPSHOT_CURSOR__` marker node is treated
+    // by the decoder as a single, already-complete page.
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }
 
 fn fast_theme_envelope_result() -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastThemeEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "version": "v2"},
         "resources": {
@@ -524,58 +511,12 @@ fn fast_theme_envelope_result() -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastThemeDescriptor",
-        "schemaVersion": 1,
-        "collectionCount": 1,
-        "variableCount": 1,
-        "styleCount": 1,
-        "unresolvedCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
-}
-
-fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(chunk_type);
-    output.extend_from_slice(data);
-    let mut crc_input = Vec::with_capacity(4 + data.len());
-    crc_input.extend_from_slice(chunk_type);
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }
 
 fn file_target() -> FigmaTarget {
@@ -641,7 +582,7 @@ fn official_top_level_pages() -> UpstreamResult {
         raw: json!({
             "content": [{
                 "type": "text",
-                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: 표지\n- 12:34: 본문: 교정"
+                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: Cover\n- 12:34: Body: Proofread"
             }]
         }),
     }
@@ -659,7 +600,7 @@ fn file_page_metadata() -> UpstreamResult {
                         {
                             "id": "0:1",
                             "type": "PAGE",
-                            "name": "표지",
+                            "name": "Cover",
                             "childrenIds": ["1:2"],
                             "descendantCount": 1
                         },
@@ -740,7 +681,7 @@ fn metadata_only_file_collection_completes_without_snapshot_calls() {
     second.raw["structuredContent"]["devupMetadata"]["nodes"] = json!([{
         "id": "12:34",
         "type": "PAGE",
-        "name": "본문: 교정",
+        "name": "Body: Proofread",
         "childrenIds": [],
         "descendantCount": 0
     }]);
@@ -767,11 +708,13 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("fast theme call expected")
     };
     assert_eq!(fast_theme.call.tool_name(), "use_figma");
+    let arguments = fast_theme.call.arguments();
+    assert!(!arguments.contains_key("nodeId"));
     assert!(
-        fast_theme.call.arguments()["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastThemeDescriptor")
+            .contains("devupFastThemeEnvelope")
     );
     collector
         .accept(&fast_theme.id, fast_theme_envelope_result())
@@ -781,7 +724,7 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("valid fast theme should complete in one call")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-theme-envelope-v1");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.variable_count, 1);
     assert_eq!(parts.stats.style_count, 1);
@@ -1407,7 +1350,7 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
                         {"id": "1:2", "type": "FRAME", "fields": {"name": "Root", "childrenIds": ["1:3"]}, "extra": {}, "fieldErrors": {}},
-                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),
             },
@@ -1430,8 +1373,8 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                 raw: json!({
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
-                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "완료", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
-                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "Done", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),
             },
@@ -1474,13 +1417,108 @@ fn section_collection_indexes_before_planning_selected_roots() {
         .accept(&index_call.id, compact_section_index())
         .unwrap();
 
-    let CollectorStep::Call(batch_call) = collector.advance().unwrap() else {
-        panic!("one bounded multi-root call expected")
+    let CollectorStep::Call(first_root_call) = collector.advance().unwrap() else {
+        panic!("first selected root call expected")
     };
-    let arguments = batch_call.call.arguments();
-    let code = arguments["code"].as_str().unwrap();
-    assert!(code.contains("[\"10:3\",\"10:2\"]"));
-    assert_eq!(batch_call.expected_node_id.as_deref(), Some("10:1"));
+    let CollectorStep::Call(second_root_call) = collector.advance().unwrap() else {
+        panic!("second selected root call expected")
+    };
+    assert_eq!(multi_root_ids(&first_root_call.call), ["10:3"]);
+    assert_eq!(multi_root_ids(&second_root_call.call), ["10:2"]);
+    assert_eq!(first_root_call.expected_node_id.as_deref(), Some("10:1"));
+}
+
+#[test]
+fn rejected_exact_section_probe_pivots_to_the_compact_index() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast section probe expected")
+    };
+
+    let recovered = collector
+        .reject(
+            &fast_call.id,
+            &DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "Error: DEVUP_TARGET_IS_SECTION",
+                false,
+            ),
+        )
+        .unwrap();
+
+    assert!(recovered);
+    let CollectorStep::Call(index_call) = collector.advance().unwrap() else {
+        panic!("compact section index expected")
+    };
+    assert!(
+        index_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("subtreeNodeCount")
+    );
+}
+
+#[test]
+fn failed_fast_and_legacy_section_root_is_reported_without_losing_siblings() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec!["root-0".to_owned(), "root-1".to_owned()],
+        all_screens: false,
+    });
+    request.cached_section_index = Some(section_index_with_node_counts(&[3_000, 3_000]));
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &second.id,
+            fast_multi_envelope_result(&["root-1"], &["variable-success"]),
+        )
+        .unwrap();
+    assert!(
+        collector
+            .reject(
+                &first.id,
+                &DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, "fast failed", true,)
+            )
+            .unwrap()
+    );
+    let CollectorStep::Call(legacy) = collector.advance().unwrap() else {
+        panic!("legacy retry expected")
+    };
+    assert!(
+        collector
+            .reject(
+                &legacy.id,
+                &DevupError::new(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "legacy failed",
+                    true,
+                )
+            )
+            .unwrap()
+    );
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("successful sibling should complete")
+    };
+    assert_eq!(
+        merge_chunks(parts.snapshot_chunks).unwrap().roots,
+        ["root-1"]
+    );
+    assert_eq!(parts.failures.len(), 1);
+    assert_eq!(parts.failures[0].node_id, "root-0");
+    assert_eq!(
+        parts.failures[0].error_code,
+        ErrorCode::DevupFigmaDirectUnavailable
+    );
 }
 
 #[test]
@@ -1821,6 +1859,7 @@ fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> Upstr
         .map(|id| json!({"id": id, "name": id}))
         .collect::<Vec<_>>();
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "10:1"},
         "snapshot": {
@@ -1855,35 +1894,10 @@ fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> Upstr
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "10:1",
-        "nodeCount": root_ids.len(),
-        "variableRefCount": variable_ids.len(),
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }

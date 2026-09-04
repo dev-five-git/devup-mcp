@@ -19,12 +19,15 @@ pub(super) fn push_layout_props(
             .any(|child| child == node.id)
     });
     let is_root = snapshot.roots.iter().any(|root| root == &node.id);
-    let is_page_root = parent.is_some_and(|parent| {
-        matches!(
-            parent.typed_view().node_type(),
-            "SECTION" | "PAGE" | "COMPONENT_SET"
-        )
-    });
+    // The parent of a collected root sits outside the collected subtree, so it
+    // cannot be looked up and the node's recorded parent type is the only
+    // account of it. Without that fallback a screen read as having no parent at
+    // all and its canvas width was emitted as a real constraint, pinning the
+    // result to a device size that does not exist.
+    let is_page_root = parent
+        .map(|parent| parent.typed_view().node_type())
+        .or_else(|| view.string("parentType"))
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
     let fixed_w = view.string("layoutSizingHorizontal") == Some("FIXED");
     let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
@@ -73,6 +76,23 @@ pub(super) fn push_layout_props(
                 _ => None,
             };
             height = Some("100%".to_owned());
+        }
+        // An absolutely positioned node is out of flow, so nothing constrains
+        // it from the outside and the branches above may leave it sizeless,
+        // expecting its children to define the box. That is wrong whenever
+        // Figma pinned the size and nothing else accounts for it — a folded
+        // asset has no children left to measure at all. Where the gap around
+        // the children became padding, though, that padding and the content
+        // already add back up to the frame, and restating the size only says
+        // it twice.
+        if fixed_w
+            && fixed_h
+            && width.is_none()
+            && height.is_none()
+            && derived_padding(snapshot, node).is_none()
+        {
+            width = view.number("width").map(px);
+            height = view.number("height").map(px);
         }
     } else if is_page_root {
         // Figma page roots define the component canvas; their editor dimensions
@@ -240,13 +260,18 @@ pub(super) fn push_layout_props(
         string_prop(props, "flex", "1");
     }
 
-    push_auto_layout(node, component, props);
-    push_padding(node, props);
+    push_auto_layout(snapshot, node, component, props);
+    push_padding(snapshot, node, props);
     if view.bool("clipsContent") == Some(true) {
         string_prop(props, "overflow", "hidden");
     }
+    // An absolutely positioned child needs a positioned ancestor to resolve
+    // against — but a node folded into a single asset has no children left in
+    // the output, so there is nothing to anchor and the containing block would
+    // exist for no one.
     if !embedded_root
         && !is_page_root
+        && super::style::asset_kind(snapshot, node).is_none()
         && view.child_ids().any(|child| {
             snapshot.nodes.get(child).is_some_and(|child| {
                 child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
@@ -292,6 +317,17 @@ pub(super) fn absolute_layout_is_exact(snapshot: &Snapshot, node: &RawNode) -> b
     };
     let no_rotation = view.number("rotation").is_none_or(|value| value == 0.0);
     let exact_size = parent.is_some_and(|parent| {
+        // A node pinned on both axes now emits those exact dimensions even
+        // when it has children, because the absolute branch of
+        // `push_layout_props` restates them rather than letting the children
+        // define the box. Keep this in step with that branch: judging such a
+        // node approximated would report a loss the output no longer has.
+        if view.string("layoutSizingHorizontal") == Some("FIXED")
+            && view.string("layoutSizingVertical") == Some("FIXED")
+            && view.child_ids().next().is_some()
+        {
+            return true;
+        }
         if view.node_type() != "FRAME" {
             return false;
         }
@@ -338,7 +374,7 @@ fn child_shrinker(parent: &RawNode, dimension: &str) -> bool {
     }
 }
 
-fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
+fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let Some(layout) = view.value("inferredAutoLayout").and_then(Value::as_object) else {
         return;
@@ -401,8 +437,16 @@ fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     if component == "Center" && mode == Some("VERTICAL") {
         string_prop(props, "flexDir", "column");
     }
-    if view.child_ids().count() > 1 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
-    {
+    // Spacing only means something between things that are actually there. A
+    // hidden child is not rendered, so a frame holding one visible child and
+    // one `display: none` sibling has nothing to space apart, and naming a gap
+    // implies a separation the design does not have.
+    let visible_children = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| child.typed_view().bool("visible") != Some(false))
+        .count();
+    if visible_children > 1 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN") {
         let gap = layout
             .get("itemSpacing")
             .and_then(Value::as_f64)
@@ -413,13 +457,86 @@ fn push_auto_layout(node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     }
 }
 
-fn push_padding(node: &RawNode, props: &mut Vec<Prop>) {
+/// The gap between a frame's edges and the box its children occupy.
+///
+/// Figma reports this as the padding of the auto-layout it infers for a frame
+/// that has none. When it declines to infer one the same quantity still
+/// describes the frame, so measure it rather than fall back to the frame's own
+/// padding fields, which linger from whenever it last had a layout and no
+/// longer place anything.
+/// The padding this node will actually be given from its children's placement.
+///
+/// A folded asset is excluded: its children are baked into the exported image
+/// and never laid out, so measuring a gap around them would describe a box
+/// nothing lives in.
+pub(crate) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
+    let view = node.typed_view();
+    // Figma reports a frame it cannot infer a layout for as an explicit null,
+    // so presence alone does not mean there is a layout to read.
+    if view
+        .value("inferredAutoLayout")
+        .and_then(Value::as_object)
+        .is_some()
+        || view.string("layoutMode") != Some("NONE")
+    {
+        return None;
+    }
+    if super::style::asset_kind(snapshot, node).is_some() {
+        return None;
+    }
+    children_inset(snapshot, node)
+}
+
+pub(super) fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
+    let view = node.typed_view();
+    let (width, height) = (view.number("width")?, view.number("height")?);
+    let mut bounds: Option<[f64; 4]> = None;
+    for child in view.child_ids().filter_map(|id| snapshot.nodes.get(id)) {
+        let child = child.typed_view();
+        if child.bool("visible") == Some(false) {
+            continue;
+        }
+        let (Some(x), Some(y), Some(child_width), Some(child_height)) = (
+            child.number("x"),
+            child.number("y"),
+            child.number("width"),
+            child.number("height"),
+        ) else {
+            continue;
+        };
+        bounds = Some(match bounds {
+            Some([left, top, right, bottom]) => [
+                left.min(x),
+                top.min(y),
+                right.max(x + child_width),
+                bottom.max(y + child_height),
+            ],
+            None => [x, y, x + child_width, y + child_height],
+        });
+    }
+    let [left, top, right, bottom] = bounds?;
+    let inset = [top, width - right, height - bottom, left];
+    // Children can sit outside the frame, and a negative padding describes
+    // nothing.
+    inset.iter().all(|edge| *edge >= 0.0).then_some(inset)
+}
+
+fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let inferred = view.value("inferredAutoLayout").and_then(Value::as_object);
+    let derived = derived_padding(snapshot, node);
     let get = |name: &str| {
         inferred
             .and_then(|value| value.get(name))
             .and_then(Value::as_f64)
+            .or_else(|| {
+                derived.map(|[top, right, bottom, left]| match name {
+                    "paddingTop" => top,
+                    "paddingRight" => right,
+                    "paddingBottom" => bottom,
+                    _ => left,
+                })
+            })
             .or_else(|| view.number(name))
     };
     let [Some(top), Some(right), Some(bottom), Some(left)] = [
@@ -433,20 +550,34 @@ fn push_padding(node: &RawNode, props: &mut Vec<Prop>) {
     if top == 0.0 && right == 0.0 && bottom == 0.0 && left == 0.0 {
         return;
     }
-    if top == right && right == bottom && bottom == left {
-        string_prop(props, "p", px(top));
-    } else {
-        if top == bottom {
-            string_prop(props, "py", px(top));
-        } else {
-            string_prop(props, "pt", px(top));
-            string_prop(props, "pb", px(bottom));
+    // A zero padding is the default, so naming it says nothing. Emitting it
+    // only because the other axis happened to be padded left props like
+    // `px="0px"` sitting next to a real `py`.
+    let mut push = |name: &str, value: f64| {
+        if value != 0.0 {
+            string_prop(props, name, px(value));
         }
-        if left == right {
-            string_prop(props, "px", px(left));
+    };
+    // Compare the values as they will be written. Insets measured from a
+    // child's position carry the arithmetic's noise — a 20px box around a
+    // 14.285714px child gives 2.857142686 on one side and 2.857143163 on the
+    // other — and those are the same padding to anyone reading the result.
+    // Comparing the raw floats split it into four separate sides.
+    let same = |left: f64, right: f64| px(left) == px(right);
+    if same(top, right) && same(right, bottom) && same(bottom, left) {
+        push("p", top);
+    } else {
+        if same(top, bottom) {
+            push("py", top);
         } else {
-            string_prop(props, "pl", px(left));
-            string_prop(props, "pr", px(right));
+            push("pt", top);
+            push("pb", bottom);
+        }
+        if same(left, right) {
+            push("px", left);
+        } else {
+            push("pl", left);
+            push("pr", right);
         }
     }
 }

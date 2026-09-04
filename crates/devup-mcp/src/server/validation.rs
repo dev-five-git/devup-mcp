@@ -10,6 +10,21 @@ use super::{
     tools::FigmaAssetRequestInput,
 };
 
+/// The export outputs this server understands.
+///
+/// The JSON schema for `outputs` advertises this same constant, so a caller
+/// can discover the set instead of learning it one rejection at a time, and
+/// the published schema cannot drift from what is actually accepted.
+pub(crate) const EXPORT_OUTPUTS: [&str; 7] = [
+    "tsx",
+    "componentTsx",
+    "devupJson",
+    "rawSnapshot",
+    "sourceMap",
+    "assetManifest",
+    "referencePng",
+];
+
 pub(super) fn validate_artifact_projection(
     artifact: &ArtifactLookup,
     outputs: &[String],
@@ -21,7 +36,7 @@ pub(super) fn validate_artifact_projection(
     let design_output_requested = outputs.iter().any(|output| {
         matches!(
             output.as_str(),
-            "tsx" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
+            "tsx" | "componentTsx" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
         )
     });
     let theme_requested = outputs.iter().any(|output| output == "devupJson");
@@ -55,7 +70,7 @@ pub(super) fn validate_artifact_projection(
 
     Err(DevupError::with_details(
         ErrorCode::DevupFigmaHandoffInvalid,
-        "artifact capture capability가 요청한 export 범위를 충족하지 않습니다.",
+        "The artifact capture capability does not cover the requested export scope.",
         false,
         json!({
             "capabilities": capabilities,
@@ -80,18 +95,18 @@ pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
     if outputs.is_empty() {
         return Err(DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "outputs는 하나 이상이어야 합니다.",
+            "outputs must contain at least one entry.",
             false,
         ));
     }
     for output in outputs {
-        if !matches!(
-            output.as_str(),
-            "tsx" | "devupJson" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
-        ) {
+        if !EXPORT_OUTPUTS.contains(&output.as_str()) {
             return Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                format!("지원하지 않는 export output입니다: {output}"),
+                format!(
+                    "Unsupported export output: {output}. Supported: {}.",
+                    EXPORT_OUTPUTS.join(", ")
+                ),
                 false,
             ));
         }
@@ -103,10 +118,10 @@ pub(super) fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupErr
     match policy {
         "auto" => Ok(SourcePolicy::Auto),
         "direct" => Ok(SourcePolicy::Direct),
-        "host" => Ok(SourcePolicy::Host),
+
         _ => Err(DevupError::new(
-            ErrorCode::DevupFigmaHostRequired,
-            "sourcePolicy는 auto, direct 또는 host여야 합니다.",
+            ErrorCode::DevupInvalidInput,
+            "sourcePolicy must be auto or direct.",
             false,
         )),
     }
@@ -124,7 +139,7 @@ pub(super) fn parse_asset_requests(
     if requests.len() > 16 {
         return Err(DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "한 번에 export할 asset은 16개 이하여야 합니다.",
+            "At most 16 assets can be exported at once.",
             false,
         ));
     }
@@ -139,7 +154,7 @@ pub(super) fn parse_asset_requests(
         {
             return Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "assetRequests의 ID, scale 또는 중복 값이 올바르지 않습니다.",
+                "An assetRequests ID, scale, or duplicate entry is invalid.",
                 false,
             ));
         }
@@ -151,7 +166,7 @@ pub(super) fn parse_asset_requests(
             _ => {
                 return Err(DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "asset format은 png, jpg, svg 또는 pdf여야 합니다.",
+                    "asset format must be png, jpg, svg, or pdf.",
                     false,
                 ));
             }
@@ -175,7 +190,7 @@ pub(super) fn parse_collection_scope(scope: &str) -> Result<CollectionScope, Dev
         "file" => Ok(CollectionScope::File),
         _ => Err(DevupError::new(
             ErrorCode::DevupThemeConflict,
-            "scope는 node, page 또는 file이어야 합니다.",
+            "scope must be node, page, or file.",
             false,
         )),
     }
@@ -187,7 +202,7 @@ pub(super) fn parse_root_layout(root_layout: &str) -> Result<RootLayout, DevupEr
         "embedded" => Ok(RootLayout::Embedded),
         _ => Err(DevupError::new(
             ErrorCode::DevupThemeConflict,
-            "rootLayout은 standalone 또는 embedded여야 합니다.",
+            "rootLayout must be standalone or embedded.",
             false,
         )),
     }

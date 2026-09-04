@@ -1,11 +1,14 @@
 pub mod artifacts;
 pub mod delivery;
 mod diagnostics;
-pub mod handoff;
+pub mod operation;
 pub mod output;
+mod project_context;
+mod project_root;
 mod projection;
 mod quality;
 pub mod resources;
+mod stack_diff;
 mod tools;
 mod validation;
 
@@ -26,17 +29,18 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CredentialStore, DevupError, ErrorCode, ExploreCandidate,
-    ExploreKind, ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream,
-    KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchReadOptions,
-    SectionCandidate, SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser,
-    fallback_allowed_for_error,
+    AuthStatus, ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload,
+    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
+    DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
+    ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
+    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
+    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions,
+    SourcePolicy, SystemBrowser, TokenState, UpstreamResult,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
 use delivery::{DeliveryMode, tool_result};
-use handoff::{HandoffStep, HandoffStore, PendingOperation};
+use operation::PendingOperation;
 use output::OutputPolicy;
 use projection::complete_operation;
 use validation::{
@@ -45,8 +49,8 @@ use validation::{
 };
 
 pub use tools::{
-    AuthInput, ContinueInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput,
-    FigmaSearchInput, FigmaToJsonInput, FigmaToUiInput,
+    AuthInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput, FigmaSearchInput,
+    FigmaToJsonInput, FigmaToUiInput, ProjectContextInput, StackDiffInput, UiValidateInput,
 };
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -56,6 +60,41 @@ pub trait DevupAuth: Send + Sync {
     async fn status(&self) -> Result<AuthStatus, DevupError>;
     async fn login(&self) -> Result<AuthStatus, DevupError>;
     async fn logout(&self) -> Result<AuthStatus, DevupError>;
+
+    /// Backs `devup_figma_auth {"action":"doctor"}`'s `paths.direct`
+    /// block. Default implementation derives a best-effort snapshot from
+    /// `status()` alone so existing `DevupAuth` test doubles keep
+    /// compiling without changes; `OAuthManager` overrides this with the
+    /// real credential-source/token-freshness/callback-port measurement.
+    async fn direct_path_snapshot(&self) -> Result<DirectPathSnapshot, DevupError> {
+        let status = self.status().await?;
+        Ok(DirectPathSnapshot {
+            credential_source: ClientCredentialSource::default(),
+            token_state: if status == AuthStatus::Connected {
+                TokenState::Valid
+            } else {
+                TokenState::Absent
+            },
+            callback_port: None,
+            callback_port_free: None,
+            client_name: DEFAULT_CLIENT_NAME.to_owned(),
+        })
+    }
+
+    /// Backs `devup_figma_auth {"action":"configure"}`. Default
+    /// implementation rejects: only auth backends that actually persist a
+    /// client credential (namely `OAuthManager`) support this.
+    async fn configure_client_credentials(
+        &self,
+        _client_id: String,
+        _client_secret: Option<String>,
+    ) -> Result<(), DevupError> {
+        Err(DevupError::new(
+            ErrorCode::DevupAuthRequired,
+            "This auth backend does not support configuring client credentials.",
+            false,
+        ))
+    }
 }
 
 #[async_trait]
@@ -73,6 +112,18 @@ impl<S: CredentialStore> DevupAuth for OAuthManager<S> {
         OAuthManager::logout(self).await?;
         Ok(AuthStatus::Disconnected)
     }
+
+    async fn direct_path_snapshot(&self) -> Result<DirectPathSnapshot, DevupError> {
+        OAuthManager::direct_path_snapshot(self).await
+    }
+
+    async fn configure_client_credentials(
+        &self,
+        client_id: String,
+        client_secret: Option<String>,
+    ) -> Result<(), DevupError> {
+        OAuthManager::configure_client_credentials(self, client_id, client_secret).await
+    }
 }
 
 #[derive(Clone)]
@@ -86,8 +137,24 @@ impl Services {
         Self { auth, upstream }
     }
 
-    fn production() -> Self {
-        let oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore);
+    fn production(figma_direct: crate::FigmaDirectConfig) -> Self {
+        let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)
+            .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
+        if figma_direct.callback_port.is_some() {
+            oauth = oauth.with_callback_port(figma_direct.callback_port);
+        }
+        if let Some(client_name) = figma_direct.client_name {
+            oauth = oauth.with_client_name(client_name);
+        }
+        if let Some(client_id) = figma_direct.client_id {
+            oauth = oauth.with_static_client_credentials(
+                ClientCredentials {
+                    client_id,
+                    client_secret: figma_direct.client_secret.map(SecretString::new),
+                },
+                figma_direct.credential_source,
+            );
+        }
         let upstream = RemoteFigmaClient::new(oauth.clone());
         Self::new(Arc::new(oauth), Arc::new(upstream))
     }
@@ -97,7 +164,6 @@ impl Services {
 pub struct DevupServer {
     tool_router: ToolRouter<Self>,
     services: Services,
-    handoffs: HandoffStore,
     artifacts: ArtifactStore,
     output_policy: OutputPolicy,
 }
@@ -118,22 +184,28 @@ impl DevupServer {
         Ok(Self {
             tool_router: Self::tool_router(),
             services,
-            handoffs: HandoffStore::default(),
             artifacts: ArtifactStore::default(),
             output_policy: OutputPolicy::from_roots(roots)?,
         })
     }
 
+    pub fn production_with_config(
+        roots: Vec<std::path::PathBuf>,
+        figma_direct: crate::FigmaDirectConfig,
+    ) -> Result<Self, DevupError> {
+        Self::with_output_roots(Services::production(figma_direct), roots)
+    }
+
     pub fn production_with_output_roots(
         roots: Vec<std::path::PathBuf>,
     ) -> Result<Self, DevupError> {
-        Self::with_output_roots(Services::production(), roots)
+        Self::production_with_config(roots, crate::FigmaDirectConfig::default())
     }
 }
 
 impl Default for DevupServer {
     fn default() -> Self {
-        Self::new(Services::production())
+        Self::new(Services::production(crate::FigmaDirectConfig::default()))
     }
 }
 
@@ -170,18 +242,11 @@ impl DevupServer {
             )
             .await;
         }
-        if policy == SourcePolicy::Host {
-            return self.begin_handoff(operation, request, artifact_key).await;
-        }
-
         let auth_status = self.services.auth.status().await?;
         if auth_status == AuthStatus::Disconnected {
-            if policy == SourcePolicy::Auto {
-                return self.begin_handoff(operation, request, artifact_key).await;
-            }
             return Err(DevupError::with_details(
                 ErrorCode::DevupAuthRequired,
-                "Figma direct 연결을 사용하려면 devup_figma_auth login이 필요합니다.",
+                "Using the Figma direct connection requires devup_figma_auth login.",
                 false,
                 json!({"source": "direct"}),
             ));
@@ -205,10 +270,46 @@ impl DevupServer {
                 )
                 .await
             }
-            Err(error) if fallback_allowed_for_error(policy, &error) => {
-                self.begin_handoff(operation, request, artifact_key).await
-            }
             Err(error) => Err(error),
+        }
+    }
+
+    /// A collection is a burst: a Section of any size spends five to seventeen
+    /// calls back to back, and Figma meters by the minute. So a large enough
+    /// target outruns its own allowance partway through, and the refusal used
+    /// to end the whole collection — discarding every call already spent and
+    /// returning nothing, which is the worst of both: the allowance is gone and
+    /// there is no result to show for it. Waiting is what the refusal asks for.
+    /// It is marked retryable and often carries the exact number of seconds.
+    ///
+    /// Bounded, because an allowance that is genuinely exhausted must still be
+    /// reported rather than waited on forever: three attempts, each waiting
+    /// what upstream asked for, or a widening guess when it did not say.
+    async fn call_waiting_out_a_spent_allowance(
+        &self,
+        call: ReadToolCall,
+    ) -> Result<UpstreamResult, DevupError> {
+        const ATTEMPTS: u32 = 3;
+        const LONGEST_WAIT: u64 = 90;
+
+        let mut attempt = 1;
+        loop {
+            let error = match self.services.upstream.call_read_tool(call.clone()).await {
+                Ok(result) => return Ok(result),
+                Err(error) => error,
+            };
+            if error.code != ErrorCode::DevupFigmaRateLimited || attempt >= ATTEMPTS {
+                return Err(error);
+            }
+            let asked_for = error
+                .details
+                .get("retryAfterSeconds")
+                .and_then(serde_json::Value::as_u64);
+            let wait = asked_for
+                .unwrap_or(u64::from(attempt) * 20)
+                .min(LONGEST_WAIT);
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            attempt += 1;
         }
     }
 
@@ -218,82 +319,43 @@ impl DevupServer {
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
-                    match self.services.upstream.call_read_tool(planned.call).await {
-                        Ok(result) => collector.accept(&call_id, result)?,
+                    match self.call_waiting_out_a_spent_allowance(planned.call).await {
+                        // A Section target is not a failed call — the script
+                        // throws, and MCP delivers that as a successful result
+                        // carrying `isError`. Handing it to `accept` made the
+                        // collector look for snapshot data that was never
+                        // there and report "snapshot data not found", hiding
+                        // the one thing the caller needed to know. Rejecting
+                        // it lets the collector switch to the section index
+                        // and answer with the screens inside, which is what
+                        // the collector has always done.
+                        Ok(result) if operation::is_section_error_result(&result.raw) => {
+                            let error = DevupError::new(
+                                ErrorCode::DevupSnapshotUnsupported,
+                                "DEVUP_TARGET_IS_SECTION",
+                                false,
+                            );
+                            if !collector.reject(&call_id, &error)? {
+                                return Err(error);
+                            }
+                        }
+                        // Every other upstream refusal arrives the same way.
+                        // Report what upstream said instead of letting the
+                        // collector misread the response as missing data.
+                        Ok(result) => match operation::upstream_error(&result.raw) {
+                            Some(error) => {
+                                if !collector.reject(&call_id, &error)? {
+                                    return Err(error);
+                                }
+                            }
+                            None => collector.accept(&call_id, result)?,
+                        },
                         Err(error) if collector.reject(&call_id, &error)? => continue,
                         Err(error) => return Err(error),
                     }
                 }
                 CollectorStep::AwaitingResults => continue,
                 CollectorStep::Complete(parts) => return Ok(*parts),
-            }
-        }
-    }
-
-    async fn begin_handoff(
-        &self,
-        operation: PendingOperation,
-        request: CollectionRequest,
-        artifact_key: ArtifactRequestKey,
-    ) -> Result<Value, DevupError> {
-        let session_id = self
-            .handoffs
-            .begin_with_artifact(
-                operation,
-                CollectorSession::new(request),
-                Some(artifact_key),
-            )
-            .await?;
-        let step = self.handoffs.next(&session_id).await?;
-        self.handoff_step_to_value(step, "host").await
-    }
-
-    async fn handoff_step_to_value(
-        &self,
-        step: HandoffStep,
-        source: &str,
-    ) -> Result<Value, DevupError> {
-        match step {
-            HandoffStep::NeedsFigma {
-                session_id,
-                expires_at_epoch_seconds,
-                calls,
-                collection,
-            } => {
-                let host_requirement = diagnostics::host_requirement().await;
-                Ok(json!({
-                    "status": "needs_figma",
-                    "sessionId": session_id,
-                    "expiresAt": format_epoch_rfc3339(expires_at_epoch_seconds),
-                    "calls": calls,
-                    "collection": collection,
-                    "resumeTool": "devup_figma_continue",
-                    "hostRequirement": host_requirement
-                }))
-            }
-            HandoffStep::Complete { operation, parts } => {
-                let PendingOperation::Artifact {
-                    operation,
-                    artifact_key,
-                } = operation
-                else {
-                    return Err(DevupError::new(
-                        ErrorCode::DevupFigmaHandoffInvalid,
-                        "Figma handoff artifact key가 없습니다.",
-                        false,
-                    ));
-                };
-                let payload = CollectedPayload::try_from(*parts)?;
-                let artifact = self.artifacts.insert(artifact_key, payload).await?;
-                complete_operation(
-                    *operation,
-                    &artifact.payload,
-                    source,
-                    &artifact,
-                    &self.output_policy,
-                    &self.artifacts,
-                )
-                .await
             }
         }
     }
@@ -320,7 +382,7 @@ fn permissive_object_output_schema() -> Arc<JsonObject> {
 #[tool_router]
 impl DevupServer {
     #[tool(
-        description = "Check, start, or clear Figma Remote MCP OAuth (action: status | login | logout | doctor)",
+        description = "Check, start, or clear Figma Remote MCP OAuth, or inject a pre-registered client credential to skip Dynamic Client Registration (action: status | login | logout | configure | doctor)",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
@@ -329,7 +391,30 @@ impl DevupServer {
     ) -> Result<CallToolResult, ErrorData> {
         if input.action == "doctor" {
             let status = self.services.auth.status().await.map_err(to_mcp_error)?;
-            return Ok(tool_result(diagnostics::doctor_report(status).await));
+            let direct = self
+                .services
+                .auth
+                .direct_path_snapshot()
+                .await
+                .map_err(to_mcp_error)?;
+            return Ok(tool_result(
+                diagnostics::doctor_report(status, direct).await,
+            ));
+        }
+        if input.action == "configure" {
+            let client_id = input.client_id.ok_or_else(|| {
+                to_mcp_error(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "configure requires clientId.",
+                    false,
+                ))
+            })?;
+            self.services
+                .auth
+                .configure_client_credentials(client_id, input.client_secret)
+                .await
+                .map_err(to_mcp_error)?;
+            return Ok(tool_result(json!({ "status": "configured" })));
         }
         let status = match input.action.as_str() {
             "status" => self.services.auth.status().await,
@@ -338,7 +423,7 @@ impl DevupServer {
             _ => {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupAuthRequired,
-                    "action은 status, login, logout 또는 doctor여야 합니다.",
+                    "action must be status, login, logout, configure, or doctor.",
                     false,
                 )));
             }
@@ -348,7 +433,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Convert a Figma design link to deterministic DevupUI TypeScript",
+        description = "Convert a Figma design link to deterministic DevupUI TypeScript only; use devup_figma_export when tokens or a source map are also needed, and never hand-interpret a handoff node tree",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_to_ui(
@@ -359,7 +444,7 @@ impl DevupServer {
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "UI 변환 링크에는 node-id가 필요합니다.",
+                "A UI conversion link requires a node-id.",
                 false,
             ))
         })?;
@@ -431,7 +516,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Search Figma pages, sections, frames, and components by name",
+        description = "Search Figma pages, sections, frames, and components by name to locate the target before devup_figma_export",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_search(
@@ -465,7 +550,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Explore screen candidates spatially related to a linked Figma node",
+        description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_explore(
@@ -476,14 +561,14 @@ impl DevupServer {
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma 주변 화면 탐색에는 node-id가 필요합니다.",
+                "Exploring neighboring Figma screens requires a node-id.",
                 false,
             ))
         })?;
         if !(1..=100).contains(&input.limit) {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "탐색 limit은 1 이상 100 이하여야 합니다.",
+                "The explore limit must be between 1 and 100 inclusive.",
                 false,
             )));
         }
@@ -511,31 +596,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Continue a read-only Figma host handoff with an official MCP result",
-        output_schema = permissive_object_output_schema()
-    )]
-    async fn devup_figma_continue(
-        &self,
-        Parameters(input): Parameters<ContinueInput>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.handoffs
-            .accept(&input.session_id, &input.call_id, input.result)
-            .await
-            .map_err(to_mcp_error)?;
-        let step = self
-            .handoffs
-            .next(&input.session_id)
-            .await
-            .map_err(to_mcp_error)?;
-        Ok(tool_result(
-            self.handoff_step_to_value(step, "host")
-                .await
-                .map_err(to_mcp_error)?,
-        ))
-    }
-
-    #[tool(
-        description = "Acquire a Figma design once and project multiple DevupUI artifacts",
+        description = "Acquire a Figma design once and project tsx/componentTsx/devupJson/sourceMap/rawSnapshot together in one collection; the primary Figma-to-code entry point, preferred over devup_figma_to_ui for implementation. Request tsx and componentTsx together to get the same screen twice: tsx expands every instance into primitives, componentTsx keeps them as <Name /> references with their imports, so the difference between them is each component's body",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
@@ -548,7 +609,7 @@ impl DevupServer {
         {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "assetRequests를 사용하려면 outputs에 assetManifest가 필요합니다.",
+                "Using assetRequests requires assetManifest in outputs.",
                 false,
             )));
         }
@@ -556,7 +617,7 @@ impl DevupServer {
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "referencePng는 단일 Figma 링크 대상에서만 수집할 수 있습니다.",
+                "referencePng can only be collected for a single Figma link target.",
                 false,
             )));
         }
@@ -571,14 +632,14 @@ impl DevupServer {
             if input.url.is_some() || input.refresh {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupFigmaHandoffInvalid,
-                    "artifactId는 url 또는 refresh와 함께 사용할 수 없습니다.",
+                    "artifactId cannot be used together with url or refresh.",
                     false,
                 )));
             }
             let artifact = self.artifacts.get(artifact_id).await.ok_or_else(|| {
                 to_mcp_error(DevupError::new(
                     ErrorCode::DevupFigmaHandoffExpired,
-                    "Figma artifact가 없거나 만료되었습니다.",
+                    "The Figma artifact is missing or expired.",
                     true,
                 ))
             })?;
@@ -590,7 +651,7 @@ impl DevupServer {
                 let index = section_index_from_payload(&artifact.payload).ok_or_else(|| {
                     to_mcp_error(DevupError::new(
                         ErrorCode::DevupFigmaHandoffInvalid,
-                        "Section index artifact payload가 올바르지 않습니다.",
+                        "The Section index artifact payload is invalid.",
                         false,
                     ))
                 })?;
@@ -600,7 +661,7 @@ impl DevupServer {
                 if collection_scope != CollectionScope::Node {
                     return Err(to_mcp_error(DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "Section Frame 수집 scope는 node여야 합니다.",
+                        "The Section Frame collection scope must be node.",
                         false,
                     )));
                 }
@@ -674,7 +735,7 @@ impl DevupServer {
         let url = input.url.as_deref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaHandoffInvalid,
-                "url 또는 artifactId 중 하나가 필요합니다.",
+                "Either url or artifactId is required.",
                 false,
             ))
         })?;
@@ -682,7 +743,7 @@ impl DevupServer {
         if input.outputs.iter().any(|output| output == "tsx") && target.node_id.is_none() {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "TSX export 링크에는 node-id가 필요합니다.",
+                "A TSX export link requires a node-id.",
                 false,
             )));
         }
@@ -727,6 +788,63 @@ impl DevupServer {
                 policy,
                 input.refresh,
             )
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_project_context(
+        &self,
+        Parameters(input): Parameters<ProjectContextInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = project_context::run(
+            &input.scope,
+            input.project_root.as_deref(),
+            input.filter.as_deref(),
+        )
+        .await
+        .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths with a matching token, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_ui_validate(
+        &self,
+        Parameters(input): Parameters<UiValidateInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let theme_lookup = project_context::theme_for_validation(input.project_root.as_deref())
+            .map_err(to_mcp_error)?;
+        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+            &input.tsx,
+            theme_lookup.theme.as_ref(),
+            input.strict,
+        );
+        Ok(tool_result(json!({
+            "ok": report.ok,
+            "violations": report.violations,
+            "checkedTokens": report.checked_tokens,
+            "availableTokenCount": report.available_token_count,
+            "themeAvailable": theme_lookup.theme.is_some(),
+            "themeGuardrail": theme_lookup.guardrail,
+        })))
+    }
+
+    #[tool(
+        description = "Detect drift across the devup stack (vespertide model -> sea-orm entity -> vespera route -> openapi.json -> devup-api client); layers: db-entity | entity-route | route-openapi | openapi-client, omit for all. Text/JSON-based heuristics, not a compiler — every finding carries an explicit confidence",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_stack_diff(
+        &self,
+        Parameters(input): Parameters<StackDiffInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = stack_diff::run(input.project_root.as_deref(), &input.layers)
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))
@@ -790,7 +908,7 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
         "file" => Ok(ThemeScope::File),
         _ => Err(DevupError::new(
             ErrorCode::DevupThemeConflict,
-            "scope는 node, page 또는 file이어야 합니다.",
+            "scope must be node, page, or file.",
             false,
         )),
     }
@@ -814,7 +932,19 @@ impl ServerHandler for DevupServer {
                 .build(),
         )
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
-        .with_instructions("Read Figma designs and generate DevupUI artifacts")
+        .with_instructions(
+            "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
+             2. When the goal is implementation, call devup_figma_export first and take tsx, rawSnapshot, and sourceMap together.\n\
+             3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
+             4. Do not hand-interpret a node tree to write devup-ui code. Do not infer layout from coordinates.\n\
+             5. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
+             6. Do not guess UI values such as color, spacing, radius, or typography. If you could not obtain them, stop and report.\n\
+             7. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with per-screen export via frameIds or allScreens.\n\
+             8. The generated component name comes from the Figma layer name and is a starting point, not a contract. Rename it to fit the codebase, and rename a name that is meaningless or not a valid identifier.\n\
+             10. An asset path in the output, such as a maskImage or Image src, is a placeholder built from the layer name. Rename the file to fit the project. If the asset varies per usage, lift it into a prop instead of hardcoding it.\n\
+             11. A fixed asset such as an icon must actually be exported, never referenced by a path that does not exist yet. Read assetManifest for the asset IDs, then call devup_figma_export again with assetRequests, giving each entry an outputPath under an allowed write root, and make the path in the code match the path you wrote.\n\
+             12. Prefer delivery: \"resource\" for assets and large outputs. devup-mcp then returns devup://artifact/... resource links to read on demand instead of inlining bytes in every response.",
+        )
     }
 
     async fn list_resources(

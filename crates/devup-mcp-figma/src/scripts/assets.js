@@ -41,13 +41,29 @@ try {
     return failed("DEVUP_ASSET_FORMAT_UNSUPPORTED");
   }
   const scale = Math.min(4, Math.max(1, Math.floor(Number(options.scale) || 1)));
-  const settings = { format };
+  // SVG is exported as a string and carried back inline. Figma's remote MCP
+  // does not return a written `.svg` as an attachment the way it does a PNG,
+  // so writing the file alone left the caller holding a descriptor and no
+  // bytes at all, and every SVG request failed. SVG is text and small, so an
+  // inline copy is bounded well under the text-response limit; anything
+  // larger is reported rather than silently truncated.
+  const inlineSvg = format === "SVG";
+  const settings = { format: inlineSvg ? "SVG_STRING" : format };
   if (format === "PNG" || format === "JPG") {
     settings.constraint = { type: "SCALE", value: scale };
   }
   const exported = await node.exportAsync(settings);
-  const bytes = exported instanceof Uint8Array ? exported : new Uint8Array(exported);
+  const svgText = inlineSvg && typeof exported === "string" ? exported : null;
+  const bytes =
+    svgText === null
+      ? exported instanceof Uint8Array
+        ? exported
+        : new Uint8Array(exported)
+      : devupUtf8Encode(svgText);
   if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
+    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
+  }
+  if (svgText !== null && bytes.length > 12 * 1024) {
     return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
   }
   const sha256 = devupSha256(bytes);
@@ -65,6 +81,10 @@ try {
     status: "exported",
     byteLength: bytes.length,
     sha256,
+    // Present only for SVG. `mimeType` is what lets the Rust side recognise
+    // this as the payload rather than as ordinary descriptor prose.
+    mimeType: svgText === null ? null : "image/svg+xml",
+    text: svgText,
     errorCode: null,
   };
 } catch (_) {

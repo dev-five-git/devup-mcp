@@ -59,7 +59,7 @@ pub fn generate_component(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -75,9 +75,19 @@ pub fn generate_component(
         .collect::<Vec<_>>()
         .join("\n");
     let mut tsx = format!(
-        "import {{ {} }} from \"@devup-ui/react\";\n\n",
+        "import {{ {} }} from \"@devup-ui/react\";\n",
         generated.imports.join(", ")
     );
+    // Naming a component without importing it produces code that reads well and
+    // does not compile. When instances are left as references, whatever they
+    // refer to has to be resolvable, and the project convention is one named
+    // export per file under `@/components`.
+    for name in referenced_components(&generated.tsx) {
+        tsx.push_str(&format!(
+            "import {{ {name} }} from \"@/components/{name}\";\n"
+        ));
+    }
+    tsx.push('\n');
     tsx.push_str(&format!(
         "export function {component_name}() {{\n  return (\n{body}\n  );\n}}\n"
     ));
@@ -98,7 +108,7 @@ pub fn generate_legacy_component(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -179,7 +189,7 @@ pub fn generate_component_set_target(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 component set을 찾지 못했습니다.",
+            "Component set was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -229,7 +239,7 @@ pub fn generate_component_set_target(
     .ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            format!("component set에서 '{target_name}' 출력을 찾지 못했습니다."),
+            format!("Output '{target_name}' was not found in the component set."),
             false,
         )
     })?;
@@ -282,14 +292,14 @@ pub fn generate_inlined_component_instance(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "inline instance root를 찾지 못했습니다.",
+            "Inline instance root was not found.",
             false,
         )
     })?;
     let instance = snapshot.nodes.get(instance_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "inline할 component instance를 찾지 못했습니다.",
+            "Component instance to inline was not found.",
             false,
         )
     })?;
@@ -320,7 +330,7 @@ pub fn generate_inlined_component_instance(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("'{name}' component set을 찾지 못했습니다."),
+                format!("Component set '{name}' was not found."),
                 false,
             )
         })?;
@@ -341,7 +351,7 @@ pub fn generate_inlined_component_instance(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("'{name}' instance variant를 찾지 못했습니다."),
+                format!("Instance variant '{name}' was not found."),
                 false,
             )
         })?;
@@ -431,7 +441,7 @@ pub fn render_component_registration_snapshot(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "component registration root를 찾지 못했습니다.",
+            "Component registration root was not found.",
             false,
         )
     })?;
@@ -453,7 +463,7 @@ pub fn render_component_registration_snapshot(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupFigmaNodeNotFound,
-                    format!("registration 대상 '{target_name}'을 찾지 못했습니다."),
+                    format!("Registration target '{target_name}' was not found."),
                     false,
                 )
             })?
@@ -963,7 +973,7 @@ fn generate_node_marked(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -1046,7 +1056,7 @@ fn render_node(
     if !visiting.insert(node.id.clone()) {
         return Err(DevupError::new(
             ErrorCode::DevupCodegenFailed,
-            "Figma node 트리에 순환 참조가 있습니다.",
+            "Figma node tree contains a circular reference.",
             false,
         ));
     }
@@ -1188,10 +1198,16 @@ fn render_node(
         context.root_layout,
         depth == 0,
     );
+    // A frame with no auto-layout places its children itself, and this keeps
+    // them resolvable. Once the gap around them is measurable it is emitted as
+    // padding instead, which puts them where they belong on its own — so the
+    // anchor is only still needed where nothing could be measured, as when the
+    // child fills the frame exactly or carries no position of its own.
     if !(depth == 0 && context.root_layout == RootLayout::Embedded)
         && asset.is_none()
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
+        && layout::children_inset(snapshot, node).is_none()
         && view.child_ids().any(|child| {
             snapshot
                 .nodes
@@ -1420,22 +1436,23 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
         (
             view.bool("isMask") == Some(true),
             "DEVUP_CODEGEN_MASK_FALLBACK",
-            "Mask는 기본 Box 렌더링으로 보존됩니다.",
+            "Mask is preserved as a plain Box rendering.",
             FidelityImpact::Lossy,
         ),
         (
             view.string("layoutPositioning") == Some("ABSOLUTE")
                 && !layout::absolute_layout_is_exact(snapshot, node),
             "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
-            "절대 배치는 position props로 제한적으로 변환됩니다.",
+            "Absolute positioning is converted to position props with limited fidelity.",
             FidelityImpact::Approximated,
         ),
         (
             view.value("effects")
                 .and_then(serde_json::Value::as_array)
-                .is_some_and(|effects| !effects.is_empty()),
+                .is_some_and(|effects| !effects.is_empty())
+                && !style::effects_are_exact(&view),
             "DEVUP_CODEGEN_EFFECT_FALLBACK",
-            "일부 Figma effect는 계산된 CSS로 변환되지 않을 수 있습니다.",
+            "Some Figma effects may not be converted into computed CSS.",
             FidelityImpact::Lossy,
         ),
     ];
@@ -1490,4 +1507,31 @@ pub fn normalize_component_name(input: &str) -> String {
         result.insert(0, '_');
     }
     result
+}
+
+/// The custom components a rendered body refers to, in the order a reader meets
+/// them, deduplicated. A devup-ui primitive is imported from the library and is
+/// not one of these; anything else opening in PascalCase is.
+fn referenced_components(body: &str) -> Vec<String> {
+    const PRIMITIVES: [&str; 8] = [
+        "Box", "Center", "Flex", "Grid", "Image", "Text", "VStack", "Input",
+    ];
+    let mut seen = BTreeSet::new();
+    let mut found = Vec::new();
+    for (index, _) in body.match_indices('<') {
+        let rest = &body[index + 1..];
+        let name = rest
+            .chars()
+            .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+            .collect::<String>();
+        if name.is_empty()
+            || !name.starts_with(|character: char| character.is_ascii_uppercase())
+            || PRIMITIVES.contains(&name.as_str())
+            || !seen.insert(name.clone())
+        {
+            continue;
+        }
+        found.push(name);
+    }
+    found
 }

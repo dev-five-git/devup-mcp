@@ -75,8 +75,8 @@ pub enum FixtureError {
 impl std::fmt::Display for FixtureError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Io(error) => write!(formatter, "fixture를 읽지 못했습니다: {error}"),
-            Self::Json(error) => write!(formatter, "fixture JSON이 올바르지 않습니다: {error}"),
+            Self::Io(error) => write!(formatter, "failed to read fixture: {error}"),
+            Self::Json(error) => write!(formatter, "fixture JSON is invalid: {error}"),
             Self::Invalid(message) => formatter.write_str(message),
         }
     }
@@ -94,13 +94,13 @@ pub fn load_case(path: impl AsRef<Path>) -> Result<FixtureCase, FixtureError> {
 fn validate_case(case: &FixtureCase) -> Result<(), FixtureError> {
     if case.schema_version != 1 {
         return Err(FixtureError::Invalid(format!(
-            "지원하지 않는 fixture schemaVersion입니다: {}",
+            "unsupported fixture schemaVersion: {}",
             case.schema_version
         )));
     }
     if case.id.trim().is_empty() || case.source.test_id.trim().is_empty() {
         return Err(FixtureError::Invalid(
-            "fixture id와 source.testId는 비어 있을 수 없습니다.".to_owned(),
+            "fixture id and source.testId must not be empty.".to_owned(),
         ));
     }
     if case.source.commit.len() != 40
@@ -111,7 +111,7 @@ fn validate_case(case: &FixtureCase) -> Result<(), FixtureError> {
             .all(|byte| byte.is_ascii_hexdigit())
     {
         return Err(FixtureError::Invalid(
-            "source.commit은 40자리 git SHA여야 합니다.".to_owned(),
+            "source.commit must be a 40-character git SHA.".to_owned(),
         ));
     }
     if !case
@@ -121,7 +121,7 @@ fn validate_case(case: &FixtureCase) -> Result<(), FixtureError> {
         .contains_key(&case.request.root_id)
     {
         return Err(FixtureError::Invalid(format!(
-            "rootId '{}'가 payload에 없습니다.",
+            "rootId '{}' is missing from the payload.",
             case.request.root_id
         )));
     }
@@ -155,7 +155,7 @@ pub fn run_case(case: &FixtureCase) -> Result<Value, DevupError> {
             let variables = case.payload.variables.as_ref().ok_or_else(|| {
                 DevupError::new(
                     devup_mcp_figma::ErrorCode::DevupThemeConflict,
-                    "devup-json fixture에는 variables payload가 필요합니다.",
+                    "devup-json fixture requires a variables payload.",
                     false,
                 )
             })?;
@@ -178,7 +178,7 @@ pub fn run_case(case: &FixtureCase) -> Result<Value, DevupError> {
             Err(error) => serde_json::to_value(error).map_err(|_| {
                 DevupError::new(
                     devup_mcp_figma::ErrorCode::DevupCodegenFailed,
-                    "오류 fixture 결과를 직렬화하지 못했습니다.",
+                    "Failed to serialize the error fixture result.",
                     false,
                 )
             }),
@@ -418,7 +418,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
         .map_err(|error| vec![error])?;
     let mut violations = Vec::new();
     if registry.schema_version != 1 {
-        violations.push("coverage registry schemaVersion은 1이어야 합니다.".to_owned());
+        violations.push("coverage registry schemaVersion must be 1.".to_owned());
     }
 
     let repository = root
@@ -433,7 +433,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
             || evidence.description.trim().is_empty()
         {
             violations.push(format!(
-                "coverage evidence 필드가 비어 있습니다: {}",
+                "coverage evidence field is empty: {}",
                 evidence.rust_test
             ));
             continue;
@@ -442,7 +442,10 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
             .insert(evidence.rust_test.as_str(), evidence)
             .is_some()
         {
-            violations.push(format!("중복 coverage evidence: {}", evidence.rust_test));
+            violations.push(format!(
+                "duplicate coverage evidence: {}",
+                evidence.rust_test
+            ));
         }
         let relative = Path::new(&evidence.source_path);
         if relative.is_absolute()
@@ -451,7 +454,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                 .any(|component| matches!(component, std::path::Component::ParentDir))
         {
             violations.push(format!(
-                "coverage source 경로가 안전하지 않습니다: {}",
+                "coverage source path is unsafe: {}",
                 evidence.source_path
             ));
             continue;
@@ -469,19 +472,19 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                         .join("\n");
                     if !prefix.contains("#[test]") && !prefix.contains("#[tokio::test]") {
                         violations.push(format!(
-                            "coverage evidence가 실행 test 함수가 아닙니다: {}",
+                            "coverage evidence is not an executable test function: {}",
                             evidence.rust_test
                         ));
                     }
                 } else {
                     violations.push(format!(
-                        "coverage evidence test symbol이 없습니다: {} -> {}",
+                        "coverage evidence test symbol is missing: {} -> {}",
                         evidence.rust_test, evidence.source_path
                     ));
                 }
             }
             Err(error) => violations.push(format!(
-                "coverage source를 읽을 수 없습니다: {}: {error}",
+                "cannot read coverage source: {}: {error}",
                 evidence.source_path
             )),
         }
@@ -513,7 +516,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                 match evidence_by_test.get(entry.rust_test.as_str()) {
                     Some(evidence) if evidence.coverage == EvidenceCoverage::SnapshotParity => {}
                     _ => violations.push(format!(
-                        "rust_snapshot이 실행 가능한 snapshot parity test를 참조하지 않습니다: {} -> {}",
+                        "rust_snapshot does not reference an executable snapshot parity test: {} -> {}",
                         entry.test_id, entry.rust_test
                     )),
                 }
@@ -524,7 +527,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                     Some(evidence)
                         if evidence.coverage == EvidenceCoverage::RepresentativeAssertion => {}
                     _ => violations.push(format!(
-                        "rust_assertion이 등록된 대표 Rust test를 참조하지 않습니다: {} -> {}",
+                        "rust_assertion does not reference a registered representative Rust test: {} -> {}",
                         entry.test_id, entry.rust_test
                     )),
                 }
@@ -537,7 +540,7 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                     .as_deref()
                     .is_none_or(|value| value.trim().is_empty())
                 {
-                    violations.push(format!("비-parity 분류 근거가 없습니다: {}", entry.test_id));
+                    violations.push(format!("non-parity classification has no rationale: {}", entry.test_id));
                 }
             }
             LedgerClassification::OutOfScopeWrite | LedgerClassification::UpstreamRuntimeOnly => {
@@ -547,19 +550,19 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
                     .as_deref()
                     .is_none_or(|value| value.trim().is_empty())
                 {
-                    violations.push(format!("비-parity 분류 근거가 없습니다: {}", entry.test_id));
+                    violations.push(format!("non-parity classification has no rationale: {}", entry.test_id));
                 }
                 match evidence_by_test.get(entry.rust_test.as_str()) {
                     Some(evidence)
                         if evidence.coverage == EvidenceCoverage::RepresentativeAssertion => {}
                     _ => violations.push(format!(
-                        "비-parity 경계가 등록된 Rust contract를 참조하지 않습니다: {} -> {}",
+                        "non-parity boundary does not reference a registered Rust contract: {} -> {}",
                         entry.test_id, entry.rust_test
                     )),
                 }
             }
             LedgerClassification::Contract => violations.push(format!(
-                "모호한 contract 분류를 실행 evidence 또는 명시적 비-parity로 바꿔야 합니다: {}",
+                "ambiguous contract classification must become executable evidence or explicit non-parity: {}",
                 entry.test_id
             )),
         }
@@ -567,17 +570,17 @@ pub fn validate_coverage_registry(root: &Path) -> Result<CoverageSummary, Vec<St
 
     for case_id in case_ids.difference(&covered_case_ids) {
         violations.push(format!(
-            "snapshot parity test에 연결되지 않은 fixture: {case_id}"
+            "fixture not linked to a snapshot parity test: {case_id}"
         ));
     }
     for case_id in covered_case_ids.difference(&case_ids) {
         violations.push(format!(
-            "존재하지 않는 snapshot fixture coverage: {case_id}"
+            "coverage for a nonexistent snapshot fixture: {case_id}"
         ));
     }
     if case_files.len() != 268 || snapshot_files.len() != 268 {
         violations.push(format!(
-            "snapshot parity corpus는 JSON/snapshot 각각 268개여야 합니다: {}/{}",
+            "snapshot parity corpus must have 268 JSON and 268 snapshot files: {}/{}",
             case_files.len(),
             snapshot_files.len()
         ));
@@ -608,7 +611,7 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
         Err(error) => return Err(vec![error]),
     };
     if manifest.schema_version != 1 || ledger.schema_version != 1 {
-        violations.push("manifest와 ledger schemaVersion은 1이어야 합니다.".to_owned());
+        violations.push("manifest and ledger schemaVersion must be 1.".to_owned());
     }
     if manifest.source.commit.len() != 40
         || !manifest
@@ -617,7 +620,7 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
             .bytes()
             .all(|byte| byte.is_ascii_hexdigit())
     {
-        violations.push("manifest source.commit이 40자리 git SHA가 아닙니다.".to_owned());
+        violations.push("manifest source.commit is not a 40-character git SHA.".to_owned());
     }
     if manifest.baseline.test_files != 54
         || manifest.baseline.passed != 978
@@ -625,10 +628,10 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
         || manifest.baseline.snapshots != 268
         || manifest.baseline.assertions != 1_974
     {
-        violations.push("고정 upstream baseline 수치가 일치하지 않습니다.".to_owned());
+        violations.push("pinned upstream baseline counts do not match.".to_owned());
     }
     if manifest.source_test_files.len() != manifest.baseline.test_files {
-        violations.push("source test file 수가 baseline과 일치하지 않습니다.".to_owned());
+        violations.push("source test file count does not match the baseline.".to_owned());
     }
     duplicate_values(
         manifest.source_test_files.iter().map(String::as_str),
@@ -649,10 +652,12 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
         .map(|file| file.path.clone())
         .collect::<BTreeSet<_>>();
     for path in discovered.difference(&declared) {
-        violations.push(format!("manifest에 없는 orphan 파일: {path}"));
+        violations.push(format!("orphan file missing from the manifest: {path}"));
     }
     for path in declared.difference(&discovered) {
-        violations.push(format!("실제로 존재하지 않는 manifest 파일: {path}"));
+        violations.push(format!(
+            "manifest file that does not actually exist: {path}"
+        ));
     }
     for file in &manifest.files {
         let path = root.join(file.path.replace('/', std::path::MAIN_SEPARATOR_STR));
@@ -660,10 +665,10 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
             Ok(bytes) => {
                 let actual = hex_sha256(&bytes);
                 if actual != file.sha256 {
-                    violations.push(format!("checksum 불일치: {}", file.path));
+                    violations.push(format!("checksum mismatch: {}", file.path));
                 }
             }
-            Err(error) => violations.push(format!("{} 읽기 실패: {error}", file.path)),
+            Err(error) => violations.push(format!("{} read failed: {error}", file.path)),
         }
     }
 
@@ -674,7 +679,7 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
             Ok(case) => {
                 if let Some(first) = case_ids.insert(case.id.clone(), relative.clone()) {
                     violations.push(format!(
-                        "중복 fixture id '{}': {first}, {relative}",
+                        "duplicate fixture id '{}': {first}, {relative}",
                         case.id
                     ));
                 }
@@ -686,15 +691,15 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
     let mut ledger_ids = BTreeSet::new();
     for entry in &ledger.entries {
         if !ledger_ids.insert(entry.test_id.as_str()) {
-            violations.push(format!("중복 ledger test id: {}", entry.test_id));
+            violations.push(format!("duplicate ledger test id: {}", entry.test_id));
         }
         if entry.source_file.trim().is_empty() || entry.rust_test.trim().is_empty() {
-            violations.push(format!("ledger 경로가 비어 있습니다: {}", entry.test_id));
+            violations.push(format!("ledger path is empty: {}", entry.test_id));
         }
         for fixture_id in &entry.fixture_ids {
             if !case_ids.contains_key(fixture_id) {
                 violations.push(format!(
-                    "ledger가 없는 fixture를 참조합니다: {} -> {fixture_id}",
+                    "ledger references a missing fixture: {} -> {fixture_id}",
                     entry.test_id
                 ));
             }
@@ -702,7 +707,7 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
         match entry.classification {
             LedgerClassification::RustSnapshot if entry.fixture_ids.is_empty() => {
                 violations.push(format!(
-                    "rust_snapshot ledger에 fixture가 없습니다: {}",
+                    "rust_snapshot ledger entry has no fixture: {}",
                     entry.test_id
                 ))
             }
@@ -714,7 +719,10 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
                     .as_deref()
                     .is_none_or(|value| value.trim().is_empty()) =>
             {
-                violations.push(format!("분류 근거가 없습니다: {}", entry.test_id));
+                violations.push(format!(
+                    "classification has no rationale: {}",
+                    entry.test_id
+                ));
             }
             _ => {}
         }
@@ -724,11 +732,11 @@ pub fn validate_corpus(root: &Path) -> Result<CorpusSummary, Vec<String>> {
         || manifest.counts.snapshots != snapshot_files.len()
         || manifest.counts.ledger_entries != ledger.entries.len()
     {
-        violations.push("manifest counts가 발견된 corpus와 일치하지 않습니다.".to_owned());
+        violations.push("manifest counts do not match the discovered corpus.".to_owned());
     }
     if ledger.entries.len() != manifest.baseline.passed {
         violations
-            .push("ledger entry 수가 upstream passing test 수와 일치하지 않습니다.".to_owned());
+            .push("ledger entry count does not match the upstream passing test count.".to_owned());
     }
 
     if violations.is_empty() {
@@ -794,7 +802,7 @@ fn duplicate_values<'a>(
     let mut seen = BTreeSet::new();
     for value in values {
         if !seen.insert(value) {
-            violations.push(format!("중복 {label}: {value}"));
+            violations.push(format!("duplicate {label}: {value}"));
         }
     }
 }

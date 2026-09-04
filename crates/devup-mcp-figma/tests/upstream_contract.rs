@@ -130,20 +130,29 @@ fn asset_export_uses_only_compiled_read_only_export_settings() {
 }
 
 #[test]
-fn snapshot_manifest_covers_current_official_node_properties() {
+fn snapshot_manifest_covers_fields_the_devup_ui_converter_actually_reads() {
+    // The manifest is scoped to devup-ui codegen consumption (verified
+    // against `crates/devup-mcp-devup-ui`), not the full official Plugin API
+    // surface — `maskType`, `detachedInfo`, `exposedInstances` and
+    // `isExposedInstance` were removed because nothing reads them.
     let call = ReadToolCall::snapshot("file-key", "1:2", BuiltinScript::NodeSnapshot);
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
     for property in [
-        "\"maskType\"",
-        "\"overflowDirection\"",
         "\"primaryAxisAlignItems\"",
         "\"componentPropertyReferences\"",
-        "\"detachedInfo\"",
-        "\"exposedInstances\"",
-        "\"isExposedInstance\"",
+        "\"layoutSizingHorizontal\"",
+        "\"boundVariables\"",
+        "\"strokeStyleId\"",
+        "\"textStyleId\"",
     ] {
         assert!(code.contains(property), "manifest omitted {property}");
+    }
+    for property in ["\"maskType\"", "\"detachedInfo\"", "\"exposedInstances\""] {
+        assert!(
+            !code.contains(property),
+            "manifest still carries unused {property}"
+        );
     }
 }
 
@@ -188,7 +197,7 @@ fn search_uses_a_compiled_read_only_page_projection() {
         "file-key",
         "0:1",
         SearchReadOptions {
-            query: "본연체".to_owned(),
+            query: "Essence".to_owned(),
             node_types: vec!["FRAME".to_owned()],
             match_kind: "normalized".to_owned(),
             limit: 20,
@@ -199,7 +208,7 @@ fn search_uses_a_compiled_read_only_page_projection() {
     assert_eq!(call.tool_name(), "use_figma");
     assert!(code.contains("figma.setCurrentPageAsync(page)"));
     assert!(code.contains("page.findAll"));
-    assert!(code.contains("본연체"));
+    assert!(code.contains("Essence"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
 }
@@ -254,12 +263,22 @@ fn multi_root_fast_snapshot_embeds_only_validated_root_ids() {
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
     assert_eq!(call.tool_name(), "use_figma");
-    assert_eq!(call.arguments()["nodeId"], "4217:7743");
+    // The official `use_figma` schema forbids a `nodeId` argument
+    // (`additionalProperties: false`); the target node is tracked outside
+    // `arguments` (`PlannedCall::expected_node_id` / `HandoffCall::node_id`).
+    assert!(!call.arguments().contains_key("nodeId"));
+    assert!(
+        call.arguments()["description"]
+            .as_str()
+            .unwrap()
+            .contains("4217:7743")
+    );
     assert!(code.contains("[\"10:3\",\"10:2\"]"));
     assert!(code.contains("requestedRootIds"));
     assert!(code.contains("rootIds: roots.map"));
     assert!(code.contains("getStyledTextSegments(textSegmentManifest)"));
-    assert!(code.contains("devupFastSnapshotDescriptor"));
+    assert!(code.contains("devupFastSnapshotEnvelope"));
+    assert!(!code.contains("figma.io.write"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
 }
@@ -316,13 +335,44 @@ fn used_resources_use_exact_ids_without_file_catalog_or_consumers() {
 }
 
 #[test]
-fn fast_snapshot_is_lossless_bounded_and_read_only() {
+fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     let call = ReadToolCall::fast_snapshot("file-key", "1:2");
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
     assert_eq!(call.tool_name(), "use_figma");
     assert!(code.contains("figma.getNodeByIdAsync"));
-    assert!(code.contains("if (name in value) names.add(name)"));
+    // Node property collection no longer walks the prototype chain (that only
+    // remains for variable/style *resource* serialization, which has no
+    // manifest) and never buckets unlisted fields into "extra" — only the
+    // checked-in manifest is ever collected for a node.
+    assert!(code.contains("for (const name of manifest)"));
+    assert!(!code.contains("(manifestSet.has(name) ? fields : extra)"));
+    assert!(!code.contains("const manifestSet = new Set(manifest)"));
+    // Default-valued fields are dropped; the tables must stay in sync with
+    // `devup-mcp-devup-ui/tests/default_omission_golden.rs`.
+    assert!(code.contains("const SCALAR_DEFAULTS = new Map(["));
+    assert!(code.contains(r#"const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight"]);"#));
+    // Presence-sensitive fields must never appear in the omission table.
+    for presence_sensitive in [
+        "[\"opacity\"",
+        "[\"visible\"",
+        "[\"layoutPositioning\"",
+        "[\"topLeftRadius\"",
+        "[\"strokeWeight\"",
+    ] {
+        assert!(
+            !code.contains(presence_sensitive),
+            "{presence_sensitive} must not be omittable"
+        );
+    }
+    // One serializer now covers both node fields and resources.
+    assert!(!code.contains("function serializeResource("));
+    assert!(!code.contains("function resourcePropertyNames("));
+    // Byte length is measured without building a throwaway byte array.
+    assert!(!code.contains("function utf8Encode("));
+    assert!(code.contains("utf8ByteLength(JSON.stringify(envelope))"));
+    // The cursor marker is the only page-state carrier; no `pagination` mirror.
+    assert!(!code.contains("pagination:"));
     assert!(code.contains("getStyledTextSegments(textSegmentManifest)"));
     for field in [
         "strokeTopWeight",
@@ -335,34 +385,64 @@ fn fast_snapshot_is_lossless_bounded_and_read_only() {
     assert!(code.contains("getVariableByIdAsync"));
     assert!(code.contains("getVariableCollectionByIdAsync"));
     assert!(code.contains("getStyleByIdAsync"));
-    assert!(code.contains("Promise.all([...variableJobs, ...styleJobs])"));
+    assert!(code.contains("async function collectResources(nodes)"));
     assert!(code.contains("usedVariableIds"));
     assert!(code.contains("usedStyleIds"));
-    assert!(code.contains("duVp"));
-    assert!(code.contains("figma.io.write"));
-    assert!(code.contains("devup-fast-snapshot-${sequence + 1}-of-${chunkCount}.png"));
-    assert!(code.contains("devupFastSnapshotDescriptor"));
-    assert!(code.contains("MAX_ENVELOPE_BYTES"));
-    assert!(code.contains("0xfffd"));
-    assert!(!code.contains("maxPayloadBytes"));
-    assert!(!code.contains("maxFieldBytes"));
+    // A page carries the resources its nodes reference, so the envelope is
+    // only bounded once both are built - the script must shrink the page and
+    // retry rather than emit an oversized envelope.
+    assert!(code.contains("nodeBudget = Math.floor(nodeBudget / 2)"));
+    // Item B: PNG-chunked binary transport is gone entirely — text only,
+    // dynamically byte-budgeted and cursor-paginated like the legacy path.
+    assert!(!code.contains("duVp"));
+    assert!(!code.contains("figma.io.write"));
+    assert!(!code.contains("devup-fast-snapshot"));
+    assert!(!code.contains("devupFastSnapshotDescriptor"));
+    assert!(!code.contains("pngChunk"));
+    assert!(!code.contains("crc32"));
+    assert!(code.contains("maxPayloadBytes"));
+    assert!(code.contains("__DEVUP_SNAPSHOT_CURSOR__"));
+    // Every field the Rust decoder reads off the cursor marker must actually
+    // be emitted. `offset` in particular is what distinguishes a first page
+    // from a continuation page in `envelope.rs::peek_page_cursor`; omitting
+    // it silently downgraded the whole fast path to legacy collection.
+    for cursor_field in [
+        "        offset,",
+        "        nextOffset,",
+        "        complete: nextOffset >= allNodes.length,",
+        "        totalNodes: allNodes.length,",
+    ] {
+        assert!(
+            code.contains(cursor_field),
+            "cursor marker must emit {cursor_field}"
+        );
+    }
+    // The 15KB text limit is the only envelope ceiling left; the old 1MB
+    // companion check could never fire ahead of it.
+    assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
+    assert!(!code.contains("MAX_ENVELOPE_BYTES"));
+    assert!(code.contains("devupFastSnapshotEnvelope"));
+    assert!(code.contains("DEVUP_TARGET_IS_SECTION"));
     assert!(!code.contains("DEVUP_FIELD_VALUE_TRUNCATED"));
     assert!(!code.contains("MAX_INLINE_FIELD_BYTES"));
     assert!(!code.contains("devupLargeValueDescriptor"));
     assert!(!code.contains("$largeValue"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
-    assert_eq!(code.matches("figma.io.write(").count(), 1);
 }
 
 #[test]
-fn fast_snapshot_resolves_every_compiled_placeholder_after_inserting_the_section_probe() {
+fn fast_snapshot_resolves_every_compiled_placeholder_for_the_requested_root() {
     let call = ReadToolCall::fast_snapshot("file-key", "3879:35518");
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
 
-    assert!(code.contains("figma.getNodeByIdAsync(\"3879:35518\")"));
+    assert!(code.contains("const requestedRootIds = [\"3879:35518\"]"));
+    // `__DEVUP_SNAPSHOT_CURSOR__` is a real runtime node-ID sentinel (same
+    // one the legacy cursor snapshot uses), not a template placeholder — it
+    // is never meant to be substituted, so it is excluded from this check.
+    let without_cursor_sentinel = code.replace("__DEVUP_SNAPSHOT_CURSOR__", "");
     assert!(
-        !code.contains("__DEVUP_"),
+        !without_cursor_sentinel.contains("__DEVUP_"),
         "compiled fast snapshot leaked an unresolved template placeholder"
     );
 }
@@ -407,10 +487,16 @@ fn fast_theme_collects_complete_local_theme_and_used_remote_resources_read_only(
         assert!(code.contains(read), "missing theme read {read}");
     }
     assert!(code.contains("usedRemoteVariables"));
-    assert!(code.contains("devupFastThemeDescriptor"));
-    assert!(code.contains("devup-fast-theme-${sequence + 1}-of-${chunkCount}.png"));
-    assert!(code.contains("duVp"));
+    // No binary transport exists any more — a theme that doesn't fit as text
+    // throws and the caller falls back to the legacy per-resource path.
+    assert!(!code.contains("devupFastThemeDescriptor"));
+    assert!(!code.contains("devup-fast-theme"));
+    assert!(!code.contains("duVp"));
+    assert!(!code.contains("figma.io.write"));
+    assert!(!code.contains("pngChunk"));
     assert!(code.contains("MAX_ENVELOPE_BYTES"));
+    assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
+    assert!(code.contains("devupFastThemeEnvelope"));
     assert!(!code.contains("eval("));
     assert!(!code.contains("Function("));
     for mutation in [

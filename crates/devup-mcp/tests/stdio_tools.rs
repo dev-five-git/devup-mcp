@@ -73,6 +73,13 @@ fn collect_boolean_schemas(path: &str, node: &Value, hits: &mut Vec<String>) {
     }
 }
 
+// NOTE: kept as `exposes_the_seven_read_only_devup_figma_tools` even though
+// this now asserts 9 tools (6 devup_figma_* + 3 ground-truth tools):
+// `fixtures/devup-figma-plugin/{ledger,coverage-registry}.json` reference
+// this exact Rust test symbol as coverage evidence for the pinned plugin
+// compatibility corpus, and the brief instructs not to touch the Figma
+// pipeline. Renaming this function would require rewriting ~40 fixture
+// entries in a file this task must not modify.
 #[tokio::test]
 async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
@@ -144,12 +151,14 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         names,
         [
             "devup_figma_auth",
-            "devup_figma_continue",
             "devup_figma_explore",
             "devup_figma_export",
             "devup_figma_search",
             "devup_figma_to_json",
             "devup_figma_to_ui",
+            "devup_project_context",
+            "devup_stack_diff",
+            "devup_ui_validate",
         ]
     );
 
@@ -200,17 +209,6 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert!(explore_text.contains("refresh"));
     assert!(explore_text.contains("sourcePolicy"));
     assert!(!explore_text.contains("code"));
-
-    let continuation = tools
-        .iter()
-        .find(|tool| tool.name == "devup_figma_continue")
-        .unwrap();
-    let continuation_schema = serde_json::to_value(&continuation.input_schema)?;
-    let continuation_text = continuation_schema.to_string();
-    assert!(continuation_text.contains("sessionId"));
-    assert!(continuation_text.contains("callId"));
-    assert!(continuation_text.contains("result"));
-    assert!(!continuation_text.contains("code"));
 
     client.cancel().await?;
     server.await??;

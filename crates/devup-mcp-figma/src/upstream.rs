@@ -236,23 +236,11 @@ impl BuiltinScript {
             })
             .unwrap_or_else(|| json!({}));
         let asset = serde_json::to_string(&asset).expect("asset options serialize");
-        let section_index_probe = if self == Self::FastSnapshotEnvelope {
-            let mut probe = include_str!("scripts/section_index.js").replacen(
-                "if (section.type !== \"SECTION\") throw new Error(\"DEVUP_SECTION_REQUIRED\");",
-                "if (section.type === \"SECTION\") {",
-                1,
-            );
-            probe.push_str("\n}");
-            format!("{{\n{probe}\n}}")
-        } else {
-            String::new()
-        };
         source
             .replace(
                 "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
                 include_str!("scripts/large_value_helpers.js"),
             )
-            .replace("\"__DEVUP_SECTION_INDEX_PROBE__\"", &section_index_probe)
             .replace("\"__DEVUP_NODE_ID__\"", &node_id)
             .replace("\"__DEVUP_ROOT_IDS__\"", &root_ids)
             .replace(
@@ -452,12 +440,24 @@ impl ReadToolCall {
     }
 
     pub fn fast_snapshot(file_key: impl Into<String>, node_id: impl Into<String>) -> Self {
+        Self::fast_snapshot_page(file_key, node_id, SnapshotReadOptions::default())
+    }
+
+    /// A single round of the fast (text-paginated) node snapshot. `options.offset`
+    /// selects the starting node index; the script dynamically packs as many
+    /// nodes as fit under `options.max_payload_bytes` and reports a cursor for
+    /// the next round via the standard `__DEVUP_SNAPSHOT_CURSOR__` marker node.
+    pub fn fast_snapshot_page(
+        file_key: impl Into<String>,
+        node_id: impl Into<String>,
+        options: SnapshotReadOptions,
+    ) -> Self {
         Self::Snapshot {
             file_key: file_key.into(),
             node_id: node_id.into(),
             script: BuiltinScript::FastSnapshotEnvelope,
             resources: None,
-            snapshot: None,
+            snapshot: Some(options),
             root_ids: None,
         }
     }
@@ -601,6 +601,13 @@ impl ReadToolCall {
             | Self::Screenshot { file_key, node_id } => {
                 json!({ "fileKey": file_key, "nodeId": node_id })
             }
+            // These variants all route to the official `use_figma` tool, whose
+            // schema is `{ fileKey, code, description, skillNames? }` with
+            // `additionalProperties: false`. `nodeId` is NOT part of that
+            // schema and must never appear here (real Figma MCP hosts reject
+            // unknown properties); the node this call targets is tracked
+            // separately in `PlannedCall::expected_node_id` and surfaced to
+            // handoff consumers outside `arguments`, not inside it.
             Self::Snapshot {
                 file_key,
                 node_id,
@@ -610,7 +617,7 @@ impl ReadToolCall {
                 root_ids,
             } => json!({
                 "fileKey": file_key,
-                "nodeId": node_id,
+                "description": self.description(),
                 "code": script.source(node_id, ScriptInputs {
                     resources: resources.as_ref(),
                     snapshot: snapshot.as_ref(),
@@ -624,7 +631,7 @@ impl ReadToolCall {
                 options,
             } => json!({
                 "fileKey": file_key,
-                "nodeId": node_id,
+                "description": self.description(),
                 "code": BuiltinScript::SearchSnapshot.source(node_id, ScriptInputs {
                     search: Some(options),
                     ..ScriptInputs::default()
@@ -632,6 +639,7 @@ impl ReadToolCall {
             }),
             Self::PageCatalog { file_key } => json!({
                 "fileKey": file_key,
+                "description": self.description(),
                 "code": BuiltinScript::PageCatalog.source("", ScriptInputs::default())
             }),
             Self::ExploreSnapshot {
@@ -640,7 +648,7 @@ impl ReadToolCall {
                 options,
             } => json!({
                 "fileKey": file_key,
-                "nodeId": node_id,
+                "description": self.description(),
                 "code": BuiltinScript::ExploreSnapshot.source(node_id, ScriptInputs {
                     explore: Some(options),
                     ..ScriptInputs::default()
@@ -648,11 +656,12 @@ impl ReadToolCall {
             }),
             Self::FastTheme { file_key } => json!({
                 "fileKey": file_key,
+                "description": self.description(),
                 "code": BuiltinScript::FastThemeEnvelope.source("", ScriptInputs::default())
             }),
             Self::LargeValue { file_key, options } => json!({
                 "fileKey": file_key,
-                "nodeId": options.node_id,
+                "description": self.description(),
                 "code": BuiltinScript::LargeValue.source(&options.node_id, ScriptInputs {
                     large_value: Some(options),
                     ..ScriptInputs::default()
@@ -664,7 +673,7 @@ impl ReadToolCall {
                 request,
             } => json!({
                 "fileKey": file_key,
-                "nodeId": request.node_id,
+                "description": self.description(),
                 "code": BuiltinScript::AssetExport.source(&request.node_id, ScriptInputs {
                     asset: Some((request, version.as_deref())),
                     ..ScriptInputs::default()
@@ -672,6 +681,63 @@ impl ReadToolCall {
             }),
         };
         value.as_object().cloned().unwrap_or_default()
+    }
+
+    /// Human-readable `description` required by the official `use_figma`
+    /// schema. Only meaningful for the `use_figma`-routed variants; other
+    /// variants never reach this (their `arguments()` don't call it).
+    fn description(&self) -> String {
+        let node_id = self.node_id_for_description();
+        match self {
+            Self::Snapshot { script, .. } => match script {
+                BuiltinScript::FastSnapshotEnvelope | BuiltinScript::MultiRootSnapshotEnvelope => {
+                    format!("devup-mcp fast node snapshot for node {node_id} (read-only)")
+                }
+                BuiltinScript::NodeSnapshot => {
+                    format!("devup-mcp paginated node snapshot for node {node_id} (read-only)")
+                }
+                BuiltinScript::SectionIndex => {
+                    format!("devup-mcp Section screen index for node {node_id} (read-only)")
+                }
+                BuiltinScript::VariableCatalog => {
+                    format!("devup-mcp local variable/style catalog for node {node_id} (read-only)")
+                }
+                BuiltinScript::LocalVariables | BuiltinScript::UsedResources => {
+                    format!(
+                        "devup-mcp variable/style resource batch for node {node_id} (read-only)"
+                    )
+                }
+                _ => format!("devup-mcp Figma read for node {node_id} (read-only)"),
+            },
+            Self::SearchSnapshot { .. } => {
+                format!("devup-mcp page-scoped name search for node {node_id} (read-only)")
+            }
+            Self::PageCatalog { .. } => "devup-mcp file page catalog (read-only)".to_owned(),
+            Self::ExploreSnapshot { .. } => {
+                format!("devup-mcp screen candidate exploration near node {node_id} (read-only)")
+            }
+            Self::FastTheme { .. } => {
+                "devup-mcp fast file-wide theme snapshot (read-only)".to_owned()
+            }
+            Self::LargeValue { .. } => {
+                format!("devup-mcp large field value fragment for node {node_id} (read-only)")
+            }
+            Self::AssetExport { .. } => {
+                format!("devup-mcp asset export for node {node_id} (read-only)")
+            }
+            _ => "devup-mcp Figma read (read-only)".to_owned(),
+        }
+    }
+
+    fn node_id_for_description(&self) -> &str {
+        match self {
+            Self::Snapshot { node_id, .. }
+            | Self::SearchSnapshot { node_id, .. }
+            | Self::ExploreSnapshot { node_id, .. } => node_id,
+            Self::LargeValue { options, .. } => &options.node_id,
+            Self::AssetExport { request, .. } => &request.node_id,
+            _ => "",
+        }
     }
 }
 

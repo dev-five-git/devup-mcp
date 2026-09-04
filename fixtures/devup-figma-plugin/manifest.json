@@ -1599,7 +1599,7 @@
     },
     {
       "path": "snapshots/codegen/upstream-codegen-114-855686da78.snap",
-      "sha256": "20b665387217396219fb63be572b7c2780a4f160978d06977bbefbd82dfaaab0"
+      "sha256": "dd3a4d16d14c3c187fd624c6fa1e04dc08016ae18de686cb05fcea76cbb30e2d"
     },
     {
       "path": "snapshots/codegen/upstream-codegen-115-45d3f116b5.snap",
@@ -2127,7 +2127,7 @@
     },
     {
       "path": "snapshots/codegen/upstream-codegen-246-295f39e09b.snap",
-      "sha256": "d7501e23e776794310b8a6ac9ebbc003214f69952ab508d2858b59a2ea3268c1"
+      "sha256": "132da3aba8a8a5fef1e243b257dbd49fe4f12dfa402b6764123194f284c5c535"
     },
     {
       "path": "snapshots/codegen/upstream-codegen-247-39d6959685.snap",
