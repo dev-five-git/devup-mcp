@@ -64,7 +64,7 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
     // A case frame holds the shape; a Code frame beside it holds the text that
     // says what the shape should produce.
     let mut expectations: Vec<((f64, f64), String)> = Vec::new();
-    let mut shapes: Vec<((f64, f64), String)> = Vec::new();
+    let mut shapes: Vec<((f64, f64), String, Option<String>)> = Vec::new();
     for root in &snapshot.roots {
         let Some(raw) = snapshot.nodes.get(root) else {
             continue;
@@ -86,15 +86,16 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
             Some(text) => expectations.push((at, normalise(&text))),
             None => {
                 // A case is sometimes wrapped in a frame that only positions it
-                // and sometimes stands as the root itself, so neither the root
-                // nor its first child is right on its own. A lone child is the
-                // wrapped case; anything else is the case.
-                let children = view.child_ids().collect::<Vec<_>>();
-                let shape = match children.as_slice() {
-                    [only] => (*only).to_owned(),
-                    _ => root.clone(),
+                // and sometimes stands as the root itself, and nothing about the
+                // frame says which. The note does: one that opens a container
+                // and puts something inside is describing the frame, one that is
+                // a single element is describing what the frame holds. So keep
+                // both readings and let the note pick.
+                let lone_child = match view.child_ids().collect::<Vec<_>>().as_slice() {
+                    [only] => Some((*only).to_owned()),
+                    _ => None,
                 };
-                shapes.push((at, shape));
+                shapes.push((at, root.clone(), lone_child));
             }
         }
     }
@@ -110,7 +111,7 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
     // is spoken for once.
     let mut pairs = Vec::with_capacity(expectations.len() * shapes.len());
     for (note, (at, _)) in expectations.iter().enumerate() {
-        for (case, (case_at, _)) in shapes.iter().enumerate() {
+        for (case, (case_at, _, _)) in shapes.iter().enumerate() {
             let distance = (case_at.0 - at.0).powi(2) + (case_at.1 - at.1).powi(2);
             pairs.push((distance, note, case));
         }
@@ -131,10 +132,17 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
         }
         spoken_for_note[note] = true;
         spoken_for_case[case] = true;
-        cases.push(Case {
-            expected: expectations[note].1.clone(),
-            node_id: shapes[case].1.clone(),
-        });
+        let expected = expectations[note].1.clone();
+        // Three angle brackets means an element opened, something placed inside
+        // it, and the element closed — a container. One or two is a single
+        // element, with or without text of its own.
+        let describes_a_container = expected.matches('<').count() >= 3;
+        let (_, root, lone_child) = &shapes[case];
+        let node_id = match lone_child {
+            Some(child) if !describes_a_container => child.clone(),
+            _ => root.clone(),
+        };
+        cases.push(Case { expected, node_id });
     }
     cases
 }
@@ -148,7 +156,7 @@ fn generated_code_matches_what_each_case_states() {
     };
 
     let mut agreed = 0usize;
-    let mut differed: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    let mut differed: BTreeMap<String, Vec<(String, String, String)>> = BTreeMap::new();
     for entry in entries.flatten() {
         let path = entry.path();
         let name = path.file_name().and_then(|v| v.to_str()).unwrap_or("");
@@ -174,10 +182,11 @@ fn generated_code_matches_what_each_case_states() {
             if actual == case.expected {
                 agreed += 1;
             } else {
-                differed
-                    .entry(label.clone())
-                    .or_default()
-                    .push((case.expected, actual));
+                differed.entry(label.clone()).or_default().push((
+                    case.node_id.clone(),
+                    case.expected,
+                    actual,
+                ));
             }
         }
     }
@@ -190,7 +199,8 @@ fn generated_code_matches_what_each_case_states() {
     eprintln!("cases: {total}, matching what the design states: {agreed}");
     for (label, entries) in &differed {
         eprintln!("\n=== {label}");
-        for (expected, actual) in entries {
+        for (node_id, expected, actual) in entries {
+            eprintln!("  node   : {node_id}");
             eprintln!("  states : {expected}");
             eprintln!("  we emit: {actual}\n");
         }
