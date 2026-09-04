@@ -275,6 +275,26 @@ shape in a `Box` that carries only its placement. Merging the placement into
 the shape's own `Box` draws the same thing with two elements fewer, which is
 the only place the element counts differ.
 
+**A selector block says only what the state changes.** The reference writes
+`_hover={{ "gap": size === 'md' && "10px" }}` where this writes
+`{ md: varient === 'ghost' && "10px" }[size]`, and the second is the narrower
+claim: at `md` the base gap is `8px` for `ghost` and `10px` for everything else,
+so hover changes it for `ghost` alone.
+
+The difference comes from one line of `createNestedVariantProp`. It computes
+each state's delta per combination and then folds the combinations together,
+and when a branch has only one combination *carrying a value* it treats them as
+agreeing and collapses to that value — filling in the combinations that had
+none. Here that is harmless because the value it fills in is the value those
+combinations already had. It is harmless by coincidence: were the base `8px`
+elsewhere at `md`, hover would be given a change the design never asked for.
+
+The same collapse was written here first and the pinned corpus rejected it —
+`border={variant === 'white' && …}` became `border="solid 1px …"`, handing a
+border to the four variants that refuse one. Presence is asked of the record
+rather than of the value for that reason, and the rule is not suspended for
+selector blocks.
+
 **`display` is never cleared to `"initial"`.** `initial` is the value the CSS
 specification gives a property, not the value the element has. For the other
 forty props in the set those coincide — `w` is `auto`, `p` is `0`, `pos` is
