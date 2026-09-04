@@ -109,11 +109,20 @@ if ("children" in section) {
   const chosen = new Set(candidateNodes.map(({ node }) => node.id));
   for (const node of section.children) {
     if (chosen.has(node.id)) continue;
-    // A child holding a screen would offer that screen twice over, once whole
-    // and once inside itself.
-    if (candidateNodes.some(({ node: screen }) => contains(node, screen))) continue;
     const box = bounds(node);
-    if (box && node.visible !== false) candidateNodes.push({ node, box });
+    if (!box || node.visible === false) continue;
+    // And a child outranks whatever the guess found inside it. A long page
+    // never measures like a screen: the three widths of one page here are
+    // 1920x4757, 992x5619 and 360x7240, each rejected on height alone and two
+    // of them on aspect as well. So the traversal walks straight past all
+    // three and offers the frames within them instead, answering a request for
+    // three screens with twenty pieces of three screens -- while the widths
+    // themselves, which are the whole of what the Section holds, appear
+    // nowhere in the index. Taking the page apart is not a way of offering it.
+    for (let index = candidateNodes.length - 1; index >= 0; index -= 1) {
+      if (contains(node, candidateNodes[index].node)) candidateNodes.splice(index, 1);
+    }
+    candidateNodes.push({ node, box });
   }
 }
 candidateNodes.sort((left, right) =>
