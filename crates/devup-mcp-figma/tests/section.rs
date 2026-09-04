@@ -7,7 +7,7 @@ use devup_mcp_figma::{
 use serde_json::{Map, json};
 
 #[test]
-fn index_contains_only_top_level_visible_screens_in_visual_order() -> anyhow::Result<()> {
+fn index_contains_top_level_visible_children_in_visual_order() -> anyhow::Result<()> {
     let target =
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1")?;
     let snapshot = fixture_snapshot();
@@ -15,14 +15,19 @@ fn index_contains_only_top_level_visible_screens_in_visual_order() -> anyhow::Re
     let index: SectionIndex = build_section_index(&snapshot, &target)?;
 
     assert_eq!(index.section.node_id, "10:1");
-    assert_eq!(index.candidates.len(), 3);
+    // The note at 10:5 is offered too. This index is a menu to choose from, and
+    // deciding for the caller which children are worth showing means being
+    // wrong in the one direction that cannot be seen: an offer too many costs a
+    // glance, an offer withheld hides the work entirely. Bare text is a case in
+    // its own right — a whole section of this file is nothing else.
+    assert_eq!(index.candidates.len(), 4);
     assert_eq!(
         index
             .candidates
             .iter()
             .map(|candidate| candidate.node_id.as_str())
             .collect::<Vec<_>>(),
-        ["10:3", "10:2", "10:4"]
+        ["10:3", "10:2", "10:5", "10:4"]
     );
     let first = &index.candidates[0];
     assert_eq!(first.name, "First");
@@ -39,11 +44,12 @@ fn index_contains_only_top_level_visible_screens_in_visual_order() -> anyhow::Re
             .contains(&"inside-section".to_owned())
     );
     assert!(first.canonical_url.ends_with("node-id=10-3"));
+    // Hidden, and nested inside a screen already offered.
     assert!(
         !index
             .candidates
             .iter()
-            .any(|candidate| { matches!(candidate.node_id.as_str(), "10:5" | "10:6" | "10:7") })
+            .any(|candidate| { matches!(candidate.node_id.as_str(), "10:6" | "10:7") })
     );
     Ok(())
 }
@@ -117,10 +123,10 @@ fn index_offers_small_cases_standing_beside_screen_shaped_notes() -> anyhow::Res
         offered.contains(&"20:3"),
         "the case is what was asked for: {offered:?}"
     );
-    assert!(
-        !offered.contains(&"20:4"),
-        "text on a Section labels it: {offered:?}"
-    );
+    // Text on a Section is often its label, but a whole section of this file is
+    // cases that are themselves bare text sitting straight on the Section, and
+    // the corpus converts them. Reading text as decoration hid every one.
+    assert!(offered.contains(&"20:4"), "text can be a case: {offered:?}");
     Ok(())
 }
 
@@ -130,7 +136,10 @@ fn selection_and_batches_are_strict_bounded_and_deterministic() -> anyhow::Resul
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1")?;
     let index = build_section_index(&fixture_snapshot(), &target)?;
 
-    assert_eq!(index.select(&[], true)?, vec!["10:3", "10:2", "10:4"]);
+    assert_eq!(
+        index.select(&[], true)?,
+        vec!["10:3", "10:2", "10:5", "10:4"]
+    );
     assert_eq!(
         index.select(&["10:4".to_owned(), "10:3".to_owned()], false)?,
         vec!["10:3", "10:4"]
@@ -155,8 +164,8 @@ fn selection_and_batches_are_strict_bounded_and_deterministic() -> anyhow::Resul
         },
     )?;
     assert_eq!(batches.len(), 2);
-    assert_eq!(batches[0].root_ids, ["10:3", "10:2"]);
-    assert_eq!(batches[1].root_ids, ["10:4"]);
+    assert_eq!(batches[0].root_ids, ["10:3", "10:5"]);
+    assert_eq!(batches[1].root_ids, ["10:2", "10:4"]);
     assert!(!batches.iter().any(|batch| batch.oversized));
 
     let oversized = plan_batches(

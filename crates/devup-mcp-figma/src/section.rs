@@ -175,9 +175,6 @@ pub fn build_section_index(
         .typed_view()
         .child_ids()
         .filter_map(|child_id| snapshot.nodes.get(child_id))
-        // Text lying directly on a Section is how designers label one, not
-        // something to convert. Text that is content sits inside a frame.
-        .filter(|child| child.node_type != "TEXT")
         .filter_map(|child| ExploreNode::try_from(child).ok())
         .filter(|child| child.visible)
         .filter(|child| !found_screen_ids.contains(&child.node_id))
