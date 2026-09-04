@@ -31,3 +31,6 @@ axum.workspace = true
 # UNC path on Windows and never match.
 dunce.workspace = true
 reqwest.workspace = true
+# `start_paused` lets a test watch the retry waits elapse without spending the
+# minute they describe.
+tokio = { workspace = true, features = ["test-util"] }

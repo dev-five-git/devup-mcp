@@ -33,9 +33,9 @@ use devup_mcp_figma::{
     CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
     DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
     ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
-    KeyringCredentialStore, OAuthManager, RemoteFigmaClient, ResourceScope, SearchReadOptions,
-    SecretString, SectionCandidate, SectionIndex, SectionReadOptions, SourcePolicy, SystemBrowser,
-    TokenState, fallback_allowed_for_error,
+    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
+    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions,
+    SourcePolicy, SystemBrowser, TokenState, UpstreamResult, fallback_allowed_for_error,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -287,13 +287,52 @@ impl DevupServer {
         }
     }
 
+    /// A collection is a burst: a Section of any size spends five to seventeen
+    /// calls back to back, and Figma meters by the minute. So a large enough
+    /// target outruns its own allowance partway through, and the refusal used
+    /// to end the whole collection — discarding every call already spent and
+    /// returning nothing, which is the worst of both: the allowance is gone and
+    /// there is no result to show for it. Waiting is what the refusal asks for.
+    /// It is marked retryable and often carries the exact number of seconds.
+    ///
+    /// Bounded, because an allowance that is genuinely exhausted must still be
+    /// reported rather than waited on forever: three attempts, each waiting
+    /// what upstream asked for, or a widening guess when it did not say.
+    async fn call_waiting_out_a_spent_allowance(
+        &self,
+        call: ReadToolCall,
+    ) -> Result<UpstreamResult, DevupError> {
+        const ATTEMPTS: u32 = 3;
+        const LONGEST_WAIT: u64 = 90;
+
+        let mut attempt = 1;
+        loop {
+            let error = match self.services.upstream.call_read_tool(call.clone()).await {
+                Ok(result) => return Ok(result),
+                Err(error) => error,
+            };
+            if error.code != ErrorCode::DevupFigmaRateLimited || attempt >= ATTEMPTS {
+                return Err(error);
+            }
+            let asked_for = error
+                .details
+                .get("retryAfterSeconds")
+                .and_then(serde_json::Value::as_u64);
+            let wait = asked_for
+                .unwrap_or(u64::from(attempt) * 20)
+                .min(LONGEST_WAIT);
+            tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+            attempt += 1;
+        }
+    }
+
     async fn run_direct(&self, request: CollectionRequest) -> Result<CollectedParts, DevupError> {
         let mut collector = CollectorSession::new(request);
         loop {
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
-                    match self.services.upstream.call_read_tool(planned.call).await {
+                    match self.call_waiting_out_a_spent_allowance(planned.call).await {
                         // A Section target is not a failed call — the script
                         // throws, and MCP delivers that as a successful result
                         // carrying `isError`. Handing it to `accept` made the

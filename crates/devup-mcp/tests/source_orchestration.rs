@@ -548,7 +548,7 @@ async fn direct_fast_call_error_restarts_the_legacy_collector() -> anyhow::Resul
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn auto_falls_back_for_capability_failure_but_not_rate_limit() -> anyhow::Result<()> {
     let auth = Arc::new(AuthProbe {
         status: AuthStatus::Connected,
@@ -567,7 +567,12 @@ async fn auto_falls_back_for_capability_failure_but_not_rate_limit() -> anyhow::
     });
     let rejected = call_tool(auth, rate_limited.clone(), input("auto")).await;
     assert!(rejected.is_err());
-    assert_eq!(rate_limited.calls.load(Ordering::SeqCst), 1);
+    // Still direct, still refused, still reported — the host is not asked to
+    // stand in for an allowance. What changed is that the refusal is waited out
+    // first: a collection spends its calls in a burst and can cross the limit
+    // partway through its own work, and ending there spends the allowance for
+    // no result. Three attempts, then the truth.
+    assert_eq!(rate_limited.calls.load(Ordering::SeqCst), 3);
     Ok(())
 }
 
