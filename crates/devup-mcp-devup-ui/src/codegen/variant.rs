@@ -1245,7 +1245,7 @@ fn nested_expression(
         return Some(Expression::Variant(first.name.clone(), values));
     }
 
-    let mut best: Option<(usize, usize, Expression)> = None;
+    let mut best: Option<(usize, Expression)> = None;
     for candidate in remaining {
         let others = remaining
             .iter()
@@ -1256,20 +1256,20 @@ fn nested_expression(
         if values.is_empty() {
             continue;
         }
-        let depth = values
+        // The plugin's cost: every branch that still nests counts, and the
+        // number of entries breaks ties at a tenth of the weight. Kept in
+        // tenths so the comparison is exact rather than a float one.
+        let cost = values
             .iter()
-            .map(|(_, value)| nesting_cost(value))
-            .max()
-            .unwrap_or_default();
-        let entries = values.len();
+            .map(|(_, value)| nesting_cost(value) * 10)
+            .sum::<usize>()
+            + values.len();
         let expression = Expression::Variant(candidate.name.clone(), values);
-        if best.as_ref().is_none_or(|(best_depth, best_entries, _)| {
-            (depth, entries) < (*best_depth, *best_entries)
-        }) {
-            best = Some((depth, entries, expression));
+        if best.as_ref().is_none_or(|(best_cost, _)| cost < *best_cost) {
+            best = Some((cost, expression));
         }
     }
-    best.map(|(_, _, expression)| expression)
+    best.map(|(_, expression)| expression)
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -92,11 +92,21 @@ _active={{ "borderRadius": varient === 'disabled' && "6px" }}
 
 The set has no such variant. Its 49 components carry `varient=disabled` at four
 sizes and only at `effect=default` — there is no disabled hover or active
-anywhere in the file. The values are also borrowed rather than invented:
-`$errorDark` is what `error` hovers to, and `6px` is `tag`'s radius. Read these
-as a lookup falling through to a neighbouring variant when the one asked for
-was never drawn, the same shape of mistake as the `initial` above. This repo
-leaves them out.
+anywhere in the file, and the capture accounts for every one of them.
+
+The plugin's own code does not produce this either, which is worth saying
+because it was the obvious explanation and it is wrong.
+`mergePropsAcrossComposites` gives a combination that lacks a pseudo-selector
+an empty object, so its inner props come out `null`; the nulls are then
+dropped before the map is built, and a combination that was never drawn cannot
+reach the output. Whatever produced these entries, it was not that.
+
+What is left is that the answer and the file disagree about the design rather
+than about the rules — the answer was taken before the disabled hover variants
+were removed, or from another state of the file. The values fit that reading:
+`$errorDark` is what `error` hovers to and `6px` is `tag`'s radius, which is
+what a neighbouring variant would have contributed. This repo leaves them out,
+because the file it is given does not contain them.
 
 ## What `popup/` settles about the array
 
@@ -124,9 +134,11 @@ plugin's `getBreakpointByWidth` puts a frame in the first band it fits:
 | width | ≤ 480 | ≤ 768 | ≤ 992 | ≤ 1280 | rest |
 
 Both screens have frames named `mobile` / `tablet` / `desktop`, and they land
-differently: `notice` is drawn at 360 / 992 / 1920 so it uses slots 0 / 2 / 4,
-while `popup`'s `tablet` frame is under 768 and takes slot **1**. Reading the
-name and assuming slot 2 would put every `popup` value a band too wide.
+differently. `notice` is drawn at 360 / 992 / 1920 and uses slots 0 / 2 / 4;
+`popup` is drawn at 390 / 768 and its `tablet` takes slot **1**, the band
+`notice` skips. Reading the name and assuming slot 2 would put every `popup`
+value a band too wide — which is what the arrays in its answer show, and what
+the frames' own widths confirm.
 
 **The element itself can merge.** `popup`'s root is a `VStack` at two widths and
 a `Flex` at the third. The merge does not keep both — it writes one `VStack` and
