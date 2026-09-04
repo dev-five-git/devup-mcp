@@ -50,6 +50,17 @@ struct Case {
     node_id: String,
 }
 
+/// The generated JSX for one node, or nothing if it will not convert.
+fn render(snapshot: &Snapshot, node_id: &str) -> Option<String> {
+    let options = CodegenOptions {
+        inline_instances: true,
+        ..CodegenOptions::default()
+    };
+    generate_component(snapshot, node_id, &options)
+        .ok()
+        .map(|output| body(&output.tsx))
+}
+
 fn cases(snapshot: &Snapshot) -> Vec<Case> {
     let centre = |id: &str| {
         let view = snapshot.nodes.get(id)?.typed_view();
@@ -109,24 +120,53 @@ fn cases(snapshot: &Snapshot) -> Vec<Case> {
     // commentary lying beside it instead — a difference reported against a
     // paragraph of Korean prose. Closest pairs are settled first, and each side
     // is spoken for once.
+    // Distance alone still goes wrong, because a section holds more than its
+    // cases: commentary explaining a rule, and frames kept alongside to show a
+    // difference. Either can lie closer to a note than the case it describes,
+    // and the comparison then reports a `<Box>` against a paragraph of prose.
+    // What a note opens with says what it is describing, so a candidate that
+    // starts the same way is preferred over one that merely sits closer.
+    let opening_tag = |source: &str| {
+        source
+            .split_once('<')
+            .map(|(_, rest)| {
+                rest.trim_start_matches('/')
+                    .split(|c: char| !c.is_ascii_alphanumeric())
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned()
+            })
+            .unwrap_or_default()
+    };
+
     let mut pairs = Vec::with_capacity(expectations.len() * shapes.len());
-    for (note, (at, _)) in expectations.iter().enumerate() {
-        for (case, (case_at, _, _)) in shapes.iter().enumerate() {
+    for (note, (at, expected)) in expectations.iter().enumerate() {
+        let wanted = opening_tag(expected);
+        for (case, (case_at, root, lone_child)) in shapes.iter().enumerate() {
+            let describes_a_container = expected.matches('<').count() >= 3;
+            let node_id = match lone_child {
+                Some(child) if !describes_a_container => child,
+                _ => root,
+            };
+            let same_kind = render(snapshot, node_id)
+                .map(|rendered| opening_tag(&rendered) == wanted)
+                .unwrap_or(false);
             let distance = (case_at.0 - at.0).powi(2) + (case_at.1 - at.1).powi(2);
-            pairs.push((distance, note, case));
+            pairs.push((!same_kind, distance, note, case));
         }
     }
     pairs.sort_by(|left, right| {
         left.0
-            .total_cmp(&right.0)
-            .then_with(|| left.1.cmp(&right.1))
+            .cmp(&right.0)
+            .then_with(|| left.1.total_cmp(&right.1))
             .then_with(|| left.2.cmp(&right.2))
+            .then_with(|| left.3.cmp(&right.3))
     });
 
     let mut spoken_for_note = vec![false; expectations.len()];
     let mut spoken_for_case = vec![false; shapes.len()];
     let mut cases = Vec::new();
-    for (_, note, case) in pairs {
+    for (_, _, note, case) in pairs {
         if spoken_for_note[note] || spoken_for_case[case] {
             continue;
         }
