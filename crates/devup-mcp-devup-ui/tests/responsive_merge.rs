@@ -208,6 +208,107 @@ fn the_notice_screen_display_toggles_are_reproduced() {
     }
 }
 
+/// `about/responsive.tsx`, whose widths sit at slots 0, 2 and 4 as `notice`'s
+/// do. What it adds is the case neither earlier screen has: a width that goes
+/// back. `notice` only ever toggles one way, so three slots always suffice
+/// there; `popup` only ever moves a number forward. Here a region is shown at
+/// tablet and hidden again at desktop, and several values return at desktop to
+/// what mobile said. Slot 4 cannot be left off in either case — omitting it
+/// would inherit the tablet value — so these are the arrays that need all five.
+#[test]
+fn the_about_screen_needs_every_slot() {
+    let case = |prop, mobile, tablet, desktop, expected| Case {
+        prop,
+        mobile,
+        tablet,
+        desktop,
+        expected,
+    };
+    let cases = [
+        // Shown at tablet only. The closing "none" is not redundant with the
+        // opening one: without it the tablet "flex" would carry into desktop.
+        case(
+            "display",
+            Set("none"),
+            Set("flex"),
+            Set("none"),
+            &[Some("none"), None, Some("flex"), None, Some("none")],
+        ),
+        // Shown at desktop only. Here the middle width repeats slot 0, so it
+        // drops out and the array is sparse rather than full.
+        case(
+            "display",
+            Set("none"),
+            Set("none"),
+            Set("flex"),
+            &[Some("none"), None, None, None, Some("flex")],
+        ),
+        // A value that returns. Mobile and desktop agree, but the agreement is
+        // across a tablet that differs, so slot 4 has to restate it.
+        case(
+            "w",
+            Set("770px"),
+            Set("778px"),
+            Set("770px"),
+            &[Some("770px"), None, Some("778px"), None, Some("770px")],
+        ),
+        case(
+            "py",
+            Set("120px"),
+            Set("100px"),
+            Set("120px"),
+            &[Some("120px"), None, Some("100px"), None, Some("120px")],
+        ),
+        case(
+            "gap",
+            Set("60px"),
+            Set("40px"),
+            Set("60px"),
+            &[Some("60px"), None, Some("40px"), None, Some("60px")],
+        ),
+        // Set at tablet only, on a prop that is neither spacing nor layout.
+        // `textAlign` is in the cleared set, so desktop spends an "initial"
+        // rather than inheriting "right".
+        case(
+            "textAlign",
+            Unset,
+            Set("right"),
+            Unset,
+            &[None, None, Some("right"), None, Some("initial")],
+        ),
+    ];
+
+    for Case {
+        prop,
+        mobile,
+        tablet,
+        desktop,
+        expected,
+    } in cases
+    {
+        assert_eq!(
+            slots(prop, [mobile, Absent, tablet, Absent, desktop]),
+            array(expected),
+            "{prop}: {mobile:?} / {tablet:?} / {desktop:?}"
+        );
+    }
+}
+
+/// A node the design hides at every width is not dropped — the plugin's
+/// `getVisibilityProps` turns `visible: false` into `display: 'none'`, and
+/// merging three widths that all say so collapses back to the plain literal
+/// `about/responsive.tsx` opens with.
+#[test]
+fn a_node_hidden_at_every_width_stays_a_literal() {
+    assert_eq!(
+        merge_slots(
+            "display",
+            &[Set("none"), Absent, Set("none"), Absent, Set("none")]
+        ),
+        Merged::Same(Some("none".to_owned()))
+    );
+}
+
 /// Widths that agree need no array, and that is most props on both screens —
 /// `alignItems="center"`, `gap="16px"`, `bg="$cardBg"` are written plainly.
 #[test]

@@ -11,8 +11,11 @@ say which way it was settled.
 
 ## The screens
 
-One directory per screen. The two here were chosen to sit at opposite ends of
-the merge, and between them they exercise both of its branches.
+`notice/` and `popup/` are the two kept in full, chosen to sit at opposite ends
+of the merge so that between them they exercise both of its branches. `button/`
+is not a screen at all but a component set, kept for what it says about props a
+call site may not pass. `about` has no directory, for the reason its own section
+gives.
 
 ### `notice/` — where the widths part company
 
@@ -45,6 +48,49 @@ kept.
 
 Together the two screens say that a merge has two branches and that a screen
 usually takes one of them wholesale, not a mixture.
+
+### `about` — the widths that go back, kept as tests and not as a file
+
+Node `422:3798`. Its Pure Code at `desktop` and its Responsive output were both
+read, and unlike the three directories above **no file is kept for it**. A
+reference is only useful as a judge if it is byte-exact, and this one reached
+this repo through a chat window rather than a capture; a hand-copied 1,400-line
+file would be a judge that cannot be trusted, which is worse than none. What was
+checkable was checked and locked instead, in
+`responsive_merge.rs::the_about_screen_needs_every_slot`.
+
+It earns an entry because it is the first answer whose widths *return*. `notice`
+only ever toggles one way and `popup` only ever moves a number forward, so
+between them every array stops by slot 2. `about` has both a region shown at
+tablet and hidden again at desktop, and values that come back at desktop to what
+mobile said:
+
+```tsx
+display={["none", null, "flex", null, "none"]}   // tablet only
+w={["770px", null, "778px", null, "770px"]}      // tablet is the odd one
+textAlign={[null, null, "right", null, "initial"]}
+```
+
+The closing slot in each is not redundant with the opening one. Leaving it off
+would inherit the tablet value, so these are the arrays that need all five
+slots, and they are the reason the merge cannot stop at the last *changed* slot.
+The `textAlign` row also confirms that the cleared set reaches beyond spacing
+and layout — this repo already had it there, and the answer agrees.
+
+Two more things it settles:
+
+- **A node hidden at every width is emitted, not dropped.** The output opens
+  with `<Box display="none" … />`, a literal rather than an array, which is
+  three widths all reporting `display: 'none'` and collapsing. The plugin's
+  `getVisibilityProps` returns `{ display: 'none' }` for `!node.visible` and
+  merges it with the rest at `index.ts:203`; this repo does the same at
+  `style.rs:274`.
+- **A variant prop is whatever the set calls it.** Here it is
+  `<Header status="landing" />` and `<Footer status="landing" />` — not
+  `property1`, and the same value at all three widths. That is a different
+  situation from the `notice` footer noted below: there the widths differ and
+  the plugin picks one, here they genuinely agree, so nothing is being papered
+  over.
 
 ### `button/` — a component set, for what a call site may not pass
 
