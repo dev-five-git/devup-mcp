@@ -1,6 +1,7 @@
 mod compat;
 mod component;
 mod layout;
+pub mod responsive;
 mod style;
 mod text;
 mod variant;
