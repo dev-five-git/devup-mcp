@@ -30,9 +30,27 @@
 //! the tokens through `CodegenOptions::with_payload_tokens` and does resolve
 //! them.
 //!
-//! So a difference here is a question: check the corpus before treating it as
-//! a defect. Where the corpus agrees with us the note is shorthand; where it
-//! agrees with the note, that is ours to fix.
+//! A fourth kind is a prop the note leaves out because it does not change what
+//! is drawn. Against `SVG - detail`, every difference is one of these and each
+//! was checked against the plugin's own output in `fixtures/plugin-answers/`,
+//! which writes the same props we do:
+//!
+//! - `flexDir="column"` on a `Center`. `Center` is a row, so a vertical stack
+//!   needs it; with a single child nothing moves either way, and the note omits
+//!   it.
+//! - `maskPos="center"` beside every `maskImage`.
+//! - `boxSize` where the note gives `w` and leans on `aspectRatio="1"` for the
+//!   other side.
+//! - `border="solid 1px …"` where the note writes `1px solid …`.
+//!
+//! That section is also where the icon split is stated most plainly: the same
+//! `cog.svg` is an `<Image>` in one case and a masked `<Box>` in another, and
+//! the two are told apart by whether the shape carries its own paint. Both come
+//! out right, which is what the section is for.
+//!
+//! So a difference here is a question: check the corpus and the plugin's
+//! answers before treating it as a defect. Where they agree with us the note is
+//! shorthand; where they agree with the note, that is ours to fix.
 
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
