@@ -21,6 +21,15 @@
 //! being read. A shape on a page carries the canvas it was drawn on, not a size
 //! anyone chose, and the plugin drops it; the note writes down what was drawn.
 //!
+//! Token names differ for a third reason, and it is this harness rather than
+//! the code. `rawSnapshot` carries the snapshot alone — the collected variables
+//! and styles are not in it — so a replay has no table to turn
+//! `VariableID:…/19:40` into `$primary` with, and falls back to the literal
+//! colour. A note asking for `bg="$primaryBgLight"` against an emitted
+//! `bg="$227"` or `#871FE6` is that gap, not a defect: devup-mcp itself passes
+//! the tokens through `CodegenOptions::with_payload_tokens` and does resolve
+//! them.
+//!
 //! So a difference here is a question: check the corpus before treating it as
 //! a defect. Where the corpus agrees with us the note is shorthand; where it
 //! agrees with the note, that is ours to fix.
