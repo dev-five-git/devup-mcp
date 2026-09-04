@@ -223,6 +223,11 @@ pub(super) fn push_layout_props(
     }
     if view.string("parentId").is_some()
         && let Some(parent) = parent
+        // A component set's grid is how Figma lays its variants out on the
+        // canvas, not how the component is built. A variant is drawn on its
+        // own wherever it is used, so carrying the cell it sat in would place
+        // every button at the coordinates of its row in the sheet.
+        && parent.typed_view().node_type() != "COMPONENT_SET"
         && parent
             .typed_view()
             .value("inferredAutoLayout")
