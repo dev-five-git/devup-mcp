@@ -16,7 +16,7 @@ use super::{
     artifacts::{ArtifactLookup, ArtifactStore, OutputReservation},
     delivery::{DeliveryMode, ProjectedOutput, choose_delivery_for_result},
     format_epoch_rfc3339,
-    handoff::PendingOperation,
+    operation::PendingOperation,
     output::{OutputPolicy, OutputTransaction},
     parse_scope,
     quality::{

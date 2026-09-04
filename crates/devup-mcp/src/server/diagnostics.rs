@@ -1,20 +1,12 @@
-//! Self-diagnosis for the "host has no Figma MCP registered" failure mode.
+//! Self-diagnosis for the "the direct connection will not authenticate" failure mode.
 //!
-//! `devup-mcp` never talks to Figma directly unless `direct` credentials are
-//! stored (see `oauth.rs`). Everything else depends on the *host* exposing
-//! an already-authenticated official Figma MCP for the `host` handoff path.
-//! When that assumption is false, the agent driving `devup-mcp` used to get
-//! a bare `needs_figma` envelope with no indication of what to do next, or a
-//! one-line `{"status":"disconnected"}` from `devup_figma_auth status` that
-//! gave no actionable next step. This module turns both responses into
-//! structured, factual guidance:
+//! `devup-mcp` talks to Figma over the direct connection, which needs stored
+//! credentials (see `oauth.rs`). Without them `devup_figma_auth status` used to
+//! answer a one-line `{"status":"disconnected"}` and no next step. This module
+//! turns that into structured, factual guidance:
 //!
-//! - [`host_requirement`] is attached to every `needs_figma` handoff step
-//!   and tells the agent exactly which tool to call, what not to touch, and
-//!   to stop and report rather than guess when no Figma MCP is reachable.
 //! - [`doctor_report`] backs the `devup_figma_auth {"action":"doctor"}`
-//!   action and reports which of the two connection paths (direct OAuth,
-//!   host handoff) are actually usable right now, plus
+//!   action and reports whether the direct connection is usable right now, plus
 //!   client-specific setup data for the constraints that were verified by
 //!   hand (client_name allowlist, redirect_uri shape, the silent callback
 //!   port collision, PAT rejection).
@@ -38,50 +30,12 @@ use devup_mcp_figma::{
 };
 use serde_json::{Value, json};
 
-/// Builds the `hostRequirement` block attached to every `needs_figma`
-/// handoff step. This is the single most important payload in this module:
-/// without it, an agent has to infer from a bare `calls` array that it must
-/// find and invoke a *different*, host-registered MCP tool, verbatim, and
-/// feed the raw result back — and has no signal that guessing the design
-/// instead of stopping is unacceptable. `ifUnavailable.action` is always
-/// the literal string `"stop-and-report"`; do not remove or soften it.
-///
-/// Makes no network call of any kind and never fails the handoff it is
-/// attached to.
-pub async fn host_requirement() -> Value {
-    json!({
-        "reason": "devup-mcp does not connect to Figma directly. The official Figma MCP registered on the host must run this read-only call on its behalf.",
-        "steps": [
-            "Find the official Figma MCP registered in this session. Common names: figma, figma-desktop, figma-local, figma-remote-mcp.",
-            "Call the tool named in calls[].tool with calls[].arguments exactly as given. Never modify the code field in arguments.",
-            "Pass the raw result through unchanged to devup_figma_continue { sessionId, callId, result }.",
-            "While status is needs_figma, repeat until expiresAt."
-        ],
-        "ifUnavailable": {
-            "action": "stop-and-report",
-            "message": "If no Figma MCP is reachable, stop immediately and report. Do not implement by guessing design values.",
-            "setupHint": "Call devup_figma_auth { action: \"doctor\" } to get the usable connection paths and client-specific setup instructions."
-        },
-        "resultContract": {
-            "expects": "The complete raw official Figma MCP CallToolResult (no processing)",
-            "ifHostFlattensToText": "If the host gives text only, wrap it as nothing more than { \"content\": [{ \"type\": \"text\", \"text\": <verbatim original> }] }.",
-            "neverFabricate": "Do not invent fields you were not given, such as structuredContent. After two or more format errors, stop guessing and report."
-        },
-        "outputExpectation": {
-            "whatYouWillGet": "Once this handoff completes, devup-mcp generates and returns the devup-ui TSX.",
-            "doNotHandInterpret": "Do not hand-interpret the node tree (coordinates, sizes, hierarchy) use_figma returned to write devup-ui code. Do not infer layout from coordinate math. That is exactly why devup-mcp exists.",
-            "ifConversionFails": "stop-and-report. Hand-writing the UI from the node tree is a forbidden fallback."
-        }
-    })
-}
-
 /// Builds the response for `devup_figma_auth {"action":"doctor"}`.
 ///
 /// `status` mirrors the existing `status` action's value so a caller that
 /// only reads `status` sees no behavior change. Everything under `paths`
 /// and `clientSetup` is new: `paths` reports what was actually measured
 /// (stored-credential presence, a live local-TCP probe, and the structural
-/// fact that host handoff availability cannot be observed from inside this
 /// process), and `clientSetup` is static, verified reference data — never
 /// an instruction to register under a specific product name. Registration
 /// is allowlisted by Figma outside devup-mcp's control; this only reports
@@ -110,10 +64,6 @@ pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Va
                     "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
                 },
                 "reason": direct_reason(direct_available, direct.credential_source)
-            },
-            "hostHandoff": {
-                "expectedTool": "use_figma",
-                "note": "Cannot be verified from inside devup-mcp. The host must expose the official Figma MCP."
             }
         },
         "clientSetup": client_setup()
@@ -139,8 +89,7 @@ fn direct_reason(
              default allowlisted client_name (see registrationClientName). If that returns 403, \
              the allowlist rejected the name — register a client credential you obtained yourself \
              via devup_figma_auth { action: \"configure\", clientId, clientSecret }, join the \
-             Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/), or use the host \
-             handoff (sourcePolicy: auto or host)."
+             Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/)."
         }
         ClientCredentialSource::CliArg
         | ClientCredentialSource::Env
@@ -171,7 +120,7 @@ fn client_setup() -> Value {
             "officialFigmaMcp": "codex mcp add figma --url https://mcp.figma.com/mcp"
         },
         "otherHosts": {
-            "note": "Reference only — devup-mcp targets Codex. Kept for the host-handoff path (sourcePolicy: auto or host) when devup-mcp runs elsewhere.",
+            "note": "Reference only — devup-mcp targets Codex.",
             "claudeCode": "claude mcp add --transport http figma https://mcp.figma.com/mcp",
             "opencode": {
                 "hint": "Setting clientId/clientSecret/scope/callbackPort/redirectUri directly under mcp.<name>.oauth skips Dynamic Client Registration. clientId/clientSecret must be issued to you by registering yourself under an allowlisted client_name.",
@@ -199,65 +148,6 @@ fn client_setup() -> Value {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn host_requirement_always_instructs_stop_and_report_when_unavailable() {
-        let value = host_requirement().await;
-        assert_eq!(value["ifUnavailable"]["action"], "stop-and-report");
-        assert!(
-            !value["ifUnavailable"]["message"]
-                .as_str()
-                .unwrap()
-                .is_empty()
-        );
-        assert!(value["steps"].as_array().unwrap().len() >= 4);
-    }
-
-    #[tokio::test]
-    async fn host_requirement_always_carries_result_contract_and_output_expectation() {
-        let value = host_requirement().await;
-
-        // resultContract: tells the agent what to submit to
-        // devup_figma_continue, and explicitly forbids inventing envelope
-        // fields when the host only exposes flattened text.
-        assert!(
-            !value["resultContract"]["expects"]
-                .as_str()
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            value["resultContract"]["ifHostFlattensToText"]
-                .as_str()
-                .unwrap()
-                .contains("content")
-        );
-        assert!(
-            value["resultContract"]["neverFabricate"]
-                .as_str()
-                .unwrap()
-                .contains("structuredContent")
-        );
-
-        // outputExpectation: the core deliverable of this task — bans
-        // hand-interpreting the node tree as a fallback when conversion
-        // stalls.
-        assert!(
-            value["outputExpectation"]["whatYouWillGet"]
-                .as_str()
-                .unwrap()
-                .contains("devup-ui")
-        );
-        let do_not_hand_interpret = value["outputExpectation"]["doNotHandInterpret"]
-            .as_str()
-            .unwrap();
-        assert!(do_not_hand_interpret.contains("node tree"));
-        assert!(do_not_hand_interpret.contains("devup-ui"));
-        assert_eq!(
-            value["outputExpectation"]["ifConversionFails"],
-            "stop-and-report. Hand-writing the UI from the node tree is a forbidden fallback."
-        );
-    }
-
     fn absent_direct_snapshot() -> DirectPathSnapshot {
         DirectPathSnapshot {
             credential_source: ClientCredentialSource::None,
@@ -277,10 +167,6 @@ mod tests {
         let disconnected = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
         assert_eq!(disconnected["status"], "disconnected");
         assert_eq!(disconnected["paths"]["direct"]["available"], false);
-        assert_eq!(
-            disconnected["paths"]["hostHandoff"]["expectedTool"],
-            "use_figma"
-        );
         assert!(disconnected["clientSetup"]["constraints"]["clientNameAllowlist"].is_string());
         assert!(disconnected["clientSetup"]["otherHosts"]["opencode"]["example"].is_object());
     }
@@ -301,7 +187,7 @@ mod tests {
         assert!(toml.contains("[mcp_servers.devup-mcp]"));
         assert!(setup["codex"]["hint"].as_str().unwrap().contains("Codex"));
 
-        // Demoted, not deleted: still reachable for the host-handoff path.
+        // Demoted, not deleted: still the reference for installing elsewhere.
         assert!(setup["otherHosts"]["claudeCode"].is_string());
         assert!(setup["otherHosts"]["opencode"]["example"].is_object());
         assert!(setup["claudeCode"].is_null());

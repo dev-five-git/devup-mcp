@@ -64,8 +64,7 @@ pub use snapshot::{
     read_snapshot_cursor, snapshot_chunk_from_result,
 };
 pub use source::{
-    SelectedSource, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind,
-    classify_upstream_failure, fallback_allowed, fallback_allowed_for_error,
+    SourcePolicy, UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure,
     upstream_failure_error,
 };
 pub use upstream::{

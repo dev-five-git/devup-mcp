@@ -9,13 +9,6 @@ pub enum SourcePolicy {
     #[default]
     Auto,
     Direct,
-    Host,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedSource {
-    Direct,
-    Host,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,31 +31,6 @@ pub enum UpstreamFailureKind {
     VersionChanged,
     Transport,
     InvalidResponse,
-}
-
-pub fn fallback_allowed(policy: SourcePolicy, kind: UpstreamFailureKind) -> bool {
-    policy == SourcePolicy::Auto
-        && matches!(
-            kind,
-            UpstreamFailureKind::CatalogRejected
-                | UpstreamFailureKind::AuthUnavailable
-                | UpstreamFailureKind::CapabilityUnavailable
-                | UpstreamFailureKind::PermissionDenied
-        )
-}
-
-pub fn fallback_allowed_for_error(policy: SourcePolicy, error: &DevupError) -> bool {
-    let kind = match error.code {
-        ErrorCode::DevupFigmaCatalogRejected => UpstreamFailureKind::CatalogRejected,
-        ErrorCode::DevupAuthRequired => UpstreamFailureKind::AuthUnavailable,
-        ErrorCode::DevupFigmaDirectUnavailable => UpstreamFailureKind::CapabilityUnavailable,
-        ErrorCode::DevupFigmaPermissionDenied => UpstreamFailureKind::PermissionDenied,
-        ErrorCode::DevupFigmaRateLimited => UpstreamFailureKind::RateLimited,
-        ErrorCode::DevupFigmaNodeNotFound => UpstreamFailureKind::NodeNotFound,
-        ErrorCode::DevupFigmaVersionChanged => UpstreamFailureKind::VersionChanged,
-        _ => return false,
-    };
-    fallback_allowed(policy, kind)
 }
 
 pub fn classify_upstream_failure(

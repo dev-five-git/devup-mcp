@@ -117,10 +117,10 @@ pub(super) fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupErr
     match policy {
         "auto" => Ok(SourcePolicy::Auto),
         "direct" => Ok(SourcePolicy::Direct),
-        "host" => Ok(SourcePolicy::Host),
+
         _ => Err(DevupError::new(
-            ErrorCode::DevupFigmaHostRequired,
-            "sourcePolicy must be auto, direct, or host.",
+            ErrorCode::DevupInvalidInput,
+            "sourcePolicy must be auto or direct.",
             false,
         )),
     }
