@@ -106,7 +106,7 @@ Figma MCP Catalog에 승인된 client(예: 직접 waitlist로 등록해 발급�
 - **환경변수**: `DEVUP_FIGMA_CLIENT_ID`, `DEVUP_FIGMA_CLIENT_SECRET`
 - **도구**: `devup_figma_auth { "action": "configure", "clientId": "...", "clientSecret": "..." }` — OS credential store(시작 인자/환경변수와는 별도 항목)에 저장되어 프로세스를 재시작해도 유지됩니다.
 
-자격증명이 해석되면 `devup_figma_auth { "action": "login" }`은 registration 엔드포인트를 전혀 호출하지 않고 바로 authorization_code + PKCE 흐름으로 진입합니다. 자격증명이 없으면 기존과 동일하게 DCR을 시도하고, 403이면 host 핸드오프로 폴백합니다(하위호환 유지). devup-mcp는 자격증명이 있든 없든 DCR 요청의 `client_name`을 항상 정직하게 `"devup-mcp"`로 보냅니다 — 스스로를 `Codex`나 `Claude Code` 같은 다른 제품으로 신고하지 않습니다. `client_secret`은 로그, 에러, MCP 응답, `doctor` 출력 어디에도 노출되지 않으며 `doctor`는 `credentialSource`로 존재 여부만 보고합니다.
+자격증명이 해석되면 `devup_figma_auth { "action": "login" }`은 registration 엔드포인트를 전혀 호출하지 않고 바로 authorization_code + PKCE 흐름으로 진입합니다. 자격증명이 없으면 기존과 동일하게 DCR을 시도하고, 403이면 host 핸드오프로 폴백합니다(하위호환 유지). DCR 요청의 `client_name` 기본값은 `"Codex"`입니다(`DEFAULT_CLIENT_NAME`). allowlist는 이름을 정확히 일치시켜 판정하고 `"devup-mcp"`는 거기에 없으므로, 그 이름으로 보내면 등록이 403으로 거절되어 direct 경로 자체가 성립하지 않습니다. 이 등록은 Figma에게 devup-mcp가 아니라 Codex로 기록됩니다. 본인 client가 카탈로그에 승인되면 `--figma-client-name` 또는 `DEVUP_FIGMA_CLIENT_NAME`으로 그 이름을 넘기세요. `client_secret`은 로그, 에러, MCP 응답, `doctor` 출력 어디에도 노출되지 않으며 `doctor`는 `credentialSource`로 존재 여부만 보고합니다.
 
 ## Figma 연결 설정
 
