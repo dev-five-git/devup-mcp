@@ -52,6 +52,18 @@ display={[null,  null, "none"]}    // present on mobile, absent from tablet up
 
 ## Two ways a subtree can differ
 
+These are not two equal paths. A screen drawn at three widths is meant to be
+the same tree three times, and merging into arrays is what should happen; the
+other branch is what saves an export when the design drifted. Of this screen's
+four children, three merge and one does not:
+
+```
+[0] main banner   mobile 3 children / tablet 2 / desktop 2   ← the odd one
+[1] Header        1 / 1 / 1
+[2] section       1 / 1 / 1
+[3] Footer        1 / 1 / 1
+```
+
 **Structure matches → merge, and let differing values become arrays.** The
 `Header` instance is identical across all three widths, so it appears once and
 is not toggled at all:
@@ -70,6 +82,14 @@ capture says why — the same-named frame is shaped differently:
 mobile  'main banner' kids=3   [Frame…289, Logo, Logo]
 desktop 'main banner' kids=2   [Frame…289, Frame…364]
 ```
+
+The two logos are wrapped in a frame on desktop and left loose on mobile — the
+same intent grouped two ways, which is a drift in the file rather than a
+difference the screen means to express. It shows in the output: the desktop
+wrapper folds into `maskImage="url('/icons/Frame 1000014364.svg')"` while
+mobile emits two separately placed logos. Read this branch as the cost of that
+drift, not as the feature. A design whose widths agree in shape never reaches
+it.
 
 The mobile banner also holds two absolutely-placed logos the desktop one does
 not, and its text sits in a `pos="absolute"` stack rather than a centred
