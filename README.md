@@ -90,14 +90,13 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
       "callbackPort": { "port": null, "free": null },
       "reason": "저장된 자격증명 없음. ..."
     },
-    "localDevMode": { "endpoint": "http://127.0.0.1:3845/mcp", "reachable": false, "hint": "..." },
     "hostHandoff": { "expectedTool": "use_figma", "note": "..." }
   },
-  "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "...", "localDevMode": { ... } }
+  "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "..." }
 }
 ```
 
-`paths.localDevMode.reachable`은 `127.0.0.1:3845`에 대한 300ms 이내 로컬 TCP 연결 확인 결과이며 실패해도 오류를 던지지 않습니다. `needs_figma` 응답에도 같은 프로브 결과가 `hostRequirement.localDevMode`로 포함됩니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약과 3가지 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+`doctor`는 네트워크 호출을 전혀 하지 않습니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약과 두 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
 
 ### direct 경로에 사전 등록된 client 자격증명 주입하기
 
@@ -111,13 +110,14 @@ Figma MCP Catalog에 승인된 client(예: 직접 waitlist로 등록해 발급�
 
 ## Figma 연결 설정
 
-devup-mcp가 Figma에 붙는 경로는 세 가지입니다.
+devup-mcp가 Figma에 붙는 경로는 두 가지입니다.
 
 1. **원격 OAuth (`direct`)** — `devup_figma_auth { action: "login" }`으로 브라우저 인증. Figma MCP Catalog에 승인된 client만 등록할 수 있습니다.
-2. **로컬 Dev Mode MCP (`http://127.0.0.1:3845/mcp`)** — Figma 데스크톱 앱의 Dev Mode MCP 서버. OAuth가 필요 없고 어떤 MCP 클라이언트에서도 동일하게 동작하지만, Figma 데스크톱 앱에서 켜야 하고 Dev/Full 시트가 있는 유료 플랜이 필요합니다.
-3. **호스트 핸드오프 (`host`)** — devup-mcp가 직접 Figma에 붙지 않고, 호스트에 이미 등록된 공식 Figma MCP가 `needs_figma` 응답의 `calls`를 대신 실행하도록 위임합니다. `auto` 정책의 기본 fallback 경로입니다.
+2. **호스트 핸드오프 (`host`)** — devup-mcp가 직접 Figma에 붙지 않고, 호스트에 이미 등록된 공식 Figma MCP가 `needs_figma` 응답의 `calls`를 대신 실행하도록 위임합니다. `auto` 정책의 기본 fallback 경로입니다.
 
-세 경로 중 무엇이 지금 사용 가능한지는 `devup_figma_auth { action: "doctor" }`로 확인하세요.
+두 경로 중 무엇이 지금 사용 가능한지는 `devup_figma_auth { action: "doctor" }`로 확인하세요.
+
+Figma 데스크톱 앱의 로컬 Dev Mode MCP(`http://127.0.0.1:3845/mcp`)는 세 번째 경로로 안내했으나 제거했습니다. 읽기 도구 6개(`get_design_context`, `get_variable_defs`, `get_screenshot`, `get_motion_context`, `get_metadata`, `get_figjam`)만 제공하고 그중에 `use_figma`가 없습니다. devup-mcp의 수집은 snapshot·explore·section index·theme 모두 `use_figma`로 스크립트를 실행하므로 로컬에서는 실행할 도구 자체가 없습니다. 도구들이 `fileKey`를 받지 않고 데스크톱 앱에 열려 있는 파일만 가리키는 것도 같은 이유로 맞지 않습니다. "OAuth 없이 바로 쓸 수 있다"는 안내는 확신에 차서 틀린 안내였고, 믿은 쪽이 한 턴을 버린 뒤에야 알게 됩니다.
 
 ### 원격 OAuth 등록 제약 (실측)
 
