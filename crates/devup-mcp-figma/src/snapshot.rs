@@ -424,7 +424,7 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
     let version = first.version.clone();
     let mut roots = Vec::new();
     let mut root_set = BTreeSet::new();
-    let mut nodes = BTreeMap::new();
+    let mut nodes: BTreeMap<String, RawNode> = BTreeMap::new();
     let mut diagnostics = Vec::new();
 
     for chunk in chunks {
@@ -441,12 +441,41 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
             }
         }
         for node in chunk.nodes {
+            // The cursor is each chunk's own pagination state, not a node of
+            // the design. Comparing it as one meant any collection arriving in
+            // more than one chunk — every multi-root Section export — was
+            // rejected for the cursors disagreeing, which is the one thing they
+            // are certain to do.
+            if node.id == SNAPSHOT_CURSOR_ID {
+                continue;
+            }
             if let Some(existing) = nodes.get(&node.id) {
                 if existing != &node {
-                    return Err(DevupError::new(
+                    // Which node, and which fields disagree. A collection split
+                    // across batches can reach the same node two ways, and
+                    // without naming the difference there is nothing to act on.
+                    let differing = existing
+                        .fields
+                        .keys()
+                        .chain(node.fields.keys())
+                        .collect::<std::collections::BTreeSet<&String>>()
+                        .into_iter()
+                        .filter(|field| {
+                            existing.fields.get(field.as_str()) != node.fields.get(field.as_str())
+                        })
+                        .take(12)
+                        .cloned()
+                        .collect::<Vec<String>>();
+                    return Err(DevupError::with_details(
                         ErrorCode::DevupSnapshotUnsupported,
                         "Different snapshot data was returned for the same Figma node.",
                         true,
+                        serde_json::json!({
+                            "nodeId": node.id,
+                            "nodeType": node.node_type,
+                            "typeChanged": existing.node_type != node.node_type,
+                            "differingFields": differing,
+                        }),
                     ));
                 }
             } else {

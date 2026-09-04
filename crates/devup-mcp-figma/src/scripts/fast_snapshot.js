@@ -162,7 +162,20 @@ function snapshotNode(node) {
   // drawn on. Every other node's parent is collected and can be read directly,
   // so recording it there would be repetition — and repeated across a whole
   // screen it was enough to push the payload into chunked delivery.
-  if (node.parent && requestedRootIds.includes(node.id)) {
+  // Only a frame sitting directly on a page, section or component set needs
+  // this: its parent is outside the collected subtree, so the id alone says
+  // nothing, and the type is what decides whether its width is a real
+  // constraint or the canvas it was drawn on. Keyed on the parent's type
+  // rather than on being a requested root, because a multi-root collection is
+  // split into batches with different root sets — the same node would then
+  // carry the field in one batch and not another, and merging rejects a node
+  // that arrives two different ways.
+  if (
+    node.parent &&
+    (node.parent.type === "PAGE" ||
+      node.parent.type === "SECTION" ||
+      node.parent.type === "COMPONENT_SET")
+  ) {
     fields.parentType = node.parent.type;
   }
   const childrenIds = "children" in node ? node.children.map((child) => child.id) : [];

@@ -165,7 +165,16 @@ function snapshotNode(node) {
   // whether the root's width is a real constraint or merely the canvas the
   // design was drawn on. Every other node's parent is collected and can be
   // read directly.
-  if (node.parent && node.id === root.id) fields.parentType = node.parent.type;
+  // Keyed on the parent's type rather than on being the requested root, so a
+  // node carries the same fields however it is reached. See fast_snapshot.js.
+  if (
+    node.parent &&
+    (node.parent.type === "PAGE" ||
+      node.parent.type === "SECTION" ||
+      node.parent.type === "COMPONENT_SET")
+  ) {
+    fields.parentType = node.parent.type;
+  }
   fields.childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
 
   for (const name of propertyNames(node)) {
