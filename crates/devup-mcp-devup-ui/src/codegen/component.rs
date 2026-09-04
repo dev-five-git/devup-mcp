@@ -75,9 +75,19 @@ pub fn generate_component(
         .collect::<Vec<_>>()
         .join("\n");
     let mut tsx = format!(
-        "import {{ {} }} from \"@devup-ui/react\";\n\n",
+        "import {{ {} }} from \"@devup-ui/react\";\n",
         generated.imports.join(", ")
     );
+    // Naming a component without importing it produces code that reads well and
+    // does not compile. When instances are left as references, whatever they
+    // refer to has to be resolvable, and the project convention is one named
+    // export per file under `@/components`.
+    for name in referenced_components(&generated.tsx) {
+        tsx.push_str(&format!(
+            "import {{ {name} }} from \"@/components/{name}\";\n"
+        ));
+    }
+    tsx.push('\n');
     tsx.push_str(&format!(
         "export function {component_name}() {{\n  return (\n{body}\n  );\n}}\n"
     ));
@@ -1497,4 +1507,31 @@ pub fn normalize_component_name(input: &str) -> String {
         result.insert(0, '_');
     }
     result
+}
+
+/// The custom components a rendered body refers to, in the order a reader meets
+/// them, deduplicated. A devup-ui primitive is imported from the library and is
+/// not one of these; anything else opening in PascalCase is.
+fn referenced_components(body: &str) -> Vec<String> {
+    const PRIMITIVES: [&str; 8] = [
+        "Box", "Center", "Flex", "Grid", "Image", "Text", "VStack", "Input",
+    ];
+    let mut seen = BTreeSet::new();
+    let mut found = Vec::new();
+    for (index, _) in body.match_indices('<') {
+        let rest = &body[index + 1..];
+        let name = rest
+            .chars()
+            .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+            .collect::<String>();
+        if name.is_empty()
+            || !name.starts_with(|character: char| character.is_ascii_uppercase())
+            || PRIMITIVES.contains(&name.as_str())
+            || !seen.insert(name.clone())
+        {
+            continue;
+        }
+        found.push(name);
+    }
+    found
 }

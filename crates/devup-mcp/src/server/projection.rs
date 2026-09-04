@@ -36,6 +36,13 @@ pub(super) fn projected_outputs_from_result(
             tsx.as_bytes().to_vec(),
         ));
     }
+    if let Some(tsx) = result.get("componentTsx").and_then(Value::as_str) {
+        outputs.push(ProjectedOutput::text(
+            "componentTsx",
+            "text/typescript",
+            tsx.as_bytes().to_vec(),
+        ));
+    }
     if let Some(devup_json) = result.get("devupJson").and_then(Value::as_str) {
         outputs.push(ProjectedOutput::text(
             "devupJson",
@@ -848,6 +855,7 @@ pub(super) async fn complete_operation(
                 section_tsx_projected = true;
             }
 
+            let component_name_for_components = component_name.clone();
             if outputs.iter().any(|output| output == "tsx") && !section_tsx_projected {
                 let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                     DevupError::new(
@@ -881,6 +889,33 @@ pub(super) async fn complete_operation(
                 if include_diagnostics {
                     result.insert("diagnostics".to_owned(), json!(&output.diagnostics));
                 }
+            }
+
+            if outputs.iter().any(|output| output == "componentTsx") {
+                let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
+                    DevupError::new(
+                        ErrorCode::DevupFigmaNodeNotFound,
+                        "A component TSX export payload requires a node ID.",
+                        false,
+                    )
+                })?;
+                let output = generate_component(
+                    &payload.snapshot,
+                    node_id,
+                    &CodegenOptions {
+                        component_name: component_name_for_components,
+                        include_diagnostics: false,
+                        inline_instances: false,
+                        root_layout,
+                        ..CodegenOptions::default()
+                    }
+                    .with_payload_tokens(payload),
+                )?;
+                if output_paths.contains_key("componentTsx") {
+                    pending_text_outputs.insert("componentTsx".to_owned(), output.tsx.clone());
+                }
+                result.insert("componentTsx".to_owned(), json!(output.tsx));
+                result.insert("componentImports".to_owned(), json!(output.imports));
             }
 
             if outputs.iter().any(|output| output == "devupJson") {
