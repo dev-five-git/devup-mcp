@@ -15,9 +15,10 @@ use super::{
 /// The JSON schema for `outputs` advertises this same constant, so a caller
 /// can discover the set instead of learning it one rejection at a time, and
 /// the published schema cannot drift from what is actually accepted.
-pub(crate) const EXPORT_OUTPUTS: [&str; 7] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 8] = [
     "tsx",
     "componentTsx",
+    "responsiveTsx",
     "devupJson",
     "rawSnapshot",
     "sourceMap",
@@ -36,7 +37,13 @@ pub(super) fn validate_artifact_projection(
     let design_output_requested = outputs.iter().any(|output| {
         matches!(
             output.as_str(),
-            "tsx" | "componentTsx" | "rawSnapshot" | "sourceMap" | "assetManifest" | "referencePng"
+            "tsx"
+                | "componentTsx"
+                | "responsiveTsx"
+                | "rawSnapshot"
+                | "sourceMap"
+                | "assetManifest"
+                | "referencePng"
         )
     });
     let theme_requested = outputs.iter().any(|output| output == "devupJson");

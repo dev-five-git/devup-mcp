@@ -2,7 +2,9 @@ use std::fmt::Write as _;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_devup_ui::{
-    codegen::{CodegenOptions, generate_component},
+    codegen::{
+        CodegenOptions, generate_component, normalize_component_name, responsive::merge_breakpoints,
+    },
     theme::{generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
@@ -856,6 +858,58 @@ pub(super) async fn complete_operation(
             }
 
             let component_name_for_components = component_name.clone();
+            // A screen captured with its other widths is convertible as one
+            // tree. It is offered whenever those widths are present rather than
+            // only on request, because a caller asking for a screen that has
+            // them almost always wants the responsive form and cannot know from
+            // the node id alone whether it exists.
+            if outputs
+                .iter()
+                .any(|output| output == "tsx" || output == "responsiveTsx")
+                && let Some(merged) = merge_breakpoints(
+                    &payload.snapshot,
+                    &CodegenOptions {
+                        component_name: component_name_for_components.clone(),
+                        include_diagnostics,
+                        inline_instances: false,
+                        root_layout,
+                        ..CodegenOptions::default()
+                    }
+                    .with_payload_tokens(payload),
+                )?
+            {
+                let name = component_name_for_components.clone().map_or_else(
+                    || "ResponsivePage".to_owned(),
+                    |name| normalize_component_name(&name),
+                );
+                let module = merged.module(&name);
+                if output_paths.contains_key("responsiveTsx") {
+                    pending_text_outputs.insert("responsiveTsx".to_owned(), module.clone());
+                }
+                result.insert("responsiveTsx".to_owned(), json!(module));
+                result.insert("responsiveImports".to_owned(), json!(merged.primitives()));
+                result.insert(
+                    "responsiveComponents".to_owned(),
+                    json!(merged.referenced_components()),
+                );
+                result.insert("responsiveSlots".to_owned(), json!(merged.slots));
+                if !merged.unrepresented.is_empty() {
+                    result.insert(
+                        "responsiveUnrepresented".to_owned(),
+                        json!(
+                            merged
+                                .unrepresented
+                                .iter()
+                                .map(|note| json!({
+                                    "nodeId": note.node_id,
+                                    "detail": note.detail
+                                }))
+                                .collect::<Vec<_>>()
+                        ),
+                    );
+                }
+            }
+
             if outputs.iter().any(|output| output == "tsx") && !section_tsx_projected {
                 let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                     DevupError::new(

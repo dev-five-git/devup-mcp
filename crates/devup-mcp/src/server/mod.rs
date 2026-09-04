@@ -596,7 +596,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Acquire a Figma design once and project tsx/componentTsx/devupJson/sourceMap/rawSnapshot together in one collection; the primary Figma-to-code entry point, preferred over devup_figma_to_ui for implementation. Request tsx and componentTsx together to get the same screen twice: tsx expands every instance into primitives, componentTsx keeps them as <Name /> references with their imports, so the difference between them is each component's body",
+        description = "Acquire a Figma design once and project tsx/componentTsx/devupJson/sourceMap/rawSnapshot together in one collection; the primary Figma-to-code entry point, preferred over devup_figma_to_ui for implementation. Request tsx and componentTsx together to get the same screen twice: tsx expands every instance into primitives, componentTsx keeps them as <Name /> references with their imports, so the difference between them is each component's body. responsiveTsx is the whole screen at every width it is drawn at, merged into one module whose differing values are devup-ui responsive arrays; it is produced whenever the capture carries more than one width, and names anything the widths asked for that one tree cannot say",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
