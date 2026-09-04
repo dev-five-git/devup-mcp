@@ -525,6 +525,22 @@ fn layout_field_is_semantic(
     {
         return false;
     }
+    // An out-of-flow node that holds something takes its height from what it
+    // holds, and `codegen::layout` drops it for exactly that reason. Counting
+    // it here reported a shortfall against a value the converter is right not
+    // to state: a header pinned across the top of a screen came back as
+    // unaccounted-for height, and the reference implementation does not state
+    // it either.
+    if field == "height"
+            && view.string("layoutPositioning") == Some("ABSOLUTE")
+            && view.child_ids().next().is_some()
+            // Unless it folds into an asset, which is drawn at a size and says
+            // so — `codegen::layout` states the height there and drops it only
+            // for the node that holds live children.
+            && !projects_as_asset(snapshot, node)
+    {
+        return false;
+    }
     match field {
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
         "layoutPositioning" => view.string(field) == Some("ABSOLUTE"),

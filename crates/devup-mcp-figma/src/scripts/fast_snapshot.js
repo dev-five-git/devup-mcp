@@ -7,6 +7,33 @@ if (roots.some((root) => !root)) throw new Error("DEVUP_NODE_NOT_FOUND");
 if (roots.length === 1 && roots[0].type === "SECTION") {
   throw new Error("DEVUP_TARGET_IS_SECTION");
 }
+
+// A screen drawn at three widths is three sibling frames in a Section, named
+// for the width they are. Converting one of them alone can only describe that
+// width, and the caller wanted the screen — so when the target is one of those
+// frames, its siblings come along and the conversion can say how the screen
+// changes rather than how it looks at one size.
+//
+// Narrow on purpose: the target must itself be named for a breakpoint, and only
+// siblings that are. A Section is also how a file of unrelated cases is grouped,
+// and pulling every neighbour in there would collect a catalogue to convert one
+// square.
+const BREAKPOINT_NAMES = ["mobile", "tablet", "desktop"];
+const breakpointRank = (node) =>
+  BREAKPOINT_NAMES.indexOf(String(node.name || "").trim().toLowerCase());
+if (roots.length === 1 && breakpointRank(roots[0]) >= 0) {
+  const parent = roots[0].parent;
+  if (parent && parent.type === "SECTION" && "children" in parent) {
+    const family = parent.children
+      .filter((child) => child.id === roots[0].id || breakpointRank(child) >= 0)
+      .filter((child) => child.visible !== false)
+      .sort((left, right) => breakpointRank(left) - breakpointRank(right));
+    if (family.length > 1) {
+      roots.length = 0;
+      roots.push(...family);
+    }
+  }
+}
 const envelopeRootId = "__DEVUP_NODE_ID__";
 
 const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
