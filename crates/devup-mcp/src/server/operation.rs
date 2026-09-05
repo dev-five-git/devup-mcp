@@ -109,9 +109,6 @@ fn retry_after_seconds(value: &Value) -> Option<u64> {
 }
 
 pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
-    if value.get("isError").and_then(Value::as_bool) != Some(true) {
-        return None;
-    }
     fn first_text(value: &Value) -> Option<String> {
         match value {
             Value::Object(object) => object
@@ -124,12 +121,32 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
             _ => None,
         }
     }
+    let flagged = value.get("isError").and_then(Value::as_bool) == Some(true);
     let message = first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned());
+    let lowered = message.to_lowercase();
 
     // A quota refusal is the one upstream failure that clears on its own,
     // so it must not be reported as a permanent one.
-    let lowered = message.to_lowercase();
-    if lowered.contains("tool call limit") || lowered.contains("rate limit") {
+    //
+    // It also need not be flagged. One arrived carrying no `isError` at all
+    // and so was handed to the collector, which looked for the data it did not
+    // contain and reported "variable/style batch not found in the Figma MCP
+    // response" — the parser that happened to be next, named as the cause,
+    // after twenty-four minutes of collecting. So the refusal is recognised by
+    // what it says as well as by how it is flagged.
+    //
+    // Only when it is short, though. A healthy response carries its payload in
+    // the same field, and a design is free to contain a layer named "rate
+    // limit"; reading that as a refusal would fail a collection that worked. A
+    // refusal is a sentence, a payload is a document, and the two are never
+    // close in length.
+    const LONGEST_REFUSAL: usize = 2000;
+    let refuses = (lowered.contains("tool call limit") || lowered.contains("rate limit"))
+        && (flagged || message.len() <= LONGEST_REFUSAL);
+    if !flagged && !refuses {
+        return None;
+    }
+    if refuses {
         let mut details = json!({
             // Figma meters reads with a leaky bucket, so there is no reset
             // hour to wait for: capacity drains back continuously. Saying
