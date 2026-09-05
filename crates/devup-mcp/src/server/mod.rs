@@ -310,7 +310,15 @@ impl DevupServer {
                 Ok(result) => return Ok(result),
                 Err(error) => error,
             };
-            if error.code != ErrorCode::DevupFigmaRateLimited || attempt >= ATTEMPTS {
+            if error.code != ErrorCode::DevupFigmaRateLimited {
+                return Err(error);
+            }
+            // The ceiling was reached at a rate the pacer thought was safe, so
+            // its picture is what is wrong. Correct it before anything else —
+            // including before giving up, because whatever runs next inherits
+            // the same window and would otherwise walk into the same refusal.
+            self.services.pacer.penalise();
+            if attempt >= ATTEMPTS {
                 return Err(error);
             }
             let asked_for = error
