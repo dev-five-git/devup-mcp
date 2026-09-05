@@ -1,4 +1,5 @@
 pub mod artifacts;
+mod call_cache;
 pub mod delivery;
 mod diagnostics;
 pub mod operation;
@@ -40,6 +41,7 @@ use devup_mcp_figma::{
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
+use call_cache::CallCache;
 use delivery::{DeliveryMode, tool_result};
 use operation::PendingOperation;
 use output::OutputPolicy;
@@ -135,6 +137,9 @@ pub struct Services {
     /// Shared, so that concurrent collections meter against one ceiling rather
     /// than one each and together exceed it.
     pacer: Arc<CallPacer>,
+    /// Off unless a directory was named, in which case each read that succeeds
+    /// is kept so a later attempt need not pay for it again.
+    call_cache: Arc<CallCache>,
 }
 
 impl Services {
@@ -143,6 +148,26 @@ impl Services {
             auth,
             upstream,
             pacer: Arc::new(CallPacer::from_env()),
+            call_cache: Arc::new(CallCache::from_env()),
+        }
+    }
+
+    /// Names the directory to bank calls in, rather than reading it from the
+    /// environment. A caller running two collections against one bank needs to
+    /// say which bank without setting a variable the whole process shares.
+    pub fn with_call_cache_dir(
+        auth: Arc<dyn DevupAuth>,
+        upstream: Arc<dyn FigmaUpstream>,
+        directory: Option<std::path::PathBuf>,
+    ) -> Self {
+        Self {
+            auth,
+            upstream,
+            pacer: Arc::new(CallPacer::from_env()),
+            call_cache: Arc::new(CallCache::new(
+                directory,
+                std::time::Duration::from_secs(48 * 60 * 60),
+            )),
         }
     }
 
@@ -301,13 +326,25 @@ impl DevupServer {
         const ATTEMPTS: u32 = 3;
         const LONGEST_WAIT: u64 = 90;
 
+        // A call already banked costs no allowance, so it is answered ahead of
+        // the pacer rather than queued behind it. This is what lets a capture
+        // too large for one day's allowance finish across several: the reads
+        // an earlier attempt paid for are replayed, and only what is still
+        // missing is spent on.
+        if let Some(raw) = self.services.call_cache.get(&call) {
+            return Ok(UpstreamResult { raw });
+        }
+
         let mut attempt = 1;
         loop {
             // Before the call, not after the refusal: a collection that paces
             // itself under the ceiling rarely has to be waited out at all.
             self.services.pacer.acquire().await;
             let error = match self.services.upstream.call_read_tool(call.clone()).await {
-                Ok(result) => return Ok(result),
+                Ok(result) => {
+                    self.services.call_cache.put(&call, &result.raw);
+                    return Ok(result);
+                }
                 Err(error) => error,
             };
             if error.code != ErrorCode::DevupFigmaRateLimited {
