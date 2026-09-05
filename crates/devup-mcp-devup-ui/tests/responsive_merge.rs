@@ -390,6 +390,15 @@ fn a_width_lands_in_the_slot_its_size_falls_into() {
     for (width, slot) in [(320, 0), (768, 1), (991, 2), (1280, 3), (1600, 4)] {
         assert_eq!(slot_of_width(width), slot, "{width}px");
     }
-    // The two screens this repo keeps.
-    assert_eq!([360, 992, 1920].map(slot_of_width), [0, 2, 4], "notice");
+    // The screens this repo has an answer for. `about` is drawn at the same
+    // three widths as `notice`, measured off the file as 360x7240, 992x5619
+    // and 1920x4757 — which is what puts its arrays in slots 0, 2 and 4 rather
+    // than anywhere else, and is a reading of the frames rather than of their
+    // names. `popup` is the one that lands differently, on 0, 1 and 4.
+    assert_eq!(
+        [360, 992, 1920].map(slot_of_width),
+        [0, 2, 4],
+        "notice and about"
+    );
+    assert_eq!([390, 768].map(slot_of_width), [0, 1], "popup");
 }
