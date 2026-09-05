@@ -3,6 +3,7 @@ pub mod delivery;
 mod diagnostics;
 pub mod operation;
 pub mod output;
+mod pacing;
 mod project_context;
 mod project_root;
 mod projection;
@@ -42,6 +43,7 @@ use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
 use delivery::{DeliveryMode, tool_result};
 use operation::PendingOperation;
 use output::OutputPolicy;
+use pacing::CallPacer;
 use projection::complete_operation;
 use validation::{
     parse_asset_requests, parse_collection_scope, parse_root_layout, parse_source_policy,
@@ -130,11 +132,18 @@ impl<S: CredentialStore> DevupAuth for OAuthManager<S> {
 pub struct Services {
     auth: Arc<dyn DevupAuth>,
     upstream: Arc<dyn FigmaUpstream>,
+    /// Shared, so that concurrent collections meter against one ceiling rather
+    /// than one each and together exceed it.
+    pacer: Arc<CallPacer>,
 }
 
 impl Services {
     pub fn new(auth: Arc<dyn DevupAuth>, upstream: Arc<dyn FigmaUpstream>) -> Self {
-        Self { auth, upstream }
+        Self {
+            auth,
+            upstream,
+            pacer: Arc::new(CallPacer::from_env()),
+        }
     }
 
     fn production(figma_direct: crate::FigmaDirectConfig) -> Self {
@@ -294,6 +303,9 @@ impl DevupServer {
 
         let mut attempt = 1;
         loop {
+            // Before the call, not after the refusal: a collection that paces
+            // itself under the ceiling rarely has to be waited out at all.
+            self.services.pacer.acquire().await;
             let error = match self.services.upstream.call_read_tool(call.clone()).await {
                 Ok(result) => return Ok(result),
                 Err(error) => error,
