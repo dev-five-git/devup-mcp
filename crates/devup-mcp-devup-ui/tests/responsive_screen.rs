@@ -228,3 +228,121 @@ fn the_shape_of_the_output_is_the_reference_s() {
          two shape wrappers"
     );
 }
+
+/// Every element the screen draws, as tags, ignoring the ones only mentioned
+/// inside a `{/* … */}` comment — those are deliberately not rendered and so
+/// deliberately not imported.
+fn rendered_tags(tsx: &str) -> std::collections::BTreeSet<String> {
+    let mut uncommented = String::with_capacity(tsx.len());
+    let mut rest = tsx;
+    while let Some(start) = rest.find("{/*") {
+        uncommented.push_str(&rest[..start]);
+        match rest[start..].find("*/}") {
+            Some(end) => rest = &rest[start + end + 3..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    uncommented.push_str(rest);
+
+    let mut tags = std::collections::BTreeSet::new();
+    let bytes = uncommented.as_bytes();
+    for (index, _) in uncommented.match_indices('<') {
+        let name = uncommented[index + 1..]
+            .chars()
+            .take_while(|character| character.is_alphanumeric() || *character == '_')
+            .collect::<String>();
+        let starts_upper = name.chars().next().is_some_and(char::is_uppercase);
+        // `</Box>` closes what `<Box` already counted.
+        let closing = bytes.get(index + 1) == Some(&b'/');
+        if starts_upper && !closing {
+            tags.insert(name);
+        }
+    }
+    tags
+}
+
+/// The module is what `devup_figma_export` hands back as `responsiveTsx`, and
+/// it is assembled from the merge rather than emitted by it — imports on one
+/// side, the tree on the other. Nothing here checked that the two agree on a
+/// real screen: the merge's own tests stop at `tsx`, and the export test that
+/// covers this wiring runs against a stub. An element drawn but not imported
+/// is a file that does not compile, and it would only be discovered after a
+/// capture had been paid for.
+#[test]
+fn every_element_the_module_draws_is_one_it_imports() {
+    let Some(merged) = merged() else {
+        eprintln!("no capture; skipping");
+        return;
+    };
+
+    let primitives = merged.primitives();
+    let components = merged.referenced_components();
+
+    // The two lists are the one set of components, split and not overlapping.
+    let declared = primitives
+        .iter()
+        .chain(components.iter())
+        .map(|name| (*name).to_owned())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        declared.len(),
+        primitives.len() + components.len(),
+        "a name must be a primitive or a component of this design, not both"
+    );
+
+    let drawn = rendered_tags(&merged.tsx);
+    assert!(!drawn.is_empty(), "the screen draws something");
+    let unimported = drawn.difference(&declared).collect::<Vec<_>>();
+    assert!(
+        unimported.is_empty(),
+        "drawn but not imported: {unimported:?}"
+    );
+
+    let module = merged.module("AboutPage");
+
+    // Imports first, then one default export holding the tree.
+    let export = module
+        .find("export default function AboutPage()")
+        .expect("a default export named after the screen");
+    for line in module[..export]
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+    {
+        assert!(
+            line.starts_with("import "),
+            "only imports may precede the export: {line}"
+        );
+    }
+    assert_eq!(
+        module.matches("export default function").count(),
+        1,
+        "one screen, one default export"
+    );
+    assert!(
+        module.contains(&merged.tsx),
+        "the module must carry the merged tree unchanged"
+    );
+
+    // Each component is imported once, from its own file.
+    let imports = module[..export]
+        .lines()
+        .filter(|line| line.starts_with("import "))
+        .collect::<Vec<_>>();
+    let unique = imports.iter().collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(unique.len(), imports.len(), "no import written twice");
+    for name in &components {
+        assert!(
+            module.contains(&format!("import {{ {name} }} from '@/components/{name}'")),
+            "{name} must be imported from its own file"
+        );
+    }
+    if !primitives.is_empty() {
+        assert!(
+            module.contains("from '@devup-ui/react'"),
+            "primitives come from devup-ui"
+        );
+    }
+}
