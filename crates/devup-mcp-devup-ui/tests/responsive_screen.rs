@@ -242,6 +242,56 @@ fn the_shape_of_the_output_is_the_reference_s() {
     );
 }
 
+/// The merge reads widths, not the order they were written in.
+///
+/// This matters because a screen too large to capture in one call is captured
+/// a width at a time and the parts are stitched back together, and whoever
+/// stitches them chooses an order — `bp-family` was captured narrowest first,
+/// while the Section index lists `about` widest first. `breakpoints` sorts by
+/// rank, so neither choice reaches the output; nothing checked that, and the
+/// existing tests could not, because the capture they run on is already in
+/// ascending order.
+#[test]
+fn the_order_the_widths_were_stitched_in_does_not_reach_the_output() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/local-screens/bp-family.json");
+    let Ok(raw) = fs::read_to_string(path) else {
+        eprintln!("no capture; skipping");
+        return;
+    };
+    let mut value: serde_json::Value = serde_json::from_str(&raw).expect("captured screen is json");
+    let snapshot: Snapshot =
+        serde_json::from_value(value["snapshot"].clone()).expect("captured snapshot");
+    let forwards = merge_breakpoints(&snapshot, &CodegenOptions::default())
+        .expect("merge")
+        .expect("three widths merge");
+
+    let roots = value["snapshot"]["roots"]
+        .as_array()
+        .expect("roots")
+        .iter()
+        .rev()
+        .cloned()
+        .collect::<Vec<_>>();
+    value["snapshot"]["roots"] = serde_json::Value::Array(roots);
+    let reversed_snapshot: Snapshot =
+        serde_json::from_value(value["snapshot"].clone()).expect("reversed snapshot");
+    let backwards = merge_breakpoints(&reversed_snapshot, &CodegenOptions::default())
+        .expect("merge")
+        .expect("three widths merge");
+
+    assert_eq!(
+        forwards.slots, backwards.slots,
+        "the slots come from the widths"
+    );
+    assert_eq!(
+        forwards.tsx, backwards.tsx,
+        "and so does everything drawn from them"
+    );
+    assert_eq!(forwards.components, backwards.components);
+    assert_eq!(forwards.unrepresented, backwards.unrepresented);
+}
+
 /// The same comparison for `about`, the screen whose widths go back.
 ///
 /// It runs on nothing today: neither the capture nor the plugin's answer is on
