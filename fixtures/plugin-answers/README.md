@@ -59,6 +59,16 @@ file would be a judge that cannot be trusted, which is worse than none. What was
 checkable was checked and locked instead, in
 `responsive_merge.rs::the_about_screen_needs_every_slot`.
 
+**The place for it is prepared.** Save the plugin's `about - Responsive` output
+verbatim to `about/responsive.tsx` — from the plugin, not from a transcript, and
+without reformatting, because the comparison reads nesting off the indentation
+and this file steps by four. `responsive_screen.rs::the_about_screen_matches_the_answer_when_both_are_present`
+then decides the comparison instead of a person reading two files side by side.
+It also wants the capture at `fixtures/local-screens/about-family.json`, and
+skips until it has both. `about - Components` is worth keeping too if it is to
+hand: a definitions output cannot be recovered from the others, and the union
+behind `<Header status="landing" />` exists nowhere else.
+
 It earns an entry because it is the first answer whose widths *return*. `notice`
 only ever toggles one way and `popup` only ever moves a number forward, so
 between them every array stops by slot 2. `about` has both a region shown at
