@@ -14,8 +14,15 @@ use devup_mcp_devup_ui::codegen::{
 use devup_mcp_figma::Snapshot;
 
 fn merged() -> Option<MergedScreen> {
+    merged_from("bp-family.json")
+}
+
+/// The merge of a capture in `fixtures/local-screens`, or `None` when that
+/// capture is not on this machine.
+fn merged_from(capture: &str) -> Option<MergedScreen> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/local-screens/bp-family.json");
+        .join("../../fixtures/local-screens")
+        .join(capture);
     let raw = fs::read_to_string(path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
     let snapshot: Snapshot = serde_json::from_value(value.get("snapshot")?.clone()).ok()?;
@@ -160,6 +167,37 @@ fn a_variant_that_differs_by_width_is_reported_not_faked() {
     assert!(!merged.tsx.contains("property1={["));
 }
 
+/// Each element of a file with the nesting it sits at.
+///
+/// Each file indents by its own unit, so nesting is counted rather than
+/// measured; both bodies begin two levels in.
+fn outline(source: &str, unit: usize) -> Vec<(usize, String)> {
+    source
+        .lines()
+        .filter_map(|line| {
+            let indent = line.len() - line.trim_start().len();
+            let name = line
+                .trim_start()
+                .strip_prefix('<')?
+                .chars()
+                .take_while(char::is_ascii_alphanumeric)
+                .collect::<String>();
+            name.starts_with(char::is_uppercase)
+                .then(|| (indent / unit, name))
+        })
+        .collect()
+}
+
+/// How many times each element appears at each nesting, so that two outlines
+/// can be compared without depending on the order they were written in.
+fn tally(outline: &[(usize, String)]) -> std::collections::BTreeMap<(usize, String), usize> {
+    let mut counts = std::collections::BTreeMap::new();
+    for entry in outline {
+        *counts.entry(entry.clone()).or_default() += 1;
+    }
+    counts
+}
+
 /// Every element of the reference, at the same nesting.
 ///
 /// The one accepted difference is that a positioned shape is written as a
@@ -172,24 +210,6 @@ fn the_shape_of_the_output_is_the_reference_s() {
         eprintln!("no capture; skipping");
         return;
     };
-    // Each file indents by its own unit, so nesting is counted rather than
-    // measured. Both bodies begin two levels in.
-    let outline = |source: &str, unit: usize| {
-        source
-            .lines()
-            .filter_map(|line| {
-                let indent = line.len() - line.trim_start().len();
-                let name = line
-                    .trim_start()
-                    .strip_prefix('<')?
-                    .chars()
-                    .take_while(char::is_ascii_alphanumeric)
-                    .collect::<String>();
-                name.starts_with(char::is_uppercase)
-                    .then(|| (indent / unit, name))
-            })
-            .collect::<Vec<_>>()
-    };
     let reference = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/plugin-answers/notice/responsive.tsx"),
@@ -201,13 +221,6 @@ fn the_shape_of_the_output_is_the_reference_s() {
 
     // Every element, at the nesting it sits at. Order is compared separately,
     // because the two files order one pair differently on purpose.
-    let tally = |outline: &[(usize, String)]| {
-        let mut counts = std::collections::BTreeMap::<(usize, String), usize>::new();
-        for entry in outline {
-            *counts.entry(entry.clone()).or_default() += 1;
-        }
-        counts
-    };
     let mut missing = tally(&theirs);
     for entry in tally(&ours) {
         let held = missing.remove(&entry.0).unwrap_or_default();
@@ -226,6 +239,62 @@ fn the_shape_of_the_output_is_the_reference_s() {
         std::collections::BTreeMap::from([((5, "Box".to_owned()), 2)]),
         "the only elements the reference has and this does not should be the \
          two shape wrappers"
+    );
+}
+
+/// The same comparison for `about`, the screen whose widths go back.
+///
+/// It runs on nothing today: neither the capture nor the plugin's answer is on
+/// disk, so this skips. It is written now because the alternative was reading
+/// the two files side by side once and calling that checked — and a screen
+/// that costs more reads than a day's allowance holds is one nobody will want
+/// to check twice by hand. Drop `about-family.json` beside the other captures
+/// and `about/responsive.tsx` beside the other answers, and the suite decides
+/// it instead.
+///
+/// No difference is allowed for in advance. `notice` has one, and it is
+/// written down there because it was understood first; here there is no
+/// evidence of any, so anything that turns up should be looked at rather than
+/// waved through.
+#[test]
+fn the_about_screen_matches_the_answer_when_both_are_present() {
+    let Some(merged) = merged_from("about-family.json") else {
+        eprintln!("no about capture; skipping");
+        return;
+    };
+    let Ok(reference) = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/plugin-answers/about/responsive.tsx"),
+    ) else {
+        eprintln!("no about answer; skipping");
+        return;
+    };
+
+    // 360 / 992 / 1920, the widths read off the frames themselves.
+    assert_eq!(merged.slots, vec![0, 2, 4], "about is drawn at 0, 2 and 4");
+
+    let ours = tally(&outline(&merged.tsx, 2));
+    let theirs = tally(&outline(&reference, 4));
+
+    let mut only_ours = Vec::new();
+    let mut only_theirs = Vec::new();
+    for (entry, count) in &ours {
+        let held = theirs.get(entry).copied().unwrap_or_default();
+        if *count > held {
+            only_ours.push((entry.clone(), count - held));
+        }
+    }
+    for (entry, count) in &theirs {
+        let held = ours.get(entry).copied().unwrap_or_default();
+        if *count > held {
+            only_theirs.push((entry.clone(), count - held));
+        }
+    }
+
+    assert!(
+        only_ours.is_empty() && only_theirs.is_empty(),
+        "the two outlines differ.\n  drawn here and not in the answer: {only_ours:?}\n  \
+         in the answer and not here: {only_theirs:?}"
     );
 }
 
