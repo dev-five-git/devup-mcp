@@ -14,8 +14,8 @@ say which way it was settled.
 `notice/` and `popup/` are the two kept in full, chosen to sit at opposite ends
 of the merge so that between them they exercise both of its branches. `button/`
 is not a screen at all but a component set, kept for what it says about props a
-call site may not pass. `about` has no directory, for the reason its own section
-gives.
+call site may not pass. `about/` holds one output rather than a set, and its
+section says how it got here, which is not the way the others did.
 
 ### `notice/` — where the widths part company
 
@@ -51,23 +51,32 @@ usually takes one of them wholesale, not a mixture.
 
 ### `about` — the widths that go back, kept as tests and not as a file
 
-Node `422:3798`. Its Pure Code at `desktop` and its Responsive output were both
-read, and unlike the three directories above **no file is kept for it**. A
-reference is only useful as a judge if it is byte-exact, and this one reached
-this repo through a chat window rather than a capture; a hand-copied 1,400-line
-file would be a judge that cannot be trusted, which is worse than none. What was
-checkable was checked and locked instead, in
-`responsive_merge.rs::the_about_screen_needs_every_slot`.
+Node `422:3798`, and `responsive.tsx` is its `about - Responsive` output.
 
-**The place for it is prepared.** Save the plugin's `about - Responsive` output
-verbatim to `about/responsive.tsx` — from the plugin, not from a transcript, and
-without reformatting, because the comparison reads nesting off the indentation
-and this file steps by four. `responsive_screen.rs::the_about_screen_matches_the_answer_when_both_are_present`
-then decides the comparison instead of a person reading two files side by side.
-It also wants the capture at `fixtures/local-screens/about-family.json`, and
-skips until it has both. `about - Components` is worth keeping too if it is to
-hand: a definitions output cannot be recovered from the others, and the union
-behind `<Header status="landing" />` exists nowhere else.
+**It arrived differently from the others, and that is worth knowing.** The three
+above came from the plugin to a file. This one came through a chat window, and
+for a while it was deliberately not kept: a reference is only useful as a judge
+if it is exact, and a 1,400-line file copied by hand is a judge that cannot be
+trusted, which is worse than none.
+
+What changed is not the route but the checking. Six of its arrays had already
+been read and locked as tests — `responsive_merge.rs::the_about_screen_needs_every_slot`
+— before the file existed, so they could be used to check the file rather than
+the other way round. All six are present in it, along with its imports, both
+component references, the literal `display="none"`, and a single default export;
+its indentation steps by four, as `notice`'s does, which is what the comparison
+reads nesting from. A paste that had been truncated or mangled would have failed
+one of those. This one did not.
+
+So it is kept, and `responsive_screen.rs::the_about_screen_matches_the_answer_when_both_are_present`
+decides the comparison rather than a person reading two files side by side. It
+still waits on the capture at `fixtures/local-screens/about-family.json` and
+skips until that arrives. Do not reformat this file: the nesting is the
+comparison.
+
+`about - Components` is still worth adding if it is to hand. A definitions
+output cannot be recovered from the others, and the union behind
+`<Header status="landing" />` exists nowhere else.
 
 It earns an entry because it is the first answer whose widths *return*. `notice`
 only ever toggles one way and `popup` only ever moves a number forward, so
