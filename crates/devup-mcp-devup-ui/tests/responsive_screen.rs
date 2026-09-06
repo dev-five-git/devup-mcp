@@ -422,27 +422,138 @@ fn the_about_screen_matches_the_answer_when_both_are_present() {
 
     let ours = tally(&outline(&merged.tsx, 2));
     let theirs = tally(&outline(&reference, 4));
-
-    let mut only_ours = Vec::new();
-    let mut only_theirs = Vec::new();
-    for (entry, count) in &ours {
-        let held = theirs.get(entry).copied().unwrap_or_default();
-        if *count > held {
-            only_ours.push((entry.clone(), count - held));
-        }
-    }
-    for (entry, count) in &theirs {
-        let held = ours.get(entry).copied().unwrap_or_default();
-        if *count > held {
-            only_theirs.push((entry.clone(), count - held));
-        }
-    }
-
+    let shape_differs = ours
+        .iter()
+        .chain(theirs.iter())
+        .any(|(entry, _)| ours.get(entry) != theirs.get(entry));
     assert!(
-        only_ours.is_empty() && only_theirs.is_empty(),
-        "the two outlines differ.\n  drawn here and not in the answer: {only_ours:?}\n  \
-         in the answer and not here: {only_theirs:?}"
+        !shape_differs,
+        "the two outlines differ:\n  ours {ours:?}\n  theirs {theirs:?}"
     );
+
+    let ours = comparable_lines(&merged.module("AboutPage"));
+    let theirs = comparable_lines(&reference);
+    let mut only_ours = ours.clone();
+    for line in &theirs {
+        if let Some(index) = only_ours.iter().position(|other| other == line) {
+            only_ours.remove(index);
+        }
+    }
+    let mut only_theirs = theirs.clone();
+    for line in &ours {
+        if let Some(index) = only_theirs.iter().position(|other| other == line) {
+            only_theirs.remove(index);
+        }
+    }
+    let unexplained = |lines: &[String]| {
+        lines
+            .iter()
+            .filter(|line| {
+                !ABOUT_DIFFERS_ON_PURPOSE
+                    .iter()
+                    .any(|(known, _)| known == line)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let ours_unexplained = unexplained(&only_ours);
+    let theirs_unexplained = unexplained(&only_theirs);
+    assert!(
+        ours_unexplained.is_empty() && theirs_unexplained.is_empty(),
+        "lines not accounted for.\n  written here and not in the answer:\n    {}\n  in the answer and not here:\n    {}",
+        ours_unexplained.join("\n    "),
+        theirs_unexplained.join("\n    ")
+    );
+}
+
+/// The lines on which `about` is written differently here on purpose, each
+/// with the reason. A line is listed once whichever side it is on; the test
+/// above only asks that every unmatched line is one of these.
+const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    // A soft return (U+2028) is a line break in Figma and is written as one;
+    // the answer has a space where each of them was.
+    (
+        "{\"  \"}우리는 단순한 진단 도구를 만드는 것이 아니라, 당사자가 스스로를 이해하고 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 만들고 있습니다",
+        "soft return",
+    ),
+    (
+        "{\"  \"}우리는 단순한 진단 도구를 만드는 것이 아니라,<br />당사자가 스스로를 이해하고 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 만들고 있습니다",
+        "soft return",
+    ),
+    (
+        "저는 성인 ADHD 당사자이자 정신건강간호사입니다. 진단을 받기까지 수년이 걸렸고, 그 과정에서 수많은 좌절과 시행착오를 겪었습니다. 그 경험을 통해 알게 된 것이 있습니다.",
+        "soft return",
+    ),
+    (
+        "저는 성인 ADHD 당사자이자 정신건강간호사입니다.<br />진단을 받기까지 수년이 걸렸고, 그 과정에서 수많은 좌절과 시행착오를 겪었습니다.<br />그 경험을 통해 알게 된 것이 있습니다.",
+        "soft return",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다. 퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, 코칭과 커뮤니티를 통해  <br />당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 있습니다.",
+        "soft return",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다.<br />퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, 코칭과 커뮤니티를 통해  <br />당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 있습니다.",
+        "soft return",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다. 퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, <br />코칭과 커뮤니티를 통해 당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 <br />있습니다.",
+        "soft return",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다.<br />퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, <br />코칭과 커뮤니티를 통해 당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 <br />있습니다.",
+        "soft return",
+    ),
+    (
+        "을 통해 당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.{\"  \"}",
+        "soft return",
+    ),
+    (
+        "을 통해<br />당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.{\"  \"}",
+        "soft return",
+    ),
+    // The hero's coloured span differs by a trailing space between tablet
+    // and desktop. The plugin resolves the two by taking the longer rendered
+    // string and turning the newlines *of the JSX* into `<br />`, which puts
+    // a break before and after the span that no width drew. This keeps the
+    // span as an element and takes the first width's text.
+    (
+        "<Text color=\"$secondary\"><br />  성인 ADHD,{\"  \"}<br /></Text>우리는 다르게 봅니다.",
+        "plugin rewrites rendered JSX as text",
+    ),
+    ("<Text color=\"$secondary\">", "the span kept as an element"),
+    ("성인 ADHD,{\" \"}", "the span kept as an element"),
+    ("</Text>", "the span kept as an element"),
+    ("우리는 다르게 봅니다.", "the span kept as an element"),
+    // A positioned mask icon keeps its height; the plugin writes the width
+    // alone, and a mask with no height draws nothing.
+    ("w=\"465px\"", "mask icon height"),
+    ("boxSize=\"465px\"", "mask icon height"),
+];
+
+/// A file's lines as they are compared: indentation and blank lines dropped,
+/// a responsive array folded onto one line, and an image fill's file masked —
+/// the plugin writes every one as its fixed `/icons/image.png`, and this
+/// writes the file the export actually produces.
+fn comparable_lines(source: &str) -> Vec<String> {
+    folded(source)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let mut line = line.replace("url(/icons/image.png)", "url(IMAGEFILL)");
+            while let Some(start) = line
+                .find("url('/images/")
+                .or_else(|| line.find("url(/images/"))
+            {
+                let Some(end) = line[start..].find(')') else {
+                    break;
+                };
+                line.replace_range(start..start + end + 1, "url(IMAGEFILL)");
+            }
+            line
+        })
+        .collect()
 }
 
 /// Every element the screen draws, as tags, ignoring the ones only mentioned
