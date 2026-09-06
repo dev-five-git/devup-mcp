@@ -43,51 +43,66 @@ pub(super) fn push_layout_props(
         // with Figma canvas geometry or root positioning.
     } else if absolute {
         push_absolute(node, parent, props);
-        if matches!(component, "Image" | "Text") {
-            // The plugin's `_getLayoutProps`: a positioned leaf keeps its own
-            // width only while its parent is wider; once it spills past the
-            // parent it is `100%` instead, and with the height also `100%`
-            // the two fold into `boxSize`. The about hero picture is 418px
-            // in a 320px column and the reference writes `boxSize="100%"`.
-            width = match (
-                view.number("width"),
-                parent.and_then(|parent| parent.typed_view().number("width")),
-            ) {
-                (Some(width), Some(parent_width)) if parent_width > width => Some(px(width)),
-                (Some(_), Some(_)) => Some("100%".to_owned()),
-                (width, _) => width.map(px),
-            };
+        // The plugin's `_getLayoutProps` for a positioned node, as one rule
+        // rather than a branch per kind of node. Its width is its own only
+        // while the parent is wider and it is an asset or an empty frame;
+        // spilling past the parent it is `100%`, and a frame with children in
+        // it has no width said at all, its children being what sizes it. Its
+        // height is `100%` for a shape, its own for an empty frame, and unsaid
+        // once it has children. So the about hero picture, 418px in a 320px
+        // column, is `boxSize="100%"`, and a hidden 1920px frame in a 992px
+        // one is `w="100%" h="667px"`.
+        //
+        // One departure, on purpose. An asset folds its children away and is
+        // drawn at a size, and the plugin still says no height for it: the
+        // 465px puzzle icon comes out `w="465px"` alone, a mask with nothing
+        // to mask. Here it keeps its height — unless it is wider than its
+        // parent, where the pinned corpus wants `w="100%"` and no height, and
+        // `provenance` expects the same. Text keeps its own width and `100%`:
+        // the plugin says nothing for a positioned text and the corpus wants
+        // the size written.
+        let own_width = view.number("width");
+        let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
+        if component == "Text" {
+            width = own_width.map(px);
             height = Some("100%".to_owned());
-        } else if view.child_ids().next().is_some() {
-            width = match (
-                view.number("width"),
-                parent.and_then(|parent| parent.typed_view().number("width")),
-            ) {
-                (Some(width), Some(parent_width)) if width >= parent_width => Some("100%".into()),
-                _ => None,
+        } else {
+            let parent_wider = matches!(
+                (own_width, parent_width),
+                (Some(width), Some(parent_width)) if parent_width > width
+            );
+            let has_children = view.child_ids().next().is_some();
+            let holds_children = matches!(
+                view.node_type(),
+                "FRAME"
+                    | "GROUP"
+                    | "INSTANCE"
+                    | "COMPONENT"
+                    | "COMPONENT_SET"
+                    | "BOOLEAN_OPERATION"
+            );
+            let empty_frame = holds_children && !has_children;
+            let is_asset = super::style::asset_kind(snapshot, node).is_some();
+            width = if parent_wider {
+                (is_asset || empty_frame)
+                    .then(|| own_width.map(px))
+                    .flatten()
+            } else {
+                Some("100%".to_owned())
             };
-            height = None;
-        } else if view.node_type() == "FRAME"
-            && let Some(parent) = parent
-        {
-            width = match (view.number("width"), parent.typed_view().number("width")) {
-                (Some(width), Some(parent_width)) if width == parent_width => Some("100%".into()),
-                (Some(width), _) => Some(px(width)),
-                _ => None,
+            let wider_than_parent = matches!(
+                (own_width, parent_width),
+                (Some(width), Some(parent_width)) if width >= parent_width
+            );
+            height = if has_children {
+                (is_asset && !wider_than_parent)
+                    .then(|| view.number("height").map(px))
+                    .flatten()
+            } else if empty_frame {
+                view.number("height").map(px)
+            } else {
+                Some("100%".to_owned())
             };
-            height = match (view.number("height"), parent.typed_view().number("height")) {
-                (Some(height), Some(parent_height)) if height == parent_height => {
-                    Some("100%".into())
-                }
-                (Some(height), _) => Some(px(height)),
-                _ => None,
-            };
-        } else if let Some(parent) = parent {
-            width = match (view.number("width"), parent.typed_view().number("width")) {
-                (Some(width), Some(parent_width)) if width == parent_width => Some("100%".into()),
-                _ => None,
-            };
-            height = Some("100%".to_owned());
         }
         // An absolutely positioned node is out of flow, so nothing constrains
         // it from the outside and the branches above may leave it sizeless,
@@ -217,7 +232,12 @@ pub(super) fn push_layout_props(
         }
     }
 
-    if let Some(aspect) = view.value("targetAspectRatio").and_then(Value::as_object)
+    // A positioned node has its size said outright — the plugin's absolute
+    // branch of `_getLayoutProps` never writes `aspectRatio` — so the ratio
+    // is only for a node in flow, where it stands in for a side that is not
+    // written. The about hero picture is `boxSize="100%"` with no ratio.
+    if !absolute
+        && let Some(aspect) = view.value("targetAspectRatio").and_then(Value::as_object)
         && let (Some(x), Some(y)) = (
             aspect.get("x").and_then(Value::as_f64),
             aspect.get("y").and_then(Value::as_f64),
