@@ -293,17 +293,19 @@ fn the_shape_of_the_output_is_the_reference_s() {
     );
 }
 
-/// The merge reads widths, not the order they were written in.
+/// The slots come from the widths; which width stands in for a missing one
+/// comes from the order.
 ///
-/// This matters because a screen too large to capture in one call is captured
-/// a width at a time and the parts are stitched back together, and whoever
-/// stitches them chooses an order — `bp-family` was captured narrowest first,
-/// while the Section index lists `about` widest first. `breakpoints` sorts by
-/// rank, so neither choice reaches the output; nothing checked that, and the
-/// existing tests could not, because the capture they run on is already in
-/// ascending order.
+/// A width that does not draw a node is given a hidden copy of the node from
+/// the first width that does — first in the Section's layer order, which is
+/// the order the roots are listed in and the order the plugin walks. Every
+/// value of that copy lands in the array, not only its `display`, so the
+/// order reaches the output and is meant to: the about hero picture is
+/// `w={["770px", null, "778px", null, "770px"]}` because desktop comes first
+/// in that Section. What the order must not touch is where each width lands
+/// and what is drawn.
 #[test]
-fn the_order_the_widths_were_stitched_in_does_not_reach_the_output() {
+fn the_order_of_the_widths_decides_which_one_stands_in_for_a_missing_one() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/local-screens/bp-family.json");
     let Ok(raw) = fs::read_to_string(path) else {
@@ -336,27 +338,71 @@ fn the_order_the_widths_were_stitched_in_does_not_reach_the_output() {
         "the slots come from the widths"
     );
     assert_eq!(
-        forwards.tsx, backwards.tsx,
-        "and so does everything drawn from them"
+        outline(&forwards.tsx, 2),
+        outline(&backwards.tsx, 2),
+        "and so does what is drawn"
     );
     assert_eq!(forwards.components, backwards.components);
-    assert_eq!(forwards.unrepresented, backwards.unrepresented);
+    // A note names the node it was raised on, which is the first width's; what
+    // it says does not depend on the order.
+    let details = |merged: &MergedScreen| {
+        merged
+            .unrepresented
+            .iter()
+            .map(|note| note.detail.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(details(&forwards), details(&backwards));
+    assert_ne!(
+        forwards.tsx, backwards.tsx,
+        "the width that stands in for a missing one comes from the order"
+    );
+
+    // The about capture makes the rule concrete. Its roots are desktop,
+    // tablet, mobile, so the hidden mobile copy of the hero carries desktop's
+    // values; read backwards, tablet stands in and its 778px is the base.
+    let Some(about) = merged_from("about-family.json") else {
+        return;
+    };
+    assert!(
+        folded(&about.tsx).contains(r#"w={["770px", null, "778px", null, "770px"]}"#),
+        "{}",
+        about.tsx
+    );
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/local-screens/about-family.json");
+    let mut value: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(path).expect("about")).expect("json");
+    let roots = value["snapshot"]["roots"]
+        .as_array()
+        .expect("roots")
+        .iter()
+        .rev()
+        .cloned()
+        .collect::<Vec<_>>();
+    value["snapshot"]["roots"] = serde_json::Value::Array(roots);
+    let snapshot: Snapshot = serde_json::from_value(value["snapshot"].clone()).expect("snapshot");
+    let backwards = merge_breakpoints(&snapshot, &CodegenOptions::default())
+        .expect("merge")
+        .expect("three widths merge");
+    assert!(
+        folded(&backwards.tsx).contains(r#"w={["778px", null, null, null, "770px"]}"#),
+        "{}",
+        backwards.tsx
+    );
 }
 
-/// The same comparison for `about`, the screen whose widths go back.
+/// The `about` screen against the plugin's answer, line for line.
 ///
-/// It runs on nothing today: neither the capture nor the plugin's answer is on
-/// disk, so this skips. It is written now because the alternative was reading
-/// the two files side by side once and calling that checked — and a screen
-/// that costs more reads than a day's allowance holds is one nobody will want
-/// to check twice by hand. Drop `about-family.json` beside the other captures
-/// and `about/responsive.tsx` beside the other answers, and the suite decides
-/// it instead.
+/// It runs on nothing until `about-family.json` sits beside the other captures
+/// and `about/responsive.tsx` beside the other answers; a screen that costs
+/// more reads than a day's allowance holds is one nobody will want to check
+/// twice by hand, so the suite decides it instead.
 ///
-/// No difference is allowed for in advance. `notice` has one, and it is
-/// written down there because it was understood first; here there is no
-/// evidence of any, so anything that turns up should be looked at rather than
-/// waved through.
+/// Both files are read the same way — indentation dropped, a responsive array
+/// folded onto one line — and then every line the answer has that this does
+/// not, and the reverse, must be one written down in [`ABOUT_DIFFERS_ON_PURPOSE`]
+/// with its reason. Anything else is looked at rather than waved through.
 #[test]
 fn the_about_screen_matches_the_answer_when_both_are_present() {
     let Some(merged) = merged_from("about-family.json") else {

@@ -230,7 +230,7 @@ pub fn merge_slots(prop: &str, widths: &[Drawn<'_>; SLOTS]) -> Merged {
 /// One width of a screen: which breakpoint it is, and the node it starts at.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Breakpoint {
-    /// Index into [`BREAKPOINT_NAMES`], so narrowest sorts first.
+    /// Index into [`BREAKPOINT_NAMES`]; narrowest is 0.
     pub rank: usize,
     pub node_id: String,
 }
@@ -271,25 +271,38 @@ fn rank_of(name: &str) -> Option<usize> {
     BREAKPOINT_NAMES.iter().position(|known| *known == name)
 }
 
-/// The breakpoint roots this snapshot carries, narrowest first.
+/// The breakpoint roots this snapshot carries, in the order the Section holds
+/// them.
+///
+/// The order is kept on purpose. Where a width does not draw a node, the
+/// reference gives that width a hidden copy of the node from the *first*
+/// width that does — first in the Section's own layer order, which is how the
+/// plugin walks it — and every value of that copy, not only its `display`,
+/// lands in the array. The about hero is drawn at tablet and desktop, and its
+/// picture is `w={["770px", null, "778px", null, "770px"]}`: the mobile slot
+/// says 770 because desktop comes first in that Section. Sorting the roots by
+/// width put tablet's 778 there instead.
 ///
 /// Empty unless there are at least two: one width is a screen, not a screen
 /// that changes, and there is nothing to line up.
 pub fn breakpoints(snapshot: &Snapshot) -> Vec<Breakpoint> {
-    let mut found = snapshot
-        .roots
-        .iter()
-        .filter_map(|id| {
-            let node = snapshot.nodes.get(id)?;
-            let rank = rank_of(node.typed_view().name()?)?;
-            Some(Breakpoint {
-                rank,
-                node_id: id.clone(),
-            })
-        })
-        .collect::<Vec<_>>();
-    found.sort_by_key(|breakpoint| breakpoint.rank);
-    found.dedup_by_key(|breakpoint| breakpoint.rank);
+    let mut found: Vec<Breakpoint> = Vec::new();
+    for id in &snapshot.roots {
+        let Some(node) = snapshot.nodes.get(id) else {
+            continue;
+        };
+        let Some(rank) = node.typed_view().name().and_then(rank_of) else {
+            continue;
+        };
+        // Two frames with one name: the first keeps it, as in the plugin.
+        if found.iter().any(|breakpoint| breakpoint.rank == rank) {
+            continue;
+        }
+        found.push(Breakpoint {
+            rank,
+            node_id: id.clone(),
+        });
+    }
     if found.len() < 2 {
         return Vec::new();
     }
@@ -321,7 +334,7 @@ fn node_at<'a>(snapshot: &'a Snapshot, root: &str, path: &[usize]) -> Option<&'a
 /// them. An empty result means the trees line up and their differing values can
 /// become arrays.
 pub fn divergences(snapshot: &Snapshot, breakpoints: &[Breakpoint]) -> Vec<Divergence> {
-    let Some(widest) = breakpoints.last() else {
+    let Some(widest) = breakpoints.iter().max_by_key(|breakpoint| breakpoint.rank) else {
         return Vec::new();
     };
     let mut found = Vec::new();
@@ -391,6 +404,19 @@ fn walk(
 
 /// One node's counterparts, by the slot each is drawn at.
 type BySlot<T> = [Option<T>; SLOTS];
+
+/// Where each slot's width comes in the Section's layer order; `usize::MAX`
+/// for a slot no width occupies. The lowest goes first, as the plugin's
+/// `firstMapValue` does: it is the width whose values fill in for a width that
+/// does not draw a node, and whose element name a merged node keeps.
+type Precedence = [usize; SLOTS];
+
+/// The slot that comes first in the Section's order among those present.
+fn first_slot<T>(by_slot: &BySlot<T>, precedence: &Precedence) -> Option<usize> {
+    (0..SLOTS)
+        .filter(|slot| by_slot[*slot].is_some())
+        .min_by_key(|slot| precedence[*slot])
+}
 
 /// A node's children, grouped under the key its counterparts will be found by.
 ///
@@ -584,8 +610,12 @@ fn restore_implied_display(tree: &mut Tree) {
 
 /// Fold one node's counterparts into a single node whose differing values have
 /// become arrays.
-fn merge_trees(by_slot: &BySlot<Tree>, notes: &mut Vec<Unrepresented>) -> Option<Tree> {
-    let first = by_slot.iter().flatten().next()?.clone();
+fn merge_trees(
+    by_slot: &BySlot<Tree>,
+    precedence: &Precedence,
+    notes: &mut Vec<Unrepresented>,
+) -> Option<Tree> {
+    let first = by_slot[first_slot(by_slot, precedence)?].clone()?;
 
     let mut keys = BTreeSet::new();
     for tree in by_slot.iter().flatten() {
@@ -695,7 +725,7 @@ fn merge_trees(by_slot: &BySlot<Tree>, notes: &mut Vec<Unrepresented>) -> Option
 
     Some(Tree {
         props,
-        children: merge_children(by_slot, notes),
+        children: merge_children(by_slot, precedence, notes),
         source_node_ids,
         ..first
     })
@@ -705,7 +735,11 @@ fn is_placement_prop(name: &str) -> bool {
     super::variant::POSITION_PROPS.contains(&name) || name == "w" || name == "display"
 }
 
-fn merge_children(by_slot: &BySlot<Tree>, notes: &mut Vec<Unrepresented>) -> Vec<Tree> {
+fn merge_children(
+    by_slot: &BySlot<Tree>,
+    precedence: &Precedence,
+    notes: &mut Vec<Unrepresented>,
+) -> Vec<Tree> {
     let maps: BySlot<Vec<(String, Vec<&Tree>)>> =
         std::array::from_fn(|slot| by_slot[slot].as_ref().map(children_to_map));
     let orders = maps
@@ -731,11 +765,15 @@ fn merge_children(by_slot: &BySlot<Tree>, notes: &mut Vec<Unrepresented>) -> Vec
             let mut children: BySlot<Tree> = std::array::from_fn(|slot| {
                 bucket(slot).and_then(|list| list.get(index).cloned().cloned())
             });
-            // A width that does not draw this child is given a copy of one that
-            // does, hidden. The copies then merge like anything else, and the
-            // `display` array falls out of the ordinary prop merge rather than
-            // from a branch of its own.
-            if let Some(shown) = children.iter().flatten().next().cloned() {
+            // A width that does not draw this child is given a copy of the
+            // first one that does — first in the Section's order — hidden. The
+            // copies then merge like anything else: the `display` array falls
+            // out of the ordinary prop merge rather than from a branch of its
+            // own, and so do the copy's other values, which is why the choice
+            // of width to copy shows in the output.
+            if let Some(shown) =
+                first_slot(&children, precedence).and_then(|slot| children[slot].clone())
+            {
                 for slot in 0..SLOTS {
                     if by_slot[slot].is_some() && children[slot].is_none() {
                         let mut hidden = shown.clone();
@@ -744,7 +782,7 @@ fn merge_children(by_slot: &BySlot<Tree>, notes: &mut Vec<Unrepresented>) -> Vec
                     }
                 }
             }
-            merged.extend(merge_trees(&children, notes));
+            merged.extend(merge_trees(&children, precedence, notes));
         }
     }
     merged
@@ -912,8 +950,9 @@ pub fn merge_breakpoints(
         return Ok(None);
     }
     let mut by_slot: BySlot<Tree> = std::array::from_fn(|_| None);
+    let mut precedence: Precedence = [usize::MAX; SLOTS];
     let mut slots = Vec::new();
-    for breakpoint in &found {
+    for (position, breakpoint) in found.iter().enumerate() {
         let Some(node) = snapshot.nodes.get(&breakpoint.node_id) else {
             continue;
         };
@@ -932,17 +971,21 @@ pub fn merge_breakpoints(
             let mut tree = project_tree_keeping_instances(snapshot, node, options, true)?;
             restore_implied_display(&mut tree);
             by_slot[slot] = Some(tree);
+            precedence[slot] = position;
         }
     }
+    slots.sort_unstable();
     let mut unrepresented = Vec::new();
-    Ok(merge_trees(&by_slot, &mut unrepresented).map(|tree| {
-        let mut components = BTreeSet::new();
-        collect_components(&tree, &mut components);
-        MergedScreen {
-            tsx: render_merged(&tree, 2),
-            components,
-            slots,
-            unrepresented,
-        }
-    }))
+    Ok(
+        merge_trees(&by_slot, &precedence, &mut unrepresented).map(|tree| {
+            let mut components = BTreeSet::new();
+            collect_components(&tree, &mut components);
+            MergedScreen {
+                tsx: render_merged(&tree, 2),
+                components,
+                slots,
+                unrepresented,
+            }
+        }),
+    )
 }

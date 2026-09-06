@@ -18,6 +18,12 @@ if (roots.length === 1 && roots[0].type === "SECTION") {
 // siblings that are. A Section is also how a file of unrelated cases is grouped,
 // and pulling every neighbour in there would collect a catalogue to convert one
 // square.
+//
+// The family keeps the Section's own order. It is not decoration: where one
+// width does not draw a node, the plugin gives that width a hidden copy of the
+// node from the first width that does, first in this order, and every value of
+// the copy shows in the responsive array. Sorting the family by name here put
+// tablet's values where the reference has desktop's.
 const BREAKPOINT_NAMES = ["mobile", "tablet", "desktop"];
 const breakpointRank = (node) =>
   BREAKPOINT_NAMES.indexOf(String(node.name || "").trim().toLowerCase());
@@ -26,8 +32,7 @@ if (roots.length === 1 && breakpointRank(roots[0]) >= 0) {
   if (parent && parent.type === "SECTION" && "children" in parent) {
     const family = parent.children
       .filter((child) => child.id === roots[0].id || breakpointRank(child) >= 0)
-      .filter((child) => child.visible !== false)
-      .sort((left, right) => breakpointRank(left) - breakpointRank(right));
+      .filter((child) => child.visible !== false);
     if (family.length > 1) {
       roots.length = 0;
       roots.push(...family);
