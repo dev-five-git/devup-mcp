@@ -39,6 +39,52 @@ if (roots.length === 1 && breakpointRank(roots[0]) >= 0) {
     }
   }
 }
+
+// A timed Smart Animate is a chain of frames: the target, after a timeout,
+// becomes its destination, which after its own timeout becomes the next, and
+// so on, often back to the start. The plugin reads those frames as it goes,
+// with `getNodeByIdAsync`, and turns what changes between them into CSS
+// keyframes. Those frames are top-level siblings the target's subtree does
+// not contain, so they are gathered here as extra roots — with the same
+// narrowness as the family above: only for a single requested root, so a
+// multi-root request keeps its exact root list. Every node in the subtree is
+// looked at, not only the root, because the animated thing is usually inside
+// the screen; and every chain member's own chain is followed, until a frame
+// repeats.
+if (requestedRootIds.length === 1) {
+  const chainRootIds = [];
+  const seen = new Set(roots.map((root) => root.id));
+  const pending = [];
+  const collectDestinations = (node) => {
+    if (!("reactions" in node) || !Array.isArray(node.reactions)) return;
+    for (const reaction of node.reactions) {
+      if (!reaction || !reaction.trigger || reaction.trigger.type !== "AFTER_TIMEOUT") continue;
+      for (const action of reaction.actions || []) {
+        if (
+          action &&
+          action.type === "NODE" &&
+          action.transition &&
+          action.transition.type === "SMART_ANIMATE" &&
+          typeof action.destinationId === "string" &&
+          !seen.has(action.destinationId)
+        ) {
+          seen.add(action.destinationId);
+          pending.push(action.destinationId);
+        }
+      }
+    }
+    if ("children" in node) for (const child of node.children) collectDestinations(child);
+  };
+  for (const root of roots) collectDestinations(root);
+  while (pending.length > 0) {
+    const id = pending.shift();
+    const node = await figma.getNodeByIdAsync(id);
+    if (!node || node.type === "DOCUMENT" || node.type === "PAGE") continue;
+    chainRootIds.push(node);
+    collectDestinations(node);
+  }
+  roots.push(...chainRootIds);
+}
 const envelopeRootId = "__DEVUP_NODE_ID__";
 
 const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
