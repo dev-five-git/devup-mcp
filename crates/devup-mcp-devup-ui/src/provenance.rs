@@ -532,14 +532,30 @@ fn layout_field_is_semantic(
     // unaccounted-for height, and the reference implementation does not state
     // it either.
     if field == "height"
-            && view.string("layoutPositioning") == Some("ABSOLUTE")
-            && view.child_ids().next().is_some()
-            // Unless it folds into an asset, which is drawn at a size and says
-            // so — `codegen::layout` states the height there and drops it only
-            // for the node that holds live children.
-            && !projects_as_asset(snapshot, node)
+        && view.string("layoutPositioning") == Some("ABSOLUTE")
+        && view.child_ids().next().is_some()
     {
-        return false;
+        // An asset folds its children away and is drawn at a size, so
+        // `codegen::layout` restores both sides for it — unless it is wider
+        // than its parent. Then the width is written as 100% and the height
+        // is dropped, and the reference does the same: two goldens carry a
+        // full-width rotated background mask with no h, and the 465px puzzle
+        // icon on a 328px `about` mobile column comes out the same way. The
+        // rule below is the one in `codegen::layout` for the absolute branch,
+        // kept in step by hand.
+        let wider_than_parent = || {
+            let parent_width = view
+                .string("parentId")
+                .and_then(|parent_id| snapshot.nodes.get(parent_id))
+                .and_then(|parent| parent.typed_view().number("width"));
+            matches!(
+                (view.number("width"), parent_width),
+                (Some(width), Some(parent_width)) if width >= parent_width
+            )
+        };
+        if !projects_as_asset(snapshot, node) || wider_than_parent() {
+            return false;
+        }
     }
     match field {
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),

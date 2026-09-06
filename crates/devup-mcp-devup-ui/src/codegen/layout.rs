@@ -85,6 +85,13 @@ pub(super) fn push_layout_props(
         // the children became padding, though, that padding and the content
         // already add back up to the frame, and restating the size only says
         // it twice.
+        //
+        // Both sides or neither, on purpose. An absolute asset wider than its
+        // parent gets w="100%" and no height above, and the pinned corpus
+        // wants exactly that — two goldens carry a full-width rotated
+        // background mask with no h, and restoring the height there breaks
+        // byte parity. The box has no height and draws by its mask alone;
+        // that is the reference's rule, and it is matched rather than fixed.
         if fixed_w
             && fixed_h
             && width.is_none()
