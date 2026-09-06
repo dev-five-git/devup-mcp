@@ -32,9 +32,21 @@ pub struct CodegenOptions {
 }
 
 impl CodegenOptions {
-    pub fn with_payload_tokens(mut self, payload: &CollectedPayload) -> Self {
-        self.text_style_tokens = named_tokens(payload.styles.as_ref(), "styles");
-        self.variable_tokens = named_tokens(payload.variables.as_ref(), "variables");
+    pub fn with_payload_tokens(self, payload: &CollectedPayload) -> Self {
+        self.with_resource_results(payload.variables.as_ref(), payload.styles.as_ref())
+    }
+
+    /// The two collected resources on their own, for a caller that kept them
+    /// without the rest of the payload — a capture replayed from a fixture
+    /// has its variables and styles but no live target, stats or assets to
+    /// rebuild a `CollectedPayload` around them.
+    pub fn with_resource_results(
+        mut self,
+        variables: Option<&UpstreamResult>,
+        styles: Option<&UpstreamResult>,
+    ) -> Self {
+        self.text_style_tokens = named_tokens(styles, "styles");
+        self.variable_tokens = named_tokens(variables, "variables");
         self
     }
 }

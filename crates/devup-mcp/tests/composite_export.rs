@@ -227,7 +227,7 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
         "devup_figma_export",
         json!({
             "url": url,
-            "outputs": ["tsx", "devupJson", "rawSnapshot", "sourceMap", "assetManifest"],
+            "outputs": ["tsx", "devupJson", "rawSnapshot", "rawPayload", "sourceMap", "assetManifest"],
             "scope": "node",
             "sourcePolicy": "direct",
             "includeDiagnostics": true
@@ -236,6 +236,12 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     .await?;
 
     assert_eq!(first["status"], "complete");
+    // The raw payload is the whole collection the snapshot came out of: the
+    // same nodes, plus the variables the token names are read from, and
+    // never the reference PNG, which has an output of its own.
+    assert_eq!(first["rawPayload"]["snapshot"], first["rawSnapshot"]);
+    assert!(first["rawPayload"]["variables"].is_object());
+    assert!(first["rawPayload"].get("referencePng").is_none());
     assert_eq!(first["collection"]["figmaToolCalls"], 1);
     assert_eq!(first["cache"]["cacheHit"], false);
     assert!(first["cache"]["artifactId"].as_str().is_some());

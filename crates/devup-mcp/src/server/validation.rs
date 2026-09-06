@@ -15,12 +15,13 @@ use super::{
 /// The JSON schema for `outputs` advertises this same constant, so a caller
 /// can discover the set instead of learning it one rejection at a time, and
 /// the published schema cannot drift from what is actually accepted.
-pub(crate) const EXPORT_OUTPUTS: [&str; 8] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 9] = [
     "tsx",
     "componentTsx",
     "responsiveTsx",
     "devupJson",
     "rawSnapshot",
+    "rawPayload",
     "sourceMap",
     "assetManifest",
     "referencePng",
@@ -41,6 +42,7 @@ pub(super) fn validate_artifact_projection(
                 | "componentTsx"
                 | "responsiveTsx"
                 | "rawSnapshot"
+                | "rawPayload"
                 | "sourceMap"
                 | "assetManifest"
                 | "referencePng"

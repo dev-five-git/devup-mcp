@@ -11,7 +11,7 @@ use devup_mcp_devup_ui::codegen::{
     CodegenOptions,
     responsive::{MergedScreen, merge_breakpoints},
 };
-use devup_mcp_figma::Snapshot;
+use devup_mcp_figma::{Snapshot, UpstreamResult};
 
 fn merged() -> Option<MergedScreen> {
     merged_from("bp-family.json")
@@ -19,6 +19,13 @@ fn merged() -> Option<MergedScreen> {
 
 /// The merge of a capture in `fixtures/local-screens`, or `None` when that
 /// capture is not on this machine.
+///
+/// A capture may carry a `payload` beside its `snapshot` — the variables and
+/// styles the export collected with it. They are what the converter names
+/// tokens from, and without them a `$gray200` fill is written as the tail of
+/// its variable ID and a `typography="h4"` as five font props, which is not
+/// what the reference wrote and not what the server would write either. A
+/// capture without one is converted as before.
 fn merged_from(capture: &str) -> Option<MergedScreen> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/local-screens")
@@ -26,7 +33,18 @@ fn merged_from(capture: &str) -> Option<MergedScreen> {
     let raw = fs::read_to_string(path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
     let snapshot: Snapshot = serde_json::from_value(value.get("snapshot")?.clone()).ok()?;
-    merge_breakpoints(&snapshot, &CodegenOptions::default()).ok()?
+    let resource = |name: &str| {
+        value
+            .get("payload")
+            .and_then(|payload| payload.get(name))
+            .cloned()
+            .map(|raw| UpstreamResult { raw })
+    };
+    let variables = resource("variables");
+    let styles = resource("styles");
+    let options =
+        CodegenOptions::default().with_resource_results(variables.as_ref(), styles.as_ref());
+    merge_breakpoints(&snapshot, &options).ok()?
 }
 
 /// 360 / 992 / 1920, so slots 0 / 2 / 4 — the same three the reference's arrays

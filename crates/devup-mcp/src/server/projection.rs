@@ -74,6 +74,7 @@ pub(super) fn projected_outputs_from_result(
     }
     for (field, name) in [
         ("rawSnapshot", "raw-snapshot.json"),
+        ("rawPayload", "raw-payload.json"),
         ("sourceMap", "source-map.json"),
         ("assetManifest", "asset-manifest.json"),
     ] {
@@ -147,6 +148,7 @@ pub(super) async fn apply_delivery(
         "tsx",
         "devupJson",
         "rawSnapshot",
+        "rawPayload",
         "sourceMap",
         "assetManifest",
         "referencePng",
@@ -1016,6 +1018,33 @@ pub(super) async fn complete_operation(
                     );
                 }
                 result.insert("rawSnapshot".to_owned(), raw);
+            }
+
+            // The whole collection, not only its node tree. A snapshot kept on
+            // its own can be converted, but not the way the server converts
+            // it: the token names come from the variables and styles collected
+            // beside it, and without them a `$gray200` fill comes out as the
+            // tail of its variable ID and a `typography="h4"` as five font
+            // props. Captures kept as fixtures need the resources too, so
+            // this writes them. The reference PNG is left out — it is large,
+            // binary, and has its own output.
+            if outputs.iter().any(|output| output == "rawPayload") {
+                let mut without_png = payload.clone();
+                without_png.reference_png = None;
+                let raw = serde_json::to_value(&without_png).map_err(|error| {
+                    DevupError::new(
+                        ErrorCode::DevupSnapshotUnsupported,
+                        format!("Cannot serialize the raw payload: {error}"),
+                        false,
+                    )
+                })?;
+                if output_paths.contains_key("rawPayload") {
+                    pending_text_outputs.insert(
+                        "rawPayload".to_owned(),
+                        serde_json::to_string_pretty(&raw).unwrap_or_default(),
+                    );
+                }
+                result.insert("rawPayload".to_owned(), raw);
             }
 
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
