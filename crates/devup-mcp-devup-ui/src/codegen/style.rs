@@ -41,7 +41,7 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
     }
 
     if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
-        return Some(svg_asset_kind(snapshot, node));
+        return Some(svg_asset_kind(snapshot, node, nested));
     }
 
     if view.node_type() == "ELLIPSE"
@@ -51,7 +51,7 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
             .and_then(Value::as_f64)
             .is_some_and(|inner_radius| inner_radius != 0.0)
     {
-        return Some(svg_asset_kind(snapshot, node));
+        return Some(svg_asset_kind(snapshot, node, nested));
     }
 
     let child_ids = view.child_ids().collect::<Vec<_>>();
@@ -74,7 +74,9 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
             .and_then(|child| asset_kind_nested(snapshot, child, true))
         {
             Some(AssetKind::Png) => Some(AssetKind::Png),
-            Some(AssetKind::Svg | AssetKind::SvgMask) => Some(svg_asset_kind(snapshot, node)),
+            Some(AssetKind::Svg | AssetKind::SvgMask) => {
+                Some(svg_asset_kind(snapshot, node, nested))
+            }
             None => None,
         };
     }
@@ -95,7 +97,7 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
                 Some(AssetKind::Svg | AssetKind::SvgMask)
             )
         })
-        .then(|| svg_asset_kind(snapshot, node))
+        .then(|| svg_asset_kind(snapshot, node, nested))
 }
 
 fn leaf_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
@@ -127,10 +129,10 @@ fn leaf_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<
                 .iter()
                 .all(|fill| is_visible_fill(fill) && fill_type(fill) == Some("SOLID"))
         }) {
-            return nested.then(|| svg_asset_kind(snapshot, node));
+            return nested.then(|| svg_asset_kind(snapshot, node, nested));
         }
 
-        return Some(svg_asset_kind(snapshot, node));
+        return Some(svg_asset_kind(snapshot, node, nested));
     }
 
     (nested
@@ -140,7 +142,7 @@ fn leaf_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<
                     || !matches!(fill_type(fill), Some("IMAGE" | "VIDEO" | "PATTERN"))
             })
         }))
-    .then(|| svg_asset_kind(snapshot, node))
+    .then(|| svg_asset_kind(snapshot, node, nested))
 }
 
 fn fills(node: &RawNode) -> Option<&Vec<Value>> {
@@ -178,87 +180,241 @@ fn has_smart_animate_reaction(node: &RawNode) -> bool {
         })
 }
 
-fn svg_asset_kind(snapshot: &Snapshot, node: &RawNode) -> AssetKind {
-    if uniform_asset_color(snapshot, node).is_some() {
+fn svg_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> AssetKind {
+    if matches!(
+        same_color(snapshot, node, nested, None),
+        SameColor::Color(_)
+    ) {
         AssetKind::SvgMask
     } else {
         AssetKind::Svg
     }
 }
 
-fn uniform_asset_color(snapshot: &Snapshot, node: &RawNode) -> Option<String> {
-    fn visit(snapshot: &Snapshot, node: &RawNode, colors: &mut Vec<String>) -> bool {
-        let view = node.typed_view();
-        for field in ["fills", "strokes"] {
-            if let Some(paints) = view.value(field).and_then(Value::as_array) {
-                for paint in paints {
-                    if paint.get("visible").and_then(Value::as_bool) == Some(false) {
-                        continue;
-                    }
-                    if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
-                        return false;
-                    }
-                    // Must go through `color_from_paint`, not `color_from` on the
-                    // raw `color`: Figma splits a translucent solid across
-                    // `color.a` and the paint's own `opacity`, and the effective
-                    // alpha is the product. Formatting `color` alone silently
-                    // drops `opacity` and renders the asset fully opaque, which
-                    // also made this path disagree with `first_solid_color` on
-                    // byte-identical input.
-                    let Some(color) = color_from_paint(paint) else {
-                        return false;
-                    };
-                    colors.push(color);
+/// What an asset is painted in, if it is one thing.
+///
+/// This is the `sameColor` half of the plugin's `computeAssetAnalysis`,
+/// which decides whether an icon is drawn as an `<Image>` or as a Box masked
+/// to its shape and filled with one colour. `Null` is a subtree that settled
+/// on nothing, `False` one whose paints disagree, and only a `Color` makes a
+/// mask. The two non-answers are not the same: a `Null` child leaves a
+/// running colour alone, a `False` one spoils it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SameColor {
+    Null,
+    False,
+    Color(String),
+}
+
+/// The plugin's `mergeSameColor`.
+fn merge_same_color(current: SameColor, next: SameColor) -> SameColor {
+    match (current, next) {
+        (_, SameColor::False) => SameColor::False,
+        (SameColor::Null, next) => next,
+        (current, next) if current == next => current,
+        _ => SameColor::False,
+    }
+}
+
+/// The plugin's `analyzeOwnSameColor`: the node's own fills and strokes.
+enum OwnColor {
+    /// No visible paint at all.
+    None,
+    /// A paint that is not a flat colour.
+    Null,
+    /// Two flat colours that differ.
+    False,
+    Color(String),
+}
+
+fn own_same_color(
+    node: &RawNode,
+    variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
+) -> OwnColor {
+    let view = node.typed_view();
+    let mut target: Option<String> = None;
+    let mut has_paints = false;
+    for field in ["fills", "strokes"] {
+        let Some(paints) = view.value(field).and_then(Value::as_array) else {
+            continue;
+        };
+        for paint in paints {
+            if paint.get("visible").and_then(Value::as_bool) != Some(true) {
+                continue;
+            }
+            has_paints = true;
+            if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
+                return OwnColor::Null;
+            }
+            let Some(color) = paint_string(paint, variable_tokens) else {
+                return OwnColor::Null;
+            };
+            match &target {
+                None => target = Some(color),
+                Some(current) if *current != color => return OwnColor::False,
+                Some(_) => {}
+            }
+        }
+    }
+    if !has_paints {
+        return OwnColor::None;
+    }
+    match target {
+        Some(color) => OwnColor::Color(color),
+        None => OwnColor::Null,
+    }
+}
+
+/// A solid paint as the plugin's `solidToString` spells it: the variable it
+/// is bound to as `$token`, or else the colour. Two paints are the same
+/// colour to the plugin only when these agree, so a paint bound to a
+/// variable and a raw paint of the same hex are *not* the same.
+///
+/// Without a token map the variable id stands in for its name; that keeps
+/// the comparison right when only the shape is being decided and the names
+/// are not to hand.
+fn paint_string(
+    paint: &Value,
+    variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
+) -> Option<String> {
+    if let Some(id) = paint
+        .get("boundVariables")
+        .and_then(|bound| bound.get("color"))
+        .and_then(|color| color.get("id"))
+        .and_then(Value::as_str)
+    {
+        match variable_tokens {
+            None => return Some(format!("${id}")),
+            Some(tokens) => {
+                if let Some(token) = tokens.get(id) {
+                    return Some(format!("${token}"));
                 }
             }
         }
-        view.child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .all(|child| visit(snapshot, child, colors))
     }
-
-    let mut colors = Vec::new();
-    if !visit(snapshot, node, &mut colors) || colors.is_empty() {
-        return None;
+    if paint.get("opacity").and_then(Value::as_f64) == Some(0.0) {
+        return Some("transparent".to_owned());
     }
-    let first = colors.first()?.clone();
-    colors.iter().all(|color| color == &first).then_some(first)
+    color_from_paint(paint)
 }
 
-fn uniform_asset_token(
+fn same_color(
     snapshot: &Snapshot,
     node: &RawNode,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
-) -> Option<String> {
-    fn visit(
-        snapshot: &Snapshot,
-        node: &RawNode,
-        variable_tokens: &std::collections::BTreeMap<String, String>,
-        tokens: &mut Vec<String>,
-    ) -> bool {
-        let view = node.typed_view();
-        if let Some(fills) = view.value("fills").and_then(Value::as_array) {
-            for paint in fills.iter().filter(|paint| {
-                paint.get("visible").and_then(Value::as_bool) != Some(false)
-                    && paint.get("type").and_then(Value::as_str) == Some("SOLID")
-            }) {
-                let Some(token) = bound_paint_token(paint, variable_tokens) else {
-                    return false;
-                };
-                tokens.push(token);
-            }
-        }
-        view.child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .all(|child| visit(snapshot, child, variable_tokens, tokens))
+    nested: bool,
+    variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
+) -> SameColor {
+    let view = node.typed_view();
+    let own = || match own_same_color(node, variable_tokens) {
+        OwnColor::Color(color) => SameColor::Color(color),
+        _ => SameColor::Null,
+    };
+    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
+        || view
+            .value("inferredAutoLayout")
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(Value::as_str)
+            == Some("GRID")
+        || has_smart_animate_reaction(node)
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .is_some_and(has_smart_animate_reaction)
+    {
+        return SameColor::Null;
+    }
+    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+        return own();
+    }
+    if view.node_type() == "ELLIPSE"
+        && view
+            .value("arcData")
+            .and_then(|arc_data| arc_data.get("innerRadius"))
+            .and_then(Value::as_f64)
+            .is_some_and(|inner_radius| inner_radius != 0.0)
+    {
+        return own();
     }
 
-    let mut tokens = Vec::new();
-    if !visit(snapshot, node, variable_tokens, &mut tokens) || tokens.is_empty() {
-        return None;
+    let child_ids = view.child_ids().collect::<Vec<_>>();
+    if child_ids.is_empty() {
+        let node_fills = fills(node);
+        if node_fills.is_some_and(|fills| {
+            fills.iter().any(|fill| {
+                is_visible_fill(fill)
+                    && (fill_type(fill) == Some("PATTERN")
+                        || (fill_type(fill) == Some("IMAGE")
+                            && fill.get("scaleMode").and_then(Value::as_str) == Some("TILE")))
+            })
+        }) {
+            return SameColor::Null;
+        }
+        if view.bool("isAsset") == Some(true) {
+            let Some(node_fills) = node_fills else {
+                return SameColor::Null;
+            };
+            if node_fills.iter().any(|fill| {
+                is_visible_fill(fill)
+                    && fill_type(fill) == Some("IMAGE")
+                    && fill.get("scaleMode").and_then(Value::as_str) != Some("TILE")
+            }) {
+                return SameColor::Null;
+            }
+            if node_fills.iter().all(|fill| {
+                fill.get("visible").and_then(Value::as_bool) == Some(true)
+                    && fill_type(fill) == Some("SOLID")
+            }) {
+                return if nested { own() } else { SameColor::Null };
+            }
+            return match own_same_color(node, variable_tokens) {
+                OwnColor::Color(color) => SameColor::Color(color),
+                OwnColor::False => SameColor::False,
+                _ => SameColor::Null,
+            };
+        }
+        if nested
+            && node_fills.is_some_and(|fills| {
+                !fills.iter().any(|fill| {
+                    is_visible_fill(fill)
+                        && matches!(fill_type(fill), Some("IMAGE" | "VIDEO" | "PATTERN"))
+                })
+            })
+        {
+            return own();
+        }
+        return SameColor::Null;
     }
-    let first = tokens.first()?.clone();
-    tokens.iter().all(|token| token == &first).then_some(first)
+
+    if child_ids.len() == 1 {
+        if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
+            .into_iter()
+            .any(|field| view.number(field).is_some_and(|padding| padding > 0.0))
+            || fills(node).is_some_and(|fills| fills.iter().any(is_visible_fill))
+        {
+            return SameColor::Null;
+        }
+        return snapshot
+            .nodes
+            .get(child_ids[0])
+            .map_or(SameColor::Null, |child| {
+                same_color(snapshot, child, true, variable_tokens)
+            });
+    }
+
+    let mut same = match own_same_color(node, variable_tokens) {
+        OwnColor::Null => return SameColor::Null,
+        OwnColor::False => return SameColor::False,
+        OwnColor::Color(color) => SameColor::Color(color),
+        OwnColor::None => SameColor::Null,
+    };
+    for child in child_ids
+        .into_iter()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| child.typed_view().bool("visible") != Some(false))
+    {
+        same = merge_same_color(same, same_color(snapshot, child, true, variable_tokens));
+    }
+    same
 }
 
 pub(super) fn push_style_props(
@@ -287,10 +443,12 @@ pub(super) fn push_style_props(
         };
         let source = format!("/{folder}/{}.{extension}", view.name().unwrap_or("Asset"));
         if asset == AssetKind::SvgMask {
-            if let Some(token) = uniform_asset_token(snapshot, node, variable_tokens) {
-                used_tokens.insert(token.clone());
-                string_prop(props, "bg", format!("${token}"));
-            } else if let Some(color) = uniform_asset_color(snapshot, node) {
+            if let SameColor::Color(color) =
+                same_color(snapshot, node, false, Some(variable_tokens))
+            {
+                if let Some(token) = color.strip_prefix('$') {
+                    used_tokens.insert(token.to_owned());
+                }
                 string_prop(props, "bg", color);
             }
             let url = if source.contains(' ') {
