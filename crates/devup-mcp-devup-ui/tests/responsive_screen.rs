@@ -433,6 +433,45 @@ fn the_notice_screen_matches_the_answer_when_both_are_present() {
     );
 }
 
+/// Every merged module the suite can build passes the validator the server
+/// offers as `devup_ui_validate`: it parses, every prop on a primitive is
+/// one devup-ui takes — `as="br"` on a break Box, `display` arrays,
+/// `maskImage` and the rest — and nothing in it is a runtime value. Without
+/// a theme the validator can only *advise* on a hardcoded length or colour,
+/// so those warnings are not counted; an error is. An output the validator
+/// would reject is not a deliverable.
+#[test]
+fn every_merged_module_passes_the_validator() {
+    use devup_mcp_devup_ui::ui_validate::{Severity, validate_devup_ui_tsx};
+    let mut checked = 0;
+    for (capture, name) in [
+        ("about-family.json", "AboutPage"),
+        ("popup-family.json", "PopupPage"),
+        ("bp-family.json", "NoticePage"),
+    ] {
+        let Some(merged) = merged_from(capture) else {
+            continue;
+        };
+        let module = merged.module(name);
+        let report = validate_devup_ui_tsx(&module, None, false);
+        let errors = report
+            .violations
+            .iter()
+            .filter(|violation| violation.severity == Severity::Error)
+            .map(|violation| format!("{}: {}", violation.rule, violation.message))
+            .collect::<Vec<_>>();
+        assert!(
+            report.ok && errors.is_empty(),
+            "{capture} does not validate:\n  {}",
+            errors.join("\n  ")
+        );
+        checked += 1;
+    }
+    if checked == 0 {
+        eprintln!("no captures; skipping");
+    }
+}
+
 /// A screen's merged module against the plugin's answer for it.
 ///
 /// Both files are read the same way — indentation dropped, a responsive array
