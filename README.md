@@ -120,7 +120,7 @@ Figma Remote MCP 등록 엔드포인트는 `POST https://api.figma.com/v1/oauth/
 | client_name | 결과 |
 |---|---|
 | `Codex` | 200 (client_id + client_secret 발급) |
-| `Claude Code` | 200 |
+| `Claude Code` | **403** (2026-09-06 실측; 이전 표에는 200으로 적혀 있었음) |
 | `OpenCode` | 403 |
 | `opencode` | 403 |
 | `Cursor` | 403 |
@@ -166,7 +166,14 @@ Dynamic Client Registration을 건너뛰려면 `mcp.<name>.oauth`에 이미 발�
 }
 ```
 
-Claude Code와 Codex는 allowlist에 있어 별도 설정 없이 등록할 수 있습니다.
+Codex는 allowlist에 있어 별도 설정 없이 등록할 수 있습니다. `Claude Code`는 한때
+200이었으나 2026-09-06 실측에서 403으로 거절됐습니다 — allowlist는 Figma가 바꿀 수
+있으며, 위 표는 측정 시점의 기록입니다.
+
+devup-mcp는 **직접 경로만** 씁니다. 호스트(Codex)에 등록된 공식 Figma MCP를 빌리는
+우회 경로는 만들지 않습니다 — devup-mcp가 스스로 `Codex`로 등록해 Figma 원격 MCP에
+붙고, 수집에 필요한 `use_figma`를 그 연결로 직접 부릅니다. 호스트에 Figma MCP를
+따로 설정할 필요가 없고, 설정돼 있어도 devup-mcp는 그것을 쓰지 않습니다.
 
 ```bash
 claude mcp add --transport http figma https://mcp.figma.com/mcp

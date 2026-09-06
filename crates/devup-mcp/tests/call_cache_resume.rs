@@ -164,6 +164,75 @@ async fn a_second_attempt_does_not_buy_what_the_first_one_banked() -> anyhow::Re
     Ok(())
 }
 
+/// Refuses every call the way Figma actually does: as a *successful* MCP call
+/// whose body says no. `AllowanceRunsOut` refuses with `Err`, which never
+/// reaches the bank; this is the shape that did.
+#[derive(Default)]
+struct RefusesInBand;
+
+#[async_trait]
+impl FigmaUpstream for RefusesInBand {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        Ok(UpstreamResult {
+            raw: json!({
+                "content": [{"type": "text", "text": "You've reached the Figma MCP tool call limit for your Full seat on the Professional plan. Upgrade your seat or plan for more tool calls."}],
+                "isError": true
+            }),
+        })
+    }
+}
+
+/// A refusal is not an answer and must not be banked as one.
+///
+/// One was. It arrived as a successful call carrying `isError`, the bank kept
+/// it beside nineteen real reads, and from then on every attempt — twenty-eight
+/// overnight, and one on a fresh token — replayed that refusal from disk in
+/// under a second without reaching Figma. The diagnosis went looking for a
+/// shared allowance. It was a cached no.
+#[tokio::test(start_paused = true)]
+async fn a_refusal_that_arrives_as_an_answer_is_not_banked() -> anyhow::Result<()> {
+    let cache = scratch("refusal");
+    let server = DevupServer::new(Services::with_call_cache_dir(
+        Arc::new(ConnectedAuth),
+        Arc::new(RefusesInBand),
+        Some(cache.clone()),
+    ));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let arguments: Map<String, Value> = json!({
+        "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
+        "allScreens": true,
+        "outputs": ["rawSnapshot"],
+        "sourcePolicy": "direct"
+    })
+    .as_object()
+    .cloned()
+    .expect("arguments object");
+    let _ = client
+        .call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(arguments))
+        .await;
+    client.cancel().await?;
+    task.abort();
+
+    let banked = std::fs::read_dir(&cache)
+        .expect("cache directory")
+        .flatten()
+        .filter(|entry| entry.path().extension().and_then(|value| value.to_str()) == Some("json"))
+        .count();
+    assert_eq!(banked, 0, "a refusal was banked as if it were an answer");
+
+    let _ = std::fs::remove_dir_all(&cache);
+    Ok(())
+}
+
 /// Without a directory the bank does not exist, and every attempt pays again.
 #[tokio::test(start_paused = true)]
 async fn nothing_is_banked_unless_a_directory_was_named() -> anyhow::Result<()> {

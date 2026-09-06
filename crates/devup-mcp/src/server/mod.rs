@@ -101,6 +101,29 @@ pub trait DevupAuth: Send + Sync {
     }
 }
 
+/// The system browser, with the URL said aloud first.
+///
+/// Two logins in a row timed out waiting for a callback that never came, and
+/// nothing said whether the browser had opened at all. `webbrowser::open`
+/// reports failure to launch but not a launch into a window nobody is
+/// looking at, and the URL it was handed was kept nowhere. So it is logged
+/// before the browser is asked: if the tab does not appear, the URL is in
+/// stderr to be opened by hand. Nothing in it is a secret — the verifier
+/// stays in the process, and the challenge, state and client_id are what
+/// the address bar shows anyway.
+struct SpokenBrowser;
+
+impl devup_mcp_figma::BrowserOpener for SpokenBrowser {
+    fn open(&self, authorization_url: &str) -> Result<(), DevupError> {
+        // stderr is where this binary's traces go; stdout is MCP frames only.
+        eprintln!(
+            "devup-mcp: opening the browser for Figma authorization. \
+             If no tab appears, open this URL by hand:\n{authorization_url}"
+        );
+        SystemBrowser.open(authorization_url)
+    }
+}
+
 #[async_trait]
 impl<S: CredentialStore> DevupAuth for OAuthManager<S> {
     async fn status(&self) -> Result<AuthStatus, DevupError> {
@@ -108,7 +131,7 @@ impl<S: CredentialStore> DevupAuth for OAuthManager<S> {
     }
 
     async fn login(&self) -> Result<AuthStatus, DevupError> {
-        OAuthManager::login(self, &SystemBrowser).await?;
+        OAuthManager::login(self, &SpokenBrowser).await?;
         Ok(AuthStatus::Connected)
     }
 
@@ -179,6 +202,19 @@ impl Services {
         }
         if let Some(client_name) = figma_direct.client_name {
             oauth = oauth.with_client_name(client_name);
+        }
+        // Three minutes is enough when the browser opens itself and the person
+        // is already looking at it. It is not enough when the URL has to be
+        // carried to them by hand — read from a log, pasted into a chat, opened
+        // a few minutes later — which is how a login came back "timed out"
+        // after being approved: the approval arrived at a listener that had
+        // already closed. Whoever is carrying the URL sets this.
+        if let Some(seconds) = std::env::var("DEVUP_FIGMA_CALLBACK_TIMEOUT_SECONDS")
+            .ok()
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .filter(|seconds| *seconds > 0)
+        {
+            oauth = oauth.with_callback_timeout(std::time::Duration::from_secs(seconds));
         }
         if let Some(client_id) = figma_direct.client_id {
             oauth = oauth.with_static_client_credentials(
@@ -342,7 +378,17 @@ impl DevupServer {
             self.services.pacer.acquire().await;
             let error = match self.services.upstream.call_read_tool(call.clone()).await {
                 Ok(result) => {
-                    self.services.call_cache.put(&call, &result.raw);
+                    // Only an answer is banked. A refusal arrives as a
+                    // *successful* MCP call — `isError` in the body, or the
+                    // sentence alone — and banking one meant every later
+                    // attempt replayed it at once, from disk, without reaching
+                    // Figma: twenty-eight refusals overnight and a fresh token
+                    // refused, all one cached refusal. The classification
+                    // that decides retries decides this too, so the two cannot
+                    // disagree.
+                    if operation::upstream_error(&result.raw).is_none() {
+                        self.services.call_cache.put(&call, &result.raw);
+                    }
                     return Ok(result);
                 }
                 Err(error) => error,
