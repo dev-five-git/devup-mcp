@@ -109,6 +109,53 @@ fn duplicate_tagged_envelopes_are_rejected() {
     assert_eq!(error.details["category"], "textEnvelopeMultiplicity");
 }
 
+/// The snapshot script gathers a screen's other widths on its own: asked for
+/// a frame named for a breakpoint inside a Section, it answers rooted at that
+/// frame and its similarly named siblings. That answer is still the target,
+/// and the decoder must take it — on every page, not only the first. It had
+/// been calling the family a mismatch and sending the whole collection down
+/// the legacy walk.
+#[test]
+fn a_single_root_request_accepts_the_family_the_script_gathered_around_it() {
+    let family = mutate_envelope(|value| {
+        value["snapshot"]["rootIds"] = json!(["0:9", "1:1", "2:2"]);
+        push_cursor_marker(value, 0, 2, false, 5);
+    });
+    let decoded = decode_fast_snapshot(&text_upstream_result(&family), &target())
+        .expect("the requested root, with its siblings, is the target");
+    assert_eq!(decoded.snapshot.root_ids, ["0:9", "1:1", "2:2"]);
+
+    // Page two carries the same list and no root at all; it is the same
+    // collection continuing.
+    let second_page = mutate_envelope(|value| {
+        value["snapshot"]["rootIds"] = json!(["0:9", "1:1", "2:2"]);
+        let nodes = value["snapshot"]["nodes"].as_array_mut().unwrap();
+        nodes.remove(0);
+        value["integrity"]["nodeCount"] = json!(1);
+        value["integrity"]["variableRefCount"] = json!(0);
+        value["integrity"]["styleRefCount"] = json!(1);
+        value["resources"]["variables"] = json!([]);
+        push_cursor_marker(value, 2, 5, true, 5);
+    });
+    decode_fast_snapshot(&text_upstream_result(&second_page), &target())
+        .expect("a continuation page of the family is the same collection");
+
+    // A list the request is not in is another target; so is a list that
+    // names one root twice.
+    let elsewhere = mutate_envelope(|value| {
+        value["snapshot"]["rootIds"] = json!(["0:9", "2:2"]);
+    });
+    assert_category(
+        text_upstream_result(&elsewhere),
+        &target(),
+        "targetMismatch",
+    );
+    let doubled = mutate_envelope(|value| {
+        value["snapshot"]["rootIds"] = json!(["1:1", "1:1"]);
+    });
+    assert_category(text_upstream_result(&doubled), &target(), "targetMismatch");
+}
+
 #[test]
 fn valid_multi_root_envelope_requires_the_exact_ordered_root_set() {
     let envelope = mutate_envelope(|value| {

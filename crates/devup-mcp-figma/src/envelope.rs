@@ -269,6 +269,30 @@ fn find_tagged_text<T: DeserializeOwned>(
     }
 }
 
+/// Whether the roots an envelope carries are an answer to the roots asked for.
+///
+/// They usually are the same list. The one licensed difference is the family
+/// the snapshot script gathers on its own: asked for one frame that is named
+/// for a breakpoint and sits in a Section, it brings that frame's similarly
+/// named siblings along, so a request for `mobile` comes back rooted at
+/// `mobile`, `tablet` and `desktop`. That is still the target, drawn at its
+/// other widths. The script learned to do this and the decoder did not: it
+/// read three roots against the one it had asked for, called the very first
+/// page a mismatch, and threw the fast path away for a legacy walk of the
+/// same three frames at five times the cost — 282 calls for a screen the
+/// fast path pages through in a handful. A family is one root asked for,
+/// present in the list, with nothing listed twice; anything else is a
+/// different target.
+fn roots_answer_for(root_ids: &[String], expected_root_ids: &[String]) -> bool {
+    if root_ids == expected_root_ids {
+        return true;
+    }
+    let [expected] = expected_root_ids else {
+        return false;
+    };
+    root_ids.contains(expected) && root_ids.iter().collect::<BTreeSet<_>>().len() == root_ids.len()
+}
+
 fn validate_envelope(
     envelope: &Envelope,
     target: &FigmaTarget,
@@ -290,7 +314,7 @@ fn validate_envelope(
     if envelope.source.file_key != target.file_key
         || envelope.snapshot.file_key != target.file_key
         || envelope.source.root_id != target_root
-        || envelope.snapshot.root_ids != expected_root_ids
+        || !roots_answer_for(&envelope.snapshot.root_ids, expected_root_ids)
     {
         return Err(invalid("targetMismatch"));
     }

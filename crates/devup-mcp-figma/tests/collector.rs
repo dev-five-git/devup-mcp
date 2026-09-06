@@ -80,6 +80,136 @@ fn exact_node_fast_path_accepts_the_stringified_handoff_contract() {
     assert!(!parts.stats.fallback_used);
 }
 
+/// The about screen as the script really answers it: asked for `mobile`, it
+/// gathers `tablet` and `desktop` beside it and pages the three through the
+/// fast path. The collector must ride that to the end — it had been reading
+/// the family as a target mismatch and restarting a legacy walk that cost
+/// 282 calls for a screen the fast path pages through in a handful.
+#[test]
+fn a_family_gathered_around_the_target_pages_through_the_fast_path() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(first_call) = collector.advance().unwrap() else {
+        panic!("fast snapshot call expected")
+    };
+    let family = json!(["1:2", "2:2", "3:2"]);
+    collector
+        .accept(
+            &first_call.id,
+            family_page(
+                &family,
+                json!([
+                    {"id": "1:2", "type": "FRAME", "fields": {"name": "mobile", "childrenIds": ["1:3"]}, "extra": {}, "fieldErrors": {}},
+                    {"id": "2:2", "type": "FRAME", "fields": {"name": "tablet", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                    {"id": "3:2", "type": "FRAME", "fields": {"name": "desktop", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                ]),
+                (0, 3, false, 4),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Call(second_call) = collector.advance().unwrap() else {
+        panic!("the second fast page expected, not a legacy restart")
+    };
+    assert_eq!(second_call.call.tool_name(), "use_figma");
+    let code = second_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(code.contains("devupFastSnapshotEnvelope"), "{code}");
+    assert!(code.contains("\"offset\":3"), "{code}");
+    collector
+        .accept(
+            &second_call.id,
+            family_page(
+                &family,
+                json!([
+                    {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "Done", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                ]),
+                (3, 4, true, 4),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("the family should complete on the fast path")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 2);
+    assert_eq!(parts.stats.transport, "text-paginated");
+    assert!(
+        !parts.stats.fallback_used,
+        "{:?}",
+        parts.stats.fallback_reason
+    );
+    assert_eq!(parts.stats.node_count, 4);
+    assert_eq!(parts.metadata["rootId"], "1:2");
+    assert!(
+        parts
+            .snapshot_chunks
+            .iter()
+            .all(|chunk| json!(chunk.root_ids) == family),
+        "every page is rooted at the family"
+    );
+}
+
+/// One page of a fast snapshot that the script rooted at `root_ids`.
+fn family_page(
+    root_ids: &Value,
+    nodes: Value,
+    (offset, next_offset, complete, total_nodes): (u64, u64, bool, u64),
+) -> UpstreamResult {
+    let mut nodes = nodes.as_array().cloned().unwrap();
+    // The cursor marker is a node of the page and counts in `nodeCount`, as
+    // the script counts it.
+    let node_count = nodes.len() + 1;
+    nodes.push(json!({
+        "id": "__DEVUP_SNAPSHOT_CURSOR__",
+        "type": "DEVUP_INTERNAL",
+        "fields": {"offset": offset, "nextOffset": next_offset, "complete": complete, "totalNodes": total_nodes},
+        "extra": {},
+        "fieldErrors": {}
+    }));
+    let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "rootId": "1:2"},
+        "snapshot": {
+            "fileKey": "FileKey123",
+            "version": "v1",
+            "rootIds": root_ids,
+            "nodes": nodes,
+            "diagnostics": []
+        },
+        "resources": {
+            "collections": [],
+            "variables": [],
+            "styles": [],
+            "usedRemoteVariables": [],
+            "localComplete": false,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "integrity": {
+            "nodeCount": node_count,
+            "variableRefCount": 0,
+            "styleRefCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    }
+    UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": envelope.to_string()}]}),
+    }
+}
+
 #[test]
 fn requested_reference_png_is_collected_after_the_design_snapshot() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
