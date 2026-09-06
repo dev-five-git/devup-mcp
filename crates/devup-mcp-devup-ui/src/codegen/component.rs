@@ -5,7 +5,7 @@ use devup_mcp_figma::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{layout, style, text, variant};
+use super::{animation, layout, style, text, variant};
 use crate::provenance::{
     FidelityReport, ProjectionTrace, SourceMap, build_projection_trace, finalize_tsx, mark_node,
     validate_fidelity,
@@ -1261,6 +1261,14 @@ fn render_node(
         &mut context.used_tokens,
         &mut props,
     );
+    // Last, as the plugin merges `getReactionProps` last: what a timed Smart
+    // Animate changes becomes keyframes on the child it changes, or on the
+    // frame itself.
+    let before = props.len();
+    animation::push_animation_props(snapshot, node, &context.variable_tokens, &mut props);
+    if props.len() > before {
+        context.imports.insert("keyframes".to_owned());
+    }
     if asset.is_some() {
         props.retain(|(name, _)| {
             !matches!(
@@ -1456,11 +1464,18 @@ fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
             PropValue::String(value) => render_static_attribute(&name, &value),
         })
         .collect::<Vec<_>>();
-    let multiline = rendered.len() >= 5;
+    // Five props, or one that spans lines — a `keyframes({...})` — and the
+    // props go one to a line, which is the plugin's `propsToString` rule.
+    let multiline =
+        rendered.len() >= 5 || rendered.iter().any(|attribute| attribute.contains('\n'));
     if multiline {
         let prefix = "  ".repeat(depth + 1);
+        let padded = rendered
+            .iter()
+            .map(|attribute| attribute.replace('\n', &format!("\n{prefix}")))
+            .collect::<Vec<_>>();
         (
-            format!("\n{prefix}{}", rendered.join(&format!("\n{prefix}"))),
+            format!("\n{prefix}{}", padded.join(&format!("\n{prefix}"))),
             true,
         )
     } else {
@@ -1468,7 +1483,14 @@ fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
     }
 }
 
+/// A prop as JSX. A value is a quoted string, except `animationName` holding
+/// a `keyframes({...})` call, which is the expression itself — the plugin's
+/// `propsToString` makes the same exception, and it is how devup-ui's
+/// `keyframes` is meant to be written.
 pub(super) fn render_static_attribute(name: &str, value: &str) -> String {
+    if name == "animationName" && value.starts_with("keyframes(") {
+        return format!("{name}={{{value}}}");
+    }
     let mut escaped = String::with_capacity(value.len());
     for character in value.chars() {
         match character {
@@ -1507,6 +1529,12 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
                 && !style::effects_are_exact(&view),
             "DEVUP_CODEGEN_EFFECT_FALLBACK",
             "Some Figma effects may not be converted into computed CSS.",
+            FidelityImpact::Lossy,
+        ),
+        (
+            animation::has_unreachable_destination(snapshot, node),
+            "DEVUP_CODEGEN_ANIMATION_UNREACHABLE",
+            "A timed Smart Animate points at a frame that was not collected, so no keyframes are written for it.",
             FidelityImpact::Lossy,
         ),
     ];

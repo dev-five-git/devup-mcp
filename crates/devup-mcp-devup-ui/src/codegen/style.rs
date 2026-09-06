@@ -273,7 +273,7 @@ fn own_same_color(
 /// Without a token map the variable id stands in for its name; that keeps
 /// the comparison right when only the shape is being decided and the names
 /// are not to hand.
-fn paint_string(
+pub(super) fn paint_string(
     paint: &Value,
     variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
 ) -> Option<String> {

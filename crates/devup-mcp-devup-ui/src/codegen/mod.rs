@@ -1,3 +1,4 @@
+mod animation;
 mod compat;
 mod component;
 mod layout;
