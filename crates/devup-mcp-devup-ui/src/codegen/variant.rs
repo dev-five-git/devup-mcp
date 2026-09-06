@@ -1155,20 +1155,28 @@ fn dimension_depends(
     prop: &str,
     dimension: &Definition,
 ) -> bool {
+    // A variant that does not draw the node has nothing to say about the
+    // prop: the node is guarded so that it is never rendered there, and
+    // counting its silence as a difference wrote the button icon's
+    // `aspectRatio={{lg: "1", md: "1", sm: "1"}[size]}` for a value every
+    // variant that draws it agrees on. A variant that draws the node and
+    // leaves the prop unset is a difference, and stays one.
     let sets = dimension
         .options
         .iter()
-        .map(|option| {
-            records
+        .filter_map(|option| {
+            let set = records
                 .iter()
                 .filter(|record| {
                     record.values.get(&dimension.name) == Some(option)
                         && effect_name.is_none_or(|name| {
                             record.values.get(name).map(String::as_str) == Some(effect_value)
                         })
+                        && tree_at(&record.tree, path).is_some()
                 })
                 .map(|record| record_value(records, record, effect_name, baseline, path, prop))
-                .collect::<BTreeSet<_>>()
+                .collect::<BTreeSet<_>>();
+            (!set.is_empty()).then_some(set)
         })
         .collect::<Vec<_>>();
     let _ = definitions;
