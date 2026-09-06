@@ -146,6 +146,28 @@ Three more things it settles, none of which the two screens show:
   is cast — `({…} as const)[size]` — because it is a token name rather than a
   free string.
 
+### `keyframes/` — a timed Smart Animate, for what a chain of frames becomes
+
+`devup-Test`'s `458:2021`, the frame `1` in the Section `애니메이션 Test`: a
+loading spinner drawn as eight frames, each Smart-Animating to the next after
+a timeout and the last back to the first. The plugin follows the chain and
+writes what moves from one frame to the next as CSS keyframes.
+
+| file | plugin output | what it is |
+|---|---|---|
+| `pure.tsx` | Pure Code | the first frame, with the chain as `animationName={keyframes({...})}` |
+
+What it settles: the keyframes are the *differences* between consecutive
+frames — `0%` is the first frame seen from the second, each step is the next
+frame seen from the previous, a step that repeats the one before it is left
+out, and a loop ends at `100%` back at the start with the duration counting
+the return (`7 × 0.2s + 0.2s = 1.6s`). A timeout under 10ms is no delay. The
+answer writes no size on the eight 12px frames that hold the dots; this repo
+keeps `boxSize="12px"` on them, because without it each frame collapses to
+its dot and the dot lands up to 5px off — recorded as a deliberate difference
+in `crates/devup-mcp-devup-ui/tests/keyframes_screen.rs`.
+
+
 ### Doubtful, on the capture
 
 `components.tsx` gives `disabled` an entry in `_hover` and `_active`:
