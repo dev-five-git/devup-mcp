@@ -209,6 +209,10 @@ function snapshotNode(node) {
       node.parent.type === "COMPONENT_SET")
   ) {
     fields.parentType = node.parent.type;
+    // A screen's Section names the page component the plugin writes for it,
+    // `AboutPage` for a Section called `about`, and the Section itself is
+    // outside the collected subtree.
+    if (node.parent.type === "SECTION") fields.parentName = node.parent.name;
   }
   const childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
   if (childrenIds.length > 0) fields.childrenIds = childrenIds;

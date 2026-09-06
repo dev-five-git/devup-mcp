@@ -61,6 +61,9 @@ fn width(root: &str, name: &str, pixels: u32, padding: u32, gap: u32, aside: boo
             "type": "FRAME",
             "fields": {
                 "name": name,
+                "parentId": "0:section",
+                "parentType": "SECTION",
+                "parentName": "notice board",
                 "childrenIds": children,
                 "layoutMode": "VERTICAL",
                 "width": pixels,
@@ -323,6 +326,26 @@ async fn the_responsive_module_can_be_asked_for_on_its_own() -> anyhow::Result<(
     assert!(
         result.get("tsx").is_none(),
         "asking for one output should not produce the other"
+    );
+    Ok(())
+}
+
+/// Without a name from the caller the page is named as the plugin names it:
+/// after the Section the widths sit in, in PascalCase, with `Page` on the
+/// end.
+#[tokio::test]
+async fn the_page_is_named_after_its_section_when_the_caller_gives_no_name() -> anyhow::Result<()> {
+    let result = export(json!({
+        "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-20",
+        "outputs": ["responsiveTsx"],
+        "sourcePolicy": "direct"
+    }))
+    .await?;
+    assert!(
+        result["responsiveTsx"]
+            .as_str()
+            .is_some_and(|module| module.contains("export default function NoticeBoardPage() {")),
+        "{result:#?}"
     );
     Ok(())
 }

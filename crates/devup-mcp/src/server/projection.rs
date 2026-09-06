@@ -880,8 +880,25 @@ pub(super) async fn complete_operation(
                     .with_payload_tokens(payload),
                 )?
             {
+                // Named as the plugin names it: after the Section the widths
+                // sit in, with `Page` on the end — `AboutPage` for a Section
+                // called `about`. The Section is outside the collected
+                // subtree, so each width carries its name as `parentName`.
+                // A caller's own name wins; without one and without a
+                // Section name the page is `ResponsivePage`.
+                let section_name = payload
+                    .snapshot
+                    .roots
+                    .iter()
+                    .filter_map(|root| payload.snapshot.nodes.get(root))
+                    .find_map(|root| root.typed_view().string("parentName").map(str::to_owned));
                 let name = component_name_for_components.clone().map_or_else(
-                    || "ResponsivePage".to_owned(),
+                    || {
+                        section_name.map_or_else(
+                            || "ResponsivePage".to_owned(),
+                            |section| format!("{}Page", normalize_component_name(&section)),
+                        )
+                    },
                     |name| normalize_component_name(&name),
                 );
                 let module = merged.module(&name);
