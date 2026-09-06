@@ -1219,7 +1219,7 @@ fn render_node(
         && asset.is_none()
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
-        && layout::children_inset(snapshot, node).is_none()
+        && layout::derived_padding(snapshot, node).is_none()
         && view.child_ids().any(|child| {
             snapshot
                 .nodes

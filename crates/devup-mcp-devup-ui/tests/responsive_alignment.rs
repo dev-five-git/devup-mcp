@@ -24,9 +24,10 @@ fn a_single_width_has_nothing_to_line_up() {
     assert!(breakpoints(&snapshot).is_empty());
 }
 
-/// Narrowest first, because that is the order the arrays are written in.
+/// In the Section's own order, which the roots carry — desktop first in this
+/// file — with each width's rank saying where it lands in the array.
 #[test]
-fn widths_are_ordered_the_way_the_array_is() {
+fn widths_keep_the_section_s_order_and_carry_their_rank() {
     let Some(snapshot) = capture("bp-family.json") else {
         eprintln!("no capture; skipping");
         return;
@@ -41,7 +42,21 @@ fn widths_are_ordered_the_way_the_array_is() {
                 .unwrap_or_default()
         })
         .collect::<Vec<_>>();
-    assert_eq!(names, ["mobile", "tablet", "desktop"]);
+    assert_eq!(
+        names,
+        snapshot
+            .roots
+            .iter()
+            .map(|id| snapshot.nodes[id].typed_view().name().unwrap_or_default())
+            .collect::<Vec<_>>()
+    );
+    let ranks = found
+        .iter()
+        .map(|breakpoint| breakpoint.rank)
+        .collect::<Vec<_>>();
+    let mut by_rank = ranks.clone();
+    by_rank.sort_unstable();
+    assert_eq!(by_rank, [0, 1, 2], "mobile, tablet and desktop, each once");
 }
 
 /// The reference keeps two of this screen's four children twice — the banner

@@ -441,6 +441,12 @@ pub(super) fn push_style_props(
         } else {
             "png"
         };
+        // The node's own layer name. The plugin draws an instance from its main
+        // component and names the file after that node, so every instance of
+        // a variant is `Property 1=search.svg` — one file for the icon
+        // wherever it is used, but the same file for every component set
+        // that has a `search` variant, each overwriting the last. The layer
+        // name a designer gave the instance is kept instead.
         let source = format!("/{folder}/{}.{extension}", view.name().unwrap_or("Asset"));
         if asset == AssetKind::SvgMask {
             if let SameColor::Color(color) =

@@ -4,7 +4,7 @@ use devup_mcp_figma::{DevupError, ErrorCode, FidelityImpact, Snapshot, discover_
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::codegen::{CodegenOutput, asset_kind, derived_padding};
+use crate::codegen::{CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
@@ -531,10 +531,15 @@ fn layout_field_is_semantic(
     // to state: a header pinned across the top of a screen came back as
     // unaccounted-for height, and the reference implementation does not state
     // it either.
-    if field == "height"
-        && view.string("layoutPositioning") == Some("ABSOLUTE")
-        && view.child_ids().next().is_some()
-    {
+    let placed_out_of_flow = view.string("layoutPositioning") == Some("ABSOLUTE")
+        || placed_by_a_free_layout(
+            snapshot,
+            node,
+            view.string("parentId")
+                .and_then(|parent_id| snapshot.nodes.get(parent_id)),
+            canvas_parent,
+        );
+    if field == "height" && placed_out_of_flow && view.child_ids().next().is_some() {
         // An asset folds its children away and is drawn at a size, so
         // `codegen::layout` restores both sides for it — unless it is wider
         // than its parent. Then the width is written as 100% and the height

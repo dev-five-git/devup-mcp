@@ -16,6 +16,6 @@ pub use component::{
     generate_inlined_component_instance, generate_legacy_component, generate_node,
     normalize_component_name, render_component_registration_snapshot, render_component_source,
 };
-pub(crate) use layout::derived_padding;
+pub(crate) use layout::{derived_padding, placed_by_a_free_layout};
 pub(crate) use style::asset_kind;
 pub(crate) use text::escape_jsx_text;

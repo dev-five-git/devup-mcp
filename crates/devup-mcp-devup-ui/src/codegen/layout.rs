@@ -32,7 +32,8 @@ pub(super) fn push_layout_props(
     let fixed_h = view.string("layoutSizingVertical") == Some("FIXED");
     let fill_w = view.string("layoutSizingHorizontal") == Some("FILL");
     let fill_h = view.string("layoutSizingVertical") == Some("FILL");
-    let absolute = view.string("layoutPositioning") == Some("ABSOLUTE");
+    let absolute = view.string("layoutPositioning") == Some("ABSOLUTE")
+        || placed_by_a_free_layout(snapshot, node, parent, is_page_root);
     let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
     let mut width = None;
     let mut height = None;
@@ -63,9 +64,24 @@ pub(super) fn push_layout_props(
         // the size written.
         let own_width = view.number("width");
         let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
+        let is_asset = super::style::asset_kind(snapshot, node).is_some();
         if component == "Text" {
             width = own_width.map(px);
             height = Some("100%".to_owned());
+        } else if view.node_type() == "INSTANCE" && is_asset {
+            // The plugin puts a positioned instance in a wrapper `Box` that
+            // carries the position, and draws the instance from its main
+            // component, which sizes itself by its own layout. An instance
+            // that folds to an asset is one element here, so it takes that
+            // size: a 651px logo pinned in a 360px banner is
+            // `w="651px" h="46px"`, not `w="100%"`. An instance kept as a
+            // component reference is sized as the wrapper is, below.
+            if fixed_w {
+                width = own_width.map(px);
+            }
+            if fixed_h {
+                height = view.number("height").map(px);
+            }
         } else {
             let parent_wider = matches!(
                 (own_width, parent_width),
@@ -82,7 +98,6 @@ pub(super) fn push_layout_props(
                     | "BOOLEAN_OPERATION"
             );
             let empty_frame = holds_children && !has_children;
-            let is_asset = super::style::asset_kind(snapshot, node).is_some();
             width = if parent_wider {
                 (is_asset || empty_frame)
                     .then(|| own_width.map(px))
@@ -319,6 +334,7 @@ pub(super) fn push_layout_props(
         && view.child_ids().any(|child| {
             snapshot.nodes.get(child).is_some_and(|child| {
                 child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
+                    || placed_by_a_free_layout(snapshot, child, Some(node), false)
             })
         })
     {
@@ -532,6 +548,17 @@ pub(crate) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f6
     if super::style::asset_kind(snapshot, node).is_some() {
         return None;
     }
+    // Padding places one child. Two or more at their own positions cannot be
+    // put back by an inset around all of them — in flow they would stack —
+    // so they are placed one by one instead, see `placed_by_a_free_layout`.
+    let visible_children = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| child.typed_view().bool("visible") != Some(false))
+        .count();
+    if visible_children != 1 {
+        return None;
+    }
     children_inset(snapshot, node)
 }
 
@@ -628,6 +655,46 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
             push("pr", right);
         }
     }
+}
+
+/// Whether a node in flow is nonetheless placed by its parent, because the
+/// parent lays nothing out.
+///
+/// A frame with no auto layout puts each child where the designer left it,
+/// and the plugin's `canBeAbsolute` writes every such child at its
+/// constraints — `pos="absolute"` with the edges it is pinned to — and gives
+/// the frame `pos="relative"` to hold them. Here that was only done for a
+/// child marked absolute, so the notice banner's title and its two logos, three
+/// children of a free frame, were stacked in flow with no position at all.
+///
+/// One case is kept out: a frame whose single child's inset can be measured
+/// is written with that inset as padding and the child in flow, which puts it
+/// in the same place and lets it size the frame.
+pub(crate) fn placed_by_a_free_layout(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    parent: Option<&RawNode>,
+    is_page_root: bool,
+) -> bool {
+    let view = node.typed_view();
+    let Some(parent) = parent else {
+        return false;
+    };
+    let parent_view = parent.typed_view();
+    !is_page_root
+        && view.value("constraints").is_some()
+        && parent_view.string("layoutPositioning") == Some("AUTO")
+        && parent_view.number("width").is_some()
+        && parent_view.number("height").is_some()
+        && parent_view
+            .value("inferredAutoLayout")
+            .and_then(Value::as_object)
+            .is_none()
+        && !matches!(
+            parent_view.string("layoutMode"),
+            Some("HORIZONTAL" | "VERTICAL" | "GRID")
+        )
+        && derived_padding(snapshot, parent).is_none()
 }
 
 fn push_absolute(node: &RawNode, parent: Option<&RawNode>, props: &mut Vec<Prop>) {
