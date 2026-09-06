@@ -743,13 +743,88 @@ fn merged_props(
         .collect()
 }
 
+/// Keys the plugin's prop getters write whether or not they have a value.
+///
+/// The plugin keys a node's shape on `Object.keys(tree.props)`, and each of
+/// its getters answers with every key it knows, `null` or `undefined` where
+/// there is nothing to say: `getTextAlignProps` is always `{textAlign,
+/// alignContent}`, `getMinMaxProps` always all four bounds, `getLayoutProps`
+/// always `w`, `h`, `aspectRatio` and `flex`. The render step drops the empty
+/// ones afterwards. So these keys are on every node of their kind and never
+/// tell two apart — a `<Text>` right-aligned at one width and not at the next
+/// is the same shape to the plugin. Our props only ever hold what renders, so
+/// the same keys are left out of the signature here to get the same answer.
+const KEYS_THE_PLUGIN_ALWAYS_WRITES: &[&str] = &[
+    // getTextAlignProps
+    "textAlign",
+    "alignContent",
+    // getMinMaxProps
+    "maxW",
+    "maxH",
+    "minW",
+    "minH",
+    // getLayoutProps; `boxSize` replaces `w` and `h` only when both are set and
+    // equal, so it still counts
+    "w",
+    "h",
+    "aspectRatio",
+    "flex",
+    // getBlendProps
+    "opacity",
+    "mixBlendMode",
+    // getAutoLayoutProps; the component name already says whether a node is
+    // laid out and which way
+    "flexDir",
+    "gap",
+    "rowGap",
+    "columnGap",
+    "justifyContent",
+    "alignItems",
+    // getBackgroundProps; `bg` says whether there is paint
+    "bgBlendMode",
+    "WebkitTextFillColor",
+    "bgClip",
+    // getBorderProps; `outline` says whether there is a stroke
+    "outlineOffset",
+    // getPaddingProps writes `p` even when every side is 0
+    "p",
+];
+
+/// `getPositionProps` writes all of these on an absolutely placed node,
+/// whichever edges it is pinned to; only `pos` itself tells the shape.
+const KEYS_THE_PLUGIN_WRITES_ON_AN_ABSOLUTE_NODE: &[&str] =
+    &["left", "right", "top", "bottom", "transform"];
+
+/// `getAutoLayoutProps` writes `display` on every laid-out node and the
+/// renderer drops the `flex`; a hidden one differs by value, not by key.
+const COMPONENTS_THE_PLUGIN_ALWAYS_GIVES_DISPLAY: &[&str] = &["Flex", "VStack", "Center", "Grid"];
+
 /// What a node looks like, ignoring the values it holds.
 ///
 /// This is the plugin's `getChildStructureSignature`. Prop *names* count but
 /// their values do not, so a node that only changed a colour still matches
-/// itself in another variant.
+/// itself in another variant — less the names the plugin writes on every
+/// node regardless, see [`KEYS_THE_PLUGIN_ALWAYS_WRITES`].
 pub(super) fn structure_signature(tree: &Tree) -> String {
-    let props = tree.props.keys().cloned().collect::<Vec<_>>().join(",");
+    let absolute = tree
+        .props
+        .get("pos")
+        .is_some_and(|value| value == "absolute");
+    let laid_out = COMPONENTS_THE_PLUGIN_ALWAYS_GIVES_DISPLAY.contains(&tree.component.as_str());
+    let props = tree
+        .props
+        .keys()
+        .filter(|name| !KEYS_THE_PLUGIN_ALWAYS_WRITES.contains(&name.as_str()))
+        .filter(|name| {
+            !(absolute && KEYS_THE_PLUGIN_WRITES_ON_AN_ABSOLUTE_NODE.contains(&name.as_str()))
+        })
+        .filter(|name| !(laid_out && name.as_str() == "display"))
+        // `getObjectFitProps` answers for every image-filled asset, `null`
+        // for the scale modes that need nothing said.
+        .filter(|name| !(tree.component == "Image" && name.as_str() == "objectFit"))
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(",");
     let children = tree
         .children
         .iter()
