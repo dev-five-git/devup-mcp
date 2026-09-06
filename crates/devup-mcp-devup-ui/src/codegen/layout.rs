@@ -134,6 +134,11 @@ pub(super) fn push_layout_props(
         // background mask with no h, and restoring the height there breaks
         // byte parity. The box has no height and draws by its mask alone;
         // that is the reference's rule, and it is matched rather than fixed.
+        //
+        // This is a departure from the plugin, which says no size for a
+        // positioned frame with children and lets them size it. A 12px box
+        // holding a 2px dot at its centre then collapses to the dot, and the
+        // dot lands 5px off; the pinned size is a layout fact, and it is kept.
         if fixed_w
             && fixed_h
             && width.is_none()

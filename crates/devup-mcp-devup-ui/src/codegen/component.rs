@@ -1215,7 +1215,23 @@ fn render_node(
     // padding instead, which puts them where they belong on its own — so the
     // anchor is only still needed where nothing could be measured, as when the
     // child fills the frame exactly or carries no position of its own.
+    // A page root is not anchored either: the plugin's `getPositionProps`
+    // leaves `pos: relative` off a frame that sits directly on a page or in
+    // a Section, and its positioned children resolve against the page.
+    let page_root = snapshot
+        .nodes
+        .values()
+        .find(|candidate| {
+            candidate
+                .typed_view()
+                .child_ids()
+                .any(|child| child == node.id)
+        })
+        .map(|parent| parent.typed_view().node_type())
+        .or_else(|| view.string("parentType"))
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
     if !(depth == 0 && context.root_layout == RootLayout::Embedded)
+        && !page_root
         && asset.is_none()
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
