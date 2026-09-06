@@ -463,20 +463,7 @@ pub(super) fn push_style_props(
         } else {
             string_prop(props, "src", source);
         }
-        if asset == AssetKind::Png
-            && let Some(scale) = view
-                .value("fills")
-                .and_then(Value::as_array)
-                .and_then(|fills| fills.first())
-                .and_then(|paint| paint.get("scaleMode"))
-                .and_then(Value::as_str)
-        {
-            match scale {
-                "FIT" => string_prop(props, "objectFit", "contain"),
-                "CROP" => string_prop(props, "objectFit", "cover"),
-                _ => {}
-            }
-        }
+        push_object_fit(&view, props);
         push_radius(&view, props);
         push_strokes(&view, props, used_tokens, variable_tokens);
         push_effects(&view, component, props);
@@ -489,8 +476,32 @@ pub(super) fn push_style_props(
         return;
     }
 
+    push_object_fit(&view, props);
     let color_prop = if component == "Text" { "color" } else { "bg" };
-    if let Some(token) = view
+    // A background is every visible paint, back to front, as the plugin's
+    // `getBackgroundProps` composes it. Reading only the bound variable
+    // dropped the photo that sits on top of a `$gray200` plate: the about
+    // member cards are `url(...) center/cover no-repeat, $gray200`, and were
+    // coming out as the plate alone.
+    let layered = component != "Text"
+        && view
+            .value("fills")
+            .and_then(Value::as_array)
+            .is_some_and(|fills| {
+                fills
+                    .iter()
+                    .filter(|paint| {
+                        paint.get("visible").and_then(Value::as_bool) != Some(false)
+                            && paint.get("opacity").and_then(Value::as_f64) != Some(0.0)
+                    })
+                    .count()
+                    > 1
+            });
+    if layered {
+        if let Some(background) = background_css(snapshot, node, variable_tokens, used_tokens) {
+            string_prop(props, "bg", background);
+        }
+    } else if let Some(token) = view
         .value("devupTokens")
         .and_then(Value::as_object)
         .and_then(|tokens| tokens.get("fills"))
@@ -502,7 +513,7 @@ pub(super) fn push_style_props(
         used_tokens.insert(color.clone());
         string_prop(props, color_prop, format!("${color}"));
     } else if component == "Text" && has_non_solid_fill(&view) {
-        if let Some(background) = background_css(snapshot, node, variable_tokens) {
+        if let Some(background) = background_css(snapshot, node, variable_tokens, used_tokens) {
             string_prop(props, "bg", background);
             string_prop(props, "bgClip", "text");
             string_prop(props, "WebkitTextFillColor", "transparent");
@@ -523,7 +534,7 @@ pub(super) fn push_style_props(
         } else if let Some(color) = first_solid_color(view.value("fills")) {
             string_prop(props, color_prop, color);
         }
-    } else if let Some(background) = background_css(snapshot, node, variable_tokens) {
+    } else if let Some(background) = background_css(snapshot, node, variable_tokens, used_tokens) {
         string_prop(props, "bg", background);
     }
     if let Some(mode) = view
@@ -552,6 +563,36 @@ pub(super) fn push_style_props(
         string_prop(props, "opacity", format_number(opacity));
     }
     push_blend_mode(&view, props);
+}
+
+/// The plugin's `getObjectFitProps`: how the first visible image fill of a
+/// node Figma calls an asset is scaled. It is written whatever element the
+/// node became — the about member cards are a `Box` whose photo sits on a
+/// `$gray200` plate, and the reference gives them `objectFit="cover"` all the
+/// same. `FILL` and `TILE` say nothing.
+fn push_object_fit(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
+    if view.bool("isAsset") != Some(true) {
+        return;
+    }
+    let Some(scale) = view
+        .value("fills")
+        .and_then(Value::as_array)
+        .and_then(|fills| {
+            fills.iter().find(|paint| {
+                paint.get("type").and_then(Value::as_str) == Some("IMAGE")
+                    && paint.get("visible").and_then(Value::as_bool) == Some(true)
+            })
+        })
+        .and_then(|paint| paint.get("scaleMode"))
+        .and_then(Value::as_str)
+    else {
+        return;
+    };
+    match scale {
+        "FIT" => string_prop(props, "objectFit", "contain"),
+        "CROP" => string_prop(props, "objectFit", "cover"),
+        _ => {}
+    }
 }
 
 fn push_blend_mode(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
@@ -589,6 +630,7 @@ fn background_css(
     snapshot: &Snapshot,
     node: &RawNode,
     variable_tokens: &std::collections::BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
 ) -> Option<String> {
     let view = node.typed_view();
     let paints = view.value("fills")?.as_array()?;
@@ -608,8 +650,15 @@ fn background_css(
     let mut css = Vec::new();
     for (layer, (fill_index, paint)) in visible.iter().enumerate() {
         let is_last = layer + 1 == visible.len();
-        if let Some(value) = paint_css(snapshot, node, paint, *fill_index, is_last, variable_tokens)
-        {
+        if let Some(value) = paint_css(
+            snapshot,
+            node,
+            paint,
+            *fill_index,
+            is_last,
+            variable_tokens,
+            used_tokens,
+        ) {
             css.push(value);
         }
     }
@@ -648,12 +697,16 @@ fn paint_css(
     fill_index: usize,
     last: bool,
     variable_tokens: &std::collections::BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
 ) -> Option<String> {
     let kind = paint.get("type")?.as_str()?;
     match kind {
         "SOLID" => {
             let color = bound_paint_token(paint, variable_tokens)
-                .map(|token| format!("${token}"))
+                .map(|token| {
+                    used_tokens.insert(token.clone());
+                    format!("${token}")
+                })
                 .or_else(|| color_from_paint(paint))?;
             Some(if last {
                 color
