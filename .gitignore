@@ -20,3 +20,7 @@
 # — and out of git, because it is a copy of someone's file, not a fixture.
 /fixtures/local-call-bank/
 
+# The capture and stitch drivers. Kept beside the bank rather than in the temp
+# directory, which was cleared overnight and took the previous copies with it.
+/fixtures/local-tools/
+
