@@ -1357,6 +1357,25 @@ fn render_node(
     Ok(mark_node(&node.id, rendered))
 }
 
+/// A style name without a leading group that is only a number.
+///
+/// `0/` and `3/` in front of a style name are how a Figma library is made to
+/// sort in the picker; they are not part of what the style is called, and the
+/// reference does not carry them into the token. A group that names something
+/// (`typography/`) is part of the name and stays.
+fn without_ordering_group(name: &str) -> &str {
+    match name.split_once('/') {
+        Some((group, rest))
+            if !group.is_empty()
+                && !rest.is_empty()
+                && group.chars().all(|character| character.is_ascii_digit()) =>
+        {
+            rest
+        }
+        _ => name,
+    }
+}
+
 fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<String, String> {
     fn visit(value: &serde_json::Value, collection: &str, tokens: &mut BTreeMap<String, String>) {
         if let Some(values) = value.get(collection).and_then(serde_json::Value::as_array) {
@@ -1375,7 +1394,14 @@ fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<S
                                 .and_then(serde_json::Value::as_str),
                         )
                     } else {
-                        normalize_token(name)
+                        // A style's leading group is kept when it names
+                        // something — the corpus has `typography/heading` as
+                        // `typographyHeading` — and dropped when it is only a
+                        // number, which is how Figma's picker is made to sort:
+                        // the reference writes both `0/bodyXlgBold` and
+                        // `3/bodyXlgBold` as `typography="bodyXlgBold"`. Whole,
+                        // the `3/` was becoming a leading `_3`.
+                        normalize_token(without_ordering_group(name))
                     };
                     tokens.insert(id.to_owned(), token);
                 }
