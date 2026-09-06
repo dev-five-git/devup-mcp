@@ -150,7 +150,25 @@ pub(super) fn push_layout_props(
         }
     } else if is_page_root {
         // Figma page roots define the component canvas; their editor dimensions
-        // are not emitted as runtime constraints.
+        // are not emitted as runtime constraints: a root's width is the
+        // viewport's, and a root that lays its children out is as tall as
+        // they are, at any width.
+        //
+        // A root that lays nothing out has nothing in flow to give it a
+        // height — its children are placed absolutely, or its one child is
+        // centred in it. The plugin leaves it sizeless too, and the popup
+        // overlay, a 390×800 frame dimmed behind one centred card, comes out
+        // a box of no height whose dim is never drawn; the answer it wrote
+        // gave the height back as padding, `py="211.5px"` around a 377px
+        // card. The drawn height is the design, and it is kept, one value per
+        // width. The width is still the viewport's. This departs from the
+        // plugin on purpose.
+        if lays_nothing_out(node)
+            && view.child_ids().next().is_some()
+            && derived_padding(snapshot, node).is_none()
+        {
+            height = view.number("height").map(px);
+        }
     } else if fixed_w || fixed_h {
         if fixed_w {
             width = view.number("width").map(px);
@@ -556,15 +574,85 @@ pub(crate) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f6
     // Padding places one child. Two or more at their own positions cannot be
     // put back by an inset around all of them — in flow they would stack —
     // so they are placed one by one instead, see `placed_by_a_free_layout`.
-    let visible_children = view
-        .child_ids()
-        .filter_map(|id| snapshot.nodes.get(id))
-        .filter(|child| child.typed_view().bool("visible") != Some(false))
-        .count();
-    if visible_children != 1 {
+    only_visible_child(snapshot, node)?;
+    // A child the designer centred is centred, not padded: see
+    // `centres_its_only_child`.
+    if centres_its_only_child(snapshot, node) {
         return None;
     }
     children_inset(snapshot, node)
+}
+
+/// The one visible child of a frame, when there is exactly one.
+fn only_visible_child<'a>(snapshot: &'a Snapshot, node: &RawNode) -> Option<&'a RawNode> {
+    let view = node.typed_view();
+    let mut visible = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| child.typed_view().bool("visible") != Some(false));
+    match (visible.next(), visible.next()) {
+        (Some(only), None) => Some(only),
+        _ => None,
+    }
+}
+
+/// Whether a frame that lays nothing out holds one child the designer centred
+/// on both axes — constraints `CENTER` / `CENTER`.
+///
+/// Such a child is centred by its constraint, not by the inset it happened to
+/// have at the width it was drawn: the popup card sits 36.5px in at 390px and
+/// 742px in at 1920px, and a measured `pl="36.5px"` holds at the one width
+/// and drifts at every other. The frame is written as a `Center` with the
+/// child in flow, which centres it at any width and needs no positioned
+/// ancestor; a page root keeps its drawn height so there is something to
+/// centre in, see `push_layout_props`.
+///
+/// This departs from the plugin, on purpose. Its `canBeAbsolute` writes the
+/// child `pos="absolute" left="50%" top="50%" transform="translate(-50%,
+/// -50%)"`, which resolves against whatever positioned ancestor the page is
+/// given, and leaves the frame — a page root, so sizeless — a box of no
+/// height whose dim is never drawn. The answer it wrote for the popup, from a
+/// layout Figma has since stopped inferring, pads the card in by the inset at
+/// each width and at desktop by none, which leaves the card at the left of a
+/// 1920px screen.
+///
+/// A child centred on one axis only, or pinned to an edge, keeps the measured
+/// inset as padding, as before.
+pub(crate) fn centres_its_only_child(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    if view.string("layoutMode") != Some("NONE") || !lays_nothing_out(node) {
+        return false;
+    }
+    if super::style::asset_kind(snapshot, node).is_some() {
+        return false;
+    }
+    only_visible_child(snapshot, node).is_some_and(|only| {
+        only.typed_view()
+            .value("constraints")
+            .and_then(Value::as_object)
+            .is_some_and(|constraints| {
+                ["horizontal", "vertical"]
+                    .iter()
+                    .all(|axis| constraints.get(*axis).and_then(Value::as_str) == Some("CENTER"))
+            })
+    })
+}
+
+/// The plugin's `isFreelayout`: a frame in flow with no auto layout, whose
+/// children sit where the designer left them.
+fn lays_nothing_out(node: &RawNode) -> bool {
+    let view = node.typed_view();
+    view.string("layoutPositioning") == Some("AUTO")
+        && view.number("width").is_some()
+        && view.number("height").is_some()
+        && view
+            .value("inferredAutoLayout")
+            .and_then(Value::as_object)
+            .is_none()
+        && !matches!(
+            view.string("layoutMode"),
+            Some("HORIZONTAL" | "VERTICAL" | "GRID")
+        )
 }
 
 pub(super) fn children_inset(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
@@ -672,9 +760,11 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
 /// child marked absolute, so the notice banner's title and its two logos, three
 /// children of a free frame, were stacked in flow with no position at all.
 ///
-/// One case is kept out: a frame whose single child's inset can be measured
+/// Two cases are kept out. A frame whose single child's inset can be measured
 /// is written with that inset as padding and the child in flow, which puts it
-/// in the same place and lets it size the frame.
+/// in the same place and lets it size the frame; and a frame whose single
+/// child is centred is written as a `Center` with the child in flow, see
+/// `centres_its_only_child`.
 pub(crate) fn placed_by_a_free_layout(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -685,21 +775,11 @@ pub(crate) fn placed_by_a_free_layout(
     let Some(parent) = parent else {
         return false;
     };
-    let parent_view = parent.typed_view();
     !is_page_root
         && view.value("constraints").is_some()
-        && parent_view.string("layoutPositioning") == Some("AUTO")
-        && parent_view.number("width").is_some()
-        && parent_view.number("height").is_some()
-        && parent_view
-            .value("inferredAutoLayout")
-            .and_then(Value::as_object)
-            .is_none()
-        && !matches!(
-            parent_view.string("layoutMode"),
-            Some("HORIZONTAL" | "VERTICAL" | "GRID")
-        )
+        && lays_nothing_out(parent)
         && derived_padding(snapshot, parent).is_none()
+        && !centres_its_only_child(snapshot, parent)
 }
 
 fn push_absolute(node: &RawNode, parent: Option<&RawNode>, props: &mut Vec<Prop>) {

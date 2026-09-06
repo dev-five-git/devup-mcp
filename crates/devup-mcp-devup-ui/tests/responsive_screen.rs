@@ -531,34 +531,39 @@ fn matches_the_answer(
     );
 }
 
-/// The lines on which `popup` is written differently on purpose. The three
-/// frames have no auto layout and Figma infers none for them today; the
-/// answer was taken when it did, and drew `VStack`/`Flex` with the inferred
-/// padding — and at desktop with none, which leaves the popup at the left
-/// of a 1920px screen. Here the frame is a `Box` whose single child's inset
-/// is its padding, at every width.
+/// The lines on which `popup` is written differently on purpose.
+///
+/// The three frames lay nothing out, and each holds one child the designer
+/// centred — constraints `CENTER` / `CENTER`. Here the frame is a `Center`
+/// with the card in flow, centred at every width and as tall as the frame
+/// was drawn, `h` one value per width; the answer places the card with the
+/// padding Figma inferred at the widths it was drawn (`pl="36.5px"` at 390px,
+/// an array of them) and at desktop with none, which leaves the popup at the
+/// left of a 1920px screen, in a `VStack`/`Flex` the file no longer infers.
+/// The plugin as it is today would write the card `pos="absolute"` at
+/// `left="50%" top="50%"` in a frame of no height, its dim never drawn.
 const POPUP_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    ("<Center", "the centred card is centred, not padded"),
+    ("</Center>", "the centred card is centred, not padded"),
+    (
+        "h={[\"800px\", \"1024px\", null, null, \"1080px\"]}",
+        "a root with nothing in flow keeps its drawn height",
+    ),
     ("<VStack", "inferred layout the file no longer has"),
     ("</VStack>", "inferred layout the file no longer has"),
-    (
-        "<Box",
-        "the frame is a Box with the child's inset as padding",
-    ),
-    (
-        "</Box>",
-        "the frame is a Box with the child's inset as padding",
-    ),
     (
         "flexDir={[\"column\", null, null, null, \"row\"]}",
         "inferred layout the file no longer has",
     ),
+    ("pl={[\"36.5px\", \"initial\"]}", "centred, not padded"),
+    ("pr={[\"35.5px\", \"initial\"]}", "centred, not padded"),
     (
         "px={[null, \"184px\", null, null, \"initial\"]}",
-        "the answer's desktop has no horizontal padding, which is wrong",
+        "centred, not padded",
     ),
     (
-        "px={[null, \"184px\", null, null, \"742px\"]}",
-        "the popup is centred at desktop as it is drawn",
+        "py={[\"211.5px\", \"279.5px\", null, null, \"287.5px\"]}",
+        "centred, not padded",
     ),
 ];
 

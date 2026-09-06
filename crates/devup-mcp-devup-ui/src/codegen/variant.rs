@@ -529,6 +529,8 @@ fn project_tree_inner(
         "Image"
     } else if view.node_type() == "TEXT" {
         "Text"
+    } else if layout::centres_its_only_child(snapshot, node) {
+        "Center"
     } else {
         match inferred_mode.or_else(|| view.string("layoutMode")) {
             Some("GRID") => "Grid",

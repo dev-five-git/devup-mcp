@@ -91,10 +91,13 @@ fn comparable_lines(source: &str) -> Vec<String> {
 /// The lines on which this is written differently from the answer on
 /// purpose. A 12px frame holding a 2px dot at its centre keeps its size; the
 /// plugin writes none for a positioned frame with children, and the frame
-/// collapses to the dot, which then lands 5px off. The answer is the JSX
-/// alone, with no module around it.
+/// collapses to the dot, which then lands 5px off. The 64px spinner frame,
+/// a page root that places every dot absolutely, keeps its height for the
+/// same reason: with nothing in flow the plugin's box has none. The answer
+/// is the JSX alone, with no module around it.
 const DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
     ("boxSize=\"12px\"", "a pinned size is a layout fact"),
+    ("h=\"64px\"", "a pinned size is a layout fact"),
     (
         "import { Box, Flex, keyframes } from \"@devup-ui/react\";",
         "the answer is the JSX alone",

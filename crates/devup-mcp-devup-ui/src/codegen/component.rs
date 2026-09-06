@@ -1185,6 +1185,8 @@ fn render_node(
         "Image"
     } else if view.node_type() == "TEXT" {
         "Text"
+    } else if layout::centres_its_only_child(snapshot, node) {
+        "Center"
     } else {
         match inferred_mode {
             Some("GRID") => "Grid",
@@ -1236,6 +1238,7 @@ fn render_node(
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
         && layout::derived_padding(snapshot, node).is_none()
+        && !layout::centres_its_only_child(snapshot, node)
         && view.child_ids().any(|child| {
             snapshot
                 .nodes
