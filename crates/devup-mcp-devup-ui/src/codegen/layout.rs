@@ -456,11 +456,15 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
         }
         return;
     }
+    // Figma's two newer distributions came to the plugin after the pinned
+    // corpus (9214391); they are the CSS keywords of the same name.
     let justify = match view.string("primaryAxisAlignItems") {
         Some("MIN") => None,
         Some("MAX") => Some("flex-end"),
         Some("CENTER") => Some("center"),
         Some("SPACE_BETWEEN") => Some("space-between"),
+        Some("SPACE_AROUND") => Some("space-around"),
+        Some("SPACE_EVENLY") => Some("space-evenly"),
         _ => None,
     };
     let align = match view.string("counterAxisAlignItems") {
