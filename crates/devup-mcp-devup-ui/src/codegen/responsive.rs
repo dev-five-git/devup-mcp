@@ -693,6 +693,25 @@ fn merge_trees(
         source_node_ids.extend(tree.source_node_ids.iter().cloned());
     }
 
+    // What a text says is not a style prop and has no array to go into. The
+    // first width's words are kept, and a width that says something else is
+    // reported rather than silently overruled — the plugin takes the longest
+    // rendering and rewrites its line breaks, which is neither.
+    if first.content.is_some()
+        && by_slot
+            .iter()
+            .flatten()
+            .any(|tree| tree.content != first.content)
+    {
+        notes.push(Unrepresented {
+            node_id: first.node_id.clone(),
+            detail: format!(
+                "{} reads differently at different widths; the first width's text is used.",
+                first.component
+            ),
+        });
+    }
+
     // A component reference has nothing below it to line up: each width picks
     // its own variant, and the component answers for its own widths.
     if first.is_component {
