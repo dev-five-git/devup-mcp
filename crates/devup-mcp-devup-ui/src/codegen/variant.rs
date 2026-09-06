@@ -1543,15 +1543,6 @@ fn render_tree(
         rendered_props.push(format!("{child_indent}transition=\"{value}\""));
         rendered_props.push(format!("{child_indent}transitionProperty=\"{properties}\""));
     }
-    let opening = if rendered_props.is_empty() {
-        format!("{indent}<{}>", tree.component)
-    } else {
-        format!(
-            "{indent}<{}\n{}\n{indent}>",
-            tree.component,
-            rendered_props.join("\n")
-        )
-    };
     let mut children = tree
         .children
         .iter()
@@ -1566,14 +1557,29 @@ fn render_tree(
                 .join("\n"),
         );
     }
-    let rendered = if children.is_empty() {
-        format!("{opening}\n{indent}</{}>", tree.component)
-    } else {
-        format!(
-            "{opening}\n{}\n{indent}</{}>",
+    // An element with nothing in it closes on itself, as the plugin's
+    // `renderNode` closes it — a folded icon was being written as an open
+    // and a close tag with nothing between.
+    let rendered = match (rendered_props.is_empty(), children.is_empty()) {
+        (true, true) => format!("{indent}<{} />", tree.component),
+        (false, true) => format!(
+            "{indent}<{}\n{}\n{indent}/>",
+            tree.component,
+            rendered_props.join("\n")
+        ),
+        (true, false) => format!(
+            "{indent}<{}>\n{}\n{indent}</{}>",
+            tree.component,
             children.join("\n"),
             tree.component
-        )
+        ),
+        (false, false) => format!(
+            "{indent}<{}\n{}\n{indent}>\n{}\n{indent}</{}>",
+            tree.component,
+            rendered_props.join("\n"),
+            children.join("\n"),
+            tree.component
+        ),
     };
     // A node a boolean property switches on is written as that condition. The
     // brace has to wrap the whole element, so it is applied after the element
