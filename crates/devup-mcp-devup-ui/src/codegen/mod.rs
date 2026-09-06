@@ -18,3 +18,4 @@ pub use component::{
 };
 pub(crate) use layout::derived_padding;
 pub(crate) use style::asset_kind;
+pub(crate) use text::escape_jsx_text;

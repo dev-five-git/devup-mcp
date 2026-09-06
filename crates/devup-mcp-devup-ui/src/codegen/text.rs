@@ -410,50 +410,86 @@ fn bound_segment_color(
     variable_tokens.get(id).map(|token| format!("${token}"))
 }
 
-pub(super) fn escape_jsx_text(input: &str) -> String {
-    let leading = input
-        .chars()
-        .take_while(|character| *character == ' ')
+/// Whether a character is whitespace to a JavaScript regex's `\s`.
+///
+/// Wider than ASCII: it takes in the no-break space, the Unicode spaces and
+/// the line and paragraph separators. The last two matter — Figma writes a
+/// soft return as U+2028, and a run of them at the edge of a segment is
+/// whitespace to the plugin.
+fn is_js_whitespace(character: char) -> bool {
+    matches!(
+        character,
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
+    )
+}
+
+/// A text segment as JSX text, the plugin's `fixTextChild` followed by its
+/// line-break substitution.
+///
+/// Whitespace at either edge is written as a JSX expression holding one
+/// space per character — `"성인 ADHD, \n"` ends in `{"  "}` — because JSX
+/// would fold it away otherwise, and the plugin counts a newline there as a
+/// space too rather than a break. A run of the characters JSX cannot hold
+/// bare is wrapped as one expression, `{"&&"}`. Inside the text a line break
+/// is `<br />`.
+///
+/// So is a soft return. Figma writes Shift+Enter as U+2028, and draws it as
+/// a new line; the plugin passes the character through, and a browser does
+/// not break on it, so a paragraph the designer wrapped by hand ran on as
+/// one line. The one thing the plugin does with it — count it as whitespace
+/// at the edge of a segment — is kept.
+pub(crate) fn escape_jsx_text(input: &str) -> String {
+    let characters = input.chars().collect::<Vec<_>>();
+    let leading = characters
+        .iter()
+        .take_while(|character| is_js_whitespace(**character))
         .count();
-    let trailing = input
-        .chars()
-        .rev()
-        .take_while(|character| *character == ' ')
-        .count();
-    let middle_end = input.len().saturating_sub(trailing);
-    let middle = &input[leading..middle_end];
+    let trailing = if leading == characters.len() {
+        0
+    } else {
+        characters
+            .iter()
+            .rev()
+            .take_while(|character| is_js_whitespace(**character))
+            .count()
+    };
+    let middle = &characters[leading..characters.len() - trailing];
+
     let mut result = String::new();
     if leading > 0 {
         result.push_str(&format!("{{\"{}\"}}", " ".repeat(leading)));
     }
-    let mut characters = middle.chars().peekable();
-    while let Some(character) = characters.next() {
+    let mut index = 0;
+    while index < middle.len() {
+        let character = middle[index];
         match character {
-            '{' => result.push_str("{\"{\"}"),
-            '}' => result.push_str("{\"}\"}"),
-            '&' => result.push_str("{\"&\"}"),
-            '<' => result.push_str("{\"<\"}"),
-            '>' => result.push_str("{\">\"}"),
-            '\'' => result.push_str("{\"'\"}"),
+            '{' | '}' | '&' | '<' | '>' | '\'' => {
+                let run_end = middle[index..]
+                    .iter()
+                    .position(|other| !matches!(other, '{' | '}' | '&' | '<' | '>' | '\''))
+                    .map_or(middle.len(), |offset| index + offset);
+                let run = middle[index..run_end].iter().collect::<String>();
+                result.push_str(&format!("{{\"{run}\"}}"));
+                index = run_end;
+                continue;
+            }
             '\r' => {
-                if characters.peek() == Some(&'\n') {
-                    characters.next();
+                if middle.get(index + 1) == Some(&'\n') {
+                    index += 1;
                 }
-                if characters.peek().is_none() {
-                    result.push_str("{\" \"}");
-                } else {
-                    result.push_str("<br />");
-                }
+                result.push_str("<br />");
             }
-            '\n' => {
-                if characters.peek().is_none() {
-                    result.push_str("{\" \"}");
-                } else {
-                    result.push_str("<br />");
-                }
-            }
-            value => result.push(value),
+            '\n' | '\u{2028}' | '\u{2029}' => result.push_str("<br />"),
+            other => result.push(other),
         }
+        index += 1;
     }
     if trailing > 0 {
         result.push_str(&format!("{{\"{}\"}}", " ".repeat(trailing)));

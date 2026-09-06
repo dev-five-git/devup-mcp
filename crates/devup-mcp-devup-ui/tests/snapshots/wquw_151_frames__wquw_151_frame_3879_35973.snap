@@ -607,7 +607,7 @@ export function Wquw151Frame387935973() {
                 <Text color="$primary" typography="bodySmSemibold">
                   {" "}{"'"}담담체
                 </Text>
-                {"'"}를 <br />이야기 전체에 적용하시겠습니까? 글을 다시 정리하므로 <br />시간이 조금 소요될 수 있습니다. <br />기존에 정리된 글은 사라집니다.
+                {"'"}를 <br />이야기 전체에 적용하시겠습니까?<br />글을 다시 정리하므로 <br />시간이 조금 소요될 수 있습니다. <br />기존에 정리된 글은 사라집니다.
               </Text>
             </Center>
           </Center>

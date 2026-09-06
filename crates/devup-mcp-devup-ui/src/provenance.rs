@@ -711,7 +711,7 @@ fn source_covers_text(source: &str, characters: &str) -> bool {
         return true;
     }
     let fragments = characters
-        .split(['\r', '\n'])
+        .split(['\r', '\n', '\u{2028}', '\u{2029}'])
         .map(str::trim)
         .filter(|fragment| !fragment.is_empty());
     let mut cursor = 0;
@@ -725,55 +725,10 @@ fn source_covers_text(source: &str, characters: &str) -> bool {
     cursor > 0 && cursor == source.len()
 }
 
+/// The text as the converter writes it, so a match is against the one rule
+/// both sides follow rather than a copy of it kept here.
 fn encode_jsx_text(input: &str) -> String {
-    let leading = input
-        .chars()
-        .take_while(|character| *character == ' ')
-        .count();
-    let trailing = input
-        .chars()
-        .rev()
-        .take_while(|character| *character == ' ')
-        .count();
-    let middle_end = input.len().saturating_sub(trailing);
-    let middle = &input[leading..middle_end];
-    let mut result = String::new();
-    if leading > 0 {
-        result.push_str(&format!("{{\"{}\"}}", " ".repeat(leading)));
-    }
-    let mut characters = middle.chars().peekable();
-    while let Some(character) = characters.next() {
-        match character {
-            '{' => result.push_str("{\"{\"}"),
-            '}' => result.push_str("{\"}\"}"),
-            '&' => result.push_str("{\"&\"}"),
-            '<' => result.push_str("{\"<\"}"),
-            '>' => result.push_str("{\">\"}"),
-            '\'' => result.push_str("{\"'\"}"),
-            '\r' => {
-                if characters.peek() == Some(&'\n') {
-                    characters.next();
-                }
-                if characters.peek().is_none() {
-                    result.push_str("{\" \"}");
-                } else {
-                    result.push_str("<br />");
-                }
-            }
-            '\n' => {
-                if characters.peek().is_none() {
-                    result.push_str("{\" \"}");
-                } else {
-                    result.push_str("<br />");
-                }
-            }
-            value => result.push(value),
-        }
-    }
-    if trailing > 0 {
-        result.push_str(&format!("{{\"{}\"}}", " ".repeat(trailing)));
-    }
-    result
+    crate::codegen::escape_jsx_text(input)
 }
 
 fn layout_source_matches(property: &str, source: &str) -> bool {
@@ -1447,7 +1402,7 @@ fn find_text_span(source: &str, characters: &str, search_start: usize) -> Option
         return Some((start, start + rendered.len()));
     }
     let fragments = characters
-        .split(['\r', '\n'])
+        .split(['\r', '\n', '\u{2028}', '\u{2029}'])
         .map(str::trim)
         .filter(|fragment| !fragment.is_empty())
         .map(encode_jsx_text)
