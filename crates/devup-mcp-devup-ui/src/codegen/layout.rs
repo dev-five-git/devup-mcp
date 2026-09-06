@@ -44,7 +44,19 @@ pub(super) fn push_layout_props(
     } else if absolute {
         push_absolute(node, parent, props);
         if matches!(component, "Image" | "Text") {
-            width = view.number("width").map(px);
+            // The plugin's `_getLayoutProps`: a positioned leaf keeps its own
+            // width only while its parent is wider; once it spills past the
+            // parent it is `100%` instead, and with the height also `100%`
+            // the two fold into `boxSize`. The about hero picture is 418px
+            // in a 320px column and the reference writes `boxSize="100%"`.
+            width = match (
+                view.number("width"),
+                parent.and_then(|parent| parent.typed_view().number("width")),
+            ) {
+                (Some(width), Some(parent_width)) if parent_width > width => Some(px(width)),
+                (Some(_), Some(_)) => Some("100%".to_owned()),
+                (width, _) => width.map(px),
+            };
             height = Some("100%".to_owned());
         } else if view.child_ids().next().is_some() {
             width = match (
