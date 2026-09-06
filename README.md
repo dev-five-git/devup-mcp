@@ -219,7 +219,7 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
-  "outputs": ["tsx", "devupJson", "sourceMap", "assetManifest", "referencePng"],
+  "outputs": ["tsx", "responsiveTsx", "devupJson", "rawSnapshot", "rawPayload", "sourceMap", "assetManifest", "referencePng"],
   "scope": "node",
   "strict": true,
   "refresh": false,
@@ -257,6 +257,14 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
 Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다.
+
+### 한 화면의 여러 폭 — 반응형 모듈
+
+Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이름**을 가지면, 그 frame 하나를 요청해도 같은 이름 규칙의 형제 frame이 함께 수집됩니다(Section 자체는 수집 범위 밖이며, 그 이름은 각 frame의 `parentName`으로 전달됩니다). 이때 `tsx`나 `responsiveTsx`를 요청하면 결과에 `responsiveTsx`가 추가됩니다 — 세 폭을 하나의 트리로 접고 폭마다 다른 값을 devup-ui 반응형 배열 `[mobile, sm, tablet, lg, pc]`로 쓴 모듈입니다. 각 폭이 놓이는 slot은 frame **이름이 아니라 폭**으로 정해집니다(`≤480 / ≤768 / ≤992 / ≤1280 / 그 이상`). 컴포넌트 이름은 `componentName`이 우선이고, 없으면 Section 이름의 PascalCase에 `Page`를 붙입니다(`about` → `AboutPage`).
+
+한 폭에만 있는 노드는 다른 폭에서 `display: none`으로 숨긴 복사본과 병합되며, 이때 복사본은 **Section 레이어 순서상 첫 폭**의 값을 가집니다 — 그래서 배열의 첫 slot에 desktop 값이 놓일 수 있습니다. 폭마다 줄바꿈 위치만 다른 텍스트는 `<Box as="br" display={[...]} />`로 쓰고, 컴포넌트 인스턴스의 variant prop이 폭마다 다르면 배열로 쓸 수 없으므로 가장 넓은 폭의 값을 쓰고 `responsiveUnrepresented`에 보고합니다. 함께 반환되는 `responsiveSlots`, `responsiveImports`, `responsiveComponents`가 slot과 import 목록입니다.
+
+`rawPayload`는 `rawSnapshot`이 node 트리만 쓰는 것과 달리 수집 전체(variables, styles, stats, assets 포함, `referencePng` 제외)를 씁니다. 캡처를 fixture로 보관해 오프라인에서 서버와 같은 토큰 이름(`$gray200`, `typography="h4"`)으로 변환하려면 이것이 필요합니다.
 
 ### Figma 이름 검색
 
