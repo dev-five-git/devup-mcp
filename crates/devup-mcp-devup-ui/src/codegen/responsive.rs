@@ -693,24 +693,7 @@ fn merge_trees(
         source_node_ids.extend(tree.source_node_ids.iter().cloned());
     }
 
-    // What a text says is not a style prop and has no array to go into. The
-    // first width's words are kept, and a width that says something else is
-    // reported rather than silently overruled — the plugin takes the longest
-    // rendering and rewrites its line breaks, which is neither.
-    if first.content.is_some()
-        && by_slot
-            .iter()
-            .flatten()
-            .any(|tree| tree.content != first.content)
-    {
-        notes.push(Unrepresented {
-            node_id: first.node_id.clone(),
-            detail: format!(
-                "{} reads differently at different widths; the first width's text is used.",
-                first.component
-            ),
-        });
-    }
+    let content = merge_content(by_slot, &first, notes);
 
     // A component reference has nothing below it to line up: each width picks
     // its own variant, and the component answers for its own widths.
@@ -746,8 +729,146 @@ fn merge_trees(
         props,
         children: merge_children(by_slot, precedence, notes),
         source_node_ids,
+        content,
         ..first
     })
+}
+
+/// What a text says across the widths.
+///
+/// Words are not a style prop and have no array to go into, so the widths
+/// have to agree — with one allowance. A designer breaks a line at one width
+/// and not another, and the same words then differ only by where `<br />`
+/// falls; a break some widths have and others do not is written as
+/// `<Box as="br" />` shown at the widths that have it. This is what the
+/// plugin's `buildResponsiveTextChildren` sets out to do and does not: it
+/// lines the texts up by character index, which the very break it is looking
+/// for shifts, and it works on the rendered JSX of the widths, whose own
+/// newlines it then rewrites as breaks.
+///
+/// Words that differ by more than their breaks keep the first width's, and
+/// the difference is reported rather than silently overruled.
+fn merge_content(
+    by_slot: &BySlot<Tree>,
+    first: &Tree,
+    notes: &mut Vec<Unrepresented>,
+) -> Option<String> {
+    let first_content = first.content.as_ref()?;
+    let drawn = by_slot
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, tree)| {
+            tree.as_ref()
+                .and_then(|tree| tree.content.as_deref())
+                .map(|content| (slot, content))
+        })
+        .collect::<Vec<_>>();
+    if drawn.iter().all(|(_, content)| *content == first_content) {
+        return Some(first_content.clone());
+    }
+
+    const BREAK: &str = "<br />";
+    // The words with their breaks taken out, and where each break was: the
+    // offset, in characters of the words, that it sat before.
+    fn without_breaks(content: &str) -> (String, Vec<usize>) {
+        let mut words = String::with_capacity(content.len());
+        let mut breaks = Vec::new();
+        let mut rest = content;
+        let mut offset = 0;
+        while !rest.is_empty() {
+            if let Some(after) = rest.strip_prefix(BREAK) {
+                breaks.push(offset);
+                rest = after;
+                continue;
+            }
+            let character = rest.chars().next().expect("non-empty");
+            words.push(character);
+            offset += 1;
+            rest = &rest[character.len_utf8()..];
+        }
+        (words, breaks)
+    }
+    let stripped = drawn
+        .iter()
+        .map(|(slot, content)| (*slot, without_breaks(content)))
+        .collect::<Vec<_>>();
+    let (words, _) = &stripped[0].1;
+    if stripped.iter().any(|(_, (other, _))| other != words) {
+        notes.push(Unrepresented {
+            node_id: first.node_id.clone(),
+            detail: format!(
+                "{} reads differently at different widths; the first width's text is used.",
+                first.component
+            ),
+        });
+        return Some(first_content.clone());
+    }
+
+    let breaks_at = |slot: usize, offset: usize| {
+        stripped
+            .iter()
+            .find(|(other, _)| *other == slot)
+            .map_or(0, |(_, (_, breaks))| {
+                breaks.iter().filter(|at| **at == offset).count()
+            })
+    };
+    let characters = words.chars().collect::<Vec<_>>();
+    let mut merged = String::with_capacity(first_content.len());
+    for offset in 0..=characters.len() {
+        let most = stripped
+            .iter()
+            .map(|(slot, _)| breaks_at(*slot, offset))
+            .max()
+            .unwrap_or_default();
+        for nth in 1..=most {
+            let shown: BySlot<bool> = std::array::from_fn(|slot| {
+                by_slot[slot]
+                    .as_ref()
+                    .map(|_| breaks_at(slot, offset) >= nth)
+            });
+            if shown.iter().flatten().all(|shown| *shown) {
+                merged.push_str(BREAK);
+                continue;
+            }
+            // Shown where the width breaks, `none` where it does not; a slot
+            // repeating the one in effect says nothing, and the first slot
+            // shown needs no value at all — a break is shown by default.
+            let mut slots: Vec<Option<String>> = shown
+                .iter()
+                .map(|shown| shown.map(|shown| if shown { "initial" } else { "none" }.to_owned()))
+                .collect();
+            let mut carried: Option<String> = None;
+            for slot in &mut slots {
+                let Some(value) = slot.clone() else {
+                    continue;
+                };
+                if carried.as_deref() == Some(value.as_str()) {
+                    *slot = None;
+                } else {
+                    carried = Some(value);
+                }
+            }
+            if slots.first().and_then(Option::as_deref) == Some("initial") {
+                slots[0] = None;
+            }
+            while slots.last().is_some_and(Option::is_none) {
+                slots.pop();
+            }
+            let written = slots
+                .iter()
+                .map(|slot| {
+                    slot.as_ref()
+                        .map_or_else(|| "null".to_owned(), |value| format!("\"{value}\""))
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            merged.push_str(&format!("<Box as=\"br\" display={{[{written}]}} />"));
+        }
+        if let Some(character) = characters.get(offset) {
+            merged.push(*character);
+        }
+    }
+    Some(merged)
 }
 
 fn is_placement_prop(name: &str) -> bool {

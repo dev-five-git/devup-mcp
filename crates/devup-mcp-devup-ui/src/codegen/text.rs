@@ -267,7 +267,8 @@ pub(super) fn render_text_children(
     let default = default_segment(view).expect("non-empty styledTextSegments");
     let default_props = typography_props(default, text_style_tokens, variable_tokens, used_tokens);
     let mut rendered = Vec::new();
-    for segment in segments {
+    let last = segments.len() - 1;
+    for (index, segment) in segments.iter().enumerate() {
         let value = segment
             .get("characters")
             .and_then(Value::as_str)
@@ -296,7 +297,7 @@ pub(super) fn render_text_children(
                 .iter()
                 .any(|(default_name, default_value)| default_name == name && default_value == value)
         });
-        let content = escape_jsx_text(value);
+        let content = escape_jsx_segment(value, index == 0, index == last);
         if segment_props.is_empty() {
             rendered.push(format!("{indent}{content}"));
         } else {
@@ -430,22 +431,30 @@ fn is_js_whitespace(character: char) -> bool {
     )
 }
 
-/// A text segment as JSX text, the plugin's `fixTextChild` followed by its
-/// line-break substitution.
+/// A whole text as JSX text: the plugin's `fixTextChild` and its line-break
+/// substitution.
 ///
 /// Whitespace at either edge is written as a JSX expression holding one
-/// space per character — `"성인 ADHD, \n"` ends in `{"  "}` — because JSX
-/// would fold it away otherwise, and the plugin counts a newline there as a
-/// space too rather than a break. A run of the characters JSX cannot hold
+/// space per character, because JSX would fold it away otherwise, and a
+/// newline there counts as a space too — `"기원합니다.\n"` ends in `{" "}`,
+/// which the pinned corpus holds. A run of the characters JSX cannot hold
 /// bare is wrapped as one expression, `{"&&"}`. Inside the text a line break
-/// is `<br />`.
-///
-/// So is a soft return. Figma writes Shift+Enter as U+2028, and draws it as
-/// a new line; the plugin passes the character through, and a browser does
-/// not break on it, so a paragraph the designer wrapped by hand ran on as
-/// one line. The one thing the plugin does with it — count it as whitespace
-/// at the edge of a segment — is kept.
+/// is `<br />`, and so is a soft return (U+2028, Shift+Enter in Figma): the
+/// plugin passes the character through and a browser does not break on it.
 pub(crate) fn escape_jsx_text(input: &str) -> String {
+    escape_jsx_segment(input, true, true)
+}
+
+/// One segment of a text, which is [`escape_jsx_text`] except at an edge the
+/// segment shares with the next.
+///
+/// The plugin counts a newline at the edge of *every* segment as a space, so
+/// a break that falls where a coloured span ends — which is where a designer
+/// most often puts one — is not drawn at all: `"성인 ADHD, \n"` followed by
+/// `"우리는 다르게 봅니다."` came out on one line. At an edge inside the text
+/// the break is kept, with the spaces around it still counted:
+/// `성인 ADHD,{" "}<br />`. The text's own outer edges keep the plugin's rule.
+fn escape_jsx_segment(input: &str, at_start: bool, at_end: bool) -> String {
     let characters = input.chars().collect::<Vec<_>>();
     let leading = characters
         .iter()
@@ -463,9 +472,7 @@ pub(crate) fn escape_jsx_text(input: &str) -> String {
     let middle = &characters[leading..characters.len() - trailing];
 
     let mut result = String::new();
-    if leading > 0 {
-        result.push_str(&format!("{{\"{}\"}}", " ".repeat(leading)));
-    }
+    push_edge_whitespace(&characters[..leading], at_start, &mut result);
     let mut index = 0;
     while index < middle.len() {
         let character = middle[index];
@@ -491,8 +498,44 @@ pub(crate) fn escape_jsx_text(input: &str) -> String {
         }
         index += 1;
     }
-    if trailing > 0 {
-        result.push_str(&format!("{{\"{}\"}}", " ".repeat(trailing)));
-    }
+    push_edge_whitespace(
+        &characters[characters.len() - trailing..],
+        at_end,
+        &mut result,
+    );
     result
+}
+
+/// The whitespace at one edge of a segment. At the text's outer edge every
+/// character is a space, as the plugin counts them; at an edge inside the
+/// text each break is a `<br />`, and the spaces between and around them one
+/// JSX expression per run, a space per character.
+fn push_edge_whitespace(run: &[char], outer_edge: bool, into: &mut String) {
+    if outer_edge {
+        if !run.is_empty() {
+            into.push_str(&format!("{{\"{}\"}}", " ".repeat(run.len())));
+        }
+        return;
+    }
+    let mut spaces = 0;
+    let mut index = 0;
+    while index < run.len() {
+        match run[index] {
+            '\r' | '\n' | '\u{2028}' | '\u{2029}' => {
+                if spaces > 0 {
+                    into.push_str(&format!("{{\"{}\"}}", " ".repeat(spaces)));
+                    spaces = 0;
+                }
+                if run[index] == '\r' && run.get(index + 1) == Some(&'\n') {
+                    index += 1;
+                }
+                into.push_str("<br />");
+            }
+            _ => spaces += 1,
+        }
+        index += 1;
+    }
+    if spaces > 0 {
+        into.push_str(&format!("{{\"{}\"}}", " ".repeat(spaces)));
+    }
 }

@@ -391,47 +391,77 @@ fn the_order_of_the_widths_decides_which_one_stands_in_for_a_missing_one() {
         backwards.tsx
     );
 }
-
 /// The `about` screen against the plugin's answer, line for line.
 ///
 /// It runs on nothing until `about-family.json` sits beside the other captures
 /// and `about/responsive.tsx` beside the other answers; a screen that costs
 /// more reads than a day's allowance holds is one nobody will want to check
 /// twice by hand, so the suite decides it instead.
-///
-/// Both files are read the same way — indentation dropped, a responsive array
-/// folded onto one line — and then every line the answer has that this does
-/// not, and the reverse, must be one written down in [`ABOUT_DIFFERS_ON_PURPOSE`]
-/// with its reason. Anything else is looked at rather than waved through.
 #[test]
 fn the_about_screen_matches_the_answer_when_both_are_present() {
-    let Some(merged) = merged_from("about-family.json") else {
-        eprintln!("no about capture; skipping");
-        return;
-    };
-    let Ok(reference) = fs::read_to_string(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fixtures/plugin-answers/about/responsive.tsx"),
-    ) else {
-        eprintln!("no about answer; skipping");
-        return;
-    };
-
-    // 360 / 992 / 1920, the widths read off the frames themselves.
-    assert_eq!(merged.slots, vec![0, 2, 4], "about is drawn at 0, 2 and 4");
-
-    let ours = tally(&outline(&merged.tsx, 2));
-    let theirs = tally(&outline(&reference, 4));
-    let shape_differs = ours
-        .iter()
-        .chain(theirs.iter())
-        .any(|(entry, _)| ours.get(entry) != theirs.get(entry));
-    assert!(
-        !shape_differs,
-        "the two outlines differ:\n  ours {ours:?}\n  theirs {theirs:?}"
+    matches_the_answer(
+        "about-family.json",
+        "AboutPage",
+        "about",
+        &[0, 2, 4],
+        ABOUT_DIFFERS_ON_PURPOSE,
     );
+}
 
-    let ours = comparable_lines(&merged.module("AboutPage"));
+/// The `popup` screen against the plugin's answer. Drawn at 390 / 768 / 1920,
+/// so its tablet takes slot 1, the band `about` skips.
+#[test]
+fn the_popup_screen_matches_the_answer_when_both_are_present() {
+    matches_the_answer(
+        "popup-family.json",
+        "PopupPage",
+        "popup",
+        &[0, 1, 4],
+        POPUP_DIFFERS_ON_PURPOSE,
+    );
+}
+
+/// The `notice` screen against the plugin's answer.
+#[test]
+fn the_notice_screen_matches_the_answer_when_both_are_present() {
+    matches_the_answer(
+        "bp-family.json",
+        "NoticePage",
+        "notice",
+        &[0, 2, 4],
+        NOTICE_DIFFERS_ON_PURPOSE,
+    );
+}
+
+/// A screen's merged module against the plugin's answer for it.
+///
+/// Both files are read the same way — indentation dropped, a responsive array
+/// folded onto one line, an image fill's file masked — and then every line
+/// the answer has that this does not, and the reverse, must be one written
+/// down in `differs_on_purpose` with its reason. Anything else is looked at
+/// rather than waved through. Skips when either file is not on this machine.
+fn matches_the_answer(
+    capture: &str,
+    component_name: &str,
+    answer: &str,
+    slots: &[usize],
+    differs_on_purpose: &[(&str, &str)],
+) {
+    let Some(merged) = merged_from(capture) else {
+        eprintln!("no {answer} capture; skipping");
+        return;
+    };
+    let Ok(reference) = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        format!("../../fixtures/plugin-answers/{answer}/responsive.tsx"),
+    )) else {
+        eprintln!("no {answer} answer; skipping");
+        return;
+    };
+
+    // The widths read off the frames themselves.
+    assert_eq!(merged.slots, slots, "{answer} is drawn at {slots:?}");
+
+    let ours = comparable_lines(&merged.module(component_name));
     let theirs = comparable_lines(&reference);
     let mut only_ours = ours.clone();
     for line in &theirs {
@@ -448,11 +478,7 @@ fn the_about_screen_matches_the_answer_when_both_are_present() {
     let unexplained = |lines: &[String]| {
         lines
             .iter()
-            .filter(|line| {
-                !ABOUT_DIFFERS_ON_PURPOSE
-                    .iter()
-                    .any(|(known, _)| known == line)
-            })
+            .filter(|line| !differs_on_purpose.iter().any(|(known, _)| known == line))
             .cloned()
             .collect::<Vec<_>>()
     };
@@ -460,75 +486,233 @@ fn the_about_screen_matches_the_answer_when_both_are_present() {
     let theirs_unexplained = unexplained(&only_theirs);
     assert!(
         ours_unexplained.is_empty() && theirs_unexplained.is_empty(),
-        "lines not accounted for.\n  written here and not in the answer:\n    {}\n  in the answer and not here:\n    {}",
+        "{answer}: lines not accounted for.\n  written here and not in the answer:\n    {}\n  in the answer and not here:\n    {}",
         ours_unexplained.join("\n    "),
         theirs_unexplained.join("\n    ")
     );
 }
 
+/// The lines on which `popup` is written differently on purpose. The three
+/// frames have no auto layout and Figma infers none for them today; the
+/// answer was taken when it did, and drew `VStack`/`Flex` with the inferred
+/// padding — and at desktop with none, which leaves the popup at the left
+/// of a 1920px screen. Here the frame is a `Box` whose single child's inset
+/// is its padding, at every width.
+const POPUP_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    ("<VStack", "inferred layout the file no longer has"),
+    ("</VStack>", "inferred layout the file no longer has"),
+    (
+        "<Box",
+        "the frame is a Box with the child's inset as padding",
+    ),
+    (
+        "</Box>",
+        "the frame is a Box with the child's inset as padding",
+    ),
+    (
+        "flexDir={[\"column\", null, null, null, \"row\"]}",
+        "inferred layout the file no longer has",
+    ),
+    (
+        "px={[null, \"184px\", null, null, \"initial\"]}",
+        "the answer's desktop has no horizontal padding, which is wrong",
+    ),
+    (
+        "px={[null, \"184px\", null, null, \"742px\"]}",
+        "the popup is centred at desktop as it is drawn",
+    ),
+];
+
+/// The lines on which `notice` is written differently on purpose.
+///
+/// - The answer was taken from an earlier state of the file: its logo is
+///   `$text` at full opacity and its search icon `$text`; the file has a white
+///   logo at 10% and a `$primary` icon.
+/// - A positioned instance that folds to a shape is one `Box` carrying both
+///   its place and its mask; the plugin wraps a second `Box` around it.
+/// - An instance's asset is named after the instance's own layer; the plugin
+///   names it after the variant component, `Property 1=search`, which every
+///   component set with a `search` variant would share.
+/// - The instance's `targetAspectRatio` is written; the answer predates it.
+const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    ("bg=\"$text\"", "an earlier state of the file"),
+    ("bg=\"#FFF\"", "an earlier state of the file"),
+    ("opacity=\"0.1\"", "an earlier state of the file"),
+    ("bg=\"$primary\"", "an earlier state of the file"),
+    ("aspectRatio=\"1\"", "an earlier state of the file"),
+    (
+        "<Box left=\"44px\" pos=\"absolute\" top=\"169px\">",
+        "one Box carries place and mask",
+    ),
+    (
+        "<Box left=\"-212px\" pos=\"absolute\" top=\"112px\">",
+        "one Box carries place and mask",
+    ),
+    ("</Box>", "one Box carries place and mask"),
+    ("left=\"44px\"", "one Box carries place and mask"),
+    ("top=\"169px\"", "one Box carries place and mask"),
+    ("left=\"-212px\"", "one Box carries place and mask"),
+    ("top=\"112px\"", "one Box carries place and mask"),
+    ("pos=\"absolute\"", "one Box carries place and mask"),
+    ("{/* <Logo /> */}", "one Box carries place and mask"),
+    (
+        "{/* <Icons Property1=\"search\" /> */}",
+        "a shape spelled out says its component",
+    ),
+    (
+        "maskImage=\"url('/icons/Property 1=search.svg')\"",
+        "an asset is named after its instance",
+    ),
+    (
+        "maskImage=\"url(/icons/icons.svg)\"",
+        "an asset is named after its instance",
+    ),
+];
 /// The lines on which `about` is written differently here on purpose, each
 /// with the reason. A line is listed once whichever side it is on; the test
-/// above only asks that every unmatched line is one of these.
+/// above only asks that every unmatched line is one of these. Four reasons:
+///
+/// - A line break at the edge of a segment is drawn (`{" "}<br />`); the
+///   plugin counts it as a space (`{"  "}`). A soft return (U+2028) is
+///   drawn; the plugin passes the character through, which the answer has as
+///   a space.
+/// - A break that some widths have and others do not is `<Box as="br" />`
+///   shown at the widths that have it; the plugin sets out to do this and
+///   instead rewrites the rendered JSX of the hero's coloured span as text,
+///   putting a break either side that no width drew.
+/// - The hero's coloured span is kept as an element.
+/// - A positioned mask icon keeps its height; the plugin writes the width
+///   alone, and a mask with no height draws nothing.
 const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
-    // A soft return (U+2028) is a line break in Figma and is written as one;
-    // the answer has a space where each of them was.
     (
-        "{\"  \"}우리는 단순한 진단 도구를 만드는 것이 아니라, 당사자가 스스로를 이해하고 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 만들고 있습니다",
-        "soft return",
+        "성인 ADHD,{\"  \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
     ),
-    (
-        "{\"  \"}우리는 단순한 진단 도구를 만드는 것이 아니라,<br />당사자가 스스로를 이해하고 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 만들고 있습니다",
-        "soft return",
-    ),
-    (
-        "저는 성인 ADHD 당사자이자 정신건강간호사입니다. 진단을 받기까지 수년이 걸렸고, 그 과정에서 수많은 좌절과 시행착오를 겪었습니다. 그 경험을 통해 알게 된 것이 있습니다.",
-        "soft return",
-    ),
-    (
-        "저는 성인 ADHD 당사자이자 정신건강간호사입니다.<br />진단을 받기까지 수년이 걸렸고, 그 과정에서 수많은 좌절과 시행착오를 겪었습니다.<br />그 경험을 통해 알게 된 것이 있습니다.",
-        "soft return",
-    ),
-    (
-        "우리는 단순한 검사 도구를 만드는 것이 아닙니다. 퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, 코칭과 커뮤니티를 통해  <br />당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 있습니다.",
-        "soft return",
-    ),
-    (
-        "우리는 단순한 검사 도구를 만드는 것이 아닙니다.<br />퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, 코칭과 커뮤니티를 통해  <br />당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 있습니다.",
-        "soft return",
-    ),
-    (
-        "우리는 단순한 검사 도구를 만드는 것이 아닙니다. 퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, <br />코칭과 커뮤니티를 통해 당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 <br />있습니다.",
-        "soft return",
-    ),
-    (
-        "우리는 단순한 검사 도구를 만드는 것이 아닙니다.<br />퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, <br />코칭과 커뮤니티를 통해 당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 <br />있습니다.",
-        "soft return",
-    ),
-    (
-        "을 통해 당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.{\"  \"}",
-        "soft return",
-    ),
-    (
-        "을 통해<br />당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.{\"  \"}",
-        "soft return",
-    ),
-    // The hero's coloured span differs by a trailing space between tablet
-    // and desktop. The plugin resolves the two by taking the longer rendered
-    // string and turning the newlines *of the JSX* into `<br />`, which puts
-    // a break before and after the span that no width drew. This keeps the
-    // span as an element and takes the first width's text.
     (
         "<Text color=\"$secondary\"><br />  성인 ADHD,{\"  \"}<br /></Text>우리는 다르게 봅니다.",
         "plugin rewrites rendered JSX as text",
     ),
+    (
+        "퍼즐핏은 당사자의 경험에서 출발한, 성인 ADHD 전문 플랫폼입니다.",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "저는 성인 ADHD 당사자이자 정신건강간호사입니다. 진단을 받기까지 수년이 걸렸고, 그 과정에서 수많은 좌절과 시행착오를 겪었습니다. 그 경험을 통해 알게 된 것이 있습니다.",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "{\" \"}전문가조차 완전히 이해하기 어려운, 오직 당사자만이 체감할 수 있는 영역이 존재합니다.{\"  \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "{\"  \"}우리는 단순한 진단 도구를 만드는 것이 아니라, 당사자가 스스로를 이해하고 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 만들고 있습니다",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "{\"  \"}같은 어려움을 겪더라도 각자가 만들어온{\" \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "{\"  \"}전문가조차 완전히 이해하기 어려운, 오직 당사자만이 체감할 수 있는 영역이 존재합니다.{\"  \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다. 퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, 코칭과 커뮤니티를 통해  <br />당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 있습니다.",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다. 퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, <br />코칭과 커뮤니티를 통해 당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 <br />있습니다.",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "퍼즐핏이 바라는 미래는 <br />성인 ADHD가 ‘진단명’으로만 불리는 것이 아니라,{\" \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    ("w=\"465px\"", "mask icon height"),
+    (
+        "전문가와 함께 만드는, 신뢰 기반의 성인 ADHD 솔루션{\" \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "{\" \"}퍼즐핏은 단순한 검사 도구 제공이 아닌{\" \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "을 통해 당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.{\"  \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
+    (
+        "전문가와 함께 만드는, <br />신뢰 기반의 성인 ADHD 솔루션{\" \"}",
+        "plugin: a break at a segment edge is a space, a soft return passes through",
+    ),
     ("<Text color=\"$secondary\">", "the span kept as an element"),
-    ("성인 ADHD,{\" \"}", "the span kept as an element"),
+    (
+        "성인 ADHD,{\" \"}<br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
     ("</Text>", "the span kept as an element"),
     ("우리는 다르게 봅니다.", "the span kept as an element"),
-    // A positioned mask icon keeps its height; the plugin writes the width
-    // alone, and a mask with no height draws nothing.
-    ("w=\"465px\"", "mask icon height"),
+    (
+        "성인 ADHD,{\" \"}<Box as=\"br\" display={[\"none\", null, \"initial\", null, \"none\"]} />",
+        "a break some widths have, shown at those widths",
+    ),
+    (
+        "퍼즐핏은 당사자의 경험에서 출발한, <Box as=\"br\" display={[\"none\", null, \"initial\", null, \"none\"]} />성인 ADHD 전문 플랫폼입니다.",
+        "a break some widths have, shown at those widths",
+    ),
+    (
+        "{\" \"}전문가조차 완전히 이해하기 어려운, 오직 당사자만이 체감할 수 있는 영역이 존재합니다.<br /><br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "<br /><br />우리는 단순한 진단 도구를 만드는 것이 아니라,<br />당사자가 스스로를 이해하고 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 만들고 있습니다",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "저는 성인 ADHD 당사자이자 정신건강간호사입니다.<br />진단을 받기까지 수년이 걸렸고, 그 과정에서 수많은 좌절과 시행착오를 겪었습니다.<br />그 경험을 통해 알게 된 것이 있습니다.",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "<br />{\" \"}같은 어려움을 겪더라도 각자가 만들어온{\" \"}",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "<br />{\" \"}전문가조차 완전히 이해하기 어려운, 오직 당사자만이 체감할 수 있는 영역이 존재합니다.<br /><br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다.<br />퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, 코칭과 커뮤니티를 통해  <br />당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 있습니다.",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "우리는 단순한 검사 도구를 만드는 것이 아닙니다.<br />퍼즐핏은 연구 기반의 자가검진, 맞춤형 보고서, <br />코칭과 커뮤니티를 통해 당사자가 사회 속에서 더 잘 기능할 수 있도록 돕는 시스템을 구축하고 <br />있습니다.",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "퍼즐핏이 바라는 미래는 <br />성인 ADHD가 ‘진단명’으로만 불리는 것이 아니라,<br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
     ("boxSize=\"465px\"", "mask icon height"),
+    (
+        "전문가와 함께 만드는, 신뢰 기반의 성인 ADHD 솔루션<br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "<br />퍼즐핏은 단순한 검사 도구 제공이 아닌{\" \"}",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "을 통해<br />당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.<br /><br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "전문가와 함께 만드는, <br />신뢰 기반의 성인 ADHD 솔루션<br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
+    (
+        "을 통해 당사자가 사회 속에서 더 잘 기능하도록 돕는 통합 솔루션입니다.<br /><br />",
+        "a break at a segment edge or a soft return is drawn",
+    ),
 ];
 
 /// A file's lines as they are compared: indentation and blank lines dropped,
