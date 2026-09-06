@@ -245,9 +245,12 @@ async fn a_screen_with_other_widths_is_exported_as_one_responsive_module() -> an
     }))
     .await?;
 
-    let module = result["responsiveTsx"]
+    let written = result["responsiveTsx"]
         .as_str()
         .expect("a screen drawn at two widths has a responsive module");
+    // Arrays are written one slot to a line; fold them so the expectations
+    // below can be read in one.
+    let module = folded(written);
 
     // 360 goes in the first slot and 1920 in the last, so a value that differs
     // between them is written at both ends of the array.
@@ -322,4 +325,35 @@ async fn the_responsive_module_can_be_asked_for_on_its_own() -> anyhow::Result<(
         "asking for one output should not produce the other"
     );
     Ok(())
+}
+
+/// A responsive array written one slot to a line, folded back onto one.
+fn folded(tsx: &str) -> String {
+    let mut out = String::with_capacity(tsx.len());
+    let mut items: Option<Vec<String>> = None;
+    for line in tsx.lines() {
+        let trimmed = line.trim();
+        match &mut items {
+            Some(collected) => {
+                if let Some(rest) = trimmed.strip_prefix("]}") {
+                    out.push_str(&collected.join(", "));
+                    out.push_str("]}");
+                    out.push_str(rest);
+                    out.push('\n');
+                    items = None;
+                } else {
+                    collected.push(trimmed.trim_end_matches(',').to_owned());
+                }
+            }
+            None => {
+                out.push_str(line);
+                if trimmed.ends_with("={[") {
+                    items = Some(Vec::new());
+                } else {
+                    out.push('\n');
+                }
+            }
+        }
+    }
+    out
 }

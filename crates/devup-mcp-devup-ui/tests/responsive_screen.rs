@@ -67,8 +67,8 @@ fn the_display_arrays_are_the_reference_s() {
         eprintln!("no capture; skipping");
         return;
     };
-    let written = merged
-        .tsx
+    let folded = folded(&merged.tsx);
+    let written = folded
         .lines()
         .filter_map(|line| line.trim().split_once("display=").map(|(_, rest)| rest))
         .map(|value| {
@@ -183,6 +183,39 @@ fn a_variant_that_differs_by_width_is_reported_not_faked() {
     // Whatever is reported must not also be written as an array, which is the
     // thing that does nothing.
     assert!(!merged.tsx.contains("property1={["));
+}
+
+/// A responsive array written one slot to a line, folded back onto one, so a
+/// test can say what it expects in a line.
+fn folded(tsx: &str) -> String {
+    let mut out = String::with_capacity(tsx.len());
+    let mut items: Option<Vec<String>> = None;
+    for line in tsx.lines() {
+        let trimmed = line.trim();
+        match &mut items {
+            Some(collected) => {
+                if let Some(rest) = trimmed.strip_prefix("]}") {
+                    out.push_str(&collected.join(", "));
+                    out.push_str("]}");
+                    out.push_str(rest);
+                    out.push('\n');
+                    items = None;
+                } else {
+                    collected.push(trimmed.trim_end_matches(',').to_owned());
+                }
+            }
+            None => {
+                if trimmed.ends_with("={[") {
+                    out.push_str(line);
+                    items = Some(Vec::new());
+                } else {
+                    out.push_str(line);
+                    out.push('\n');
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Each element of a file with the nesting it sits at.

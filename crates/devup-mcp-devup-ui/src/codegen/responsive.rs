@@ -504,6 +504,11 @@ fn merge_child_order(per_width: &[Vec<String>]) -> Vec<String> {
 }
 
 /// Render one merged prop as the attribute text a JSX element carries.
+///
+/// An array is written one slot to a line, as the plugin's `JSON.stringify`
+/// with an indent of two does; `render_merged` indents the continuation
+/// lines to the attribute. That is also what makes the element itself
+/// multi-line, whatever its prop count.
 fn render_attribute(merged: &Merged) -> Option<String> {
     match merged {
         Merged::Same(None) => None,
@@ -513,11 +518,11 @@ fn render_attribute(merged: &Merged) -> Option<String> {
                 .iter()
                 .map(|slot| {
                     slot.as_ref()
-                        .map_or_else(|| "null".to_owned(), |value| format!("\"{value}\""))
+                        .map_or_else(|| "  null".to_owned(), |value| format!("  \"{value}\""))
                 })
                 .collect::<Vec<_>>()
-                .join(", ");
-            Some(format!("={{[{written}]}}"))
+                .join(",\n");
+            Some(format!("={{[\n{written}\n]}}"))
         }
     }
 }
@@ -754,12 +759,19 @@ fn render_merged(tree: &Tree, depth: usize) -> String {
         .iter()
         .map(|(name, attribute)| format!("{name}{attribute}"))
         .collect::<Vec<_>>();
-    let multiline = attributes.len() >= 5;
+    // Five props, or any array, and the props go one to a line — the
+    // plugin's `propsToString` separator rule.
+    let multiline =
+        attributes.len() >= 5 || attributes.iter().any(|attribute| attribute.contains('\n'));
     let opening = if attributes.is_empty() {
         String::new()
     } else if multiline {
         let prefix = "  ".repeat(depth + 1);
-        format!("\n{prefix}{}", attributes.join(&format!("\n{prefix}")))
+        let padded = attributes
+            .iter()
+            .map(|attribute| attribute.replace('\n', &format!("\n{prefix}")))
+            .collect::<Vec<_>>();
+        format!("\n{prefix}{}", padded.join(&format!("\n{prefix}")))
     } else {
         format!(" {}", attributes.join(" "))
     };
