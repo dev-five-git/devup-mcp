@@ -825,8 +825,23 @@ fn gradient_css(
             color
                 .as_object_mut()?
                 .insert("a".to_owned(), Value::from(alpha));
+            // A stop bound to a variable is the token — and where the stop or
+            // the paint is translucent, the token mixed with transparent by
+            // that much, as the plugin's `processGradientStopColor` writes it:
+            // a token names an opaque colour, and the alpha would be lost with
+            // it. The report section's backdrop is a 50% gradient between two
+            // tokens, `color-mix(in srgb, $primaryBg, transparent 50%)`.
             let color = bound_paint_token(stop, variable_tokens)
-                .map(|token| format!("${token}"))
+                .map(|token| {
+                    if alpha < 1.0 {
+                        format!(
+                            "color-mix(in srgb, ${token}, transparent {}%)",
+                            format_number((1.0 - alpha) * 100.0)
+                        )
+                    } else {
+                        format!("${token}")
+                    }
+                })
                 .or_else(|| color_from(&color))?;
             Some((stop.get("position")?.as_f64()?, color))
         })
