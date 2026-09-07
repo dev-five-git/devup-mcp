@@ -645,6 +645,22 @@ const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
 /// - A positioned mask icon keeps its height; the plugin writes the width
 ///   alone, and a mask with no height draws nothing.
 const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    // Figma's default counter-axis alignment is MIN, written by leaving the
+    // field out; CSS's default for the same thing is `stretch`, its
+    // opposite. A hugging child of such a parent is drawn as wide as the
+    // parent unless the code says otherwise, and the plugin never does - the
+    // devup-ui landing page's 247px `Get started` button came out 1360px
+    // wide. These three centre their own contents, so the wider box moves
+    // them; the alignment is written for them and for nothing that would
+    // look the same either way.
+    (
+        "<Center alignSelf=\"flex-start\" gap=\"12px\">",
+        "plugin leaves Figma's MIN cross-axis unsaid, which CSS reads as stretch",
+    ),
+    (
+        "<Center gap=\"12px\">",
+        "plugin leaves Figma's MIN cross-axis unsaid, which CSS reads as stretch",
+    ),
     // The hero column fills its section's height in Figma, and holds its
     // picture as a positioned child. A positioned child adds nothing to the
     // height of what holds it, so with the fill left unsaid CSS hugs the text

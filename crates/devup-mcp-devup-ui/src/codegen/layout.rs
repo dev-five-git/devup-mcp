@@ -1,4 +1,4 @@
-use devup_mcp_figma::{RawNode, Snapshot};
+use devup_mcp_figma::{RawNode, Snapshot, TypedNode};
 use serde_json::Value;
 
 use super::component::{Prop, PropValue, RootLayout};
@@ -376,6 +376,7 @@ pub(super) fn push_layout_props(
     // Whether the height was said outright, which decides below whether the
     // node still needs to be told to take the space its parent leaves.
     let wrote_height = height.is_some();
+    let wrote_width = width.is_some();
     if let (Some(width), Some(height)) = (&width, &height)
         && width == height
     {
@@ -502,6 +503,59 @@ pub(super) fn push_layout_props(
         && parent.is_some_and(|parent| parent.typed_view().string("layoutMode") == Some("VERTICAL"))
     {
         string_prop(props, "flex", "1");
+    }
+    // A child that hugs across its parent's axis, in a parent that packs its
+    // children to the start, drawn narrower than the room it has, and drawn
+    // differently for being stretched into it.
+    //
+    // Figma's default counter-axis alignment is MIN, which it writes by
+    // leaving the field out - and leaving it out of the code too means CSS
+    // applies its own default, `align-items: stretch`, which is the
+    // opposite. The devup-ui landing page's `Get started` button, 247px wide
+    // in the 1360px column that holds it, was drawn 1360px wide.
+    //
+    // Most hugging children do not care. A line of left-aligned text in a
+    // box that paints nothing is the same picture at any width, and writing
+    // an alignment for every one of them - the notice desktop alone holds
+    // twenty - says nothing while burying the few that matter. So it is
+    // written where the wider box would show: where the node paints across
+    // it, or places its own content by it.
+    if !absolute
+        && let Some(parent) = parent
+        && let Some(axis) = parent.typed_view().string("layoutMode")
+        && matches!(axis, "VERTICAL" | "HORIZONTAL")
+        && matches!(
+            parent.typed_view().string("counterAxisAlignItems"),
+            None | Some("MIN")
+        )
+    {
+        let across_is_horizontal = axis == "VERTICAL";
+        let (sizing, size, near, far, wrote) = if across_is_horizontal {
+            (
+                "layoutSizingHorizontal",
+                "width",
+                "paddingLeft",
+                "paddingRight",
+                wrote_width,
+            )
+        } else {
+            (
+                "layoutSizingVertical",
+                "height",
+                "paddingTop",
+                "paddingBottom",
+                wrote_height,
+            )
+        };
+        if view.string(sizing) == Some("HUG")
+            && !wrote
+            && let (Some(own), Some(room)) =
+                (view.number(size), inner_extent(parent, size, near, far))
+            && own + 0.5 < room
+            && a_wider_box_would_show(&view, across_is_horizontal)
+        {
+            string_prop(props, "alignSelf", "flex-start");
+        }
     }
 
     push_auto_layout(snapshot, node, component, props);
@@ -757,6 +811,67 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
 /// A folded asset is excluded: its children are baked into the exported image
 /// and never laid out, so measuring a gap around them would describe a box
 /// nothing lives in.
+/// How much room a frame leaves its children across one axis: its own size
+/// less the padding on that axis. `None` when the size is not recorded.
+fn inner_extent(node: &RawNode, size: &str, near: &str, far: &str) -> Option<f64> {
+    let view = node.typed_view();
+    let inferred = view.value("inferredAutoLayout").and_then(Value::as_object);
+    let padding = |name: &str| {
+        inferred
+            .and_then(|layout| layout.get(name))
+            .and_then(Value::as_f64)
+            .or_else(|| view.number(name))
+            .unwrap_or(0.0)
+    };
+    Some(view.number(size)? - padding(near) - padding(far))
+}
+
+/// Whether a node drawn into a wider box than it asked for would look any
+/// different: either it paints across the box - a fill, a stroke, a shadow -
+/// or it places its own content by the box's far edge or centre along that
+/// axis. A left-aligned line of text in a box that paints nothing does not.
+fn a_wider_box_would_show(view: &TypedNode<'_>, across_is_horizontal: bool) -> bool {
+    let visible = |value: Option<&Value>| {
+        value.and_then(Value::as_array).is_some_and(|entries| {
+            entries.iter().any(|entry| {
+                entry.get("visible").and_then(Value::as_bool) != Some(false)
+                    && entry.get("type").and_then(Value::as_str) != Some("NONE")
+            })
+        })
+    };
+    // A text node's fills are its ink, not its box, and a shadow follows the
+    // glyphs: none of them widen with the box. A centred line would move,
+    // and the pinned corpus holds three such texts - but no screen in the
+    // corpus renders one, so there is nothing to show that writing it helps,
+    // and it costs byte parity with the plugin on all three. Left alone
+    // until a rendered screen asks for it.
+    if view.node_type() == "TEXT" {
+        return false;
+    }
+    if visible(view.value("fills"))
+        || visible(view.value("strokes"))
+        || visible(view.value("effects"))
+    {
+        return true;
+    }
+    // Along its own main axis a node is placed by `primaryAxisAlignItems`,
+    // across it by `counterAxisAlignItems`; which of the two answers for the
+    // axis being stretched depends on which way the node itself runs.
+    let along_its_main_axis = match view.string("layoutMode") {
+        Some("HORIZONTAL") => across_is_horizontal,
+        Some("VERTICAL") => !across_is_horizontal,
+        _ => return false,
+    };
+    if along_its_main_axis {
+        matches!(
+            view.string("primaryAxisAlignItems"),
+            Some("CENTER" | "MAX" | "SPACE_BETWEEN" | "SPACE_AROUND" | "SPACE_EVENLY")
+        )
+    } else {
+        matches!(view.string("counterAxisAlignItems"), Some("CENTER" | "MAX"))
+    }
+}
+
 pub(crate) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {
     let view = node.typed_view();
     // Figma reports a frame it cannot infer a layout for as an explicit null,

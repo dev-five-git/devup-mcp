@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
-assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -473,7 +472,7 @@ export function Wquw151Frame387935569() {
                 maskRepeat="no-repeat"
                 maskSize="contain"
               />
-              <VStack gap="2px" justifyContent="center">
+              <VStack alignSelf="flex-start" gap="2px" justifyContent="center">
                 <Text color="$text" typography="body" wordBreak="keep-all">
                   서정체
                 </Text>
@@ -493,7 +492,7 @@ export function Wquw151Frame387935569() {
                 maskRepeat="no-repeat"
                 maskSize="contain"
               />
-              <VStack gap="2px" justifyContent="center">
+              <VStack alignSelf="flex-start" gap="2px" justifyContent="center">
                 <Text color="$text" typography="body" wordBreak="keep-all">
                   강건체
                 </Text>
@@ -569,7 +568,7 @@ export function Wquw151Frame387935569() {
               maskRepeat="no-repeat"
               maskSize="contain"
             />
-            <VStack gap="2px" justifyContent="center">
+            <VStack alignSelf="flex-start" gap="2px" justifyContent="center">
               <Text color="$text" typography="body" wordBreak="keep-all">
                 내 문장 그대로 맞춤법만 다듬기
               </Text>
