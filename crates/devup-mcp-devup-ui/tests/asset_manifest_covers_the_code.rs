@@ -8,6 +8,13 @@
 //! the about page, painted as backgrounds on layout boxes the asset walk
 //! stepped straight past.
 //!
+//! A design can also show code as text — some captures display JSX samples
+//! that name files of their own — and the generator escapes the brackets of
+//! such a sample. A line carrying that escape is something the screen prints,
+//! not something it draws from, and reading a path out of it invents a gap
+//! that is not there. Sixteen such invented gaps were what this test first
+//! reported.
+//!
 //! The captures are not committed, so this checks whatever is present and
 //! says so rather than pretending to have checked.
 
@@ -30,6 +37,16 @@ fn captures() -> PathBuf {
 /// that follows it.
 fn pointed_at(code: &str) -> BTreeSet<String> {
     let mut found = BTreeSet::new();
+    // A design can show code as text - these fixtures display JSX samples
+    // that name files of their own - and the generator escapes the brackets
+    // of such a sample as `{"<"}`. A line carrying that escape is something
+    // the screen prints, not something it draws from.
+    let code = code
+        .lines()
+        .filter(|line| !line.contains("{\"<\"}") && !line.contains("{\">\"}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let code = code.as_str();
     for prefix in ["/icons/", "/images/"] {
         let mut rest = code;
         while let Some(at) = rest.find(prefix) {
@@ -134,62 +151,10 @@ fn every_asset_the_code_points_at_is_one_the_manifest_lists() {
             }
         }
     }
-    // What the manifest does not list today, per capture. Every one of these
-    // is a picture the code draws and nothing can deliver:
-    //
-    //   * a raster painted from a `PATTERN` fill, which the code sends to the
-    //     icon folder and the asset walk does not visit at all;
-    //   * a vector shape — ellipse, star, polygon, plain vector — drawn from
-    //     a file the walk never reaches, because an ancestor answered for the
-    //     subtree while the code named the child.
-    //
-    // Recorded rather than hidden: a capture that grows a new one fails here,
-    // and a capture that loses one says so, which is the cue to lower its
-    // figure. Fixing these is what removes them.
-    let known: &[(&str, usize)] = &[
-        ("testcase-Circle", 1),
-        ("testcase-DecorativeText", 1),
-        ("testcase-FlexWithMaxW", 1),
-        ("testcase-MixBlendMode", 1),
-        ("testcase-MixBlendModeFill", 2),
-        ("testcase-ObjectFit", 2),
-        ("testcase-Shapes", 3),
-        ("testcase-Svg", 1),
-        ("testcase-SvgDetail", 4),
-    ];
-    let mut counted: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
-    for failure in &failures {
-        let capture = failure.split(':').next().unwrap_or_default();
-        *counted.entry(capture).or_default() += 1;
-    }
-    let allowed = |capture: &str| {
-        known
-            .iter()
-            .find(|(name, _)| *name == capture)
-            .map_or(0, |(_, count)| *count)
-    };
-    let mut worse = Vec::new();
-    for (capture, count) in &counted {
-        if *count > allowed(capture) {
-            worse.push(format!(
-                "{capture}: {count} unlisted, was {}",
-                allowed(capture)
-            ));
-        }
-    }
-    for (capture, count) in known {
-        let now = counted.get(capture).copied().unwrap_or(0);
-        if now < *count {
-            eprintln!(
-                "{capture} now lists {} more of its pictures; lower its figure",
-                count - now
-            );
-        }
-    }
     assert!(
-        worse.is_empty(),
-        "a picture the code draws is no longer listed:\n  {}\n\nall unlisted today:\n  {}",
-        worse.join("\n  "),
+        failures.is_empty(),
+        "{} picture(s) across {checked} captures the manifest does not list:\n  {}",
+        failures.len(),
         failures.iter().cloned().collect::<Vec<_>>().join("\n  ")
     );
     eprintln!(
