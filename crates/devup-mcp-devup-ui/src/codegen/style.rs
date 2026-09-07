@@ -506,7 +506,7 @@ pub(super) fn push_style_props(
         }
         push_radius(&view, props);
         push_strokes(&view, props, used_tokens, variable_tokens);
-        push_effects(&view, component, props);
+        push_effects(&view, component, props, used_tokens, variable_tokens);
         if let Some(opacity) = view.number("opacity")
             && opacity < 1.0
         {
@@ -596,7 +596,7 @@ pub(super) fn push_style_props(
     if component != "Text" {
         push_strokes(&view, props, used_tokens, variable_tokens);
     }
-    push_effects(&view, component, props);
+    push_effects(&view, component, props, used_tokens, variable_tokens);
     if let Some(opacity) = view.number("opacity")
         && opacity < 1.0
     {
@@ -1391,7 +1391,13 @@ fn push_strokes(
     }
 }
 
-fn push_effects(view: &TypedNode<'_>, component: &str, props: &mut Vec<Prop>) {
+fn push_effects(
+    view: &TypedNode<'_>,
+    component: &str,
+    props: &mut Vec<Prop>,
+    used_tokens: &mut BTreeSet<String>,
+    variable_tokens: &std::collections::BTreeMap<String, String>,
+) {
     let Some(effects) = view.value("effects").and_then(Value::as_array) else {
         return;
     };
@@ -1413,7 +1419,17 @@ fn push_effects(view: &TypedNode<'_>, component: &str, props: &mut Vec<Prop>) {
             let y = offset.get("y")?.as_f64()?;
             let radius = effect.get("radius")?.as_f64()?;
             let spread = effect.get("spread").and_then(Value::as_f64).unwrap_or(0.0);
-            let color = color_from(effect.get("color")?)?;
+            // A shadow's colour can be bound to a variable, exactly as a fill
+            // or a stroke can, and then the token is what the design means:
+            // the landing page's cards are `$shadow`, one value the theme can
+            // move for dark mode. Written as the resolved `#87878740` they
+            // were a colour nothing could reach.
+            let color = if let Some(token) = bound_paint_token(effect, variable_tokens) {
+                used_tokens.insert(token.clone());
+                format!("${token}")
+            } else {
+                color_from(effect.get("color")?)?
+            };
             let inset = if effect.get("type").and_then(Value::as_str) == Some("INNER_SHADOW") {
                 "inset "
             } else {

@@ -268,10 +268,13 @@ and the plugin's Pure Code and component-referencing outputs at each:
 
 No test compares these yet. The screens are rendered against Figma's own
 PNGs by `harness/render` instead, which is what has been reading them, and
-what found everything below. **The six files do not line up with these three
-frames** — `pure-mobile.tsx` has no join-us section at all, where the frame
-does — so they were taken from another state of the file, and a difference
-against them is a question and not a verdict. The render is the judge here.
+what found everything below.
+
+**Only `pure-pc.tsx` is the answer for the frame beside it.** The other five
+were captured from an earlier state of the file - `pure-mobile.tsx` has no
+join-us section at all, where the frame does - and are still to be replaced.
+Until they are, a difference against them is a question and not a verdict,
+and the render is the judge.
 
 What the page has settled so far, all of them things the plugin gets wrong
 too:

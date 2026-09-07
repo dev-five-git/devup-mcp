@@ -121,190 +121,326 @@
                     Next.js Build Time and Build Size (github action - ubuntu-latest)
                 </Text>
             </VStack>
-            <Flex alignItems="center" gap="20px">
-                <VStack
-                    bg="$containerBackground"
-                    border="solid 1px $border"
-                    borderRadius="20px"
-                    boxShadow="0 0 8px 0 $shadow"
-                    gap="60px"
-                    justifyContent="center"
-                    overflow="hidden"
-                    p="30px"
-                    pos="relative"
-                    w="400px"
-                >
-                    <Image
-                        left="-60px"
-                        opacity="0.2"
-                        pos="absolute"
-                        src="/icons/Group 1.svg"
-                        top="132px"
-                        w="260px"
-                    />
-                    <Image
-                        bottom="-30px"
-                        opacity="0.2"
-                        pos="absolute"
-                        right="200px"
-                        src="/icons/Group 2.svg"
-                        w="260px"
-                    />
-                    <VStack gap="8px">
-                        <Text color="$text" typography="h5">
-                            Devup-ui
-                        </Text>
-                        <Text color="$text" typography="textL">
-                            1.0.15
-                        </Text>
-                    </VStack>
-                    <VStack alignItems="flex-end" gap="20px">
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$text" typography="textSbold">
-                                Next.js Build TIme{" "}
+            <VStack gap="20px">
+                <Flex alignItems="flex-end" gap="20px" justifyContent="center">
+                    <VStack
+                        bg="$containerBackground"
+                        border="solid 1px $border"
+                        borderRadius="20px"
+                        boxShadow="0 0 8px 0 $shadow"
+                        gap="60px"
+                        justifyContent="center"
+                        overflow="hidden"
+                        p="30px"
+                        pos="relative"
+                        w="400px"
+                    >
+                        <Image
+                            bottom="-30px"
+                            opacity="0.2"
+                            pos="absolute"
+                            right="200px"
+                            src="/icons/Group 2.svg"
+                            w="260px"
+                        />
+                        <VStack gap="8px">
+                            <Text color="$text" typography="h5">
+                                Devup-ui
                             </Text>
-                            <Flex gap="10px">
-                                <Box
-                                    aspectRatio="1"
-                                    bg="#FFC100"
-                                    boxSize="24px"
-                                    maskImage="url('/icons/crown_17099645 1.svg')"
-                                    maskPos="center"
-                                    maskRepeat="no-repeat"
-                                    maskSize="contain"
-                                />
-                                <Text WebkitTextFillColor="transparent" bg="linear-gradient(-90deg, #6BB1F2 0%, #8235CA 100%)" bgClip="text" typography="h4">
-                                    16.8s
+                            <Text color="$text" typography="textL">
+                                1.0.18
+                            </Text>
+                        </VStack>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$text" typography="textSbold">
+                                    Next.js Build TIme{" "}
                                 </Text>
-                            </Flex>
-                        </VStack>
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$text" typography="textSbold">
-                                Bulid Size
-                            </Text>
-                            <Flex gap="10px">
-                                <Box
-                                    aspectRatio="1"
-                                    bg="#FFC100"
-                                    boxSize="24px"
-                                    maskImage="url('/icons/crown_17099645 1.svg')"
-                                    maskPos="center"
-                                    maskRepeat="no-repeat"
-                                    maskSize="contain"
-                                />
-                                <Text WebkitTextFillColor="transparent" bg="linear-gradient(-90deg, #6BB1F2 0%, #8235CA 100%)" bgClip="text" typography="h4">
-                                    51.2MB
+                                <Flex gap="10px">
+                                    <Box
+                                        aspectRatio="1"
+                                        bg="#FFC100"
+                                        boxSize="24px"
+                                        maskImage="url('/icons/crown_17099645 1.svg')"
+                                        maskPos="center"
+                                        maskRepeat="no-repeat"
+                                        maskSize="contain"
+                                    />
+                                    <Text WebkitTextFillColor="transparent" bg="linear-gradient(-90deg, #6BB1F2 0%, #8235CA 100%)" bgClip="text" typography="h4">
+                                        18.23s
+                                    </Text>
+                                </Flex>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$text" typography="textSbold">
+                                    Bulid Size
                                 </Text>
-                            </Flex>
+                                <Flex gap="10px">
+                                    <Box
+                                        aspectRatio="1"
+                                        bg="#FFC100"
+                                        boxSize="24px"
+                                        maskImage="url('/icons/crown_17099645 1.svg')"
+                                        maskPos="center"
+                                        maskRepeat="no-repeat"
+                                        maskSize="contain"
+                                    />
+                                    <Text WebkitTextFillColor="transparent" bg="linear-gradient(-90deg, #6BB1F2 0%, #8235CA 100%)" bgClip="text" typography="h4">
+                                        54.75MB
+                                    </Text>
+                                </Flex>
+                            </VStack>
                         </VStack>
                     </VStack>
-                </VStack>
-                <VStack
-                    bg="$cardBg"
-                    borderRadius="20px"
-                    flex="1"
-                    gap="40px"
-                    justifyContent="center"
-                    p="30px"
-                >
-                    <VStack gap="8px">
-                        <Text color="$captionBold" typography="h6">
-                            Chakra UI
-                        </Text>
-                        <Text color="$captionBold" typography="textL">
-                            3.24.2
-                        </Text>
-                    </VStack>
-                    <VStack alignItems="flex-end" gap="20px">
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$captionBold" typography="textSbold">
-                                Bulid Time
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                Chakra UI
                             </Text>
-                            <Text color="$caption" typography="h5">
-                                29.3s
+                            <Text color="$captionBold" typography="textL">
+                                3.27.0
                             </Text>
                         </VStack>
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$captionBold" typography="textSbold">
-                                Bulid Size
-                            </Text>
-                            <Text color="$caption" typography="h5">
-                                186.2MB
-                            </Text>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    29.99s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    200.39MB
+                                </Text>
+                            </VStack>
                         </VStack>
                     </VStack>
-                </VStack>
-                <VStack
-                    bg="$cardBg"
-                    borderRadius="20px"
-                    flex="1"
-                    gap="40px"
-                    justifyContent="center"
-                    p="30px"
-                >
-                    <VStack gap="8px">
-                        <Text color="$captionBold" typography="h6">
-                            Mui
-                        </Text>
-                        <Text color="$captionBold" typography="textL">
-                            7.3.1
-                        </Text>
-                    </VStack>
-                    <VStack alignItems="flex-end" gap="20px">
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$captionBold" typography="textSbold">
-                                Bulid Time
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                Mui
                             </Text>
-                            <Text color="$caption" typography="h5">
-                                21.6s
+                            <Text color="$captionBold" typography="textL">
+                                7.3.2
                             </Text>
                         </VStack>
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$captionBold" typography="textSbold">
-                                Bulid Size
-                            </Text>
-                            <Text color="$caption" typography="h5">
-                                84.3MB
-                            </Text>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    22.21s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    89.87MB
+                                </Text>
+                            </VStack>
                         </VStack>
                     </VStack>
-                </VStack>
-                <VStack
-                    bg="$cardBg"
-                    borderRadius="20px"
-                    flex="1"
-                    gap="40px"
-                    justifyContent="center"
-                    p="30px"
-                >
-                    <VStack gap="8px">
-                        <Text color="$captionBold" typography="h6">
-                            Kuma UI
-                        </Text>
-                        <Text color="$captionBold" typography="textL">
-                            1.5.9
-                        </Text>
-                    </VStack>
-                    <VStack alignItems="flex-end" gap="20px">
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$captionBold" typography="textSbold">
-                                Bulid Time
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                Kuma UI
                             </Text>
-                            <Text color="$caption" typography="h5">
-                                20.6s
+                            <Text color="$captionBold" typography="textL">
+                                1.5.9
                             </Text>
                         </VStack>
-                        <VStack alignItems="flex-end" gap="6px" justifyContent="center">
-                            <Text color="$captionBold" typography="textSbold">
-                                Bulid Size
-                            </Text>
-                            <Text color="$caption" typography="h5">
-                                60.3B
-                            </Text>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    21.61s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    64.30MB
+                                </Text>
+                            </VStack>
                         </VStack>
                     </VStack>
-                </VStack>
-            </Flex>
+                </Flex>
+                <Flex alignItems="center" gap="20px" px="40px">
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                Tailwind CSS
+                            </Text>
+                            <Text color="$captionBold" typography="textL">
+                                4.1.13
+                            </Text>
+                        </VStack>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    20.22s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    54.76MB
+                                </Text>
+                            </VStack>
+                        </VStack>
+                    </VStack>
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                panda CSS
+                            </Text>
+                            <Text color="$captionBold" typography="textL">
+                                1.3.1
+                            </Text>
+                        </VStack>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    22.01s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    59.53MB
+                                </Text>
+                            </VStack>
+                        </VStack>
+                    </VStack>
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                styleX
+                            </Text>
+                            <Text color="$captionBold" typography="textL">
+                                0.15.4
+                            </Text>
+                        </VStack>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    38.97s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    72.72MB
+                                </Text>
+                            </VStack>
+                        </VStack>
+                    </VStack>
+                    <VStack
+                        bg="$cardBg"
+                        borderRadius="20px"
+                        flex="1"
+                        gap="40px"
+                        justifyContent="center"
+                        p="30px"
+                    >
+                        <VStack gap="8px">
+                            <Text color="$captionBold" typography="h6">
+                                vanilla extract
+                            </Text>
+                            <Text color="$captionBold" typography="textL">
+                                1.17.4
+                            </Text>
+                        </VStack>
+                        <VStack alignItems="flex-end" gap="20px">
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Time
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    20.09s
+                                </Text>
+                            </VStack>
+                            <VStack alignItems="flex-end" gap="6px" justifyContent="center">
+                                <Text color="$captionBold" typography="textSbold">
+                                    Bulid Size
+                                </Text>
+                                <Text color="$caption" typography="h5">
+                                    56.61MB
+                                </Text>
+                            </VStack>
+                        </VStack>
+                    </VStack>
+                </Flex>
+            </VStack>
         </VStack>
     </VStack>
     <VStack alignItems="center" overflow="hidden" py="50px" w="100%">
