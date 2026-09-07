@@ -43,7 +43,7 @@ pub(super) fn push_layout_props(
         // Preserve its visual/layout semantics, but do not constrain the host
         // with Figma canvas geometry or root positioning.
     } else if absolute {
-        push_absolute(node, parent, props);
+        push_absolute(snapshot, node, parent, props);
         // The plugin's `_getLayoutProps` for a positioned node, as one rule
         // rather than a branch per kind of node. Its width is its own only
         // while the parent is wider and it is an asset or an empty frame;
@@ -782,14 +782,34 @@ pub(crate) fn placed_by_a_free_layout(
         && !centres_its_only_child(snapshot, parent)
 }
 
-fn push_absolute(node: &RawNode, parent: Option<&RawNode>, props: &mut Vec<Prop>) {
+fn push_absolute(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    parent: Option<&RawNode>,
+    props: &mut Vec<Prop>,
+) {
     string_prop(props, "pos", "absolute");
     let view = node.typed_view();
     let Some(parent) = parent else {
         return;
     };
     let parent = parent.typed_view();
-    let constraints = view.value("constraints").and_then(Value::as_object);
+    // A group has no constraints of its own; the plugin's `getPositionProps`
+    // reads its first child's, and so does this. The report section's
+    // illustration is a group pinned to the bottom of its frame through its
+    // children, `bottom="-284.8px"`, where reading the group alone put it
+    // at `top`.
+    let constraints = view
+        .value("constraints")
+        .and_then(Value::as_object)
+        .or_else(|| {
+            view.child_ids()
+                .next()
+                .and_then(|child| snapshot.nodes.get(child))?
+                .typed_view()
+                .value("constraints")
+                .and_then(Value::as_object)
+        });
     let horizontal = constraints
         .and_then(|value| value.get("horizontal"))
         .and_then(Value::as_str)
