@@ -479,6 +479,17 @@ fn fast_theme_collects_complete_local_theme_and_used_remote_resources_read_only(
     assert_eq!(call.tool_name(), "use_figma");
     assert_eq!(arguments["fileKey"], "file-key");
     assert!(arguments.get("nodeId").is_none());
+    // The theme is paged: the script is told where to start, packs a run of
+    // the resources under the text cap, and says where the next page starts.
+    assert!(code.contains("{\"offset\":0}"));
+    assert!(code.contains("nextOffset"));
+    assert!(code.contains("totalItems"));
+    assert!(
+        ReadToolCall::fast_theme_page("file-key", 7).arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("{\"offset\":7}")
+    );
     for read in [
         "getLocalVariableCollectionsAsync",
         "getLocalVariablesAsync",

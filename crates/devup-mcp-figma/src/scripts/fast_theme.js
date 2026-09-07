@@ -2,6 +2,14 @@ const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
 // The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the measurement is
 // written up in fast_snapshot.js.
 const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;
+// A file's resources rarely fit one answer - forty variables with their
+// modes are twice this - so they are paged: every page carries the whole
+// scan (which ids are used, what could not be resolved) and a run of the
+// resources, in one fixed order, from `offset`; the page says where the next
+// one starts. The theme used to be one envelope or nothing, and a file whose
+// theme did not fit fell back to a path that knows only local styles.
+const pageOptions = "__DEVUP_THEME__";
+const pageOffset = Math.max(0, Math.floor(Number(pageOptions.offset) || 0));
 
 function propertyNames(value) {
   const names = new Set(Object.keys(value));
@@ -237,46 +245,94 @@ function utf8Encode(value) {
   return new Uint8Array(bytes);
 }
 
-const envelope = {
-  kind: "devupFastThemeEnvelope",
-  schemaVersion: 1,
-  source: { fileKey: figma.fileKey || "", version: null },
-  resources: {
-    collections,
-    variables,
-    styles,
-    usedRemoteVariables: variables.filter((variable) => variable.remote === true),
-    usedVariableIds: [...usedVariableIds].sort(),
-    usedStyleIds: [...usedStyleTypes.keys()].sort(),
-    localComplete: true,
-    usedRemoteComplete: unresolved.length === 0,
-    unresolved,
-  },
-  integrity: {
-    collectionCount: collections.length,
-    variableCount: variables.length,
-    styleCount: styles.length,
-    unresolvedCount: unresolved.length,
-    utf8Bytes: 0,
-  },
-};
+// Every resource in one order: collections, variables, styles. A page is a
+// run of this list.
+const items = [
+  ...collections.map((value) => ({ kind: "collection", value })),
+  ...variables.map((value) => ({ kind: "variable", value })),
+  ...styles.map((value) => ({ kind: "style", value })),
+];
+if (pageOffset > items.length) throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
 
-let envelopeBytes = new Uint8Array();
-for (let attempt = 0; attempt < 8; attempt += 1) {
+function buildEnvelope(pageItems, nextOffset) {
+  const pageCollections = pageItems.filter((item) => item.kind === "collection").map((item) => item.value);
+  const pageVariables = pageItems.filter((item) => item.kind === "variable").map((item) => item.value);
+  const pageStyles = pageItems.filter((item) => item.kind === "style").map((item) => item.value);
+  const envelope = {
+    kind: "devupFastThemeEnvelope",
+    schemaVersion: 1,
+    source: { fileKey: figma.fileKey || "", version: null },
+    resources: {
+      collections: pageCollections,
+      variables: pageVariables,
+      styles: pageStyles,
+      usedRemoteVariables: pageVariables.filter((variable) => variable.remote === true),
+      usedVariableIds: [...usedVariableIds].sort(),
+      usedStyleIds: [...usedStyleTypes.keys()].sort(),
+      localComplete: true,
+      usedRemoteComplete: unresolved.length === 0,
+      unresolved,
+    },
+    // Read by the Rust decoder: a page is one of several when `complete` is
+    // false, and the next one is asked for from `nextOffset`.
+    page: {
+      offset: pageOffset,
+      nextOffset,
+      complete: nextOffset >= items.length,
+      totalItems: items.length,
+    },
+    integrity: {
+      collectionCount: pageCollections.length,
+      variableCount: pageVariables.length,
+      styleCount: pageStyles.length,
+      unresolvedCount: unresolved.length,
+      utf8Bytes: 0,
+    },
+  };
+  let envelopeBytes = new Uint8Array();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    envelopeBytes = utf8Encode(JSON.stringify(envelope));
+    if (envelope.integrity.utf8Bytes === envelopeBytes.length) break;
+    envelope.integrity.utf8Bytes = envelopeBytes.length;
+  }
   envelopeBytes = utf8Encode(JSON.stringify(envelope));
-  if (envelope.integrity.utf8Bytes === envelopeBytes.length) break;
-  envelope.integrity.utf8Bytes = envelopeBytes.length;
+  if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
+    throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
+  }
+  return { envelope, bytes: envelopeBytes.length };
 }
-envelopeBytes = utf8Encode(JSON.stringify(envelope));
-if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
-  throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
+
+// Pack from the offset until the page would not fit, then build it; the
+// scan the page also carries is only sized once built, so if the whole
+// still overshoots, take the overshoot off and try again. One item alone
+// that does not fit cannot be split, and is reported rather than cut.
+let count = items.length - pageOffset;
+let built = null;
+for (let attempt = 0; attempt < 6 && count > 0; attempt += 1) {
+  const candidate = buildEnvelope(items.slice(pageOffset, pageOffset + count), pageOffset + count);
+  if (candidate.bytes <= MAX_TEXT_ENVELOPE_BYTES) {
+    built = candidate;
+    break;
+  }
+  if (count === 1) break;
+  const itemBytes = items
+    .slice(pageOffset, pageOffset + count)
+    .map((item) => utf8Encode(JSON.stringify(item.value)).length + 1);
+  const overshoot = candidate.bytes - MAX_TEXT_ENVELOPE_BYTES + 256;
+  let dropped = 0;
+  let next = count;
+  while (next > 1 && dropped < overshoot) {
+    next -= 1;
+    dropped += itemBytes[next];
+  }
+  count = next;
 }
-if (envelopeBytes.length > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
-if (envelopeBytes.length > MAX_TEXT_ENVELOPE_BYTES) {
-  // No binary transport exists any more (real-world hosts silently
-  // discarded the old PNG-chunked image attachments). A file-wide theme
-  // that doesn't fit as text falls back to the legacy per-resource
-  // collection path, which already handles arbitrarily large theme scopes.
-  throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+if (built === null) {
+  if (items.length === 0) {
+    built = buildEnvelope([], 0);
+  } else {
+    throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+  }
 }
-return envelope;
+if (built.bytes > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+return built.envelope;

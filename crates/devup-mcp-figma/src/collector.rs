@@ -233,6 +233,9 @@ pub struct CollectorSession {
     /// An SVG export announced as too large for one answer, by the key its
     /// fragments arrive under, until the last of them has.
     chunked_assets: BTreeMap<(String, String), AssetRequest>,
+    /// The pages of a paginated theme so far, merged, until the last one.
+    fast_theme_pages: Option<Value>,
+    fast_theme_page_count: usize,
     asset_results: Vec<AssetManifestEntry>,
     assets_scheduled: bool,
     reference_png: Option<ReferencePng>,
@@ -277,6 +280,8 @@ impl CollectorSession {
             variables: None,
             large_values: BTreeMap::new(),
             chunked_assets: BTreeMap::new(),
+            fast_theme_pages: None,
+            fast_theme_page_count: 0,
             asset_results: Vec::new(),
             assets_scheduled,
             reference_png: None,
@@ -729,21 +734,48 @@ impl CollectorSession {
                 return Ok(());
             }
         };
+        self.fast_theme_page_count += 1;
+        self.stats.raw_bytes = self.stats.raw_bytes.saturating_add(payload.stats.raw_bytes);
+        self.stats.wire_bytes = self
+            .stats
+            .wire_bytes
+            .saturating_add(payload.stats.wire_bytes);
+        // A page is merged onto the pages before it: the resources are
+        // concatenated in the one order the script lists them, and the scan
+        // every page repeats - which ids are used, what could not be
+        // resolved - is taken from the page at hand.
+        let merged = match self.fast_theme_pages.take() {
+            None => payload.resources.raw,
+            Some(mut merged) => {
+                merge_theme_page(&mut merged, payload.resources.raw)?;
+                merged
+            }
+        };
+        if let Some(page) = payload.page
+            && !page.complete
+        {
+            if page.next_offset <= page.offset {
+                return Err(invalid_call("Figma theme page cursor did not advance."));
+            }
+            self.fast_theme_pages = Some(merged);
+            self.enqueue(
+                ReadToolCall::fast_theme_page(&self.request.target.file_key, page.next_offset),
+                None,
+                CallKind::FastTheme,
+            );
+            return Ok(());
+        }
         self.metadata = Some(json!({
             "transport": payload.stats.transport,
-            "collectionCount": payload.resources.raw["collections"]
-                .as_array().map_or(0, Vec::len),
-            "variableCount": payload.resources.raw["variables"]
-                .as_array().map_or(0, Vec::len),
-            "styleCount": payload.resources.raw["styles"]
-                .as_array().map_or(0, Vec::len)
+            "pageCount": self.fast_theme_page_count,
+            "collectionCount": merged["collections"].as_array().map_or(0, Vec::len),
+            "variableCount": merged["variables"].as_array().map_or(0, Vec::len),
+            "styleCount": merged["styles"].as_array().map_or(0, Vec::len)
         }));
         self.source_version = payload.source_version;
         self.stats.transport = payload.stats.transport.to_owned();
-        self.stats.raw_bytes = payload.stats.raw_bytes;
-        self.stats.wire_bytes = payload.stats.wire_bytes;
-        self.stats.envelope_chunks = payload.stats.chunk_count;
-        self.variables = Some(payload.resources);
+        self.stats.envelope_chunks = self.fast_theme_page_count;
+        self.variables = Some(UpstreamResult { raw: merged });
         Ok(())
     }
 
@@ -2055,6 +2087,49 @@ fn take_snapshot_cursor(chunk: &mut SnapshotChunk) -> Result<Option<SnapshotCurs
 
 fn invalid_call(message: &str) -> DevupError {
     DevupError::new(ErrorCode::DevupFigmaHandoffInvalid, message, false)
+}
+
+/// The next page of a theme onto the pages before it. Each resource list is
+/// appended in order, with a resource the pages both carry kept once; the
+/// scan the page repeats replaces the last one's.
+fn merge_theme_page(merged: &mut Value, page: Value) -> Result<(), DevupError> {
+    let Some(page) = page.as_object() else {
+        return Err(invalid_call("Figma theme page format is invalid."));
+    };
+    for list in ["collections", "variables", "styles", "usedRemoteVariables"] {
+        let incoming = page
+            .get(list)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let target = merged
+            .get_mut(list)
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| invalid_call("Figma theme page format is invalid."))?;
+        for item in incoming {
+            let id = item.get("id").cloned();
+            if id.is_some()
+                && target
+                    .iter()
+                    .any(|existing| existing.get("id") == id.as_ref())
+            {
+                continue;
+            }
+            target.push(item);
+        }
+    }
+    for field in [
+        "usedVariableIds",
+        "usedStyleIds",
+        "localComplete",
+        "usedRemoteComplete",
+        "unresolved",
+    ] {
+        if let Some(value) = page.get(field) {
+            merged[field] = value.clone();
+        }
+    }
+    Ok(())
 }
 
 fn fallback_category(error: &DevupError) -> String {

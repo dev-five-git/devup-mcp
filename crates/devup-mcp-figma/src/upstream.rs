@@ -237,6 +237,8 @@ impl BuiltinScript {
             })
             .unwrap_or_else(|| json!({}));
         let asset = serde_json::to_string(&asset).expect("asset options serialize");
+        let theme = serde_json::to_string(&json!({ "offset": inputs.theme_offset.unwrap_or(0) }))
+            .expect("theme page options serialize");
         source
             .replace(
                 "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
@@ -258,6 +260,7 @@ impl BuiltinScript {
             .replace("\"__DEVUP_SNAPSHOT__\"", &snapshot)
             .replace("\"__DEVUP_LARGE_VALUE__\"", &large_value)
             .replace("\"__DEVUP_ASSET__\"", &asset)
+            .replace("\"__DEVUP_THEME__\"", &theme)
     }
 }
 
@@ -270,6 +273,7 @@ struct ScriptInputs<'a> {
     root_ids: Option<&'a [String]>,
     large_value: Option<&'a LargeValueReadOptions>,
     asset: Option<(&'a AssetRequest, Option<&'a str>)>,
+    theme_offset: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -365,6 +369,9 @@ pub enum ReadToolCall {
     },
     FastTheme {
         file_key: String,
+        /// Where in the file's resources the page starts; the first page is
+        /// 0, and each page says where the next begins.
+        offset: usize,
     },
     LargeValue {
         file_key: String,
@@ -494,8 +501,14 @@ impl ReadToolCall {
     }
 
     pub fn fast_theme(file_key: impl Into<String>) -> Self {
+        Self::fast_theme_page(file_key, 0)
+    }
+
+    /// One page of the file's resources, from `offset`.
+    pub fn fast_theme_page(file_key: impl Into<String>, offset: usize) -> Self {
         Self::FastTheme {
             file_key: file_key.into(),
+            offset,
         }
     }
 
@@ -679,10 +692,13 @@ impl ReadToolCall {
                     ..ScriptInputs::default()
                 })
             }),
-            Self::FastTheme { file_key } => json!({
+            Self::FastTheme { file_key, offset } => json!({
                 "fileKey": file_key,
                 "description": self.description(),
-                "code": BuiltinScript::FastThemeEnvelope.source("", ScriptInputs::default())
+                "code": BuiltinScript::FastThemeEnvelope.source("", ScriptInputs {
+                    theme_offset: Some(*offset),
+                    ..ScriptInputs::default()
+                })
             }),
             Self::LargeValue { file_key, options } => json!({
                 "fileKey": file_key,

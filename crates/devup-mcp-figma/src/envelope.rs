@@ -37,6 +37,21 @@ pub struct FastThemePayload {
     pub resources: UpstreamResult,
     pub source_version: Option<String>,
     pub stats: FastTransportStats,
+    /// Which page of the file's resources this is. `None` for an envelope
+    /// that carries them all at once, the shape every fast theme had before
+    /// pagination.
+    pub page: Option<ThemePage>,
+}
+
+/// One page of a paginated theme: the run of resources it carries and where
+/// the next page starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThemePage {
+    pub offset: usize,
+    pub next_offset: usize,
+    pub complete: bool,
+    pub total_items: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,6 +95,8 @@ struct ThemeEnvelope {
     source: ThemeEnvelopeSource,
     resources: Value,
     integrity: ThemeEnvelopeIntegrity,
+    #[serde(default)]
+    page: Option<ThemePage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -168,6 +185,13 @@ pub fn decode_fast_theme(
         return Err(invalid("textEnvelopeMissing"));
     };
     validate_theme_envelope(&envelope, expected_file_key)?;
+    if let Some(page) = &envelope.page
+        && (page.next_offset < page.offset
+            || page.next_offset > page.total_items
+            || page.complete != (page.next_offset >= page.total_items))
+    {
+        return Err(invalid("themePageCursor"));
+    }
     Ok(FastThemePayload {
         resources: UpstreamResult {
             raw: envelope.resources,
@@ -179,6 +203,7 @@ pub fn decode_fast_theme(
             wire_bytes: utf8_bytes,
             chunk_count: 0,
         },
+        page: envelope.page,
     })
 }
 

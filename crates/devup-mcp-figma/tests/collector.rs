@@ -875,6 +875,142 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
     assert_eq!(parts.variables.as_ref().unwrap().raw["localComplete"], true);
 }
 
+/// A file's resources rarely fit one answer, so the theme script pages
+/// them: each page carries a run of the resources from an offset and says
+/// where the next starts, and the collector asks for the next page from
+/// there until one says it is the last. The pages are merged in order, a
+/// resource two pages both carry is kept once, and the scan every page
+/// repeats comes from the last one.
+#[test]
+fn a_paged_fast_theme_is_read_page_by_page_and_merged() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!("fast theme call expected")
+    };
+    assert!(
+        first.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("{\"offset\":0}")
+    );
+    collector
+        .accept(
+            &first.id,
+            fast_theme_page_result(
+                json!({"collections": [{"id": "c", "name": "Theme"}], "variables": [{"id": "v1", "name": "primary"}], "styles": []}),
+                json!({"offset": 0, "nextOffset": 2, "complete": false, "totalItems": 4}),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!("the next page is asked for")
+    };
+    assert_eq!(second.call.tool_name(), "use_figma");
+    assert!(
+        second.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("{\"offset\":2}")
+    );
+    collector
+        .accept(
+            &second.id,
+            fast_theme_page_result(
+                json!({"collections": [], "variables": [{"id": "v1", "name": "primary"}, {"id": "v2", "name": "text"}], "styles": [{"id": "s", "name": "body", "styleType": "TEXT"}]}),
+                json!({"offset": 2, "nextOffset": 4, "complete": true, "totalItems": 4}),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("the last page completes the theme")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 2);
+    assert_eq!(parts.stats.transport, "text");
+    assert!(!parts.stats.fallback_used);
+    let resources = &parts.variables.as_ref().unwrap().raw;
+    assert_eq!(resources["collections"].as_array().unwrap().len(), 1);
+    // v1 was on both pages and is kept once.
+    assert_eq!(
+        resources["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|variable| variable["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["v1", "v2"]
+    );
+    assert_eq!(resources["styles"].as_array().unwrap().len(), 1);
+    assert_eq!(resources["localComplete"], true);
+    assert_eq!(parts.stats.variable_count, 2);
+    assert_eq!(parts.stats.style_count, 1);
+    assert_eq!(parts.metadata["pageCount"], 2);
+}
+
+/// A page that does not move forward is refused, not asked for forever.
+#[test]
+fn a_fast_theme_page_that_does_not_advance_is_refused() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!("fast theme call expected")
+    };
+    let error = collector
+        .accept(
+            &first.id,
+            fast_theme_page_result(
+                json!({"collections": [], "variables": [], "styles": []}),
+                json!({"offset": 0, "nextOffset": 0, "complete": false, "totalItems": 4}),
+            ),
+        )
+        .expect_err("a page cursor that stands still is an error");
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+fn fast_theme_page_result(resources: Value, page: Value) -> UpstreamResult {
+    let mut envelope = json!({
+        "kind": "devupFastThemeEnvelope",
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "version": "v2"},
+        "resources": {
+            "collections": resources["collections"],
+            "variables": resources["variables"],
+            "styles": resources["styles"],
+            "usedRemoteVariables": [],
+            "usedVariableIds": ["v1", "v2"],
+            "usedStyleIds": ["s"],
+            "localComplete": true,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "page": page,
+        "integrity": {
+            "collectionCount": resources["collections"].as_array().map_or(0, Vec::len),
+            "variableCount": resources["variables"].as_array().map_or(0, Vec::len),
+            "styleCount": resources["styles"].as_array().map_or(0, Vec::len),
+            "unresolvedCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    }
+    UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": envelope.to_string()}]}),
+    }
+}
+
 #[test]
 fn malformed_or_rejected_fast_theme_restarts_legacy_collection_atomically() {
     let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
