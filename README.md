@@ -254,6 +254,32 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다. renderer pinning, 기본 0.5% threshold, diff PNG와 개인정보 취급 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
+### 렌더링 하네스 — 생성 코드를 Figma가 그린 PNG와 비교
+
+생성 코드를 플러그인의 답안과 줄 단위로 맞춰보면 둘이 일치한다는 것까지는 알 수 있지만, **둘 중 어느 쪽도 Figma가 그리는 그림과 같은지는 말해주지 못합니다.** `harness/render`는 그 질문에 답합니다 — 각 화면을 devup-ui로 빌드해 프레임 크기 그대로 열고, Figma가 같은 프레임을 렌더한 PNG와 픽셀 비교합니다.
+
+```bash
+cd harness/render && npm install
+python scripts/acquire.py            # 모듈·테마·에셋·기준 PNG를 실행 중인 devup-mcp에서 가져옴
+node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계값 초과 시 exit 1
+```
+
+`acquire.py`는 Figma 호출을 `fixtures/local-call-bank`에 적립하므로 재실행은 이미 지불한 만큼 무료입니다. 화면마다 **자기 테마를 node scope로** 받습니다 — 파일 하나에 여러 브랜드 컬렉션이 섞이면 `primary` 같은 토큰이 서로 덮어써서, 공지 화면이 Figma가 파랑으로 그리는 자리를 보라색으로 그렸습니다. devup-ui는 테마를 빌드 시점에 굽기 때문에 화면들은 필요한 테마별로 묶여 그룹마다 한 번씩 빌드됩니다. 리셋은 생성 코드가 전제하는 `@devup-ui/reset-css` 그대로입니다.
+
+`thresholds.json`이 화면별로 Figma와 벌어져도 되는 최대치를 들고 있습니다. 초과하면 실패하고, 밑돌면 그렇다고 알려줍니다(= 수치를 조일 차례). 측정값:
+
+| 화면 | 1920 | 992 / 768 | 360 / 390 |
+|---|---|---|---|
+| popup | **0.83%** | 2.19% | 3.59% |
+| popup (플러그인 답안) | 21.06% | 7.14% | 12.02% |
+| notice | **2.33%** | 4.19% | 8.29% |
+| about | 4.54% | 6.94% | 11.26% |
+| report **1.87%** · grid 2.96% · keyframes 6.71% | | | |
+
+차이가 **어디** 있는지는 보조 도구가 답합니다 — `bands.mjs`(가장 많이 어긋난 구간), `drift.mjs`(단순 이동인지 실제 차이인지), `crop.mjs`(구간을 기준/캡처 나란히), `boxes.mjs`(DOM 상자를 Figma 좌표와 대조), `elements.mjs`(그림이 실제로 몇 픽셀로 나왔는지). 긴 화면을 통째로 줄인 스크린샷은 아무것도 보여주지 않습니다.
+
+캡처·테마·에셋·빌드 산출물은 커밋하지 않습니다(`harness/render/.gitignore`). 이 하네스가 찾아낸 결함은 테마 스코프, 컨테이너가 칠하는 그림의 매니페스트 누락, 잘린 fill의 crop 행렬, 파일시스템이 못 받는 레이어 이름, 폭마다 크기가 다른 사진의 파일 공유, 투명도 0 노드의 export 거부, 그리고 positioned child 너머로 CSS가 못 미치는 높이입니다.
+
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
 asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플러그인이 그렇게 짓기 때문입니다. 그래서 디자이너가 같은 이름을 준 노드들은 파일 하나를 공유합니다. 같은 그림이면 맞지만 아니면 손실입니다. 한 화면에서 여덟 노드가 `Logo.svg` 하나를 주장하는데 실제로는 서로 다른 그림 다섯 개였고, 폭마다 그려진 사진은 마지막으로 export된 폭의 파일만 남아 다른 폭에서는 상자와 크기가 어긋난 채 늘어납니다(파일이 상자와 같은 크기이면 `object-fit`이 무엇이든 결과가 같으므로, 플러그인에서는 이 문제가 드러나지 않습니다).
