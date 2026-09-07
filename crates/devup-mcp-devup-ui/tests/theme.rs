@@ -35,11 +35,19 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
                 "valuesByMode": {"mode:light": 16, "mode:dark": 20}
             }
         ],
+        // A style's value is what the snapshot script serialises: the text
+        // style itself, and an effect style's `effects`.
         "styles": [
             {"id": "style:text", "name": "Heading/H1", "styleType": "TEXT", "value": {
-                "fontFamily": "Pretendard", "fontSize": "32px", "fontWeight": 700, "lineHeight": 1.3
+                "fontName": {"family": "Pretendard", "style": "Bold"}, "fontSize": 32,
+                "lineHeight": {"unit": "PERCENT", "value": 130.00000476837158},
+                "letterSpacing": {"unit": "PERCENT", "value": -2},
+                "textCase": "ORIGINAL", "textDecoration": "NONE", "boundVariables": {}
             }},
-            {"id": "style:effect", "name": "Elevation/Card", "styleType": "EFFECT", "value": "0 4px 12px #0000001a"}
+            {"id": "style:effect", "name": "Elevation/Card", "styleType": "EFFECT", "value": [
+                {"type": "DROP_SHADOW", "visible": true, "offset": {"x": 0, "y": 4}, "radius": 12, "spread": 0,
+                 "color": {"r": 0, "g": 0, "b": 0, "a": 0.1}, "blendMode": "NORMAL"}
+            ]}
         ],
         "usedRemoteVariables": [],
         "localComplete": true,
@@ -68,12 +76,15 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
             "        \"primary\": \"#3291ff\"\n",
             "      }\n",
             "    },\n",
+            // In the shape devup-ui reads: pixels, a line-height ratio, an em
+            // of letter-spacing, and the weight the font style's name means.
             "    \"typography\": {\n",
             "      \"headingH1\": {\n",
             "        \"fontFamily\": \"Pretendard\",\n",
-            "        \"fontSize\": \"32px\",\n",
             "        \"fontWeight\": 700,\n",
-            "        \"lineHeight\": 1.3\n",
+            "        \"fontSize\": \"32px\",\n",
+            "        \"lineHeight\": 1.3,\n",
+            "        \"letterSpacing\": \"-0.02em\"\n",
             "      }\n",
             "    },\n",
             "    \"length\": {\n",
@@ -84,9 +95,14 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
             "        \"gutter\": \"20px\"\n",
             "      }\n",
             "    },\n",
+            // A shadow is the same at every colour theme, and devup-ui keys it
+            // by one, so each theme gets it.
             "    \"shadow\": {\n",
-            "      \"default\": {\n",
-            "        \"elevationCard\": \"0 4px 12px #0000001a\"\n",
+            "      \"light\": {\n",
+            "        \"elevationCard\": \"0 4px 12px 0 #0000001a\"\n",
+            "      },\n",
+            "      \"darkMode\": {\n",
+            "        \"elevationCard\": \"0 4px 12px 0 #0000001a\"\n",
             "      }\n",
             "    }\n",
             "  }\n",
@@ -95,6 +111,82 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
     );
     assert_eq!(output.counts.variables, 3);
     assert_eq!(output.counts.styles, 2);
+}
+
+/// Styles named for a breakpoint are one entry with a slot each: the
+/// plugin's `styleNameToTypography` puts `mobile/`, `tablet/` and `desktop/`
+/// at slots 0, 2 and 4 and a leading number at that slot, and the slots are
+/// gathered into a responsive array with the empty tail dropped. A text
+/// style that sets its line height automatically is `normal`, one in pixels
+/// stays in pixels, `Bold Italic` is bold and italic, and a bound font size
+/// is its variable's token.
+#[test]
+fn styles_named_for_a_breakpoint_become_one_responsive_entry() {
+    let variables: VariableSnapshot = serde_json::from_value(json!({
+        "collections": [{"id": "c", "name": "C", "defaultModeId": "m", "modes": [{"modeId": "m", "name": "Default"}]}],
+        "variables": [{
+            "id": "var:size", "name": "Font/Size Lg", "resolvedType": "FLOAT",
+            "variableCollectionId": "c", "codeSyntax": {}, "valuesByMode": {"m": 40}
+        }],
+        "styles": [
+            {"id": "s:0", "name": "mobile/h1", "styleType": "TEXT", "value": {
+                "fontName": {"family": "Pretendard", "style": "Bold Italic"}, "fontSize": 24,
+                "lineHeight": {"unit": "AUTO"}, "letterSpacing": {"unit": "PIXELS", "value": 0.5},
+                "textCase": "UPPER", "textDecoration": "UNDERLINE", "boundVariables": {}
+            }},
+            {"id": "s:4", "name": "desktop/h1", "styleType": "TEXT", "value": {
+                "fontName": {"family": "Pretendard", "style": "ExtraBold"}, "fontSize": 40,
+                "lineHeight": {"unit": "PIXELS", "value": 48}, "letterSpacing": {"unit": "PERCENT", "value": 0},
+                "textCase": "ORIGINAL", "textDecoration": "NONE",
+                "boundVariables": {"fontSize": {"type": "VARIABLE_ALIAS", "id": "var:size"}}
+            }},
+            {"id": "s:3", "name": "3/label", "styleType": "TEXT", "value": {
+                "fontName": {"family": "Noto Sans KR", "style": "Medium"}, "fontSize": 13,
+                "lineHeight": {"unit": "PERCENT", "value": 150}, "letterSpacing": {"unit": "PERCENT", "value": -4},
+                "textCase": "ORIGINAL", "textDecoration": "NONE", "boundVariables": {}
+            }},
+            {"id": "e:0", "name": "card", "styleType": "EFFECT", "value": [
+                {"type": "INNER_SHADOW", "visible": true, "offset": {"x": 1, "y": 1}, "radius": 2, "spread": 0, "color": {"r": 1, "g": 1, "b": 1, "a": 1}},
+                {"type": "DROP_SHADOW", "visible": false, "offset": {"x": 0, "y": 9}, "radius": 9, "spread": 0, "color": {"r": 0, "g": 0, "b": 0, "a": 1}},
+                {"type": "LAYER_BLUR", "visible": true, "radius": 4}
+            ]},
+            {"id": "e:4", "name": "desktop/card", "styleType": "EFFECT", "value": [
+                {"type": "DROP_SHADOW", "visible": true, "offset": {"x": 0, "y": 8}, "radius": 24, "spread": -4, "color": {"r": 0, "g": 0, "b": 0, "a": 0.15}}
+            ]},
+            {"id": "e:blur", "name": "glow", "styleType": "EFFECT", "value": [
+                {"type": "LAYER_BLUR", "visible": true, "radius": 4}
+            ]}
+        ],
+        "usedRemoteVariables": [],
+        "localComplete": true,
+        "usedRemoteComplete": true
+    }))
+    .expect("variable snapshot");
+
+    let output = generate_devup_json(&variables, ThemeScope::File).expect("devup theme");
+    let json: serde_json::Value = serde_json::from_str(&output.json).expect("json");
+    assert_eq!(
+        json["theme"]["typography"],
+        json!({
+            "h1": [
+                {"fontFamily": "Pretendard", "fontStyle": "italic", "fontWeight": 700, "fontSize": "24px",
+                 "textDecoration": "underline", "textTransform": "uppercase", "lineHeight": "normal", "letterSpacing": "0.5px"},
+                null,
+                null,
+                null,
+                // the token is named as every `$token` here is, by the
+                // variable's last path segment
+                {"fontFamily": "Pretendard", "fontWeight": 800, "fontSize": "$sizeLg", "lineHeight": "48px", "letterSpacing": "0em"}
+            ],
+            // one slot only is the value alone, wherever the slot was
+            "label": {"fontFamily": "Noto Sans KR", "fontWeight": 500, "fontSize": "13px", "lineHeight": 1.5, "letterSpacing": "-0.04em"}
+        })
+    );
+    // A blur is not a shadow; an effect style with only blurs is no entry.
+    assert_eq!(
+        json["theme"]["shadow"],
+        json!({"default": {"card": ["inset 1px 1px 2px 0 #ffffff", null, null, null, "0 8px 24px -4px #00000026"]}})
+    );
 }
 
 #[test]

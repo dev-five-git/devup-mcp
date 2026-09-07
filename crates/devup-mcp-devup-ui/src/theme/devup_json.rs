@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 
 use devup_mcp_figma::{DevupError, Diagnostic, DiagnosticSeverity, ErrorCode, UpstreamResult};
 
-use super::tokens::{normalize_token, variable_token};
+use super::tokens::{normalize_token, style_token, variable_token};
 use crate::provenance::{ProvenanceEntry, SourceMap, json_pointer_segment};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -384,8 +384,28 @@ pub fn generate_devup_json(
         });
     }
 
-    let mut typography = BTreeMap::new();
-    let mut shadows = BTreeMap::new();
+    // A text style is a `typography` entry and an effect style a `shadow`
+    // entry, each in the shape devup-ui reads and under the name the plugin's
+    // `styleNameToTypography` gives it. A style named for a breakpoint —
+    // `desktop/h1`, `3/bodyXlgBold` — is one slot of a responsive entry, and
+    // the slots of one name are gathered into an array. The raw style object
+    // used to be written as it came, and devup-ui's own plugin refused the
+    // file: `Invalid typography property value: Object {"unit": "PERCENT",
+    // "value": 120}`.
+    let mut typography_slots: BTreeMap<String, [Option<Value>; 6]> = BTreeMap::new();
+    let mut shadow_slots: BTreeMap<String, [Option<String>; 6]> = BTreeMap::new();
+    let variable_names = variables
+        .values()
+        .map(|variable| {
+            (
+                variable.id.as_str(),
+                variable_token(
+                    &variable.name,
+                    variable.code_syntax.get("WEB").map(String::as_str),
+                ),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let selected_style_ids = (scope != ThemeScope::File && !snapshot.used_style_ids.is_empty())
         .then(|| snapshot.used_style_ids.iter().collect::<BTreeSet<_>>());
     let styles = snapshot
@@ -398,10 +418,15 @@ pub fn generate_devup_json(
         })
         .collect::<Vec<_>>();
     for style in &styles {
-        let token = normalize_token(&style.name);
+        let (level, token) = style_token(&style.name);
+        let level = level.min(5);
         match style.style_type.as_str() {
             "TEXT" => {
-                typography.insert(token.clone(), style.value.clone());
+                let slots = typography_slots.entry(token.clone()).or_default();
+                // The first style seen for a slot keeps it, as in the plugin.
+                if slots[level].is_none() {
+                    slots[level] = Some(typography_value(&style.value, &variable_names));
+                }
                 source_entries.push(ProvenanceEntry {
                     generated_range: None,
                     json_pointer: Some(format!(
@@ -417,7 +442,13 @@ pub fn generate_devup_json(
                 });
             }
             "EFFECT" => {
-                shadows.insert(token.clone(), style.value.clone());
+                let Some(shadow) = shadow_value(&style.value) else {
+                    continue;
+                };
+                let slots = shadow_slots.entry(token.clone()).or_default();
+                if slots[level].is_none() {
+                    slots[level] = Some(shadow);
+                }
                 source_entries.push(ProvenanceEntry {
                     generated_range: None,
                     json_pointer: Some(format!(
@@ -435,6 +466,16 @@ pub fn generate_devup_json(
             _ => {}
         }
     }
+    let typography = typography_slots
+        .into_iter()
+        .filter_map(|(token, slots)| responsive_entry(slots).map(|entry| (token, entry)))
+        .collect::<Map<_, _>>();
+    let shadows = shadow_slots
+        .into_iter()
+        .filter_map(|(token, slots)| {
+            responsive_entry(slots.map(|slot| slot.map(Value::String))).map(|entry| (token, entry))
+        })
+        .collect::<Map<_, _>>();
 
     // devup-ui takes the first theme written under `colors` as the default —
     // the one in effect without a `data-theme` — so the order of the modes is
@@ -479,11 +520,41 @@ pub fn generate_devup_json(
         }
         Value::Object(ordered)
     };
+    let colors = in_mode_order(colors);
+    // Lengths and shadows do not vary by colour theme, but devup-ui keys them
+    // by one, so each colour theme gets a copy — the plugin replicates them
+    // the same way. A file with no colour themes keeps `default`.
+    let theme_names = colors
+        .as_object()
+        .map(|themes| themes.keys().cloned().collect::<Vec<_>>())
+        .filter(|names| !names.is_empty())
+        .unwrap_or_else(|| vec!["default".to_owned()]);
+    let lengths = {
+        let ordered = in_mode_order(lengths);
+        let mut by_theme = ordered.as_object().cloned().unwrap_or_default();
+        let first = by_theme.values().next().cloned();
+        let mut replicated = Map::new();
+        for name in &theme_names {
+            if let Some(tokens) = by_theme.remove(name) {
+                replicated.insert(name.clone(), tokens);
+            } else if let Some(first) = &first {
+                replicated.insert(name.clone(), first.clone());
+            }
+        }
+        for (name, tokens) in by_theme {
+            replicated.insert(name, tokens);
+        }
+        Value::Object(replicated)
+    };
+    let shadows = theme_names
+        .iter()
+        .map(|name| (name.clone(), Value::Object(shadows.clone())))
+        .collect::<Map<_, _>>();
     let mut theme = Map::new();
-    theme.insert("colors".to_owned(), in_mode_order(colors));
-    theme.insert("typography".to_owned(), json!(typography));
-    theme.insert("length".to_owned(), in_mode_order(lengths));
-    theme.insert("shadow".to_owned(), json!({ "default": shadows }));
+    theme.insert("colors".to_owned(), colors);
+    theme.insert("typography".to_owned(), Value::Object(typography));
+    theme.insert("length".to_owned(), lengths);
+    theme.insert("shadow".to_owned(), Value::Object(shadows));
     let mut root = Map::new();
     root.insert("theme".to_owned(), Value::Object(theme));
     let mut output = serde_json::to_string_pretty(&Value::Object(root)).map_err(|_| {
@@ -531,6 +602,209 @@ pub fn generate_devup_json(
             entries: source_entries,
         },
     })
+}
+
+/// A text style's value as devup-ui reads it — the plugin's
+/// `textStyleToTypography`.
+///
+/// `fontSize` is in pixels, `lineHeight` a ratio from a percentage (`120%`
+/// is `1.2`), pixels as they are, and `normal` when Figma sets it
+/// automatically; `letterSpacing` is `em` from a percentage and pixels as
+/// they are; the weight is read off the font style's name; and a field the
+/// style binds to a variable is that variable's token. Two departures from
+/// the plugin, on purpose: `Bold Italic` is `700` and italic, where the
+/// plugin reads the weight off the whole style name and gets `400`; and a
+/// text case is the CSS `text-transform` value — `uppercase`, not `upper`.
+fn typography_value(style: &Value, variable_names: &BTreeMap<&str, String>) -> Value {
+    let mut entry = Map::new();
+    let font = style.get("fontName");
+    let family = font
+        .and_then(|font| font.get("family"))
+        .and_then(Value::as_str);
+    let face = font
+        .and_then(|font| font.get("style"))
+        .and_then(Value::as_str)
+        .unwrap_or("Regular");
+    if let Some(family) = family {
+        entry.insert("fontFamily".to_owned(), Value::String(family.to_owned()));
+    }
+    if face.contains("Italic") {
+        entry.insert("fontStyle".to_owned(), Value::String("italic".to_owned()));
+    }
+    entry.insert("fontWeight".to_owned(), Value::from(font_weight(face)));
+    if let Some(size) = style.get("fontSize").and_then(Value::as_f64) {
+        entry.insert("fontSize".to_owned(), Value::String(format_px(size)));
+    }
+    match style.get("textDecoration").and_then(Value::as_str) {
+        Some("UNDERLINE") => {
+            entry.insert(
+                "textDecoration".to_owned(),
+                Value::String("underline".to_owned()),
+            );
+        }
+        Some("STRIKETHROUGH") => {
+            entry.insert(
+                "textDecoration".to_owned(),
+                Value::String("line-through".to_owned()),
+            );
+        }
+        _ => {}
+    }
+    let transform = match style.get("textCase").and_then(Value::as_str) {
+        Some("UPPER") => Some("uppercase"),
+        Some("LOWER") => Some("lowercase"),
+        Some("TITLE") => Some("capitalize"),
+        _ => None,
+    };
+    if let Some(transform) = transform {
+        entry.insert(
+            "textTransform".to_owned(),
+            Value::String(transform.to_owned()),
+        );
+    }
+    if let Some(line_height) = style.get("lineHeight") {
+        let unit = line_height.get("unit").and_then(Value::as_str);
+        let value = line_height.get("value").and_then(Value::as_f64);
+        let written = match (unit, value) {
+            (Some("AUTO"), _) => Some(Value::String("normal".to_owned())),
+            (Some("PERCENT"), Some(percent)) => Some(Value::from((percent / 10.0).round() / 10.0)),
+            (Some(_), Some(pixels)) => Some(Value::String(format_px(pixels))),
+            _ => None,
+        };
+        if let Some(written) = written {
+            entry.insert("lineHeight".to_owned(), written);
+        }
+    }
+    if let Some(spacing) = style.get("letterSpacing") {
+        let unit = spacing.get("unit").and_then(Value::as_str);
+        let value = spacing.get("value").and_then(Value::as_f64);
+        let written = match (unit, value) {
+            (Some("PERCENT"), Some(percent)) => Some(format!("{}em", percent.round() / 100.0)),
+            (Some(_), Some(pixels)) => Some(format_px(pixels)),
+            _ => None,
+        };
+        if let Some(written) = written {
+            entry.insert("letterSpacing".to_owned(), Value::String(written));
+        }
+    }
+    if let Some(bound) = style.get("boundVariables").and_then(Value::as_object) {
+        for field in [
+            "fontFamily",
+            "fontSize",
+            "fontStyle",
+            "fontWeight",
+            "letterSpacing",
+            "lineHeight",
+        ] {
+            if let Some(token) = bound
+                .get(field)
+                .and_then(|alias| alias.get("id"))
+                .and_then(Value::as_str)
+                .and_then(|id| variable_names.get(id))
+            {
+                entry.insert(field.to_owned(), Value::String(format!("${token}")));
+            }
+        }
+    }
+    Value::Object(entry)
+}
+
+/// The weight a font style's name means — the plugin's `getFontWeight`,
+/// with `Italic` set aside first so `Bold Italic` is still bold.
+fn font_weight(face: &str) -> u32 {
+    let name = face
+        .replace("Italic", "")
+        .replace([' ', '-', '_'], "")
+        .to_ascii_lowercase();
+    match name.as_str() {
+        "thin" | "hairline" => 100,
+        "extralight" | "ultralight" => 200,
+        "light" => 300,
+        "" | "normal" | "regular" | "book" => 400,
+        "medium" => 500,
+        "semibold" | "demibold" => 600,
+        "bold" => 700,
+        "extrabold" | "ultrabold" => 800,
+        "black" | "heavy" => 900,
+        other => match other.parse::<u32>() {
+            Ok(number) if (1..=9).contains(&number) => number * 100,
+            Ok(number) => number,
+            Err(_) => 400,
+        },
+    }
+}
+
+/// An effect style's visible shadows as one CSS `box-shadow` — the plugin's
+/// `effectStyleToCssShadow`. `None` when it casts none.
+fn shadow_value(effects: &Value) -> Option<String> {
+    let parts = effects
+        .as_array()?
+        .iter()
+        .filter(|effect| effect.get("visible").and_then(Value::as_bool) != Some(false))
+        .filter_map(|effect| {
+            let kind = effect.get("type").and_then(Value::as_str)?;
+            let inset = match kind {
+                "DROP_SHADOW" => "",
+                "INNER_SHADOW" => "inset ",
+                _ => return None,
+            };
+            let offset = effect.get("offset");
+            let x = offset
+                .and_then(|offset| offset.get("x"))
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let y = offset
+                .and_then(|offset| offset.get("y"))
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let radius = effect.get("radius").and_then(Value::as_f64).unwrap_or(0.0);
+            let spread = effect.get("spread").and_then(Value::as_f64).unwrap_or(0.0);
+            let color = color_value(effect.get("color")?)?;
+            let length = |value: f64| {
+                if value == 0.0 {
+                    "0".to_owned()
+                } else {
+                    format_px(value)
+                }
+            };
+            Some(format!(
+                "{inset}{} {} {} {} {color}",
+                length(x),
+                length(y),
+                length(radius),
+                length(spread)
+            ))
+        })
+        .collect::<Vec<_>>();
+    (!parts.is_empty()).then(|| parts.join(", "))
+}
+
+/// One entry of `typography` or `shadow` from its six breakpoint slots — the
+/// plugin's reduction: one slot filled is the value alone; the first slot
+/// empty is filled with the first value there is, since a mobile-first array
+/// has to start somewhere; and the trailing empty slots are dropped, which
+/// the plugin does only for an array it had to fill.
+fn responsive_entry(slots: [Option<Value>; 6]) -> Option<Value> {
+    let filled = slots.iter().filter(|slot| slot.is_some()).count();
+    if filled == 0 {
+        return None;
+    }
+    if filled == 1 {
+        return slots.into_iter().flatten().next();
+    }
+    let mut values = slots.to_vec();
+    if values[0].is_none() {
+        values[0] = slots.iter().flatten().next().cloned();
+    }
+    while values.last().is_some_and(Option::is_none) {
+        values.pop();
+    }
+    Some(Value::Array(
+        values
+            .into_iter()
+            .map(|slot| slot.unwrap_or(Value::Null))
+            .collect(),
+    ))
 }
 
 fn has_web_syntax(variable: &VariableDefinition) -> bool {

@@ -2,7 +2,7 @@ mod devup_json;
 mod project_theme;
 mod tokens;
 
-pub(crate) use tokens::{normalize_token, variable_token};
+pub(crate) use tokens::{style_token, variable_token};
 
 pub use devup_json::{
     Completeness, ThemeConflict, ThemeConflictCandidate, ThemeCounts, ThemeOutput, ThemeScope,
