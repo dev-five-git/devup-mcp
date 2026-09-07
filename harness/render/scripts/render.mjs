@@ -163,6 +163,32 @@ async function main() {
   }
   mkdirSync(join(HARNESS, "out"), { recursive: true });
   writeFileSync(join(HARNESS, "out", "report.json"), JSON.stringify(report, null, 2));
+  reportAgainstThresholds(report);
+}
+
+// Every figure won here was won against a specific defect, and nothing stops
+// the next change from giving one back. Each screen carries the most it may
+// differ; a run that exceeds it fails, and a run that comes in under it says
+// so, which is the cue to tighten the figure.
+function reportAgainstThresholds(report) {
+  const path = join(HARNESS, "thresholds.json");
+  if (!existsSync(path)) return;
+  const { tolerance = 0.05, screens = {} } = JSON.parse(readFileSync(path, "utf8"));
+  const worse = [];
+  const better = [];
+  for (const entry of report) {
+    const allowed = screens[entry.name];
+    if (allowed === undefined || !entry.metrics) continue;
+    const measured = entry.metrics.changedRatio * 100;
+    if (measured > allowed + tolerance) worse.push(`${entry.name}: ${measured.toFixed(2)}% > ${allowed}%`);
+    else if (measured < allowed - tolerance) better.push(`${entry.name}: ${measured.toFixed(2)}% < ${allowed}%`);
+  }
+  for (const line of better) console.log(`improved, tighten thresholds.json — ${line}`);
+  if (worse.length > 0) {
+    console.error(`\n${worse.length} screen(s) drifted further from Figma:`);
+    for (const line of worse) console.error(`  ${line}`);
+    process.exitCode = 1;
+  }
 }
 
 async function renderGroup(browser, targets, report, port) {

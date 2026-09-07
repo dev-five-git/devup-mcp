@@ -1,0 +1,21 @@
+{
+  "note": "The most each screen may differ from Figma's own PNG, as a percentage. Written from a measured run; `render.mjs` fails when a screen exceeds its own figure, so a change that makes a screen worse cannot pass unnoticed. Tighten a figure whenever a run comes in under it. The `popup-answer-*` entries are the plugin's own answer rendered the same way - a baseline to compare against, not something to improve.",
+  "tolerance": 0.05,
+  "screens": {
+    "popup-422-5682": 3.53,
+    "popup-422-5705": 2.15,
+    "popup-422-5728": 0.82,
+    "popup-answer-422-5682": 12.02,
+    "popup-answer-422-5705": 7.14,
+    "popup-answer-422-5728": 21.06,
+    "keyframes-458-2021": 6.71,
+    "grid-429-1966": 2.96,
+    "report-446-1971": 1.87,
+    "notice-422-6914": 8.29,
+    "notice-422-7088": 4.19,
+    "notice-422-6865": 2.33,
+    "about-422-3376": 11.26,
+    "about-422-3180": 6.94,
+    "about-422-2987": 4.54
+  }
+}
