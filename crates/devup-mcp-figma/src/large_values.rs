@@ -161,6 +161,14 @@ impl LargeValueAssembler {
     }
 
     pub fn finish(self) -> Result<Value, DevupError> {
+        let output = self.finish_bytes()?;
+        serde_json::from_slice(&output)
+            .map_err(|_| invalid("large value fragment cannot be restored as a JSON value."))
+    }
+
+    /// The bytes the fragments assemble to, checked against the announced
+    /// length and hash but not parsed: an SVG export is text, not JSON.
+    pub fn finish_bytes(self) -> Result<Vec<u8>, DevupError> {
         if !self.saw_complete {
             return Err(invalid(
                 "large value fragment for the final range is missing.",
@@ -182,8 +190,7 @@ impl LargeValueAssembler {
                 "large value fragment length or hash does not match.",
             ));
         }
-        serde_json::from_slice(&output)
-            .map_err(|_| invalid("large value fragment cannot be restored as a JSON value."))
+        Ok(output)
     }
 }
 

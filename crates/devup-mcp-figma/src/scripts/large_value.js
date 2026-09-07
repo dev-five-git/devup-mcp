@@ -147,8 +147,17 @@ function base64(bytes) {
 }
 
 let rawValue;
+// The bytes a fragment is cut from. A node field is its JSON; the virtual
+// field `$export:svg` is the node's SVG export as text, which the asset
+// script announced when it was too large to carry in one answer.
+let exportedBytes = null;
 try {
-  if (
+  if (options.field === "$export:svg") {
+    if (typeof node.exportAsync !== "function") throw new Error("unsupported");
+    const svg = await node.exportAsync({ format: "SVG_STRING" });
+    if (typeof svg !== "string") throw new Error("unsupported");
+    exportedBytes = utf8Encode(svg);
+  } else if (
     options.field === "styledTextSegments" &&
     node.type === "TEXT" &&
     typeof node.getStyledTextSegments === "function"
@@ -172,7 +181,7 @@ try {
   };
 }
 
-const bytes = utf8Encode(JSON.stringify(serialize(rawValue)));
+const bytes = exportedBytes === null ? utf8Encode(JSON.stringify(serialize(rawValue))) : exportedBytes;
 const observedHash = sha256(bytes);
 if (bytes.length !== options.byteLength || observedHash !== options.sha256) {
   throw new Error("DEVUP_LARGE_VALUE_CHANGED");

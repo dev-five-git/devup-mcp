@@ -63,10 +63,30 @@ try {
   if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
     return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
   }
-  if (svgText !== null && bytes.length > 12 * 1024) {
-    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
-  }
   const sha256 = devupSha256(bytes);
+  if (svgText !== null && bytes.length > 12 * 1024) {
+    // An SVG past what one text response holds is not written here at all:
+    // it is announced with its length and hash, and read back in fragments
+    // through the large-value script, which re-exports it and slices — the
+    // same transport a large node field takes. An illustration of fifty
+    // vectors is 125 KB; before this it simply failed.
+    return {
+      kind: "devupAssetExport",
+      fileKey: figma.fileKey || "",
+      version: options.version,
+      assetId: options.assetId,
+      nodeId: options.nodeId,
+      field: options.field,
+      imageHash: options.imageHash,
+      format: options.format,
+      scale,
+      status: "chunked",
+      byteLength: bytes.length,
+      sha256,
+      cursor: { nextOffset: 0, maxChunkBytes: DEVUP_LARGE_VALUE_CHUNK_BYTES },
+      errorCode: null,
+    };
+  }
   figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${String(options.format).toLowerCase()}`, bytes);
   return {
     kind: "devupAssetExport",

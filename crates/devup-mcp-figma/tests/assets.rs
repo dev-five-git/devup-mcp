@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_figma::{
-    AssetFormat, AssetRequest, AssetSelection, AssetStatus, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, FigmaTarget, RawNode, ReadToolCall, Snapshot, UpstreamResult,
-    asset_export_from_result, discover_asset_manifest, validate_asset_requests,
+    AssetExportOutcome, AssetFormat, AssetRequest, AssetSelection, AssetStatus, CollectionRequest,
+    CollectionScope, CollectorSession, CollectorStep, FigmaTarget, RawNode, ReadToolCall, Snapshot,
+    UpstreamResult, asset_export_from_result, discover_asset_manifest, validate_asset_requests,
 };
 use serde_json::{Map, json};
 use sha2::Digest as _;
@@ -132,8 +132,12 @@ fn an_svg_payload_inlined_beside_the_descriptor_is_decoded_from_its_text() {
         scale: 1,
     };
 
-    let entry = asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
-        .expect("an inlined SVG payload must decode");
+    let AssetExportOutcome::Entry(entry) =
+        asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
+            .expect("an inlined SVG payload must decode")
+    else {
+        panic!("an SVG under the inline cap is exported in one answer")
+    };
 
     assert_eq!(entry.status, AssetStatus::Exported);
     assert_eq!(entry.byte_length, Some(bytes.len()));
@@ -433,7 +437,11 @@ fn exported_asset_validates_descriptor_bytes_hash_and_requested_settings() {
         ]}),
     };
 
-    let exported = asset_export_from_result(&result, "FileKey123", Some("v1"), &request).unwrap();
+    let AssetExportOutcome::Entry(exported) =
+        asset_export_from_result(&result, "FileKey123", Some("v1"), &request).unwrap()
+    else {
+        panic!("a PNG is exported in one answer")
+    };
     assert_eq!(exported.status, AssetStatus::Exported);
     assert_eq!(exported.byte_length, Some(bytes.len()));
     let encoded = STANDARD.encode(bytes);
@@ -449,4 +457,140 @@ fn exported_asset_validates_descriptor_bytes_hash_and_requested_settings() {
     .to_string()
     .into();
     assert!(asset_export_from_result(&mismatched, "FileKey123", Some("v1"), &request).is_err());
+}
+
+/// An SVG past what one text answer holds is announced, not written: the
+/// export script answers `chunked` with the length and hash, the collector
+/// reads it back through the large-value script under the virtual field
+/// `$export:svg` a fragment at a time, and the bytes the fragments assemble
+/// to are the asset. Before this a 14 KB logo failed outright.
+#[test]
+fn an_svg_over_the_inline_cap_arrives_in_fragments() {
+    use devup_mcp_figma::{LargeValueReadOptions, SVG_EXPORT_FIELD};
+
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
+    let mut request = CollectionRequest::new(target, CollectionScope::Node);
+    request.asset_selections = vec![AssetSelection {
+        asset_id: "1:1:node".to_owned(),
+        format: AssetFormat::Svg,
+        scale: 1,
+    }];
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata) = collector.advance().unwrap() else {
+        panic!("metadata")
+    };
+    collector
+        .accept(
+            &metadata.id,
+            UpstreamResult {
+                raw: json!({"structuredContent":{"devupMetadata":{
+                    "fileKey":"FileKey123","version":"v1","rootId":"1:1",
+                    "nodes":[{"id":"1:1","type":"VECTOR","childrenIds":[],"descendantCount":0}]
+                }}}),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!("snapshot")
+    };
+    let vector = node(
+        "1:1",
+        "VECTOR",
+        json!({"childrenIds": [], "isAsset": true, "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}, "visible": true}]}),
+    );
+    collector
+        .accept(
+            &snapshot_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "fileKey":"FileKey123","version":"v1","rootIds":["1:1"],
+                    "nodes":[
+                        serde_json::to_value(vector).unwrap(),
+                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"offset":0,"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
+                    ],"diagnostics":[]
+                }),
+            },
+        )
+        .unwrap();
+
+    // The export announces an SVG of 40 bytes, to come in two fragments.
+    let svg = b"<svg xmlns='http://www.w3.org/2000/svg'/>";
+    assert_eq!(svg.len(), 41);
+    let sha256: String = sha2::Sha256::digest(svg)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let CollectorStep::Call(asset_call) = collector.advance().unwrap() else {
+        panic!("explicit asset export")
+    };
+    collector
+        .accept(
+            &asset_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": json!({
+                    "kind":"devupAssetExport","fileKey":"FileKey123","version":"v1",
+                    "assetId":"1:1:node","nodeId":"1:1","field":"node",
+                    "imageHash":null,"format":"svg","scale":1,
+                    "status":"chunked","byteLength":svg.len(),"sha256":sha256,
+                    "cursor":{"nextOffset":0,"maxChunkBytes":24},"errorCode":null
+                }).to_string()}]}),
+            },
+        )
+        .unwrap();
+
+    // Then the fragments, each asked for under the virtual field.
+    let mut offset = 0;
+    while offset < svg.len() {
+        let CollectorStep::Call(fragment_call) = collector.advance().unwrap() else {
+            panic!("a fragment read is expected at offset {offset}")
+        };
+        let ReadToolCall::LargeValue { options, .. } = &fragment_call.call else {
+            panic!("fragment reads go through the large-value script")
+        };
+        let LargeValueReadOptions {
+            node_id,
+            field,
+            offset: asked,
+            max_chunk_bytes,
+            ..
+        } = options;
+        assert_eq!(node_id, "1:1");
+        assert_eq!(field, SVG_EXPORT_FIELD);
+        assert_eq!(*asked, offset);
+        let next = (offset + max_chunk_bytes).min(svg.len());
+        collector
+            .accept(
+                &fragment_call.id,
+                UpstreamResult {
+                    raw: json!({"content": [{"type": "text", "text": json!({
+                        "kind":"devupLargeValueFragment","fileKey":"FileKey123","version":"v1",
+                        "nodeId":"1:1","field":SVG_EXPORT_FIELD,
+                        "offset":offset,"nextOffset":next,"byteLength":svg.len(),"sha256":sha256,
+                        "dataBase64":STANDARD.encode(&svg[offset..next]),"complete":next == svg.len()
+                    }).to_string()}]}),
+                },
+            )
+            .unwrap();
+        offset = next;
+    }
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("complete")
+    };
+    assert_eq!(parts.assets.len(), 1);
+    let exported = &parts.assets[0];
+    assert_eq!(exported.status, AssetStatus::Exported);
+    assert_eq!(exported.asset_id, "1:1:node");
+    assert_eq!(exported.field, "node");
+    assert_eq!(exported.byte_length, Some(svg.len()));
+    assert_eq!(exported.mime_type.as_deref(), Some("image/svg+xml"));
+    assert_eq!(
+        STANDARD
+            .decode(exported.data_base64.as_deref().unwrap())
+            .unwrap(),
+        svg
+    );
+    // The announcement, then two fragments of 24 bytes.
+    assert_eq!(parts.stats.figma_tool_calls, 5);
 }

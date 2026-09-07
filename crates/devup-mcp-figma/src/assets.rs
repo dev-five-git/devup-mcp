@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::{DevupError, Diagnostic, ErrorCode, RawNode, Snapshot, UpstreamResult};
+use crate::{
+    DevupError, Diagnostic, ErrorCode, LargeValueCursor, LargeValueDescriptor, RawNode, Snapshot,
+    UpstreamResult,
+};
 
 pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 
@@ -42,6 +45,10 @@ pub enum AssetStatus {
     Available,
     Exported,
     Failed,
+    /// Announced by the export script for an SVG too large for one answer:
+    /// the bytes follow in fragments, and the collector reports the asset as
+    /// `Exported` or `Failed` once they have. Never in a manifest.
+    Chunked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,7 +439,7 @@ pub fn asset_export_from_result(
     file_key: &str,
     version: Option<&str>,
     request: &AssetRequest,
-) -> Result<AssetManifestEntry, DevupError> {
+) -> Result<AssetExportOutcome, DevupError> {
     let descriptor = find_descriptor(&result.raw)
         .ok_or_else(|| invalid("asset descriptor not found in the Figma MCP response."))?;
     if descriptor.file_key != file_key
@@ -453,8 +460,30 @@ pub fn asset_export_from_result(
     } else {
         "vector-node"
     };
+    if descriptor.status == AssetStatus::Chunked {
+        let (Some(byte_length), Some(sha256), Some(cursor)) = (
+            descriptor.byte_length,
+            descriptor.sha256.clone(),
+            descriptor.cursor.clone(),
+        ) else {
+            return Err(invalid(
+                "chunked asset export descriptor is missing its length, hash or cursor.",
+            ));
+        };
+        if request.format != AssetFormat::Svg {
+            return Err(invalid("only an SVG export is carried in fragments."));
+        }
+        let descriptor = LargeValueDescriptor {
+            node_id: request.node_id.clone(),
+            field: SVG_EXPORT_FIELD.to_owned(),
+            byte_length,
+            sha256,
+            cursor,
+        };
+        return Ok(AssetExportOutcome::Chunked(descriptor));
+    }
     if descriptor.status == AssetStatus::Failed {
-        return Ok(AssetManifestEntry {
+        return Ok(AssetExportOutcome::Entry(AssetManifestEntry {
             asset_id: request.asset_id.clone(),
             node_id: request.node_id.clone(),
             field: request.field.clone(),
@@ -469,7 +498,7 @@ pub fn asset_export_from_result(
             data_base64: None,
             output_path: None,
             error_code: descriptor.error_code,
-        });
+        }));
     }
     let payload = find_payload(&result.raw, request.format.mime_type()).ok_or_else(|| {
         // Which shapes the response *did* carry. Without this the failure is
@@ -515,7 +544,7 @@ pub fn asset_export_from_result(
             "asset export binary length or hash does not match.",
         ));
     }
-    Ok(AssetManifestEntry {
+    Ok(AssetExportOutcome::Entry(AssetManifestEntry {
         asset_id: request.asset_id.clone(),
         node_id: request.node_id.clone(),
         field: request.field.clone(),
@@ -528,6 +557,52 @@ pub fn asset_export_from_result(
         sha256: descriptor.sha256,
         mime_type: Some(request.format.mime_type().to_owned()),
         data_base64: Some(data),
+        output_path: None,
+        error_code: None,
+    }))
+}
+
+/// The virtual field a fragmented SVG export is read under: the large-value
+/// script re-exports the node as SVG text and slices that, where for any
+/// other field it slices the field's JSON.
+pub const SVG_EXPORT_FIELD: &str = "$export:svg";
+
+/// What an asset export call answered with: the asset, exported or failed,
+/// or the announcement of an SVG too large for one answer, to be read back
+/// in fragments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AssetExportOutcome {
+    Entry(AssetManifestEntry),
+    Chunked(LargeValueDescriptor),
+}
+
+/// The entry for an SVG that arrived in fragments, from the bytes the
+/// fragments assembled to. The length and hash were checked against the
+/// announcement by the assembler.
+pub fn exported_asset_from_bytes(
+    request: &AssetRequest,
+    bytes: &[u8],
+) -> Result<AssetManifestEntry, DevupError> {
+    if bytes.is_empty() || bytes.len() > MAX_ASSET_BYTES {
+        return Err(invalid("asset export binary length is out of range."));
+    }
+    Ok(AssetManifestEntry {
+        asset_id: request.asset_id.clone(),
+        node_id: request.node_id.clone(),
+        field: request.field.clone(),
+        source_kind: if request.image_hash.is_some() {
+            "image-fill".to_owned()
+        } else {
+            "vector-node".to_owned()
+        },
+        image_hash: request.image_hash.clone(),
+        format: Some(request.format),
+        scale: Some(request.scale),
+        status: AssetStatus::Exported,
+        byte_length: Some(bytes.len()),
+        sha256: Some(sha256_hex(bytes)),
+        mime_type: Some(request.format.mime_type().to_owned()),
+        data_base64: Some(STANDARD.encode(bytes)),
         output_path: None,
         error_code: None,
     })
@@ -549,6 +624,8 @@ struct AssetExportDescriptor {
     byte_length: Option<usize>,
     sha256: Option<String>,
     error_code: Option<String>,
+    #[serde(default)]
+    cursor: Option<LargeValueCursor>,
 }
 
 fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {

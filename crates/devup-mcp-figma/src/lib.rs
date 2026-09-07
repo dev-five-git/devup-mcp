@@ -75,7 +75,8 @@ pub use url::FigmaTarget;
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 pub use assets::{
-    AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus,
-    MAX_ASSET_BYTES, asset_export_from_result, discover_asset_manifest, resolve_asset_selections,
+    AssetExportOutcome, AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest,
+    AssetSelection, AssetStatus, MAX_ASSET_BYTES, SVG_EXPORT_FIELD, asset_export_from_result,
+    discover_asset_manifest, exported_asset_from_bytes, resolve_asset_selections,
     validate_asset_requests,
 };

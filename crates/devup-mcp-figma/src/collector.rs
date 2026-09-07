@@ -14,13 +14,14 @@ use crate::large_values::{
     LargeValueResult, descriptors_in_chunk, large_value_from_result, replace_descriptor,
 };
 use crate::{
-    AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchLimits, BuiltinScript,
-    DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler,
+    AssetExportOutcome, AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchLimits,
+    BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler,
     LargeValueReadOptions, RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef,
     SNAPSHOT_CURSOR_ID, SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotCursor,
     SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
     asset_export_from_result, build_section_index, collect_used_resource_refs,
-    decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme, merge_chunks,
+    decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme, exported_asset_from_bytes,
+    merge_chunks,
     metadata::{MetadataResult, metadata_from_result_for_target},
     plan_batches, read_snapshot_cursor, resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
@@ -229,6 +230,9 @@ pub struct CollectorSession {
     variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
     large_values: BTreeMap<(String, String), LargeValueAssembler>,
+    /// An SVG export announced as too large for one answer, by the key its
+    /// fragments arrive under, until the last of them has.
+    chunked_assets: BTreeMap<(String, String), AssetRequest>,
     asset_results: Vec<AssetManifestEntry>,
     assets_scheduled: bool,
     reference_png: Option<ReferencePng>,
@@ -272,6 +276,7 @@ impl CollectorSession {
             variable_batches: BTreeMap::new(),
             variables: None,
             large_values: BTreeMap::new(),
+            chunked_assets: BTreeMap::new(),
             asset_results: Vec::new(),
             assets_scheduled,
             reference_png: None,
@@ -1322,6 +1327,14 @@ impl CollectorSession {
                 .large_values
                 .remove(&key)
                 .ok_or_else(|| invalid_call("large value assembler is missing."))?;
+            if let Some(request) = self.chunked_assets.remove(&key) {
+                // The fragments were an SVG export, not a field: the bytes are
+                // the asset, and go where a one-answer export would have.
+                let bytes = assembler.finish_bytes()?;
+                self.asset_results
+                    .push(exported_asset_from_bytes(&request, &bytes)?);
+                return Ok(());
+            }
             let descriptor = assembler.descriptor().clone();
             let value = assembler.finish()?;
             replace_descriptor(&mut self.snapshot_chunks, &descriptor, value)?;
@@ -1354,6 +1367,10 @@ impl CollectorSession {
             .large_values
             .remove(&key)
             .ok_or_else(|| invalid_call("large value assembler is missing."))?;
+        if let Some(request) = self.chunked_assets.remove(&key) {
+            self.record_asset_failure(request, "DEVUP_ASSET_EXPORT_FAILED");
+            return Ok(());
+        }
         let descriptor = assembler.descriptor().clone();
         replace_descriptor(
             &mut self.snapshot_chunks,
@@ -1401,12 +1418,42 @@ impl CollectorSession {
         else {
             return Err(invalid_call("asset call format is invalid."));
         };
-        let exported = asset_export_from_result(
+        let exported = match asset_export_from_result(
             &result,
             &planned.expected_file_key,
             version.as_deref(),
             request,
-        )?;
+        )? {
+            AssetExportOutcome::Entry(entry) => entry,
+            AssetExportOutcome::Chunked(descriptor) => {
+                let key = (descriptor.node_id.clone(), descriptor.field.clone());
+                if self.large_values.contains_key(&key) {
+                    return Err(invalid_call(
+                        "Duplicate Figma large value descriptor for the same field.",
+                    ));
+                }
+                let options = LargeValueReadOptions::from_descriptor(
+                    &descriptor,
+                    version.clone(),
+                    descriptor.cursor.next_offset,
+                );
+                self.large_values.insert(
+                    key.clone(),
+                    LargeValueAssembler::new(
+                        self.request.target.file_key.clone(),
+                        version.clone(),
+                        descriptor,
+                    )?,
+                );
+                self.chunked_assets.insert(key, request.as_ref().clone());
+                self.enqueue(
+                    ReadToolCall::large_value(&self.request.target.file_key, options.clone()),
+                    Some(options.node_id),
+                    CallKind::LargeValue,
+                );
+                return Ok(());
+            }
+        };
         if exported.status == AssetStatus::Failed {
             let error_code = exported
                 .error_code
