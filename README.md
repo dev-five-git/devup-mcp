@@ -266,6 +266,14 @@ Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이�
 
 `rawPayload`는 `rawSnapshot`이 node 트리만 쓰는 것과 달리 수집 전체(variables, styles, stats, assets 포함, `referencePng` 제외)를 씁니다. 캡처를 fixture로 보관해 오프라인에서 서버와 같은 토큰 이름(`$gray200`, `typography="h4"`)으로 변환하려면 이것이 필요합니다.
 
+### 시간 트리거 Smart Animate — CSS keyframes
+
+frame에 `After delay` 트리거로 다른 frame에 **Smart animate**하는 reaction이 있고, 그 frame이 다시 다음 frame으로 이어지면 하나의 체인입니다(처음 frame으로 돌아오면 루프). 체인의 frame들은 요청한 node의 subtree 밖에 있는 형제 frame이므로, 요청 루트가 하나일 때 snapshot 스크립트가 체인을 따라가며 추가 루트로 함께 수집합니다(다중 루트 요청은 루트 목록을 그대로 둡니다).
+
+변환기는 플러그인의 `getReactionProps` 규칙대로 frame 사이에서 바뀌는 것 — 위치, 크기, opacity, 첫 fill, 회전(누적 delta) — 을 이름이 같은 자식에서 먼저 찾아 자식마다 `animationName={keyframes({...})}` / `animationDuration` / `animationTimingFunction` / `animationFillMode` / `animationIterationCount`(루프면 `infinite`)로 쓰고, 바뀌는 자식이 없을 때만 frame 자체에 씁니다. `0%`는 시작 frame, 각 단계는 도착 시점의 퍼센트에 직전 keyframe과 다른 속성만, 루프는 `100%`에서 시작 값으로 닫히며 duration은 되돌아가는 구간까지 셉니다. 10ms 미만 timeout은 delay로 쓰지 않습니다. `keyframes`가 쓰이면 `@devup-ui/react`에서 import됩니다.
+
+snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 버리지 않고 `DEVUP_CODEGEN_ANIMATION_UNREACHABLE` diagnostic으로 보고합니다.
+
 ### Figma 이름 검색
 
 ```json
