@@ -278,6 +278,8 @@ node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계�
 
 차이가 **어디** 있는지는 보조 도구가 답합니다 — `bands.mjs`(가장 많이 어긋난 구간), `drift.mjs`(단순 이동인지 실제 차이인지), `crop.mjs`(구간을 기준/캡처 나란히), `boxes.mjs`(DOM 상자를 Figma 좌표와 대조), `elements.mjs`(그림이 실제로 몇 픽셀로 나왔는지). 긴 화면을 통째로 줄인 스크린샷은 아무것도 보여주지 않습니다.
 
+`text-check.mjs`는 픽셀이 아니라 **글자**를 봅니다. 생성기는 텍스트 노드의 `characters`를 JSX에 쓰는데, JSX는 공백에 자기 규칙이 있습니다 — 한 문장이 소스 두 줄로 나뉘면 사이에 공백 하나가 들어갑니다. 디자인에 그 공백이 없으면 화면은 디자인에 없는 단어를 찍고, 문단은 Figma가 끊지 않는 자리에서 감깁니다. JSX를 읽어 무엇이 그려질지 추론하는 건 그 규칙을 다시 구현하는 일이고, 그렇게 넘겨짚으면 없는 결함을 만들어냅니다 — 그래서 **브라우저가 실제로 찍은 글자**를 `characters`와 대조합니다. 현재 245개 텍스트 중 3개(같은 문단의 세 폭)가 디자인대로 찍히지 않습니다.
+
 캡처·테마·에셋·빌드 산출물은 커밋하지 않습니다(`harness/render/.gitignore`). 이 하네스가 찾아낸 결함은 테마 스코프, 컨테이너가 칠하는 그림의 매니페스트 누락, 잘린 fill의 crop 행렬, 파일시스템이 못 받는 레이어 이름, 폭마다 크기가 다른 사진의 파일 공유, 투명도 0 노드의 export 거부, 그리고 positioned child 너머로 CSS가 못 미치는 높이입니다.
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
