@@ -3,6 +3,77 @@ use serde_json::Value;
 
 use super::component::{Prop, PropValue, RootLayout};
 
+/// A box in a parent's coordinates: left, top, width, height.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct Box4 {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+fn box4(value: Option<&Value>) -> Option<Box4> {
+    let value = value?;
+    Some(Box4 {
+        x: value.get("x")?.as_f64()?,
+        y: value.get("y")?.as_f64()?,
+        w: value.get("width")?.as_f64()?,
+        h: value.get("height")?.as_f64()?,
+    })
+}
+
+/// What Figma exports for an asset node, in its parent's coordinates: the
+/// node's render bounds, which frame its SVG and PNG exports - measured
+/// against `exportAsync` on the official server, 2026-09-07: an instance of
+/// 1373x98 whose vector sits inside it exports as 952x104, and a group of
+/// 686x735 rotated four degrees exports as 759x585 with the rotation drawn
+/// into the paths. `None` where the snapshot does not carry the bounds.
+pub(super) fn export_box(snapshot: &Snapshot, node: &RawNode) -> Option<Box4> {
+    let view = node.typed_view();
+    let render = box4(view.value("absoluteRenderBounds"))?;
+    let parent = view
+        .string("parentId")
+        .and_then(|parent_id| snapshot.nodes.get(parent_id))?;
+    let parent_box = box4(parent.typed_view().value("absoluteBoundingBox"))?;
+    Some(Box4 {
+        x: render.x - parent_box.x,
+        y: render.y - parent_box.y,
+        w: render.w,
+        h: render.h,
+    })
+}
+
+/// Where an in-flow asset's export sits inside the box the layout gives it,
+/// and how large it is: the render bounds against the bounding box. `None`
+/// when they coincide, which is every plain icon, or when the snapshot does
+/// not carry them.
+pub(super) fn export_offset(node: &RawNode) -> Option<Box4> {
+    let view = node.typed_view();
+    let render = box4(view.value("absoluteRenderBounds"))?;
+    let bounds = box4(view.value("absoluteBoundingBox"))?;
+    let close = |left: f64, right: f64| (left - right).abs() < 0.5;
+    if close(render.x, bounds.x)
+        && close(render.y, bounds.y)
+        && close(render.w, bounds.w)
+        && close(render.h, bounds.h)
+    {
+        return None;
+    }
+    Some(Box4 {
+        x: render.x - bounds.x,
+        y: render.y - bounds.y,
+        w: render.w,
+        h: render.h,
+    })
+}
+
+/// The box the layout gives an asset that is not positioned: its bounding
+/// box, which is its own box unless it is rotated, when it is the box the
+/// rotation sweeps - the box Figma's own layout gives it.
+pub(super) fn layout_box(node: &RawNode) -> Option<Box4> {
+    box4(node.typed_view().value("absoluteBoundingBox"))
+}
+
 pub(super) fn push_layout_props(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -43,7 +114,17 @@ pub(super) fn push_layout_props(
         // Preserve its visual/layout semantics, but do not constrain the host
         // with Figma canvas geometry or root positioning.
     } else if absolute {
-        push_absolute(snapshot, node, parent, props);
+        let is_asset = super::style::asset_kind(snapshot, node).is_some();
+        // An exported asset is placed by what the export frames. The plugin
+        // places it by the node's own box and rotates it again, and the
+        // report section's rotated illustration landed 120px low, squeezed
+        // into 686x735 where its export is 759x585.
+        let export = is_asset.then(|| export_box(snapshot, node)).flatten();
+        push_absolute(snapshot, node, parent, props, export);
+        if let Some(export) = export {
+            width = Some(px(export.w));
+            height = Some(px(export.h));
+        }
         // The plugin's `_getLayoutProps` for a positioned node, as one rule
         // rather than a branch per kind of node. Its width is its own only
         // while the parent is wider and it is an asset or an empty frame;
@@ -64,8 +145,9 @@ pub(super) fn push_layout_props(
         // the size written.
         let own_width = view.number("width");
         let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
-        let is_asset = super::style::asset_kind(snapshot, node).is_some();
-        if component == "Text" {
+        if export.is_some() {
+            // Sized above, by the export.
+        } else if component == "Text" {
             width = own_width.map(px);
             height = Some("100%".to_owned());
         } else if view.node_type() == "INSTANCE" && is_asset {
@@ -175,6 +257,22 @@ pub(super) fn push_layout_props(
         }
         if fixed_h {
             height = view.number("height").map(px);
+        }
+        // A rotated asset in flow takes the box its rotation sweeps, which
+        // is the box Figma's layout gives it and the box its export fills;
+        // its own width and height are the picture's before the turn.
+        if view
+            .number("rotation")
+            .is_some_and(|rotation| rotation.abs() > 0.01)
+            && super::style::asset_kind(snapshot, node).is_some()
+            && let Some(bounds) = layout_box(node)
+        {
+            if fixed_w {
+                width = Some(px(bounds.w));
+            }
+            if fixed_h {
+                height = Some(px(bounds.h));
+            }
         }
         if fill_w
             && (view.value("maxWidth") != Some(&Value::Null)
@@ -383,8 +481,14 @@ pub(super) fn push_layout_props(
     {
         string_prop(props, "pos", "relative");
     }
+    // An export is drawn with its rotation in it, so an asset whose bounds
+    // the snapshot carries is not rotated again; without the bounds it is
+    // placed as the plugin places it, rotation and all.
+    let exported = super::style::asset_kind(snapshot, node).is_some()
+        && view.value("absoluteRenderBounds").is_some();
     if let Some(rotation) = view.number("rotation")
         && rotation.abs() > 0.01
+        && !exported
     {
         string_prop(
             props,
@@ -840,12 +944,22 @@ fn push_absolute(
     node: &RawNode,
     parent: Option<&RawNode>,
     props: &mut Vec<Prop>,
+    placed_by: Option<Box4>,
 ) {
     string_prop(props, "pos", "absolute");
     let view = node.typed_view();
     let Some(parent) = parent else {
         return;
     };
+    // The box to place: the node's own, or the one handed in - an asset's
+    // export.
+    let own = Box4 {
+        x: view.number("x").unwrap_or(0.0),
+        y: view.number("y").unwrap_or(0.0),
+        w: view.number("width").unwrap_or(0.0),
+        h: view.number("height").unwrap_or(0.0),
+    };
+    let placed = placed_by.unwrap_or(own);
     let parent = parent.typed_view();
     // A group has no constraints of its own; the plugin's `getPositionProps`
     // reads its first child's, and so does this. The report section's
@@ -871,13 +985,12 @@ fn push_absolute(
         .and_then(|value| value.get("vertical"))
         .and_then(Value::as_str)
         .unwrap_or("MIN");
-    let x = view.number("x").unwrap_or(0.0);
-    let y = view.number("y").unwrap_or(0.0);
+    let (x, y) = (placed.x, placed.y);
     match horizontal {
         "MAX" => string_prop(
             props,
             "right",
-            px(parent.number("width").unwrap_or(0.0) - x - view.number("width").unwrap_or(0.0)),
+            px(parent.number("width").unwrap_or(0.0) - x - placed.w),
         ),
         "CENTER" => {
             string_prop(props, "left", "50%");
@@ -889,7 +1002,7 @@ fn push_absolute(
         "MAX" => string_prop(
             props,
             "bottom",
-            px(parent.number("height").unwrap_or(0.0) - y - view.number("height").unwrap_or(0.0)),
+            px(parent.number("height").unwrap_or(0.0) - y - placed.h),
         ),
         "CENTER" => {
             string_prop(props, "top", "50%");

@@ -464,6 +464,33 @@ pub(super) fn push_style_props(
             string_prop(props, "src", source);
         }
         push_object_fit(&view, props);
+        // An export in flow is drawn where it sits in the box the layout gives
+        // the node. They coincide for a plain icon; the notice logo is an
+        // instance of 1373x98 whose vector is 952x104 at 425px in, and
+        // `contain` centred a 1373-wide picture of a 952-wide logo. The
+        // element keeps the layout's box, and the picture is placed inside it
+        // at the export's own size and offset. An element the layout
+        // positions is placed by its export outright, in `codegen::layout`.
+        if view.string("layoutPositioning") != Some("ABSOLUTE")
+            && !super::layout::placed_by_a_free_layout(
+                snapshot,
+                node,
+                view.string("parentId")
+                    .and_then(|parent_id| snapshot.nodes.get(parent_id)),
+                false,
+            )
+            && let Some(offset) = super::layout::export_offset(node)
+        {
+            let size = format!("{} {}", px(offset.w), px(offset.h));
+            let position = format!("{} {}", px(offset.x), px(offset.y));
+            if asset == AssetKind::SvgMask {
+                string_prop(props, "maskSize", size);
+                string_prop(props, "maskPos", position);
+            } else {
+                string_prop(props, "objectFit", "none");
+                string_prop(props, "objectPos", position);
+            }
+        }
         push_radius(&view, props);
         push_strokes(&view, props, used_tokens, variable_tokens);
         push_effects(&view, component, props);
