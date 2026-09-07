@@ -362,11 +362,18 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
         ),
     };
 
-    // Figma refuses to export a node that has no visible layers, so a hidden
-    // node can never produce bytes. Advertising it as available promised
-    // something the export would always refuse, and the caller only found out
-    // once the failure surfaced from inside Figma, far from its cause.
-    let hidden = node.typed_view().bool("visible") == Some(false);
+    // Figma refuses to export a node that has no visible layers, so a node
+    // that draws nothing can never produce bytes. Advertising it as available
+    // promised something the export would always refuse, and the caller only
+    // found out once the failure surfaced from inside Figma, far from its
+    // cause.
+    //
+    // Drawing nothing is not only being hidden. A node left fully transparent
+    // is `visible`, and renders no pixel all the same: the about page carries
+    // two such icons, and they were the only two exports Figma turned down.
+    let view = node.typed_view();
+    let hidden = view.bool("visible") == Some(false)
+        || view.number("opacity").is_some_and(|opacity| opacity <= 0.0);
     let (status, error_code) = if hidden {
         (
             AssetStatus::Failed,
