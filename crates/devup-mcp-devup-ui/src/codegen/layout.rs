@@ -230,6 +230,24 @@ pub(super) fn push_layout_props(
             width = view.number("width").map(px);
             height = view.number("height").map(px);
         }
+        // The same fact on the height alone, for a frame that fills its
+        // parent's width and so was given one above. Its children size it in
+        // CSS where Figma pinned it: the notice header is 60 tall around a
+        // 24px row of logo and menu, and centring them in 24 rather than 60
+        // put them 18px high of where Figma draws them.
+        //
+        // An asset is left out, as it is above: it has no children left to
+        // measure, and the two goldens carrying a full-width rotated mask
+        // want their height unsaid. So is a frame whose spare room became
+        // padding, which already adds back up to the pinned height.
+        if fixed_h
+            && height.is_none()
+            && !is_asset
+            && view.child_ids().next().is_some()
+            && derived_padding(snapshot, node).is_none()
+        {
+            height = view.number("height").map(px);
+        }
     } else if is_page_root {
         // Figma page roots define the component canvas; their editor dimensions
         // are not emitted as runtime constraints: a root's width is the

@@ -191,6 +191,16 @@ fn the_notice_desktop_is_the_plugin_s_pure_code() {
         "notice",
         &tsx,
         &[
+            // The header is pinned 80 tall in Figma and holds its logo and
+            // menu centred in that. The plugin says no height for a
+            // positioned frame with children and lets them size it, so the
+            // row collapses to its content and the centring puts everything
+            // high of where Figma draws it — 18px high on the mobile frame,
+            // where the same header is 60 around a 24px row.
+            (
+                "h=\"80px\"",
+                "plugin lets children size a frame Figma pinned",
+            ),
             // The theme toggle's knob is a 28px frame that lays nothing out,
             // holding one 20px icon the designer centred; it is a `Center`.
             // The answer's `Flex` with `p="4px"` is a layout Figma inferred
