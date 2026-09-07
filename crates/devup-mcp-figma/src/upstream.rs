@@ -597,9 +597,18 @@ impl ReadToolCall {
 
     pub fn arguments(&self) -> Map<String, Value> {
         let value = match self {
-            Self::Metadata { file_key, node_id } => {
-                json!({ "fileKey": file_key, "nodeId": node_id })
-            }
+            // The file's own metadata - its pages - is asked for with no
+            // `nodeId` at all: the official schema takes the key as optional
+            // and refuses it as `null` ("expected string, received null"),
+            // which is what a file-scope theme export ran into.
+            Self::Metadata {
+                file_key,
+                node_id: None,
+            } => json!({ "fileKey": file_key }),
+            Self::Metadata {
+                file_key,
+                node_id: Some(node_id),
+            } => json!({ "fileKey": file_key, "nodeId": node_id }),
             Self::VariableDefs { file_key, node_id }
             | Self::DesignContext { file_key, node_id }
             | Self::CodeConnectMap { file_key, node_id } => {

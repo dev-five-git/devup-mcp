@@ -771,7 +771,8 @@ fn file_scope_starts_from_the_file_even_when_the_url_contains_a_node() {
     };
     assert_eq!(metadata_call.call.tool_name(), "get_metadata");
     assert_eq!(metadata_call.expected_node_id, None);
-    assert_eq!(metadata_call.call.arguments()["nodeId"], json!(null));
+    // Omitted, not null: the official schema refuses `nodeId: null`.
+    assert!(!metadata_call.call.arguments().contains_key("nodeId"));
 }
 
 #[test]
