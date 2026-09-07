@@ -2089,14 +2089,22 @@ fn invalid_call(message: &str) -> DevupError {
     DevupError::new(ErrorCode::DevupFigmaHandoffInvalid, message, false)
 }
 
-/// The next page of a theme onto the pages before it. Each resource list is
-/// appended in order, with a resource the pages both carry kept once; the
-/// scan the page repeats replaces the last one's.
+/// The next page of a theme onto the pages before it. Every list - the
+/// resources and the scan alike - is appended in order, with an entry the
+/// pages both carry kept once; the scalars are the page's.
 fn merge_theme_page(merged: &mut Value, page: Value) -> Result<(), DevupError> {
     let Some(page) = page.as_object() else {
         return Err(invalid_call("Figma theme page format is invalid."));
     };
-    for list in ["collections", "variables", "styles", "usedRemoteVariables"] {
+    for list in [
+        "collections",
+        "variables",
+        "styles",
+        "usedRemoteVariables",
+        "usedVariableIds",
+        "usedStyleIds",
+        "unresolved",
+    ] {
         let incoming = page
             .get(list)
             .and_then(Value::as_array)
@@ -2107,24 +2115,18 @@ fn merge_theme_page(merged: &mut Value, page: Value) -> Result<(), DevupError> {
             .and_then(Value::as_array_mut)
             .ok_or_else(|| invalid_call("Figma theme page format is invalid."))?;
         for item in incoming {
-            let id = item.get("id").cloned();
-            if id.is_some()
-                && target
-                    .iter()
-                    .any(|existing| existing.get("id") == id.as_ref())
-            {
+            // A resource is one by its id, an id in the scan by itself.
+            let same = |existing: &Value| match item.get("id") {
+                Some(id) => existing.get("id") == Some(id),
+                None => *existing == item,
+            };
+            if target.iter().any(same) {
                 continue;
             }
             target.push(item);
         }
     }
-    for field in [
-        "usedVariableIds",
-        "usedStyleIds",
-        "localComplete",
-        "usedRemoteComplete",
-        "unresolved",
-    ] {
+    for field in ["localComplete", "usedRemoteComplete"] {
         if let Some(value) = page.get(field) {
             merged[field] = value.clone();
         }

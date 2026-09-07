@@ -3,11 +3,14 @@ const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
 // written up in fast_snapshot.js.
 const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;
 // A file's resources rarely fit one answer - forty variables with their
-// modes are twice this - so they are paged: every page carries the whole
-// scan (which ids are used, what could not be resolved) and a run of the
-// resources, in one fixed order, from `offset`; the page says where the next
-// one starts. The theme used to be one envelope or nothing, and a file whose
-// theme did not fit fell back to a path that knows only local styles.
+// modes are twice this - so they are paged: everything the theme is made of
+// (the resources, and the scan of which ids are used and what could not be
+// resolved) is one list in a fixed order, and a page is a run of it from
+// `offset` that says where the next one starts. The theme used to be one
+// envelope or nothing, and a file whose theme did not fit fell back to a
+// path that knows only local styles. The scan is paged like the rest
+// because it is not small: a file with three hundred used ids carries
+// 20 KB of them, a whole page on its own.
 const pageOptions = "__DEVUP_THEME__";
 const pageOffset = Math.max(0, Math.floor(Number(pageOptions.offset) || 0));
 
@@ -245,19 +248,25 @@ function utf8Encode(value) {
   return new Uint8Array(bytes);
 }
 
-// Every resource in one order: collections, variables, styles. A page is a
-// run of this list.
+// Everything in one order: collections, variables, styles, then the scan -
+// the used variable ids, the used style ids, the unresolved. A page is a run
+// of this list.
 const items = [
   ...collections.map((value) => ({ kind: "collection", value })),
   ...variables.map((value) => ({ kind: "variable", value })),
   ...styles.map((value) => ({ kind: "style", value })),
+  ...[...usedVariableIds].sort().map((value) => ({ kind: "usedVariableId", value })),
+  ...[...usedStyleTypes.keys()].sort().map((value) => ({ kind: "usedStyleId", value })),
+  ...unresolved.map((value) => ({ kind: "unresolved", value })),
 ];
 if (pageOffset > items.length) throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
 
 function buildEnvelope(pageItems, nextOffset) {
-  const pageCollections = pageItems.filter((item) => item.kind === "collection").map((item) => item.value);
-  const pageVariables = pageItems.filter((item) => item.kind === "variable").map((item) => item.value);
-  const pageStyles = pageItems.filter((item) => item.kind === "style").map((item) => item.value);
+  const of = (kind) => pageItems.filter((item) => item.kind === kind).map((item) => item.value);
+  const pageCollections = of("collection");
+  const pageVariables = of("variable");
+  const pageStyles = of("style");
+  const pageUnresolved = of("unresolved");
   const envelope = {
     kind: "devupFastThemeEnvelope",
     schemaVersion: 1,
@@ -267,11 +276,11 @@ function buildEnvelope(pageItems, nextOffset) {
       variables: pageVariables,
       styles: pageStyles,
       usedRemoteVariables: pageVariables.filter((variable) => variable.remote === true),
-      usedVariableIds: [...usedVariableIds].sort(),
-      usedStyleIds: [...usedStyleTypes.keys()].sort(),
+      usedVariableIds: of("usedVariableId"),
+      usedStyleIds: of("usedStyleId"),
       localComplete: true,
       usedRemoteComplete: unresolved.length === 0,
-      unresolved,
+      unresolved: pageUnresolved,
     },
     // Read by the Rust decoder: a page is one of several when `complete` is
     // false, and the next one is asked for from `nextOffset`.
@@ -285,7 +294,7 @@ function buildEnvelope(pageItems, nextOffset) {
       collectionCount: pageCollections.length,
       variableCount: pageVariables.length,
       styleCount: pageStyles.length,
-      unresolvedCount: unresolved.length,
+      unresolvedCount: pageUnresolved.length,
       utf8Bytes: 0,
     },
   };

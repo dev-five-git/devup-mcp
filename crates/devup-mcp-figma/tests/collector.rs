@@ -901,8 +901,8 @@ fn a_paged_fast_theme_is_read_page_by_page_and_merged() {
         .accept(
             &first.id,
             fast_theme_page_result(
-                json!({"collections": [{"id": "c", "name": "Theme"}], "variables": [{"id": "v1", "name": "primary"}], "styles": []}),
-                json!({"offset": 0, "nextOffset": 2, "complete": false, "totalItems": 4}),
+                json!({"collections": [{"id": "c", "name": "Theme"}], "variables": [{"id": "v1", "name": "primary"}], "styles": [], "usedVariableIds": ["v1"]}),
+                json!({"offset": 0, "nextOffset": 2, "complete": false, "totalItems": 6}),
             ),
         )
         .unwrap();
@@ -921,8 +921,8 @@ fn a_paged_fast_theme_is_read_page_by_page_and_merged() {
         .accept(
             &second.id,
             fast_theme_page_result(
-                json!({"collections": [], "variables": [{"id": "v1", "name": "primary"}, {"id": "v2", "name": "text"}], "styles": [{"id": "s", "name": "body", "styleType": "TEXT"}]}),
-                json!({"offset": 2, "nextOffset": 4, "complete": true, "totalItems": 4}),
+                json!({"collections": [], "variables": [{"id": "v1", "name": "primary"}, {"id": "v2", "name": "text"}], "styles": [{"id": "s", "name": "body", "styleType": "TEXT"}], "usedVariableIds": ["v1", "v2"], "usedStyleIds": ["s"]}),
+                json!({"offset": 2, "nextOffset": 6, "complete": true, "totalItems": 6}),
             ),
         )
         .unwrap();
@@ -947,6 +947,9 @@ fn a_paged_fast_theme_is_read_page_by_page_and_merged() {
     );
     assert_eq!(resources["styles"].as_array().unwrap().len(), 1);
     assert_eq!(resources["localComplete"], true);
+    // The scan came in two shares, v1 on both, and is whole and unrepeated.
+    assert_eq!(resources["usedVariableIds"], json!(["v1", "v2"]));
+    assert_eq!(resources["usedStyleIds"], json!(["s"]));
     assert_eq!(parts.stats.variable_count, 2);
     assert_eq!(parts.stats.style_count, 1);
     assert_eq!(parts.metadata["pageCount"], 2);
@@ -975,6 +978,16 @@ fn a_fast_theme_page_that_does_not_advance_is_refused() {
 }
 
 fn fast_theme_page_result(resources: Value, page: Value) -> UpstreamResult {
+    // The scan is paged like the resources: this page's share of the used
+    // ids, or none.
+    let used_variable_ids = resources
+        .get("usedVariableIds")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    let used_style_ids = resources
+        .get("usedStyleIds")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
     let mut envelope = json!({
         "kind": "devupFastThemeEnvelope",
         "schemaVersion": 1,
@@ -984,8 +997,8 @@ fn fast_theme_page_result(resources: Value, page: Value) -> UpstreamResult {
             "variables": resources["variables"],
             "styles": resources["styles"],
             "usedRemoteVariables": [],
-            "usedVariableIds": ["v1", "v2"],
-            "usedStyleIds": ["s"],
+            "usedVariableIds": used_variable_ids,
+            "usedStyleIds": used_style_ids,
             "localComplete": true,
             "usedRemoteComplete": true,
             "unresolved": []
