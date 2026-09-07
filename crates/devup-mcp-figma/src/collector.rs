@@ -35,8 +35,8 @@ const VARIABLE_BATCH_SIZE: usize = 8;
 const STYLE_BATCH_SIZE: usize = 8;
 // The byte budget below measures the *request* — the IDs — and the ceiling
 // that matters is on the *response*: the official MCP cuts a text result at
-// 20,500 characters and appends "// truncated to 20kb", which the batch
-// decoder then cannot parse. A variable serialised with its valuesByMode and
+// 20,480 UTF-8 bytes (measured; see `scripts/fast_snapshot.js`) and appends
+// "// truncated to 20kb", which the batch decoder then cannot parse. A variable serialised with its valuesByMode and
 // codeSyntax is five hundred to a thousand bytes on the way back, so the
 // sixty-four this allowed could not fit; thirty-eight were measured filling
 // the cap exactly. Twelve leaves the response near a third of it.

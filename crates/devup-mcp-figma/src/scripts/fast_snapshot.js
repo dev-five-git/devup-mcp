@@ -91,14 +91,24 @@ const manifest = "__DEVUP_PLUGIN_API_MANIFEST__";
 const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
 const pageOptions = "__DEVUP_SNAPSHOT__";
 const offset = Math.max(0, Math.floor(Number(pageOptions.offset) || 0));
-// Upper bound for one round's serialized payload. Kept well under the ~20,500
-// character Figma MCP text-response limit so a page always survives as text
-// (no PNG fallback exists any more).
+// Upper bound for one round's node payload, before the resources block and
+// the envelope around it. The ceiling that matters is on the whole text
+// result: the Figma MCP cuts one at 20,480 UTF-8 bytes and appends
+// "// truncated to 20kb". Measured on the official server, 2026-09-07: a
+// 20,480-character ASCII string came back whole and a 20,703-character one
+// was cut at 20,480; a Hangul-heavy value of 12,003 characters and 24,003
+// bytes was cut at byte 20,480, mid-character, so the count is bytes and not
+// characters; and 5,816 quote characters in a 20,357-character JSON array all
+// survived, so JSON escaping is not counted either. The script measures
+// exactly what is cut - `utf8ByteLength(JSON.stringify(envelope))` - and
+// `integrity.utf8Bytes` matched the text that arrived on every one of 488
+// banked pages, so a 1 KiB margin under the cut is enough. There is no PNG
+// fallback any more; a page has to survive as text.
 const maxPayloadBytes = Math.min(
   18000,
-  Math.max(4096, Math.floor(Number(pageOptions.maxPayloadBytes) || 12000)),
+  Math.max(4096, Math.floor(Number(pageOptions.maxPayloadBytes) || 15000)),
 );
-const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
+const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;
 
 // A field whose value equals its default carries no information the converter
 // can't recover from the key being absent, so it is dropped from the envelope.
@@ -473,7 +483,7 @@ function packPage(budget) {
     pageNodes.push(snapshotted);
     payloadBytes += nodeBytes;
   }
-  return pageNodes;
+  return { pageNodes, packedBytes: payloadBytes };
 }
 
 function buildEnvelope(pageNodes, resources) {
@@ -537,12 +547,15 @@ function buildEnvelope(pageNodes, resources) {
 // The node budget alone can't bound the envelope: a page also carries every
 // variable/style its nodes reference, and that block is only sized once the
 // nodes are chosen. So pack, build, and if the whole envelope overshoots the
-// text limit, halve the node budget and try again. Fewer nodes can only
-// reference fewer resources, so this converges.
+// text limit, take the overshoot off the node budget and try again. Fewer
+// nodes can only reference fewer resources, so the next envelope is at least
+// the overshoot smaller and lands under the limit. Halving the budget
+// instead, as this did, gave up half a page over a few hundred bytes: of 340
+// banked pages, 143 ended where the next node would still have fit.
 let nodeBudget = maxPayloadBytes - 1024;
 let built = null;
 for (let attempt = 0; attempt < 5; attempt += 1) {
-  const pageNodes = packPage(nodeBudget);
+  const { pageNodes, packedBytes } = packPage(nodeBudget);
   if (pageNodes.length === 0) throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
   const candidate = buildEnvelope(pageNodes, await collectResources(pageNodes));
   if (candidate.bytes <= MAX_TEXT_ENVELOPE_BYTES) {
@@ -554,7 +567,8 @@ for (let attempt = 0; attempt < 5; attempt += 1) {
     // exists and there is no binary transport to fall back to.
     throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
   }
-  nodeBudget = Math.floor(nodeBudget / 2);
+  const overshoot = candidate.bytes - MAX_TEXT_ENVELOPE_BYTES;
+  nodeBudget = Math.max(1, Math.min(nodeBudget - 1, packedBytes - overshoot - 256));
 }
 if (!built) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 return built.envelope;

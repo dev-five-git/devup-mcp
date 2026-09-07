@@ -283,7 +283,11 @@ impl Default for SnapshotReadOptions {
     fn default() -> Self {
         Self {
             offset: 0,
-            max_payload_bytes: 12_000,
+            // The node payload of one page. The Figma MCP cuts a text result at
+            // 20,480 UTF-8 bytes, and the fast script packs the page against
+            // that with the resources it carries; the measurement is written
+            // up in `scripts/fast_snapshot.js`.
+            max_payload_bytes: 15_000,
             max_field_bytes: 4_096,
         }
     }

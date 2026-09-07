@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Decoder-side ceiling on a single text envelope. Deliberately larger than
-/// the 15 KiB the producing script budgets itself to: a relay that
+/// the 19 KiB the producing script budgets itself to: a relay that
 /// re-serializes the JSON (pretty-printing, different escaping) inflates the
 /// payload without changing its content, and rejecting that as `too_large`
 /// would fail a perfectly valid envelope. Still bounded, so a hostile or

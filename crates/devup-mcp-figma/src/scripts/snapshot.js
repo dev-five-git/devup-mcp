@@ -8,7 +8,7 @@ const snapshotOptions = "__DEVUP_SNAPSHOT__";
 const offset = Math.max(0, Math.floor(Number(snapshotOptions.offset) || 0));
 const maxPayloadBytes = Math.min(
   16000,
-  Math.max(4096, Math.floor(Number(snapshotOptions.maxPayloadBytes) || 12000)),
+  Math.max(4096, Math.floor(Number(snapshotOptions.maxPayloadBytes) || 15000)),
 );
 const maxFieldBytes = Math.min(
   maxPayloadBytes - 1024,

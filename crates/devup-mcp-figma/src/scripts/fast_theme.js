@@ -1,5 +1,7 @@
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
-const MAX_TEXT_ENVELOPE_BYTES = 15 * 1024;
+// The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the measurement is
+// written up in fast_snapshot.js.
+const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;
 
 function propertyNames(value) {
   const names = new Set(Object.keys(value));

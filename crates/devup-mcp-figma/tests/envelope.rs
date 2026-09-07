@@ -60,7 +60,7 @@ fn oversized_stringified_upstream_result_is_rejected_before_json_decode() {
     assert_eq!(error.details["category"], "upstreamResultJson");
 }
 
-/// The decoder's ceiling sits above the 15 KiB the producing script budgets
+/// The decoder's ceiling sits above the 19 KiB the producing script budgets
 /// itself to, so a relay that re-serializes the JSON (pretty-printing,
 /// different escaping) cannot inflate a valid envelope into a rejection.
 /// A bound still exists, and this pins both halves of that: comfortably over

@@ -327,7 +327,7 @@ Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이�
 
 `crates/devup-mcp-figma/tests/explore_script_behavior.mjs`는 compile-in `explore.js` 자체를 mock Figma scene graph에서 실행합니다. 두 단계 이상 중첩된 화면의 parent chain, 화면이 없는 1,000-node Section의 `projectionLimit * 8` 방문 상한, 필수 node만 남기는 14,000자 이하 fallback을 검증하며 CI의 Node 내장 test runner로 실행됩니다. 제품 binary와 기본 Cargo test에는 JavaScript runtime 의존성이 추가되지 않습니다.
 
-legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
+legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 text 상한(실측 20,480 UTF-8 바이트, 넘는 만큼 잘리고 `// truncated to 20kb`가 붙음)을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
 
 ### Server module ownership
 

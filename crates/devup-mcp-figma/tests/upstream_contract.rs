@@ -389,9 +389,14 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     assert!(code.contains("usedVariableIds"));
     assert!(code.contains("usedStyleIds"));
     // A page carries the resources its nodes reference, so the envelope is
-    // only bounded once both are built - the script must shrink the page and
-    // retry rather than emit an oversized envelope.
-    assert!(code.contains("nodeBudget = Math.floor(nodeBudget / 2)"));
+    // only bounded once both are built - the script must shrink the page by
+    // the overshoot and retry rather than emit an oversized envelope.
+    assert!(code.contains("packedBytes - overshoot"));
+    assert!(!code.contains("Math.floor(nodeBudget / 2)"));
+    // The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the page is
+    // packed to 1 KiB under that, measured as the bytes that are cut.
+    assert!(code.contains("const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;"));
+    assert!(code.contains("utf8ByteLength(JSON.stringify(envelope))"));
     // Item B: PNG-chunked binary transport is gone entirely — text only,
     // dynamically byte-budgeted and cursor-paginated like the legacy path.
     assert!(!code.contains("duVp"));
@@ -417,7 +422,7 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
             "cursor marker must emit {cursor_field}"
         );
     }
-    // The 15KB text limit is the only envelope ceiling left; the old 1MB
+    // The 19 KiB text limit is the only envelope ceiling left; the old 1MB
     // companion check could never fire ahead of it.
     assert!(code.contains("MAX_TEXT_ENVELOPE_BYTES"));
     assert!(!code.contains("MAX_ENVELOPE_BYTES"));
