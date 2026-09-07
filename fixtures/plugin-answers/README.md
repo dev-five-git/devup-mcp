@@ -227,6 +227,31 @@ were removed, or from another state of the file. The values fit that reading:
 what a neighbouring variant would have contributed. This repo leaves them out,
 because the file it is given does not contain them.
 
+The whole definition is compared line for line in
+`crates/devup-mcp-devup-ui/tests/button_answer.rs`, and two more of its lines
+are the file's and not the answer's:
+
+- **The icons are coloured per variant.** The answer gives both icons
+  `bg="$gray400"` at every variant. The capture gives the icon instances a
+  white fill on `primary` and `error`, `text` on `white` and `ghost`, and
+  `gray400` on `disabled` alone — the same map the answer itself writes for
+  the label's `color`. `$gray400` is the icon *component's* colour; the
+  instances override it, and this repo reads the instances.
+- **The right icon has an aspect ratio where the file gives it one.** The
+  `Arrow` instances carry `targetAspectRatio` 20×20 at `md`, `sm` and
+  `lg`/`ghost` and none at the other `lg`s, which this repo writes as
+  `aspectRatio={{lg: varient === 'ghost' && "1", md: "1", sm: "1"}[size]}`;
+  the answer drops it, as the plugin's definition and component-referencing
+  outputs drop `targetAspectRatio` everywhere (see `notice/`).
+
+And two where the two outputs say the same thing differently, kept as they
+are on purpose: a map's keys follow the order the set declares its options in
+(`primary, white, ghost, disabled, error`, the order of the `varient` type in
+the interface) where the plugin's follow the layer order of the set's
+children; and a hover value is written where hovering changes it (`gap` on
+`md`/`ghost`, `8px` at rest) where the plugin writes it on every `md`, four
+of which already rest at `10px`.
+
 ## What `popup/` settles about the array
 
 **A prop that stops has to say so.** `null` in a devup-ui array does not mean
