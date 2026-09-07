@@ -436,10 +436,53 @@ pub fn generate_devup_json(
         }
     }
 
+    // devup-ui takes the first theme written under `colors` as the default —
+    // the one in effect without a `data-theme` — so the order of the modes is
+    // not cosmetic. Sorted by name, `dark` came before `light`, and a file
+    // whose default mode is Light was handed to consumers dark. The
+    // collections' default modes go first, then the rest of their modes in
+    // the order the collections declare them, as the plugin writes them.
+    let mode_order = {
+        let mut order: Vec<String> = Vec::new();
+        let mut push = |name: String| {
+            if !order.contains(&name) {
+                order.push(name);
+            }
+        };
+        for collection in collections.values() {
+            if let Some(default) = collection
+                .modes
+                .iter()
+                .find(|mode| mode.mode_id == collection.default_mode_id)
+            {
+                push(normalize_token(&default.name));
+            }
+        }
+        for collection in collections.values() {
+            for mode in &collection.modes {
+                push(normalize_token(&mode.name));
+            }
+        }
+        order
+    };
+    let in_mode_order = |modes: BTreeMap<String, BTreeMap<String, Value>>| {
+        let mut ordered = Map::new();
+        for name in &mode_order {
+            if let Some(tokens) = modes.get(name) {
+                ordered.insert(name.clone(), json!(tokens));
+            }
+        }
+        for (name, tokens) in modes {
+            if !ordered.contains_key(&name) {
+                ordered.insert(name, json!(tokens));
+            }
+        }
+        Value::Object(ordered)
+    };
     let mut theme = Map::new();
-    theme.insert("colors".to_owned(), json!(colors));
+    theme.insert("colors".to_owned(), in_mode_order(colors));
     theme.insert("typography".to_owned(), json!(typography));
-    theme.insert("length".to_owned(), json!(lengths));
+    theme.insert("length".to_owned(), in_mode_order(lengths));
     theme.insert("shadow".to_owned(), json!({ "default": shadows }));
     let mut root = Map::new();
     root.insert("theme".to_owned(), Value::Object(theme));

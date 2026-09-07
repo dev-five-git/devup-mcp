@@ -49,19 +49,23 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
 
     let output = generate_devup_json(&variables, ThemeScope::File).expect("devup theme");
     assert_eq!(output.completeness, Completeness::FullLocalPlusUsedRemote);
+    // The collection's default mode is written first: devup-ui takes the
+    // first theme under `colors` as the one in effect without a `data-theme`,
+    // so `light` before `darkMode` here is what makes a Light-by-default file
+    // light by default. Sorted by name it was the other way round.
     assert_eq!(
         output.json,
         concat!(
             "{\n",
             "  \"theme\": {\n",
             "    \"colors\": {\n",
-            "      \"darkMode\": {\n",
-            "        \"accent\": \"#3291ff\",\n",
-            "        \"primary\": \"#3291ff\"\n",
-            "      },\n",
             "      \"light\": {\n",
             "        \"accent\": \"#0070f3\",\n",
             "        \"primary\": \"#0070f3\"\n",
+            "      },\n",
+            "      \"darkMode\": {\n",
+            "        \"accent\": \"#3291ff\",\n",
+            "        \"primary\": \"#3291ff\"\n",
             "      }\n",
             "    },\n",
             "    \"typography\": {\n",
@@ -73,11 +77,11 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
             "      }\n",
             "    },\n",
             "    \"length\": {\n",
-            "      \"darkMode\": {\n",
-            "        \"gutter\": \"20px\"\n",
-            "      },\n",
             "      \"light\": {\n",
             "        \"gutter\": \"16px\"\n",
+            "      },\n",
+            "      \"darkMode\": {\n",
+            "        \"gutter\": \"20px\"\n",
             "      }\n",
             "    },\n",
             "    \"shadow\": {\n",
