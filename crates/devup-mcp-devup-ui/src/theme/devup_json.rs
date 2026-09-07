@@ -863,11 +863,24 @@ pub fn variable_snapshot_from_result(
     })
 }
 
+/// Whether a value is a variable snapshot by its own shape, rather than by
+/// holding anything. A frame that binds no variable and uses no style still
+/// answers with the snapshot's fields, all empty - and that is a theme with
+/// nothing in it, not a failure to find one. All three fields have to be
+/// there: an empty `VariableSnapshot` deserializes from almost any object,
+/// and without this the search would seize on the first one it walked into.
+fn names_a_variable_snapshot(value: &Value) -> bool {
+    ["collections", "variables", "styles"]
+        .into_iter()
+        .all(|field| value.get(field).is_some_and(Value::is_array))
+}
+
 fn find_variable_snapshot(value: &Value) -> Option<VariableSnapshot> {
     if let Ok(snapshot) = serde_json::from_value::<VariableSnapshot>(value.clone())
         && (!snapshot.collections.is_empty()
             || !snapshot.variables.is_empty()
-            || !snapshot.styles.is_empty())
+            || !snapshot.styles.is_empty()
+            || names_a_variable_snapshot(value))
     {
         return Some(snapshot);
     }
