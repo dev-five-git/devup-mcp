@@ -311,37 +311,35 @@ function buildEnvelope(pageItems, nextOffset) {
   return { envelope, bytes: envelopeBytes.length };
 }
 
-// Pack from the offset until the page would not fit, then build it; the
-// scan the page also carries is only sized once built, so if the whole
-// still overshoots, take the overshoot off and try again. One item alone
-// that does not fit cannot be split, and is reported rather than cut.
-let count = items.length - pageOffset;
+// Pack from the offset by the items' own sizes until the budget is spent,
+// then build the page; the envelope around the items - and the remote
+// variables a page lists twice - is only sized once built, so if the whole
+// overshoots, take the overshoot off the budget and pack again. Fewer items
+// can only make a smaller envelope, so this converges. One item alone that
+// does not fit cannot be split, and is reported rather than cut.
+const itemBytes = items.map((item) => utf8Encode(JSON.stringify(item.value)).length + 1);
+function packFrom(budget) {
+  const pageItems = [];
+  let packed = 0;
+  for (let index = pageOffset; index < items.length; index += 1) {
+    if (pageItems.length > 0 && packed + itemBytes[index] > budget) break;
+    pageItems.push(items[index]);
+    packed += itemBytes[index];
+  }
+  return { pageItems, packed };
+}
+let budget = MAX_TEXT_ENVELOPE_BYTES - 1024;
 let built = null;
-for (let attempt = 0; attempt < 6 && count > 0; attempt += 1) {
-  const candidate = buildEnvelope(items.slice(pageOffset, pageOffset + count), pageOffset + count);
+for (let attempt = 0; attempt < 6; attempt += 1) {
+  const { pageItems, packed } = packFrom(budget);
+  const candidate = buildEnvelope(pageItems, pageOffset + pageItems.length);
   if (candidate.bytes <= MAX_TEXT_ENVELOPE_BYTES) {
     built = candidate;
     break;
   }
-  if (count === 1) break;
-  const itemBytes = items
-    .slice(pageOffset, pageOffset + count)
-    .map((item) => utf8Encode(JSON.stringify(item.value)).length + 1);
-  const overshoot = candidate.bytes - MAX_TEXT_ENVELOPE_BYTES + 256;
-  let dropped = 0;
-  let next = count;
-  while (next > 1 && dropped < overshoot) {
-    next -= 1;
-    dropped += itemBytes[next];
-  }
-  count = next;
+  if (pageItems.length <= 1) break;
+  budget = Math.max(1, Math.min(budget - 1, packed - (candidate.bytes - MAX_TEXT_ENVELOPE_BYTES) - 256));
 }
-if (built === null) {
-  if (items.length === 0) {
-    built = buildEnvelope([], 0);
-  } else {
-    throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
-  }
-}
+if (built === null) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 if (built.bytes > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
 return built.envelope;
