@@ -1564,15 +1564,12 @@ impl CollectorSession {
 
     fn record_asset_failure(&mut self, request: AssetRequest, error_code: &str) {
         self.record_asset_diagnostic(&request, error_code);
+        let source_kind = crate::assets::source_kind_of(&request).to_owned();
         self.asset_results.push(AssetManifestEntry {
             asset_id: request.asset_id,
             node_id: request.node_id,
             field: request.field,
-            source_kind: if request.image_hash.is_some() {
-                "image-fill".to_owned()
-            } else {
-                "vector-node".to_owned()
-            },
+            source_kind,
             image_hash: request.image_hash,
             format: Some(request.format),
             scale: Some(request.scale),

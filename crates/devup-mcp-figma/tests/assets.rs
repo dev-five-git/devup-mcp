@@ -764,3 +764,93 @@ fn only_svg_and_png_exports_are_carried_in_fragments() {
     .unwrap_err();
     assert!(error.to_string().contains("SVG or PNG"), "{error}");
 }
+
+/// A frame that draws nothing of its own and holds a single picture is that
+/// picture, and the code names the file after the frame. It does not carry
+/// the fill, though, so it was listed as `<frame>:fills:0` - a fill index
+/// the node does not have, which Figma can only answer with
+/// DEVUP_ASSET_SOURCE_CHANGED. The devup-ui landing page's footer logo sits
+/// in such a frame and was the one asset of 182 that never arrived. It is
+/// listed as the node instead, which renders to the same picture.
+#[test]
+fn a_frame_holding_one_picture_is_exported_as_the_node_not_a_fill_it_lacks() {
+    let manifest = manifest_for(
+        &["1:frame"],
+        vec![
+            node(
+                "1:frame",
+                "FRAME",
+                json!({"name": "Logo", "childrenIds": ["1:picture"]}),
+            ),
+            node(
+                "1:picture",
+                "FRAME",
+                json!({
+                    "name": "Bitmap",
+                    "parentId": "1:frame",
+                    "isAsset": true,
+                    "childrenIds": [],
+                    "fills": [{"type": "IMAGE", "scaleMode": "FIT", "imageHash": "image-hash-123"}]
+                }),
+            ),
+        ],
+    );
+
+    assert_eq!(manifest.assets.len(), 1);
+    let asset = &manifest.assets[0];
+    assert_eq!(asset.asset_id, "1:frame:node");
+    assert_eq!(asset.node_id, "1:frame", "the frame is what the code names");
+    assert_eq!(
+        asset.field, "node",
+        "the frame has no fills, so its bytes come from rendering it"
+    );
+    assert_eq!(asset.source_kind, "image-node");
+    assert_eq!(asset.image_hash.as_deref(), Some("image-hash-123"));
+    assert_eq!(asset.status, AssetStatus::Available);
+
+    // And the request that reaches Figma names the node, so the export
+    // script's fill check - the one that refused this - never applies.
+    let requests = devup_mcp_figma::resolve_asset_selections(
+        &Snapshot {
+            file_key: "FileKey123".to_owned(),
+            version: Some("v1".to_owned()),
+            roots: vec!["1:frame".to_owned()],
+            nodes: [
+                node(
+                    "1:frame",
+                    "FRAME",
+                    json!({"name": "Logo", "childrenIds": ["1:picture"]}),
+                ),
+                node(
+                    "1:picture",
+                    "FRAME",
+                    json!({
+                        "name": "Bitmap",
+                        "parentId": "1:frame",
+                        "isAsset": true,
+                        "childrenIds": [],
+                        "fills": [{"type": "IMAGE", "scaleMode": "FIT", "imageHash": "image-hash-123"}]
+                    }),
+                ),
+            ]
+            .into_iter()
+            .map(|node| (node.id.clone(), node))
+            .collect(),
+            diagnostics: Vec::new(),
+        },
+        &[AssetSelection {
+            asset_id: "1:frame:node".to_owned(),
+            format: AssetFormat::Png,
+            scale: 1,
+        }],
+    )
+    .expect("the frame is exportable");
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].node_id, "1:frame");
+    assert_eq!(requests[0].field, "node");
+    assert_eq!(
+        devup_mcp_figma::source_kind_of(&requests[0]),
+        "image-node",
+        "what the export reports has to match what discovery listed"
+    );
+}

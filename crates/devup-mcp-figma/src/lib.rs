@@ -78,5 +78,5 @@ pub use assets::{
     AssetExportOutcome, AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest,
     AssetSelection, AssetStatus, MAX_ASSET_BYTES, PNG_EXPORT_FIELD, SVG_EXPORT_FIELD,
     asset_export_from_result, discover_asset_manifest, exported_asset_from_bytes,
-    resolve_asset_selections, validate_asset_requests,
+    resolve_asset_selections, source_kind_of, validate_asset_requests,
 };

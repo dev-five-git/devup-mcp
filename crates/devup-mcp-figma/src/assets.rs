@@ -118,6 +118,12 @@ enum AssetNode {
         fill_index: usize,
         image_hash: Option<String>,
     },
+    /// A container that draws nothing of its own and holds one picture. It
+    /// is that picture, but it does not carry the fill, so its bytes come
+    /// from rendering the node rather than from a fill index it lacks.
+    PngNode {
+        image_hash: Option<String>,
+    },
 }
 
 pub fn discover_asset_manifest(snapshot: &Snapshot) -> AssetManifest {
@@ -207,10 +213,23 @@ fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Opti
             return None;
         }
 
-        return snapshot
+        // The container stands in for the child, and the code names the
+        // file after the container. Asking Figma for `fills/0` of a node
+        // whose fills are empty is a request it can only refuse, and it did:
+        // the devup-ui landing page's footer logo sits in such a frame and
+        // was the one asset of 182 that never arrived. Rendering the node
+        // gives the same picture, and is a request the node can answer.
+        return match snapshot
             .nodes
             .get(child_ids[0])
-            .and_then(|child| compute_asset_node(snapshot, child, true));
+            .and_then(|child| compute_asset_node(snapshot, child, true))
+        {
+            Some(AssetNode::Svg) => Some(AssetNode::Svg),
+            Some(AssetNode::Png { image_hash, .. } | AssetNode::PngNode { image_hash }) => {
+                Some(AssetNode::PngNode { image_hash })
+            }
+            None => None,
+        };
     }
 
     let mut visible_children = Vec::new();
@@ -360,6 +379,12 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
             "image-fill".to_owned(),
             image_hash,
         ),
+        AssetNode::PngNode { image_hash } => (
+            format!("{}:node", node.id),
+            "node".to_owned(),
+            "image-node".to_owned(),
+            image_hash,
+        ),
     };
 
     // Figma refuses to export a node that has no visible layers, so a node
@@ -502,11 +527,7 @@ pub fn asset_export_from_result(
             "asset descriptor target or version does not match the request.",
         ));
     }
-    let source_kind = if request.image_hash.is_some() {
-        "image-fill"
-    } else {
-        "vector-node"
-    };
+    let source_kind = source_kind_of(request);
     if descriptor.status == AssetStatus::Chunked {
         let (Some(byte_length), Some(sha256), Some(cursor)) = (
             descriptor.byte_length,
@@ -623,6 +644,20 @@ pub fn asset_export_from_result(
 /// The virtual field a fragmented SVG export is read under: the large-value
 /// script re-exports the node as SVG text and slices that, where for any
 /// other field it slices the field's JSON.
+/// What an export is cut from, from what the request already says: an
+/// image fill, a node that is a picture, or a node that is line work. The
+/// entry an export produces replaces the one discovery listed, so the two
+/// have to agree; deriving both from the same two fields is how they do.
+pub fn source_kind_of(request: &AssetRequest) -> &'static str {
+    if request.field.starts_with("fills/") {
+        "image-fill"
+    } else if request.image_hash.is_some() {
+        "image-node"
+    } else {
+        "vector-node"
+    }
+}
+
 pub const SVG_EXPORT_FIELD: &str = "$export:svg";
 
 /// The virtual field a PNG too large for one attachment is read back
@@ -641,7 +676,7 @@ pub enum AssetExportOutcome {
     Chunked(LargeValueDescriptor),
 }
 
-/// The entry for an SVG that arrived in fragments, from the bytes the
+/// The entry for an export that arrived in fragments, from the bytes the
 /// fragments assembled to. The length and hash were checked against the
 /// announcement by the assembler.
 pub fn exported_asset_from_bytes(
@@ -655,11 +690,7 @@ pub fn exported_asset_from_bytes(
         asset_id: request.asset_id.clone(),
         node_id: request.node_id.clone(),
         field: request.field.clone(),
-        source_kind: if request.image_hash.is_some() {
-            "image-fill".to_owned()
-        } else {
-            "vector-node".to_owned()
-        },
+        source_kind: source_kind_of(request).to_owned(),
         image_hash: request.image_hash.clone(),
         format: Some(request.format),
         scale: Some(request.scale),
