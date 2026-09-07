@@ -252,6 +252,51 @@ children; and a hover value is written where hovering changes it (`gap` on
 `md`/`ghost`, `8px` at rest) where the plugin writes it on every `md`, four
 of which already rest at `10px`.
 
+### `devup-ui-landing/` — a real shipped page, in a file of its own
+
+Not from `devup-Test`. This is the devup-ui.com landing page, frame
+`793:6361` (`main `, 1920×2746) in `JVj6yCOUnF45JQAPvXLA4p`, and it is here
+because it is the first answer with a *third* account to check against: the
+design, the plugin's output, and the site that is actually deployed from
+`dev-five-git/devup-ui`. Six files, the plugin's Pure Code and
+component-referencing outputs at each of its three widths:
+
+| File | The plugin's tab |
+|---|---|
+| `pure-pc.tsx` / `pc.tsx` | Pure Code / PC |
+| `pure-tablet.tsx` / `tablet.tsx` | Pure Code / Tablet |
+| `pure-mobile.tsx` / `mobile.tsx` | Pure Code / Mobile |
+
+Only the PC frame is captured so far, and no test compares these yet; the
+screen is rendered against Figma's own PNG by `harness/render` instead, which
+is what has been reading them.
+
+What it has settled so far, all three of them things the plugin gets wrong:
+
+- **A newline in `characters` is a line break.** The headline's `characters`
+  is `'Zero Config\nZero FOUC\nZero Runtime\nCSS in JS Preprocessor'`, four
+  lines. The answer folds the first two breaks into `{" "}` and keeps only
+  the third as `<br />`, so the heading runs `Zero Config Zero FOUC Zero
+  Runtime` on one line; the sub-heading loses its break the same way. This
+  repo writes all three, which is what Figma draws.
+- **A hugging child is not stretched.** The `Get started` button is 247px
+  wide in the 1360px column that holds it, and both this repo and the answer
+  drew it 1360px wide — a black bar across the hero — because Figma writes
+  its default cross-axis alignment by leaving the field out and CSS reads
+  that absence as `stretch`. Fixed here, and recorded in
+  `responsive_screen.rs::ABOUT_DIFFERS_ON_PURPOSE`.
+- **Two of its 183 assets could not be fetched at all**, which is what found
+  both transport bugs behind them: the 1232×1232 hero is 950KB, past what
+  Figma returns as an attachment, and the footer logo sits in a frame that
+  holds the picture without carrying the fill, so it was asked for by a fill
+  index it does not have. Neither is visible in the code the plugin writes —
+  it names the files and stops — so only fetching them showed it.
+
+Still open: the hero picture's placement. This repo sizes a positioned asset
+by the box its export frames (`h="840px" w="1071px" top="-200px"`) where the
+answer writes the node's own (`h="100%" w="1232px" top="-329px"`), and which
+is right has not been settled against the render yet.
+
 ## What `popup/` settles about the array
 
 **A prop that stops has to say so.** `null` in a devup-ui array does not mean

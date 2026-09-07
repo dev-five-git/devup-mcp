@@ -37,6 +37,11 @@ TARGETS = {
     "report": {"output": "tsx", "frames": ["446:1971"]},
     "notice": {"output": "tsx", "frames": ["422:6914", "422:7088", "422:6865"]},
     "about": {"output": "tsx", "frames": ["422:3376", "422:3180", "422:2987"]},
+    # The devup-ui.com landing page, in its own file: one brand, one design
+    # system, and a deployed implementation to compare against as well as the
+    # plugin's answers. Only the PC frame is here; its tablet and mobile are
+    # drawn as siblings under `792:2464`, whose ids are not known yet.
+    "landing": {"output": "tsx", "frames": ["793:6361"], "file": "JVj6yCOUnF45JQAPvXLA4p", "name": "Devup-UI"},
 }
 
 
@@ -119,8 +124,13 @@ def family_of(screen):
     return head if head in TARGETS else None
 
 
-def url_of(node_id):
-    return f"https://www.figma.com/design/{FILE_KEY}/devup-Test?node-id={node_id.replace(':', '-')}"
+def url_of(node_id, file_key=FILE_KEY, file_name="devup-Test"):
+    return f"https://www.figma.com/design/{file_key}/{file_name}?node-id={node_id.replace(':', '-')}"
+
+
+def url_for(target, node_id):
+    """The URL of a frame in whichever file its target lives in."""
+    return url_of(node_id, target.get("file", FILE_KEY), target.get("name", "devup-Test"))
 
 
 def asset_path(name, asset):
@@ -173,7 +183,7 @@ def acquire(server, name, target, manifest):
             # conflicts.
             outputs.append("devupJson")
             paths["devupJson"] = theme_path
-        body = server.export({"url": url_of(frame), "outputs": outputs, "scope": "node",
+        body = server.export({"url": url_for(target, frame), "outputs": outputs, "scope": "node",
                               "outputPaths": paths, "includeDiagnostics": True})
         print(f"  {frame}: status={body.get('status')} quality={body.get('quality')}", flush=True)
         # The module refers to assets by layer name; the manifest by node id.
@@ -181,7 +191,7 @@ def acquire(server, name, target, manifest):
             snapshot = json.load(handle)
         # The manifest is the one output that cannot be written to a file;
         # alone it is small enough to arrive inline.
-        asset_manifest = server.export({"url": url_of(frame), "outputs": ["assetManifest"], "scope": "node",
+        asset_manifest = server.export({"url": url_for(target, frame), "outputs": ["assetManifest"], "scope": "node",
                                         "delivery": "inline"}).get("assetManifest") or {}
         nodes = snapshot.get("nodes") or {}
         requests = []
@@ -213,7 +223,7 @@ def acquire(server, name, target, manifest):
             # `refresh`: the collection the process cached for this URL holds
             # no exports, and the server asks for one that does. The node
             # reads replay from the bank; only the export itself is new.
-            body = server.export({"url": url_of(frame), "outputs": ["assetManifest"], "scope": "node",
+            body = server.export({"url": url_for(target, frame), "outputs": ["assetManifest"], "scope": "node",
                                   "assetRequests": batch, "refresh": True}, allow_error=True)
             if body.get("error"):
                 # One node the server will not export refuses the whole call,
@@ -223,7 +233,7 @@ def acquire(server, name, target, manifest):
                 print(f"    assets {start + 1}-{start + len(batch)}: {body['error']}", flush=True)
                 refused = []
                 for entry in batch:
-                    one = server.export({"url": url_of(frame), "outputs": ["assetManifest"], "scope": "node",
+                    one = server.export({"url": url_for(target, frame), "outputs": ["assetManifest"], "scope": "node",
                                          "assetRequests": [entry], "refresh": True}, allow_error=True)
                     if one.get("error"):
                         refused.append(entry["assetId"])
