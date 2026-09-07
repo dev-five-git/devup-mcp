@@ -645,6 +645,17 @@ const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
 /// - A positioned mask icon keeps its height; the plugin writes the width
 ///   alone, and a mask with no height draws nothing.
 const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    // The hero column fills its section's height in Figma, and holds its
+    // picture as a positioned child. A positioned child adds nothing to the
+    // height of what holds it, so with the fill left unsaid CSS hugs the text
+    // alone: the column came out 155 tall where Figma has 440, the section
+    // centred that, and the picture landed 143px down over the heading it is
+    // meant to sit above. Rendered against Figma's own PNG, it only sits
+    // right once the fill is written.
+    (
+        "flex=\"1\"",
+        "plugin leaves a filled height unsaid, which CSS cannot reach past a positioned child",
+    ),
     // A cropped image fill carries its crop as a matrix over the image's own
     // 0..1 space. The plugin paints every image fill `center/cover` and drops
     // it, showing the whole picture where the designer framed a part of it.

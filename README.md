@@ -256,6 +256,12 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
+asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플러그인이 그렇게 짓기 때문입니다. 그래서 디자이너가 같은 이름을 준 노드들은 파일 하나를 공유합니다. 같은 그림이면 맞지만 아니면 손실입니다. 한 화면에서 여덟 노드가 `Logo.svg` 하나를 주장하는데 실제로는 서로 다른 그림 다섯 개였고, 폭마다 그려진 사진은 마지막으로 export된 폭의 파일만 남아 다른 폭에서는 상자와 크기가 어긋난 채 늘어납니다(파일이 상자와 같은 크기이면 `object-fit`이 무엇이든 결과가 같으므로, 플러그인에서는 이 문제가 드러나지 않습니다).
+
+`assetNamesPerNode: true`는 각 asset을 **그 노드**의 이름으로 지어(`Logo-422-6921.svg`, `Frame 269-422-3392.png`) 둘을 함께 없앱니다. 기본값은 `false`이고 그때 생성 코드는 플러그인과 byte 단위로 같으므로, 렌더링 정확도가 필요하면 명시적으로 켜야 합니다. 켜지 않아 서로 다른 그림이 한 파일을 계속 주장하면 첫 번째만 기록하고 나머지는 `DEVUP_ASSET_NAME_SHARED` diagnostic으로 보고합니다 — 조용히 덮어쓰지 않습니다.
+
+레이어 이름이 파일시스템이 받지 못하는 이름일 때(`ic:round-arrow-left`처럼 콜론이 든 이름은 Windows가 만들지 못합니다) 전달 시점에 생성 코드와 manifest를 **함께** 개명해 둘이 어긋나지 않게 합니다. 생성기 자체는 플러그인의 이름을 그대로 쓰므로 golden parity는 유지됩니다.
+
 Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다.
 
 ### 한 화면의 여러 폭 — 반응형 모듈

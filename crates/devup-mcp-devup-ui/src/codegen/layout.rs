@@ -355,6 +355,9 @@ pub(super) fn push_layout_props(
         }
     }
 
+    // Whether the height was said outright, which decides below whether the
+    // node still needs to be told to take the space its parent leaves.
+    let wrote_height = height.is_some();
     if let (Some(width), Some(height)) = (&width, &height)
         && width == height
     {
@@ -456,6 +459,29 @@ pub(super) fn push_layout_props(
     if fill_w
         && parent
             .is_some_and(|parent| parent.typed_view().string("layoutMode") == Some("HORIZONTAL"))
+    {
+        string_prop(props, "flex", "1");
+    }
+    // The same along the other axis, for the one node CSS cannot size on its
+    // own. A node set to fill its parent's main axis is stretched by Figma to
+    // the space left over; said nothing about, CSS lets it hug its content
+    // instead. That usually agrees - a column of in-flow children adds up to
+    // the height Figma gave it - but a positioned child adds nothing to the
+    // height of what holds it, so hugging can never reach it. The about
+    // page's hero column is 440 tall in a 520 tall section and came out 155,
+    // the height of its text alone; the section then centred that, pushing it
+    // 143px down and dropping the picture hung off it over the heading it is
+    // meant to sit above.
+    let holds_a_positioned_child = view.child_ids().any(|child_id| {
+        snapshot
+            .nodes
+            .get(child_id)
+            .is_some_and(|child| child.typed_view().string("layoutPositioning") == Some("ABSOLUTE"))
+    });
+    if fill_h
+        && !wrote_height
+        && holds_a_positioned_child
+        && parent.is_some_and(|parent| parent.typed_view().string("layoutMode") == Some("VERTICAL"))
     {
         string_prop(props, "flex", "1");
     }
