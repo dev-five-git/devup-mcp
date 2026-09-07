@@ -275,7 +275,9 @@ function buildEnvelope(pageItems, nextOffset) {
       collections: pageCollections,
       variables: pageVariables,
       styles: pageStyles,
-      usedRemoteVariables: pageVariables.filter((variable) => variable.remote === true),
+      // Derived by the collector from `variables` once the pages are merged;
+      // listing a page's remote variables twice halved what a page held.
+      usedRemoteVariables: [],
       usedVariableIds: of("usedVariableId"),
       usedStyleIds: of("usedStyleId"),
       localComplete: true,

@@ -765,6 +765,27 @@ impl CollectorSession {
             );
             return Ok(());
         }
+        // The remote variables among those collected, which a page does not
+        // list twice.
+        let mut merged = merged;
+        let remote = merged["variables"]
+            .as_array()
+            .map(|variables| {
+                variables
+                    .iter()
+                    .filter(|variable| {
+                        variable.get("remote").and_then(Value::as_bool) == Some(true)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if merged["usedRemoteVariables"]
+            .as_array()
+            .is_none_or(Vec::is_empty)
+        {
+            merged["usedRemoteVariables"] = Value::Array(remote);
+        }
         self.metadata = Some(json!({
             "transport": payload.stats.transport,
             "pageCount": self.fast_theme_page_count,
