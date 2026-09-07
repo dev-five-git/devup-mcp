@@ -39,9 +39,10 @@ TARGETS = {
     "about": {"output": "tsx", "frames": ["422:3376", "422:3180", "422:2987"]},
     # The devup-ui.com landing page, in its own file: one brand, one design
     # system, and a deployed implementation to compare against as well as the
-    # plugin's answers. Only the PC frame is here; its tablet and mobile are
-    # drawn as siblings under `792:2464`, whose ids are not known yet.
-    "landing": {"output": "tsx", "frames": ["793:6361"], "file": "JVj6yCOUnF45JQAPvXLA4p", "name": "Devup-UI"},
+    # plugin's answers. Mobile / tablet / PC, in ascending width as `about`
+    # and `notice` are.
+    "landing": {"output": "tsx", "frames": ["833:3640", "833:3322", "832:2975"],
+                "file": "JVj6yCOUnF45JQAPvXLA4p", "name": "Devup-UI"},
 }
 
 

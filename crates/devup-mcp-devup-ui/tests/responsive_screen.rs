@@ -661,6 +661,26 @@ const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
         "<Center gap=\"12px\">",
         "plugin leaves Figma's MIN cross-axis unsaid, which CSS reads as stretch",
     ),
+    // Figma keeps a fixed child at its size and lets the line spill past the
+    // frame, which clips it. CSS shrinks flex children to fit instead, so
+    // the landing page's seven 240px comparison cards were squeezed into
+    // 912px, their labels wrapped, and the row came out 58px too tall.
+    (
+        "<Text color=\"$title\" flexShrink=\"0\" typography=\"h4\" w=\"240px\">",
+        "plugin lets CSS shrink a fixed child that Figma would let overflow",
+    ),
+    (
+        "<Text color=\"$title\" typography=\"h4\" w=\"240px\">",
+        "plugin lets CSS shrink a fixed child that Figma would let overflow",
+    ),
+    (
+        "<VStack flexShrink=\"0\" gap=\"50px\" w=\"1079px\">",
+        "plugin lets CSS shrink a fixed child that Figma would let overflow",
+    ),
+    (
+        "<VStack gap=\"50px\" w=\"1079px\">",
+        "plugin lets CSS shrink a fixed child that Figma would let overflow",
+    ),
     // The hero column fills its section's height in Figma, and holds its
     // picture as a positioned child. A positioned child adds nothing to the
     // height of what holds it, so with the fill left unsaid CSS hugs the text

@@ -70,6 +70,7 @@ export function AStoryFProofread() {
               aspectRatio="1"
               bg="$captionLight"
               boxSize="40px"
+              flexShrink="0"
               maskImage="url(/icons/icons.svg)"
               maskPos="center"
               maskRepeat="no-repeat"

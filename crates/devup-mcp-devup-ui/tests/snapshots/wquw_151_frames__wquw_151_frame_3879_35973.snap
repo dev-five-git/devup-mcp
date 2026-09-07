@@ -123,6 +123,7 @@ export function Wquw151Frame387935973() {
               aspectRatio="1"
               bg="$captionLight"
               boxSize="40px"
+              flexShrink="0"
               maskImage="url(/icons/icons.svg)"
               maskPos="center"
               maskRepeat="no-repeat"

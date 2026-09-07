@@ -504,6 +504,42 @@ pub(super) fn push_layout_props(
     {
         string_prop(props, "flex", "1");
     }
+    // A child Figma never shrinks, in a line that does not fit. Figma keeps a
+    // fixed size and lets the row spill past its parent, which clips it; CSS
+    // shrinks flex children to fit instead. The devup-ui landing page's
+    // comparison row is seven 240px cards in a 912px frame - 1,800px of
+    // content - and every one of them was squeezed to about 120px, their
+    // labels wrapped to two lines, and the row came out 58px taller than the
+    // design, carrying everything below it down with it.
+    //
+    // Only where the line actually overflows. Children that fit are not
+    // shrunk by CSS either, and saying so for every fixed child in the file
+    // would be noise.
+    if !absolute
+        && let Some(parent) = parent
+        && let Some(axis) = parent.typed_view().string("layoutMode")
+        && matches!(axis, "VERTICAL" | "HORIZONTAL")
+    {
+        let (sizing, size, near, far) = if axis == "HORIZONTAL" {
+            (
+                "layoutSizingHorizontal",
+                "width",
+                "paddingLeft",
+                "paddingRight",
+            )
+        } else {
+            (
+                "layoutSizingVertical",
+                "height",
+                "paddingTop",
+                "paddingBottom",
+            )
+        };
+        if view.string(sizing) == Some("FIXED") && line_overflows(snapshot, parent, size, near, far)
+        {
+            string_prop(props, "flexShrink", "0");
+        }
+    }
     // A child that hugs across its parent's axis, in a parent that packs its
     // children to the start, drawn narrower than the room it has, and drawn
     // differently for being stretched into it.
@@ -870,6 +906,44 @@ fn a_wider_box_would_show(view: &TypedNode<'_>, across_is_horizontal: bool) -> b
     } else {
         matches!(view.string("counterAxisAlignItems"), Some("CENTER" | "MAX"))
     }
+}
+
+/// Whether a frame's children, laid end to end along its own axis with the
+/// gaps between them, come to more than the room it leaves. Figma lets them
+/// spill and clips; CSS shrinks them to fit, so the two only agree while
+/// they fit. Children out of flow or not drawn take no room.
+fn line_overflows(snapshot: &Snapshot, node: &RawNode, size: &str, near: &str, far: &str) -> bool {
+    let view = node.typed_view();
+    let Some(room) = inner_extent(node, size, near, far) else {
+        return false;
+    };
+    let children = view
+        .child_ids()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| {
+            let child = child.typed_view();
+            child.bool("visible") != Some(false)
+                && child.string("layoutPositioning") != Some("ABSOLUTE")
+        })
+        .collect::<Vec<_>>();
+    if children.len() < 2 {
+        return false;
+    }
+    let gap = view
+        .value("inferredAutoLayout")
+        .and_then(Value::as_object)
+        .and_then(|layout| layout.get("itemSpacing"))
+        .and_then(Value::as_f64)
+        .or_else(|| view.number("itemSpacing"))
+        .unwrap_or(0.0);
+    let mut extent = gap * (children.len() - 1) as f64;
+    for child in children {
+        let Some(own) = child.typed_view().number(size) else {
+            return false;
+        };
+        extent += own;
+    }
+    extent > room + 0.5
 }
 
 pub(crate) fn derived_padding(snapshot: &Snapshot, node: &RawNode) -> Option<[f64; 4]> {

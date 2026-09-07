@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(HERE, "scripts"))
 from acquire import Server, TARGETS, url_for  # noqa: E402
 
 ASSET = sys.argv[1] if len(sys.argv) > 1 else "793:8340:fills:0"
+FRAME = sys.argv[4] if len(sys.argv) > 4 else TARGETS["landing"]["frames"][0]
 FORMAT = sys.argv[2] if len(sys.argv) > 2 else "png"
 SCALE = int(sys.argv[3]) if len(sys.argv) > 3 else 1
 
@@ -21,7 +22,7 @@ def main():
         response = server.call_raw("tools/call", {
             "name": "devup_figma_export",
             "arguments": {
-                "url": url_for(target, "793:6361"), "outputs": ["assetManifest"], "scope": "node",
+                "url": url_for(target, FRAME), "outputs": ["assetManifest"], "scope": "node",
                 "assetRequests": [{"assetId": ASSET, "format": FORMAT, "scale": SCALE}], "refresh": True,
                 "delivery": "inline", "includeDiagnostics": True,
             },
