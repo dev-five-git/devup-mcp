@@ -854,3 +854,58 @@ fn a_frame_holding_one_picture_is_exported_as_the_node_not_a_fill_it_lacks() {
         "what the export reports has to match what discovery listed"
     );
 }
+
+/// A node pushed entirely outside an ancestor that clips is visible and
+/// opaque and still draws nothing, and Figma says so by leaving
+/// `absoluteRenderBounds` off it. Asked to export one, Figma refuses - and
+/// the refusal used to arrive from inside Figma, after the request, taking
+/// the whole batch of sixteen down with it. The devup-ui landing page's
+/// mobile and tablet each carry one such icon.
+#[test]
+fn a_node_clipped_out_of_sight_is_reported_as_unexportable() {
+    let manifest = manifest_for(
+        &["1:clipped", "1:drawn"],
+        vec![
+            node(
+                "1:clipped",
+                "VECTOR",
+                json!({
+                    "name": "off the edge",
+                    "visible": true,
+                    "opacity": 1,
+                    "absoluteBoundingBox": {"x": 900, "y": 0, "width": 10, "height": 10}
+                }),
+            ),
+            node(
+                "1:drawn",
+                "VECTOR",
+                json!({
+                    "name": "on the page",
+                    "visible": true,
+                    "opacity": 1,
+                    "absoluteBoundingBox": {"x": 0, "y": 0, "width": 10, "height": 10},
+                    "absoluteRenderBounds": {"x": 0, "y": 0, "width": 10, "height": 10}
+                }),
+            ),
+        ],
+    );
+
+    let clipped = manifest
+        .assets
+        .iter()
+        .find(|asset| asset.node_id == "1:clipped")
+        .expect("the node is still listed, so the code pointing at it is accounted for");
+    assert_eq!(clipped.status, AssetStatus::Failed);
+    assert_eq!(
+        clipped.error_code.as_deref(),
+        Some("DEVUP_ASSET_NODE_HIDDEN"),
+        "the reason travels with the entry instead of arriving later from Figma"
+    );
+
+    let drawn = manifest
+        .assets
+        .iter()
+        .find(|asset| asset.node_id == "1:drawn")
+        .expect("a node that renders is listed");
+    assert_eq!(drawn.status, AssetStatus::Available);
+}

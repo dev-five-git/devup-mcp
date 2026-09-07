@@ -396,9 +396,22 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
     // Drawing nothing is not only being hidden. A node left fully transparent
     // is `visible`, and renders no pixel all the same: the about page carries
     // two such icons, and they were the only two exports Figma turned down.
+    //
+    // Nor is it only about the node itself. One that sits entirely outside an
+    // ancestor that clips is visible, opaque, and still draws nothing, and
+    // Figma says so by leaving `absoluteRenderBounds` off it - that field is
+    // the bounds of what the node actually renders, and there are none. The
+    // devup-ui landing page's mobile and tablet each carry one such icon,
+    // pushed past the edge of a clipped panel, and they were the only two
+    // exports of 215 that Figma turned down.
     let view = node.typed_view();
+    let draws_nothing = view.value("absoluteBoundingBox").is_some()
+        && view
+            .value("absoluteRenderBounds")
+            .is_none_or(Value::is_null);
     let hidden = view.bool("visible") == Some(false)
-        || view.number("opacity").is_some_and(|opacity| opacity <= 0.0);
+        || view.number("opacity").is_some_and(|opacity| opacity <= 0.0)
+        || draws_nothing;
     let (status, error_code) = if hidden {
         (
             AssetStatus::Failed,
