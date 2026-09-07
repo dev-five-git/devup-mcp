@@ -569,21 +569,38 @@ const POPUP_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
 
 /// The lines on which `notice` is written differently on purpose.
 ///
-/// - The answer was taken from an earlier state of the file: its logo is
-///   `$text` at full opacity and its search icon `$text`; the file has a white
-///   logo at 10% and a `$primary` icon.
+/// - The banner logos are `#FFF` at `opacity="0.1"` here and `bg="$text"`
+///   with no opacity in the answer. The file decides it: each is a `Logo`
+///   instance at opacity 0.1 (`422:6873`, `422:6874` and their siblings at
+///   the other widths) whose one vector has no fill and a white stroke bound
+///   to nothing, and the plugin's own `analyzeOwnSameColor` reads strokes as
+///   fills are read. `$text` is not in that subtree. The answer was written
+///   from another state of the file.
+/// - The search icon is `$primary` here and `$text` in the answer. The file
+///   decides it: the `Union` vector inside every `icons` instance
+///   (`I422:6887;13:1876` and the two at the other widths) has its fill
+///   bound to `VariableID:422:7203`, whose name in the collected variables
+///   is `primary`. The plugin's Pure Code for the same frame writes
+///   `$primary` too; only its two component-referencing outputs say `$text`.
 /// - A positioned instance that folds to a shape is one `Box` carrying both
 ///   its place and its mask; the plugin wraps a second `Box` around it.
 /// - An instance's asset is named after the instance's own layer; the plugin
 ///   names it after the variant component, `Property 1=search`, which every
 ///   component set with a `search` variant would share.
-/// - The instance's `targetAspectRatio` is written; the answer predates it.
+/// - The icon instance's `targetAspectRatio` (24×24) is written; the plugin's
+///   component-referencing outputs drop it, its Pure Code keeps it.
 const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
-    ("bg=\"$text\"", "an earlier state of the file"),
-    ("bg=\"#FFF\"", "an earlier state of the file"),
-    ("opacity=\"0.1\"", "an earlier state of the file"),
-    ("bg=\"$primary\"", "an earlier state of the file"),
-    ("aspectRatio=\"1\"", "an earlier state of the file"),
+    (
+        "bg=\"$text\"",
+        "the file has a white stroke at 10% and a $primary fill",
+    ),
+    ("bg=\"#FFF\"", "the logo's vector has a white stroke"),
+    ("opacity=\"0.1\"", "the logo instance is at 10%"),
+    ("bg=\"$primary\"", "the icon's fill is bound to `primary`"),
+    (
+        "aspectRatio=\"1\"",
+        "the icon instance's targetAspectRatio, which Pure Code keeps",
+    ),
     (
         "<Box left=\"44px\" pos=\"absolute\" top=\"169px\">",
         "one Box carries place and mask",

@@ -168,6 +168,38 @@ its dot and the dot lands up to 5px off — recorded as a deliberate difference
 in `crates/devup-mcp-devup-ui/tests/keyframes_screen.rs`.
 
 
+### `grid/` — six pictures in a grid
+
+`devup-Test`'s `429:1966`, `Frame 501`: six frames, each an image, in a
+frame Figma reads as a 3×3 grid. Pure Code only, in `pure.tsx`.
+
+What it settles: a grid is a `Grid` with `gridTemplateColumns` /
+`gridTemplateRows` as `repeat(n, 1fr)`, and each child names its cell as
+`gridColumn="c / span 1"` and `gridRow="r / span 1"` — except the first,
+which sits where the flow would put it and says nothing. This repo writes it
+line for line.
+
+### `report/` — a translucent gradient between tokens
+
+`devup-Test`'s `446:1971`, `Section5 : report`: a section whose backdrop is a
+50%-opacity linear gradient between two colour variables over a solid token,
+three cards with the same kind of gradient at 80% and a 50% stop, a heading
+with a gradient fill clipped to its text, and an illustration — a rotated
+group — pinned below its frame. Pure Code only, in `pure.tsx`.
+
+What it settles, and what it found: a gradient stop bound to a variable whose
+alpha, times the paint's, is under 1 is written as
+`color-mix(in srgb, $token, transparent N%)`, `N` being the lost part —
+`transparent 50%` on the backdrop, `20%` and `60%` on the cards. This repo
+wrote the bare token, dropping the alpha, until this answer; the plugin's
+tests for it were filed under a generic Rust test that never exercised it.
+And a group has no constraints of its own, so the plugin positions it by its
+first child's: this illustration's children are pinned to the bottom, so it
+is `bottom="-284.8px"`, where this repo had read the group alone and written
+`top`. Both are fixed and the answer matches line for line, with one
+difference on purpose: the illustration keeps its height, as every folded
+asset does here (see `keyframes/`).
+
 ### Doubtful, on the capture
 
 `components.tsx` gives `disabled` an entry in `_hover` and `_active`:
@@ -297,9 +329,10 @@ that directory.*
 
 ## Doubtful on the evidence
 
-- **Pure Code is the odd one out, and it is outvoted.** Where the three
-  outputs describe the same node, `pure.tsx` differs from both others. The
-  search icon — one `Icons` instance at `Property1="search"` — reads:
+- **Pure Code is the odd one out — and on the colour, it is the one that is
+  right.** Where the three outputs describe the same node, `pure.tsx` differs
+  from both others. The search icon — one `Icons` instance at
+  `Property1="search"` — reads:
 
   | | `pure.tsx` | `with-components.tsx` and `responsive.tsx` |
   |---|---|---|
@@ -307,15 +340,27 @@ that directory.*
   | `maskImage` | `icons.svg` | `Property 1=search.svg` |
   | `aspectRatio` | `"1"` | absent |
 
-  `icons.svg` is the component set's name and `Property 1=search.svg` is the
-  selected variant's, so on that column Pure Code is not merely different but
-  wrong. The `aspectRatio` split is the same story everywhere: `pure.tsx`
-  carries it 8 times, `with-components.tsx` never. It is a real property —
-  the footer logo is `220px` by `16px`, which is 13.75, yet both outputs that
-  mention it say `aspectRatio="14"`, so it is Figma's locked
+  This file used to conclude that Pure Code was outvoted. The capture says
+  otherwise on the first row: the `Union` vector inside every `icons` instance
+  (`I422:6887;13:1876`, and the two at the other widths) has its fill bound to
+  `VariableID:422:7203`, whose name in the collected variables is `primary`.
+  So `$primary` is the file, and the two outputs that agree on `$text` agree
+  on something the file does not contain. The same goes for the banner logos,
+  which `responsive.tsx` writes as `bg="$text"` with no opacity: each is a
+  `Logo` instance at opacity 0.1 whose one vector has no fill and a white
+  stroke, which the plugin's own `analyzeOwnSameColor` reads as `#FFF`. Two
+  outputs agreeing is not two accounts when they were written from another
+  state of the file than the third.
+
+  On the second row the reading stands: `icons.svg` is the component set's
+  name and `Property 1=search.svg` is the selected variant's. This repo names
+  the asset after the instance's own layer, on purpose, because every set with
+  a `search` variant would otherwise share one file. On the third, `pure.tsx`
+  carries `aspectRatio` 8 times and `with-components.tsx` never. It is a real
+  property — the footer logo is `220px` by `16px`, which is 13.75, yet both
+  outputs that mention it say `aspectRatio="14"`, so it is Figma's locked
   `targetAspectRatio` and not a ratio computed from the box. One path reads
-  it, the others drop it. Emit it on all of them, and do not take `pure.tsx`
-  as the account of a node when the other two agree against it.
+  it, the others drop it. Emit it on all of them.
 
 - **The banner is kept twice.** Its shape differs between widths because two
   logos are wrapped in a frame on desktop and left loose on mobile — one intent
