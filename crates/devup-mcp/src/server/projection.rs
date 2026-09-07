@@ -1138,6 +1138,26 @@ pub(super) async fn complete_operation(
                 manifest
                     .assets
                     .sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
+                // Where the generated code refers to each asset, so a
+                // consumer can write the bytes there without re-deriving the
+                // name - which, for two icons of one layer name, it would get
+                // wrong.
+                for asset in &mut manifest.assets {
+                    if asset.path.is_none() {
+                        asset.path = devup_mcp_devup_ui::codegen::asset_path(
+                            &payload.snapshot,
+                            &asset.node_id,
+                        )
+                        .map(|path| {
+                            if asset.field.starts_with("fills/") && asset.field != "fills/0" {
+                                let index = asset.field.trim_start_matches("fills/");
+                                path.replace(".png", &format!("-{index}.png"))
+                            } else {
+                                path
+                            }
+                        });
+                    }
+                }
                 for capture in &asset_captures {
                     if !payload.assets.iter().any(|asset| {
                         asset.asset_id == capture.asset_id

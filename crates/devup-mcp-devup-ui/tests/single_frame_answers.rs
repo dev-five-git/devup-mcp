@@ -152,6 +152,28 @@ fn the_report_section_is_the_plugin_s() {
             // this keeps it, as the puzzle icon and the spinner frames keep
             // theirs. See `codegen::layout`.
             ("h=\"734.76px\"", "a pinned size is a layout fact"),
+            // Three cards hold an `Icons` instance each at a different
+            // variant - analysis, time, thunder - and the answer names all
+            // three `/icons/Icons.svg`, one file overwriting the next, so
+            // every card draws the chart. The render harness showed it.
+            // Here an instance whose layer name another variant shares
+            // carries its variant. See `codegen::style::asset_stem`.
+            (
+                "maskImage=\"url(/icons/Icons.svg)\"",
+                "three icons are three files",
+            ),
+            (
+                "maskImage=\"url(/icons/Icons=analysis.svg)\"",
+                "three icons are three files",
+            ),
+            (
+                "maskImage=\"url(/icons/Icons=time.svg)\"",
+                "three icons are three files",
+            ),
+            (
+                "maskImage=\"url(/icons/Icons=thunder.svg)\"",
+                "three icons are three files",
+            ),
         ],
     );
 }

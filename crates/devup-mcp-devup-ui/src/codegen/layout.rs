@@ -315,6 +315,13 @@ pub(super) fn push_layout_props(
     {
         let column = view.number("gridColumnAnchorIndex").unwrap_or(-1.0);
         let row = view.number("gridRowAnchorIndex").unwrap_or(-1.0);
+        // How many tracks the child covers. The plugin writes `span 1` for
+        // every child, and a picture drawn across two columns came out in one,
+        // its neighbour pushed a row down and every `1fr` row stretched to
+        // the tallest picture: a 1086px grid rendered 2191px tall. The spans
+        // are Figma's own, absent from the snapshot when they are 1.
+        let column_span = view.number("gridColumnSpan").unwrap_or(1.0).max(1.0);
+        let row_span = view.number("gridRowSpan").unwrap_or(1.0).max(1.0);
         let column_count = parent.typed_view().number("gridColumnCount").unwrap_or(0.0);
         let current = column + row * column_count;
         let natural = parent
@@ -322,16 +329,29 @@ pub(super) fn push_layout_props(
             .child_ids()
             .position(|child| child == node.id)
             .map(|index| index as f64);
-        if column >= 0.0 && row >= 0.0 && natural != Some(current) {
+        // A child at its natural cell needs no placement - unless it spans,
+        // which flow alone would not give it.
+        if column >= 0.0
+            && row >= 0.0
+            && (natural != Some(current) || column_span > 1.0 || row_span > 1.0)
+        {
             string_prop(
                 props,
                 "gridColumn",
-                format!("{} / span 1", format_number(column + 1.0)),
+                format!(
+                    "{} / span {}",
+                    format_number(column + 1.0),
+                    format_number(column_span)
+                ),
             );
             string_prop(
                 props,
                 "gridRow",
-                format!("{} / span 1", format_number(row + 1.0)),
+                format!(
+                    "{} / span {}",
+                    format_number(row + 1.0),
+                    format_number(row_span)
+                ),
             );
         }
     }
@@ -457,6 +477,39 @@ fn child_shrinker(parent: &RawNode, dimension: &str) -> bool {
     }
 }
 
+/// A grid's tracks as CSS, from Figma's track sizes: a `FLEX` track is its
+/// share in `fr`, a `FIXED` one its pixels, a `HUG` one `fit-content(100%)`,
+/// as Figma's own documentation maps them. Tracks all alike fold to
+/// `repeat(n, …)`. The plugin writes `repeat(n, 1fr)` for every grid, which
+/// is right only while every track is one flexible share; without the sizes
+/// in the snapshot that is what this falls back to.
+fn grid_template(sizes: Option<&Value>, count: f64) -> String {
+    let tracks = sizes
+        .and_then(Value::as_array)
+        .map(|tracks| {
+            tracks
+                .iter()
+                .map(|track| {
+                    let value = track.get("value").and_then(Value::as_f64);
+                    match track.get("type").and_then(Value::as_str) {
+                        Some("FIXED") => px(value.unwrap_or(0.0)),
+                        Some("HUG") => "fit-content(100%)".to_owned(),
+                        _ => format!("{}fr", format_number(value.unwrap_or(1.0))),
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .filter(|tracks| !tracks.is_empty())
+        .unwrap_or_else(|| vec!["1fr".to_owned(); count.max(0.0) as usize]);
+    // `repeat(1, 1fr)` for one track too: that is the plugin's spelling, and
+    // the corpus holds it.
+    if !tracks.is_empty() && tracks.iter().all(|track| track == &tracks[0]) {
+        format!("repeat({}, {})", tracks.len(), tracks[0])
+    } else {
+        tracks.join(" ")
+    }
+}
+
 fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let Some(layout) = view.value("inferredAutoLayout").and_then(Value::as_object) else {
@@ -470,17 +523,17 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
         string_prop(
             props,
             "gridTemplateColumns",
-            format!(
-                "repeat({}, 1fr)",
-                format_number(view.number("gridColumnCount").unwrap_or(0.0))
+            grid_template(
+                view.value("gridColumnSizes"),
+                view.number("gridColumnCount").unwrap_or(0.0),
             ),
         );
         string_prop(
             props,
             "gridTemplateRows",
-            format!(
-                "repeat({}, 1fr)",
-                format_number(view.number("gridRowCount").unwrap_or(0.0))
+            grid_template(
+                view.value("gridRowSizes"),
+                view.number("gridRowCount").unwrap_or(0.0),
             ),
         );
         let row = view.number("gridRowGap").unwrap_or(0.0);

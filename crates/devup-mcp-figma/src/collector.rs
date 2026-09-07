@@ -1583,6 +1583,7 @@ impl CollectorSession {
             data_base64: None,
             output_path: None,
             error_code: Some(error_code.to_owned()),
+            path: None,
         });
     }
 

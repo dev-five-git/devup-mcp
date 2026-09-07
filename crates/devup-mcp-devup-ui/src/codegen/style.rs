@@ -441,13 +441,7 @@ pub(super) fn push_style_props(
         } else {
             "png"
         };
-        // The node's own layer name. The plugin draws an instance from its main
-        // component and names the file after that node, so every instance of
-        // a variant is `Property 1=search.svg` — one file for the icon
-        // wherever it is used, but the same file for every component set
-        // that has a `search` variant, each overwriting the last. The layer
-        // name a designer gave the instance is kept instead.
-        let source = format!("/{folder}/{}.{extension}", view.name().unwrap_or("Asset"));
+        let source = asset_source(snapshot, node, folder, extension);
         if asset == AssetKind::SvgMask {
             if let SameColor::Color(color) =
                 same_color(snapshot, node, false, Some(variable_tokens))
@@ -682,18 +676,90 @@ fn background_css(
 /// the first fill, its index — a lone fill keeps the plain
 /// `/images/{name}.png` the `<Image>` element already emits, so the two agree
 /// on the same asset.
-fn image_fill_source(node: &RawNode, fill_index: usize) -> String {
-    let name = node.typed_view().name().unwrap_or("Asset");
+fn image_fill_source(snapshot: &Snapshot, node: &RawNode, fill_index: usize) -> String {
     let source = if fill_index == 0 {
-        format!("/images/{name}.png")
+        asset_source(snapshot, node, "images", "png")
     } else {
-        format!("/images/{name}-{fill_index}.png")
+        let stem = asset_stem(snapshot, node);
+        format!("/images/{stem}-{fill_index}.png")
     };
     if source.contains(' ') {
         format!("'{source}'")
     } else {
         source
     }
+}
+
+/// The file an asset node is drawn from: `/{folder}/{stem}.{extension}`.
+///
+/// The plugin draws an instance from its main component and names the file
+/// after that node, so every instance of a variant is `Property 1=search.svg`:
+/// one file for the icon wherever it is used, but the same file for every
+/// component set that has a `search` variant, each overwriting the last. The
+/// layer name a designer gave the node is used instead, and where two assets
+/// in the snapshot that are not the same thing would share it, each says what
+/// it is: see `asset_stem`.
+pub(crate) fn asset_source(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    folder: &str,
+    extension: &str,
+) -> String {
+    format!("/{folder}/{}.{extension}", asset_stem(snapshot, node))
+}
+
+/// The path the generated code refers to for an asset node - `/icons/x.svg`
+/// for a vector, `/images/x.png` for the first image fill - so a manifest
+/// can say where the code expects each asset. `None` for a node the code
+/// does not draw from a file.
+pub fn asset_path(snapshot: &Snapshot, node_id: &str) -> Option<String> {
+    let node = snapshot.nodes.get(node_id)?;
+    let kind = asset_kind(snapshot, node)?;
+    let (folder, extension) = match kind {
+        AssetKind::Svg | AssetKind::SvgMask => ("icons", "svg"),
+        _ => ("images", "png"),
+    };
+    Some(asset_source(snapshot, node, folder, extension))
+}
+
+/// The file name an asset node gets, without folder or extension.
+///
+/// The layer name, unless another asset in the snapshot has the same name
+/// and is a different thing. Three cards each hold an `Icons` instance at a
+/// different variant - chart, clock, lightning - and all three were
+/// `/icons/Icons.svg`, one file overwriting the next, and every card drew the
+/// chart. An instance whose name is shared then carries its variant, `Icons=chart`;
+/// a node that is not an instance carries its id. Instances of one variant
+/// share a name and a file, as the same icon at three widths should.
+pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode) -> String {
+    let view = node.typed_view();
+    let name = view.name().unwrap_or("Asset");
+    let identity = asset_identity(node);
+    let shared = snapshot.nodes.values().any(|other| {
+        other.id != node.id
+            && other.typed_view().name() == Some(name)
+            && asset_identity(other) != identity
+            && asset_kind(snapshot, other).is_some()
+    });
+    if !shared {
+        return name.to_owned();
+    }
+    match identity {
+        Some(variant) => format!("{name}={variant}"),
+        None => format!("{name}-{}", node.id.replace([':', ';'], "-")),
+    }
+}
+
+/// What makes an instance the thing it is: its variant, as `chart` or
+/// `lg,primary`. `None` for a node that is not an instance of a variant.
+fn asset_identity(node: &RawNode) -> Option<String> {
+    let view = node.typed_view();
+    let properties = view.value("variantProperties")?.as_object()?;
+    let values = properties
+        .values()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    (!values.is_empty()).then(|| values.join(","))
 }
 
 fn paint_css(
@@ -733,7 +799,7 @@ fn paint_css(
             };
             Some(format!(
                 "url({}) {fit}",
-                image_fill_source(node, fill_index)
+                image_fill_source(snapshot, node, fill_index)
             ))
         }
         "PATTERN" => {

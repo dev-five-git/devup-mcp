@@ -161,6 +161,9 @@ const SCALAR_DEFAULTS = new Map([
   ["gridRowGap", 0],
   ["gridColumnAnchorIndex", -1],
   ["gridRowAnchorIndex", -1],
+  // A grid child spans one track unless it says otherwise.
+  ["gridColumnSpan", 1],
+  ["gridRowSpan", 1],
 ]);
 
 // Keys a styled text segment carries that the TEXT node itself does not, so
