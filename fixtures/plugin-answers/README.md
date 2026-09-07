@@ -254,24 +254,27 @@ of which already rest at `10px`.
 
 ### `devup-ui-landing/` — a real shipped page, in a file of its own
 
-Not from `devup-Test`. This is the devup-ui.com landing page, frame
-`793:6361` (`main `, 1920×2746) in `JVj6yCOUnF45JQAPvXLA4p`, and it is here
-because it is the first answer with a *third* account to check against: the
-design, the plugin's output, and the site that is actually deployed from
-`dev-five-git/devup-ui`. Six files, the plugin's Pure Code and
-component-referencing outputs at each of its three widths:
+Not from `devup-Test`. This is the devup-ui.com landing page, in
+`JVj6yCOUnF45JQAPvXLA4p`, and it is here because it is the first answer with
+a *third* account to check against: the design, the plugin's output, and the
+site that is actually deployed from `dev-five-git/devup-ui`. Three frames,
+and the plugin's Pure Code and component-referencing outputs at each:
 
-| File | The plugin's tab |
-|---|---|
-| `pure-pc.tsx` / `pc.tsx` | Pure Code / PC |
-| `pure-tablet.tsx` / `tablet.tsx` | Pure Code / Tablet |
-| `pure-mobile.tsx` / `mobile.tsx` | Pure Code / Mobile |
+| Width | Frame | Drawn | Files |
+|---|---|---|---|
+| mobile | `833:3640` | 360×2955 | `pure-mobile.tsx` / `mobile.tsx` |
+| tablet | `833:3322` | 992×2964 | `pure-tablet.tsx` / `tablet.tsx` |
+| PC | `832:2975` | 1920×3084 | `pure-pc.tsx` / `pc.tsx` |
 
-Only the PC frame is captured so far, and no test compares these yet; the
-screen is rendered against Figma's own PNG by `harness/render` instead, which
-is what has been reading them.
+No test compares these yet. The screens are rendered against Figma's own
+PNGs by `harness/render` instead, which is what has been reading them, and
+what found everything below. **The six files do not line up with these three
+frames** — `pure-mobile.tsx` has no join-us section at all, where the frame
+does — so they were taken from another state of the file, and a difference
+against them is a question and not a verdict. The render is the judge here.
 
-What it has settled so far, all three of them things the plugin gets wrong:
+What the page has settled so far, all of them things the plugin gets wrong
+too:
 
 - **A newline in `characters` is a line break.** The headline's `characters`
   is `'Zero Config\nZero FOUC\nZero Runtime\nCSS in JS Preprocessor'`, four
@@ -283,19 +286,32 @@ What it has settled so far, all three of them things the plugin gets wrong:
   wide in the 1360px column that holds it, and both this repo and the answer
   drew it 1360px wide — a black bar across the hero — because Figma writes
   its default cross-axis alignment by leaving the field out and CSS reads
-  that absence as `stretch`. Fixed here, and recorded in
-  `responsive_screen.rs::ABOUT_DIFFERS_ON_PURPOSE`.
-- **Two of its 183 assets could not be fetched at all**, which is what found
-  both transport bugs behind them: the 1232×1232 hero is 950KB, past what
-  Figma returns as an attachment, and the footer logo sits in a frame that
-  holds the picture without carrying the fill, so it was asked for by a fill
-  index it does not have. Neither is visible in the code the plugin writes —
-  it names the files and stops — so only fetching them showed it.
+  that absence as `stretch`.
+- **A child Figma will not shrink must say so.** The comparison row is seven
+  240px cards in a 912px frame. Figma keeps them at 240 and lets the row
+  spill past the frame, which clips it; CSS squeezed all seven into 912,
+  wrapped their labels, and the row came out 58px taller, carrying the rest
+  of the page down with it. The tablet went from 11.60% to 5.55% once the
+  fixed children stopped shrinking.
+- **Three of its 215 assets could not be fetched**, which is what found all
+  three transport bugs behind them: the 1232×1232 hero is 950KB, past what
+  Figma returns as an attachment; a footer logo sits in a frame that holds
+  the picture without carrying the fill, so it was asked for by a fill index
+  it does not have; and two icons sit entirely outside a panel that clips, so
+  they draw nothing and Figma will not export them at all. None of this is
+  visible in the code the plugin writes — it names the files and stops — so
+  only fetching them showed it.
 
-Still open: the hero picture's placement. This repo sizes a positioned asset
-by the box its export frames (`h="840px" w="1071px" top="-200px"`) where the
-answer writes the node's own (`h="100%" w="1232px" top="-329px"`), and which
-is right has not been settled against the render yet.
+Still open, in the order they cost pixels:
+
+- **The mobile is at 11.56%**, from many small height errors that accumulate
+  to about 20px down the page rather than from any single one.
+- **The hero picture's placement.** This repo sizes a positioned asset by the
+  box its export frames where the answer writes the node's own; which is
+  right has not been settled against the render.
+- **Two icons the code still points at** are the clipped-away ones above. The
+  manifest now says up front that they cannot be exported, but the code goes
+  on naming them, so the render draws a mask with no file behind it.
 
 ## What `popup/` settles about the array
 
