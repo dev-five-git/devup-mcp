@@ -138,6 +138,14 @@ pub fn discover_asset_manifest(snapshot: &Snapshot) -> AssetManifest {
             continue;
         }
 
+        // A container carries pictures of its own: a section drawn over a
+        // photograph is painted `bg: url(...)` by the code generator, yet the
+        // node is a layout box rather than an asset, so the walk goes on into
+        // its children. Listed here, the picture the code points at can be
+        // exported; unlisted, nothing can deliver it and the screen renders
+        // with a hole where the photograph belongs.
+        assets.extend(image_fill_entries(node));
+
         let child_ids = node.typed_view().child_ids().collect::<Vec<_>>();
         pending.extend(child_ids.into_iter().rev().map(str::to_owned));
     }
@@ -217,6 +225,32 @@ fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Opti
         .into_iter()
         .all(|child| compute_asset_node(snapshot, child, true) == Some(AssetNode::Svg))
         .then_some(AssetNode::Svg)
+}
+
+/// Every picture a node paints from an image fill. The code generator writes
+/// a `url(...)` for each visible image fill whatever its scale mode, so each
+/// one is an asset a caller has to be able to fetch. A node that is an asset
+/// in its own right never reaches this: its bytes come from the node itself.
+fn image_fill_entries(node: &RawNode) -> Vec<AssetManifestEntry> {
+    fills(node)
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter(|(_, fill)| is_visible_fill(fill) && fill_type(fill) == Some("IMAGE"))
+        .map(|(fill_index, fill)| {
+            manifest_entry(
+                node,
+                AssetNode::Png {
+                    fill_index,
+                    image_hash: fill
+                        .get("imageHash")
+                        .or_else(|| fill.get("imageRef"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                },
+            )
+        })
+        .collect()
 }
 
 fn compute_leaf_asset(node: &RawNode, nested: bool) -> Option<AssetNode> {

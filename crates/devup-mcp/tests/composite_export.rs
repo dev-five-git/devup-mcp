@@ -254,11 +254,18 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
     assert_eq!(first["sourceMap"]["version"], 1);
+    // Both pictures the generated code points at: the child drawn from its
+    // own image fill, and the root's second fill, which the code paints as a
+    // background. A container is a layout box rather than an asset, but the
+    // picture on it still has to be listed or nothing could deliver it.
     assert_eq!(
-        first["assetManifest"]["assets"][0]["assetId"],
-        "1:3:fills:0"
+        asset_ids(&first["assetManifest"]),
+        vec!["1:2:fills:1", "1:3:fills:0"]
     );
-    assert_eq!(first["assetManifest"]["assets"][0]["status"], "available");
+    assert_eq!(
+        asset_by_id(&first["assetManifest"], "1:3:fills:0")["status"],
+        "available"
+    );
     assert!(first["sourceMap"]["tsx"].as_array().is_some_and(|entries| {
         entries.iter().any(|entry| {
             entry["nodeId"] == "1:2" && entry["property"] == "fills" && entry["variableId"] == "v"
@@ -425,11 +432,9 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
 
     assert_eq!(result["status"], "complete");
     assert_eq!(result["collection"]["figmaToolCalls"], 2);
-    assert_eq!(result["assetManifest"]["assets"][0]["status"], "exported");
-    assert_eq!(
-        result["assetManifest"]["assets"][0]["dataBase64"],
-        STANDARD.encode(b"synthetic-png")
-    );
+    let exported = asset_by_id(&result["assetManifest"], "1:3:fills:0");
+    assert_eq!(exported["status"], "exported");
+    assert_eq!(exported["dataBase64"], STANDARD.encode(b"synthetic-png"));
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
 
     client.cancel().await?;
@@ -482,7 +487,8 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         .unwrap();
     let manifest_bytes = read_resource_bytes(&client, manifest_uri).await?;
     let manifest: Value = serde_json::from_slice(&manifest_bytes)?;
-    let resource = &manifest["assets"][0]["resource"];
+    let exported = asset_by_id(&manifest, "1:3:fills:0").clone();
+    let resource = &exported["resource"];
     let asset_uri = resource["uri"].as_str().expect("asset resource URI");
     assert_eq!(resource["mimeType"], "image/png");
     assert_eq!(resource["byteLength"], b"synthetic-png".len());
@@ -490,7 +496,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         resource["sha256"],
         "294ad7145322ec19f8250cca8480a933f1ce8c9e2ad1038e7ae8930d55a6598a"
     );
-    assert!(manifest["assets"][0].get("dataBase64").is_none());
+    assert!(exported.get("dataBase64").is_none());
 
     let resource_bytes = read_resource_bytes(&client, asset_uri).await?;
     assert_eq!(resource_bytes, b"synthetic-png");
@@ -553,7 +559,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         .expect("reused asset manifest URI");
     let reused_manifest: Value =
         serde_json::from_slice(&read_resource_bytes(&client, reused_manifest_uri).await?)?;
-    let reused_asset_uri = reused_manifest["assets"][0]["resource"]["uri"]
+    let reused_asset_uri = asset_by_id(&reused_manifest, "1:3:fills:0")["resource"]["uri"]
         .as_str()
         .expect("reused asset resource URI");
     assert!(
@@ -610,6 +616,27 @@ async fn read_resource_bytes(
         }
     }
     Ok(bytes)
+}
+
+/// One asset of a manifest, by the id it is known under. The manifest lists
+/// every picture the generated code points at, so a test that wants a
+/// particular one asks for it by name rather than by where it happens to sit.
+fn asset_by_id<'a>(manifest: &'a Value, asset_id: &str) -> &'a Value {
+    manifest["assets"]
+        .as_array()
+        .expect("manifest assets")
+        .iter()
+        .find(|asset| asset["assetId"] == asset_id)
+        .unwrap_or_else(|| panic!("no asset {asset_id} in {:?}", asset_ids(manifest)))
+}
+
+fn asset_ids(manifest: &Value) -> Vec<String> {
+    manifest["assets"]
+        .as_array()
+        .expect("manifest assets")
+        .iter()
+        .map(|asset| asset["assetId"].as_str().unwrap_or_default().to_owned())
+        .collect()
 }
 
 fn unique_temp_dir(label: &str) -> anyhow::Result<PathBuf> {
