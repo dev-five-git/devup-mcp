@@ -82,8 +82,16 @@ pub struct FigmaExportInput {
     /// Name every asset after the node it came from rather than after its
     /// layer, so two drawings a designer named alike get a file each, and a
     /// picture drawn at three widths gets one per width at that width's own
-    /// size. Off by default, which names them as the plugin does.
-    #[serde(default)]
+    /// size.
+    ///
+    /// On by default. Named after the layer, as the plugin names them, one
+    /// file serves every node sharing that name: eight nodes on the notice
+    /// screen claimed one file holding five different drawings, and a
+    /// photograph drawn at three widths kept whichever width was exported
+    /// last, so at the other two it was the wrong size for its box. Set it
+    /// false for the plugin's own naming, which the code generator still uses
+    /// by default when driven as a library.
+    #[serde(default = "default_true")]
     pub asset_names_per_node: bool,
     #[serde(default)]
     pub strict: bool,

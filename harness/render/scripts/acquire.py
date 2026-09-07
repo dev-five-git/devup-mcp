@@ -88,13 +88,9 @@ class Server:
         raise SystemExit(f"no response to {method} within {limit}s")
 
     def export(self, arguments, allow_error=False):
-        # Name every asset after the node it came from. Named after their
-        # layer, as the plugin names them, one file serves every node a
-        # designer gave that name: three different logos keep one drawing
-        # between them, and a photograph drawn at three widths keeps the file
-        # of whichever width was exported last - so at the other two the
-        # picture is the wrong size for its box and comes out stretched.
-        arguments.setdefault("assetNamesPerNode", True)
+        # Asset naming is left to the server's own default, so what is
+        # measured here is what a caller actually receives rather than
+        # something this harness asked for.
         response = self.call_raw("tools/call", {"name": "devup_figma_export", "arguments": arguments})
         if "error" in response:
             message = response["error"].get("message")
