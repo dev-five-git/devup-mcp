@@ -517,12 +517,21 @@ pub fn asset_export_from_result(
                 "chunked asset export descriptor is missing its length, hash or cursor.",
             ));
         };
-        if request.format != AssetFormat::Svg {
-            return Err(invalid("only an SVG export is carried in fragments."));
-        }
+        // The field names what the fragments are cut from. A PNG carries its
+        // scale on the field, so the re-export behind each fragment is the
+        // same bytes that were announced.
+        let field = match request.format {
+            AssetFormat::Svg => SVG_EXPORT_FIELD.to_owned(),
+            AssetFormat::Png => format!("{PNG_EXPORT_FIELD}@{}", request.scale),
+            _ => {
+                return Err(invalid(
+                    "only an SVG or PNG export is carried in fragments.",
+                ));
+            }
+        };
         let descriptor = LargeValueDescriptor {
             node_id: request.node_id.clone(),
-            field: SVG_EXPORT_FIELD.to_owned(),
+            field,
             byte_length,
             sha256,
             cursor,
@@ -615,6 +624,13 @@ pub fn asset_export_from_result(
 /// script re-exports the node as SVG text and slices that, where for any
 /// other field it slices the field's JSON.
 pub const SVG_EXPORT_FIELD: &str = "$export:svg";
+
+/// The virtual field a PNG too large for one attachment is read back
+/// through, with its scale appended: `$export:png@2`. Figma's remote MCP
+/// returns a written PNG as an attachment only up to about a megabyte once
+/// base64-encoded; a larger one is written, reported exported, and never
+/// arrives, so it is carried in fragments instead.
+pub const PNG_EXPORT_FIELD: &str = "$export:png";
 
 /// What an asset export call answered with: the asset, exported or failed,
 /// or the announcement of an SVG too large for one answer, to be read back

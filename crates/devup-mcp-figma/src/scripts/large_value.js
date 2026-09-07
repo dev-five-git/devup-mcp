@@ -157,6 +157,14 @@ try {
     const svg = await node.exportAsync({ format: "SVG_STRING" });
     if (typeof svg !== "string") throw new Error("unsupported");
     exportedBytes = utf8Encode(svg);
+  } else if (typeof options.field === "string" && options.field.startsWith("$export:png")) {
+    // A PNG too large for one attachment, re-exported a fragment at a time.
+    // The scale rides on the field - `$export:png@2` - so the re-export is
+    // the same bytes the asset script announced, hash for hash.
+    if (typeof node.exportAsync !== "function") throw new Error("unsupported");
+    const scale = Math.min(4, Math.max(1, Math.floor(Number(options.field.split("@")[1]) || 1)));
+    const png = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
+    exportedBytes = png instanceof Uint8Array ? png : new Uint8Array(png);
   } else if (
     options.field === "styledTextSegments" &&
     node.type === "TEXT" &&

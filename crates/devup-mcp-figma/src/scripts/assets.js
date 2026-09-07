@@ -64,7 +64,14 @@ try {
     return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
   }
   const sha256 = devupSha256(bytes);
-  if (svgText !== null && bytes.length > 12 * 1024) {
+  // A PNG past what one attachment carries is not written here either.
+  // Figma's remote MCP returns a written PNG as an attachment only up to
+  // about a megabyte once base64-encoded: a 665 KB photograph came back, a
+  // 950 KB one was written, reported exported, and never arrived - the
+  // devup-ui landing page's hero. Past 768 KiB, which is exactly one MiB
+  // encoded, it is announced and read back in fragments like a large SVG.
+  const pngTooLargeToAttach = format === "PNG" && bytes.length > 768 * 1024;
+  if ((svgText !== null && bytes.length > 12 * 1024) || pngTooLargeToAttach) {
     // An SVG past what one text response holds is not written here at all:
     // it is announced with its length and hash, and read back in fragments
     // through the large-value script, which re-exports it and slices — the

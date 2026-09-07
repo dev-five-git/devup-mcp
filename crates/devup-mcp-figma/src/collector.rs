@@ -230,8 +230,8 @@ pub struct CollectorSession {
     variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
     large_values: BTreeMap<(String, String), LargeValueAssembler>,
-    /// An SVG export announced as too large for one answer, by the key its
-    /// fragments arrive under, until the last of them has.
+    /// An SVG or PNG export announced as too large for one answer, by the
+    /// key its fragments arrive under, until the last of them has.
     chunked_assets: BTreeMap<(String, String), AssetRequest>,
     /// The pages of a paginated theme so far, merged, until the last one.
     fast_theme_pages: Option<Value>,
@@ -1381,8 +1381,8 @@ impl CollectorSession {
                 .remove(&key)
                 .ok_or_else(|| invalid_call("large value assembler is missing."))?;
             if let Some(request) = self.chunked_assets.remove(&key) {
-                // The fragments were an SVG export, not a field: the bytes are
-                // the asset, and go where a one-answer export would have.
+                // The fragments were an SVG or PNG export, not a field: the
+                // bytes are the asset, and go where a one-answer export would.
                 let bytes = assembler.finish_bytes()?;
                 self.asset_results
                     .push(exported_asset_from_bytes(&request, &bytes)?);

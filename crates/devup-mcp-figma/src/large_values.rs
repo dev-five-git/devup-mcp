@@ -167,7 +167,8 @@ impl LargeValueAssembler {
     }
 
     /// The bytes the fragments assemble to, checked against the announced
-    /// length and hash but not parsed: an SVG export is text, not JSON.
+    /// length and hash but not parsed: an SVG export is text and a PNG
+    /// export is binary, neither JSON.
     pub fn finish_bytes(self) -> Result<Vec<u8>, DevupError> {
         if !self.saw_complete {
             return Err(invalid(

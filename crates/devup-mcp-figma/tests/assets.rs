@@ -594,3 +594,173 @@ fn an_svg_over_the_inline_cap_arrives_in_fragments() {
     // The announcement, then two fragments of 24 bytes.
     assert_eq!(parts.stats.figma_tool_calls, 5);
 }
+
+/// A PNG past what one attachment carries comes back in fragments too.
+/// Figma's remote MCP returns a written PNG as an attachment only up to
+/// about a megabyte once base64-encoded: the devup-ui landing page's hero,
+/// 950 KB at 1232x1232, was written, reported exported, and never arrived.
+/// Now the export script announces it `chunked` and the collector reads it
+/// back under `$export:png@<scale>`, the scale on the field so the re-export
+/// behind each fragment is the same bytes that were announced.
+#[test]
+fn a_png_over_the_attachment_cap_arrives_in_fragments() {
+    use devup_mcp_figma::{LargeValueReadOptions, PNG_EXPORT_FIELD};
+
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
+    let mut request = CollectionRequest::new(target, CollectionScope::Node);
+    request.asset_selections = vec![AssetSelection {
+        asset_id: "1:1:fills:0".to_owned(),
+        format: AssetFormat::Png,
+        scale: 2,
+    }];
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata) = collector.advance().unwrap() else {
+        panic!("metadata")
+    };
+    collector
+        .accept(
+            &metadata.id,
+            UpstreamResult {
+                raw: json!({"structuredContent":{"devupMetadata":{
+                    "fileKey":"FileKey123","version":"v1","rootId":"1:1",
+                    "nodes":[{"id":"1:1","type":"RECTANGLE","childrenIds":[],"descendantCount":0}]
+                }}}),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!("snapshot")
+    };
+    let picture = node(
+        "1:1",
+        "RECTANGLE",
+        json!({"childrenIds": [], "isAsset": true, "fills": [{"type": "IMAGE", "imageHash": "abc", "scaleMode": "FILL", "visible": true}]}),
+    );
+    collector
+        .accept(
+            &snapshot_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "fileKey":"FileKey123","version":"v1","rootIds":["1:1"],
+                    "nodes":[
+                        serde_json::to_value(picture).unwrap(),
+                        {"id":"__DEVUP_SNAPSHOT_CURSOR__","type":"DEVUP_INTERNAL","fields":{"offset":0,"nextOffset":1,"complete":true,"totalNodes":1},"extra":{},"fieldErrors":{}}
+                    ],"diagnostics":[]
+                }),
+            },
+        )
+        .unwrap();
+
+    // The export announces a PNG of 100 bytes, to come in three fragments.
+    // Binary, not text: every byte value below is outside UTF-8.
+    let png: Vec<u8> = (0..100u8).map(|i| 0x80 | i).collect();
+    let sha256: String = sha2::Sha256::digest(&png)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let CollectorStep::Call(asset_call) = collector.advance().unwrap() else {
+        panic!("explicit asset export")
+    };
+    collector
+        .accept(
+            &asset_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": json!({
+                    "kind":"devupAssetExport","fileKey":"FileKey123","version":"v1",
+                    "assetId":"1:1:fills:0","nodeId":"1:1","field":"fills/0",
+                    "imageHash":"abc","format":"png","scale":2,
+                    "status":"chunked","byteLength":png.len(),"sha256":sha256,
+                    "cursor":{"nextOffset":0,"maxChunkBytes":40},"errorCode":null
+                }).to_string()}]}),
+            },
+        )
+        .unwrap();
+
+    let expected_field = format!("{PNG_EXPORT_FIELD}@2");
+    let mut offset = 0;
+    while offset < png.len() {
+        let CollectorStep::Call(fragment_call) = collector.advance().unwrap() else {
+            panic!("a fragment read is expected at offset {offset}")
+        };
+        let ReadToolCall::LargeValue { options, .. } = &fragment_call.call else {
+            panic!("fragment reads go through the large-value script")
+        };
+        let LargeValueReadOptions {
+            node_id,
+            field,
+            offset: asked,
+            max_chunk_bytes,
+            ..
+        } = options;
+        assert_eq!(node_id, "1:1");
+        assert_eq!(field, &expected_field, "the scale rides on the field");
+        assert_eq!(*asked, offset);
+        let next = (offset + max_chunk_bytes).min(png.len());
+        collector
+            .accept(
+                &fragment_call.id,
+                UpstreamResult {
+                    raw: json!({"content": [{"type": "text", "text": json!({
+                        "kind":"devupLargeValueFragment","fileKey":"FileKey123","version":"v1",
+                        "nodeId":"1:1","field":expected_field,
+                        "offset":offset,"nextOffset":next,"byteLength":png.len(),"sha256":sha256,
+                        "dataBase64":STANDARD.encode(&png[offset..next]),"complete":next == png.len()
+                    }).to_string()}]}),
+                },
+            )
+            .unwrap();
+        offset = next;
+    }
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("complete")
+    };
+    assert_eq!(parts.assets.len(), 1);
+    let exported = &parts.assets[0];
+    assert_eq!(exported.status, AssetStatus::Exported);
+    assert_eq!(exported.asset_id, "1:1:fills:0");
+    assert_eq!(exported.field, "fills/0");
+    assert_eq!(exported.format, Some(AssetFormat::Png));
+    assert_eq!(exported.scale, Some(2));
+    assert_eq!(exported.byte_length, Some(png.len()));
+    assert_eq!(exported.mime_type.as_deref(), Some("image/png"));
+    assert_eq!(
+        STANDARD
+            .decode(exported.data_base64.as_deref().unwrap())
+            .unwrap(),
+        png
+    );
+    // The announcement, then three fragments of 40 bytes.
+    assert_eq!(parts.stats.figma_tool_calls, 6);
+}
+
+/// A PDF is neither text nor an attachment Figma returns, so an announced
+/// fragment transport for one is refused where the announcement is read,
+/// not after fragments have been fetched for nothing.
+#[test]
+fn only_svg_and_png_exports_are_carried_in_fragments() {
+    let request = AssetRequest {
+        asset_id: "1:1:node".to_owned(),
+        node_id: "1:1".to_owned(),
+        field: "node".to_owned(),
+        image_hash: None,
+        format: AssetFormat::Pdf,
+        scale: 1,
+    };
+    let result = json!({"content": [{"type": "text", "text": json!({
+        "kind":"devupAssetExport","fileKey":"FileKey123","version":"v1",
+        "assetId":"1:1:node","nodeId":"1:1","field":"node",
+        "imageHash":null,"format":"pdf","scale":1,
+        "status":"chunked","byteLength":100,"sha256":"00",
+        "cursor":{"nextOffset":0,"maxChunkBytes":40},"errorCode":null
+    }).to_string()}]});
+    let error = asset_export_from_result(
+        &UpstreamResult { raw: result },
+        "FileKey123",
+        Some("v1"),
+        &request,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("SVG or PNG"), "{error}");
+}
