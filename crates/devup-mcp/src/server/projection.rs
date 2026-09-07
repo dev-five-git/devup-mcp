@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -8,8 +9,9 @@ use devup_mcp_devup_ui::{
     theme::{generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AssetManifest, AssetStatus, CollectedPayload, CollectionStats, DevupError, ErrorCode,
-    ExploreOptions, SearchOptions, TargetKind, classify_target, explore_snapshot, search_snapshot,
+    AssetManifest, AssetStatus, CollectedPayload, CollectionStats, DevupError, Diagnostic,
+    DiagnosticSeverity, ErrorCode, ExploreOptions, SearchOptions, TargetKind, classify_target,
+    explore_snapshot, search_snapshot,
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -307,6 +309,57 @@ fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutp
     Ok(outputs)
 }
 
+/// The file name a host file system will take. A designer names a layer for
+/// the eye - `grommet-icons:language`, `ic:round-arrow-left` - and the plugin
+/// writes that name verbatim; Windows cannot create it. The characters no
+/// file system takes become dashes. A name that is already writable - nearly
+/// every one - passes through untouched, so what the server delivers keeps
+/// the plugin's own name wherever that name is a file at all.
+fn host_safe_file_name(name: &str) -> String {
+    name.chars()
+        .map(|character| match character {
+            ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\\' => '-',
+            other if other.is_control() => '-',
+            other => other,
+        })
+        .collect()
+}
+
+/// `/icons/ic:round-arrow-left.svg` as `/icons/ic-round-arrow-left.svg`. Only
+/// the file name is touched; the folder the code looks in is left alone.
+fn host_safe_asset_path(path: &str) -> String {
+    match path.rsplit_once('/') {
+        Some((directory, name)) => format!("{directory}/{}", host_safe_file_name(name)),
+        None => host_safe_file_name(path),
+    }
+}
+
+/// Every asset the generated code points at, renamed the way its bytes will
+/// be written. The code holds each path inside a string or a `url(...)`, so a
+/// name runs to the first quote or closing parenthesis - spaces and dots
+/// belong to it, as they do in `Frame 269.png`.
+fn with_host_safe_asset_paths(code: &str) -> String {
+    let mut safe = String::with_capacity(code.len());
+    let mut rest = code;
+    loop {
+        let Some((at, prefix)) = ["/icons/", "/images/"]
+            .into_iter()
+            .filter_map(|prefix| rest.find(prefix).map(|at| (at, prefix)))
+            .min_by_key(|(at, _)| *at)
+        else {
+            safe.push_str(rest);
+            return safe;
+        };
+        let after = at + prefix.len();
+        safe.push_str(&rest[..after]);
+        let end = rest[after..]
+            .find(['"', '\'', ')'])
+            .map_or(rest.len(), |offset| after + offset);
+        safe.push_str(&host_safe_file_name(&rest[after..end]));
+        rest = &rest[end..];
+    }
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -401,6 +454,9 @@ pub(super) async fn complete_operation(
                     include_diagnostics,
                     inline_instances: true,
                     root_layout,
+                    // `devup_figma_to_ui` hands back one module and no files,
+                    // so there is nothing for a per-node name to keep apart.
+                    asset_names_per_node: false,
                     ..CodegenOptions::default()
                 }
                 .with_payload_tokens(payload),
@@ -640,6 +696,7 @@ pub(super) async fn complete_operation(
             component_name,
             include_diagnostics,
             root_layout,
+            asset_names_per_node,
             scope,
             strict,
             output_paths,
@@ -814,6 +871,7 @@ pub(super) async fn complete_operation(
                             include_diagnostics,
                             inline_instances: true,
                             root_layout,
+                            asset_names_per_node,
                             ..CodegenOptions::default()
                         }
                         .with_payload_tokens(payload),
@@ -875,6 +933,7 @@ pub(super) async fn complete_operation(
                         include_diagnostics,
                         inline_instances: false,
                         root_layout,
+                        asset_names_per_node,
                         ..CodegenOptions::default()
                     }
                     .with_payload_tokens(payload),
@@ -945,6 +1004,7 @@ pub(super) async fn complete_operation(
                         include_diagnostics,
                         inline_instances: true,
                         root_layout,
+                        asset_names_per_node,
                         ..CodegenOptions::default()
                     }
                     .with_payload_tokens(payload),
@@ -980,6 +1040,7 @@ pub(super) async fn complete_operation(
                         include_diagnostics: false,
                         inline_instances: false,
                         root_layout,
+                        asset_names_per_node,
                         ..CodegenOptions::default()
                     }
                     .with_payload_tokens(payload),
@@ -1144,18 +1205,39 @@ pub(super) async fn complete_operation(
                 // wrong.
                 for asset in &mut manifest.assets {
                     if asset.path.is_none() {
-                        asset.path = devup_mcp_devup_ui::codegen::asset_path(
-                            &payload.snapshot,
-                            &asset.node_id,
-                        )
-                        .map(|path| {
-                            if asset.field.starts_with("fills/") && asset.field != "fills/0" {
-                                let index = asset.field.trim_start_matches("fills/");
-                                path.replace(".png", &format!("-{index}.png"))
-                            } else {
-                                path
-                            }
-                        });
+                        // An image fill is named from the node it is painted
+                        // on and which fill it is, which holds for a layout
+                        // box carrying a photograph as much as for a node
+                        // drawn entirely from a file. Anything else is named
+                        // after the node itself.
+                        asset.path = match asset
+                            .field
+                            .strip_prefix("fills/")
+                            .and_then(|index| index.parse::<usize>().ok())
+                        {
+                            Some(fill_index) => devup_mcp_devup_ui::codegen::image_fill_path(
+                                &payload.snapshot,
+                                &asset.node_id,
+                                fill_index,
+                                asset_names_per_node,
+                            ),
+                            None => devup_mcp_devup_ui::codegen::asset_path(
+                                &payload.snapshot,
+                                &asset.node_id,
+                                asset_names_per_node,
+                            ),
+                        };
+                    }
+                }
+                // Where the bytes will be written, if a layer name is one a
+                // file system refuses. The code that points at them is
+                // renamed the same way once every output is assembled.
+                for asset in &mut manifest.assets {
+                    if let Some(path) = asset.path.as_deref() {
+                        let safe = host_safe_asset_path(path);
+                        if safe != path {
+                            asset.path = Some(safe);
+                        }
                     }
                 }
                 for capture in &asset_captures {
@@ -1244,6 +1326,23 @@ pub(super) async fn complete_operation(
                     }),
                 );
             }
+            // The code and the bytes have to name an asset alike. Renaming
+            // here, once both are assembled, keeps the two in step while the
+            // code generator itself stays byte-for-byte the plugin's.
+            for output in ["tsx", "responsiveTsx", "componentTsx"] {
+                if let Some(Value::String(code)) = result.get_mut(output) {
+                    let safe = with_host_safe_asset_paths(code.as_str());
+                    if safe != *code {
+                        *code = safe;
+                    }
+                }
+                if let Some(code) = pending_text_outputs.get_mut(output) {
+                    let safe = with_host_safe_asset_paths(code.as_str());
+                    if safe != *code {
+                        *code = safe;
+                    }
+                }
+            }
             let mut planned_outputs = Vec::new();
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {
@@ -1289,11 +1388,33 @@ pub(super) async fn complete_operation(
                 }
             }
             let mut transaction = OutputTransaction::new();
+            // Two nodes can be one picture - a logo drawn at three sizes
+            // shares a file, as the plugin has it - so several assets resolve
+            // to one path. That is one write, not a collision. Only differing
+            // bytes under one name are a mistake, and that is worth refusing.
+            // Two different drawings under one layer name land here too: the
+            // plugin names an asset after its layer, and a snapshot cannot
+            // tell two drawings of one name apart - only the exported bytes
+            // can. The first is written and the rest are reported, so the
+            // code still points at a file that exists and the caller learns
+            // which names hide more than one picture.
+            let mut staged_content: BTreeMap<String, String> = BTreeMap::new();
+            let mut shared_names: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for (name, target, bytes) in planned_outputs {
-                written_paths.insert(
-                    name.clone(),
-                    json!(target.display_path().to_string_lossy().into_owned()),
-                );
+                let path = target.display_path().to_string_lossy().into_owned();
+                written_paths.insert(name.clone(), json!(path.clone()));
+                let fingerprint = sha256_hex(&bytes);
+                match staged_content.get(&path) {
+                    Some(staged) if *staged == fingerprint => continue,
+                    Some(_) => {
+                        let asset = name.strip_prefix("asset:").unwrap_or(&name).to_owned();
+                        shared_names.entry(path).or_default().push(asset);
+                        continue;
+                    }
+                    None => {
+                        staged_content.insert(path, fingerprint);
+                    }
+                }
                 transaction.stage(name, target, &bytes)?;
             }
             if let Some(mut manifest) = pending_asset_manifest {
@@ -1308,6 +1429,21 @@ pub(super) async fn complete_operation(
                     };
                     asset.output_path = Some(path.to_owned());
                     asset.data_base64 = None;
+                }
+                for (path, others) in &shared_names {
+                    manifest.diagnostics.push(Diagnostic {
+                        code: "DEVUP_ASSET_NAME_SHARED".to_owned(),
+                        message: format!(
+                            "{} further drawing(s) claim the file {path}; the first is written. \
+                             An asset is named after its layer, as the plugin names it, so two \
+                             drawings a designer named alike cannot both be written.",
+                            others.len()
+                        ),
+                        severity: Some(DiagnosticSeverity::Warning),
+                        resource_kind: Some("asset".to_owned()),
+                        details: Some(json!({ "outputPath": path, "notWritten": others })),
+                        ..Diagnostic::default()
+                    });
                 }
                 result.insert("assetManifest".to_owned(), json!(manifest));
             }
@@ -1336,5 +1472,41 @@ pub(super) async fn complete_operation(
             "An internal collect operation cannot be completed from an MCP artifact.",
             false,
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{host_safe_asset_path, with_host_safe_asset_paths};
+
+    #[test]
+    fn a_layer_name_no_file_system_takes_is_renamed_wherever_the_code_points_at_it() {
+        let code = concat!(
+            "<Box maskImage=\"url(/icons/ic:round-arrow-left.svg)\" />\n",
+            "<Image src=\"/images/Frame 269.png\" />\n",
+            "<Box maskImage=\"url('/icons/Frame 287.svg')\" />\n",
+            "<Box maskImage=\"url(/icons/grommet-icons:language.svg)\" />\n",
+        );
+        assert_eq!(
+            with_host_safe_asset_paths(code),
+            concat!(
+                "<Box maskImage=\"url(/icons/ic-round-arrow-left.svg)\" />\n",
+                "<Image src=\"/images/Frame 269.png\" />\n",
+                "<Box maskImage=\"url('/icons/Frame 287.svg')\" />\n",
+                "<Box maskImage=\"url(/icons/grommet-icons-language.svg)\" />\n",
+            )
+        );
+    }
+
+    #[test]
+    fn the_written_path_is_renamed_the_same_way_the_code_is() {
+        assert_eq!(
+            host_safe_asset_path("/icons/grommet-icons:language.svg"),
+            "/icons/grommet-icons-language.svg"
+        );
+        assert_eq!(
+            host_safe_asset_path("/images/Frame 269.png"),
+            "/images/Frame 269.png"
+        );
     }
 }

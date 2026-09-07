@@ -563,7 +563,10 @@ fn project_tree_inner(
         asset,
         &mut props,
         &mut used_tokens,
-        &options.variable_tokens,
+        style::StyleOptions {
+            variable_tokens: &options.variable_tokens,
+            asset_names_per_node: options.asset_names_per_node,
+        },
     );
     text::push_text_props(
         &view,

@@ -417,6 +417,15 @@ fn same_color(
     same
 }
 
+/// What the style pass needs beyond the node itself: which variables carry a
+/// token name, and how assets are to be named. Carried together so that
+/// adding to it does not lengthen every signature it passes through.
+#[derive(Clone, Copy)]
+pub(super) struct StyleOptions<'a> {
+    pub variable_tokens: &'a std::collections::BTreeMap<String, String>,
+    pub asset_names_per_node: bool,
+}
+
 pub(super) fn push_style_props(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -424,8 +433,12 @@ pub(super) fn push_style_props(
     asset: Option<AssetKind>,
     props: &mut Vec<Prop>,
     used_tokens: &mut BTreeSet<String>,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
+    style: StyleOptions<'_>,
 ) {
+    let StyleOptions {
+        variable_tokens,
+        asset_names_per_node: per_node,
+    } = style;
     let view = node.typed_view();
     if view.bool("visible") == Some(false) {
         string_prop(props, "display", "none");
@@ -441,7 +454,7 @@ pub(super) fn push_style_props(
         } else {
             "png"
         };
-        let source = asset_source(snapshot, node, folder, extension);
+        let source = asset_source(snapshot, node, folder, extension, per_node);
         if asset == AssetKind::SvgMask {
             if let SameColor::Color(color) =
                 same_color(snapshot, node, false, Some(variable_tokens))
@@ -525,7 +538,7 @@ pub(super) fn push_style_props(
                     > 1
             });
     if layered {
-        if let Some(background) = background_css(snapshot, node, variable_tokens, used_tokens) {
+        if let Some(background) = background_css(snapshot, node, used_tokens, style) {
             string_prop(props, "bg", background);
         }
     } else if let Some(token) = view
@@ -540,7 +553,7 @@ pub(super) fn push_style_props(
         used_tokens.insert(color.clone());
         string_prop(props, color_prop, format!("${color}"));
     } else if component == "Text" && has_non_solid_fill(&view) {
-        if let Some(background) = background_css(snapshot, node, variable_tokens, used_tokens) {
+        if let Some(background) = background_css(snapshot, node, used_tokens, style) {
             string_prop(props, "bg", background);
             string_prop(props, "bgClip", "text");
             string_prop(props, "WebkitTextFillColor", "transparent");
@@ -561,7 +574,7 @@ pub(super) fn push_style_props(
         } else if let Some(color) = first_solid_color(view.value("fills")) {
             string_prop(props, color_prop, color);
         }
-    } else if let Some(background) = background_css(snapshot, node, variable_tokens, used_tokens) {
+    } else if let Some(background) = background_css(snapshot, node, used_tokens, style) {
         string_prop(props, "bg", background);
     }
     if let Some(mode) = view
@@ -656,8 +669,8 @@ fn has_non_solid_fill(view: &TypedNode<'_>) -> bool {
 fn background_css(
     snapshot: &Snapshot,
     node: &RawNode,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
     used_tokens: &mut BTreeSet<String>,
+    style: StyleOptions<'_>,
 ) -> Option<String> {
     let view = node.typed_view();
     let paints = view.value("fills")?.as_array()?;
@@ -683,8 +696,8 @@ fn background_css(
             paint,
             *fill_index,
             is_last,
-            variable_tokens,
             used_tokens,
+            style,
         ) {
             css.push(value);
         }
@@ -703,11 +716,16 @@ fn background_css(
 /// the first fill, its index — a lone fill keeps the plain
 /// `/images/{name}.png` the `<Image>` element already emits, so the two agree
 /// on the same asset.
-fn image_fill_source(snapshot: &Snapshot, node: &RawNode, fill_index: usize) -> String {
+fn image_fill_source(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    fill_index: usize,
+    per_node: bool,
+) -> String {
     let source = if fill_index == 0 {
-        asset_source(snapshot, node, "images", "png")
+        asset_source(snapshot, node, "images", "png", per_node)
     } else {
-        let stem = asset_stem(snapshot, node);
+        let stem = asset_stem(snapshot, node, per_node);
         format!("/images/{stem}-{fill_index}.png")
     };
     if source.contains(' ') {
@@ -731,22 +749,82 @@ pub(crate) fn asset_source(
     node: &RawNode,
     folder: &str,
     extension: &str,
+    per_node: bool,
 ) -> String {
-    format!("/{folder}/{}.{extension}", asset_stem(snapshot, node))
+    format!(
+        "/{folder}/{}.{extension}",
+        asset_stem(snapshot, node, per_node)
+    )
 }
 
 /// The path the generated code refers to for an asset node - `/icons/x.svg`
 /// for a vector, `/images/x.png` for the first image fill - so a manifest
 /// can say where the code expects each asset. `None` for a node the code
 /// does not draw from a file.
-pub fn asset_path(snapshot: &Snapshot, node_id: &str) -> Option<String> {
+pub fn asset_path(snapshot: &Snapshot, node_id: &str, per_node: bool) -> Option<String> {
     let node = snapshot.nodes.get(node_id)?;
     let kind = asset_kind(snapshot, node)?;
     let (folder, extension) = match kind {
         AssetKind::Svg | AssetKind::SvgMask => ("icons", "svg"),
         _ => ("images", "png"),
     };
-    Some(asset_source(snapshot, node, folder, extension))
+    Some(asset_source(snapshot, node, folder, extension, per_node))
+}
+
+/// The `position/size` a cropped image fill is painted with, read from
+/// Figma's `imageTransform`. The matrix maps the image's own 0..1 space onto
+/// the box: the part on show runs from `tx` for `sx` across and from `ty` for
+/// `sy` down. Scaling the picture by `1/sx` makes that part as wide as the
+/// box, and `tx / (1 - sx)` is where along the overflow it has to sit - which
+/// is exactly the percentage CSS positions a background by. A scale of one
+/// leaves no overflow to position within, so it sits at the start.
+fn image_crop(paint: &Value) -> Option<String> {
+    let rows = paint.get("imageTransform")?.as_array()?;
+    let cell = |row: usize, column: usize| rows.get(row)?.as_array()?.get(column)?.as_f64();
+    let (scale_x, offset_x) = (cell(0, 0)?, cell(0, 2)?);
+    let (scale_y, offset_y) = (cell(1, 1)?, cell(1, 2)?);
+    if scale_x == 0.0 || scale_y == 0.0 {
+        return None;
+    }
+    let position = |scale: f64, offset: f64| {
+        if (1.0 - scale).abs() < 1e-6 {
+            0.0
+        } else {
+            offset / (1.0 - scale) * 100.0
+        }
+    };
+    Some(format!(
+        "{}% {}%/{}% {}%",
+        format_number(position(scale_x, offset_x)),
+        format_number(position(scale_y, offset_y)),
+        format_number(100.0 / scale_x),
+        format_number(100.0 / scale_y),
+    ))
+}
+
+/// Where the code draws one of a node's image fills from: `/images/x.png`
+/// for the first fill and `/images/x-2.png` past it, the same name
+/// `image_fill_source` writes into the code but without the quoting a CSS
+/// `url()` puts around a name with a space in it.
+///
+/// This answers for any node that carries the fill, where `asset_path` only
+/// answers for a node the code draws entirely from a file. A section painted
+/// over a photograph is a layout box holding children, not an asset - but the
+/// photograph on it is still a file the code points at, and a caller has to
+/// be told where.
+pub fn image_fill_path(
+    snapshot: &Snapshot,
+    node_id: &str,
+    fill_index: usize,
+    per_node: bool,
+) -> Option<String> {
+    let node = snapshot.nodes.get(node_id)?;
+    let stem = asset_stem(snapshot, node, per_node);
+    Some(if fill_index == 0 {
+        format!("/images/{stem}.png")
+    } else {
+        format!("/images/{stem}-{fill_index}.png")
+    })
 }
 
 /// The file name an asset node gets, without folder or extension.
@@ -758,16 +836,17 @@ pub fn asset_path(snapshot: &Snapshot, node_id: &str) -> Option<String> {
 /// chart. An instance whose name is shared then carries its variant, `Icons=chart`;
 /// a node that is not an instance carries its id. Instances of one variant
 /// share a name and a file, as the same icon at three widths should.
-pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode) -> String {
+pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> String {
     let view = node.typed_view();
     let name = view.name().unwrap_or("Asset");
     let identity = asset_identity(node);
-    let shared = snapshot.nodes.values().any(|other| {
-        other.id != node.id
-            && other.typed_view().name() == Some(name)
-            && asset_identity(other) != identity
-            && asset_kind(snapshot, other).is_some()
-    });
+    let shared = per_node
+        || snapshot.nodes.values().any(|other| {
+            other.id != node.id
+                && other.typed_view().name() == Some(name)
+                && asset_identity(other) != identity
+                && asset_kind(snapshot, other).is_some()
+        });
     if !shared {
         return name.to_owned();
     }
@@ -795,9 +874,13 @@ fn paint_css(
     paint: &Value,
     fill_index: usize,
     last: bool,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
     used_tokens: &mut BTreeSet<String>,
+    style: StyleOptions<'_>,
 ) -> Option<String> {
+    let StyleOptions {
+        variable_tokens,
+        asset_names_per_node: per_node,
+    } = style;
     let kind = paint.get("type")?.as_str()?;
     match kind {
         "SOLID" => {
@@ -818,16 +901,24 @@ fn paint_css(
         "GRADIENT_ANGULAR" => gradient_css(node, paint, "angular", variable_tokens),
         "GRADIENT_DIAMOND" => gradient_css(node, paint, "diamond", variable_tokens),
         "IMAGE" => {
+            let source = image_fill_source(snapshot, node, fill_index, per_node);
+            // A cropped fill carries its crop as a matrix over the image's own
+            // 0..1 space. Painted `center/cover` that is thrown away and the
+            // whole picture is shown instead, which is a different crop: the
+            // about page's photographs came out zoomed in against the render
+            // Figma draws of the same frame.
+            if paint.get("scaleMode").and_then(Value::as_str) == Some("CROP")
+                && let Some(crop) = image_crop(paint)
+            {
+                return Some(format!("url({source}) {crop} no-repeat"));
+            }
             let fit = match paint.get("scaleMode").and_then(Value::as_str) {
                 Some("FIT") => "center/contain no-repeat",
                 Some("FILL" | "CROP") => "center/cover no-repeat",
                 Some("TILE") => "repeat",
                 _ => "center/cover no-repeat",
             };
-            Some(format!(
-                "url({}) {fit}",
-                image_fill_source(snapshot, node, fill_index)
-            ))
+            Some(format!("url({source}) {fit}"))
         }
         "PATTERN" => {
             let source_id = paint.get("sourceNodeId").and_then(Value::as_str)?;

@@ -29,6 +29,16 @@ pub struct CodegenOptions {
     pub text_style_tokens: std::collections::BTreeMap<String, String>,
     pub variable_tokens: std::collections::BTreeMap<String, String>,
     pub root_layout: RootLayout,
+    /// Name every asset after the node it came from, rather than after its
+    /// layer. Off by default, which is how the plugin names them: a layer
+    /// name is the file name, and two nodes named alike share a file.
+    ///
+    /// That sharing is a loss wherever the two are not the same picture. A
+    /// designer names three logos `Logo`, and only one of them can be
+    /// written; a photograph drawn at three widths is one file, so at two of
+    /// them the file is the wrong size for the box and the picture is
+    /// stretched into it. Named per node, each gets a file of its own.
+    pub asset_names_per_node: bool,
 }
 
 impl CodegenOptions {
@@ -999,6 +1009,7 @@ fn generate_node_marked(
         root
     };
     let mut context = Context {
+        asset_names_per_node: options.asset_names_per_node,
         inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
         variable_tokens: options.variable_tokens.clone(),
@@ -1041,6 +1052,7 @@ fn finalize_codegen_output(
 
 #[derive(Default)]
 struct Context {
+    asset_names_per_node: bool,
     imports: BTreeSet<String>,
     used_tokens: BTreeSet<String>,
     diagnostics: Vec<Diagnostic>,
@@ -1255,7 +1267,10 @@ fn render_node(
         asset,
         &mut props,
         &mut context.used_tokens,
-        &context.variable_tokens,
+        style::StyleOptions {
+            variable_tokens: &context.variable_tokens,
+            asset_names_per_node: context.asset_names_per_node,
+        },
     );
     text::push_text_props(
         &view,

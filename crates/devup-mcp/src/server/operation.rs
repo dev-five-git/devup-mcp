@@ -42,6 +42,7 @@ pub enum PendingOperation {
         component_name: Option<String>,
         include_diagnostics: bool,
         root_layout: RootLayout,
+        asset_names_per_node: bool,
         scope: String,
         strict: bool,
         output_paths: BTreeMap<String, String>,

@@ -79,6 +79,12 @@ pub struct FigmaExportInput {
     pub scope: String,
     #[serde(default = "default_root_layout")]
     pub root_layout: String,
+    /// Name every asset after the node it came from rather than after its
+    /// layer, so two drawings a designer named alike get a file each, and a
+    /// picture drawn at three widths gets one per width at that width's own
+    /// size. Off by default, which names them as the plugin does.
+    #[serde(default)]
+    pub asset_names_per_node: bool,
     #[serde(default)]
     pub strict: bool,
     #[serde(default)]

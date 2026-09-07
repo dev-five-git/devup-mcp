@@ -19,5 +19,5 @@ pub use component::{
 };
 pub(crate) use layout::{derived_padding, placed_by_a_free_layout};
 pub(crate) use style::asset_kind;
-pub use style::asset_path;
+pub use style::{asset_path, image_fill_path};
 pub(crate) use text::escape_jsx_text;
