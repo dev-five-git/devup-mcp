@@ -230,12 +230,25 @@ fn requested_reference_png_is_collected_after_the_design_snapshot() {
     assert_eq!(screenshot_call.call.tool_name(), "get_screenshot");
     assert_eq!(screenshot_call.call.arguments()["fileKey"], "FileKey123");
     assert_eq!(screenshot_call.call.arguments()["nodeId"], "1:2");
+    // The official tool inlines the PNG only when asked, and halves a 1920px
+    // screen unless its 1024px cap is raised.
+    assert_eq!(
+        screenshot_call.call.arguments()["enableBase64Response"],
+        true
+    );
+    assert_eq!(screenshot_call.call.arguments()["maxDimension"], 8192);
     let data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    // As the official tool answers, measured 2026-09-07: the URL as JSON in
+    // a text block, how to fetch it in another, and the PNG inlined after.
     collector
         .accept(
             &screenshot_call.id,
             UpstreamResult {
-                raw: json!({"content": [{"type": "image", "mimeType": "image/png", "data": data}]}),
+                raw: json!({"content": [
+                    {"type": "text", "text": "{\"image_url\":\"https://www.figma.com/api/mcp/asset/x.png\",\"width\":1,\"height\":1,\"format\":\"png\"}"},
+                    {"type": "text", "text": "The screenshot is hosted at the URL in the first content entry (as JSON)."},
+                    {"type": "image", "mimeType": "image/png", "data": data}
+                ]}),
             },
         )
         .unwrap();

@@ -19,7 +19,8 @@ use tokio::sync::Mutex;
 
 use super::{
     AssetRequest, CredentialStore, DevupError, LargeValueReadOptions, OAuthManager, ResourceBatch,
-    UpstreamFailureContext, UpstreamFailureKind, upstream_failure_error,
+    UpstreamFailureContext, UpstreamFailureKind, collector::MAX_REFERENCE_PNG_DIMENSION,
+    upstream_failure_error,
 };
 
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -601,10 +602,21 @@ impl ReadToolCall {
             }
             Self::VariableDefs { file_key, node_id }
             | Self::DesignContext { file_key, node_id }
-            | Self::CodeConnectMap { file_key, node_id }
-            | Self::Screenshot { file_key, node_id } => {
+            | Self::CodeConnectMap { file_key, node_id } => {
                 json!({ "fileKey": file_key, "nodeId": node_id })
             }
+            // The official `get_screenshot` answers by default with the PNG's
+            // URL and curl instructions as text, and inlines the PNG only when
+            // asked; the collector has no HTTP client, so it asks. And it caps
+            // the longer edge at 1024px unless told otherwise, which would
+            // hand back a 1920px screen at half size; the cap is raised to the
+            // most this accepts, and a node smaller than that keeps its size.
+            Self::Screenshot { file_key, node_id } => json!({
+                "fileKey": file_key,
+                "nodeId": node_id,
+                "enableBase64Response": true,
+                "maxDimension": MAX_REFERENCE_PNG_DIMENSION,
+            }),
             // These variants all route to the official `use_figma` tool, whose
             // schema is `{ fileKey, code, description, skillNames? }` with
             // `additionalProperties: false`. `nodeId` is NOT part of that

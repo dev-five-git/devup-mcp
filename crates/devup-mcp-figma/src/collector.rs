@@ -48,7 +48,7 @@ const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
 
 const MAX_REFERENCE_PNG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_REFERENCE_PNG_BASE64_BYTES: usize = MAX_REFERENCE_PNG_BYTES.div_ceil(3) * 4;
-const MAX_REFERENCE_PNG_DIMENSION: u32 = 8_192;
+pub(crate) const MAX_REFERENCE_PNG_DIMENSION: u32 = 8_192;
 const MAX_REFERENCE_PNG_DECODED_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1916,20 +1916,29 @@ impl CollectorSession {
     }
 }
 
+/// The one image the screenshot answered with.
+///
+/// The official `get_screenshot` writes the PNG's URL and how to fetch it as
+/// text blocks, and inlines the PNG itself as an image block beside them when
+/// asked to (`enableBase64Response`). The text is not read; the image must be
+/// exactly one, and a PNG. A response with no image, or two, or one hidden in
+/// text or JSON, is refused as before.
 fn take_single_png_data(value: Value) -> Result<String, DevupError> {
     let result = serde_json::from_value::<CallToolResult>(value)
         .map_err(|_| invalid_call("Figma screenshot response format is invalid."))?;
-    if result.is_error == Some(true) || result.content.len() != 1 {
+    if result.is_error == Some(true) {
         return Err(invalid_call(
             "Figma screenshot response must contain exactly one image/png content block.",
         ));
     }
-    let content = result
+    let mut images = result
         .content
         .into_iter()
-        .next()
-        .ok_or_else(|| invalid_call("Figma screenshot response has no image/png content."))?;
-    let ContentBlock::Image(image) = content else {
+        .filter_map(|content| match content {
+            ContentBlock::Image(image) => Some(image),
+            _ => None,
+        });
+    let (Some(image), None) = (images.next(), images.next()) else {
         return Err(invalid_call(
             "Figma screenshot response must contain exactly one image/png content block.",
         ));
