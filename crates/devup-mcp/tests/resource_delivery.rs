@@ -18,7 +18,7 @@ use devup_mcp::server::{
 };
 use devup_mcp_figma::{
     CollectedPayload, CollectionRequest, CollectionScope, CollectionStats, FigmaTarget,
-    PayloadCompleteness, ResourceScope, Snapshot, SourcePolicy,
+    PayloadCompleteness, ResourceScope, Snapshot,
 };
 use rmcp::model::ResourceContents;
 use serde_json::json;
@@ -157,10 +157,7 @@ async fn attached_outputs_are_bounded_hashed_and_share_artifact_lifetime() -> an
     });
     let request = request();
     let artifact = store
-        .insert(
-            ArtifactRequestKey::from_collection(&request, SourcePolicy::Direct),
-            payload(),
-        )
+        .insert(ArtifactRequestKey::from_collection(&request), payload())
         .await?;
     let acquisition_hash = artifact.content_hash.clone();
     let bytes = vec![0x5a; RESOURCE_CHUNK_BYTES * 2 + 7];
@@ -236,10 +233,7 @@ async fn resource_protocol_lists_manifests_and_round_trips_chunks() -> anyhow::R
         max_total_bytes: 8 * 1024 * 1024,
     });
     let artifact = store
-        .insert(
-            ArtifactRequestKey::from_collection(&request(), SourcePolicy::Direct),
-            payload(),
-        )
+        .insert(ArtifactRequestKey::from_collection(&request()), payload())
         .await?;
     let original = "€€€".repeat(100_000).into_bytes();
     let attached = store
@@ -315,10 +309,7 @@ async fn reserved_resources_stay_invisible_until_publication() -> anyhow::Result
         max_total_bytes: 8 * 1024 * 1024,
     });
     let artifact = store
-        .insert(
-            ArtifactRequestKey::from_collection(&request(), SourcePolicy::Direct),
-            payload(),
-        )
+        .insert(ArtifactRequestKey::from_collection(&request()), payload())
         .await?;
     let root = unique_temp_dir("combined-publication")?;
     let policy = OutputPolicy::from_roots(vec![root.clone()])?;
@@ -386,10 +377,7 @@ async fn failed_file_commit_does_not_publish_or_evict_lru_resources() -> anyhow:
         max_total_bytes: sample_bytes * 2 + 32,
     });
     let target = store
-        .insert(
-            ArtifactRequestKey::from_collection(&request(), SourcePolicy::Direct),
-            payload(),
-        )
+        .insert(ArtifactRequestKey::from_collection(&request()), payload())
         .await?;
     let mut unrelated_request = request();
     unrelated_request.target.file_key = "UnrelatedFile".to_owned();
@@ -398,7 +386,7 @@ async fn failed_file_commit_does_not_publish_or_evict_lru_resources() -> anyhow:
     unrelated_payload.snapshot.file_key = "UnrelatedFile".to_owned();
     let unrelated = store
         .insert(
-            ArtifactRequestKey::from_collection(&unrelated_request, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&unrelated_request),
             unrelated_payload,
         )
         .await?;

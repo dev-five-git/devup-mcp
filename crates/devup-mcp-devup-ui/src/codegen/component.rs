@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use devup_mcp_figma::{
-    CollectedPayload, DevupError, Diagnostic, ErrorCode, RawNode, Snapshot, UpstreamResult,
+    CollectedPayload, DevupError, Diagnostic, DiagnosticSeverity, ErrorCode, RawNode, Snapshot,
+    UpstreamResult,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1044,10 +1045,127 @@ fn finalize_codegen_output(
     output.tsx = tsx;
     output.source_map = source_map;
     validate_tsx(&output.tsx)?;
+    output
+        .diagnostics
+        .extend(unresolved_token_bindings(snapshot, root_id, options));
     output.projection_trace =
         build_projection_trace(snapshot, root_id, &output.tsx, &output.source_map);
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     Ok(output)
+}
+
+/// Reports every binding the generated code had to write out as a value.
+///
+/// A fill bound to a variable, or a text carrying a style, is the design
+/// saying "this is a token". The generator writes the token when the resource
+/// catalog carried that variable or style, and the resolved value when it did
+/// not - and it has to write something, because the module still has to
+/// compile and render. What it must not do is stay quiet about it: a
+/// hardcoded `#7d7f83` where the design says `$caption` renders identically
+/// today and stops following the theme tomorrow, and a caller reading a
+/// response graded `exact` has no way to know one is in there.
+///
+/// Run as a pass over the collected subtree rather than inside rendering, so
+/// it sees the node a binding belongs to and needs no argument threaded
+/// through the render functions to reach it.
+fn unresolved_token_bindings(
+    snapshot: &Snapshot,
+    root_id: &str,
+    options: &CodegenOptions,
+) -> Vec<Diagnostic> {
+    fn paint_variable_ids(fills: Option<&serde_json::Value>) -> Vec<String> {
+        fills
+            .and_then(serde_json::Value::as_array)
+            .map(|paints| {
+                paints
+                    .iter()
+                    .filter_map(|paint| {
+                        Some(
+                            paint
+                                .get("boundVariables")?
+                                .get("color")?
+                                .get("id")?
+                                .as_str()?
+                                .to_owned(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    let mut reported = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+    let mut pending = vec![root_id.to_owned()];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        let Some(node) = snapshot.nodes.get(&id) else {
+            continue;
+        };
+        let view = node.typed_view();
+        pending.extend(view.child_ids().map(str::to_owned));
+
+        let mut lost = Vec::new();
+        for variable_id in paint_variable_ids(view.value("fills")) {
+            if !options.variable_tokens.contains_key(&variable_id) {
+                lost.push(("variable", "fills", variable_id));
+            }
+        }
+        if let Some(segments) = view
+            .value("styledTextSegments")
+            .and_then(serde_json::Value::as_array)
+        {
+            for segment in segments {
+                for variable_id in paint_variable_ids(segment.get("fills")) {
+                    if !options.variable_tokens.contains_key(&variable_id) {
+                        lost.push(("variable", "fills", variable_id));
+                    }
+                }
+                if let Some(style_id) = segment
+                    .get("textStyleId")
+                    .and_then(serde_json::Value::as_str)
+                    && !style_id.is_empty()
+                    && !options.text_style_tokens.contains_key(style_id)
+                {
+                    lost.push(("textStyle", "textStyleId", style_id.to_owned()));
+                }
+            }
+        }
+        if let Some(style_id) = view.string("textStyleId")
+            && !style_id.is_empty()
+            && !options.text_style_tokens.contains_key(style_id)
+        {
+            lost.push(("textStyle", "textStyleId", style_id.to_owned()));
+        }
+
+        for (kind, property, resource_id) in lost {
+            if !reported.insert((id.clone(), property, resource_id.clone())) {
+                continue;
+            }
+            diagnostics.push(Diagnostic {
+                code: "DEVUP_CODEGEN_TOKEN_NAME_UNRESOLVED".to_owned(),
+                message: format!(
+                    "{id} binds {property} to a {kind} the resource catalog did not name, \
+                     so the resolved value was written instead of its token. Collect the \
+                     resource, or treat the value in the generated code as a token that \
+                     still needs a name."
+                ),
+                severity: Some(DiagnosticSeverity::Warning),
+                resource_kind: Some(kind.to_owned()),
+                details: Some(serde_json::json!({
+                    "nodeId": id,
+                    "property": property,
+                    "resourceId": resource_id
+                })),
+                ..Diagnostic::default()
+            });
+        }
+    }
+    diagnostics.sort_by(|left, right| left.message.cmp(&right.message));
+    diagnostics
 }
 
 #[derive(Default)]

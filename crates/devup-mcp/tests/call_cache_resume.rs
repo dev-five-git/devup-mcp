@@ -92,8 +92,7 @@ async fn attempt(upstream: Arc<AllowanceRunsOut>, cache: PathBuf) -> anyhow::Res
     let arguments: Map<String, Value> = json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
         "allScreens": true,
-        "outputs": ["rawSnapshot"],
-        "sourcePolicy": "direct"
+        "outputs": ["rawSnapshot"]
     })
     .as_object()
     .cloned()
@@ -210,8 +209,7 @@ async fn a_refusal_that_arrives_as_an_answer_is_not_banked() -> anyhow::Result<(
     let arguments: Map<String, Value> = json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
         "allScreens": true,
-        "outputs": ["rawSnapshot"],
-        "sourcePolicy": "direct"
+        "outputs": ["rawSnapshot"]
     })
     .as_object()
     .cloned()
@@ -253,8 +251,7 @@ async fn nothing_is_banked_unless_a_directory_was_named() -> anyhow::Result<()> 
         let arguments: Map<String, Value> = json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
             "allScreens": true,
-            "outputs": ["rawSnapshot"],
-            "sourcePolicy": "direct"
+            "outputs": ["rawSnapshot"]
         })
         .as_object()
         .cloned()

@@ -4,15 +4,37 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 저장소는 Cargo workspace이며 `devup-mcp` 실행 crate, OAuth·upstream·snapshot을 담당하는 `devup-mcp-figma`, TSX·theme projection을 담당하는 `devup-mcp-devup-ui`, PNG 비교 library/CLI인 `devup-mcp-visual`로 구성됩니다. 별도 IR/auth/server crate 없이 MCP 제품 설치 단위는 `devup-mcp` 하나입니다.
 
-## 현재 제공 기능
+## 도구
 
-- `devup_figma_auth`: Figma 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 그리고 연결 실패 원인을 실측해 보고하는 `doctor` 진단
-- `devup_figma_to_ui`: Figma node 링크를 `@devup-ui/react` TSX로 변환
-- `devup_figma_to_json`: Figma 변수와 로컬 스타일을 `devup.json`으로 변환
-- `devup_figma_export`: Figma를 한 번 수집해 TSX, `devup.json`, raw snapshot, source map, asset manifest와 선택적 reference PNG를 함께 생성하거나 같은 artifact를 재사용
+Figma 쪽 4개, 프로젝트 쪽 3개, 모두 7개입니다.
+
+- `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·raw snapshot·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다.
 - `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
-- Figma Plugin API의 readable data property를 raw JSON으로 보존하고, 알려지지 않은 runtime field는 `extra`, 실패한 getter는 `fieldErrors`로 유지
+- `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
+- `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음
+- `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증
+- `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지
+
+`devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
+
+devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존하고, 알려지지 않은 runtime field는 `extra`, 실패한 getter는 `fieldErrors`로 유지합니다.
+
+### 응답에 무엇이 들어오는가
+
+`devup_figma_export`는 **요청한 `outputs`가 만드는 키만** 추가합니다.
+
+| output | 추가되는 키 |
+|---|---|
+| `tsx` | `tsx` |
+| `componentTsx` | `componentTsx` |
+| `responsiveTsx` | `responsiveTsx`, `responsiveSlots`, (표현 불가한 값이 있으면) `responsiveUnrepresented` |
+| `devupJson` | `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts`, `unresolvedVariables` |
+| `sourceMap` / `rawSnapshot` / `rawPayload` / `assetManifest` / `referencePng` | 같은 이름의 키 |
+
+그 밖에 항상 붙는 것은 `status`, `quality`, `completeness`, `cache`, `collection`, `source`, `targetKind`, `failures`, `outputPaths`뿐입니다. `fidelity`와 `completenessReport`는 결과가 exact/complete가 **아닐 때**, 또는 `includeDiagnostics: true`일 때만 나옵니다 — 깨끗한 결과에서는 `quality`가 이미 한 말을 되풀이할 뿐이라 빼두었고, 그만큼(측정값 797 B) 매 응답이 가벼워집니다.
+
+에러는 호출 자체가 잘못된 경우(`DEVUP_INVALID_INPUT`, 없는 node/파일, 만료·부적합한 `artifactId` 등) JSON-RPC `-32602 INVALID_PARAMS`로, 그 밖의 실패는 `-32603 INTERNAL_ERROR`로 옵니다. 인자를 고쳐 다시 부를 일인지 멈추고 보고할 일인지를 메시지를 파싱하지 않고 구분할 수 있습니다. 정확한 `code`와 `retryable`은 예전처럼 `data`에 그대로 실립니다.
 
 devup-mcp는 Figma Remote MCP에 직접 붙습니다 — OAuth discovery, Dynamic Client Registration, PKCE S256, 일시적인 `127.0.0.1` callback을 구현합니다. Figma는 MCP Catalog에 승인된 client의 registration만 허용하므로 등록은 allowlist에 있는 `client_name`으로 이루어집니다(기본값 `Codex`). Figma PAT나 사용자가 만든 OAuth app은 필요하지 않습니다.
 
@@ -76,7 +98,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-시스템 브라우저는 `devup_figma_auth`의 `login`을 명시적으로 호출할 때만 열립니다. 일반 변환의 기본 `auto` 정책은 direct credential이 없거나 Catalog/capability가 허용되지 않으면 브라우저를 열지 않고 공식 Figma MCP handoff를 반환합니다. 인증 정보는 운영체제 credential store에만 저장되며 `logout`은 해당 정보만 삭제합니다.
+시스템 브라우저는 `devup_figma_auth`의 `login`을 명시적으로 호출할 때만 열립니다. 변환 도구는 자격증명이 없으면 브라우저를 열지 않고 로그인이 필요하다는 오류를 반환합니다. 인증 정보는 운영체제 credential store에만 저장되며 `logout`은 해당 정보만 삭제합니다.
 
 ### 인증
 
@@ -84,7 +106,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 { "action": "status" }
 ```
 
-`action`은 `status`, `login`, `logout`, `doctor` 중 하나입니다. `status`/`login`/`logout`의 응답 형태는 항상 `{ "status": "connected" | "disconnected" }`입니다. Figma에 붙지 못하는 이유를 알고 싶으면 `doctor`를 호출하세요.
+`action`은 `status`, `login`, `logout`, `configure`, `doctor` 중 하나이며, 스키마가 이 목록을 그대로 게시합니다. `status`/`login`/`logout`의 응답 형태는 항상 `{ "status": "connected" | "disconnected" }`입니다. Figma에 붙지 못하는 이유를 알고 싶으면 `doctor`를 호출하세요.
 
 ```json
 { "action": "doctor" }
@@ -106,7 +128,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`doctor`는 네트워크 호출을 전혀 하지 않습니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약과 두 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+`doctor`는 네트워크 호출을 전혀 하지 않습니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약은 아래 "Figma 연결 설정" 절을 참고하세요.
 
 ### direct 경로에 사전 등록된 client 자격증명 주입하기
 
@@ -197,26 +219,24 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
+  "outputs": ["tsx"],
   "componentName": "OptionalComponentName",
-  "includeDiagnostics": true,
   "rootLayout": "standalone",
-  "sourcePolicy": "auto",
   "scope": "node",
-  "outputPath": "optional/path/Component.tsx"
+  "outputPaths": { "tsx": "optional/path/Component.tsx" }
 }
 ```
 
-결과에는 `tsx`, import 목록, 사용된 token, source 식별자, 보존한 node 수와 fallback diagnostics가 포함됩니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. 변수 token은 비어 있지 않은 Figma `codeSyntax.WEB`을 우선하고, 없으면 변수 경로의 마지막 이름을 정규화합니다. 따라서 TSX의 `$token`, `usedTokens`, `devup.json` key와 source map이 같은 이름을 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
+결과에는 `tsx`와 함께 `status`, `quality`, `cache`, `collection`, `source`가 포함됩니다. import 목록과 사용 token은 별도 키로 보내지 않습니다 — 각각 TSX의 첫 줄과 본문의 `$token`이 이미 같은 내용을 담고 있어, 응답에 두 번 싣는 만큼이 그대로 낭비였습니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. 변수 token은 비어 있지 않은 Figma `codeSyntax.WEB`을 우선하고, 없으면 변수 경로의 마지막 이름을 정규화합니다. 따라서 TSX의 `$token`, `devup.json` key와 source map이 같은 이름을 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
 
 ### Figma → devup.json
 
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
+  "outputs": ["devupJson"],
   "scope": "file",
-  "includeDiagnostics": true,
-  "sourcePolicy": "auto",
-  "outputPath": "optional/path/devup.json"
+  "outputPaths": { "devupJson": "optional/path/devup.json" }
 }
 ```
 
@@ -235,7 +255,6 @@ codex mcp add figma --url https://mcp.figma.com/mcp
   "scope": "node",
   "strict": true,
   "refresh": false,
-  "sourcePolicy": "auto",
   "delivery": "auto"
 }
 ```
@@ -331,11 +350,10 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
   "nodeTypes": ["PAGE", "SECTION", "FRAME", "COMPONENT_SET"],
   "match": "normalized",
   "limit": 20,
-  "sourcePolicy": "auto"
 }
 ```
 
-검색은 먼저 read-only Plugin API로 실제 `figma.root.children` page catalog를 얻고, page마다 한 번씩 전환하는 작은 query projection을 병렬 실행합니다. 전체 page snapshot을 응답하지 않으므로 큰 파일에서도 공식 MCP text 상한을 피합니다. 결과는 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬하고 `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_to_ui`에 그대로 전달할 canonical URL을 포함합니다.
+검색은 먼저 read-only Plugin API로 실제 `figma.root.children` page catalog를 얻고, page마다 한 번씩 전환하는 작은 query projection을 병렬 실행합니다. 전체 page snapshot을 응답하지 않으므로 큰 파일에서도 공식 MCP text 상한을 피합니다. 결과는 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬하고 `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_export`에 그대로 전달할 canonical URL을 포함합니다.
 
 ### 링크 주변 화면 탐색
 
@@ -345,15 +363,14 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
   "limit": 50,
   "includeTextPreview": true,
   "refresh": false,
-  "sourcePolicy": "auto"
 }
 ```
 
-요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_to_ui`에 넘겨 정확한 화면만 변환합니다.
+요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
 
-탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `devup_figma_to_json`만 file 전체 로컬 catalog를 수집합니다.
+탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집합니다.
 
-`sourcePolicy`는 `auto` 또는 `direct`입니다 — 둘 다 direct 연결을 쓰며, 남겨둔 이유는 하위호환뿐입니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
+Figma 연결은 direct 하나뿐입니다. `sourcePolicy` 파라미터는 `auto`와 `direct` 둘 다 같은 동작이었으므로 제거했습니다 — 분기하지 않는 선택지는 호출자에게 틀릴 기회만 주었습니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 
 정확한 node 링크의 UI 변환은 하나 이상의 공식 `use_figma` 호출 안에서 subtree와 실제 사용 리소스를 수집합니다. 수집 스크립트는 checked-in manifest(devup-ui 변환기가 실제로 읽는 필드만)만 확인하고 — 프로토타입 체인 전체를 훑거나 미분류 필드를 `extra`에 담지 않습니다 — `null`/빈 배열/미바인딩 style ID 같은 기본값은 봉투에서 생략합니다. 결과는 항상 텍스트(`devupFastSnapshotEnvelope`)이며 PNG 같은 바이너리 transport는 없습니다. 한 subtree가 15KB 텍스트 한도를 넘으면 같은 스크립트를 `offset`을 옮겨 다시 호출하는 방식으로 텍스트 페이지네이션합니다 — 각 라운드는 그 라운드가 보낸 node에서만 리소스를 스캔해 자기 완결적이며, Rust가 여러 라운드의 node와 리소스를 병합합니다. Rust는 schema·대상 ID·node graph·리소스 참조·(페이지 중이 아닐 때의) 자식 완전성을 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`(`text` | `text-paginated` | `legacy-cursor`), `fallbackUsed`, node/variable/style 수와 byte 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
 

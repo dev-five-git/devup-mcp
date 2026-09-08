@@ -121,7 +121,7 @@ async fn call_tool(
     upstream: Arc<dyn FigmaUpstream>,
     arguments: Value,
 ) -> anyhow::Result<CallToolResult> {
-    call_named_tool(auth, upstream, "devup_figma_to_ui", arguments).await
+    call_named_tool(auth, upstream, "devup_figma_export", arguments).await
 }
 
 async fn call_named_tool(
@@ -181,8 +181,7 @@ async fn search_collects_the_file_and_returns_replayable_node_urls() -> anyhow::
         "devup_figma_search",
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture",
-            "query": "syntheticframe",
-            "sourcePolicy": "direct"
+            "query": "syntheticframe"
         }),
     )
     .await?;
@@ -216,11 +215,11 @@ async fn ui_output_path_writes_the_generated_artifact_only_when_requested() -> a
             logins: AtomicUsize::new(0),
         }),
         Arc::new(FixtureUpstream::default()),
-        "devup_figma_to_ui",
+        "devup_figma_export",
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-            "sourcePolicy": "direct",
-            "outputPath": path
+            "outputs": ["tsx"],
+            "outputPaths": {"tsx": path}
         }),
         vec![root.clone()],
     )
@@ -228,16 +227,16 @@ async fn ui_output_path_writes_the_generated_artifact_only_when_requested() -> a
     let output = result.structured_content.unwrap();
     let written = std::fs::read_to_string(&path)?;
     assert_eq!(written, output["tsx"].as_str().unwrap());
-    assert!(output["outputPath"].as_str().is_some());
+    assert!(output["outputPaths"]["tsx"].as_str().is_some());
     std::fs::remove_file(path)?;
     std::fs::remove_dir(root)?;
     Ok(())
 }
 
-fn input(policy: &str) -> Value {
+fn input() -> Value {
     json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-        "sourcePolicy": policy
+        "outputs": ["tsx"]
     })
 }
 
@@ -282,7 +281,7 @@ async fn direct_disconnected_never_starts_oauth() -> anyhow::Result<()> {
         logins: AtomicUsize::new(0),
     });
     let upstream = Arc::new(UpstreamProbe::unavailable());
-    let result = call_tool(auth.clone(), upstream.clone(), input("direct")).await;
+    let result = call_tool(auth.clone(), upstream.clone(), input()).await;
 
     assert!(result.is_err());
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
@@ -297,12 +296,11 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
         logins: AtomicUsize::new(0),
     });
     let upstream = Arc::new(FixtureUpstream::default());
-    let result = call_tool(auth.clone(), upstream.clone(), input("auto")).await?;
+    let result = call_tool(auth.clone(), upstream.clone(), input()).await?;
     let output = result.structured_content.unwrap();
 
     assert_eq!(output["status"], "complete");
     assert_eq!(output["source"]["kind"], "direct");
-    assert_eq!(output["rootLayout"], "standalone");
     assert!(output["tsx"].as_str().unwrap().contains("SyntheticFrame"));
     assert_eq!(output["collection"]["figmaToolCalls"], 3);
     assert_eq!(output["collection"]["transport"], "legacy-cursor");
@@ -310,13 +308,12 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
 
-    // The unambiguous final-answer marker: without it, an agent that only
-    // ever sees intermediate `needs_figma` steps has, in a real observed
-    // failure, concluded the conversion was "probably done" and started
-    // hand-interpreting the raw node tree instead of using this `tsx`.
-    assert_eq!(output["deliverable"]["kind"], "devup-ui-tsx");
-    assert_eq!(output["deliverable"]["isFinal"], true);
-    assert!(!output["deliverable"]["note"].as_str().unwrap().is_empty());
+    // `standalone` is the default, so the root keeps the frame's own size.
+    // The response no longer echoes the parameter back; the tsx is where the
+    // choice is visible, and where it has to be right.
+    let tsx = output["tsx"].as_str().unwrap();
+    assert!(tsx.contains("w=\"320px\""));
+    assert!(tsx.contains("h=\"240px\""));
     Ok(())
 }
 
@@ -330,14 +327,13 @@ async fn embedded_root_layout_omits_selected_frame_dimensions() -> anyhow::Resul
         Arc::new(FixtureUpstream::default()),
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-            "sourcePolicy": "direct",
+            "outputs": ["tsx"],
             "rootLayout": "embedded"
         }),
     )
     .await?;
     let output = result.structured_content.unwrap();
 
-    assert_eq!(output["rootLayout"], "embedded");
     let tsx = output["tsx"].as_str().unwrap();
     assert!(!tsx.contains("h=\"240px\""));
     assert!(!tsx.contains("w=\"320px\""));
@@ -355,7 +351,6 @@ async fn rejects_unknown_root_layout_before_collecting() -> anyhow::Result<()> {
         upstream.clone(),
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-            "sourcePolicy": "direct",
             "rootLayout": "fluid"
         }),
     )
@@ -375,7 +370,7 @@ async fn direct_fast_call_error_restarts_the_legacy_collector() -> anyhow::Resul
             logins: AtomicUsize::new(0),
         }),
         upstream.clone(),
-        input("direct"),
+        input(),
     )
     .await?;
     let output = result.structured_content.unwrap();
@@ -402,7 +397,7 @@ async fn auto_asks_to_be_logged_in_rather_than_starting_oauth() -> anyhow::Resul
         logins: AtomicUsize::new(0),
     });
     let upstream = Arc::new(UpstreamProbe::unavailable());
-    let error = call_tool(auth.clone(), upstream.clone(), input("auto"))
+    let error = call_tool(auth.clone(), upstream.clone(), input())
         .await
         .expect_err("a disconnected direct path cannot collect");
 
@@ -427,7 +422,7 @@ async fn a_refusal_is_reported_as_itself() -> anyhow::Result<()> {
 
     let unavailable = Arc::new(UpstreamProbe::unavailable());
     assert!(
-        call_tool(auth.clone(), unavailable.clone(), input("auto"))
+        call_tool(auth.clone(), unavailable.clone(), input())
             .await
             .is_err()
     );
@@ -438,7 +433,7 @@ async fn a_refusal_is_reported_as_itself() -> anyhow::Result<()> {
         error_code: ErrorCode::DevupFigmaRateLimited,
     });
     assert!(
-        call_tool(auth, rate_limited.clone(), input("auto"))
+        call_tool(auth, rate_limited.clone(), input())
             .await
             .is_err()
     );

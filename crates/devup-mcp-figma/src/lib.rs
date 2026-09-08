@@ -64,8 +64,7 @@ pub use snapshot::{
     read_snapshot_cursor, snapshot_chunk_from_result,
 };
 pub use source::{
-    SourcePolicy, UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure,
-    upstream_failure_error,
+    UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure, upstream_failure_error,
 };
 pub use upstream::{
     BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,

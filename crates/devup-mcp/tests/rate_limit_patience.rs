@@ -85,8 +85,7 @@ async fn export(upstream: Arc<dyn FigmaUpstream>) -> anyhow::Result<CallToolResu
     });
     let client = ().serve(client_transport).await?;
     let arguments: Map<String, Value> = json!({
-        "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-        "sourcePolicy": "direct"
+        "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"
     })
     .as_object()
     .cloned()

@@ -11,7 +11,6 @@ pub enum ErrorCode {
     DevupFigmaRateLimited,
     DevupFigmaDirectUnavailable,
     DevupFigmaCatalogRejected,
-    DevupFigmaHostRequired,
     DevupFigmaHandoffExpired,
     DevupFigmaHandoffInvalid,
     DevupFigmaNodeNotFound,
@@ -21,9 +20,32 @@ pub enum ErrorCode {
     DevupSnapshotUnsupported,
     DevupCodegenFailed,
     DevupThemeConflict,
-    DevupCompatCorpusDrift,
     DevupInvalidInput,
     DevupProjectRootNotFound,
+}
+
+impl ErrorCode {
+    /// Whether this names a mistake in the call itself rather than a failure
+    /// behind it.
+    ///
+    /// Every error used to reach the caller as JSON-RPC `INTERNAL_ERROR`, so
+    /// "you passed a scope this tool does not have" and "Figma stopped
+    /// answering" arrived indistinguishable at the protocol level. That
+    /// matters more here than in a human-facing API, because the caller is
+    /// usually an agent deciding between two different next moves: fix the
+    /// arguments and call again, or stop and report. The codes below are the
+    /// ones the caller can act on by changing what it sent.
+    pub const fn is_caller_mistake(self) -> bool {
+        matches!(
+            self,
+            Self::DevupInvalidInput
+                | Self::DevupFigmaNodeNotFound
+                | Self::DevupFigmaUnsupportedFile
+                | Self::DevupProjectRootNotFound
+                | Self::DevupFigmaHandoffInvalid
+                | Self::DevupFigmaHandoffExpired
+        )
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

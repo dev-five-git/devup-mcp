@@ -347,10 +347,13 @@ async fn dcr_403_is_classified_as_catalog_rejected_with_actionable_options() -> 
     let options = error.details["options"]
         .as_array()
         .expect("catalog-rejected errors carry actionable options");
-    // Three, not four: the local Dev Mode MCP was offered here and cannot
-    // serve devup-mcp at all, since it has no use_figma to run a collection
-    // with. An option that cannot work costs a turn to discover.
-    assert_eq!(options.len(), 3);
+    // Exactly the two routes that exist: bring a credential of your own, or
+    // get this client admitted. The local Dev Mode MCP was offered here once
+    // and cannot serve devup-mcp at all, having no use_figma to run a
+    // collection with; a handoff to the host's own Figma MCP was offered
+    // after that, and there is no handoff path any more. An option that
+    // cannot work costs a turn to discover.
+    assert_eq!(options.len(), 2);
     assert!(
         options
             .iter()
@@ -360,6 +363,11 @@ async fn dcr_403_is_classified_as_catalog_rejected_with_actionable_options() -> 
         options
             .iter()
             .any(|option| option.as_str().unwrap_or_default().contains("mcp-catalog"))
+    );
+    assert!(
+        !options
+            .iter()
+            .any(|option| option.as_str().unwrap_or_default().contains("sourcePolicy"))
     );
     let serialized = serde_json::to_string(&error)?;
     assert!(!serialized.contains("Forbidden"));

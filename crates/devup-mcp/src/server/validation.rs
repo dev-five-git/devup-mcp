@@ -1,7 +1,6 @@
 use devup_mcp_devup_ui::codegen::RootLayout;
 use devup_mcp_figma::{
     AssetFormat, AssetSelection, CollectionScope, DevupError, ErrorCode, ResourceScope,
-    SourcePolicy,
 };
 use serde_json::json;
 
@@ -10,11 +9,35 @@ use super::{
     tools::FigmaAssetRequestInput,
 };
 
-/// The export outputs this server understands.
+/// The values each closed-set string input accepts.
 ///
-/// The JSON schema for `outputs` advertises this same constant, so a caller
-/// can discover the set instead of learning it one rejection at a time, and
-/// the published schema cannot drift from what is actually accepted.
+/// Every one of these is advertised by the tool's JSON schema and consumed by
+/// the parser below, so a caller discovers the set instead of learning it one
+/// rejection at a time, and the published schema cannot drift from what is
+/// actually accepted. `outputs` and the asset `format` were the only two
+/// inputs that did this; the rest arrived as bare strings, which left an
+/// agent to guess `scope` and `delivery` and find out by being refused.
+pub(crate) const AUTH_ACTIONS: [&str; 5] = ["status", "login", "logout", "configure", "doctor"];
+
+pub(crate) const COLLECTION_SCOPES: [&str; 3] = ["node", "page", "file"];
+
+pub(crate) const ROOT_LAYOUTS: [&str; 2] = ["standalone", "embedded"];
+
+pub(crate) const DELIVERY_MODES: [&str; 3] = ["auto", "inline", "resource"];
+
+pub(crate) const SEARCH_MATCH_KINDS: [&str; 3] = ["exact", "normalized", "fuzzy"];
+
+pub(crate) const ASSET_FORMATS: [&str; 4] = ["png", "jpg", "svg", "pdf"];
+
+pub(crate) const PROJECT_CONTEXT_SCOPES: [&str; 4] = ["theme", "api", "db", "all"];
+
+pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
+    "db-entity",
+    "entity-route",
+    "route-openapi",
+    "openapi-client",
+];
+
 pub(crate) const EXPORT_OUTPUTS: [&str; 9] = [
     "tsx",
     "componentTsx",
@@ -103,7 +126,7 @@ fn collection_scope_rank(scope: CollectionScope) -> u8 {
 pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
     if outputs.is_empty() {
         return Err(DevupError::new(
-            ErrorCode::DevupSnapshotUnsupported,
+            ErrorCode::DevupInvalidInput,
             "outputs must contain at least one entry.",
             false,
         ));
@@ -111,7 +134,7 @@ pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
     for output in outputs {
         if !EXPORT_OUTPUTS.contains(&output.as_str()) {
             return Err(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
+                ErrorCode::DevupInvalidInput,
                 format!(
                     "Unsupported export output: {output}. Supported: {}.",
                     EXPORT_OUTPUTS.join(", ")
@@ -121,19 +144,6 @@ pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
         }
     }
     Ok(())
-}
-
-pub(super) fn parse_source_policy(policy: &str) -> Result<SourcePolicy, DevupError> {
-    match policy {
-        "auto" => Ok(SourcePolicy::Auto),
-        "direct" => Ok(SourcePolicy::Direct),
-
-        _ => Err(DevupError::new(
-            ErrorCode::DevupInvalidInput,
-            "sourcePolicy must be auto or direct.",
-            false,
-        )),
-    }
 }
 
 pub(super) fn parse_asset_requests(
@@ -147,7 +157,7 @@ pub(super) fn parse_asset_requests(
 > {
     if requests.len() > 16 {
         return Err(DevupError::new(
-            ErrorCode::DevupSnapshotUnsupported,
+            ErrorCode::DevupInvalidInput,
             "At most 16 assets can be exported at once.",
             false,
         ));
@@ -162,7 +172,7 @@ pub(super) fn parse_asset_requests(
             || !seen.insert(request.asset_id.as_str())
         {
             return Err(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
+                ErrorCode::DevupInvalidInput,
                 "An assetRequests ID, scale, or duplicate entry is invalid.",
                 false,
             ));
@@ -174,8 +184,8 @@ pub(super) fn parse_asset_requests(
             "pdf" => AssetFormat::Pdf,
             _ => {
                 return Err(DevupError::new(
-                    ErrorCode::DevupSnapshotUnsupported,
-                    "asset format must be png, jpg, svg, or pdf.",
+                    ErrorCode::DevupInvalidInput,
+                    format!("asset format must be one of: {}.", ASSET_FORMATS.join(", ")),
                     false,
                 ));
             }
@@ -192,14 +202,19 @@ pub(super) fn parse_asset_requests(
     Ok((selections, output_paths))
 }
 
+// A bad `scope` or `rootLayout` used to be reported as DEVUP_THEME_CONFLICT,
+// which names a real condition - two collections defining one token - and has
+// nothing to do with a misspelled argument. Both are DEVUP_INVALID_INPUT now,
+// so `is_caller_mistake` can route them to INVALID_PARAMS without dragging
+// genuine theme conflicts along with them.
 pub(super) fn parse_collection_scope(scope: &str) -> Result<CollectionScope, DevupError> {
     match scope {
         "node" => Ok(CollectionScope::Node),
         "page" => Ok(CollectionScope::Page),
         "file" => Ok(CollectionScope::File),
         _ => Err(DevupError::new(
-            ErrorCode::DevupThemeConflict,
-            "scope must be node, page, or file.",
+            ErrorCode::DevupInvalidInput,
+            format!("scope must be one of: {}.", COLLECTION_SCOPES.join(", ")),
             false,
         )),
     }
@@ -210,8 +225,8 @@ pub(super) fn parse_root_layout(root_layout: &str) -> Result<RootLayout, DevupEr
         "standalone" => Ok(RootLayout::Standalone),
         "embedded" => Ok(RootLayout::Embedded),
         _ => Err(DevupError::new(
-            ErrorCode::DevupThemeConflict,
-            "rootLayout must be standalone or embedded.",
+            ErrorCode::DevupInvalidInput,
+            format!("rootLayout must be one of: {}.", ROOT_LAYOUTS.join(", ")),
             false,
         )),
     }

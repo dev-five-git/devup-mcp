@@ -9,7 +9,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use devup_mcp_figma::{
     AssetSelection, CollectedPayload, CollectionRequest, CollectionScope, DevupError, ErrorCode,
-    ExploreReadOptions, ResourceScope, SearchReadOptions, SectionReadOptions, SourcePolicy,
+    ExploreReadOptions, ResourceScope, SearchReadOptions, SectionReadOptions,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -35,11 +35,10 @@ pub struct ArtifactRequestKey {
     section: Option<SectionReadOptions>,
     asset_selections: Vec<AssetSelection>,
     reference_png: bool,
-    source_policy: SourcePolicy,
 }
 
 impl ArtifactRequestKey {
-    pub fn from_collection(request: &CollectionRequest, source_policy: SourcePolicy) -> Self {
+    pub fn from_collection(request: &CollectionRequest) -> Self {
         let mut section = request.section.clone();
         if let Some(section) = &mut section {
             section.frame_ids.sort();
@@ -68,7 +67,6 @@ impl ArtifactRequestKey {
             section,
             asset_selections,
             reference_png: request.reference_png,
-            source_policy,
         }
     }
 

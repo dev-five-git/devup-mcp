@@ -13,7 +13,7 @@ use devup_mcp::server::artifacts::{
 use devup_mcp_figma::{
     AssetFormat, AssetSelection, CollectedPayload, CollectionRequest, CollectionScope,
     CollectionStats, ExploreReadOptions, FigmaTarget, PayloadCompleteness, RawNode, ResourceScope,
-    SearchReadOptions, SectionReadOptions, Snapshot, SourcePolicy,
+    SearchReadOptions, SectionReadOptions, Snapshot,
 };
 use serde_json::json;
 
@@ -123,7 +123,7 @@ async fn artifact_lookup_preserves_capture_capabilities() -> anyhow::Result<()> 
     let design_request = request("design-file", "1:1");
     let design = store
         .insert(
-            ArtifactRequestKey::from_collection(&design_request, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&design_request),
             payload("design-file", "1:1", "design"),
         )
         .await?;
@@ -137,7 +137,7 @@ async fn artifact_lookup_preserves_capture_capabilities() -> anyhow::Result<()> 
     theme_request.variables_only = true;
     let theme = store
         .insert(
-            ArtifactRequestKey::from_collection(&theme_request, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&theme_request),
             payload("theme-file", "2:2", "theme"),
         )
         .await?;
@@ -155,7 +155,7 @@ async fn artifact_lookup_preserves_capture_capabilities() -> anyhow::Result<()> 
     });
     let search = store
         .insert(
-            ArtifactRequestKey::from_collection(&search_request, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&search_request),
             payload("search-file", "3:3", "search"),
         )
         .await?;
@@ -166,7 +166,7 @@ async fn artifact_lookup_preserves_capture_capabilities() -> anyhow::Result<()> 
     explore_request.explore = Some(ExploreReadOptions::default());
     let explore = store
         .insert(
-            ArtifactRequestKey::from_collection(&explore_request, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&explore_request),
             payload("explore-file", "4:4", "explore"),
         )
         .await?;
@@ -179,8 +179,7 @@ async fn reuses_same_request_until_expiry_and_refresh_bypasses_it() -> anyhow::R
     let clock = Arc::new(FakeClock::default());
     clock.set(100);
     let store = ArtifactStore::with_clock(clock.clone(), limits());
-    let key =
-        ArtifactRequestKey::from_collection(&request("file-one", "1:2"), SourcePolicy::Direct);
+    let key = ArtifactRequestKey::from_collection(&request("file-one", "1:2"));
     let calls = AtomicUsize::new(0);
 
     let first = store
@@ -240,23 +239,20 @@ async fn evicts_lru_entries_by_count_and_aggregate_bytes() -> anyhow::Result<()>
 
     let one = store
         .insert(
-            ArtifactRequestKey::from_collection(&request("file-one", "1:1"), SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&request("file-one", "1:1")),
             payload("file-one", "1:1", "a"),
         )
         .await?;
     let two = store
         .insert(
-            ArtifactRequestKey::from_collection(&request("file-two", "2:2"), SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&request("file-two", "2:2")),
             payload("file-two", "2:2", "b"),
         )
         .await?;
     store.get(&one.artifact_id).await.expect("touch first");
     let three = store
         .insert(
-            ArtifactRequestKey::from_collection(
-                &request("file-three", "3:3"),
-                SourcePolicy::Direct,
-            ),
+            ArtifactRequestKey::from_collection(&request("file-three", "3:3")),
             payload("file-three", "3:3", "c"),
         )
         .await?;
@@ -273,8 +269,7 @@ async fn evicts_lru_entries_by_count_and_aggregate_bytes() -> anyhow::Result<()>
 #[tokio::test]
 async fn concurrent_same_key_requests_share_one_acquisition() -> anyhow::Result<()> {
     let store = ArtifactStore::with_limits(limits());
-    let key =
-        ArtifactRequestKey::from_collection(&request("file-one", "1:2"), SourcePolicy::Direct);
+    let key = ArtifactRequestKey::from_collection(&request("file-one", "1:2"));
     let calls = Arc::new(AtomicUsize::new(0));
     let barrier = Arc::new(tokio::sync::Barrier::new(3));
 
@@ -309,14 +304,8 @@ async fn concurrent_same_key_requests_share_one_acquisition() -> anyhow::Result<
 #[tokio::test]
 async fn concurrent_related_explore_waits_for_one_compatible_acquisition() -> anyhow::Result<()> {
     let store = ArtifactStore::with_limits(limits());
-    let owner_key = ArtifactRequestKey::from_collection(
-        &explore_request("file-one", "1:1", 200),
-        SourcePolicy::Direct,
-    );
-    let follower_key = ArtifactRequestKey::from_collection(
-        &explore_request("file-one", "1:2", 50),
-        SourcePolicy::Direct,
-    );
+    let owner_key = ArtifactRequestKey::from_collection(&explore_request("file-one", "1:1", 200));
+    let follower_key = ArtifactRequestKey::from_collection(&explore_request("file-one", "1:2", 50));
     let calls = Arc::new(AtomicUsize::new(0));
     let started = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -364,14 +353,8 @@ async fn concurrent_related_explore_waits_for_one_compatible_acquisition() -> an
 #[tokio::test]
 async fn concurrent_uncovered_explore_falls_through_to_its_own_acquisition() -> anyhow::Result<()> {
     let store = ArtifactStore::with_limits(limits());
-    let owner_key = ArtifactRequestKey::from_collection(
-        &explore_request("file-one", "1:1", 200),
-        SourcePolicy::Direct,
-    );
-    let follower_key = ArtifactRequestKey::from_collection(
-        &explore_request("file-one", "9:9", 50),
-        SourcePolicy::Direct,
-    );
+    let owner_key = ArtifactRequestKey::from_collection(&explore_request("file-one", "1:1", 200));
+    let follower_key = ArtifactRequestKey::from_collection(&explore_request("file-one", "9:9", 50));
     let calls = Arc::new(AtomicUsize::new(0));
     let started = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
@@ -419,8 +402,7 @@ async fn concurrent_uncovered_explore_falls_through_to_its_own_acquisition() -> 
 #[tokio::test]
 async fn cancelled_owner_does_not_poison_later_same_key_acquisitions() -> anyhow::Result<()> {
     let store = ArtifactStore::with_limits(limits());
-    let key =
-        ArtifactRequestKey::from_collection(&request("file-one", "1:2"), SourcePolicy::Direct);
+    let key = ArtifactRequestKey::from_collection(&request("file-one", "1:2"));
     let started = Arc::new(tokio::sync::Notify::new());
     let release = Arc::new(tokio::sync::Notify::new());
 
@@ -507,7 +489,7 @@ async fn set_like_capture_and_section_inputs_share_one_cache_key() -> anyhow::Re
 
     let first = store
         .get_or_acquire(
-            ArtifactRequestKey::from_collection(&left, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&left),
             false,
             || async {
                 calls.fetch_add(1, Ordering::SeqCst);
@@ -517,7 +499,7 @@ async fn set_like_capture_and_section_inputs_share_one_cache_key() -> anyhow::Re
         .await?;
     let second = store
         .get_or_acquire(
-            ArtifactRequestKey::from_collection(&right, SourcePolicy::Direct),
+            ArtifactRequestKey::from_collection(&right),
             false,
             || async {
                 calls.fetch_add(1, Ordering::SeqCst);
@@ -537,10 +519,8 @@ async fn safe_keys_and_stats_never_serialize_url_credentials_or_payloads() -> an
     let target = FigmaTarget::parse(
         "https://www.figma.com/design/file-one/Example?node-id=1-2&access_token=super-secret",
     )?;
-    let key = ArtifactRequestKey::from_collection(
-        &CollectionRequest::new(target, CollectionScope::Node),
-        SourcePolicy::Auto,
-    );
+    let key =
+        ArtifactRequestKey::from_collection(&CollectionRequest::new(target, CollectionScope::Node));
     let key_json = serde_json::to_string(&key)?;
     assert!(!key_json.contains("super-secret"));
     assert!(!key_json.contains("access_token"));
