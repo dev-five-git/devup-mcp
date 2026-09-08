@@ -210,10 +210,21 @@ pub fn build_section_index(
         .into_iter()
         .map(|node| {
             let (computed_count, computed_bytes) = subtree_estimate(snapshot, &node.node_id);
-            let raw = snapshot
-                .nodes
-                .get(&node.node_id)
-                .expect("candidate originated from snapshot");
+            // Every candidate was read out of this snapshot above, so this
+            // lookup is expected to hit. It is written as an error anyway:
+            // a node the snapshot does not carry is the failure class that
+            // already reached production once, and a panic here kills the MCP
+            // server rather than failing the one call that provoked it.
+            let raw = snapshot.nodes.get(&node.node_id).ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupFigmaNodeNotFound,
+                    format!(
+                        "Section candidate {} is not in the Figma projection.",
+                        node.node_id
+                    ),
+                    false,
+                )
+            })?;
             let view = raw.typed_view();
             let direct_child_count = view
                 .value("directChildCount")
@@ -236,7 +247,7 @@ pub fn build_section_index(
             } else {
                 node.breadcrumb.clone()
             };
-            SectionCandidate {
+            Ok(SectionCandidate {
                 canonical_url: canonical_url(target, &node.node_id),
                 node_id: node.node_id,
                 name: node.name,
@@ -250,9 +261,9 @@ pub fn build_section_index(
                 subtree_node_count,
                 estimated_serialized_bytes,
                 selection_reasons: vec!["screen-like".to_owned(), "inside-section".to_owned()],
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, DevupError>>()?;
 
     Ok(SectionIndex {
         file_key: snapshot.file_key.clone(),
