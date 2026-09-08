@@ -121,6 +121,24 @@ pub(super) fn push_layout_props(
         // into 686x735 where its export is 759x585.
         let export = is_asset.then(|| export_box(snapshot, node)).flatten();
         push_absolute(snapshot, node, parent, props, export);
+        // Figma paints children in order, so a pinned picture drawn before
+        // its siblings sits behind them. CSS paints a positioned element
+        // after every in-flow sibling whatever the order, so the landing
+        // page's hero picture came out over its headline and the join-us
+        // badges over their buttons. Sent behind with `zIndex="-1"` - inside
+        // the stacking context the parent opens for it, below - it sits
+        // where Figma has it: above the parent's own background, under the
+        // content.
+        //
+        // Only under a parent that opens that context. A page root is not
+        // told `relative` and opens none, and `-1` under it would fall
+        // behind the root's own background instead of resting on it.
+        if let Some(parent) = parent
+            && !is_page_root_node(snapshot, parent)
+            && sits_behind_in_flow_siblings(snapshot, parent, &node.id)
+        {
+            string_prop(props, "zIndex", "-1");
+        }
         if let Some(export) = export {
             width = Some(px(export.w));
             height = Some(px(export.h));
@@ -643,6 +661,15 @@ pub(super) fn push_layout_props(
         })
     {
         string_prop(props, "pos", "relative");
+        // A child sent behind its siblings with `zIndex="-1"` would fall
+        // behind this node's own background too, unless this node is the
+        // stacking context it is placed in. `zIndex="0"` makes it one.
+        if view
+            .child_ids()
+            .any(|child| sits_behind_in_flow_siblings(snapshot, node, child))
+        {
+            string_prop(props, "zIndex", "0");
+        }
     }
     // An export is drawn with its rotation in it, so an asset whose bounds
     // the snapshot carries is not rotated again; without the bounds it is
@@ -1184,6 +1211,58 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
 /// in the same place and lets it size the frame; and a frame whose single
 /// child is centred is written as a `Center` with the child in flow, see
 /// `centres_its_only_child`.
+/// Whether a node is a screen's root on the canvas: its parent is a page, a
+/// section or a component set, read from the parent when it was collected
+/// and from the node's own record of it when it was not. The same reading
+/// `push_layout_props` makes for the node it is laying out.
+fn is_page_root_node(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    view.string("parentId")
+        .and_then(|parent_id| snapshot.nodes.get(parent_id))
+        .map(|parent| parent.typed_view().node_type())
+        .or_else(|| view.string("parentType"))
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"))
+}
+
+/// Whether `child_id` is a positioned child of `parent` that Figma draws
+/// under everything else in it: nothing in flow comes before it, and
+/// something in flow comes after. CSS paints a positioned element after every
+/// in-flow sibling whatever the order, so such a child has to be sent behind
+/// on purpose.
+///
+/// `zIndex="-1"` sends it behind *every* in-flow sibling, not only the later
+/// ones, so it is only right when there is nothing earlier to stay above.
+/// The notice page's header is pinned second, after its banner: sent behind,
+/// it vanished under the banner it is meant to sit on. It is left where CSS
+/// puts it, above all of them, which nothing there overlaps anyway.
+fn sits_behind_in_flow_siblings(snapshot: &Snapshot, parent: &RawNode, child_id: &str) -> bool {
+    let ids = parent.typed_view().child_ids().collect::<Vec<_>>();
+    let Some(index) = ids.iter().position(|id| *id == child_id) else {
+        return false;
+    };
+    let positioned = |node: &RawNode| {
+        node.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
+            || placed_by_a_free_layout(snapshot, node, Some(parent), false)
+    };
+    let in_flow =
+        |node: &RawNode| node.typed_view().bool("visible") != Some(false) && !positioned(node);
+    let Some(child) = snapshot.nodes.get(child_id) else {
+        return false;
+    };
+    if !positioned(child) {
+        return false;
+    }
+    let earlier_in_flow = ids[..index]
+        .iter()
+        .filter_map(|id| snapshot.nodes.get(*id))
+        .any(in_flow);
+    let later_in_flow = ids[index + 1..]
+        .iter()
+        .filter_map(|id| snapshot.nodes.get(*id))
+        .any(in_flow);
+    !earlier_in_flow && later_in_flow
+}
+
 pub(crate) fn placed_by_a_free_layout(
     snapshot: &Snapshot,
     node: &RawNode,

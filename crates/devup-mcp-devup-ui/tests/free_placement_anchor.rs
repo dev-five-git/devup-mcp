@@ -200,9 +200,13 @@ fn shapes_in_a_pinned_group_are_placed_in_the_group_at_their_own_size() {
         tsx.contains("left=\"-277px\"") && tsx.contains("top=\"-187px\""),
         "the group keeps its place in the card: {tsx}"
     );
+    let group_line = tsx
+        .lines()
+        .find(|line| line.contains("left=\"-277px\""))
+        .expect("the group's own line");
     assert!(
-        tsx.contains("<Box boxSize=\"1102px\" left=\"-277px\" pos=\"absolute\" top=\"-187px\">"),
-        "the group is not told `relative` over the `absolute` it already has: {tsx}"
+        group_line.contains("pos=\"absolute\"") && !group_line.contains("relative"),
+        "the group is not told `relative` over the `absolute` it already has: {group_line}"
     );
     // The badge is at 653,199 inside the group - its absolute box against the
     // group's - not at the 376,12 it reads in the card's space, and it is
@@ -222,5 +226,132 @@ fn shapes_in_a_pinned_group_are_placed_in_the_group_at_their_own_size() {
     assert!(
         !tsx.contains("left=\"376px\""),
         "the card-space coordinate must not leak through: {tsx}"
+    );
+}
+
+/// Figma paints children in order; CSS paints a positioned element after
+/// every in-flow sibling whatever the order. A pinned picture drawn first is
+/// under everything in Figma and over everything in CSS - the landing page's
+/// hero sat on its headline and the join-us badges on their buttons - so it
+/// is sent behind with `zIndex="-1"`, inside a stacking context the parent
+/// opens with `zIndex="0"` so it still clears the parent's own background.
+///
+/// Only a child at the very bottom. `-1` goes behind *every* in-flow
+/// sibling, so a pinned header drawn second, after its banner, is left
+/// alone: sent behind, the notice page's header vanished under the banner it
+/// sits on.
+#[test]
+fn a_pinned_child_drawn_first_goes_behind_the_content_but_one_drawn_second_does_not() {
+    let hero_first = generate(
+        "1:screen",
+        json!([
+            {
+                "id": "1:screen", "type": "FRAME",
+                "fields": {
+                    "name": "screen", "childrenIds": ["1:section"],
+                    "layoutMode": "VERTICAL", "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "HUG",
+                    "width": 1440.0, "height": 540.0,
+                    "parentId": "0:page", "parentType": "SECTION"
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:section", "type": "FRAME",
+                "fields": {
+                    "name": "section", "parentId": "1:screen",
+                    "childrenIds": ["1:picture", "1:headline"],
+                    "layoutMode": "VERTICAL", "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FILL", "layoutSizingVertical": "HUG",
+                    "width": 1440.0, "height": 540.0
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:picture", "type": "RECTANGLE",
+                "fields": {
+                    "name": "picture", "parentId": "1:section", "childrenIds": [],
+                    "layoutPositioning": "ABSOLUTE",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 600.0, "height": 600.0, "x": 700.0, "y": -100.0,
+                    "constraints": {"horizontal": "MIN", "vertical": "MIN"},
+                    "fills": [{"type": "SOLID", "visible": true, "color": {"r": 0.5, "g": 0.5, "b": 1}}]
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:headline", "type": "TEXT",
+                "fields": {
+                    "name": "headline", "parentId": "1:section", "childrenIds": [],
+                    "characters": "Zero Config",
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "HUG", "layoutSizingVertical": "HUG",
+                    "width": 500.0, "height": 120.0
+                },
+                "extra": {}, "fieldErrors": {}
+            }
+        ]),
+    );
+    assert!(
+        hero_first.contains("zIndex=\"-1\""),
+        "the picture goes behind: {hero_first}"
+    );
+    assert!(
+        hero_first.contains("zIndex=\"0\""),
+        "the section holds it: {hero_first}"
+    );
+
+    let header_second = generate(
+        "1:page",
+        json!([
+            {
+                "id": "1:page", "type": "FRAME",
+                "fields": {
+                    "name": "page", "childrenIds": ["1:banner", "1:header", "1:body"],
+                    "layoutMode": "VERTICAL", "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "HUG",
+                    "width": 360.0, "height": 1215.0,
+                    "parentId": "0:page", "parentType": "SECTION"
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:banner", "type": "FRAME",
+                "fields": {
+                    "name": "banner", "parentId": "1:page", "childrenIds": [],
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FILL", "layoutSizingVertical": "FIXED",
+                    "width": 360.0, "height": 320.0,
+                    "fills": [{"type": "SOLID", "visible": true, "color": {"r": 0, "g": 0.2, "b": 0.7}}]
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:header", "type": "FRAME",
+                "fields": {
+                    "name": "header", "parentId": "1:page", "childrenIds": [],
+                    "layoutPositioning": "ABSOLUTE",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 360.0, "height": 60.0, "x": 0.0, "y": 0.0,
+                    "constraints": {"horizontal": "MIN", "vertical": "MIN"}
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:body", "type": "TEXT",
+                "fields": {
+                    "name": "body", "parentId": "1:page", "childrenIds": [],
+                    "characters": "notice",
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "HUG", "layoutSizingVertical": "HUG",
+                    "width": 200.0, "height": 40.0
+                },
+                "extra": {}, "fieldErrors": {}
+            }
+        ]),
+    );
+    assert!(
+        !header_second.contains("zIndex="),
+        "a header pinned over its banner stays where CSS puts it: {header_second}"
     );
 }

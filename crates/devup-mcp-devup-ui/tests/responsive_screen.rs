@@ -645,6 +645,19 @@ const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
 /// - A positioned mask icon keeps its height; the plugin writes the width
 ///   alone, and a mask with no height draws nothing.
 const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    // Figma paints children in order; CSS paints a positioned element after
+    // every in-flow sibling. A background pinned first is under everything
+    // in Figma and over everything in a browser, so it is sent behind inside
+    // a stacking context its parent opens. Rendered against Figma's PNGs the
+    // landing page's hero and badges only sit right once this is written.
+    (
+        "zIndex=\"-1\"",
+        "plugin writes no stacking order, so a background drawn first paints over the content in a browser",
+    ),
+    (
+        "zIndex=\"0\"",
+        "plugin writes no stacking order, so a background drawn first paints over the content in a browser",
+    ),
     // Figma's default counter-axis alignment is MIN, written by leaving the
     // field out; CSS's default for the same thing is `stretch`, its
     // opposite. A hugging child of such a parent is drawn as wide as the

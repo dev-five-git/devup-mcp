@@ -152,6 +152,17 @@ fn the_report_section_is_the_plugin_s() {
             // this keeps it, as the puzzle icon and the spinner frames keep
             // theirs. See `codegen::layout`.
             ("h=\"734.76px\"", "a pinned size is a layout fact"),
+            // See ABOUT_DIFFERS_ON_PURPOSE in responsive_screen.rs: a
+            // background pinned first is sent behind the content it would
+            // otherwise cover.
+            (
+                "zIndex=\"-1\"",
+                "plugin writes no stacking order, so a background drawn first paints over the content in a browser",
+            ),
+            (
+                "zIndex=\"0\"",
+                "plugin writes no stacking order, so a background drawn first paints over the content in a browser",
+            ),
             // Three cards hold an `Icons` instance each at a different
             // variant - analysis, time, thunder - and the answer names all
             // three `/icons/Icons.svg`, one file overwriting the next, so
