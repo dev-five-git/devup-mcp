@@ -7,6 +7,48 @@ const scriptPath = fileURLToPath(new URL("../src/scripts/explore.js", import.met
 const exploreSource = (await readFile(scriptPath, "utf8")).replace(/\r\n/g, "\n");
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
+const sectionSource = await readFile(new URL("../src/scripts/section_index.js", import.meta.url), "utf8");
+
+async function executeSection(section) {
+  return new AsyncFunction("figma", sectionSource.replace('"__DEVUP_NODE_ID__"', JSON.stringify(section.id)))({
+    fileKey: "fixture-file",
+    getNodeByIdAsync: async () => section,
+  });
+}
+
+test("Section list previews visible text without exporting descendants", async () => {
+  const hidden = sceneNode({ id: "hidden", type: "TEXT" });
+  hidden.characters = "hidden draft";
+  const hiddenGroup = sceneNode({ id: "hidden-group", children: [hidden] });
+  hiddenGroup.visible = false;
+  const text = sceneNode({ id: "copy", type: "TEXT" });
+  text.characters = "  Upload\n guidance   TIP ";
+  const frame = sceneNode({ id: "frame", type: "FRAME", children: [hiddenGroup, text] });
+  const empty = sceneNode({ id: "empty", type: "FRAME" });
+  const section = sceneNode({ id: "section", type: "SECTION", children: [frame, empty] });
+  pageWith(section);
+  const result = await executeSection(section);
+  assert.equal(result.nodes.find(n => n.id === "frame").fields.textPreview, "Upload guidance TIP");
+  assert.equal(result.nodes.find(n => n.id === "empty").fields.textPreview, "");
+  assert.deepEqual(new Set(result.nodes.map(n => n.id)), new Set(["section", "frame", "empty"]));
+});
+
+test("Section preview text has per-candidate and aggregate limits", async () => {
+  const frames = Array.from({ length: 30 }, (_, i) => {
+    const text = sceneNode({ id: `copy-${i}`, type: "TEXT" });
+    text.characters = "안내😀".repeat(300);
+    return sceneNode({ id: `frame-${i}`, type: "FRAME", children: [text] });
+  });
+  const section = sceneNode({ id: "section", type: "SECTION", children: frames });
+  pageWith(section);
+  const result = await executeSection(section);
+  const previews = result.nodes.slice(1).map(n => n.fields.textPreview);
+  assert.equal(Array.from(previews[0]).length, 120);
+  assert.ok(previews.every(value => Array.from(value).length <= 120));
+  assert.ok(previews.reduce((sum, value) => sum + Buffer.byteLength(value), 0) <= 2048);
+  assert.ok(previews.every(value => value.isWellFormed()));
+});
+
 function sceneNode({
   id,
   type = "GROUP",

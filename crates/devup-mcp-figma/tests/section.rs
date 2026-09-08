@@ -232,6 +232,7 @@ fn packing_index(weights: &[usize]) -> SectionIndex {
                 node_id: format!("root-{index}"),
                 name: format!("Root {index}"),
                 node_type: "FRAME".to_owned(),
+                text_preview: String::new(),
                 visible: true,
                 bounds: ExploreBounds {
                     y: index as f64 * 120.0,

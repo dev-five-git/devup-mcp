@@ -4,6 +4,40 @@ if (section.type !== "SECTION") throw new Error("DEVUP_SECTION_REQUIRED");
 
 const MAX_CANDIDATES = 100;
 const MAX_TRAVERSED_NODES = 20000;
+const MAX_PREVIEW_CHARACTERS = 120;
+const MAX_PREVIEW_NODES = 64;
+let remainingPreviewBytes = 2048;
+
+// The menu needs enough copy to distinguish similarly named frames, without
+// returning their descendants or letting previews dominate the compact index.
+function textPreview(root) {
+  const queue = [root];
+  let preview = "";
+  let characters = 0;
+  let bytes = 0;
+  for (let index = 0; index < queue.length; index += 1) {
+    const node = queue[index];
+    if (node.visible === false) continue;
+    if (node.type === "TEXT" && typeof node.characters === "string") {
+      const text = node.characters.replace(/\s+/g, " ").trim();
+      for (const character of (preview && text ? " " : "") + text) {
+        const size = utf8ByteLength(character);
+        if (characters >= MAX_PREVIEW_CHARACTERS || bytes + size > remainingPreviewBytes) {
+          remainingPreviewBytes -= bytes;
+          return preview.trimEnd();
+        }
+        preview += character;
+        characters += 1;
+        bytes += size;
+      }
+    }
+    if ("children" in node && queue.length < MAX_PREVIEW_NODES) {
+      queue.push(...node.children.slice(0, MAX_PREVIEW_NODES - queue.length));
+    }
+  }
+  remainingPreviewBytes -= bytes;
+  return preview;
+}
 
 function bounds(node) {
   const value = node.absoluteBoundingBox || {
@@ -163,6 +197,7 @@ const candidates = selected.map(({ node, box }) => {
       visible: node.visible !== false,
       breadcrumb: breadcrumb(node),
       directChildCount: "children" in node ? node.children.length : 0,
+      textPreview: textPreview(node),
       subtreeNodeCount: estimate.subtreeNodeCount,
       estimatedSerializedBytes: estimate.estimatedSerializedBytes,
       selectionReasons: ["screen-like", "inside-section"],

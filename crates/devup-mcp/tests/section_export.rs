@@ -94,18 +94,41 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
+    // The list says how complete it is rather than leaving the caller to
+    // infer it from a round count, and every candidate carries enough to be
+    // told apart from its neighbours.
+    assert_eq!(selection["selection"]["status"], "complete");
+    assert_eq!(selection["selection"]["count"], 2);
+    assert_eq!(selection["selection"]["truncated"], false);
+    for candidate in selection["selection"]["candidates"].as_array().unwrap() {
+        assert!(candidate["node"]["name"].is_string());
+        assert!(candidate["node"]["nodeType"].is_string());
+        assert!(candidate["canonicalUrl"].is_string());
+    }
     assert_eq!(
         selection["nextAction"]["why"],
-        "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit."
+        "This is a Section candidate list. Screen artifacts have not been exported yet."
     );
-    assert_eq!(
-        selection["nextAction"]["how"],
-        "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen."
+    assert!(
+        selection["nextAction"]["how"]
+            .as_str()
+            .unwrap()
+            .contains("textPreview")
     );
     assert_eq!(
         selection["nextAction"]["doNot"],
         "Do not try to collect the whole Section at once."
     );
+    // The next step is a call to run, not a shape to assemble: it names this
+    // artifact and a candidate that is actually in the list above.
+    let example = &selection["nextAction"]["example"];
+    assert_eq!(example["tool"], "devup_figma_export");
+    assert_eq!(
+        example["arguments"]["artifactId"],
+        selection["cache"]["artifactId"]
+    );
+    assert_eq!(example["arguments"]["frameIds"], json!(["10:3"]));
+    assert_eq!(example["arguments"]["outputs"], json!(["tsx"]));
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
     let artifact_id = selection["cache"]["artifactId"].as_str().unwrap();
     assert_eq!(selection["cache"]["capabilities"]["kind"], "section-index");
