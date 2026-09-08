@@ -1,4 +1,7 @@
-const page = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
+const root = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
+if (!root) throw new Error("DEVUP_NODE_NOT_FOUND");
+let page = root;
+while (page && page.type !== "PAGE") page = page.parent;
 if (!page || page.type !== "PAGE") throw new Error("DEVUP_PAGE_NOT_FOUND");
 await figma.setCurrentPageAsync(page);
 
@@ -44,7 +47,10 @@ function score(name) {
   return distance <= threshold ? Math.max(0, 50 - distance) : null;
 }
 
-const candidates = [page, ...page.findAll(() => true)]
+const descendants = root === page
+  ? page.findAll(() => true)
+  : "findAll" in root ? root.findAll(() => true) : [];
+const candidates = [root, ...descendants]
   .filter((node) => allowedTypes.has(node.type) && typeof node.name === "string")
   .map((node) => ({ node, score: score(node.name) }))
   .filter((entry) => entry.score !== null)
@@ -56,7 +62,9 @@ const candidates = [page, ...page.findAll(() => true)]
   .slice(0, options.limit);
 
 const included = new Map([[page.id, page]]);
-for (const { node } of candidates) {
+// Keep the anchor and its ancestry even when nothing matches. Consumers
+// need the chain to resolve scope and distinguish empty from missing roots.
+for (const node of [root, ...candidates.map((entry) => entry.node)]) {
   let current = node;
   while (current && current.type !== "DOCUMENT") {
     included.set(current.id, current);
