@@ -507,11 +507,13 @@ pub(super) fn push_style_props(
         push_radius(&view, props);
         push_strokes(&view, props, used_tokens, variable_tokens);
         push_effects(&view, component, props, used_tokens, variable_tokens);
-        if let Some(opacity) = view.number("opacity")
-            && opacity < 1.0
-        {
-            string_prop(props, "opacity", format_number(opacity));
-        }
+        // An export carries the node's own opacity: Figma writes it into the
+        // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
+        // as well it is applied twice - a decoration at 0.2 came out at 0.04,
+        // which is nothing, and the landing page's hero at 0.8 came out at
+        // 0.64. The plugin writes it twice too. A mask is the same: the
+        // SVG's own opacity thins the mask, so the colour painted through it
+        // already shows at the node's opacity.
         push_blend_mode(&view, props);
         return;
     }

@@ -20,7 +20,6 @@ expression: actual
         maskPos="center"
         maskRepeat="no-repeat"
         maskSize="contain"
-        opacity="0.2"
         pos="absolute"
         top="-255px"
         transform="rotate(11.24deg)"

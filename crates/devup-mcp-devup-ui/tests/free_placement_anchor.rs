@@ -355,3 +355,64 @@ fn a_pinned_child_drawn_first_goes_behind_the_content_but_one_drawn_second_does_
         "a header pinned over its banner stays where CSS puts it: {header_second}"
     );
 }
+
+/// An export carries the node's own opacity - Figma writes it into an SVG
+/// as `<g opacity>` and into a PNG's alpha; the landing page's hero at 0.8
+/// exports with its opaque pixels at alpha 204 - so it is not written on the
+/// element as well. Written twice, a decoration at 0.2 came out at 0.04. A
+/// node that is not an asset still carries its own.
+#[test]
+fn an_asset_is_not_given_the_opacity_its_export_already_carries() {
+    let tsx = generate(
+        "1:card",
+        json!([
+            {
+                "id": "1:card", "type": "FRAME",
+                "fields": {
+                    "name": "card", "childrenIds": ["1:picture", "1:veil"],
+                    "layoutMode": "VERTICAL", "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "HUG",
+                    "width": 400.0, "height": 300.0,
+                    "parentId": "0:page", "parentType": "SECTION"
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:picture", "type": "RECTANGLE",
+                "fields": {
+                    "name": "picture", "parentId": "1:card", "childrenIds": [],
+                    "isAsset": true, "opacity": 0.8,
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 200.0, "height": 200.0,
+                    "fills": [{"type": "IMAGE", "scaleMode": "FILL", "imageHash": "hash-1", "visible": true}]
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:veil", "type": "FRAME",
+                "fields": {
+                    "name": "veil", "parentId": "1:card", "childrenIds": [],
+                    "opacity": 0.5,
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FILL", "layoutSizingVertical": "FIXED",
+                    "width": 400.0, "height": 40.0,
+                    "fills": [{"type": "SOLID", "visible": true, "color": {"r": 0, "g": 0, "b": 0}}]
+                },
+                "extra": {}, "fieldErrors": {}
+            }
+        ]),
+    );
+    let picture = tsx
+        .lines()
+        .find(|line| line.contains("/images/picture"))
+        .expect("the picture is an image");
+    assert!(
+        !picture.contains("opacity="),
+        "the export already carries 0.8: {picture}"
+    );
+    assert!(
+        tsx.contains("opacity=\"0.5\""),
+        "a frame that is not an asset keeps its own opacity: {tsx}"
+    );
+}

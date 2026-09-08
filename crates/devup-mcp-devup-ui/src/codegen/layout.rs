@@ -522,6 +522,28 @@ pub(super) fn push_layout_props(
             .is_some_and(|parent| parent.typed_view().string("layoutMode") == Some("HORIZONTAL"))
     {
         string_prop(props, "flex", "1");
+        // `flex: 1` shares out the room left over, and Figma gives a filling
+        // child exactly that - here 123px - and lets anything wider inside it
+        // spill out. CSS will not shrink a flex item under its content
+        // (`min-width: auto`), so a 132px row inside a 123px share widened
+        // the share to 132 and took the 9px from the hugging sibling, whose
+        // `Devup-ui` then broke across two lines. `minW="0"` lets the share
+        // be the share, and the content spill as Figma draws it. Written
+        // only where the snapshot shows content wider than the box, which is
+        // the only place the two layouts part.
+        if let Some(own) = view.number("width")
+            && view
+                .child_ids()
+                .filter_map(|id| snapshot.nodes.get(id))
+                .any(|child| {
+                    let child = child.typed_view();
+                    child.bool("visible") != Some(false)
+                        && child.string("layoutPositioning") != Some("ABSOLUTE")
+                        && child.number("width").is_some_and(|width| width > own + 0.5)
+                })
+        {
+            string_prop(props, "minW", "0");
+        }
     }
     // The same along the other axis, for the one node CSS cannot size on its
     // own. A node set to fill its parent's main axis is stretched by Figma to

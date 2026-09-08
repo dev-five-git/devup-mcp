@@ -645,6 +645,19 @@ const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
 /// - A positioned mask icon keeps its height; the plugin writes the width
 ///   alone, and a mask with no height draws nothing.
 const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    // An export carries the node's own opacity - Figma writes it into an
+    // SVG as `<g opacity>` and into a PNG's alpha (the landing hero at 0.8
+    // exports with its opaque pixels at alpha 204) - so written on the
+    // element as well it is applied twice. A decoration at 0.2 came out at
+    // 0.04, which is nothing. The answer writes it on these three.
+    (
+        "opacity=\"0.3\"",
+        "plugin writes an asset's opacity on the element as well, where the export already carries it, so it is applied twice",
+    ),
+    (
+        "opacity=\"0.2\"",
+        "plugin writes an asset's opacity on the element as well, where the export already carries it, so it is applied twice",
+    ),
     // Figma paints children in order; CSS paints a positioned element after
     // every in-flow sibling. A background pinned first is under everything
     // in Figma and over everything in a browser, so it is sent behind inside
