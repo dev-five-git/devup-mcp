@@ -106,3 +106,121 @@ fn a_child_that_fills_its_frame_keeps_the_anchor() {
         "an unmeasurable placement still needs its containing block: {tsx}"
     );
 }
+
+/// A group pinned into a card, holding shapes at their own coordinates. Three
+/// things went wrong at once on the devup-ui landing page's join-us panel, and
+/// the arcs and badges it draws were simply not there:
+///
+/// - the group is `ABSOLUTE`, so its children were read as being in flow and
+///   stacked from its corner, clipped away;
+/// - once placed, the group was told `pos="relative"` for holding positioned
+///   children, over the `absolute` it already had, and took 1,102px of page;
+/// - a group's children carry `x` and `y` in the group's parent's space, and
+///   placed as read every circle sat 277px left and 187px high of Figma.
+///
+/// A shape in a group also keeps its own size: `h="100%"` and no width, which
+/// is the plugin's rule for a positioned shape, is no circle at all.
+#[test]
+fn shapes_in_a_pinned_group_are_placed_in_the_group_at_their_own_size() {
+    let tsx = generate(
+        "1:card",
+        json!([
+            {
+                "id": "1:card", "type": "FRAME",
+                "fields": {
+                    "name": "card", "childrenIds": ["1:group", "1:title"],
+                    "layoutMode": "HORIZONTAL", "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 1440.0, "height": 356.0, "clipsContent": true,
+                    "absoluteBoundingBox": {"x": 1000.0, "y": 2000.0, "width": 1440.0, "height": 356.0},
+                    "parentId": "0:page", "parentType": "SECTION"
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:group", "type": "GROUP",
+                "fields": {
+                    "name": "Group 2", "parentId": "1:card",
+                    "childrenIds": ["1:outer", "1:badge"],
+                    "layoutPositioning": "ABSOLUTE",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 1102.0, "height": 1102.0, "x": -277.0, "y": -187.0,
+                    "absoluteBoundingBox": {"x": 723.0, "y": 1813.0, "width": 1102.0, "height": 1102.0},
+                    "constraints": {"horizontal": "MIN", "vertical": "MIN"}
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:outer", "type": "ELLIPSE",
+                "fields": {
+                    "name": "Ellipse 6", "parentId": "1:group", "childrenIds": [],
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 1102.0, "height": 1102.0, "x": -277.0, "y": -187.0,
+                    "absoluteBoundingBox": {"x": 723.0, "y": 1813.0, "width": 1102.0, "height": 1102.0},
+                    "constraints": {"horizontal": "MIN", "vertical": "MIN"},
+                    "arcData": {"startingAngle": 0, "endingAngle": 6.0, "innerRadius": 0},
+                    "strokes": [{"type": "SOLID", "visible": true, "color": {"r": 1, "g": 1, "b": 1}, "opacity": 0.4}],
+                    "strokeWeight": 4.0, "strokeAlign": "INSIDE"
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:badge", "type": "ELLIPSE",
+                "fields": {
+                    "name": "Ellipse 9", "parentId": "1:group", "childrenIds": [],
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "width": 130.0, "height": 130.0, "x": 376.0, "y": 12.0,
+                    "absoluteBoundingBox": {"x": 1376.0, "y": 2012.0, "width": 130.0, "height": 130.0},
+                    "constraints": {"horizontal": "MIN", "vertical": "MIN"},
+                    "arcData": {"startingAngle": 0, "endingAngle": 6.0, "innerRadius": 0},
+                    "fills": [{"type": "SOLID", "visible": true, "color": {"r": 0.15, "g": 0.42, "b": 0.8}}]
+                },
+                "extra": {}, "fieldErrors": {}
+            },
+            {
+                "id": "1:title", "type": "TEXT",
+                "fields": {
+                    "name": "title", "parentId": "1:card", "childrenIds": [],
+                    "characters": "Join our community",
+                    "layoutPositioning": "AUTO",
+                    "layoutSizingHorizontal": "HUG", "layoutSizingVertical": "HUG",
+                    "width": 300.0, "height": 40.0,
+                    "absoluteBoundingBox": {"x": 1600.0, "y": 2100.0, "width": 300.0, "height": 40.0}
+                },
+                "extra": {}, "fieldErrors": {}
+            }
+        ]),
+    );
+
+    // The group stays pinned - not put back in flow for holding positioned
+    // children - and the card is what holds it.
+    assert!(
+        tsx.contains("left=\"-277px\"") && tsx.contains("top=\"-187px\""),
+        "the group keeps its place in the card: {tsx}"
+    );
+    assert!(
+        tsx.contains("<Box boxSize=\"1102px\" left=\"-277px\" pos=\"absolute\" top=\"-187px\">"),
+        "the group is not told `relative` over the `absolute` it already has: {tsx}"
+    );
+    // The badge is at 653,199 inside the group - its absolute box against the
+    // group's - not at the 376,12 it reads in the card's space, and it is
+    // 130px, not `h="100%"` with no width.
+    assert!(
+        tsx.contains("left=\"653px\""),
+        "the badge is placed in the group's space: {tsx}"
+    );
+    assert!(tsx.contains("top=\"199px\""), "{tsx}");
+    assert!(
+        tsx.contains("boxSize=\"130px\""),
+        "a shape in a group is its own size: {tsx}"
+    );
+    // The outermost circle coincides with the group, so it sits at 0,0 and
+    // fills it.
+    assert!(tsx.contains("left=\"0px\""), "{tsx}");
+    assert!(
+        !tsx.contains("left=\"376px\""),
+        "the card-space coordinate must not leak through: {tsx}"
+    );
+}

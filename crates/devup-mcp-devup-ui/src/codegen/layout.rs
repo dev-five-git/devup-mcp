@@ -191,12 +191,36 @@ pub(super) fn push_layout_props(
                 (own_width, parent_width),
                 (Some(width), Some(parent_width)) if width >= parent_width
             );
+            // A shape with nothing in it is as big as itself. `100%` is
+            // only the same thing when it covers its parent - the popup's
+            // dim overlay - and a 220px circle pinned in an 1,102px group
+            // said `h="100%"` and no width at all, which is no circle.
+            //
+            // Only inside a group. The plugin's rule says `100%` and no
+            // width for a small shape pinned in a frame as well, and the
+            // pinned corpus holds four such shapes; that is as wrong there,
+            // but no rendered screen in the corpus shows it, so it keeps
+            // byte parity until one does. A group is a different case in
+            // any event: it draws nothing and lays nothing out, so a shape
+            // in it can only ever be its own size.
+            let own_height = view.number("height");
+            let parent_height = parent.and_then(|parent| parent.typed_view().number("height"));
+            let parent_taller = matches!(
+                (own_height, parent_height),
+                (Some(height), Some(parent_height)) if parent_height > height
+            );
+            let in_a_group =
+                parent.is_some_and(|parent| parent.typed_view().node_type() == "GROUP");
+            let leaf_shape = !has_children && !holds_children && !is_asset && in_a_group;
+            if leaf_shape && parent_wider {
+                width = own_width.map(px);
+            }
             height = if has_children {
                 (is_asset && !wider_than_parent)
-                    .then(|| view.number("height").map(px))
+                    .then(|| own_height.map(px))
                     .flatten()
-            } else if empty_frame {
-                view.number("height").map(px)
+            } else if empty_frame || (leaf_shape && parent_taller) {
+                own_height.map(px)
             } else {
                 Some("100%".to_owned())
             };
@@ -603,8 +627,13 @@ pub(super) fn push_layout_props(
     // against — but a node folded into a single asset has no children left in
     // the output, so there is nothing to anchor and the containing block would
     // exist for no one.
+    //
+    // A node that is itself positioned is already that ancestor, and saying
+    // `relative` over its `absolute` would put it back in flow: the join-us
+    // group of circles, pinned at -277,-187, took 1,102px of the page.
     if !embedded_root
         && !is_page_root
+        && !absolute
         && super::style::asset_kind(snapshot, node).is_none()
         && view.child_ids().any(|child| {
             snapshot.nodes.get(child).is_some_and(|child| {
@@ -1165,9 +1194,34 @@ pub(crate) fn placed_by_a_free_layout(
     let Some(parent) = parent else {
         return false;
     };
+    // Whether the parent is itself placed by its own parent or pinned into
+    // it says nothing about whether it lays its children out. The devup-ui
+    // landing page's join-us panel holds a group of ten circles pinned to
+    // the card at -277,-187; because the group is `ABSOLUTE`, its children
+    // were read as being in flow, lost the coordinates they carry, stacked
+    // from the group's corner and were clipped away - the arcs and both
+    // badges were not drawn at all.
+    //
+    // This is only about the parent. `lays_nothing_out` also answers for a
+    // node about itself, where being pinned does decide what it is, so it is
+    // left alone.
+    let parent_view = parent.typed_view();
+    let parent_lays_nothing_out = matches!(
+        parent_view.string("layoutPositioning"),
+        Some("AUTO" | "ABSOLUTE")
+    ) && parent_view.number("width").is_some()
+        && parent_view.number("height").is_some()
+        && parent_view
+            .value("inferredAutoLayout")
+            .and_then(Value::as_object)
+            .is_none()
+        && !matches!(
+            parent_view.string("layoutMode"),
+            Some("HORIZONTAL" | "VERTICAL" | "GRID")
+        );
     !is_page_root
         && view.value("constraints").is_some()
-        && lays_nothing_out(parent)
+        && parent_lays_nothing_out
         && derived_padding(snapshot, parent).is_none()
         && !centres_its_only_child(snapshot, parent)
 }
@@ -1186,12 +1240,33 @@ fn push_absolute(
     };
     // The box to place: the node's own, or the one handed in - an asset's
     // export.
-    let own = Box4 {
+    let mut own = Box4 {
         x: view.number("x").unwrap_or(0.0),
         y: view.number("y").unwrap_or(0.0),
         w: view.number("width").unwrap_or(0.0),
         h: view.number("height").unwrap_or(0.0),
     };
+    // A group's children carry their `x` and `y` in the group's parent's
+    // space, not the group's: the join-us panel's outermost circle, which is
+    // exactly the group, reads `-277,-187` - the group's own place in the
+    // card - where the group's own space would say `0,0`. Placed as read,
+    // every circle sat 277px left and 187px high of where Figma draws it.
+    // The absolute boxes settle it without depending on whose space a
+    // number is in; an asset's export already went through them and landed
+    // right.
+    if parent.typed_view().node_type() == "GROUP" {
+        match (layout_box(node), layout_box(parent)) {
+            (Some(child), Some(group)) => {
+                own.x = child.x - group.x;
+                own.y = child.y - group.y;
+            }
+            _ => {
+                let group = parent.typed_view();
+                own.x -= group.number("x").unwrap_or(0.0);
+                own.y -= group.number("y").unwrap_or(0.0);
+            }
+        }
+    }
     let placed = placed_by.unwrap_or(own);
     let parent = parent.typed_view();
     // A group has no constraints of its own; the plugin's `getPositionProps`
