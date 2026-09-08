@@ -969,7 +969,7 @@ fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidat
             node_type: candidate.node_type.clone(),
             bounds: candidate.bounds,
             child_count: candidate.direct_child_count,
-            text_preview: String::new(),
+            text_preview: candidate.text_preview.clone(),
             parent_id: candidate.parent_id.clone(),
             kind: ExploreKind::Screen,
             visible: candidate.visible,

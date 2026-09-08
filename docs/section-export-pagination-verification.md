@@ -98,3 +98,22 @@ copy, not an installed replacement. Global MCP configuration was not modified.
 `devup-mcp-fixed-release.exe` is also available locally from the successful
 optimized build. Live comparisons above used the debug binary.
 No push, PR creation, release or deployment was performed.
+
+## Selection-list follow-up
+
+The subsequent list improvement preserves the compact selection flow and adds
+visible-text previews, list status/count, and a concrete `nextAction.example`.
+On the same live SECTION it still returns 6 candidates / 7 summary nodes, now
+with upload guidance, TIP and planning-note previews. Executing the returned
+example unchanged in the same MCP session successfully exports its selected
+candidate with `status: complete`.
+
+For this follow-up, Node behavior tests (6), SECTION integration tests (3),
+format and workspace Clippy passed. Independent review found no functional
+issues. The full workspace test build failed with Windows error 112, and the
+release build failed with LLVM `no space on device`. These are disk-capacity
+limitations; the earlier full-suite/release success above applies to the
+pagination commit, not this follow-up. The live-verified follow-up debug binary
+is `target/section-pagination/devup-mcp-selection.exe`; no installation was
+replaced. Follow-up logs and live responses use the `selection-*` and
+`improved-index*` names in that local evidence directory.

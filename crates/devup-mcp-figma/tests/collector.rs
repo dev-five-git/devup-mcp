@@ -2080,6 +2080,7 @@ fn section_index_with_node_counts(node_counts: &[usize]) -> SectionIndex {
             .map(|(index, node_count)| SectionCandidate {
                 node_id: format!("root-{index}"),
                 name: format!("Root {index}"),
+                text_preview: String::new(),
                 node_type: "FRAME".to_owned(),
                 visible: true,
                 bounds: ExploreBounds {

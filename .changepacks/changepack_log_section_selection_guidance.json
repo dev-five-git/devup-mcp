@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Improve Section selection lists with bounded visible-text previews, explicit list status and count, and an executable frameIds export example. Preserve compact discovery and complete selected-screen export.",
+  "date": "2026-09-08T16:00:00+09:00"
+}

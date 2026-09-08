@@ -98,31 +98,30 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
+    assert_eq!(selection["selection"]["status"], "complete");
+    assert_eq!(selection["selection"]["count"], 2);
     assert_eq!(
-        selection["nextAction"]["why"],
-        "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit."
-    );
-    assert_eq!(
-        selection["nextAction"]["how"],
-        "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen."
-    );
-    assert_eq!(
-        selection["nextAction"]["doNot"],
-        "Do not try to collect the whole Section at once."
+        selection["selection"]["candidates"][0]["node"]["textPreview"],
+        "Upload guidance TIP"
     );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
     let artifact_id = selection["cache"]["artifactId"].as_str().unwrap();
     assert_eq!(selection["cache"]["capabilities"]["kind"], "section-index");
+    assert_eq!(
+        selection["nextAction"]["example"]["tool"],
+        "devup_figma_export"
+    );
+    let mut selected_arguments = selection["nextAction"]["example"]["arguments"].clone();
+    assert_eq!(selected_arguments["artifactId"], artifact_id);
+    assert_eq!(selected_arguments["frameIds"], json!(["10:3"]));
+    assert_eq!(selected_arguments["outputs"], json!(["tsx"]));
+    assert_eq!(selected_arguments["delivery"], "resource");
+    // Follow the returned example, selecting two reviewed candidates.
+    selected_arguments["frameIds"] = json!(["10:2", "10:3"]);
+    selected_arguments["outputs"] = json!(["tsx", "sourceMap"]);
+    selected_arguments["delivery"] = json!("inline");
 
-    let selected = call(
-        &client,
-        json!({
-            "artifactId": artifact_id,
-            "outputs": ["tsx", "sourceMap"],
-            "frameIds": ["10:2", "10:3"]
-        }),
-    )
-    .await?;
+    let selected = call(&client, selected_arguments).await?;
     assert_eq!(selected["status"], "complete");
     assert_eq!(
         selected["frames"]
@@ -314,6 +313,7 @@ fn compact_section_index_result() -> UpstreamResult {
                 }, "extra": {}, "fieldErrors": {}},
                 {"id": "10:3", "type": "FRAME", "fields": {
                     "name": "First", "parentId": "10:1", "childrenIds": [], "visible": true,
+                    "textPreview": "Upload guidance TIP",
                     "directChildCount": 0, "subtreeNodeCount": 1, "estimatedSerializedBytes": 1000,
                     "absoluteBoundingBox": {"x": 100, "y": 120, "width": 360, "height": 740}
                 }, "extra": {}, "fieldErrors": {}}

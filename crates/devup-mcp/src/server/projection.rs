@@ -768,6 +768,9 @@ pub(super) async fn complete_operation(
                 && frame_ids.is_empty()
                 && !all_screens
             {
+                let truncated = payload_section_index
+                    .as_ref()
+                    .map_or(candidates.len() == 100, |index| index.truncated);
                 let quality = OutputQuality {
                     acquisition: acquisition_quality(&completeness_report, false),
                     projection: projection_quality(false, &[]),
@@ -780,18 +783,33 @@ pub(super) async fn complete_operation(
                     "selection".to_owned(),
                     json!({
                         "kind": "screen-frame",
+                        "status": if truncated { "partial" } else { "complete" },
+                        "count": candidates.len(),
                         "candidates": candidates,
-                        "truncated": candidates.len() == 100
+                        "truncated": truncated
                     }),
                 );
                 result.insert(
                     "nextAction".to_owned(),
                     json!({
-                        "why": "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit.",
-                        "how": "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen.",
+                        "why": "This is a Section candidate list. Screen artifacts have not been exported yet.",
+                        "how": "Review selection.candidates using name, nodeType and textPreview. Call devup_figma_export with frameIds to export selected screens, use a candidate's canonicalUrl for one screen, or allScreens:true for every candidate in a complete list.",
                         "doNot": "Do not try to collect the whole Section at once."
                     }),
                 );
+                if let Some(candidate) = candidates.first() {
+                    result
+                        .get_mut("nextAction")
+                        .expect("nextAction was inserted")["example"] = json!({
+                        "tool": "devup_figma_export",
+                        "arguments": {
+                            "artifactId": artifact.artifact_id,
+                            "frameIds": [candidate.node.node_id],
+                            "outputs": outputs,
+                            "delivery": "resource"
+                        }
+                    });
+                }
                 return Ok(Value::Object(result));
             }
 
