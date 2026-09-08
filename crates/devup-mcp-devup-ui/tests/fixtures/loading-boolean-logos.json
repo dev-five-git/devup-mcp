@@ -1,0 +1,121 @@
+{
+  "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+  "version": null,
+  "roots": [
+    "3831:10710",
+    "3831:10725"
+  ],
+  "nodes": {
+    "3831:10710": {
+      "id": "3831:10710",
+      "type": "FRAME",
+      "fields": {
+        "childrenIds": [
+          "3831:10711"
+        ],
+        "height": 34,
+        "isAsset": true,
+        "name": "BI - 아이콘",
+        "targetAspectRatio": {
+          "x": 59.07421875,
+          "y": 31.029436111450195
+        },
+        "visible": true,
+        "width": 64
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "3831:10711": {
+      "id": "3831:10711",
+      "type": "BOOLEAN_OPERATION",
+      "fields": {
+        "parentId": "3831:10710",
+        "childrenIds": [
+          "3831:10712",
+          "3831:10713",
+          "3831:10714",
+          "3831:10715",
+          "3831:10716",
+          "3831:10717"
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.17999267578125,
+              "g": 0.17999267578125,
+              "r": 0.4589996337890625
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 33.99979019165039,
+        "name": "Union",
+        "visible": true,
+        "width": 64
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "3831:10725": {
+      "id": "3831:10725",
+      "type": "FRAME",
+      "fields": {
+        "childrenIds": [
+          "3831:10726"
+        ],
+        "height": 34,
+        "isAsset": true,
+        "name": "BI - 아이콘",
+        "targetAspectRatio": {
+          "x": 59.07421875,
+          "y": 31.029436111450195
+        },
+        "visible": true,
+        "width": 64
+      },
+      "extra": {},
+      "fieldErrors": {}
+    },
+    "3831:10726": {
+      "id": "3831:10726",
+      "type": "BOOLEAN_OPERATION",
+      "fields": {
+        "parentId": "3831:10725",
+        "childrenIds": [
+          "3831:10727",
+          "3831:10728",
+          "3831:10729",
+          "3831:10730",
+          "3831:10731",
+          "3831:10732"
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 0.17999267578125,
+              "g": 0.17999267578125,
+              "r": 0.4589996337890625
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "height": 33.99979019165039,
+        "name": "Union",
+        "visible": true,
+        "width": 64
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

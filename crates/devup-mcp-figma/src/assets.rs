@@ -185,7 +185,12 @@ fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Opti
         return None;
     }
 
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+    // A boolean's rendered shape is authoritative even when its operands
+    // were not included in the snapshot. Export the node, never its bounds.
+    if matches!(
+        view.node_type(),
+        "VECTOR" | "STAR" | "POLYGON" | "BOOLEAN_OPERATION"
+    ) {
         return Some(AssetNode::Svg);
     }
 
