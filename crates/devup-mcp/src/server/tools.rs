@@ -201,8 +201,17 @@ fn default_true() -> bool {
     true
 }
 
+/// `tsx` alone.
+///
+/// `devupJson` used to come with it, and measured against real use it was
+/// paid for and then not used: both Figma tickets in the September report
+/// received a `devupJson` and still called `devup_project_context` to read
+/// the tokens they had to match. That is the correct order - a project
+/// that already has a `devup.json` must match *that* file, and the theme
+/// read out of Figma is a different set of names - so the default was
+/// answering a question nobody asks while enlarging every response.
 fn default_outputs() -> Vec<String> {
-    vec!["tsx".to_owned(), "devupJson".to_owned()]
+    vec!["tsx".to_owned()]
 }
 
 fn default_asset_format() -> String {
