@@ -24,8 +24,8 @@ use super::{
     output::{OutputPolicy, OutputTransaction},
     parse_scope,
     quality::{
-        AcquisitionQuality, OutputQuality, ProjectionQuality, acquisition_quality, assets_quality,
-        projection_quality, theme_quality,
+        AcquisitionQuality, OutputQuality, acquisition_quality, assets_quality, projection_quality,
+        theme_quality,
     },
     section_candidate_as_explore, section_index_from_payload,
 };
@@ -412,26 +412,26 @@ pub(super) fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
 /// response carried before this, none of it actionable. It is attached
 /// whenever the capture is not clean, and whenever the caller asked for
 /// diagnostics and therefore wants the detail regardless.
-/// Adds `fidelity` only when the conversion was not exact.
+/// Adds `fidelity` whenever the report has something `quality` does not say.
 ///
-/// `quality.projection` is the signal a caller acts on; `fidelity` is the
-/// drill-down beneath it, at 437 measured bytes, repeated once per screen on
-/// a Section export. Tying it to that same grade keeps the two from
-/// disagreeing: an exact conversion sends the grade alone, and anything less
-/// sends the axes that explain it.
+/// Keyed on the report itself, not on `quality.projection`. That was the
+/// first attempt and it hid a real defect: `projection_quality` is computed
+/// from diagnostics alone, so a coverage shortfall that raises no diagnostic
+/// leaves the grade reading `exact` and took the report away with it.
+/// Measured on a real 50-node screen, `variables` was 19 of 20 - a `$primary`
+/// binding frozen into an exported SVG - while `quality.projection` said
+/// `exact`, so the response went from showing the shortfall to hiding it.
 ///
-/// Deliberately not keyed on `strict_compatible`, which also fails on a
-/// coverage shortfall that changes nothing about the output - that would put
-/// the report back on almost every response while `quality` still read
-/// `exact`. `strict: true` keeps using `strict_compatible` to refuse, and
-/// returns the same report in the error.
+/// `strict_compatible` is the same predicate `strict: true` refuses on, which
+/// keeps the two from disagreeing about whether anything was lost. On the ten
+/// real captured screens it is true - nothing sent - for every screen with no
+/// shortfall and no approximation, which is what this is for.
 fn attach_fidelity(
     response: &mut Value,
     report: &devup_mcp_devup_ui::provenance::FidelityReport,
-    projection: ProjectionQuality,
     include_diagnostics: bool,
 ) {
-    if include_diagnostics || projection != ProjectionQuality::Exact {
+    if include_diagnostics || !report.strict_compatible() {
         response["fidelity"] = json!(report);
     }
 }
@@ -754,12 +754,7 @@ pub(super) async fn complete_operation(
                         "quality": frame_quality,
                         "tsx": output.tsx
                     });
-                    attach_fidelity(
-                        &mut frame,
-                        &output.fidelity_report,
-                        frame_quality.projection,
-                        include_diagnostics,
-                    );
+                    attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                     attach_completeness_report(
                         &mut frame,
                         frame_quality,
@@ -1186,12 +1181,7 @@ pub(super) async fn complete_operation(
             // point; each Section frame already carries its own.
             if !section_tsx_projected && let Some(report) = fidelity_reports.first() {
                 let mut carrier = Value::Object(Map::new());
-                attach_fidelity(
-                    &mut carrier,
-                    report,
-                    quality.projection,
-                    include_diagnostics,
-                );
+                attach_fidelity(&mut carrier, report, include_diagnostics);
                 if let Some(fidelity) = carrier.get("fidelity") {
                     result.insert("fidelity".to_owned(), fidelity.clone());
                 }

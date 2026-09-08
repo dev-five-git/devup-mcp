@@ -56,6 +56,19 @@ pub struct FigmaExportInput {
     /// by default when driven as a library.
     #[serde(default = "default_true")]
     pub asset_names_per_node: bool,
+    /// Opens the two outputs that describe the design rather than the screen,
+    /// `rawSnapshot` and `rawPayload`.
+    ///
+    /// For one question only: a screen looks wrong, and it has to be decided
+    /// whether the generator is at fault or the design says so. Answering
+    /// that means reading the collected design beside the generated code.
+    ///
+    /// Nothing that implements a screen needs them. Measured across ten real
+    /// captured screens the tsx already carries 100% of the nodes, text,
+    /// typography, assets and layout the design expects, and on one screen
+    /// asking for them by habit spent about eight bytes for every one of code.
+    #[serde(default)]
+    pub debug: bool,
     #[serde(default)]
     pub strict: bool,
     #[serde(default)]

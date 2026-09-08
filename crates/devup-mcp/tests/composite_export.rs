@@ -208,6 +208,61 @@ async fn call_result(
         .await?)
 }
 
+/// The design in raw form is behind a door marked debug.
+///
+/// `rawSnapshot` and `rawPayload` describe the design rather than the screen.
+/// Nothing that implements a screen needs them, and left in the ordinary list
+/// they were taken as a matter of course - the server's own instructions used
+/// to say to take `rawSnapshot` every time, which on a measured screen spent
+/// about eight bytes for every one of code. They stay reachable, because
+/// deciding whether a screen that looks wrong is the generator's fault means
+/// reading the design beside the code, and that is what `debug` is for.
+#[tokio::test]
+async fn the_collected_design_is_reachable_only_in_debug() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let url = "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2";
+
+    for output in ["rawSnapshot", "rawPayload"] {
+        let refused = call_result(
+            &client,
+            "devup_figma_export",
+            json!({ "url": url, "outputs": [output], "scope": "node" }),
+        )
+        .await
+        .expect_err("the design in raw form is not part of implementing a screen");
+        let message = refused.to_string();
+        assert!(
+            message.contains("debug: true"),
+            "the refusal has to say which door to open: {message}"
+        );
+        assert!(
+            message.contains(output),
+            "and which output it is about: {message}"
+        );
+    }
+
+    // Asking for it deliberately still works, and still costs what it costs.
+    let debugging = call(
+        &client,
+        "devup_figma_export",
+        json!({ "url": url, "outputs": ["tsx", "rawSnapshot"], "scope": "node", "debug": true }),
+    )
+    .await?;
+    assert!(debugging["rawSnapshot"]["nodes"].is_object());
+    assert!(debugging["tsx"].as_str().is_some_and(|tsx| !tsx.is_empty()));
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
 /// A clean conversion should carry the code and the grade, and not the
 /// paperwork underneath the grade.
 ///
@@ -244,12 +299,30 @@ async fn a_clean_conversion_sends_the_code_and_the_grade_but_not_the_paperwork()
     assert_eq!(result["quality"]["projection"], "exact");
     assert_eq!(result["quality"]["acquisition"], "complete");
     assert!(result["tsx"].as_str().unwrap().contains("$primary"));
-    for silent in ["fidelity", "completenessReport"] {
-        assert!(
-            result.get(silent).is_none(),
-            "{silent} says nothing a clean quality has not already said"
-        );
-    }
+    // `completenessReport` is keyed on the capture, which is clean here.
+    assert!(
+        result.get("completenessReport").is_none(),
+        "a clean capture says nothing the grade has not already said"
+    );
+    // `fidelity` is keyed on the report itself rather than on
+    // `quality.projection`, because the grade is computed from diagnostics
+    // alone: a coverage shortfall that raises none leaves it reading `exact`
+    // while an axis is short. This fixture is exactly that case, so the
+    // report is sent - and printing it is the point, since hiding it is what
+    // the first attempt at this did on a real screen.
+    let fidelity = result
+        .get("fidelity")
+        .expect("a report that disagrees with a clean grade must be sent");
+    assert_eq!(result["quality"]["projection"], "exact");
+    assert!(
+        fidelity["variables"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["layout"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["nodes"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["text"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["typography"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["assets"]["basisPoints"].as_u64() < Some(10_000),
+        "it is sent because an axis is short: {fidelity}"
+    );
 
     client.cancel().await?;
     task.await??;
@@ -275,6 +348,7 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
         json!({
             "url": url,
             "outputs": ["tsx", "devupJson", "rawSnapshot", "rawPayload", "sourceMap", "assetManifest"],
+            "debug": true,
             "scope": "node",
             "includeDiagnostics": true
         }),
@@ -408,6 +482,7 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
         json!({
             "url": url,
             "outputs": ["rawSnapshot"],
+            "debug": true,
             "scope": "node",
             "refresh": true
         }),
@@ -781,10 +856,11 @@ async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Re
         .call_tool(
             CallToolRequestParams::new("devup_figma_export").with_arguments(
                 json!({
-                    "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-                    "outputs": ["rawSnapshot"],
-                    "strict": true
-                })
+                        "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+                        "outputs": ["rawSnapshot"],
+                "debug": true,
+                        "strict": true
+                    })
                 .as_object()
                 .cloned()
                 .unwrap(),

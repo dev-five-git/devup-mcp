@@ -4,7 +4,9 @@ use devup_mcp_figma::{DevupError, ErrorCode, FidelityImpact, Snapshot, discover_
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::codegen::{CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout};
+use crate::codegen::{
+    AssetKind, CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout,
+};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
@@ -342,7 +344,11 @@ pub fn validate_fidelity(
                 .is_some_and(|(index, _)| consumed_text_entries.insert(index))
         })
         .count();
-    let variables = variable_sources(snapshot, &semantic_nodes);
+    let baked = baked_into_assets(snapshot, root_id);
+    let variables = variable_sources(snapshot, &semantic_nodes)
+        .into_iter()
+        .filter(|(node_id, _)| !baked.contains(node_id))
+        .collect::<BTreeSet<_>>();
     let covered_variables = variables
         .iter()
         .filter(|(node_id, variable_id)| {
@@ -647,6 +653,44 @@ fn semantic_nodes<'a>(snapshot: &'a Snapshot, root_id: &str) -> BTreeSet<&'a str
         }
     }
     visible
+}
+
+/// Nodes whose variable bindings no correct generator could write out.
+///
+/// An asset drawn in one colour becomes a Box masked to its shape with `bg`
+/// set from that colour, so a token binding inside it survives as a token.
+/// An asset drawn in more than one has no such form - a CSS mask carries
+/// alpha only, and an SVG loaded through `<img src>` renders in its own
+/// document where neither `currentColor` nor a CSS variable reaches it - so
+/// it becomes an `<Image>` and every colour inside is baked into the file.
+///
+/// Counting those bindings as expected-but-missing asks the generator for
+/// something the platform does not offer, and it is not a one-off: measured
+/// on a real screen, two play buttons each hid a bound circle behind a white
+/// glyph, and the shortfall they produced put the whole fidelity report on
+/// the response with nothing in it anyone could act on.
+fn baked_into_assets(snapshot: &Snapshot, root_id: &str) -> BTreeSet<String> {
+    let mut baked = BTreeSet::new();
+    let mut pending = vec![root_id.to_owned()];
+    while let Some(node_id) = pending.pop() {
+        let Some(node) = snapshot.nodes.get(&node_id) else {
+            continue;
+        };
+        // A mask keeps its one colour in CSS, so keep looking inside it.
+        if !matches!(asset_kind(snapshot, node), None | Some(AssetKind::SvgMask)) {
+            let mut inside = vec![node_id];
+            while let Some(current) = inside.pop() {
+                let Some(node) = snapshot.nodes.get(&current) else {
+                    continue;
+                };
+                inside.extend(node.typed_view().child_ids().map(str::to_owned));
+                baked.insert(current);
+            }
+            continue;
+        }
+        pending.extend(node.typed_view().child_ids().map(str::to_owned));
+    }
+    baked
 }
 
 fn variable_sources(

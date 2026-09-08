@@ -613,7 +613,8 @@ impl DevupServer {
     #[tool(
         description = "Acquire a Figma design once and project any combination of outputs from that one collection; the Figma-to-code entry point. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
-                       Each output adds its own keys and nothing else - tsx adds `tsx`; componentTsx adds `componentTsx`; responsiveTsx adds `responsiveTsx`, `responsiveSlots` and, where a width asked for something one tree cannot say, `responsiveUnrepresented`; devupJson adds `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts` and `unresolvedVariables`; sourceMap, rawSnapshot, rawPayload, assetManifest and referencePng each add the key they name. \
+                       Each output adds its own keys and nothing else - tsx adds `tsx`; componentTsx adds `componentTsx`; responsiveTsx adds `responsiveTsx`, `responsiveSlots` and, where a width asked for something one tree cannot say, `responsiveUnrepresented`; devupJson adds `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts` and `unresolvedVariables`; sourceMap, assetManifest and referencePng each add the key they name. \
+                       `rawSnapshot` and `rawPayload` are the collected design in raw form and need `debug: true`. Use them for one question only - a screen looks wrong and you must decide whether the generator is at fault or the design says so - never to implement, since the tsx already carries what they carry. \
                        `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
                        Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again.",
@@ -623,7 +624,7 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<FigmaExportInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        validate_outputs(&input.outputs).map_err(to_mcp_error)?;
+        validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
             && !input.outputs.iter().any(|output| output == "assetManifest")
         {

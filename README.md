@@ -30,9 +30,12 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 | `componentTsx` | `componentTsx` |
 | `responsiveTsx` | `responsiveTsx`, `responsiveSlots`, (표현 불가한 값이 있으면) `responsiveUnrepresented` |
 | `devupJson` | `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts`, `unresolvedVariables` |
-| `sourceMap` / `rawSnapshot` / `rawPayload` / `assetManifest` / `referencePng` | 같은 이름의 키 |
+| `sourceMap` / `assetManifest` / `referencePng` | 같은 이름의 키 |
+| `rawSnapshot` / `rawPayload` | 같은 이름의 키 — **`debug: true` 필요** |
 
 그 밖에 항상 붙는 것은 `status`, `quality`, `completeness`, `cache`, `collection`, `source`, `targetKind`, `failures`, `outputPaths`뿐입니다. `fidelity`와 `completenessReport`는 결과가 exact/complete가 **아닐 때**, 또는 `includeDiagnostics: true`일 때만 나옵니다 — 깨끗한 결과에서는 `quality`가 이미 한 말을 되풀이할 뿐이라 빼두었고, 그만큼(측정값 797 B) 매 응답이 가벼워집니다.
+
+`rawSnapshot`과 `rawPayload`는 수집한 디자인을 raw로 담은 것이라 `debug: true` 없이는 거절됩니다. 화면을 구현하는 데는 필요 없습니다 — 실제 캡처 10개 화면에서 tsx가 node·text·typography·asset·layout 기대치를 100% 담고 있습니다. 쓰는 자리는 하나입니다: **화면이 이상해 보일 때 생성기 탓인지 디자인이 원래 그런지 판정하는 것.** 그때는 디자인을 코드 옆에 놓고 읽어야 하고, 그게 이 플래그입니다.
 
 에러는 호출 자체가 잘못된 경우(`DEVUP_INVALID_INPUT`, 없는 node/파일, 만료·부적합한 `artifactId` 등) JSON-RPC `-32602 INVALID_PARAMS`로, 그 밖의 실패는 `-32603 INTERNAL_ERROR`로 옵니다. 인자를 고쳐 다시 부를 일인지 멈추고 보고할 일인지를 메시지를 파싱하지 않고 구분할 수 있습니다. 정확한 `code`와 `retryable`은 예전처럼 `data`에 그대로 실립니다.
 
