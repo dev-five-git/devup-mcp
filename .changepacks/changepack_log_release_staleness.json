@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Stop a superseded run from deciding the release. The changepacks job runs after verify, which takes about ten minutes, so by the time it evaluates, main may already be several commits further on and it judges a state that no longer exists. On 2026-09-08 three merges landed inside one such window: each stale run opened a fresh Update Versions pull request instead of releasing, all three were merged, and the workspace went 0.2.1 to 0.3.0 to 0.3.1 while the newest release stayed 0.2.1. Nothing was tagged, and re-running could not recover it, because the action only cuts a release in the run that actually consumes the changepacks and by then there were none left - a version that moved without releasing cannot be un-moved. The job now compares its own commit with the tip of main and stands down when it has been replaced, leaving the decision to the run for the commit that replaced it.",
+  "date": "2026-09-08T20:30:00+09:00"
+}
