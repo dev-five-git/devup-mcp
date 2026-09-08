@@ -8,7 +8,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 Figma 쪽 4개, 프로젝트 쪽 3개, 모두 7개입니다.
 
-- `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·raw snapshot·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다.
+- `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
@@ -22,7 +22,7 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 
 ### 응답에 무엇이 들어오는가
 
-`devup_figma_export`는 **요청한 `outputs`가 만드는 키만** 추가합니다.
+`devup_figma_export`는 **요청한 `outputs`가 만드는 키만** 추가합니다. `outputs`를 생략했을 때의 스키마 기본값은 `["tsx", "devupJson"]`이며, 아래 표는 무엇을 더 요청할 수 있는지에 대한 **레퍼런스**이지 한 번에 전부 요청하라는 목록이 아닙니다.
 
 | output | 추가되는 키 |
 |---|---|
@@ -125,7 +125,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
       "tokenState": "absent",
       "callbackPort": { "port": null, "free": null },
       "reason": "저장된 자격증명 없음. ..."
-    },
+    }
   },
   "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "..." }
 }
@@ -254,7 +254,7 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
-  "outputs": ["tsx", "responsiveTsx", "devupJson", "rawSnapshot", "rawPayload", "sourceMap", "assetManifest", "referencePng"],
+  "outputs": ["tsx", "devupJson"],
   "scope": "node",
   "strict": true,
   "refresh": false,
@@ -262,11 +262,13 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 }
 ```
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+위 `outputs`는 스키마 기본값과 같은 **권장 호출**입니다. 읽을 output만 요청하세요 — 위의 [응답에 무엇이 들어오는가](#응답에-무엇이-들어오는가) 표가 **전체 목록 레퍼런스**이고, 그 표를 그대로 한 배열에 옮겨 적으라는 뜻이 아닙니다. 특히 `rawSnapshot`/`rawPayload`를 `debug: true` 없이 `outputs`에 넣은 호출은 투영 전에 `-32602`로 **거절됩니다**. 실제로 이 절의 예시가 한때 여덟 output을 전부 나열하면서 `debug`는 빠뜨리고 있었고, 그대로 복사하면 실행되지 않는 호출이었습니다.
+
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. `artifactId`는 `url`·`refresh`와 동시에 쓸 수 없고, 함께 보내면 `DEVUP_FIGMA_HANDOFF_INVALID`로 거절됩니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
 
 `delivery`는 `auto | inline | resource`입니다. `auto`는 JSON escape, base64와 structured/text 이중 표현을 포함한 실제 MCP wire 크기를 계산해 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고, 그보다 큰 결과는 native MCP `ResourceLink`와 `devup://artifact/...` URI로 바꿉니다. 링크 URI는 JSON manifest를 가리키므로 link MIME은 `application/json`이고 payload MIME·길이·SHA-256은 `payload*` metadata로 분리합니다. `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
-`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. Section의 여러 Frame은 먼저 반환된 canonical URL별로 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
+`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 
@@ -316,7 +318,7 @@ node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계�
 
 캡처·테마·에셋·빌드 산출물은 커밋하지 않습니다(`harness/render/.gitignore`). 이 하네스가 찾아낸 결함은 테마 스코프, 컨테이너가 칠하는 그림의 매니페스트 누락, 잘린 fill의 crop 행렬, 파일시스템이 못 받는 레이어 이름, 폭마다 크기가 다른 사진의 파일 공유, 투명도 0 노드의 export 거부, 그리고 positioned child 너머로 CSS가 못 미치는 높이입니다.
 
-Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
+Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
 asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플러그인이 그렇게 짓기 때문입니다. 그래서 디자이너가 같은 이름을 준 노드들은 파일 하나를 공유합니다. 같은 그림이면 맞지만 아니면 손실입니다. 한 화면에서 여덟 노드가 `Logo.svg` 하나를 주장하는데 실제로는 서로 다른 그림 다섯 개였고, 폭마다 그려진 사진은 마지막으로 export된 폭의 파일만 남아 다른 폭에서는 상자와 크기가 어긋난 채 늘어납니다(파일이 상자와 같은 크기이면 `object-fit`이 무엇이든 결과가 같으므로, 플러그인에서는 이 문제가 드러나지 않습니다).
 
@@ -354,7 +356,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
   "query": "A : STORY-F-PROOFREAD",
   "nodeTypes": ["PAGE", "SECTION", "FRAME", "COMPONENT_SET"],
   "match": "normalized",
-  "limit": 20,
+  "limit": 20
 }
 ```
 
@@ -367,11 +369,11 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
   "limit": 50,
   "includeTextPreview": true,
-  "refresh": false,
+  "refresh": false
 }
 ```
 
-요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
+요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. `url`에는 `node-id`가 있어야 하고(없으면 `DEVUP_FIGMA_NODE_NOT_FOUND`), `limit`은 1~100 범위 밖이면 거절됩니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
 
 탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집합니다.
 
@@ -429,3 +431,5 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 - Figma Remote MCP의 `use_figma` tool contract가 바뀌면 live smoke test와 adapter 갱신이 필요합니다.
 
 상세 설계는 [`docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md`](docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md)를 참고하세요.
+
+`docs/superpowers/` 아래의 plan·spec은 **작성 시점의 기록**이지 현재 API 문서가 아닙니다. 예를 들어 위에서 제거했다고 적은 `devup_figma_to_ui`/`devup_figma_to_json`을 그 문서들은 아직 현재 도구처럼 기술합니다. 현재 도구 목록과 동작의 기준은 이 README와 서버가 게시하는 스키마·tool description입니다.
