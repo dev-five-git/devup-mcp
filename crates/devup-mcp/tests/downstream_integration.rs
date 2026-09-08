@@ -267,8 +267,11 @@ async fn conversion_asks_to_be_logged_in_rather_than_starting_oauth() -> anyhow:
     let auth = Arc::new(LoginAuth::default());
     let error = call_tool_with_auth(
         auth.clone(),
-        "devup_figma_to_ui",
-        json!({"url": "https://figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481"}),
+        "devup_figma_export",
+        json!({
+            "url": "https://figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "outputs": ["tsx"]
+        }),
     )
     .await
     .expect_err("a disconnected direct path cannot convert");
@@ -284,9 +287,10 @@ async fn conversion_asks_to_be_logged_in_rather_than_starting_oauth() -> anyhow:
 #[tokio::test]
 async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     let result = call_tool(
-        "devup_figma_to_ui",
+        "devup_figma_export",
         json!({
             "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "outputs": ["tsx"],
             "includeDiagnostics": true
         }),
     )
@@ -307,7 +311,10 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     assert!(tsx.contains("bg=\"$primary\""));
     assert!(!tsx.contains("$colorPrimary"));
     assert_eq!(result["source"]["nodeId"], "3879:35481");
-    assert_eq!(result["snapshot"]["preservedNodeCount"], 1);
+    assert_eq!(
+        result["completenessReport"]["snapshot"]["preservedNodeCount"],
+        1
+    );
     Ok(())
 }
 
@@ -316,9 +323,10 @@ async fn reports_partial_instead_of_complete_when_a_child_is_missing() -> anyhow
     let result = call_tool_with_services(
         Arc::new(ConnectedAuth),
         Arc::new(PartialFixtureUpstream),
-        "devup_figma_to_ui",
+        "devup_figma_export",
         json!({
             "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "outputs": ["tsx"],
             "includeDiagnostics": true
         }),
     )
@@ -345,12 +353,13 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
     std::fs::create_dir_all(&output_root)?;
     let output_path = output_root.join("devup.json");
     let result = call_tool_with_output_roots(
-        "devup_figma_to_json",
+        "devup_figma_export",
         json!({
             "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "outputs": ["devupJson"],
             "scope": "file",
             "includeDiagnostics": true,
-            "outputPath": output_path
+            "outputPaths": {"devupJson": output_path}
         }),
         vec![output_root.clone()],
     )
@@ -374,7 +383,7 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
         std::fs::read_to_string(&output_path)?,
         result["devupJson"].as_str().unwrap()
     );
-    assert!(result["outputPath"].as_str().is_some());
+    assert!(result["outputPaths"]["devupJson"].as_str().is_some());
     std::fs::remove_file(output_path)?;
     std::fs::remove_dir(output_root)?;
     Ok(())
@@ -383,9 +392,10 @@ async fn converts_figma_variables_to_structured_devup_json() -> anyhow::Result<(
 #[tokio::test]
 async fn node_theme_scope_excludes_file_variables_not_used_by_the_node() -> anyhow::Result<()> {
     let result = call_tool(
-        "devup_figma_to_json",
+        "devup_figma_export",
         json!({
             "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "outputs": ["devupJson"],
             "scope": "node",
             "includeDiagnostics": true
         }),

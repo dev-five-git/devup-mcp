@@ -123,8 +123,7 @@ async fn reference_png_is_acquired_once_and_delivered_as_a_binary_resource() -> 
         "devup_figma_export",
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
-            "outputs": ["referencePng"],
-            "sourcePolicy": "direct"
+            "outputs": ["referencePng"]
         }),
     )
     .await?;
@@ -209,6 +208,54 @@ async fn call_result(
         .await?)
 }
 
+/// A clean conversion should carry the code and the grade, and not the
+/// paperwork underneath the grade.
+///
+/// `fidelity` and `completenessReport` are the drill-down under `quality`:
+/// on a clean run the first reports 100% across six axes and the second six
+/// empty arrays, so both only repeat what `quality` already said. Measured on
+/// this fixture they were 797 bytes of the 1,911 every response carried.
+/// They are still sent whenever they disagree with a clean grade, and
+/// whenever the caller asks for diagnostics - which the test above covers.
+#[tokio::test]
+async fn a_clean_conversion_sends_the_code_and_the_grade_but_not_the_paperwork()
+-> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let result = call(
+        &client,
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs": ["tsx"],
+            "scope": "node"
+        }),
+    )
+    .await?;
+
+    assert_eq!(result["status"], "complete");
+    assert_eq!(result["quality"]["projection"], "exact");
+    assert_eq!(result["quality"]["acquisition"], "complete");
+    assert!(result["tsx"].as_str().unwrap().contains("$primary"));
+    for silent in ["fidelity", "completenessReport"] {
+        assert!(
+            result.get(silent).is_none(),
+            "{silent} says nothing a clean quality has not already said"
+        );
+    }
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
 #[tokio::test]
 async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() -> anyhow::Result<()>
 {
@@ -229,7 +276,6 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
             "url": url,
             "outputs": ["tsx", "devupJson", "rawSnapshot", "rawPayload", "sourceMap", "assetManifest"],
             "scope": "node",
-            "sourcePolicy": "direct",
             "includeDiagnostics": true
         }),
     )
@@ -246,11 +292,23 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(first["cache"]["cacheHit"], false);
     assert!(first["cache"]["artifactId"].as_str().is_some());
     assert!(first["tsx"].as_str().unwrap().contains("$primary"));
-    // devup_figma_export must carry the same unambiguous final-answer
-    // marker as devup_figma_to_ui when it actually produced a tsx output.
-    assert_eq!(first["deliverable"]["kind"], "devup-ui-tsx");
-    assert_eq!(first["deliverable"]["isFinal"], true);
-    assert!(!first["deliverable"]["note"].as_str().unwrap().is_empty());
+    assert_eq!(first["status"], "complete");
+    assert_eq!(first["quality"]["projection"], "exact");
+    // This call asks for diagnostics, so the drill-down under `quality` is
+    // exactly what it should get.
+    assert!(first["fidelity"].is_object());
+    assert!(first["completenessReport"].is_object());
+    // These restate something already in the response whether diagnostics
+    // were asked for or not: `imports` and `usedTokens` restate the tsx's own
+    // import line and its `$token`s, `completeness` and `themeCompleteness`
+    // restate two axes of `quality`, and `deliverable` restated `status` in
+    // prose. None of them is sent any more.
+    for restated in ["deliverable", "imports", "usedTokens", "componentImports"] {
+        assert!(
+            first.get(restated).is_none(),
+            "{restated} restates something already in the response and must not be sent"
+        );
+    }
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
     assert_eq!(first["sourceMap"]["version"], 1);
@@ -320,16 +378,20 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(manifest["mimeType"], "text/typescript");
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
 
+    // The same acquisition answers a tsx-only and a theme-only projection
+    // without going back to Figma, which is what devup_figma_to_ui and
+    // devup_figma_to_json used to be for before they were folded into this
+    // one tool as `outputs`.
     let ui_wrapper = call(
         &client,
-        "devup_figma_to_ui",
-        json!({"url": url, "sourcePolicy": "direct"}),
+        "devup_figma_export",
+        json!({"url": url, "outputs": ["tsx"]}),
     )
     .await?;
     let json_wrapper = call(
         &client,
-        "devup_figma_to_json",
-        json!({"url": url, "scope": "node", "sourcePolicy": "direct"}),
+        "devup_figma_export",
+        json!({"url": url, "outputs": ["devupJson"], "scope": "node"}),
     )
     .await?;
     assert_eq!(ui_wrapper["cache"]["cacheHit"], true);
@@ -343,7 +405,6 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
             "url": url,
             "outputs": ["rawSnapshot"],
             "scope": "node",
-            "sourcePolicy": "direct",
             "refresh": true
         }),
     )
@@ -373,8 +434,7 @@ async fn artifact_reuse_rejects_file_theme_beyond_captured_scope() -> anyhow::Re
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["tsx"],
-            "scope": "node",
-            "sourcePolicy": "direct"
+            "scope": "node"
         }),
     )
     .await?;
@@ -424,7 +484,6 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["tsx", "assetManifest"],
-            "sourcePolicy": "direct",
             "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
         }),
     )
@@ -463,7 +522,6 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["assetManifest"],
-            "sourcePolicy": "direct",
             "delivery": "resource",
             "assetRequests": [{
                 "assetId":"1:3:fills:0",
@@ -536,7 +594,6 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["assetManifest"],
-            "sourcePolicy": "direct",
             "delivery": "resource",
             "assetRequests": [{
                 "assetId":"1:3:fills:0",
@@ -665,7 +722,6 @@ async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::R
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["assetManifest"],
-            "sourcePolicy": "direct",
             "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
         }),
     )
@@ -723,7 +779,6 @@ async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Re
                 json!({
                     "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
                     "outputs": ["rawSnapshot"],
-                    "sourcePolicy": "direct",
                     "strict": true
                 })
                 .as_object()
@@ -767,7 +822,6 @@ async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
                 json!({
                     "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
                     "outputs": ["tsx"],
-                    "sourcePolicy": "direct",
                     "strict": true,
                     "outputPaths": {"tsx": output_path.to_string_lossy()}
                 })

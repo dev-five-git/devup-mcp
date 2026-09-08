@@ -37,7 +37,7 @@ use devup_mcp_figma::{
     ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
     KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
     SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions,
-    SourcePolicy, SystemBrowser, TokenState, UpstreamResult,
+    SystemBrowser, TokenState, UpstreamResult,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -48,13 +48,13 @@ use output::OutputPolicy;
 use pacing::CallPacer;
 use projection::complete_operation;
 use validation::{
-    parse_asset_requests, parse_collection_scope, parse_root_layout, parse_source_policy,
-    validate_artifact_projection, validate_outputs,
+    parse_asset_requests, parse_collection_scope, parse_root_layout, validate_artifact_projection,
+    validate_outputs,
 };
 
 pub use tools::{
     AuthInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput, FigmaSearchInput,
-    FigmaToJsonInput, FigmaToUiInput, ProjectContextInput, StackDiffInput, UiValidateInput,
+    ProjectContextInput, StackDiffInput, UiValidateInput,
 };
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -284,10 +284,9 @@ impl DevupServer {
         &self,
         operation: PendingOperation,
         request: CollectionRequest,
-        policy: SourcePolicy,
         refresh: bool,
     ) -> Result<Value, DevupError> {
-        let artifact_key = ArtifactRequestKey::from_collection(&request, policy);
+        let artifact_key = ArtifactRequestKey::from_collection(&request);
         if !refresh && let Some(artifact) = self.artifacts.lookup(&artifact_key).await {
             return complete_operation(
                 operation,
@@ -536,89 +535,6 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Convert a Figma design link to deterministic DevupUI TypeScript only; use devup_figma_export when tokens or a source map are also needed, and never hand-interpret a handoff node tree",
-        output_schema = permissive_object_output_schema()
-    )]
-    async fn devup_figma_to_ui(
-        &self,
-        Parameters(input): Parameters<FigmaToUiInput>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
-        target.node_id.as_ref().ok_or_else(|| {
-            to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaNodeNotFound,
-                "A UI conversion link requires a node-id.",
-                false,
-            ))
-        })?;
-        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
-        let scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
-        let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
-        let delivery = input
-            .delivery
-            .parse::<DeliveryMode>()
-            .map_err(to_mcp_error)?;
-        let mut request = CollectionRequest::new(target, scope);
-        request.resource_scope = ResourceScope::Used;
-        let result = self
-            .start_operation(
-                PendingOperation::ToUi {
-                    component_name: input.component_name,
-                    include_diagnostics: input.include_diagnostics,
-                    root_layout,
-                    output_path: input.output_path,
-                    delivery,
-                },
-                request,
-                policy,
-                false,
-            )
-            .await
-            .map_err(to_mcp_error)?;
-        Ok(tool_result(result))
-    }
-
-    #[tool(
-        description = "Convert Figma variables and styles to deterministic devup.json",
-        output_schema = permissive_object_output_schema()
-    )]
-    async fn devup_figma_to_json(
-        &self,
-        Parameters(input): Parameters<FigmaToJsonInput>,
-    ) -> Result<CallToolResult, ErrorData> {
-        let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
-        parse_scope(&input.scope).map_err(to_mcp_error)?;
-        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
-        let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
-        let delivery = input
-            .delivery
-            .parse::<DeliveryMode>()
-            .map_err(to_mcp_error)?;
-        let mut request = CollectionRequest::new(target, collection_scope);
-        if collection_scope == CollectionScope::File {
-            request.resource_scope = ResourceScope::File;
-            request.variables_only = true;
-        } else {
-            request.resource_scope = ResourceScope::Used;
-        }
-        let result = self
-            .start_operation(
-                PendingOperation::ToJson {
-                    scope: input.scope,
-                    include_diagnostics: input.include_diagnostics,
-                    output_path: input.output_path,
-                    delivery,
-                },
-                request,
-                policy,
-                false,
-            )
-            .await
-            .map_err(to_mcp_error)?;
-        Ok(tool_result(result))
-    }
-
-    #[tool(
         description = "Search Figma pages, sections, frames, and components by name to locate the target before devup_figma_export",
         output_schema = permissive_object_output_schema()
     )]
@@ -627,7 +543,6 @@ impl DevupServer {
         Parameters(input): Parameters<FigmaSearchInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
-        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, CollectionScope::File);
         request.search = Some(SearchReadOptions {
             query: input.query.clone(),
@@ -644,7 +559,6 @@ impl DevupServer {
                     limit: input.limit,
                 },
                 request,
-                policy,
                 false,
             )
             .await
@@ -675,7 +589,6 @@ impl DevupServer {
                 false,
             )));
         }
-        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let requested_target = target.clone();
         let mut request = CollectionRequest::new(target, CollectionScope::Node);
         request.resource_scope = ResourceScope::None;
@@ -690,7 +603,6 @@ impl DevupServer {
                     target: requested_target,
                 },
                 request,
-                policy,
                 input.refresh,
             )
             .await
@@ -699,7 +611,12 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Acquire a Figma design once and project tsx/componentTsx/devupJson/sourceMap/rawSnapshot together in one collection; the primary Figma-to-code entry point, preferred over devup_figma_to_ui for implementation. Request tsx and componentTsx together to get the same screen twice: tsx expands every instance into primitives, componentTsx keeps them as <Name /> references with their imports, so the difference between them is each component's body. responsiveTsx is the whole screen at every width it is drawn at, merged into one module whose differing values are devup-ui responsive arrays; it is produced whenever the capture carries more than one width, and names anything the widths asked for that one tree cannot say",
+        description = "Acquire a Figma design once and project any combination of outputs from that one collection; the Figma-to-code entry point. \
+                       Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
+                       Each output adds its own keys and nothing else - tsx adds `tsx`; componentTsx adds `componentTsx`; responsiveTsx adds `responsiveTsx`, `responsiveSlots` and, where a width asked for something one tree cannot say, `responsiveUnrepresented`; devupJson adds `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts` and `unresolvedVariables`; sourceMap, rawSnapshot, rawPayload, assetManifest and referencePng each add the key they name. \
+                       `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
+                       tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
+                       Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
@@ -758,7 +675,6 @@ impl DevupServer {
                         false,
                     ))
                 })?;
-                let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
                 let collection_scope =
                     parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
                 if collection_scope != CollectionScope::Node {
@@ -796,7 +712,6 @@ impl DevupServer {
                             delivery,
                         },
                         request,
-                        policy,
                         false,
                     )
                     .await
@@ -852,7 +767,6 @@ impl DevupServer {
                 false,
             )));
         }
-        let policy = parse_source_policy(&input.source_policy).map_err(to_mcp_error)?;
         let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
         let (asset_selections, asset_output_paths) =
@@ -891,7 +805,6 @@ impl DevupServer {
                     delivery,
                 },
                 request,
-                policy,
                 input.refresh,
             )
             .await
@@ -1020,9 +933,22 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
     }
 }
 
+/// Maps a [`DevupError`] onto the JSON-RPC error the caller actually sees.
+///
+/// The protocol code is not decoration here: the caller is usually an agent
+/// choosing between "fix the arguments and call again" and "stop and report",
+/// and every error used to arrive as INTERNAL_ERROR, which says the second
+/// thing about both. A mistake in the call itself is INVALID_PARAMS, so that
+/// decision can be made without parsing the message. `data` keeps carrying
+/// the exact `code` and `retryable`, unchanged.
 fn to_mcp_error(error: DevupError) -> ErrorData {
+    let mcp_code = if error.code.is_caller_mistake() {
+        McpErrorCode::INVALID_PARAMS
+    } else {
+        McpErrorCode::INTERNAL_ERROR
+    };
     ErrorData::new(
-        McpErrorCode::INTERNAL_ERROR,
+        mcp_code,
         error.message,
         Some(json!({ "code": error.code, "retryable": error.retryable, "details": error.details })),
     )
@@ -1040,7 +966,8 @@ impl ServerHandler for DevupServer {
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
         .with_instructions(
             "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
-             2. When the goal is implementation, call devup_figma_export first and take tsx, rawSnapshot, and sourceMap together.\n\
+             2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; a complete response marks it with deliverable.isFinal.\n\
+             2a. Ask for an output only when you will read it. Measured against the same screen, sourceMap is about 5x the size of the tsx it annotates, rawPayload about 7x, and rawSnapshot about 2x, so requesting them by default spends most of the response on bytes nothing reads. sourceMap is for tracing a generated line back to its Figma node; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
              3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
              4. Do not hand-interpret a node tree to write devup-ui code. Do not infer layout from coordinates.\n\
              5. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\

@@ -243,7 +243,6 @@ async fn a_screen_with_other_widths_is_exported_as_one_responsive_module() -> an
     let result = export(json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-20",
         "outputs": ["tsx"],
-        "sourcePolicy": "direct",
         "componentName": "Notice"
     }))
     .await?;
@@ -293,15 +292,17 @@ async fn a_screen_with_other_widths_is_exported_as_one_responsive_module() -> an
     assert!(module.contains("} from '@devup-ui/react'"));
     assert!(module.contains("export default function Notice() {"));
     assert!(module.trim_end().ends_with('}'));
+    // The import list used to be repeated back as `responsiveImports` and
+    // `responsiveComponents`, which is the module's own first line said
+    // twice. Read it off the module instead, which is the thing that has to
+    // be right.
+    let imports = module
+        .lines()
+        .next()
+        .expect("a module opens with its import");
     assert_eq!(
-        result["responsiveImports"],
-        json!(["Box", "Flex", "Text", "VStack"]),
-        "only the elements it actually uses"
-    );
-    assert_eq!(
-        result["responsiveComponents"],
-        json!([]),
-        "this screen has no instances, so it imports no components of its own"
+        imports, "import { Box, Flex, Text, VStack } from '@devup-ui/react'",
+        "only the elements it actually uses, and no component of its own"
     );
     Ok(())
 }
@@ -313,7 +314,6 @@ async fn the_responsive_module_can_be_asked_for_on_its_own() -> anyhow::Result<(
     let result = export(json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-20",
         "outputs": ["responsiveTsx"],
-        "sourcePolicy": "direct",
         "componentName": "Notice"
     }))
     .await?;
@@ -337,8 +337,7 @@ async fn the_responsive_module_can_be_asked_for_on_its_own() -> anyhow::Result<(
 async fn the_page_is_named_after_its_section_when_the_caller_gives_no_name() -> anyhow::Result<()> {
     let result = export(json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-20",
-        "outputs": ["responsiveTsx"],
-        "sourcePolicy": "direct"
+        "outputs": ["responsiveTsx"]
     }))
     .await?;
     assert!(

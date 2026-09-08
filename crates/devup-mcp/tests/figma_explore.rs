@@ -131,12 +131,11 @@ async fn start_client(
     Ok((client, task))
 }
 
-fn input(source_policy: &str) -> Map<String, Value> {
+fn input() -> Map<String, Value> {
     json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-1",
         "limit": 50,
-        "includeTextPreview": true,
-        "sourcePolicy": source_policy
+        "includeTextPreview": true
     })
     .as_object()
     .cloned()
@@ -161,13 +160,11 @@ async fn related_nodes_reuse_one_explore_projection_without_changing_the_request
     let client = ().serve(client_transport).await?;
 
     let heading = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
-        )
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input()))
         .await?
         .structured_content
         .unwrap();
-    let mut screen_input = input("direct");
+    let mut screen_input = input();
     screen_input.insert(
         "url".to_owned(),
         json!("https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"),
@@ -193,7 +190,7 @@ async fn related_nodes_reuse_one_explore_projection_without_changing_the_request
     assert_eq!(screen["collection"]["figmaToolCalls"], 0);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 
-    let mut different_projection = input("direct");
+    let mut different_projection = input();
     different_projection.insert(
         "url".to_owned(),
         json!("https://www.figma.com/design/FileKey123/Fixture?node-id=1-3"),
@@ -232,20 +229,16 @@ async fn refresh_bypasses_an_exact_explore_cache_hit() -> anyhow::Result<()> {
     let client = ().serve(client_transport).await?;
 
     let first = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
-        )
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input()))
         .await?
         .structured_content
         .unwrap();
     let exact = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_explore").with_arguments(input("direct")),
-        )
+        .call_tool(CallToolRequestParams::new("devup_figma_explore").with_arguments(input()))
         .await?
         .structured_content
         .unwrap();
-    let mut refreshed_input = input("direct");
+    let mut refreshed_input = input();
     refreshed_input.insert("refresh".to_owned(), json!(true));
     let refreshed = client
         .call_tool(
@@ -280,8 +273,7 @@ async fn explore_rejects_missing_node_and_out_of_range_limit() -> anyhow::Result
         .call_tool(
             CallToolRequestParams::new("devup_figma_explore").with_arguments(
                 json!({
-                    "url": "https://www.figma.com/design/FileKey123/Fixture",
-                    "sourcePolicy": "direct"
+                    "url": "https://www.figma.com/design/FileKey123/Fixture"
                 })
                 .as_object()
                 .cloned()
@@ -295,8 +287,7 @@ async fn explore_rejects_missing_node_and_out_of_range_limit() -> anyhow::Result
             CallToolRequestParams::new("devup_figma_explore").with_arguments(
                 json!({
                     "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-1",
-                    "limit": 101,
-                    "sourcePolicy": "direct"
+                    "limit": 101
                 })
                 .as_object()
                 .cloned()

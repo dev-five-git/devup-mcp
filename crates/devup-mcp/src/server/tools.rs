@@ -2,58 +2,21 @@ use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// `action` is `status`, `login`, `logout`, `configure`, or `doctor`.
-/// `doctor` never touches OAuth state; it measures which connection paths
-/// (direct OAuth, host handoff) are currently usable
-/// and returns client-specific setup guidance. `configure` persists a
-/// pre-registered client credential (`clientId`, optional `clientSecret`)
-/// so later `login` calls skip Dynamic Client Registration entirely; the
-/// secret is stored in the OS credential store and never echoed back. See
-/// `server::diagnostics`.
+/// `doctor` never touches OAuth state; it measures whether the direct
+/// connection is usable right now and returns client-specific setup
+/// guidance. `configure` persists a pre-registered client credential
+/// (`clientId`, optional `clientSecret`) so later `login` calls skip Dynamic
+/// Client Registration entirely; the secret is stored in the OS credential
+/// store and never echoed back. See `server::diagnostics`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthInput {
+    #[schemars(extend("enum" = super::validation::AUTH_ACTIONS))]
     pub action: String,
     #[serde(default)]
     pub client_id: Option<String>,
     #[serde(default)]
     pub client_secret: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct FigmaToUiInput {
-    pub url: String,
-    #[serde(default)]
-    pub component_name: Option<String>,
-    #[serde(default)]
-    pub include_diagnostics: bool,
-    #[serde(default = "default_source_policy")]
-    pub source_policy: String,
-    #[serde(default = "default_scope")]
-    pub scope: String,
-    #[serde(default = "default_root_layout")]
-    pub root_layout: String,
-    #[serde(default)]
-    pub output_path: Option<String>,
-    #[serde(default = "default_delivery")]
-    pub delivery: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct FigmaToJsonInput {
-    pub url: String,
-    #[serde(default = "default_scope")]
-    pub scope: String,
-    #[serde(default)]
-    pub include_diagnostics: bool,
-    #[serde(default = "default_source_policy")]
-    pub source_policy: String,
-    #[serde(default)]
-    pub output_path: Option<String>,
-    #[serde(default = "default_delivery")]
-    pub delivery: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -73,11 +36,11 @@ pub struct FigmaExportInput {
     pub component_name: Option<String>,
     #[serde(default)]
     pub include_diagnostics: bool,
-    #[serde(default = "default_source_policy")]
-    pub source_policy: String,
     #[serde(default = "default_scope")]
+    #[schemars(extend("enum" = super::validation::COLLECTION_SCOPES))]
     pub scope: String,
     #[serde(default = "default_root_layout")]
+    #[schemars(extend("enum" = super::validation::ROOT_LAYOUTS))]
     pub root_layout: String,
     /// Name every asset after the node it came from rather than after its
     /// layer, so two drawings a designer named alike get a file each, and a
@@ -106,6 +69,7 @@ pub struct FigmaExportInput {
     #[serde(default)]
     pub asset_requests: Vec<FigmaAssetRequestInput>,
     #[serde(default = "default_delivery")]
+    #[schemars(extend("enum" = super::validation::DELIVERY_MODES))]
     pub delivery: String,
 }
 
@@ -114,7 +78,7 @@ pub struct FigmaExportInput {
 pub struct FigmaAssetRequestInput {
     pub asset_id: String,
     #[serde(default = "default_asset_format")]
-    #[schemars(extend("enum" = ["png", "jpg", "svg", "pdf"]))]
+    #[schemars(extend("enum" = super::validation::ASSET_FORMATS))]
     pub format: String,
     #[serde(default = "default_asset_scale")]
     pub scale: u8,
@@ -130,11 +94,10 @@ pub struct FigmaSearchInput {
     #[serde(default)]
     pub node_types: Vec<String>,
     #[serde(default = "default_match", rename = "match")]
+    #[schemars(extend("enum" = super::validation::SEARCH_MATCH_KINDS))]
     pub match_kind: String,
     #[serde(default = "default_limit")]
     pub limit: usize,
-    #[serde(default = "default_source_policy")]
-    pub source_policy: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -145,8 +108,6 @@ pub struct FigmaExploreInput {
     pub limit: usize,
     #[serde(default = "default_true")]
     pub include_text_preview: bool,
-    #[serde(default = "default_source_policy")]
-    pub source_policy: String,
     #[serde(default)]
     pub refresh: bool,
 }
@@ -159,6 +120,7 @@ pub struct FigmaExploreInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectContextInput {
+    #[schemars(extend("enum" = super::validation::PROJECT_CONTEXT_SCOPES))]
     pub scope: String,
     #[serde(default)]
     pub project_root: Option<String>,
@@ -191,6 +153,10 @@ pub struct StackDiffInput {
     #[serde(default)]
     pub project_root: Option<String>,
     #[serde(default)]
+    #[schemars(extend("items" = serde_json::json!({
+        "type": "string",
+        "enum": super::validation::STACK_DIFF_LAYERS,
+    })))]
     pub layers: Vec<String>,
 }
 
@@ -200,10 +166,6 @@ fn default_scope() -> String {
 
 fn default_root_layout() -> String {
     "standalone".to_owned()
-}
-
-fn default_source_policy() -> String {
-    "auto".to_owned()
 }
 
 fn default_delivery() -> String {

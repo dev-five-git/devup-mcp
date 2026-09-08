@@ -24,19 +24,6 @@ pub enum PendingOperation {
         operation: Box<PendingOperation>,
         artifact_key: ArtifactRequestKey,
     },
-    ToUi {
-        component_name: Option<String>,
-        include_diagnostics: bool,
-        root_layout: RootLayout,
-        output_path: Option<String>,
-        delivery: DeliveryMode,
-    },
-    ToJson {
-        scope: String,
-        include_diagnostics: bool,
-        output_path: Option<String>,
-        delivery: DeliveryMode,
-    },
     Export {
         outputs: Vec<String>,
         component_name: Option<String>,

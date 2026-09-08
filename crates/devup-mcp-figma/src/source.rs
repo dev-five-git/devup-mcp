@@ -1,15 +1,6 @@
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{DevupError, ErrorCode};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum SourcePolicy {
-    #[default]
-    Auto,
-    Direct,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpstreamFailureContext {
@@ -132,10 +123,12 @@ impl UpstreamFailureKind {
         };
         let mut details = json!({ "source": "direct", "status": status });
         if self == Self::CatalogRejected {
+            // There is no host-handoff path any more, so the options are the
+            // two that actually exist: get a credential of your own, or get
+            // this client admitted.
             details["options"] = json!([
-                "Register devup-mcp on the Figma MCP Catalog waitlist: https://www.figma.com/mcp-catalog/",
                 "Inject client credentials you obtained yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }",
-                "Hand off to the official Figma MCP registered on the host (sourcePolicy: auto or host, the current default fallback)"
+                "Register your client on the Figma MCP Catalog waitlist: https://www.figma.com/mcp-catalog/"
             ]);
         }
         DevupError::with_details(code, message, retryable, details)

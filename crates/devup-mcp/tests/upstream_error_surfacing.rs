@@ -137,8 +137,7 @@ async fn reported_failure(upstream: Arc<dyn FigmaUpstream>) -> anyhow::Result<St
 
     let arguments: Map<String, Value> = json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
-        "outputs": ["tsx"],
-        "sourcePolicy": "direct"
+        "outputs": ["tsx"]
     })
     .as_object()
     .cloned()
@@ -199,8 +198,7 @@ async fn a_stated_retry_after_is_reported_instead_of_a_guess() -> anyhow::Result
 
     let arguments: Map<String, Value> = json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
-        "outputs": ["tsx"],
-        "sourcePolicy": "direct"
+        "outputs": ["tsx"]
     })
     .as_object()
     .cloned()
@@ -242,8 +240,7 @@ async fn a_rate_limited_upstream_reports_its_own_reason_not_a_parse_failure() ->
 
     let arguments: Map<String, Value> = json!({
         "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
-        "outputs": ["tsx"],
-        "sourcePolicy": "direct"
+        "outputs": ["tsx"]
     })
     .as_object()
     .cloned()

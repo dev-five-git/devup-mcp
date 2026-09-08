@@ -194,26 +194,27 @@ jobs:
           set -euo pipefail
           for target in $TARGETS; do
             rustup target add "$target"
-            cargo build --release --target "$target" -p devup-mcp -p devup-mcp-visual
+            cargo build --release --target "$target" -p devup-mcp
           done
+          # Only the MCP server ships. devup-mcp-visual is a PNG comparator
+          # the render harness builds from source with cargo; nothing
+          # downloads it, so three of the six release assets were binaries no
+          # consumer had a use for while still costing a build on every
+          # platform of every release.
           mkdir -p dist
-          for bin in devup-mcp devup-mcp-visual; do
-            out="dist/${bin}-${SUFFIX}${EXT}"
-            if [ "$OS" = "macos-latest" ]; then
-              lipo -create -output "$out" \
-                "target/aarch64-apple-darwin/release/${bin}" \
-                "target/x86_64-apple-darwin/release/${bin}"
-              file "$out"
-            else
-              set -- $TARGETS
-              cp "target/$1/release/${bin}${EXT}" "$out"
-            fi
-          done
+          out="dist/devup-mcp-${SUFFIX}${EXT}"
+          if [ "$OS" = "macos-latest" ]; then
+            lipo -create -output "$out" \
+              "target/aarch64-apple-darwin/release/devup-mcp" \
+              "target/x86_64-apple-darwin/release/devup-mcp"
+            file "$out"
+          else
+            set -- $TARGETS
+            cp "target/$1/release/devup-mcp${EXT}" "$out"
+          fi
           ls -l dist
       # `bundle` needs all three platforms' server binaries in one place, and
-      # each is produced on a different runner. Only the MCP server itself is
-      # carried: devup-mcp-visual is a comparison CLI a consumer repository
-      # runs in its own CI, not something an MCP host ever launches.
+      # each is produced on a different runner.
       - name: Hand the server binary to the bundle job
         uses: actions/upload-artifact@v7
         with:

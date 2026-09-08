@@ -1,5 +1,5 @@
 use devup_mcp_figma::{
-    ErrorCode, SourcePolicy, UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure,
+    ErrorCode, UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure,
 };
 
 #[test]
@@ -65,12 +65,7 @@ fn classifies_upstream_failures_from_boundary_metadata() {
 }
 
 #[test]
-fn public_policy_and_error_codes_have_stable_json_values() {
-    assert_eq!(serde_json::to_value(SourcePolicy::Auto).unwrap(), "auto");
-    assert_eq!(
-        serde_json::to_value(SourcePolicy::Direct).unwrap(),
-        "direct"
-    );
+fn error_codes_have_stable_json_values() {
     let codes = [
         (
             ErrorCode::DevupFigmaDirectUnavailable,
@@ -81,10 +76,6 @@ fn public_policy_and_error_codes_have_stable_json_values() {
             "DEVUP_FIGMA_CATALOG_REJECTED",
         ),
         (
-            ErrorCode::DevupFigmaHostRequired,
-            "DEVUP_FIGMA_HOST_REQUIRED",
-        ),
-        (
             ErrorCode::DevupFigmaHandoffExpired,
             "DEVUP_FIGMA_HANDOFF_EXPIRED",
         ),
@@ -92,13 +83,62 @@ fn public_policy_and_error_codes_have_stable_json_values() {
             ErrorCode::DevupFigmaHandoffInvalid,
             "DEVUP_FIGMA_HANDOFF_INVALID",
         ),
-        (
-            ErrorCode::DevupCompatCorpusDrift,
-            "DEVUP_COMPAT_CORPUS_DRIFT",
-        ),
+        (ErrorCode::DevupInvalidInput, "DEVUP_INVALID_INPUT"),
     ];
     for (code, expected) in codes {
         assert_eq!(serde_json::to_value(code).unwrap(), expected);
+    }
+}
+
+/// This split is what decides whether the caller sees INVALID_PARAMS or
+/// INTERNAL_ERROR, which for an agent is the difference between fixing its
+/// arguments and giving up. Getting a code onto the wrong side is silent —
+/// the response still looks well formed — so both sides are pinned here.
+///
+/// A variant added later and left unclassified falls to the `false` side and
+/// is reported as INTERNAL_ERROR, which is the safe direction: the caller
+/// stops instead of retrying a call that will never succeed.
+#[test]
+fn caller_mistakes_are_separated_from_failures_behind_the_call() {
+    for code in [
+        ErrorCode::DevupInvalidInput,
+        ErrorCode::DevupFigmaNodeNotFound,
+        ErrorCode::DevupFigmaUnsupportedFile,
+        ErrorCode::DevupProjectRootNotFound,
+        ErrorCode::DevupFigmaHandoffInvalid,
+        ErrorCode::DevupFigmaHandoffExpired,
+    ] {
+        assert!(
+            code.is_caller_mistake(),
+            "{code:?} is fixable by the caller"
+        );
+    }
+
+    for code in [
+        // Authentication, the network, and Figma itself: nothing the caller
+        // can repair by changing an argument.
+        ErrorCode::DevupAuthRequired,
+        ErrorCode::DevupAuthCallbackTimeout,
+        ErrorCode::DevupAuthStateMismatch,
+        ErrorCode::DevupFigmaCallbackPortInUse,
+        ErrorCode::DevupFigmaPermissionDenied,
+        ErrorCode::DevupFigmaRateLimited,
+        ErrorCode::DevupFigmaDirectUnavailable,
+        ErrorCode::DevupFigmaCatalogRejected,
+        ErrorCode::DevupFigmaResponseTooLarge,
+        ErrorCode::DevupFigmaVersionChanged,
+        // Conditions found in the design or the generated code, not in the
+        // arguments: a theme whose collections disagree is a real conflict,
+        // and reporting it as a bad parameter would send the caller looking
+        // for a typo it will not find.
+        ErrorCode::DevupSnapshotUnsupported,
+        ErrorCode::DevupCodegenFailed,
+        ErrorCode::DevupThemeConflict,
+    ] {
+        assert!(
+            !code.is_caller_mistake(),
+            "{code:?} is not fixable by changing the call"
+        );
     }
 }
 

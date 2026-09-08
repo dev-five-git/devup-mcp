@@ -147,6 +147,10 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         .collect::<Vec<_>>();
     names.sort();
 
+    // devup_figma_to_ui and devup_figma_to_json were exactly
+    // devup_figma_export with one entry in `outputs`, and every client paid
+    // for their schemas in its context on every session while having to work
+    // out which of the three to call.
     assert_eq!(
         names,
         [
@@ -154,23 +158,11 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_figma_explore",
             "devup_figma_export",
             "devup_figma_search",
-            "devup_figma_to_json",
-            "devup_figma_to_ui",
             "devup_project_context",
             "devup_stack_diff",
             "devup_ui_validate",
         ]
     );
-
-    let ui = tools
-        .iter()
-        .find(|tool| tool.name == "devup_figma_to_ui")
-        .unwrap();
-    let ui_schema = serde_json::to_value(&ui.input_schema)?;
-    assert!(ui_schema.to_string().contains("sourcePolicy"));
-    assert!(ui_schema.to_string().contains("scope"));
-    assert!(ui_schema.to_string().contains("rootLayout"));
-    assert!(!ui_schema.to_string().contains("code"));
 
     let export = tools
         .iter()
@@ -190,12 +182,28 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         "frameIds",
         "allScreens",
         "delivery",
-        "sourcePolicy",
     ] {
         assert!(export_text.contains(field), "missing export field {field}");
     }
     assert!(!export_text.contains("accessToken"));
     assert!(!export_text.contains("clientSecret"));
+    // A closed set of accepted values belongs in the schema, so a caller can
+    // read it once instead of discovering it one rejection at a time. `scope`
+    // and `rootLayout` used to arrive as bare strings.
+    for allowed in [
+        r#"["node","page","file"]"#,
+        r#"["standalone","embedded"]"#,
+        r#"["auto","inline","resource"]"#,
+    ] {
+        assert!(
+            export_text.contains(allowed),
+            "export schema does not advertise {allowed}"
+        );
+    }
+    // The one parameter that never branched: auto and direct both meant the
+    // direct connection, so it only ever gave a caller a decision to get
+    // wrong.
+    assert!(!export_text.contains("sourcePolicy"));
 
     let explore = tools
         .iter()
@@ -207,7 +215,6 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert!(explore_text.contains("limit"));
     assert!(explore_text.contains("includeTextPreview"));
     assert!(explore_text.contains("refresh"));
-    assert!(explore_text.contains("sourcePolicy"));
     assert!(!explore_text.contains("code"));
 
     client.cancel().await?;

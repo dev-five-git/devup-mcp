@@ -24,7 +24,8 @@ use super::{
     output::{OutputPolicy, OutputTransaction},
     parse_scope,
     quality::{
-        OutputQuality, acquisition_quality, assets_quality, projection_quality, theme_quality,
+        AcquisitionQuality, OutputQuality, ProjectionQuality, acquisition_quality, assets_quality,
+        projection_quality, theme_quality,
     },
     section_candidate_as_explore, section_index_from_payload,
 };
@@ -403,18 +404,51 @@ pub(super) fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
     })
 }
 
-pub(super) fn commit_single_output(
-    policy: &OutputPolicy,
-    path: Option<&str>,
-    name: &str,
-    contents: &[u8],
-) -> Result<Option<String>, DevupError> {
-    let Some(path) = path else {
-        return Ok(None);
-    };
-    let mut transaction = OutputTransaction::new();
-    transaction.stage(name, policy.resolve(path)?, contents)?;
-    Ok(transaction.commit()?.remove(name))
+/// Adds `completenessReport` only when it has something to say.
+///
+/// `quality.acquisition` already grades the capture, and on a clean one the
+/// report underneath it is six empty arrays and a row of counters that agree
+/// with the grade. Measured on one export it was 360 of the 1,911 bytes every
+/// response carried before this, none of it actionable. It is attached
+/// whenever the capture is not clean, and whenever the caller asked for
+/// diagnostics and therefore wants the detail regardless.
+/// Adds `fidelity` only when the conversion was not exact.
+///
+/// `quality.projection` is the signal a caller acts on; `fidelity` is the
+/// drill-down beneath it, at 437 measured bytes, repeated once per screen on
+/// a Section export. Tying it to that same grade keeps the two from
+/// disagreeing: an exact conversion sends the grade alone, and anything less
+/// sends the axes that explain it.
+///
+/// Deliberately not keyed on `strict_compatible`, which also fails on a
+/// coverage shortfall that changes nothing about the output - that would put
+/// the report back on almost every response while `quality` still read
+/// `exact`. `strict: true` keeps using `strict_compatible` to refuse, and
+/// returns the same report in the error.
+fn attach_fidelity(
+    response: &mut Value,
+    report: &devup_mcp_devup_ui::provenance::FidelityReport,
+    projection: ProjectionQuality,
+    include_diagnostics: bool,
+) {
+    if include_diagnostics || projection != ProjectionQuality::Exact {
+        response["fidelity"] = json!(report);
+    }
+}
+
+fn attach_completeness_report(
+    response: &mut Value,
+    quality: OutputQuality,
+    report: &devup_mcp_figma::PayloadCompletenessReport,
+    include_diagnostics: bool,
+) {
+    let clean = matches!(
+        quality.acquisition,
+        AcquisitionQuality::Complete | AcquisitionQuality::ExpectedProjection
+    );
+    if include_diagnostics || !clean {
+        response["completenessReport"] = json!(report);
+    }
 }
 
 pub(super) async fn complete_operation(
@@ -432,195 +466,6 @@ pub(super) async fn complete_operation(
     };
     let completeness_report = payload.completeness_report();
     match operation {
-        PendingOperation::ToUi {
-            component_name,
-            include_diagnostics,
-            root_layout,
-            output_path,
-            delivery,
-        } => {
-            let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
-                DevupError::new(
-                    ErrorCode::DevupFigmaNodeNotFound,
-                    "A UI conversion payload requires a node ID.",
-                    false,
-                )
-            })?;
-            let output = generate_component(
-                &payload.snapshot,
-                node_id,
-                &CodegenOptions {
-                    component_name,
-                    include_diagnostics,
-                    inline_instances: true,
-                    root_layout,
-                    // `devup_figma_to_ui` hands back one module and no files,
-                    // so there is nothing for a per-node name to keep apart.
-                    asset_names_per_node: false,
-                    ..CodegenOptions::default()
-                }
-                .with_payload_tokens(payload),
-            )?;
-            let quality = OutputQuality {
-                acquisition: acquisition_quality(&completeness_report, false),
-                projection: projection_quality(true, &output.diagnostics),
-                theme: theme_quality(false, 0, 0),
-                assets: assets_quality(false, &[], &[]),
-            };
-            let status = quality.status();
-            let diagnostics = if include_diagnostics {
-                output.diagnostics.clone()
-            } else {
-                Vec::new()
-            };
-            let projected_outputs = vec![ProjectedOutput::text(
-                "tsx",
-                "text/typescript",
-                output.tsx.as_bytes().to_vec(),
-            )];
-            let mut result = json!({
-                "status": status,
-                "quality": quality,
-                "tsx": output.tsx,
-                "imports": output.imports,
-                "usedTokens": output.used_tokens,
-                "fidelity": output.fidelity_report,
-                "diagnostics": diagnostics,
-                "outputPath": null,
-                "completeness": payload.completeness,
-                "completenessReport": &completeness_report,
-                "rootLayout": root_layout,
-                "collection": collection,
-                "cache": artifact_metadata(artifact),
-                "source": {
-                    "kind": source_kind,
-                    "fileKey": payload.target.file_key,
-                    "nodeId": node_id,
-                    "version": payload.snapshot.version
-                },
-                "snapshot": {
-                    "preservedNodeCount": payload.snapshot.nodes.len(),
-                    "fieldErrorCount": payload.snapshot.nodes.values()
-                        .map(|node| node.field_errors.len()).sum::<usize>()
-                }
-            });
-            let attachment = apply_delivery(
-                &mut result,
-                delivery,
-                artifact_store,
-                artifact,
-                projected_outputs,
-            )
-            .await?;
-            let written_path = match commit_single_output(
-                output_policy,
-                output_path.as_deref(),
-                "tsx",
-                output.tsx.as_bytes(),
-            ) {
-                Ok(path) => path,
-                Err(error) => {
-                    rollback_delivery(artifact_store, artifact, attachment).await;
-                    return Err(error);
-                }
-            };
-            commit_delivery(attachment);
-            result["outputPath"] = json!(written_path);
-            if status == "complete" {
-                // Unambiguous "this is the real, final answer" marker.
-                // Without it, an agent repeatedly seeing `needs_figma`
-                // intermediate steps has, in an observed real failure,
-                // concluded the conversion was "probably done" and moved
-                // on to hand-interpreting the raw node tree instead of
-                // waiting for this response.
-                result["deliverable"] = json!({
-                    "kind": "devup-ui-tsx",
-                    "isFinal": true,
-                    "note": "This tsx is the final deliverable. Implement from this value."
-                });
-            }
-            Ok(result)
-        }
-        PendingOperation::ToJson {
-            scope,
-            include_diagnostics,
-            output_path,
-            delivery,
-        } => {
-            let result = payload.variables.as_ref().ok_or_else(|| {
-                DevupError::new(
-                    ErrorCode::DevupSnapshotUnsupported,
-                    "There is no Figma variable/style collection result.",
-                    false,
-                )
-            })?;
-            let variables = variable_snapshot_from_result(result)?;
-            let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
-            let quality = OutputQuality {
-                acquisition: acquisition_quality(&completeness_report, false),
-                projection: projection_quality(false, &[]),
-                theme: theme_quality(
-                    true,
-                    output.conflicts.len(),
-                    output.unresolved_variables.len(),
-                ),
-                assets: assets_quality(false, &[], &[]),
-            };
-            let status = quality.status();
-            let diagnostics = if include_diagnostics {
-                output.diagnostics.clone()
-            } else {
-                Vec::new()
-            };
-            let projected_outputs = vec![ProjectedOutput::text(
-                "devupJson",
-                "application/json",
-                output.json.as_bytes().to_vec(),
-            )];
-            let mut result = json!({
-                "status": status,
-                "quality": quality,
-                "devupJson": output.json,
-                "counts": output.counts,
-                "completeness": output.completeness,
-                "completenessReport": &completeness_report,
-                "conflicts": output.conflicts,
-                "unresolvedVariables": output.unresolved_variables,
-                "diagnostics": diagnostics,
-                "outputPath": null,
-                "collection": collection,
-                "cache": artifact_metadata(artifact),
-                "source": {
-                    "kind": source_kind,
-                    "fileKey": payload.target.file_key,
-                    "nodeId": payload.target.node_id,
-                    "version": payload.snapshot.version
-                }
-            });
-            let attachment = apply_delivery(
-                &mut result,
-                delivery,
-                artifact_store,
-                artifact,
-                projected_outputs,
-            )
-            .await?;
-            let written_path = match commit_single_output(
-                output_policy,
-                output_path.as_deref(),
-                "devupJson",
-                output.json.as_bytes(),
-            ) {
-                Ok(path) => path,
-                Err(error) => {
-                    rollback_delivery(artifact_store, artifact, attachment).await;
-                    return Err(error);
-                }
-            };
-            commit_delivery(attachment);
-            result["outputPath"] = json!(written_path);
-            Ok(result)
-        }
         PendingOperation::Search {
             query,
             node_types,
@@ -643,14 +488,13 @@ pub(super) async fn complete_operation(
                 theme: theme_quality(false, 0, 0),
                 assets: assets_quality(false, &[], &[]),
             };
-            Ok(json!({
+            let mut response = json!({
                 "status": quality.status(),
                 "quality": quality,
                 "query": query,
                 "count": matches.len(),
                 "matches": matches,
                 "completeness": payload.completeness,
-                "completenessReport": &completeness_report,
                 "collection": collection,
                 "cache": artifact_metadata(artifact),
                 "source": {
@@ -658,7 +502,9 @@ pub(super) async fn complete_operation(
                     "fileKey": payload.target.file_key,
                     "version": payload.snapshot.version
                 }
-            }))
+            });
+            attach_completeness_report(&mut response, quality, &completeness_report, false);
+            Ok(response)
         }
         PendingOperation::Explore { limit, target } => {
             let result = explore_snapshot(&payload.snapshot, &target, &ExploreOptions { limit })?;
@@ -669,7 +515,7 @@ pub(super) async fn complete_operation(
                 theme: theme_quality(false, 0, 0),
                 assets: assets_quality(false, &[], &[]),
             };
-            Ok(json!({
+            let mut response = json!({
                 "status": quality.status(),
                 "quality": quality,
                 "targetKind": result.target_kind,
@@ -680,7 +526,6 @@ pub(super) async fn complete_operation(
                 "truncated": result.truncated,
                 "diagnostics": payload.snapshot.diagnostics,
                 "completeness": payload.completeness,
-                "completenessReport": &completeness_report,
                 "collection": collection,
                 "cache": artifact_metadata(artifact),
                 "source": {
@@ -689,7 +534,9 @@ pub(super) async fn complete_operation(
                     "nodeId": target.node_id,
                     "version": payload.snapshot.version
                 }
-            }))
+            });
+            attach_completeness_report(&mut response, quality, &completeness_report, false);
+            Ok(response)
         }
         PendingOperation::Export {
             outputs,
@@ -707,8 +554,10 @@ pub(super) async fn complete_operation(
             delivery,
         } => {
             let mut result = Map::new();
+            // Not restated by quality: this grades how far token resolution
+            // reached - whether external library variables were covered - where
+            // quality.theme only says whether what was resolved conflicts.
             result.insert("completeness".to_owned(), json!(payload.completeness));
-            result.insert("completenessReport".to_owned(), json!(&completeness_report));
             result.insert("collection".to_owned(), json!(collection));
             result.insert("cache".to_owned(), artifact_metadata(artifact));
             result.insert("failures".to_owned(), json!(&payload.failures));
@@ -893,18 +742,30 @@ pub(super) async fn complete_operation(
                             "sourceVersion": payload.source_version
                         }
                     });
+                    // Every key here is paid for once per screen, so on
+                    // allScreens the redundant ones multiply. `imports` and
+                    // `usedTokens` both restate what the tsx beside them
+                    // already spells out - its import line and its `$token`s.
                     let mut frame = json!({
                         "nodeId": candidate.node.node_id,
                         "name": candidate.node.name,
                         "canonicalUrl": candidate.canonical_url,
                         "status": frame_quality.status(),
                         "quality": frame_quality,
-                        "tsx": output.tsx,
-                        "imports": output.imports,
-                        "usedTokens": output.used_tokens,
-                        "fidelity": output.fidelity_report,
-                        "completenessReport": &completeness_report
+                        "tsx": output.tsx
                     });
+                    attach_fidelity(
+                        &mut frame,
+                        &output.fidelity_report,
+                        frame_quality.projection,
+                        include_diagnostics,
+                    );
+                    attach_completeness_report(
+                        &mut frame,
+                        frame_quality,
+                        &completeness_report,
+                        include_diagnostics,
+                    );
                     if outputs.iter().any(|output| output == "sourceMap") {
                         frame["sourceMap"] = source_map;
                     }
@@ -965,11 +826,6 @@ pub(super) async fn complete_operation(
                     pending_text_outputs.insert("responsiveTsx".to_owned(), module.clone());
                 }
                 result.insert("responsiveTsx".to_owned(), json!(module));
-                result.insert("responsiveImports".to_owned(), json!(merged.primitives()));
-                result.insert(
-                    "responsiveComponents".to_owned(),
-                    json!(merged.referenced_components()),
-                );
                 result.insert("responsiveSlots".to_owned(), json!(merged.slots));
                 if !merged.unrepresented.is_empty() {
                     result.insert(
@@ -1016,9 +872,6 @@ pub(super) async fn complete_operation(
                     pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
                 }
                 result.insert("tsx".to_owned(), json!(output.tsx));
-                result.insert("imports".to_owned(), json!(output.imports));
-                result.insert("usedTokens".to_owned(), json!(output.used_tokens));
-                result.insert("fidelity".to_owned(), json!(output.fidelity_report));
                 if include_diagnostics {
                     result.insert("diagnostics".to_owned(), json!(&output.diagnostics));
                 }
@@ -1049,7 +902,6 @@ pub(super) async fn complete_operation(
                     pending_text_outputs.insert("componentTsx".to_owned(), output.tsx.clone());
                 }
                 result.insert("componentTsx".to_owned(), json!(output.tsx));
-                result.insert("componentImports".to_owned(), json!(output.imports));
             }
 
             if outputs.iter().any(|output| output == "devupJson") {
@@ -1305,26 +1157,39 @@ pub(super) async fn complete_operation(
                     }),
                 ));
             }
-            let final_status = quality.status();
-            result.insert("status".to_owned(), json!(final_status));
+            result.insert("status".to_owned(), json!(quality.status()));
             result.insert("quality".to_owned(), json!(quality));
-            let tsx_produced =
-                section_tsx_projected || outputs.iter().any(|output| output == "tsx");
-            if final_status == "complete" && tsx_produced {
-                // Same unambiguous final-answer marker as devup_figma_to_ui
-                // — see that branch's comment for why this exists. Checked
-                // here (before `apply_delivery` may move `tsx`/each frame's
-                // `tsx` into `resources`) so the marker reflects whether a
-                // devup-ui TSX was actually produced, independent of how
-                // large output routed it for delivery.
-                result.insert(
-                    "deliverable".to_owned(),
-                    json!({
-                        "kind": "devup-ui-tsx",
-                        "isFinal": true,
-                        "note": "This tsx is the final deliverable. Implement from this value."
-                    }),
+            // `deliverable` used to be attached here to say "this tsx is the
+            // final answer". It existed because an agent watching a run of
+            // `needs_figma` handoff steps had concluded the conversion was
+            // probably done and gone off to read the node tree by hand. That
+            // handoff no longer exists - there are no intermediate steps left
+            // to mistake for an answer - so the marker was restating `status`
+            // in prose on every single response.
+            //
+            // Only the whole-node tsx is missing its fidelity report at this
+            // point; each Section frame already carries its own.
+            if !section_tsx_projected && let Some(report) = fidelity_reports.first() {
+                let mut carrier = Value::Object(Map::new());
+                attach_fidelity(
+                    &mut carrier,
+                    report,
+                    quality.projection,
+                    include_diagnostics,
                 );
+                if let Some(fidelity) = carrier.get("fidelity") {
+                    result.insert("fidelity".to_owned(), fidelity.clone());
+                }
+            }
+            let mut carrier = Value::Object(Map::new());
+            attach_completeness_report(
+                &mut carrier,
+                quality,
+                &completeness_report,
+                include_diagnostics,
+            );
+            if let Some(report) = carrier.get("completenessReport") {
+                result.insert("completenessReport".to_owned(), report.clone());
             }
             // The code and the bytes have to name an asset alike. Renaming
             // here, once both are assembled, keeps the two in step while the

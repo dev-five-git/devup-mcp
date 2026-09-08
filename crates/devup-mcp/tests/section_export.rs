@@ -80,11 +80,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
     let client = ().serve(client_transport).await?;
     let url = "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1";
 
-    let selection = call(
-        &client,
-        json!({"url": url, "outputs": ["tsx"], "sourcePolicy": "direct"}),
-    )
-    .await?;
+    let selection = call(&client, json!({"url": url, "outputs": ["tsx"]})).await?;
     assert_eq!(selection["status"], "selection_required");
     assert_eq!(selection["targetKind"], "section");
     assert!(selection.get("tsx").is_none());
@@ -244,8 +240,7 @@ async fn a_thrown_section_error_on_the_direct_path_returns_selectable_screens() 
         &client,
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
-            "outputs": ["tsx"],
-            "sourcePolicy": "direct"
+            "outputs": ["tsx"]
         }),
     )
     .await?;
