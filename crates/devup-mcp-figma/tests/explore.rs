@@ -297,8 +297,13 @@ fn heading_group_keeps_duplicate_states_and_stops_at_the_next_heading() {
     assert!(result.candidates[0].canonical_url.ends_with("node-id=1-2"));
 }
 
+/// The two truncations are reported apart, because they call for opposite
+/// things: a list cut by `limit` is complete in the design and needs a bigger
+/// `limit`, while a cut projection is missing screens that no `limit` brings
+/// back. Reported as one flag, a caller who saw `true` could not tell which
+/// lever to pull.
 #[test]
-fn candidate_order_is_stable_and_truncation_combines_projection_and_limit() {
+fn candidate_order_is_stable_and_the_two_truncations_are_reported_apart() {
     let normal = explore_snapshot(
         &projection(false, false),
         &target("1:1"),
@@ -313,8 +318,27 @@ fn candidate_order_is_stable_and_truncation_combines_projection_and_limit() {
     .unwrap();
 
     assert_eq!(normal.candidates, reversed.candidates);
-    assert!(normal.truncated);
+
+    // The whole projection arrived; only `limit` shortened the answer.
+    assert!(!normal.truncated);
+    assert!(normal.candidates_truncated);
+    assert_eq!(normal.candidates_found, 2);
+
+    // Both cuts at once.
     assert!(reversed.truncated);
+    assert!(reversed.candidates_truncated);
+    assert_eq!(reversed.candidates_found, 2);
+
+    // A limit that fits leaves nothing cut at all.
+    let whole = explore_snapshot(
+        &projection(false, false),
+        &target("1:1"),
+        &ExploreOptions { limit: 50 },
+    )
+    .unwrap();
+    assert!(!whole.truncated);
+    assert!(!whole.candidates_truncated);
+    assert_eq!(whole.candidates_found, whole.candidates.len());
 }
 
 #[test]

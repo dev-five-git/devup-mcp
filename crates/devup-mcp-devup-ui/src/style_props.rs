@@ -848,21 +848,60 @@ pub const DEVUP_STYLE_PROPS: &[&str] = &[
     "zoom",
 ];
 
+/// Props whose value may be a bare `<color>`, which is what makes a hex
+/// literal there worth reporting as `hardcoded-color`.
+///
+/// Membership decides whether the rule runs at all, so an omission here is
+/// a silent false negative rather than a missed suggestion. `bg` was the
+/// expensive one: it is devup-ui's shorthand for `background` and the
+/// Figma generator writes it for every solid fill, so `bg="#752E2E"` -
+/// the single most common hardcoded color this repository produces - was
+/// never examined by anything. That absence was then read as evidence
+/// that the rule only fires when a matching token exists, which it does
+/// not: `hardcoded-color` reports the literal either way and merely
+/// attaches nearby tokens as a suggestion.
+///
+/// Deliberately excluded, and why:
+/// - `colorScheme`, `colorInterpolationFilters`, `forcedColorAdjust`,
+///   `printColorAdjust` take keywords, never a color.
+/// - `MozBorderTopColors` and its siblings take a *list* of colors for
+///   nested borders; a single hex is not the shape they are written in.
+/// - `msScrollbar*Color` are IE-era and unreachable from devup-ui output.
+/// - `caret` admits an optional color, but its color half is spelled
+///   `caretColor` - which is here - and no generator emits the shorthand.
+///
+/// A shorthand earns a place here by being one the generated code
+/// actually writes, which is the test `bg` passes and `caret` does not.
 pub const DEVUP_COLOR_LIKE_PROPS: &[&str] = &[
+    "WebkitTapHighlightColor",
+    "WebkitTextFillColor",
+    "WebkitTextStrokeColor",
     "accentColor",
     "backgroundColor",
+    "bg",
     "bgColor",
+    "borderBlockColor",
+    "borderBlockEndColor",
+    "borderBlockStartColor",
     "borderBottomColor",
     "borderColor",
+    "borderInlineColor",
+    "borderInlineEndColor",
+    "borderInlineStartColor",
     "borderLeftColor",
     "borderRightColor",
     "borderTopColor",
     "caretColor",
     "color",
+    "columnRuleColor",
     "fill",
+    "floodColor",
+    "lightingColor",
     "outlineColor",
     "scrollbarColor",
+    "stopColor",
     "stroke",
+    "strokeColor",
     "textDecorationColor",
     "textEmphasisColor",
 ];
@@ -972,13 +1011,77 @@ mod tests {
         }
     }
 
+    /// A shorthand and the `*Color` spelling of the same property are the
+    /// same property, and a caller picks whichever reads better. Covering
+    /// one and not the other makes the rule depend on spelling: `bg` and
+    /// `stroke` were unchecked while `bgColor` and `strokeColor`'s
+    /// counterpart `stroke` were - so the same screen passed or failed on
+    /// how its author had typed it.
+    #[test]
+    fn a_color_prop_and_its_shorthand_are_covered_together() {
+        for (shorthand, long_form) in [
+            ("bg", "backgroundColor"),
+            ("bgColor", "backgroundColor"),
+            ("stroke", "strokeColor"),
+        ] {
+            assert!(
+                is_color_like_prop(shorthand),
+                "{shorthand} is color-like but is not covered"
+            );
+            assert!(
+                is_color_like_prop(long_form),
+                "{long_form} is color-like but is not covered"
+            );
+        }
+    }
+
+    /// The physical border colors were covered and their logical
+    /// equivalents were not, which is the same property written the way
+    /// CSS writes it for a right-to-left document.
+    #[test]
+    fn logical_border_colors_are_covered_like_the_physical_ones() {
+        for prop in [
+            "borderBlockColor",
+            "borderBlockStartColor",
+            "borderBlockEndColor",
+            "borderInlineColor",
+            "borderInlineStartColor",
+            "borderInlineEndColor",
+        ] {
+            assert!(is_color_like_prop(prop), "{prop} is not covered");
+        }
+    }
+
+    /// Having "color" in the name is not what makes a prop color-valued.
+    /// These four take keywords, and reporting a hex in them would be
+    /// reporting something nobody can write.
+    #[test]
+    fn keyword_valued_props_named_color_are_not_color_like() {
+        for prop in [
+            "colorScheme",
+            "colorInterpolationFilters",
+            "forcedColorAdjust",
+            "printColorAdjust",
+        ] {
+            assert!(
+                is_known_style_prop(prop),
+                "{prop} should still be a known style prop"
+            );
+            assert!(!is_color_like_prop(prop), "{prop} is not color-valued");
+        }
+    }
+
     #[test]
     fn recognizes_known_and_rejects_unknown_props() {
         assert!(is_known_style_prop("bg"));
         assert!(is_known_style_prop("borderRadius"));
         assert!(!is_known_style_prop("bgg"));
         assert!(is_color_like_prop("bgColor"));
-        assert!(!is_color_like_prop("bg"));
+        // `bg` is devup-ui's shorthand for `background` and what the Figma
+        // generator writes for a solid fill. Excluding it meant the hardcoded
+        // color the generator emits most often was the one color nothing
+        // looked at.
+        assert!(is_color_like_prop("bg"));
         assert!(is_length_like_prop("w"));
         assert!(is_known_non_style_prop("onClick"));
         assert!(is_known_non_style_prop("data-testid"));
