@@ -125,6 +125,10 @@ pub struct FidelityReport {
     pub assets: FidelityCoverage,
     pub layout: FidelityCoverage,
     pub impacts: FidelityImpactCounts,
+    /// Declared children absent from both the snapshot and an asset projection.
+    /// Unlike an intentionally flattened SVG operand, these are visual losses.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uncovered_node_ids: Vec<String>,
     /// The `nodeId#property` layout pairs the generated TSX does not account
     /// for, bounded by [`MAX_REPORTED_UNCOVERED`]. Reporting only a ratio left
     /// a shortfall untriageable: nothing said whether the layout was wrong or
@@ -395,6 +399,18 @@ pub fn validate_fidelity(
         .map(|node| node.id.clone())
         .collect::<BTreeSet<_>>();
     let parents = source_parents(snapshot);
+    // Coverage is otherwise measured only over nodes that arrived. Count
+    // declared holes too, unless an actual asset projection represents them.
+    // Snapshot completeness still reports every missing operand in either case.
+    let unrepresented_children = semantic_nodes
+        .iter()
+        .filter(|node_id| {
+            !asset_nodes.contains(**node_id) && !has_asset_ancestor(node_id, &parents, &asset_nodes)
+        })
+        .filter_map(|node_id| snapshot.nodes.get(*node_id))
+        .flat_map(|node| node.typed_view().child_ids().collect::<Vec<_>>())
+        .filter(|child_id| !snapshot.nodes.contains_key(*child_id))
+        .collect::<BTreeSet<_>>();
     let layout = semantic_nodes
         .iter()
         .filter(|node_id| !has_asset_ancestor(node_id, &parents, &asset_nodes))
@@ -443,9 +459,18 @@ pub fn validate_fidelity(
             FidelityImpact::Failed => impacts.failed += 1,
         }
     }
+    impacts.lossy += unrepresented_children.len();
     Ok(FidelityReport {
         syntax_valid: true,
-        nodes: FidelityCoverage::new(expected.len(), observed.len()),
+        nodes: FidelityCoverage::new(
+            expected.len() + unrepresented_children.len(),
+            observed.len(),
+        ),
+        uncovered_node_ids: unrepresented_children
+            .into_iter()
+            .take(MAX_REPORTED_UNCOVERED)
+            .map(str::to_owned)
+            .collect(),
         text: FidelityCoverage::new(text_segments.len(), covered_text),
         variables: FidelityCoverage::new(variables.len(), covered_variables),
         typography: FidelityCoverage::new(typography.len(), covered_typography),

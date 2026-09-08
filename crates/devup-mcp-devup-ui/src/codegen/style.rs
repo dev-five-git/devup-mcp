@@ -40,7 +40,10 @@ fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Optio
         return None;
     }
 
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+    if matches!(
+        view.node_type(),
+        "VECTOR" | "STAR" | "POLYGON" | "BOOLEAN_OPERATION"
+    ) {
         return Some(svg_asset_kind(snapshot, node, nested));
     }
 
@@ -323,7 +326,11 @@ fn same_color(
     {
         return SameColor::Null;
     }
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+    // Boolean operands define geometry; the result's own paint colors it.
+    if matches!(
+        view.node_type(),
+        "VECTOR" | "STAR" | "POLYGON" | "BOOLEAN_OPERATION"
+    ) {
         return own();
     }
     if view.node_type() == "ELLIPSE"
