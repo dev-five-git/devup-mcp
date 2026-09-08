@@ -75,9 +75,21 @@ pub(super) fn validate_artifact_projection(
     let kind_compatible = match capabilities.kind {
         ArtifactKind::Design => true,
         ArtifactKind::ThemeOnly => theme_requested && !design_output_requested,
-        ArtifactKind::SectionIndex => outputs.iter().any(|output| output == "tsx"),
+        // An index can return a selection for any code projection. Actual
+        // generation still requires collected frame snapshots.
+        ArtifactKind::SectionIndex => outputs
+            .iter()
+            .any(|output| matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")),
         ArtifactKind::Search | ArtifactKind::Explore => false,
     };
+    if capabilities.kind == ArtifactKind::SectionIndex && !kind_compatible {
+        return Err(DevupError::with_details(
+            ErrorCode::DevupInvalidInput,
+            "These outputs need collected screen data; this artifact is only a Section candidate index. Pass frameIds or allScreens:true to collect screens, then request the outputs again.",
+            false,
+            json!({"outputs":outputs,"artifactId":artifact.artifact_id,"capabilities":capabilities}),
+        ));
+    }
     let collection_compatible = collection_scope_rank(requested_scope)
         <= collection_scope_rank(capabilities.collection_scope);
     let resources_compatible = !theme_requested
