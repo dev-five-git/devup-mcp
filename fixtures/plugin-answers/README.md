@@ -304,16 +304,45 @@ too:
   visible in the code the plugin writes — it names the files and stops — so
   only fetching them showed it.
 
-Still open, in the order they cost pixels:
+What it settled after the answers arrived, all of them things the plugin
+does the same way:
 
-- **The mobile is at 11.56%**, from many small height errors that accumulate
-  to about 20px down the page rather than from any single one.
-- **The hero picture's placement.** This repo sizes a positioned asset by the
-  box its export frames where the answer writes the node's own; which is
-  right has not been settled against the render.
-- **Two icons the code still points at** are the clipped-away ones above. The
-  manifest now says up front that they cannot be exported, but the code goes
-  on naming them, so the render draws a mask with no file behind it.
+- **A shadow bound to a variable is its token.** The GNB and the benchmark
+  card are `$shadow`; this repo wrote the resolved `#87878740`, a colour no
+  theme could reach. Fills and strokes already read the binding; effects
+  now do too.
+- **A group's shapes are placed in the group's own space.** The join-us
+  panel's ten circles were not drawn at all: the group is pinned, so its
+  children were read as in flow and stacked from its corner; once placed,
+  their `x` and `y` turned out to be in the card's space, not the group's.
+  The answer folds the whole group into one SVG and never meets either.
+- **A picture pinned first goes behind the content.** Figma paints in
+  order; CSS paints a positioned element over every in-flow sibling. The
+  hero sat on its headline and the badges on their buttons, in the answer
+  as here; `zIndex="-1"` inside a context the parent opens with `zIndex="0"`
+  puts them where Figma has them. Only for a child with nothing in flow
+  before it - the notice header, pinned second, vanished under its banner
+  when sent behind.
+- **An export already carries the node's opacity.** Figma writes it into
+  an SVG as `<g opacity>` and into a PNG's alpha, so writing it on the
+  element as well fades the picture twice: a decoration at 0.2 came out at
+  0.04. The answer writes it twice too.
+- **An inside stroke comes out of the padding.** Figma paints it over the
+  padding, CSS adds a border around it, so every stroked card was 2px too
+  tall and put everything below it down. With the stroke subtracted all
+  three pages come out at exactly the height Figma drew.
+- **The hero's size is the export's.** The answer writes the node's own
+  box - `w="1232px"` for a file that is 1071px wide - and so stretches it.
+  The exported PNG is the render bounds, and is placed at them.
+
+Still open:
+
+- **The mobile's Discord line.** Figma draws it with the `Desktop/textL`
+  style on the 360 frame - 18px, three lines - where every other mobile
+  text uses `Mobile/textL`, and both collapse to the one `textL` token,
+  which is 16px at that width: two lines, 18px short. The answer writes the
+  same token. A design slip; reproducing it would mean a hardcoded size
+  beside a token, so it is left, and it is most of the mobile's 11.4%.
 
 ## What `popup/` settles about the array
 
