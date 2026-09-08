@@ -741,23 +741,26 @@ pub(super) async fn complete_operation(
                 ));
             }
 
+            let mut candidates_truncated = false;
             let section_candidates = if target_kind == TargetKind::Section
                 && outputs.iter().any(|output| {
                     matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")
                 }) {
                 Some(if let Some(index) = &payload_section_index {
+                    candidates_truncated = index.truncated;
                     index
                         .candidates
                         .iter()
                         .map(section_candidate_as_explore)
                         .collect()
                 } else {
-                    explore_snapshot(
+                    let explored = explore_snapshot(
                         &payload.snapshot,
                         &payload.target,
                         &ExploreOptions { limit: 100 },
-                    )?
-                    .candidates
+                    )?;
+                    candidates_truncated = explored.candidates_truncated;
+                    explored.candidates
                 })
             } else {
                 None
@@ -766,13 +769,9 @@ pub(super) async fn complete_operation(
                 && frame_ids.is_empty()
                 && !all_screens
             {
-                // Whether the list is short because the Section is, or because
-                // the walk stopped. Guessing it from a round count of 100 says
-                // "partial" for a Section that happens to hold exactly that
-                // many, and the index already knows the answer.
-                let truncated = payload_section_index
-                    .as_ref()
-                    .map_or(candidates.len() == 100, |index| index.truncated);
+                // Both candidate producers report actual list truncation.
+                // Reaching the limit alone does not mean candidates were omitted.
+                let truncated = candidates_truncated;
                 let quality = OutputQuality {
                     acquisition: acquisition_quality(&completeness_report, false),
                     projection: projection_quality(false, &[]),
@@ -1821,6 +1820,60 @@ mod w1_regressions {
             asset_output_paths: BTreeMap::new(),
             delivery: DeliveryMode::Inline,
         }
+    }
+
+    fn section_without_index(count: usize, projection_truncated: bool) -> CollectedPayload {
+        let mut data = section(count);
+        data.metadata = json!({});
+        let mut root = data.snapshot.nodes["1:1"].clone();
+        root.id = "0:1".into();
+        root.node_type = "SECTION".into();
+        root.fields = serde_json::from_value(json!({
+            "name":"Section", "visible":true, "x":0, "y":0,
+            "width":2000, "height":2000,
+            "childrenIds":data.snapshot.roots,
+            "projectionTruncated":projection_truncated
+        }))
+        .unwrap();
+        for node in data.snapshot.nodes.values_mut() {
+            node.fields.insert("parentId".into(), json!("0:1"));
+        }
+        data.snapshot.nodes.insert(root.id.clone(), root);
+        data.snapshot.roots = vec!["0:1".into()];
+        data
+    }
+
+    #[tokio::test]
+    async fn w1_selection_exactly_100_candidates_is_complete() {
+        let result = project(section_without_index(100, false), operation(&["tsx"]))
+            .await
+            .unwrap();
+        assert_eq!(result["status"], "selection_required");
+        assert_eq!(result["selection"]["count"], 100);
+        assert_eq!(result["selection"]["truncated"], false);
+        assert_eq!(result["selection"]["status"], "complete");
+    }
+
+    #[tokio::test]
+    async fn w1_selection_over_100_candidates_is_partial() {
+        let result = project(section_without_index(101, false), operation(&["tsx"]))
+            .await
+            .unwrap();
+        assert_eq!(result["selection"]["count"], 100);
+        assert_eq!(result["selection"]["truncated"], true);
+        assert_eq!(result["selection"]["status"], "partial");
+    }
+
+    #[tokio::test]
+    async fn w1_selection_separates_projection_and_candidate_truncation() {
+        let data = section_without_index(100, true);
+        let explored =
+            explore_snapshot(&data.snapshot, &data.target, &ExploreOptions { limit: 100 }).unwrap();
+        assert!(explored.truncated);
+        assert!(!explored.candidates_truncated);
+        let result = project(data, operation(&["tsx"])).await.unwrap();
+        assert_eq!(result["selection"]["truncated"], false);
+        assert_eq!(result["selection"]["status"], "complete");
     }
 
     async fn project(
