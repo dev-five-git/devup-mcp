@@ -18,6 +18,18 @@ devup-mcp는 Figma Remote MCP에 직접 붙습니다 — OAuth discovery, Dynami
 
 ## 빌드와 설치
 
+### MCP Bundle (`.mcpb`) — 툴체인 없이 한 번에 설치
+
+릴리스마다 `devup-mcp-<version>.mcpb` 파일 하나가 함께 올라갑니다. 이 하나에 Linux x86_64, Windows x86_64, macOS universal 바이너리가 **모두** 들어 있고, `manifest.json`의 `server.mcp_config.platform_overrides`가 실행 시점에 호스트의 운영체제에 맞는 바이너리를 고릅니다. 운영체제별로 어떤 파일을 받아야 하는지 고를 필요가 없고, Rust 툴체인도 Node 런타임도 `cargo install`도 필요하지 않습니다.
+
+1. [Releases](https://github.com/dev-five-git/devup-mcp/releases)에서 `devup-mcp-<version>.mcpb`를 받습니다.
+2. `.mcpb`를 지원하는 호스트(예: Claude for macOS/Windows)에서 파일을 엽니다.
+3. 설치 대화상자의 **Workspace directory**에 코드를 생성할 프로젝트 디렉터리를 지정합니다. 이 디렉터리가 devup-mcp가 파일을 쓸 수 있는 **유일한** 위치이며, `..`·다른 drive·symlink로 그 밖을 가리키는 경로는 기록 전에 거절됩니다. 여러 root가 필요하면 아래 stdio 설정으로 `--allow-write-root`를 반복해 등록하세요.
+
+`.mcpb`는 그냥 zip이므로 `unzip -l`로 내용을 확인할 수 있고, 안의 바이너리는 같은 릴리스에 따로 올라가는 것과 같은 파일입니다. CI는 pack 직후 아카이브를 다시 읽어 Unix 바이너리에 실행 비트가 남아 있는지 확인하고, 없으면 릴리스를 게시하지 않습니다. 그럼에도 macOS에서 설치 직후 서버가 `EACCES`로 실패한다면 호스트가 압축을 풀면서 권한을 지운 경우이며([mcpb#294](https://github.com/modelcontextprotocol/mcpb/issues/294)), 그때는 같은 릴리스의 `devup-mcp-macos-universal` 바이너리를 직접 받아 아래 stdio 설정으로 등록하면 됩니다.
+
+### 소스에서 빌드
+
 Rust 1.98 이상이 필요합니다. compile-in Figma 탐색 행동 fixture를 직접 실행하려면 CI와 동일한 Node.js 24가 필요하며 제품 binary에는 Node가 필요하지 않습니다.
 
 ```bash

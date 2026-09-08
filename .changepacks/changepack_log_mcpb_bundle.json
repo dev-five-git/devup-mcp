@@ -1,0 +1,10 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch",
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp-visual/Cargo.toml": "Patch"
+  },
+  "note": "Ship one MCP Bundle per release so devup-mcp installs in a click on any operating system. The previous release attached six loose binaries, which left a user to work out which of them matches their machine and then wire stdio up by hand; there was no .mcpb at all. A new bundle job now collects the same three server binaries the build matrix already produces onto one runner and packs them into a single devup-mcp-<version>.mcpb, whose manifest selects the matching command per host through server.mcp_config.platform_overrides keyed by darwin, win32 and linux, and whose one required user_config value is the workspace directory that becomes the server's only writable root. finalize now waits on the bundle as well as the binaries, so a published release can never be missing it. Three checks hold the bundle to what it claims: the manifest is schema-validated on every pull request rather than first on a release run, when the tag and the draft would already exist; every command the manifest is able to select is confirmed to exist inside the staged archive, because mcpb validate only ever inspects server.entry_point and would pass a bundle broken on exactly one operating system; and the packed archive is read back to confirm the Unix binaries kept their executable bit, which is why the job must run on Linux - mcpb writes permission bits into the zip only from a Unix host, and it stores them without the regular-file type bits, so zipinfo renders the type column as ? and a naive check on a leading - would have rejected every correctly packed archive instead. The version is read from [workspace.package] by one script shared with the release path so the manifest, the archive filename and the tag cannot drift apart. No crate behaviour changes; the version moves because the released artifacts do.",
+  "date": "2026-09-08T13:10:00+09:00"
+}
