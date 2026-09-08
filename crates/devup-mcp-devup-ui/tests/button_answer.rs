@@ -176,9 +176,14 @@ const DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
         "px={{lg: {primary: \"24px\", disabled: \"24px\", white: \"24px\", ghost: \"10px\", error: \"24px\"}[varient], md: {primary: \"16px\", disabled: \"16px\", white: \"16px\", ghost: \"12px\", error: \"16px\"}[varient], sm: {primary: \"12px\", disabled: \"12px\", white: \"12px\", ghost: \"10px\", error: \"12px\"}[varient], tag: \"10px\"}[size]}",
         "keys in the set's option order",
     ),
+    // `white` is the one variant with a 1px inside stroke. Figma paints it
+    // over the padding and CSS adds it around, so `white` is padded a pixel
+    // less to put its label where Figma has it - which also makes `tag` a
+    // map. Rendered against Figma's own PNGs, the landing page's stroked
+    // cards only sit right once this is done.
     (
-        "px={{lg: {primary: \"24px\", white: \"24px\", ghost: \"10px\", disabled: \"24px\", error: \"24px\"}[varient], md: {primary: \"16px\", white: \"16px\", ghost: \"12px\", disabled: \"16px\", error: \"16px\"}[varient], sm: {primary: \"12px\", white: \"12px\", ghost: \"10px\", disabled: \"12px\", error: \"12px\"}[varient], tag: \"10px\"}[size]}",
-        "keys in the set's option order",
+        "px={{lg: {primary: \"24px\", white: \"23px\", ghost: \"10px\", disabled: \"24px\", error: \"24px\"}[varient], md: {primary: \"16px\", white: \"15px\", ghost: \"12px\", disabled: \"16px\", error: \"16px\"}[varient], sm: {primary: \"12px\", white: \"11px\", ghost: \"10px\", disabled: \"12px\", error: \"12px\"}[varient], tag: {primary: \"10px\", white: \"9px\", disabled: \"10px\", error: \"10px\"}[varient]}[size]}",
+        "keys in the set's option order; the stroked variant is padded a pixel less",
     ),
     (
         "color={{primary: \"#FFF\", disabled: \"$gray400\", white: \"$text\", ghost: \"$text\", error: \"#FFF\"}[varient]}",

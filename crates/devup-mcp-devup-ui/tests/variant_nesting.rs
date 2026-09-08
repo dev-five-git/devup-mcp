@@ -36,6 +36,11 @@ fn button() -> Option<String> {
 /// is impossible and writing the default's literal loses every other
 /// combination, so it is a map inside a map — and `size` is on the outside
 /// because that nests less deeply than the transpose would.
+///
+/// `white` is the one variant drawn with a 1px stroke inside, and Figma
+/// paints an inside stroke over the padding where CSS adds a border around
+/// it, so `white` is padded a pixel less to put its label where Figma has
+/// it. That is what makes `tag` a map as well.
 #[test]
 fn a_prop_two_dimensions_decide_is_written_as_a_map_inside_a_map() {
     let Some(tsx) = button() else {
@@ -45,26 +50,31 @@ fn a_prop_two_dimensions_decide_is_written_as_a_map_inside_a_map() {
     let expected = r#"px={{
         lg: {
           primary: "24px",
-          white: "24px",
+          white: "23px",
           ghost: "10px",
           disabled: "24px",
           error: "24px"
         }[varient],
         md: {
           primary: "16px",
-          white: "16px",
+          white: "15px",
           ghost: "12px",
           disabled: "16px",
           error: "16px"
         }[varient],
         sm: {
           primary: "12px",
-          white: "12px",
+          white: "11px",
           ghost: "10px",
           disabled: "12px",
           error: "12px"
         }[varient],
-        tag: "10px"
+        tag: {
+          primary: "10px",
+          white: "9px",
+          disabled: "10px",
+          error: "10px"
+        }[varient]
       }[size]}"#;
     assert!(tsx.contains(expected), "{tsx}");
 }

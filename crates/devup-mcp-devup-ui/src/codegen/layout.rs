@@ -1175,14 +1175,46 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
             })
             .or_else(|| view.number(name))
     };
-    let [Some(top), Some(right), Some(bottom), Some(left)] = [
+    let [
+        Some(mut top),
+        Some(mut right),
+        Some(mut bottom),
+        Some(mut left),
+    ] = [
         get("paddingTop"),
         get("paddingRight"),
         get("paddingBottom"),
         get("paddingLeft"),
-    ] else {
+    ]
+    else {
         return;
     };
+    // An inside stroke is painted over the padding: a card 20px in from its
+    // edge with a 1px stroke inside is still 20px in, stroke and all, and
+    // its height is the content plus 40. CSS's border is added around the
+    // padding instead, so a hugging card came out 2px taller - the landing
+    // page's four feature cards put the join-us panel 8px down - and on a
+    // fixed axis the content sat 1px further in. Taking the stroke out of
+    // the padding puts the content where Figma has it on every axis: it
+    // starts `p` in and, hugging, the box is content plus `2p`.
+    if view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
+        && view.node_type() != "LINE"
+        && let Some(weight) = view.number("strokeWeight").filter(|weight| *weight > 0.0)
+        && view
+            .value("strokes")
+            .and_then(Value::as_array)
+            .is_some_and(|strokes| {
+                strokes.iter().any(|paint| {
+                    paint.get("visible").and_then(Value::as_bool) != Some(false)
+                        && paint.get("type").and_then(Value::as_str) == Some("SOLID")
+                })
+            })
+    {
+        top = (top - weight).max(0.0);
+        bottom = (bottom - weight).max(0.0);
+        left = (left - weight).max(0.0);
+        right = (right - weight).max(0.0);
+    }
     if top == 0.0 && right == 0.0 && bottom == 0.0 && left == 0.0 {
         return;
     }

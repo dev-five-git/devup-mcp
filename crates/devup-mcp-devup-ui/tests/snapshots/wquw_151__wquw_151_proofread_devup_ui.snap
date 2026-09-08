@@ -40,7 +40,7 @@ export function AStoryFProofread() {
             </Text>
             <Image aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
           </Center>
-          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="12px">
+          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="11px">
             <Flex alignItems="center" gap="12px">
               <Text color="$text" typography="bodyXs" wordBreak="keep-all">
                 공개 설정 :
@@ -69,8 +69,8 @@ export function AStoryFProofread() {
             flexDir="column"
             gap="8px"
             h="185px"
-            px="16px"
-            py="24px"
+            px="14px"
+            py="22px"
           >
             <Box
               aspectRatio="1"
@@ -286,8 +286,8 @@ export function AStoryFProofread() {
           bg="$innerBg"
           border="solid 1px $borderBold"
           borderRadius="10px"
-          px="20px"
-          py="10px"
+          px="19px"
+          py="9px"
         >
           <Text color="$text" typography="bodySemibold" wordBreak="keep-all">
             편집 설정
