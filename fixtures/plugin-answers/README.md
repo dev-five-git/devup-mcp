@@ -270,11 +270,10 @@ No test compares these yet. The screens are rendered against Figma's own
 PNGs by `harness/render` instead, which is what has been reading them, and
 what found everything below.
 
-**Only `pure-pc.tsx` is the answer for the frame beside it.** The other five
-were captured from an earlier state of the file - `pure-mobile.tsx` has no
-join-us section at all, where the frame does - and are still to be replaced.
-Until they are, a difference against them is a question and not a verdict,
-and the render is the judge.
+All six are the plugin's answers for these three frames, pasted by the
+author from the plugin's tabs. A difference against them is still a question
+and not a verdict - the plugin's author does not vouch for every line, as the
+top of this file says - and the render is the judge where the two disagree.
 
 What the page has settled so far, all of them things the plugin gets wrong
 too:
