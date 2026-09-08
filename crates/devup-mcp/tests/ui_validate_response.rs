@@ -1,0 +1,260 @@
+//! What `devup_ui_validate`'s response says about itself.
+//!
+//! The MCP keys are assembled by hand in the tool handler rather than
+//! serialized from `UiValidation`, so what that struct's documentation
+//! explains reaches nobody unless the response answers it too. Two
+//! readings went wrong in practice: `ok: true` beside ten violations read
+//! as a contradiction, and `checkedTokens: 4` beside
+//! `availableTokenCount: 81` read as "4 of 81 checked". These lock the
+//! response to the meaning `UiValidation` documents.
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use devup_mcp::server::{DevupAuth, DevupServer, Services};
+use devup_mcp_figma::{
+    AuthStatus, DevupError, ErrorCode, FigmaUpstream, ReadToolCall, UpstreamResult,
+};
+use rmcp::{ServiceExt, model::CallToolRequestParams};
+use serde_json::{Map, Value, json};
+
+struct Auth;
+
+#[async_trait]
+impl DevupAuth for Auth {
+    async fn status(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Connected)
+    }
+    async fn login(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Connected)
+    }
+    async fn logout(&self) -> Result<AuthStatus, DevupError> {
+        Ok(AuthStatus::Disconnected)
+    }
+}
+
+struct NoFigma;
+
+#[async_trait]
+impl FigmaUpstream for NoFigma {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec![])
+    }
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        Err(DevupError::new(
+            ErrorCode::DevupSnapshotUnsupported,
+            "this tool does not reach Figma",
+            false,
+        ))
+    }
+}
+
+fn fixture_project_root() -> String {
+    format!(
+        "{}/tests/fixtures/ground-truth-project",
+        env!("CARGO_MANIFEST_DIR")
+    )
+}
+
+async fn validate(arguments: Value) -> anyhow::Result<Value> {
+    let server = DevupServer::new(Services::new(Arc::new(Auth), Arc::new(NoFigma)));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+    let result = client
+        .call_tool(CallToolRequestParams::new("devup_ui_validate").with_arguments(arguments))
+        .await?;
+    client.cancel().await?;
+    task.await??;
+    Ok(result.structured_content.unwrap())
+}
+
+/// `ok: true` next to a non-empty `violations` is correct output, and the
+/// response now carries the reason it is correct: none of them is an
+/// error. Reading the two fields alone, without the struct's rustdoc, has
+/// to reach that conclusion.
+#[tokio::test]
+async fn ok_beside_warnings_explains_itself() -> anyhow::Result<()> {
+    let output = validate(json!({
+        "tsx": r##"export const S = () => <Box bg="#752E2E" p="20px" gap="40px" />;"##,
+        "projectRoot": fixture_project_root()
+    }))
+    .await?;
+
+    assert_eq!(output["ok"], true);
+    assert_eq!(output["okReason"], "warnings-only");
+    assert_eq!(output["strict"], false);
+    assert_eq!(output["violationCounts"]["error"], 0);
+    assert!(
+        output["violationCounts"]["warning"].as_u64().unwrap() > 0,
+        "the fixture TSX is meant to produce warnings: {output}"
+    );
+    assert_eq!(
+        output["violationCounts"]["warning"].as_u64().unwrap() as usize,
+        output["violations"].as_array().unwrap().len(),
+        "every violation here is a warning, so the counts must add up"
+    );
+
+    // The `bg` color is one of them. Through this tool - which is where it
+    // was observed missing - a generated `bg="#752E2E"` used to produce no
+    // finding at all, and the silence was mistaken for a rule.
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|violation| violation["rule"] == "hardcoded-color"
+                && violation["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("bg") && message.contains("#752E2E"))),
+        "the hardcoded bg color must be reported: {output}"
+    );
+    Ok(())
+}
+
+/// The same TSX under `strict` fails, and says that strictness is why -
+/// not that new problems appeared.
+#[tokio::test]
+async fn strict_mode_says_strictness_is_why_it_failed() -> anyhow::Result<()> {
+    let output = validate(json!({
+        "tsx": r##"export const S = () => <Box bg="#752E2E" />;"##,
+        "projectRoot": fixture_project_root(),
+        "strict": true
+    }))
+    .await?;
+
+    assert_eq!(output["ok"], false);
+    assert_eq!(output["okReason"], "strict-warnings");
+    assert_eq!(output["strict"], true);
+    assert_eq!(output["violationCounts"]["error"], 0);
+    Ok(())
+}
+
+/// A real error names itself as one, so `ok: false` is never ambiguous
+/// between "this is broken" and "you asked for strict".
+#[tokio::test]
+async fn an_error_violation_is_distinguished_from_a_strict_failure() -> anyhow::Result<()> {
+    let output = validate(json!({
+        "tsx": r##"export const S = () => <Box bg="$gray100" />;"##,
+        "projectRoot": fixture_project_root()
+    }))
+    .await?;
+
+    assert_eq!(output["ok"], false);
+    assert_eq!(output["okReason"], "error-violations");
+    assert!(output["violationCounts"]["error"].as_u64().unwrap() > 0);
+    Ok(())
+}
+
+/// Clean TSX is distinguishable from TSX that merely has no errors.
+#[tokio::test]
+async fn clean_tsx_reports_clean() -> anyhow::Result<()> {
+    let output = validate(json!({
+        "tsx": r##"export const S = () => <Box bg="$primaryColor" />;"##,
+        "projectRoot": fixture_project_root()
+    }))
+    .await?;
+
+    assert_eq!(output["ok"], true);
+    assert_eq!(output["okReason"], "clean");
+    assert_eq!(output["violations"].as_array().unwrap().len(), 0);
+    assert_eq!(output["violationCounts"]["error"], 0);
+    assert_eq!(output["violationCounts"]["warning"], 0);
+    Ok(())
+}
+
+/// `checkedTokens` counts references the code makes; `availableTokenCount`
+/// counts definitions the theme holds. They are not a ratio, and `tokens`
+/// says so by naming each one after what it counts.
+#[tokio::test]
+async fn the_two_token_counts_name_what_they_count() -> anyhow::Result<()> {
+    let output = validate(json!({
+        "tsx": r##"export const S = () => <Box bg="$primaryColor" color="$captionLight" />;"##,
+        "projectRoot": fixture_project_root()
+    }))
+    .await?;
+
+    assert_eq!(
+        output["checkedTokens"], 2,
+        "two $token references: {output}"
+    );
+    assert_eq!(output["tokens"]["referencedByTsx"], output["checkedTokens"]);
+    assert_eq!(
+        output["tokens"]["definedByTheme"],
+        output["availableTokenCount"]
+    );
+    assert!(
+        output["availableTokenCount"].as_u64().unwrap() > 2,
+        "the fixture theme defines more tokens than this TSX references, \
+         which is exactly why the two numbers must not read as a ratio: {output}"
+    );
+    assert_eq!(output["tokens"]["unknownTokenCheckRan"], true);
+    assert_eq!(output["themeAvailable"], true);
+    Ok(())
+}
+
+/// With no theme the token check is skipped, not passed. `checkedTokens`
+/// still counts the references, so it alone cannot tell the two apart -
+/// `unknownTokenCheckRan` is what does.
+#[tokio::test]
+async fn a_skipped_token_check_does_not_read_as_a_passed_one() -> anyhow::Result<()> {
+    let empty_root = std::env::temp_dir().join(format!(
+        "devup-mcp-ui-validate-no-theme-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&empty_root)?;
+
+    let output = validate(json!({
+        "tsx": r##"export const S = () => <Box bg="$whateverToken" />;"##,
+        "projectRoot": empty_root.to_string_lossy()
+    }))
+    .await?;
+
+    assert_eq!(output["checkedTokens"], 1, "the reference is still counted");
+    assert_eq!(output["tokens"]["unknownTokenCheckRan"], false);
+    assert_eq!(output["themeAvailable"], false);
+    assert_eq!(output["availableTokenCount"], 0);
+    assert_eq!(output["tokens"]["definedByTheme"], 0);
+
+    std::fs::remove_dir(&empty_root)?;
+    Ok(())
+}
+
+/// The description is read before the call, so the `ok` rule belongs there
+/// too - a caller who plans around "ok means no findings" has already
+/// chosen wrong by the time they see the response.
+#[tokio::test]
+async fn the_tool_description_states_the_ok_rule() -> anyhow::Result<()> {
+    let server = DevupServer::new(Services::new(Arc::new(Auth), Arc::new(NoFigma)));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let tools = client.list_all_tools().await?;
+    let validate = tools
+        .iter()
+        .find(|tool| tool.name == "devup_ui_validate")
+        .expect("devup_ui_validate is published");
+    let description = validate.description.clone().unwrap_or_default();
+
+    assert!(
+        description.contains("severity"),
+        "the description must say severity decides ok: {description}"
+    );
+    assert!(
+        description.contains("checkedTokens") && description.contains("availableTokenCount"),
+        "the description must say the two token counts are different things: {description}"
+    );
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}

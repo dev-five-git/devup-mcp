@@ -145,6 +145,12 @@ impl TryFrom<&RawNode> for ExploreNode {
     }
 }
 
+/// `limit` is the number of candidates handed back, and nothing else. It is
+/// deliberately not the collection script's budget: when the two were one
+/// number, asking for more candidates changed how much of the design got read,
+/// and a caller who raised `limit` from 30 to 33 was answered with fewer
+/// screens than before. Whatever the walk finds beyond `limit` is reported as
+/// [`ExploreResult::candidates_truncated`] rather than silently dropped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExploreOptions {
@@ -183,7 +189,23 @@ pub struct ExploreResult {
     pub anchor: ExploreNode,
     pub group: Option<ExploreGroup>,
     pub candidates: Vec<ExploreCandidate>,
+    /// The snapshot this was read from is itself incomplete - the collection
+    /// script hit its byte ceiling and left nodes out - so screens may be
+    /// missing that no `limit` would bring back.
+    ///
+    /// This used to be the two truncations at once, which meant a caller who
+    /// saw `true` could not tell whether raising `limit` would help or whether
+    /// the design had simply not arrived whole. The other half is
+    /// [`Self::candidates_truncated`].
     pub truncated: bool,
+    /// More candidates were found than [`ExploreOptions::limit`] allowed back.
+    /// Raising `limit` returns them; the ranked order is stable, so a larger
+    /// `limit` extends the same list rather than reshuffling it.
+    #[serde(default)]
+    pub candidates_truncated: bool,
+    /// How many candidates the walk found before `limit` was applied.
+    #[serde(default)]
+    pub candidates_found: usize,
 }
 
 pub fn classify_target(snapshot: &Snapshot, target: &FigmaTarget) -> TargetKind {
@@ -303,6 +325,8 @@ pub fn explore_snapshot(
             }],
             anchor,
             truncated: projection_truncated,
+            candidates_truncated: false,
+            candidates_found: 1,
         });
     }
 
@@ -320,12 +344,20 @@ pub fn explore_snapshot(
     };
 
     if let Some(section_scope_id) = section_scope_id {
-        let mut section_scope = ExploreNode::try_from(
-            snapshot
-                .nodes
-                .get(&section_scope_id)
-                .expect("resolved section scope exists"),
-        )?;
+        // The id came from this snapshot a line ago - it is either the anchor
+        // or an ancestor that was looked up to read its type - so this lookup
+        // is expected to hit. It is written as an error anyway: the class of
+        // bug behind it is a node that the snapshot does not carry, and that
+        // one already reached production once. Panicking here would take the
+        // whole MCP server down with it rather than answering one call badly.
+        let scope_node = snapshot.nodes.get(&section_scope_id).ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "The Section that scopes this exploration is not in the Figma projection.",
+                false,
+            )
+        })?;
+        let mut section_scope = ExploreNode::try_from(scope_node)?;
         enrich_node(snapshot, &mut section_scope);
         let mut nodes = snapshot
             .nodes
@@ -379,7 +411,9 @@ pub fn explore_snapshot(
             }),
             anchor,
             candidates,
-            truncated: projection_truncated || candidate_count > options.limit,
+            truncated: projection_truncated,
+            candidates_truncated: candidate_count > options.limit,
+            candidates_found: candidate_count,
         });
     }
 
@@ -455,7 +489,9 @@ pub fn explore_snapshot(
         }),
         anchor,
         candidates,
-        truncated: projection_truncated || candidate_count > options.limit,
+        truncated: projection_truncated,
+        candidates_truncated: candidate_count > options.limit,
+        candidates_found: candidate_count,
     })
 }
 
