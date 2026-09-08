@@ -20,6 +20,137 @@ use super::project_root::{
     find_project_root, guardrail_object, json_files_in, not_found_response,
 };
 
+// ---------------------------------------------------------------------
+// Nested checkouts (devup-mcp-defects.md D7)
+// ---------------------------------------------------------------------
+
+/// Directory names that mark a *nested checkout*: a second, independent
+/// working copy of the same project living inside it. `git worktree add
+/// .worktrees/<branch>` is the common shape.
+///
+/// A file under one of these belongs to a different branch's copy of the
+/// project. Returned beside the real ones with nothing to tell them apart
+/// — and, worse, sorting first, because `.` precedes every letter — they
+/// are how an agent ends up writing code against a stale branch's tokens
+/// or diffing against a stale branch's spec.
+pub(super) const NESTED_CHECKOUT_DIRS: &[&str] = &[".worktrees", ".worktree", ".git-worktrees"];
+
+/// Why `path` does not speak for `root`, or `None` when it does.
+///
+/// Two independent signals, because neither alone is enough: a directory
+/// named like a worktree container catches the conventional layout even
+/// when the checkout inside it is not a git one, and a directory below
+/// `root` carrying its own `.git` catches every other nested clone or
+/// worktree whatever it happens to be called. (`git worktree` writes a
+/// `.git` *file* there, a clone or submodule a `.git` *directory*;
+/// `exists()` accepts both.)
+///
+/// `root` itself is never examined — the project being scanned is of
+/// course itself a checkout, and often is a worktree.
+pub(super) fn nested_checkout_reason(root: &Path, path: &Path) -> Option<&'static str> {
+    let relative = path.strip_prefix(root).ok()?;
+    let mut current = root.to_path_buf();
+    let mut components = relative.components().peekable();
+    while let Some(component) = components.next() {
+        if components.peek().is_none() {
+            // The last component is the file or directory that was found,
+            // not one of the directories containing it.
+            break;
+        }
+        let name = component.as_os_str();
+        if NESTED_CHECKOUT_DIRS.contains(&name.to_string_lossy().as_ref()) {
+            return Some("nested-checkout-directory");
+        }
+        current.push(name);
+        if current.join(".git").exists() {
+            return Some("nested-git-checkout");
+        }
+    }
+    None
+}
+
+/// Splits scan results into the paths that speak for this project and a
+/// JSON list of the ones dropped, each with its reason.
+///
+/// The dropped list is meant to be put in the response. Quietly returning
+/// fewer files than the filesystem holds is its own way of being wrong:
+/// the caller cannot tell "this project has one theme" from "this tool
+/// decided which theme you meant".
+pub(super) fn partition_nested_checkouts(
+    root: &Path,
+    found: Vec<PathBuf>,
+) -> (Vec<PathBuf>, Vec<Value>) {
+    let mut kept = Vec::new();
+    let mut excluded = Vec::new();
+    for path in found {
+        match nested_checkout_reason(root, &path) {
+            Some(reason) => excluded.push(json!({
+                "path": relative_display(root, &path),
+                "reason": reason,
+            })),
+            None => kept.push(path),
+        }
+    }
+    (kept, excluded)
+}
+
+/// `(authority, appliesTo)` for a file the scan kept: whether it sits at
+/// the project root or belongs to one package inside it, and the directory
+/// it governs. A monorepo has no project-wide `devup.json`, and saying
+/// which directory each one covers is what lets a caller pick correctly.
+fn file_authority(root: &Path, file: &Path) -> (&'static str, String) {
+    let directory = file.parent().unwrap_or(root);
+    if directory == root {
+        ("project-root", ".".to_owned())
+    } else {
+        ("package-local", relative_display(root, directory))
+    }
+}
+
+/// Adds `excludedPaths` (what the scan dropped and why) and, when more
+/// than one file survived, `authorityNote` (that none of them governs the
+/// whole project). Both appear only when they have something to say, so an
+/// unambiguous single-file project's response is unchanged.
+fn attach_scan_notes(response: &mut Value, excluded: Vec<Value>, kept: usize, filename: &str) {
+    let Some(object) = response.as_object_mut() else {
+        return;
+    };
+    if !excluded.is_empty() {
+        object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+    }
+    if kept > 1 {
+        object.insert(
+            "authorityNote".to_owned(),
+            json!(format!(
+                "This project has {kept} {filename} files and none of them governs all of it. Each applies to the directory in its own appliesTo; use the one whose appliesTo contains the file being written."
+            )),
+        );
+    }
+}
+
+/// The `{"found": false, ...}` envelope, plus the nested checkouts that
+/// were dropped. "Nothing found" and "nothing found that this project
+/// owns" are different answers and the caller has to be able to tell them
+/// apart — otherwise a project whose only `devup.json` lives in
+/// `.worktrees/` reads as a project with no theme at all.
+fn not_found_with_exclusions(message: &str, searched: Vec<String>, excluded: Vec<Value>) -> Value {
+    let message = if excluded.is_empty() {
+        message.to_owned()
+    } else {
+        format!(
+            "{message} ({} file(s) were found only inside nested checkouts and skipped — a nested checkout is another branch's copy of this project, not its current source.)",
+            excluded.len()
+        )
+    };
+    let mut response = not_found_response(message, searched);
+    if !excluded.is_empty()
+        && let Some(object) = response.as_object_mut()
+    {
+        object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+    }
+    response
+}
+
 /// A project's `devup.json` theme, resolved for `devup_ui_validate` — or,
 /// when unavailable, the same `{"found":false,"guardrail":{...}}` shape
 /// `devup_project_context` would have returned, surfaced under a distinct
@@ -57,16 +188,30 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
         });
     };
     let root_level = root.join("devup.json");
-    let file = if root_level.is_file() {
-        Some(root_level)
+    // Nested checkouts are dropped before "the first one found" is taken.
+    // `find_files_named` sorts, and `.worktrees` sorts ahead of `apps`, so
+    // on a project with a git worktree this used to validate every `$token`
+    // against a *stale branch's* theme without saying so.
+    let (file, excluded) = if root_level.is_file() {
+        (Some(root_level), Vec::new())
     } else {
-        find_files_named(&root, "devup.json", 4).into_iter().next()
+        let (candidates, excluded) =
+            partition_nested_checkouts(&root, find_files_named(&root, "devup.json", 4));
+        (candidates.into_iter().next(), excluded)
     };
     let Some(file) = file else {
+        let message = if excluded.is_empty() {
+            "No devup.json found. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.".to_owned()
+        } else {
+            format!(
+                "The only devup.json files under this project ({}) are inside nested checkouts — another branch's copy, not this project's current source — so none was used. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.",
+                excluded.len()
+            )
+        };
         return Ok(ThemeLookup {
             theme: None,
             guardrail: Some(guardrail_object(
-                "No devup.json found. $token references cannot be verified, so the unknown-token check is skipped. Do not guess and use tokens that do not exist.",
+                message,
                 vec![display_path(&root.join("devup.json"))],
             )),
         });
@@ -138,24 +283,21 @@ pub async fn run(
 // ---------------------------------------------------------------------
 
 fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
-    let mut files = find_files_named(root, "devup.json", 4);
-    if !root.join("devup.json").is_file() {
-        // find_files_named already includes root/devup.json if present via
-        // the breadth-first walk starting at root itself; this branch only
-        // guards against a root walk that (by construction) never omits
-        // depth-0 files, kept as a defensive no-op.
-    }
+    let (mut files, excluded) =
+        partition_nested_checkouts(root, find_files_named(root, "devup.json", 4));
     files.sort();
     files.dedup();
     if files.is_empty() {
-        return not_found_response(
+        return not_found_with_exclusions(
             "No devup.json found. Do not write code by guessing color, typography, length, or shadow token names.",
             vec![display_path(&root.join("devup.json"))],
+            excluded,
         );
     }
     let mut projects = Vec::new();
     for file in &files {
         let relative = relative_display(root, file);
+        let (authority, applies_to) = file_authority(root, file);
         let source = match std::fs::read_to_string(file) {
             Ok(source) => source,
             Err(error) => {
@@ -189,6 +331,8 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
             .collect::<Map<_, _>>();
         projects.push(json!({
             "path": relative,
+            "authority": authority,
+            "appliesTo": applies_to,
             "modes": modes,
             "tokenCount": theme.token_count(),
             "colors": colors,
@@ -197,12 +341,14 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
             "shadow": shadow,
         }));
     }
-    json!({
+    let mut response = json!({
         "found": true,
         "scope": "theme",
         "projectRoot": display_path(root),
         "files": projects,
-    })
+    });
+    attach_scan_notes(&mut response, excluded, files.len(), "devup.json");
+    response
 }
 
 fn filtered_mode_map(
@@ -230,16 +376,19 @@ const HTTP_METHODS: &[&str] = &[
 ];
 
 fn api_scope(root: &Path, filter: Option<&str>) -> Value {
-    let files = find_files_named(root, "openapi.json", 4);
+    let (files, excluded) =
+        partition_nested_checkouts(root, find_files_named(root, "openapi.json", 4));
     if files.is_empty() {
-        return not_found_response(
+        return not_found_with_exclusions(
             "No openapi.json found. Do not write code by guessing API endpoint or schema names.",
             vec![format!("{} (up to depth 4)", display_path(root))],
+            excluded,
         );
     }
     let mut specs = Vec::new();
     for file in &files {
         let relative = relative_display(root, file);
+        let (authority, applies_to) = file_authority(root, file);
         let source = match std::fs::read_to_string(file) {
             Ok(source) => source,
             Err(error) => {
@@ -254,17 +403,31 @@ fn api_scope(root: &Path, filter: Option<&str>) -> Value {
                 continue;
             }
         };
-        specs.push(project_openapi_spec(&relative, &parsed, filter));
+        specs.push(project_openapi_spec(
+            &relative,
+            authority,
+            &applies_to,
+            &parsed,
+            filter,
+        ));
     }
-    json!({
+    let mut response = json!({
         "found": true,
         "scope": "api",
         "projectRoot": display_path(root),
         "specs": specs,
-    })
+    });
+    attach_scan_notes(&mut response, excluded, files.len(), "openapi.json");
+    response
 }
 
-fn project_openapi_spec(relative_path: &str, spec: &Value, filter: Option<&str>) -> Value {
+fn project_openapi_spec(
+    relative_path: &str,
+    authority: &str,
+    applies_to: &str,
+    spec: &Value,
+    filter: Option<&str>,
+) -> Value {
     let matches_filter = |haystack: &str| filter.is_none_or(|needle| haystack.contains(needle));
     let mut endpoints = Vec::new();
     if let Some(paths) = spec.get("paths").and_then(Value::as_object) {
@@ -324,6 +487,8 @@ fn project_openapi_spec(relative_path: &str, spec: &Value, filter: Option<&str>)
     }
     json!({
         "path": relative_path,
+        "authority": authority,
+        "appliesTo": applies_to,
         "endpointCount": endpoints.len(),
         "schemaCount": schemas.len(),
         "endpoints": endpoints,
@@ -364,7 +529,8 @@ struct VespertideColumn {
 }
 
 fn db_scope(root: &Path, filter: Option<&str>) -> Value {
-    let model_dirs = find_dirs_named(root, "models", 4);
+    let (model_dirs, excluded) =
+        partition_nested_checkouts(root, find_dirs_named(root, "models", 4));
     let mut model_files = Vec::new();
     for dir in &model_dirs {
         model_files.extend(json_files_in(dir));
@@ -372,12 +538,13 @@ fn db_scope(root: &Path, filter: Option<&str>) -> Value {
     model_files.sort();
     model_files.dedup();
     if model_files.is_empty() {
-        return not_found_response(
+        return not_found_with_exclusions(
             "No Vespertide models (models/*.json) found. Do not write code by guessing table or column names or types.",
             vec![format!(
                 "{} (models/*.json, up to depth 4)",
                 display_path(root)
             )],
+            excluded,
         );
     }
     let matches_filter = |haystack: &str| filter.is_none_or(|needle| haystack.contains(needle));
@@ -421,12 +588,14 @@ fn db_scope(root: &Path, filter: Option<&str>) -> Value {
             "enums": enums,
         }));
     }
-    json!({
+    let mut response = json!({
         "found": true,
         "scope": "db",
         "projectRoot": display_path(root),
         "tables": tables,
-    })
+    });
+    attach_scan_notes(&mut response, excluded, model_dirs.len(), "models/");
+    response
 }
 
 fn column_to_json(column: &VespertideColumn) -> Value {
@@ -479,7 +648,7 @@ fn describe_column_type(column_type: &Value) -> (String, Option<Value>) {
     }
 }
 
-fn relative_display(root: &Path, file: &Path) -> String {
+pub(super) fn relative_display(root: &Path, file: &Path) -> String {
     file.strip_prefix(root)
         .map(|relative| relative.to_string_lossy().replace('\\', "/"))
         .unwrap_or_else(|_| display_path(file))
@@ -623,6 +792,191 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error.code, ErrorCode::DevupInvalidInput);
+    }
+
+    /// Writes the `.worktrees/<branch>/` shape `git worktree add` produces:
+    /// a second copy of the project, carrying its own `.git` (a *file* for
+    /// a worktree, which is why the check uses `exists()` and not
+    /// `is_dir()`).
+    fn write_nested_worktree(root: &Path, relative_file: &str, contents: &str) {
+        let checkout = root.join(".worktrees").join("revert-some-branch");
+        std::fs::create_dir_all(&checkout).unwrap();
+        std::fs::write(checkout.join(".git"), "gitdir: ../../.git/worktrees/x").unwrap();
+        let file = checkout.join(relative_file);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, contents).unwrap();
+    }
+
+    #[tokio::test]
+    async fn theme_scope_skips_devup_json_inside_a_nested_worktree() {
+        let temp = ScopedTempDir::new("theme-worktree");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let real = temp.path().join("apps").join("front");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(
+            real.join("devup.json"),
+            r##"{ "theme": { "colors": { "default": { "current": "#111111" } } } }"##,
+        )
+        .unwrap();
+        write_nested_worktree(
+            temp.path(),
+            "apps/front/devup.json",
+            r##"{ "theme": { "colors": { "default": { "stale": "#222222" } } } }"##,
+        );
+
+        // The walk itself still descends into `.worktrees` —
+        // `project_root.rs`'s SKIP_DIRS does not list it, and that file is
+        // outside this worktree's ownership — so both copies really are
+        // found and it is the filter below that drops the stale one.
+        assert_eq!(find_files_named(temp.path(), "devup.json", 4).len(), 2);
+
+        let result = run("theme", Some(&temp.path().to_string_lossy()), None)
+            .await
+            .unwrap();
+        let files = result["files"].as_array().unwrap();
+        assert_eq!(files.len(), 1, "{result}");
+        assert_eq!(files[0]["path"], "apps/front/devup.json");
+        assert_eq!(files[0]["appliesTo"], "apps/front");
+        assert_eq!(files[0]["authority"], "package-local");
+        assert!(
+            files[0]["colors"]["default"].get("stale").is_none(),
+            "a stale branch's token must never be reported: {result}"
+        );
+        let excluded = result["excludedPaths"].as_array().unwrap();
+        assert_eq!(excluded.len(), 1);
+        assert!(
+            excluded[0]["path"]
+                .as_str()
+                .unwrap()
+                .contains(".worktrees/"),
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn api_and_db_scopes_skip_nested_worktrees_too() {
+        let temp = ScopedTempDir::new("api-db-worktree");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let api = temp.path().join("apis").join("api");
+        std::fs::create_dir_all(api.join("models")).unwrap();
+        std::fs::write(
+            api.join("openapi.json"),
+            r##"{ "paths": { "/current": { "get": { "operationId": "current" } } } }"##,
+        )
+        .unwrap();
+        std::fs::write(
+            api.join("models").join("user.json"),
+            r##"{ "name": "user", "columns": [ { "name": "id", "type": "uuid" } ] }"##,
+        )
+        .unwrap();
+        write_nested_worktree(
+            temp.path(),
+            "apis/api/openapi.json",
+            r##"{ "paths": { "/stale": { "get": { "operationId": "stale" } } } }"##,
+        );
+        write_nested_worktree(
+            temp.path(),
+            "apis/api/models/ghost.json",
+            r##"{ "name": "ghost", "columns": [ { "name": "id", "type": "uuid" } ] }"##,
+        );
+
+        let api_result = run("api", Some(&temp.path().to_string_lossy()), None)
+            .await
+            .unwrap();
+        let specs = api_result["specs"].as_array().unwrap();
+        assert_eq!(specs.len(), 1, "{api_result}");
+        assert_eq!(specs[0]["path"], "apis/api/openapi.json");
+        assert_eq!(specs[0]["endpoints"][0]["operationId"], "current");
+        assert_eq!(api_result["excludedPaths"].as_array().unwrap().len(), 1);
+
+        let db_result = run("db", Some(&temp.path().to_string_lossy()), None)
+            .await
+            .unwrap();
+        let tables = db_result["tables"].as_array().unwrap();
+        assert_eq!(tables.len(), 1, "{db_result}");
+        assert_eq!(tables[0]["table"], "user");
+        assert_eq!(db_result["excludedPaths"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn theme_for_validation_never_picks_a_stale_branch_over_the_real_one() {
+        // `find_files_named` sorts, and `.worktrees` sorts ahead of `apps`,
+        // so "the first devup.json found" used to be the stale branch's.
+        let temp = ScopedTempDir::new("validation-worktree");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let real = temp.path().join("apps").join("front");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(
+            real.join("devup.json"),
+            r##"{ "theme": { "colors": { "default": { "current": "#111111" } } } }"##,
+        )
+        .unwrap();
+        write_nested_worktree(
+            temp.path(),
+            "apps/front/devup.json",
+            r##"{ "theme": { "colors": { "default": { "stale": "#222222" } } } }"##,
+        );
+
+        let lookup = theme_for_validation(Some(&temp.path().to_string_lossy())).unwrap();
+        let theme = lookup.theme.expect("the project's own devup.json");
+        assert!(theme.contains_token("current"));
+        assert!(
+            !theme.contains_token("stale"),
+            "validated against a nested checkout's theme"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_theme_that_exists_only_in_a_nested_checkout_says_so() {
+        let temp = ScopedTempDir::new("only-worktree-theme");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        write_nested_worktree(
+            temp.path(),
+            "apps/front/devup.json",
+            r##"{ "theme": { "colors": { "default": { "stale": "#222222" } } } }"##,
+        );
+
+        let result = run("theme", Some(&temp.path().to_string_lossy()), None)
+            .await
+            .unwrap();
+        assert_eq!(result["found"], false);
+        assert!(
+            result["guardrail"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("nested checkout"),
+            "{result}"
+        );
+        assert_eq!(result["excludedPaths"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn one_theme_needs_no_authority_note_and_several_do() {
+        let temp = ScopedTempDir::new("authority-note");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let front = temp.path().join("apps").join("front");
+        std::fs::create_dir_all(&front).unwrap();
+        std::fs::write(front.join("devup.json"), r##"{"theme":{}}"##).unwrap();
+
+        let single = run("theme", Some(&temp.path().to_string_lossy()), None)
+            .await
+            .unwrap();
+        assert!(single.get("authorityNote").is_none(), "{single}");
+        assert!(single.get("excludedPaths").is_none(), "{single}");
+
+        let admin = temp.path().join("apps").join("admin");
+        std::fs::create_dir_all(&admin).unwrap();
+        std::fs::write(admin.join("devup.json"), r##"{"theme":{}}"##).unwrap();
+        let several = run("theme", Some(&temp.path().to_string_lossy()), None)
+            .await
+            .unwrap();
+        assert!(
+            several["authorityNote"]
+                .as_str()
+                .unwrap()
+                .contains("appliesTo"),
+            "{several}"
+        );
     }
 
     #[tokio::test]
