@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "Make a Section selection list something a caller can choose from. A Section link answers with candidates rather than screens, and the list gave a name, a type and a URL - which is not enough to tell two frames apart when a designer named them alike, so the choice was a guess and the wrong guess costs a full export. Each candidate now carries a preview of the visible text under it, bounded to 120 characters per candidate, 64 nodes walked and 2 KiB across the whole list, so the index stays compact; an empty or short preview means the walk found little text, not that the screen is empty. The list also says how complete it is: selection.status and selection.count, with truncated read from the index itself rather than inferred from a round count of 100, which called a Section holding exactly that many partial. And nextAction carries an example built from this call own artifactId and a candidate actually in the list, so the next step is a call to run rather than a shape to assemble.",
-  "date": "2026-09-08T16:00:00+09:00"
-}
