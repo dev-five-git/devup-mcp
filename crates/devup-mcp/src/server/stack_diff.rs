@@ -21,11 +21,6 @@ use std::path::{Path, PathBuf};
 use devup_mcp_figma::{DevupError, ErrorCode};
 use serde_json::{Value, json};
 
-// The nested-checkout filter lives with `devup_project_context` because
-// both tools need exactly the same one, and the walk they share
-// (`project_root.rs`) is owned elsewhere. See that module for why a
-// `.worktrees/` copy must never be reported as this project's own file.
-use super::project_context::partition_nested_checkouts;
 use super::project_root::{
     PROJECT_ROOT_NOT_FOUND_MESSAGE, display_path, find_dirs_named, find_files_named,
     find_project_root, json_files_in, not_found_response,
@@ -76,8 +71,7 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
         ));
     };
 
-    let (model_dirs, excluded_models) =
-        partition_nested_checkouts(&root, find_dirs_named(&root, "models", 5));
+    let (model_dirs, excluded_models) = find_dirs_named(&root, "models", 5);
     let mut layers_out = serde_json::Map::new();
     for layer in &requested {
         let mut result = match layer.as_str() {
@@ -455,14 +449,12 @@ fn find_files_by_extension(dir: &Path, extension: &str, max_depth: usize) -> Vec
 /// (`vespera::export_app!`/`merge = [...]`) and non-standard route-macro
 /// formatting can produce false positives — `confidence: "medium"`.
 fn route_openapi_layer(root: &Path) -> Value {
-    let (routes_dirs, excluded_routes) =
-        partition_nested_checkouts(root, find_dirs_named(root, "routes", 5));
+    let (routes_dirs, excluded_routes) = find_dirs_named(root, "routes", 5);
     let routes_dirs = routes_dirs
         .into_iter()
         .filter(|dir| dir.join("mod.rs").is_file() || !collect_rust_sources(dir, 0).is_empty())
         .collect::<Vec<_>>();
-    let (openapi_files, excluded_specs) =
-        partition_nested_checkouts(root, find_files_named(root, "openapi.json", 4));
+    let (openapi_files, excluded_specs) = find_files_named(root, "openapi.json", 4);
     let mut excluded = excluded_routes;
     excluded.extend(excluded_specs);
     if routes_dirs.is_empty() && openapi_files.is_empty() {
@@ -862,14 +854,15 @@ fn extract_openapi_path_methods(spec: &Value) -> Vec<(String, String)> {
 /// `confidence: "low"`.
 fn openapi_client_layer(root: &Path) -> Value {
     let ts_files = find_frontend_sources(root, 6);
-    let (openapi_files, excluded) =
-        partition_nested_checkouts(root, find_files_named(root, "openapi.json", 4));
+    let (openapi_files, excluded) = find_files_named(root, "openapi.json", 4);
     if ts_files.is_empty() {
-        return json!({
+        let mut layer = json!({
             "checked": false,
             "reason": "No frontend .ts/.tsx files found.",
             "drifts": [],
         });
+        attach_excluded_paths(&mut layer, excluded);
+        return layer;
     }
     if openapi_files.is_empty() {
         let mut layer = json!({
@@ -1623,6 +1616,41 @@ mod tests {
             "a stale branch's endpoint is not this project's drift: {layer}"
         );
         assert_eq!(layer["excludedPaths"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn all_layers_report_nested_only_inputs_without_using_them() {
+        let temp = ScopedTempDir::new("stackdiff-nested-only");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let checkout = temp.path().join(".worktrees/stale");
+        std::fs::create_dir_all(checkout.join("models")).unwrap();
+        std::fs::create_dir_all(checkout.join("routes")).unwrap();
+        std::fs::write(checkout.join("openapi.json"), "not valid JSON").unwrap();
+        let result = run(Some(&temp.path().to_string_lossy()), &[])
+            .await
+            .unwrap();
+        for (layer, paths) in [
+            ("db-entity", vec![".worktrees/stale/models"]),
+            ("entity-route", vec![".worktrees/stale/models"]),
+            (
+                "route-openapi",
+                vec![".worktrees/stale/routes", ".worktrees/stale/openapi.json"],
+            ),
+            ("openapi-client", vec![".worktrees/stale/openapi.json"]),
+        ] {
+            let layer = &result["layers"][layer];
+            assert_eq!(layer["checked"], false, "{layer}");
+            assert_eq!(layer["drifts"], json!([]), "{layer}");
+            let expected = paths
+                .into_iter()
+                .map(|path| {
+                    json!({
+                        "path": path, "reason": "nested-checkout-directory"
+                    })
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(layer["excludedPaths"], json!(expected), "{layer}");
+        }
     }
 
     #[tokio::test]

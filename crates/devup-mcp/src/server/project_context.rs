@@ -20,80 +20,6 @@ use super::project_root::{
     find_project_root, guardrail_object, json_files_in, not_found_response,
 };
 
-// ---------------------------------------------------------------------
-// Nested checkouts (devup-mcp-defects.md D7)
-// ---------------------------------------------------------------------
-
-/// Directory names that mark a *nested checkout*: a second, independent
-/// working copy of the same project living inside it. `git worktree add
-/// .worktrees/<branch>` is the common shape.
-///
-/// A file under one of these belongs to a different branch's copy of the
-/// project. Returned beside the real ones with nothing to tell them apart
-/// — and, worse, sorting first, because `.` precedes every letter — they
-/// are how an agent ends up writing code against a stale branch's tokens
-/// or diffing against a stale branch's spec.
-pub(super) const NESTED_CHECKOUT_DIRS: &[&str] = &[".worktrees", ".worktree", ".git-worktrees"];
-
-/// Why `path` does not speak for `root`, or `None` when it does.
-///
-/// Two independent signals, because neither alone is enough: a directory
-/// named like a worktree container catches the conventional layout even
-/// when the checkout inside it is not a git one, and a directory below
-/// `root` carrying its own `.git` catches every other nested clone or
-/// worktree whatever it happens to be called. (`git worktree` writes a
-/// `.git` *file* there, a clone or submodule a `.git` *directory*;
-/// `exists()` accepts both.)
-///
-/// `root` itself is never examined — the project being scanned is of
-/// course itself a checkout, and often is a worktree.
-pub(super) fn nested_checkout_reason(root: &Path, path: &Path) -> Option<&'static str> {
-    let relative = path.strip_prefix(root).ok()?;
-    let mut current = root.to_path_buf();
-    let mut components = relative.components().peekable();
-    while let Some(component) = components.next() {
-        if components.peek().is_none() {
-            // The last component is the file or directory that was found,
-            // not one of the directories containing it.
-            break;
-        }
-        let name = component.as_os_str();
-        if NESTED_CHECKOUT_DIRS.contains(&name.to_string_lossy().as_ref()) {
-            return Some("nested-checkout-directory");
-        }
-        current.push(name);
-        if current.join(".git").exists() {
-            return Some("nested-git-checkout");
-        }
-    }
-    None
-}
-
-/// Splits scan results into the paths that speak for this project and a
-/// JSON list of the ones dropped, each with its reason.
-///
-/// The dropped list is meant to be put in the response. Quietly returning
-/// fewer files than the filesystem holds is its own way of being wrong:
-/// the caller cannot tell "this project has one theme" from "this tool
-/// decided which theme you meant".
-pub(super) fn partition_nested_checkouts(
-    root: &Path,
-    found: Vec<PathBuf>,
-) -> (Vec<PathBuf>, Vec<Value>) {
-    let mut kept = Vec::new();
-    let mut excluded = Vec::new();
-    for path in found {
-        match nested_checkout_reason(root, &path) {
-            Some(reason) => excluded.push(json!({
-                "path": relative_display(root, &path),
-                "reason": reason,
-            })),
-            None => kept.push(path),
-        }
-    }
-    (kept, excluded)
-}
-
 /// `(authority, appliesTo)` for a file the scan kept: whether it sits at
 /// the project root or belongs to one package inside it, and the directory
 /// it governs. A monorepo has no project-wide `devup.json`, and saying
@@ -195,8 +121,7 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
     let (file, excluded) = if root_level.is_file() {
         (Some(root_level), Vec::new())
     } else {
-        let (candidates, excluded) =
-            partition_nested_checkouts(&root, find_files_named(&root, "devup.json", 4));
+        let (candidates, excluded) = find_files_named(&root, "devup.json", 4);
         (candidates.into_iter().next(), excluded)
     };
     let Some(file) = file else {
@@ -283,8 +208,7 @@ pub async fn run(
 // ---------------------------------------------------------------------
 
 fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
-    let (mut files, excluded) =
-        partition_nested_checkouts(root, find_files_named(root, "devup.json", 4));
+    let (mut files, excluded) = find_files_named(root, "devup.json", 4);
     files.sort();
     files.dedup();
     if files.is_empty() {
@@ -376,8 +300,7 @@ const HTTP_METHODS: &[&str] = &[
 ];
 
 fn api_scope(root: &Path, filter: Option<&str>) -> Value {
-    let (files, excluded) =
-        partition_nested_checkouts(root, find_files_named(root, "openapi.json", 4));
+    let (files, excluded) = find_files_named(root, "openapi.json", 4);
     if files.is_empty() {
         return not_found_with_exclusions(
             "No openapi.json found. Do not write code by guessing API endpoint or schema names.",
@@ -529,8 +452,7 @@ struct VespertideColumn {
 }
 
 fn db_scope(root: &Path, filter: Option<&str>) -> Value {
-    let (model_dirs, excluded) =
-        partition_nested_checkouts(root, find_dirs_named(root, "models", 4));
+    let (model_dirs, excluded) = find_dirs_named(root, "models", 4);
     let mut model_files = Vec::new();
     for dir in &model_dirs {
         model_files.extend(json_files_in(dir));
@@ -824,11 +746,17 @@ mod tests {
             r##"{ "theme": { "colors": { "default": { "stale": "#222222" } } } }"##,
         );
 
-        // The walk itself still descends into `.worktrees` —
-        // `project_root.rs`'s SKIP_DIRS does not list it, and that file is
-        // outside this worktree's ownership — so both copies really are
-        // found and it is the filter below that drops the stale one.
-        assert_eq!(find_files_named(temp.path(), "devup.json", 4).len(), 2);
+        // Both copies are accounted for by the shared scan, but only the
+        // current project's copy can be used as an authoritative input.
+        let (found, excluded) = find_files_named(temp.path(), "devup.json", 4);
+        assert_eq!(found, vec![real.join("devup.json")]);
+        assert_eq!(
+            excluded,
+            vec![json!({
+                "path": ".worktrees/revert-some-branch/apps/front/devup.json",
+                "reason": "nested-checkout-directory",
+            })]
+        );
 
         let result = run("theme", Some(&temp.path().to_string_lossy()), None)
             .await
@@ -948,6 +876,47 @@ mod tests {
             "{result}"
         );
         assert_eq!(result["excludedPaths"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn nested_only_theme_reports_each_checkout_kind_without_parsing_it() {
+        for (directory, git_marker, reason) in [
+            (".worktrees/stale", None, "nested-checkout-directory"),
+            (".worktree/stale", None, "nested-checkout-directory"),
+            (".git-worktrees/stale", None, "nested-checkout-directory"),
+            ("copies/repo", Some(true), "nested-git-checkout"),
+            ("copies/linked", Some(false), "nested-git-checkout"),
+        ] {
+            let temp = ScopedTempDir::new("nested-only-kinds");
+            std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+            let checkout = temp.path().join(directory);
+            std::fs::create_dir_all(&checkout).unwrap();
+            match git_marker {
+                Some(true) => std::fs::create_dir(checkout.join(".git")).unwrap(),
+                Some(false) => {
+                    std::fs::write(checkout.join(".git"), "gitdir: elsewhere").unwrap();
+                }
+                None => {}
+            }
+            // Excluded files must be reported without reading/parsing their contents.
+            std::fs::write(checkout.join("devup.json"), "not valid JSON").unwrap();
+            let root = temp.path().to_string_lossy();
+            let result = run("theme", Some(&root), None).await.unwrap();
+            assert_eq!(result["found"], false, "{result}");
+            assert_eq!(
+                result["excludedPaths"],
+                json!([{ "path": format!("{directory}/devup.json"), "reason": reason }]),
+                "{result}"
+            );
+            let lookup = theme_for_validation(Some(&root)).unwrap();
+            assert!(lookup.theme.is_none());
+            assert!(
+                lookup.guardrail.unwrap()["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("nested checkout")
+            );
+        }
     }
 
     #[tokio::test]
