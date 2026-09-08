@@ -1,0 +1,28 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Fixture API", "version": "1.0.0" },
+  "paths": {
+    "/messages": {
+      "get": { "operationId": "listMessages" },
+      "post": { "operationId": "createMessage" }
+    },
+    "/messages/{id}": {
+      "get": { "operationId": "getMessage" },
+      "delete": { "operationId": "deleteMessage" }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Message": {
+        "type": "object",
+        "required": ["id", "body", "authorId"],
+        "properties": {
+          "id": { "type": "string" },
+          "body": { "type": "string" },
+          "authorId": { "type": "string" },
+          "createdAt": { "type": "string" }
+        }
+      }
+    }
+  }
+}

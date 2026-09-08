@@ -14,7 +14,7 @@ Request `referencePng` together with the desired projection:
 }
 ```
 
-The collector makes one `get_screenshot` call for the linked node, accepts only a bounded `image/png`, validates its signature and SHA-256, and records `capabilities.referencePng=true` on the artifact. `referencePng` currently applies to one linked node; Section multi-frame selection must acquire each frame by its canonical URL.
+The collector makes one `get_screenshot` call for the linked node, asking for the PNG inline (`enableBase64Response`) at the node's own size (`maxDimension` raised from the tool's 1024px default to 8192px), takes the one `image/png` block beside the URL text the tool also writes, validates its signature and SHA-256, and records `capabilities.referencePng=true` on the artifact. `referencePng` currently applies to one linked node; Section multi-frame selection must acquire each frame by its canonical URL.
 
 ## 2. Render the generated component
 

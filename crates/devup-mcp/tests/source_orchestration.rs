@@ -276,48 +276,6 @@ fn snapshot_result() -> Value {
 }
 
 #[tokio::test]
-async fn auto_disconnected_returns_handoff_without_starting_oauth() -> anyhow::Result<()> {
-    let auth = Arc::new(AuthProbe {
-        status: AuthStatus::Disconnected,
-        logins: AtomicUsize::new(0),
-    });
-    let upstream = Arc::new(UpstreamProbe::unavailable());
-    let result = call_tool(auth.clone(), upstream.clone(), input("auto")).await?;
-    let output = result.structured_content.unwrap();
-
-    assert_eq!(output["status"], "needs_figma");
-    assert_eq!(output["resumeTool"], "devup_figma_continue");
-    assert_eq!(output["calls"][0]["tool"], "use_figma");
-    assert!(
-        output["calls"][0]["arguments"]["code"]
-            .as_str()
-            .unwrap()
-            .contains("devupFastSnapshotDescriptor")
-    );
-    assert!(output["expiresAt"].as_str().unwrap().contains('T'));
-    assert!(output["expiresAt"].as_str().unwrap().ends_with('Z'));
-    assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
-    assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
-    Ok(())
-}
-
-#[tokio::test]
-async fn host_policy_never_calls_direct_auth_or_upstream() -> anyhow::Result<()> {
-    let auth = Arc::new(AuthProbe {
-        status: AuthStatus::Connected,
-        logins: AtomicUsize::new(0),
-    });
-    let upstream = Arc::new(UpstreamProbe::unavailable());
-    let result = call_tool(auth.clone(), upstream.clone(), input("host")).await?;
-    let output = result.structured_content.unwrap();
-
-    assert_eq!(output["status"], "needs_figma");
-    assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
-    assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
-    Ok(())
-}
-
-#[tokio::test]
 async fn direct_disconnected_never_starts_oauth() -> anyhow::Result<()> {
     let auth = Arc::new(AuthProbe {
         status: AuthStatus::Disconnected,
@@ -351,6 +309,14 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
     assert_eq!(output["collection"]["fallbackUsed"], true);
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
+
+    // The unambiguous final-answer marker: without it, an agent that only
+    // ever sees intermediate `needs_figma` steps has, in a real observed
+    // failure, concluded the conversion was "probably done" and started
+    // hand-interpreting the raw node tree instead of using this `tsx`.
+    assert_eq!(output["deliverable"]["kind"], "devup-ui-tsx");
+    assert_eq!(output["deliverable"]["isFinal"], true);
+    assert!(!output["deliverable"]["note"].as_str().unwrap().is_empty());
     Ok(())
 }
 
@@ -425,223 +391,57 @@ async fn direct_fast_call_error_restarts_the_legacy_collector() -> anyhow::Resul
     Ok(())
 }
 
+/// Auto has one source now, so "auto" means direct and a refusal is reported
+/// rather than handed anywhere else. What it must not do is log the caller in
+/// on its own: a browser window they did not ask for, opened by a request for
+/// code, long after the request that provoked it has scrolled away.
 #[tokio::test]
-async fn auto_falls_back_for_capability_failure_but_not_rate_limit() -> anyhow::Result<()> {
-    let auth = Arc::new(AuthProbe {
-        status: AuthStatus::Connected,
-        logins: AtomicUsize::new(0),
-    });
-    let unavailable = Arc::new(UpstreamProbe::unavailable());
-    let fallback = call_tool(auth.clone(), unavailable, input("auto")).await?;
-    assert_eq!(
-        fallback.structured_content.unwrap()["status"],
-        "needs_figma"
-    );
-
-    let rate_limited = Arc::new(UpstreamProbe {
-        calls: AtomicUsize::new(0),
-        error_code: ErrorCode::DevupFigmaRateLimited,
-    });
-    let rejected = call_tool(auth, rate_limited.clone(), input("auto")).await;
-    assert!(rejected.is_err());
-    assert_eq!(rate_limited.calls.load(Ordering::SeqCst), 1);
-    Ok(())
-}
-
-#[tokio::test]
-async fn public_continuation_finishes_a_multi_call_host_collection() -> anyhow::Result<()> {
+async fn auto_asks_to_be_logged_in_rather_than_starting_oauth() -> anyhow::Result<()> {
     let auth = Arc::new(AuthProbe {
         status: AuthStatus::Disconnected,
         logins: AtomicUsize::new(0),
     });
     let upstream = Arc::new(UpstreamProbe::unavailable());
-    let server = DevupServer::new(Services::new(auth, upstream));
-    let (server_transport, client_transport) = tokio::io::duplex(128 * 1024);
-    let task = tokio::spawn(async move {
-        server.serve(server_transport).await?.waiting().await?;
-        anyhow::Ok(())
-    });
-    let client = ().serve(client_transport).await?;
+    let error = call_tool(auth.clone(), upstream.clone(), input("auto"))
+        .await
+        .expect_err("a disconnected direct path cannot collect");
 
-    let start = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_to_ui")
-                .with_arguments(input("host").as_object().cloned().unwrap()),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    let session_id = start["sessionId"].as_str().unwrap();
-    let fast_call = start["calls"][0]["callId"].as_str().unwrap();
-    let after_fast = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": session_id,
-                    "callId": fast_call,
-                    "result": snapshot_result()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    assert_eq!(after_fast["calls"][0]["tool"], "get_metadata");
-    assert_eq!(after_fast["collection"]["figmaToolCalls"], 2);
-    assert_eq!(after_fast["collection"]["fallbackUsed"], true);
-    assert_eq!(
-        after_fast["collection"]["fallbackReason"],
-        "descriptorMissing"
+    assert!(
+        error.to_string().contains("devup_figma_auth login"),
+        "the error should name the action that fixes it: {error}"
     );
-    let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
-    let after_metadata = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": session_id,
-                    "callId": metadata_call,
-                    "result": metadata_result()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    assert_eq!(after_metadata["status"], "needs_figma");
-    assert_eq!(after_metadata["calls"][0]["tool"], "use_figma");
-
-    let snapshot_call = after_metadata["calls"][0]["callId"].as_str().unwrap();
-    let complete = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": session_id,
-                    "callId": snapshot_call,
-                    "result": snapshot_result()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    assert_eq!(complete["status"], "complete");
-    assert_eq!(complete["source"]["kind"], "host");
-    assert!(complete["tsx"].as_str().unwrap().contains("SyntheticFrame"));
-    assert_eq!(complete["collection"]["figmaToolCalls"], 3);
-    assert_eq!(complete["collection"]["fallbackUsed"], true);
-
-    client.cancel().await?;
-    task.await??;
+    assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
     Ok(())
 }
 
-#[tokio::test]
-async fn direct_and_host_collection_produce_identical_artifacts() -> anyhow::Result<()> {
+/// Every refusal now surfaces as itself. A capability that is missing says so
+/// at once; a spent allowance is waited out three times first, because a
+/// collection can cross a per-minute line partway through its own burst.
+#[tokio::test(start_paused = true)]
+async fn a_refusal_is_reported_as_itself() -> anyhow::Result<()> {
     let auth = Arc::new(AuthProbe {
         status: AuthStatus::Connected,
         logins: AtomicUsize::new(0),
     });
-    let upstream = Arc::new(FixtureUpstream::default());
-    let server = DevupServer::new(Services::new(auth, upstream));
-    let (server_transport, client_transport) = tokio::io::duplex(128 * 1024);
-    let task = tokio::spawn(async move {
-        server.serve(server_transport).await?.waiting().await?;
-        anyhow::Ok(())
+
+    let unavailable = Arc::new(UpstreamProbe::unavailable());
+    assert!(
+        call_tool(auth.clone(), unavailable.clone(), input("auto"))
+            .await
+            .is_err()
+    );
+    assert!(unavailable.calls.load(Ordering::SeqCst) >= 1);
+
+    let rate_limited = Arc::new(UpstreamProbe {
+        calls: AtomicUsize::new(0),
+        error_code: ErrorCode::DevupFigmaRateLimited,
     });
-    let client = ().serve(client_transport).await?;
-
-    let direct = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_to_ui")
-                .with_arguments(input("direct").as_object().cloned().unwrap()),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    let start = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_to_ui")
-                .with_arguments(input("host").as_object().cloned().unwrap()),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    let session_id = start["sessionId"].as_str().unwrap();
-    let fast_call = start["calls"][0]["callId"].as_str().unwrap();
-    let after_fast = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": session_id,
-                    "callId": fast_call,
-                    "result": snapshot_result()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    let metadata_call = after_fast["calls"][0]["callId"].as_str().unwrap();
-    let after_metadata = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": session_id,
-                    "callId": metadata_call,
-                    "result": metadata_result()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-    let snapshot_call = after_metadata["calls"][0]["callId"].as_str().unwrap();
-    let host = client
-        .call_tool(
-            CallToolRequestParams::new("devup_figma_continue").with_arguments(
-                json!({
-                    "sessionId": session_id,
-                    "callId": snapshot_call,
-                    "result": snapshot_result()
-                })
-                .as_object()
-                .cloned()
-                .unwrap(),
-            ),
-        )
-        .await?
-        .structured_content
-        .unwrap();
-
-    for field in [
-        "tsx",
-        "imports",
-        "usedTokens",
-        "diagnostics",
-        "snapshot",
-        "collection",
-    ] {
-        assert_eq!(direct[field], host[field], "source changed {field}");
-    }
-    assert_eq!(direct["source"]["kind"], "direct");
-    assert_eq!(host["source"]["kind"], "host");
-
-    client.cancel().await?;
-    task.await??;
+    assert!(
+        call_tool(auth, rate_limited.clone(), input("auto"))
+            .await
+            .is_err()
+    );
+    assert_eq!(rate_limited.calls.load(Ordering::SeqCst), 3);
     Ok(())
 }

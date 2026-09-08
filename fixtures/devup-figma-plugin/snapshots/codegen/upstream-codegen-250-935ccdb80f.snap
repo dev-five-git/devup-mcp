@@ -33,12 +33,24 @@ export function Button({ size, variant }: ButtonProps) {
         Sm: ["8px", null, null, null, "10px"]
       }[size]}
       px={{
-        Md: ["30px", null, null, null, "40px"],
-        Sm: ["16px", null, null, null, "20px"]
+        Md: {
+          primary: ["30px", null, null, null, "40px"],
+          white: ["29px", null, null, null, "39px"]
+        }[variant],
+        Sm: {
+          primary: ["16px", null, null, null, "20px"],
+          white: ["15px", null, null, null, "19px"]
+        }[variant]
       }[size]}
       py={{
-        Md: ["16px", null, null, null, "20px"],
-        Sm: ["12px", null, null, null, "14px"]
+        Md: {
+          primary: ["16px", null, null, null, "20px"],
+          white: ["15px", null, null, null, "19px"]
+        }[variant],
+        Sm: {
+          primary: ["12px", null, null, null, "14px"],
+          white: ["11px", null, null, null, "13px"]
+        }[variant]
       }[size]}
       transition="0.2ms ease-out"
       transitionProperty="background"

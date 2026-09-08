@@ -89,6 +89,76 @@ impl RawNode {
     }
 }
 
+/// Sentinel node ID every paginating snapshot script appends to report where
+/// the next page starts.
+pub const SNAPSHOT_CURSOR_ID: &str = "__DEVUP_SNAPSHOT_CURSOR__";
+
+/// Page state carried by the `__DEVUP_SNAPSHOT_CURSOR__` marker node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SnapshotCursor {
+    pub offset: usize,
+    pub next_offset: usize,
+    pub complete: bool,
+    pub total_nodes: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotCursorError {
+    Duplicated,
+    Shape,
+}
+
+impl SnapshotCursorError {
+    pub fn korean_message(self) -> &'static str {
+        match self {
+            Self::Duplicated => "Figma snapshot response contains duplicate cursors.",
+            Self::Shape => "Figma snapshot cursor format is invalid.",
+        }
+    }
+
+    pub fn category(self) -> &'static str {
+        match self {
+            Self::Duplicated => "cursorMultiplicity",
+            Self::Shape => "cursorShape",
+        }
+    }
+}
+
+/// Reads the page cursor out of a node list without mutating it.
+///
+/// Both the legacy cursor collector and the fast envelope decoder go through
+/// here so the marker is parsed against exactly one field list - the two used
+/// to keep separate lists, and drifted apart.
+pub fn read_snapshot_cursor(
+    nodes: &[RawNode],
+) -> Result<Option<SnapshotCursor>, SnapshotCursorError> {
+    let markers = nodes
+        .iter()
+        .filter(|node| node.id == SNAPSHOT_CURSOR_ID)
+        .collect::<Vec<_>>();
+    let marker = match markers.as_slice() {
+        [] => return Ok(None),
+        [marker] => *marker,
+        _ => return Err(SnapshotCursorError::Duplicated),
+    };
+    if marker.node_type != "DEVUP_INTERNAL" {
+        return Err(SnapshotCursorError::Shape);
+    }
+    let view = marker.typed_view();
+    let index = |field: &str| {
+        view.value(field)
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or(SnapshotCursorError::Shape)
+    };
+    Ok(Some(SnapshotCursor {
+        offset: index("offset")?,
+        next_offset: index("nextOffset")?,
+        complete: view.bool("complete").ok_or(SnapshotCursorError::Shape)?,
+        total_nodes: index("totalNodes")?,
+    }))
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TypedNode<'a> {
     node: &'a RawNode,
@@ -346,7 +416,7 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
     let first = chunks.first().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "병합할 Figma snapshot이 없습니다.",
+            "No Figma snapshot to merge.",
             false,
         )
     })?;
@@ -354,14 +424,14 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
     let version = first.version.clone();
     let mut roots = Vec::new();
     let mut root_set = BTreeSet::new();
-    let mut nodes = BTreeMap::new();
+    let mut nodes: BTreeMap<String, RawNode> = BTreeMap::new();
     let mut diagnostics = Vec::new();
 
     for chunk in chunks {
         if chunk.file_key != file_key || chunk.version != version {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaVersionChanged,
-                "수집 중 Figma 파일 버전이 변경되었습니다. 다시 시도하세요.",
+                "The Figma file version changed during collection. Try again.",
                 true,
             ));
         }
@@ -371,12 +441,41 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
             }
         }
         for node in chunk.nodes {
+            // The cursor is each chunk's own pagination state, not a node of
+            // the design. Comparing it as one meant any collection arriving in
+            // more than one chunk — every multi-root Section export — was
+            // rejected for the cursors disagreeing, which is the one thing they
+            // are certain to do.
+            if node.id == SNAPSHOT_CURSOR_ID {
+                continue;
+            }
             if let Some(existing) = nodes.get(&node.id) {
                 if existing != &node {
-                    return Err(DevupError::new(
+                    // Which node, and which fields disagree. A collection split
+                    // across batches can reach the same node two ways, and
+                    // without naming the difference there is nothing to act on.
+                    let differing = existing
+                        .fields
+                        .keys()
+                        .chain(node.fields.keys())
+                        .collect::<std::collections::BTreeSet<&String>>()
+                        .into_iter()
+                        .filter(|field| {
+                            existing.fields.get(field.as_str()) != node.fields.get(field.as_str())
+                        })
+                        .take(12)
+                        .cloned()
+                        .collect::<Vec<String>>();
+                    return Err(DevupError::with_details(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "동일한 Figma node에 서로 다른 snapshot 데이터가 반환되었습니다.",
+                        "Different snapshot data was returned for the same Figma node.",
                         true,
+                        serde_json::json!({
+                            "nodeId": node.id,
+                            "nodeType": node.node_type,
+                            "typeChanged": existing.node_type != node.node_type,
+                            "differingFields": differing,
+                        }),
                     ));
                 }
             } else {
@@ -399,7 +498,7 @@ pub fn snapshot_chunk_from_result(result: &UpstreamResult) -> Result<SnapshotChu
     find_snapshot(&result.raw).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "Figma MCP 응답에서 snapshot 데이터를 찾지 못했습니다.",
+            "snapshot data not found in the Figma MCP response.",
             false,
         )
     })

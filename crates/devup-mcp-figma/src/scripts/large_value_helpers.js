@@ -1,5 +1,10 @@
 const DEVUP_MAX_LARGE_VALUE_BYTES = 16 * 1024 * 1024;
-const DEVUP_LARGE_VALUE_CHUNK_BYTES = 8192;
+// A fragment's text is the chunk in base64, four thirds of it, inside a
+// wrapper of some three hundred bytes, and the Figma MCP cuts a text result
+// at 20,480 UTF-8 bytes (measured; see fast_snapshot.js). Twelve KiB comes
+// back as 16.7 KB of text, with room to spare; eight KiB was 11.2 KB, and
+// took a third more calls for the same value.
+const DEVUP_LARGE_VALUE_CHUNK_BYTES = 12288;
 
 function devupUtf8Encode(value) {
   const bytes = [];

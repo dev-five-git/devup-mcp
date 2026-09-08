@@ -110,7 +110,7 @@ test("a nested heading explores the same ten screens as its enclosing SECTION", 
   const heading = sceneNode({
     id: "3879:35481",
     type: "TEXT",
-    name: "[FR-026] 본연체",
+    name: "[FR-026] Essence",
     width: 320,
     height: 48,
   });
@@ -118,7 +118,7 @@ test("a nested heading explores the same ten screens as its enclosing SECTION", 
   const section = sceneNode({
     id: "4217:7743",
     type: "SECTION",
-    name: "[FR-026] 본연체",
+    name: "[FR-026] Essence",
     width: 4_400,
     height: 900,
     children: [heading, wrapper],
@@ -160,7 +160,7 @@ test("a large SECTION without screens visits at most projectionLimit times eight
 });
 
 test("oversized required nodes collapse to a bounded required-only projection", async () => {
-  const longName = "가".repeat(2_000);
+  const longName = "A".repeat(2_000);
   const anchor = sceneNode({ id: "anchor", type: "SECTION", name: longName });
   let nested = anchor;
   for (let index = 0; index < 10; index += 1) {

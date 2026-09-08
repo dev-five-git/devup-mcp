@@ -194,7 +194,10 @@ const compact = [...included.values()]
       childCount: "children" in node ? node.children.length : 0,
       textPreview: textPreview(node),
       pageChildIndex: pageChildIndex >= 0 ? pageChildIndex : null,
-      visible: node.visible !== false,
+      // A page or the document itself has no `visible`, and Figma throws on
+      // reading a property a node does not have rather than returning
+      // undefined — so exploring from a page id failed outright.
+      visible: !("visible" in node) || node.visible !== false,
       breadcrumb: breadcrumb(node),
     },
     extra: {},

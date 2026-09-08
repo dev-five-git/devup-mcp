@@ -8,7 +8,7 @@ const snapshotOptions = "__DEVUP_SNAPSHOT__";
 const offset = Math.max(0, Math.floor(Number(snapshotOptions.offset) || 0));
 const maxPayloadBytes = Math.min(
   16000,
-  Math.max(4096, Math.floor(Number(snapshotOptions.maxPayloadBytes) || 12000)),
+  Math.max(4096, Math.floor(Number(snapshotOptions.maxPayloadBytes) || 15000)),
 );
 const maxFieldBytes = Math.min(
   maxPayloadBytes - 1024,
@@ -160,6 +160,25 @@ function snapshotNode(node) {
   const extra = {};
   const fieldErrors = {};
   fields.parentId = node.parent ? node.parent.id : null;
+  // Only the root needs this. Its parent lies outside the collected subtree,
+  // so the id alone says nothing, and the parent's type is what decides
+  // whether the root's width is a real constraint or merely the canvas the
+  // design was drawn on. Every other node's parent is collected and can be
+  // read directly.
+  // Keyed on the parent's type rather than on being the requested root, so a
+  // node carries the same fields however it is reached. See fast_snapshot.js.
+  if (
+    node.parent &&
+    (node.parent.type === "PAGE" ||
+      node.parent.type === "SECTION" ||
+      node.parent.type === "COMPONENT_SET")
+  ) {
+    fields.parentType = node.parent.type;
+    // A screen's Section names the page component the plugin writes for it,
+    // `AboutPage` for a Section called `about`, and the Section itself is
+    // outside the collected subtree.
+    if (node.parent.type === "SECTION") fields.parentName = node.parent.name;
+  }
   fields.childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
 
   for (const name of propertyNames(node)) {
@@ -211,7 +230,10 @@ const nextOffset = Math.min(allNodes.length, offset + nodes.length);
 nodes.push({
   id: "__DEVUP_SNAPSHOT_CURSOR__",
   type: "DEVUP_INTERNAL",
+  // Same marker shape as the fast snapshot so both paths go through the one
+  // `read_snapshot_cursor` reader in Rust.
   fields: {
+    offset,
     nextOffset,
     complete: nextOffset >= allNodes.length,
     totalNodes: allNodes.length,

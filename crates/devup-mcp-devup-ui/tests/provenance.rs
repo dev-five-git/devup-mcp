@@ -319,6 +319,88 @@ fn strict_fidelity_requires_layout_property_mappings_not_only_node_trace() {
 }
 
 #[test]
+fn asset_boundaries_exclude_internal_and_descendant_layout_fields() {
+    let snapshot = Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["root".to_owned()],
+        nodes: [
+            node(
+                "root",
+                "FRAME",
+                json!({
+                    "name": "Host", "childrenIds": ["asset"],
+                    "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}}]
+                }),
+            ),
+            node(
+                "asset",
+                "FRAME",
+                json!({
+                    "name": "Folded icon", "parentId": "root",
+                    "childrenIds": ["glyph-left", "glyph-right"],
+                    "layoutMode": "HORIZONTAL", "layoutPositioning": "ABSOLUTE",
+                    "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                    "itemSpacing": 4, "paddingTop": 1, "paddingRight": 2,
+                    "paddingBottom": 3, "paddingLeft": 4,
+                    "width": 24, "height": 24, "x": 0, "y": 0
+                }),
+            ),
+            node(
+                "glyph-left",
+                "FRAME",
+                json!({
+                    "name": "Left glyph", "parentId": "asset", "childrenIds": [],
+                    "isAsset": true, "width": 10, "height": 20
+                }),
+            ),
+            node(
+                "glyph-right",
+                "FRAME",
+                json!({
+                    "name": "Right glyph", "parentId": "asset", "childrenIds": [],
+                    "isAsset": true, "width": 10, "height": 20
+                }),
+            ),
+        ]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    };
+
+    let output = generate_component(&snapshot, "root", &CodegenOptions::default()).unwrap();
+
+    assert!(output.tsx.contains("<Image"), "{}", output.tsx);
+    assert_eq!(output.fidelity_report.layout.total, 3);
+    assert_eq!(
+        output.fidelity_report.layout.covered, 3,
+        "tsx: {}\nuncovered: {:?}",
+        output.tsx, output.fidelity_report.uncovered_layout
+    );
+    assert!(output.fidelity_report.uncovered_layout.is_empty());
+
+    let mut missing_external_geometry = output.clone();
+    missing_external_geometry
+        .source_map
+        .entries
+        .retain(|entry| {
+            entry.node_id.as_deref() != Some("asset")
+                || !matches!(
+                    entry.property.as_deref(),
+                    Some("height" | "layoutPositioning" | "width")
+                )
+        });
+    let report = validate_fidelity(&snapshot, "root", &missing_external_geometry).unwrap();
+    assert_eq!(report.layout.total, 3);
+    assert_eq!(report.layout.covered, 0);
+    assert_eq!(
+        report.uncovered_layout,
+        ["asset#height", "asset#layoutPositioning", "asset#width"]
+    );
+}
+
+#[test]
 fn strict_fidelity_requires_source_asset_identity_mapping() {
     let snapshot = Snapshot {
         file_key: "FileKey123".to_owned(),
@@ -686,4 +768,42 @@ fn devup_json_pointers_trace_variable_alias_and_style_sources() {
 fn slice<'a>(tsx: &'a str, entry: &devup_mcp_devup_ui::provenance::ProvenanceEntry) -> &'a str {
     let range = entry.generated_range.as_ref().unwrap();
     &tsx[range.start..range.end]
+}
+
+#[test]
+fn a_canvas_root_dimension_is_not_counted_as_an_unmet_layout_fact() {
+    // The screen's own size is deliberately left unsaid so the result is not
+    // pinned to the width it was drawn at. Counting it would report a
+    // shortfall for something the output declines to claim on purpose.
+    let snapshot = Snapshot {
+        file_key: "FileKey123".to_owned(),
+        version: Some("v1".to_owned()),
+        roots: vec!["1:1".to_owned()],
+        nodes: [node(
+            "1:1",
+            "FRAME",
+            json!({
+                "name": "Screen", "childrenIds": [], "layoutMode": "VERTICAL",
+                "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+                "width": 360, "height": 800,
+                "parentId": "0:page", "parentType": "SECTION"
+            }),
+        )]
+        .into_iter()
+        .map(|node| (node.id.clone(), node))
+        .collect(),
+        diagnostics: Vec::new(),
+    };
+
+    let output = generate_component(&snapshot, "1:1", &CodegenOptions::default()).expect("codegen");
+    let report = validate_fidelity(&snapshot, "1:1", &output).expect("fidelity");
+
+    assert!(
+        !report
+            .uncovered_layout
+            .iter()
+            .any(|entry| entry.ends_with("#width") || entry.ends_with("#height")),
+        "canvas geometry must not be reported as unmet: {:?}",
+        report.uncovered_layout
+    );
 }

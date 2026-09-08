@@ -9,205 +9,421 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum AssetKind {
+pub(crate) enum AssetKind {
     Svg,
     SvgMask,
     Png,
 }
 
-pub(super) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
+pub(crate) fn asset_kind(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
+    asset_kind_nested(snapshot, node, false)
+}
+
+fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
     let view = node.typed_view();
-    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET") {
-        return None;
-    }
-    if view
-        .value("inferredAutoLayout")
-        .and_then(Value::as_object)
-        .and_then(|layout| layout.get("layoutMode"))
-        .and_then(Value::as_str)
-        == Some("GRID")
+    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
+        || view
+            .value("inferredAutoLayout")
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(Value::as_str)
+            == Some("GRID")
     {
         return None;
     }
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON")
-        || (view.node_type() == "ELLIPSE"
-            && view
-                .value("arcData")
-                .and_then(|value| value.get("innerRadius"))
-                .and_then(Value::as_f64)
-                .is_some_and(|value| value != 0.0))
+
+    if has_smart_animate_reaction(node)
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .is_some_and(has_smart_animate_reaction)
     {
-        return Some(if uniform_asset_color(snapshot, node).is_some() {
-            AssetKind::SvgMask
-        } else {
-            AssetKind::Svg
-        });
+        return None;
     }
-    let fills = view.value("fills").and_then(Value::as_array);
-    if view.bool("isAsset") == Some(true) {
-        if fills.is_some_and(|fills| {
-            fills.len() == 1
-                && fills[0].get("type").and_then(Value::as_str) == Some("IMAGE")
-                && fills[0].get("scaleMode").and_then(Value::as_str) != Some("TILE")
-        }) {
-            return Some(AssetKind::Png);
+
+    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+        return Some(svg_asset_kind(snapshot, node, nested));
+    }
+
+    if view.node_type() == "ELLIPSE"
+        && view
+            .value("arcData")
+            .and_then(|arc_data| arc_data.get("innerRadius"))
+            .and_then(Value::as_f64)
+            .is_some_and(|inner_radius| inner_radius != 0.0)
+    {
+        return Some(svg_asset_kind(snapshot, node, nested));
+    }
+
+    let child_ids = view.child_ids().collect::<Vec<_>>();
+    if child_ids.is_empty() {
+        return leaf_asset_kind(snapshot, node, nested);
+    }
+
+    if child_ids.len() == 1 {
+        if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
+            .into_iter()
+            .any(|field| view.number(field).is_some_and(|padding| padding > 0.0))
+            || fills(node).is_some_and(|fills| fills.iter().any(is_visible_fill))
+        {
+            return None;
         }
-        if fills.is_some_and(|fills| {
-            !fills.is_empty()
-                && !fills.iter().all(|paint| {
-                    paint.get("type").and_then(Value::as_str) == Some("SOLID")
-                        && paint.get("visible").and_then(Value::as_bool) == Some(true)
-                })
-        }) {
-            return Some(if uniform_asset_color(snapshot, node).is_some() {
-                AssetKind::SvgMask
-            } else {
-                AssetKind::Svg
-            });
+
+        return match snapshot
+            .nodes
+            .get(child_ids[0])
+            .and_then(|child| asset_kind_nested(snapshot, child, true))
+        {
+            Some(AssetKind::Png) => Some(AssetKind::Png),
+            Some(AssetKind::Svg | AssetKind::SvgMask) => {
+                Some(svg_asset_kind(snapshot, node, nested))
+            }
+            None => None,
+        };
+    }
+
+    let mut visible_children = Vec::new();
+    for child_id in child_ids {
+        let child = snapshot.nodes.get(child_id)?;
+        if child.typed_view().bool("visible") != Some(false) {
+            visible_children.push(child);
         }
     }
-    if view.child_ids().next().is_some() {
-        let children = view
-            .child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .collect::<Vec<_>>();
-        let direct_vectors = children.iter().all(|child| {
+
+    visible_children
+        .into_iter()
+        .all(|child| {
             matches!(
-                child.typed_view().node_type(),
-                "VECTOR" | "STAR" | "POLYGON"
+                asset_kind_nested(snapshot, child, true),
+                Some(AssetKind::Svg | AssetKind::SvgMask)
             )
-        });
-        if view.bool("isAsset") == Some(true) && first_solid_color(view.value("fills")).is_some() {
-            return None;
-        }
-        if children.len() == 1
-            && !direct_vectors
-            && matches!(
-                view.string("layoutMode"),
-                Some("HORIZONTAL" | "VERTICAL" | "GRID")
-            )
-        {
-            return None;
-        }
-        if !children.is_empty()
-            && children.iter().all(|child| {
-                matches!(
-                    asset_kind_nested(snapshot, child),
-                    Some(AssetKind::Svg | AssetKind::SvgMask)
-                )
-            })
-        {
-            return Some(if uniform_asset_color(snapshot, node).is_some() {
-                AssetKind::SvgMask
-            } else {
-                AssetKind::Svg
-            });
-        }
-    }
-    None
-}
-
-fn asset_kind_nested(snapshot: &Snapshot, node: &RawNode) -> Option<AssetKind> {
-    if let Some(kind) = asset_kind(snapshot, node) {
-        return Some(kind);
-    }
-    let view = node.typed_view();
-    if view.node_type() == "TEXT" {
-        return None;
-    }
-    if view.child_ids().next().is_some() {
-        return None;
-    }
-    let fills = view.value("fills").and_then(Value::as_array)?;
-    if fills.iter().any(|paint| {
-        paint.get("visible").and_then(Value::as_bool) != Some(false)
-            && paint.get("type").and_then(Value::as_str) != Some("SOLID")
-    }) {
-        return None;
-    }
-    if fills.iter().any(|paint| {
-        paint.get("visible").and_then(Value::as_bool) != Some(false)
-            && matches!(
-                paint.get("type").and_then(Value::as_str),
-                Some("IMAGE" | "VIDEO" | "PATTERN")
-            )
-    }) {
-        None
-    } else {
-        Some(if uniform_asset_color(snapshot, node).is_some() {
-            AssetKind::SvgMask
-        } else {
-            AssetKind::Svg
         })
+        .then(|| svg_asset_kind(snapshot, node, nested))
+}
+
+fn leaf_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetKind> {
+    let node_fills = fills(node);
+    if node_fills.is_some_and(|fills| {
+        fills.iter().any(|fill| {
+            is_visible_fill(fill)
+                && (fill_type(fill) == Some("PATTERN")
+                    || (fill_type(fill) == Some("IMAGE")
+                        && fill.get("scaleMode").and_then(Value::as_str) == Some("TILE")))
+        })
+    }) {
+        return None;
+    }
+
+    if node.typed_view().bool("isAsset") == Some(true) {
+        if node_fills.is_some_and(|fills| {
+            fills.iter().any(|fill| {
+                is_visible_fill(fill)
+                    && fill_type(fill) == Some("IMAGE")
+                    && fill.get("scaleMode").and_then(Value::as_str) != Some("TILE")
+            })
+        }) {
+            return (node_fills.is_some_and(|fills| fills.len() == 1)).then_some(AssetKind::Png);
+        }
+
+        if node_fills.is_none_or(|fills| {
+            fills
+                .iter()
+                .all(|fill| is_visible_fill(fill) && fill_type(fill) == Some("SOLID"))
+        }) {
+            return nested.then(|| svg_asset_kind(snapshot, node, nested));
+        }
+
+        return Some(svg_asset_kind(snapshot, node, nested));
+    }
+
+    (nested
+        && node_fills.is_some_and(|fills| {
+            fills.iter().all(|fill| {
+                !is_visible_fill(fill)
+                    || !matches!(fill_type(fill), Some("IMAGE" | "VIDEO" | "PATTERN"))
+            })
+        }))
+    .then(|| svg_asset_kind(snapshot, node, nested))
+}
+
+fn fills(node: &RawNode) -> Option<&Vec<Value>> {
+    node.typed_view().value("fills").and_then(Value::as_array)
+}
+
+fn fill_type(fill: &Value) -> Option<&str> {
+    fill.get("type").and_then(Value::as_str)
+}
+
+fn is_visible_fill(fill: &Value) -> bool {
+    fill.get("visible").and_then(Value::as_bool) != Some(false)
+}
+
+fn has_smart_animate_reaction(node: &RawNode) -> bool {
+    node.typed_view()
+        .value("reactions")
+        .and_then(Value::as_array)
+        .is_some_and(|reactions| {
+            reactions.iter().any(|reaction| {
+                reaction
+                    .get("actions")
+                    .and_then(Value::as_array)
+                    .is_some_and(|actions| {
+                        actions.iter().any(|action| {
+                            action.get("type").and_then(Value::as_str) == Some("NODE")
+                                && action
+                                    .get("transition")
+                                    .and_then(|transition| transition.get("type"))
+                                    .and_then(Value::as_str)
+                                    == Some("SMART_ANIMATE")
+                        })
+                    })
+            })
+        })
+}
+
+fn svg_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> AssetKind {
+    if matches!(
+        same_color(snapshot, node, nested, None),
+        SameColor::Color(_)
+    ) {
+        AssetKind::SvgMask
+    } else {
+        AssetKind::Svg
     }
 }
 
-fn uniform_asset_color(snapshot: &Snapshot, node: &RawNode) -> Option<String> {
-    fn visit(snapshot: &Snapshot, node: &RawNode, colors: &mut Vec<String>) -> bool {
-        let view = node.typed_view();
-        for field in ["fills", "strokes"] {
-            if let Some(paints) = view.value(field).and_then(Value::as_array) {
-                for paint in paints {
-                    if paint.get("visible").and_then(Value::as_bool) == Some(false) {
-                        continue;
-                    }
-                    if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
-                        return false;
-                    }
-                    let Some(color) = paint.get("color").and_then(color_from) else {
-                        return false;
-                    };
-                    colors.push(color);
+/// What an asset is painted in, if it is one thing.
+///
+/// This is the `sameColor` half of the plugin's `computeAssetAnalysis`,
+/// which decides whether an icon is drawn as an `<Image>` or as a Box masked
+/// to its shape and filled with one colour. `Null` is a subtree that settled
+/// on nothing, `False` one whose paints disagree, and only a `Color` makes a
+/// mask. The two non-answers are not the same: a `Null` child leaves a
+/// running colour alone, a `False` one spoils it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SameColor {
+    Null,
+    False,
+    Color(String),
+}
+
+/// The plugin's `mergeSameColor`.
+fn merge_same_color(current: SameColor, next: SameColor) -> SameColor {
+    match (current, next) {
+        (_, SameColor::False) => SameColor::False,
+        (SameColor::Null, next) => next,
+        (current, next) if current == next => current,
+        _ => SameColor::False,
+    }
+}
+
+/// The plugin's `analyzeOwnSameColor`: the node's own fills and strokes.
+enum OwnColor {
+    /// No visible paint at all.
+    None,
+    /// A paint that is not a flat colour.
+    Null,
+    /// Two flat colours that differ.
+    False,
+    Color(String),
+}
+
+fn own_same_color(
+    node: &RawNode,
+    variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
+) -> OwnColor {
+    let view = node.typed_view();
+    let mut target: Option<String> = None;
+    let mut has_paints = false;
+    for field in ["fills", "strokes"] {
+        let Some(paints) = view.value(field).and_then(Value::as_array) else {
+            continue;
+        };
+        for paint in paints {
+            if paint.get("visible").and_then(Value::as_bool) != Some(true) {
+                continue;
+            }
+            has_paints = true;
+            if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
+                return OwnColor::Null;
+            }
+            let Some(color) = paint_string(paint, variable_tokens) else {
+                return OwnColor::Null;
+            };
+            match &target {
+                None => target = Some(color),
+                Some(current) if *current != color => return OwnColor::False,
+                Some(_) => {}
+            }
+        }
+    }
+    if !has_paints {
+        return OwnColor::None;
+    }
+    match target {
+        Some(color) => OwnColor::Color(color),
+        None => OwnColor::Null,
+    }
+}
+
+/// A solid paint as the plugin's `solidToString` spells it: the variable it
+/// is bound to as `$token`, or else the colour. Two paints are the same
+/// colour to the plugin only when these agree, so a paint bound to a
+/// variable and a raw paint of the same hex are *not* the same.
+///
+/// Without a token map the variable id stands in for its name; that keeps
+/// the comparison right when only the shape is being decided and the names
+/// are not to hand.
+pub(super) fn paint_string(
+    paint: &Value,
+    variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
+) -> Option<String> {
+    if let Some(id) = paint
+        .get("boundVariables")
+        .and_then(|bound| bound.get("color"))
+        .and_then(|color| color.get("id"))
+        .and_then(Value::as_str)
+    {
+        match variable_tokens {
+            None => return Some(format!("${id}")),
+            Some(tokens) => {
+                if let Some(token) = tokens.get(id) {
+                    return Some(format!("${token}"));
                 }
             }
         }
-        view.child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .all(|child| visit(snapshot, child, colors))
     }
-
-    let mut colors = Vec::new();
-    if !visit(snapshot, node, &mut colors) || colors.is_empty() {
-        return None;
+    if paint.get("opacity").and_then(Value::as_f64) == Some(0.0) {
+        return Some("transparent".to_owned());
     }
-    let first = colors.first()?.clone();
-    colors.iter().all(|color| color == &first).then_some(first)
+    color_from_paint(paint)
 }
 
-fn uniform_asset_token(
+fn same_color(
     snapshot: &Snapshot,
     node: &RawNode,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
-) -> Option<String> {
-    fn visit(
-        snapshot: &Snapshot,
-        node: &RawNode,
-        variable_tokens: &std::collections::BTreeMap<String, String>,
-        tokens: &mut Vec<String>,
-    ) -> bool {
-        let view = node.typed_view();
-        if let Some(fills) = view.value("fills").and_then(Value::as_array) {
-            for paint in fills.iter().filter(|paint| {
-                paint.get("visible").and_then(Value::as_bool) != Some(false)
-                    && paint.get("type").and_then(Value::as_str) == Some("SOLID")
-            }) {
-                let Some(token) = bound_paint_token(paint, variable_tokens) else {
-                    return false;
-                };
-                tokens.push(token);
-            }
-        }
-        view.child_ids()
-            .filter_map(|id| snapshot.nodes.get(id))
-            .all(|child| visit(snapshot, child, variable_tokens, tokens))
+    nested: bool,
+    variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
+) -> SameColor {
+    let view = node.typed_view();
+    let own = || match own_same_color(node, variable_tokens) {
+        OwnColor::Color(color) => SameColor::Color(color),
+        _ => SameColor::Null,
+    };
+    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
+        || view
+            .value("inferredAutoLayout")
+            .and_then(|layout| layout.get("layoutMode"))
+            .and_then(Value::as_str)
+            == Some("GRID")
+        || has_smart_animate_reaction(node)
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .is_some_and(has_smart_animate_reaction)
+    {
+        return SameColor::Null;
+    }
+    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON") {
+        return own();
+    }
+    if view.node_type() == "ELLIPSE"
+        && view
+            .value("arcData")
+            .and_then(|arc_data| arc_data.get("innerRadius"))
+            .and_then(Value::as_f64)
+            .is_some_and(|inner_radius| inner_radius != 0.0)
+    {
+        return own();
     }
 
-    let mut tokens = Vec::new();
-    if !visit(snapshot, node, variable_tokens, &mut tokens) || tokens.is_empty() {
-        return None;
+    let child_ids = view.child_ids().collect::<Vec<_>>();
+    if child_ids.is_empty() {
+        let node_fills = fills(node);
+        if node_fills.is_some_and(|fills| {
+            fills.iter().any(|fill| {
+                is_visible_fill(fill)
+                    && (fill_type(fill) == Some("PATTERN")
+                        || (fill_type(fill) == Some("IMAGE")
+                            && fill.get("scaleMode").and_then(Value::as_str) == Some("TILE")))
+            })
+        }) {
+            return SameColor::Null;
+        }
+        if view.bool("isAsset") == Some(true) {
+            let Some(node_fills) = node_fills else {
+                return SameColor::Null;
+            };
+            if node_fills.iter().any(|fill| {
+                is_visible_fill(fill)
+                    && fill_type(fill) == Some("IMAGE")
+                    && fill.get("scaleMode").and_then(Value::as_str) != Some("TILE")
+            }) {
+                return SameColor::Null;
+            }
+            if node_fills.iter().all(|fill| {
+                fill.get("visible").and_then(Value::as_bool) == Some(true)
+                    && fill_type(fill) == Some("SOLID")
+            }) {
+                return if nested { own() } else { SameColor::Null };
+            }
+            return match own_same_color(node, variable_tokens) {
+                OwnColor::Color(color) => SameColor::Color(color),
+                OwnColor::False => SameColor::False,
+                _ => SameColor::Null,
+            };
+        }
+        if nested
+            && node_fills.is_some_and(|fills| {
+                !fills.iter().any(|fill| {
+                    is_visible_fill(fill)
+                        && matches!(fill_type(fill), Some("IMAGE" | "VIDEO" | "PATTERN"))
+                })
+            })
+        {
+            return own();
+        }
+        return SameColor::Null;
     }
-    let first = tokens.first()?.clone();
-    tokens.iter().all(|token| token == &first).then_some(first)
+
+    if child_ids.len() == 1 {
+        if ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom"]
+            .into_iter()
+            .any(|field| view.number(field).is_some_and(|padding| padding > 0.0))
+            || fills(node).is_some_and(|fills| fills.iter().any(is_visible_fill))
+        {
+            return SameColor::Null;
+        }
+        return snapshot
+            .nodes
+            .get(child_ids[0])
+            .map_or(SameColor::Null, |child| {
+                same_color(snapshot, child, true, variable_tokens)
+            });
+    }
+
+    let mut same = match own_same_color(node, variable_tokens) {
+        OwnColor::Null => return SameColor::Null,
+        OwnColor::False => return SameColor::False,
+        OwnColor::Color(color) => SameColor::Color(color),
+        OwnColor::None => SameColor::Null,
+    };
+    for child in child_ids
+        .into_iter()
+        .filter_map(|id| snapshot.nodes.get(id))
+        .filter(|child| child.typed_view().bool("visible") != Some(false))
+    {
+        same = merge_same_color(same, same_color(snapshot, child, true, variable_tokens));
+    }
+    same
+}
+
+/// What the style pass needs beyond the node itself: which variables carry a
+/// token name, and how assets are to be named. Carried together so that
+/// adding to it does not lengthen every signature it passes through.
+#[derive(Clone, Copy)]
+pub(super) struct StyleOptions<'a> {
+    pub variable_tokens: &'a std::collections::BTreeMap<String, String>,
+    pub asset_names_per_node: bool,
 }
 
 pub(super) fn push_style_props(
@@ -217,8 +433,12 @@ pub(super) fn push_style_props(
     asset: Option<AssetKind>,
     props: &mut Vec<Prop>,
     used_tokens: &mut BTreeSet<String>,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
+    style: StyleOptions<'_>,
 ) {
+    let StyleOptions {
+        variable_tokens,
+        asset_names_per_node: per_node,
+    } = style;
     let view = node.typed_view();
     if view.bool("visible") == Some(false) {
         string_prop(props, "display", "none");
@@ -234,12 +454,14 @@ pub(super) fn push_style_props(
         } else {
             "png"
         };
-        let source = format!("/{folder}/{}.{extension}", view.name().unwrap_or("Asset"));
+        let source = asset_source(snapshot, node, folder, extension, per_node);
         if asset == AssetKind::SvgMask {
-            if let Some(token) = uniform_asset_token(snapshot, node, variable_tokens) {
-                used_tokens.insert(token.clone());
-                string_prop(props, "bg", format!("${token}"));
-            } else if let Some(color) = uniform_asset_color(snapshot, node) {
+            if let SameColor::Color(color) =
+                same_color(snapshot, node, false, Some(variable_tokens))
+            {
+                if let Some(token) = color.strip_prefix('$') {
+                    used_tokens.insert(token.to_owned());
+                }
                 string_prop(props, "bg", color);
             }
             let url = if source.contains(' ') {
@@ -254,34 +476,74 @@ pub(super) fn push_style_props(
         } else {
             string_prop(props, "src", source);
         }
-        if asset == AssetKind::Png
-            && let Some(scale) = view
-                .value("fills")
-                .and_then(Value::as_array)
-                .and_then(|fills| fills.first())
-                .and_then(|paint| paint.get("scaleMode"))
-                .and_then(Value::as_str)
+        push_object_fit(&view, props);
+        // An export in flow is drawn where it sits in the box the layout gives
+        // the node. They coincide for a plain icon; the notice logo is an
+        // instance of 1373x98 whose vector is 952x104 at 425px in, and
+        // `contain` centred a 1373-wide picture of a 952-wide logo. The
+        // element keeps the layout's box, and the picture is placed inside it
+        // at the export's own size and offset. An element the layout
+        // positions is placed by its export outright, in `codegen::layout`.
+        if view.string("layoutPositioning") != Some("ABSOLUTE")
+            && !super::layout::placed_by_a_free_layout(
+                snapshot,
+                node,
+                view.string("parentId")
+                    .and_then(|parent_id| snapshot.nodes.get(parent_id)),
+                false,
+            )
+            && let Some(offset) = super::layout::export_offset(node)
         {
-            match scale {
-                "FIT" => string_prop(props, "objectFit", "contain"),
-                "CROP" => string_prop(props, "objectFit", "cover"),
-                _ => {}
+            let size = format!("{} {}", px(offset.w), px(offset.h));
+            let position = format!("{} {}", px(offset.x), px(offset.y));
+            if asset == AssetKind::SvgMask {
+                string_prop(props, "maskSize", size);
+                string_prop(props, "maskPos", position);
+            } else {
+                string_prop(props, "objectFit", "none");
+                string_prop(props, "objectPos", position);
             }
         }
         push_radius(&view, props);
         push_strokes(&view, props, used_tokens, variable_tokens);
-        push_effects(&view, component, props);
-        if let Some(opacity) = view.number("opacity")
-            && opacity < 1.0
-        {
-            string_prop(props, "opacity", format_number(opacity));
-        }
+        push_effects(&view, component, props, used_tokens, variable_tokens);
+        // An export carries the node's own opacity: Figma writes it into the
+        // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
+        // as well it is applied twice - a decoration at 0.2 came out at 0.04,
+        // which is nothing, and the landing page's hero at 0.8 came out at
+        // 0.64. The plugin writes it twice too. A mask is the same: the
+        // SVG's own opacity thins the mask, so the colour painted through it
+        // already shows at the node's opacity.
         push_blend_mode(&view, props);
         return;
     }
 
+    push_object_fit(&view, props);
     let color_prop = if component == "Text" { "color" } else { "bg" };
-    if let Some(token) = view
+    // A background is every visible paint, back to front, as the plugin's
+    // `getBackgroundProps` composes it. Reading only the bound variable
+    // dropped the photo that sits on top of a `$gray200` plate: the about
+    // member cards are `url(...) center/cover no-repeat, $gray200`, and were
+    // coming out as the plate alone.
+    let layered = component != "Text"
+        && view
+            .value("fills")
+            .and_then(Value::as_array)
+            .is_some_and(|fills| {
+                fills
+                    .iter()
+                    .filter(|paint| {
+                        paint.get("visible").and_then(Value::as_bool) != Some(false)
+                            && paint.get("opacity").and_then(Value::as_f64) != Some(0.0)
+                    })
+                    .count()
+                    > 1
+            });
+    if layered {
+        if let Some(background) = background_css(snapshot, node, used_tokens, style) {
+            string_prop(props, "bg", background);
+        }
+    } else if let Some(token) = view
         .value("devupTokens")
         .and_then(Value::as_object)
         .and_then(|tokens| tokens.get("fills"))
@@ -293,7 +555,7 @@ pub(super) fn push_style_props(
         used_tokens.insert(color.clone());
         string_prop(props, color_prop, format!("${color}"));
     } else if component == "Text" && has_non_solid_fill(&view) {
-        if let Some(background) = background_css(snapshot, node, variable_tokens) {
+        if let Some(background) = background_css(snapshot, node, used_tokens, style) {
             string_prop(props, "bg", background);
             string_prop(props, "bgClip", "text");
             string_prop(props, "WebkitTextFillColor", "transparent");
@@ -314,7 +576,7 @@ pub(super) fn push_style_props(
         } else if let Some(color) = first_solid_color(view.value("fills")) {
             string_prop(props, color_prop, color);
         }
-    } else if let Some(background) = background_css(snapshot, node, variable_tokens) {
+    } else if let Some(background) = background_css(snapshot, node, used_tokens, style) {
         string_prop(props, "bg", background);
     }
     if let Some(mode) = view
@@ -336,13 +598,43 @@ pub(super) fn push_style_props(
     if component != "Text" {
         push_strokes(&view, props, used_tokens, variable_tokens);
     }
-    push_effects(&view, component, props);
+    push_effects(&view, component, props, used_tokens, variable_tokens);
     if let Some(opacity) = view.number("opacity")
         && opacity < 1.0
     {
         string_prop(props, "opacity", format_number(opacity));
     }
     push_blend_mode(&view, props);
+}
+
+/// The plugin's `getObjectFitProps`: how the first visible image fill of a
+/// node Figma calls an asset is scaled. It is written whatever element the
+/// node became — the about member cards are a `Box` whose photo sits on a
+/// `$gray200` plate, and the reference gives them `objectFit="cover"` all the
+/// same. `FILL` and `TILE` say nothing.
+fn push_object_fit(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
+    if view.bool("isAsset") != Some(true) {
+        return;
+    }
+    let Some(scale) = view
+        .value("fills")
+        .and_then(Value::as_array)
+        .and_then(|fills| {
+            fills.iter().find(|paint| {
+                paint.get("type").and_then(Value::as_str) == Some("IMAGE")
+                    && paint.get("visible").and_then(Value::as_bool) == Some(true)
+            })
+        })
+        .and_then(|paint| paint.get("scaleMode"))
+        .and_then(Value::as_str)
+    else {
+        return;
+    };
+    match scale {
+        "FIT" => string_prop(props, "objectFit", "contain"),
+        "CROP" => string_prop(props, "objectFit", "cover"),
+        _ => {}
+    }
 }
 
 fn push_blend_mode(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
@@ -379,40 +671,226 @@ fn has_non_solid_fill(view: &TypedNode<'_>) -> bool {
 fn background_css(
     snapshot: &Snapshot,
     node: &RawNode,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
+    style: StyleOptions<'_>,
 ) -> Option<String> {
     let view = node.typed_view();
     let paints = view.value("fills")?.as_array()?;
+    // Keep each paint's own index. CSS layers run back to front, so the order
+    // here is reversed, but an image fill is identified in the asset manifest
+    // as `{nodeId}:fills:{index}` against the original order — a reference
+    // built from the reversed position would name the wrong asset.
     let visible = paints
         .iter()
-        .filter(|paint| {
+        .enumerate()
+        .filter(|(_, paint)| {
             paint.get("visible").and_then(Value::as_bool) != Some(false)
                 && paint.get("opacity").and_then(Value::as_f64) != Some(0.0)
         })
         .rev()
         .collect::<Vec<_>>();
     let mut css = Vec::new();
-    for (index, paint) in visible.iter().enumerate() {
-        let is_last = index + 1 == visible.len();
-        if let Some(value) = paint_css(snapshot, node, paint, is_last, variable_tokens) {
+    for (layer, (fill_index, paint)) in visible.iter().enumerate() {
+        let is_last = layer + 1 == visible.len();
+        if let Some(value) = paint_css(
+            snapshot,
+            node,
+            paint,
+            *fill_index,
+            is_last,
+            used_tokens,
+            style,
+        ) {
             css.push(value);
         }
     }
     (!css.is_empty()).then(|| css.join(", "))
 }
 
+/// The file an image fill refers to.
+///
+/// Every image fill once resolved to a single hard-coded `/icons/image.png`,
+/// which lost three separate things: a raster was pointed at the icon folder,
+/// unrelated images from different nodes all claimed the same file and so
+/// overwrote one another on disk, and two fills on one node produced the
+/// identical URL twice over. The manifest identifies a fill as
+/// `{nodeId}:fills:{index}`, so the reference keeps the node's name and, past
+/// the first fill, its index — a lone fill keeps the plain
+/// `/images/{name}.png` the `<Image>` element already emits, so the two agree
+/// on the same asset.
+fn image_fill_source(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    fill_index: usize,
+    per_node: bool,
+) -> String {
+    let source = if fill_index == 0 {
+        asset_source(snapshot, node, "images", "png", per_node)
+    } else {
+        let stem = asset_stem(snapshot, node, per_node);
+        format!("/images/{stem}-{fill_index}.png")
+    };
+    if source.contains(' ') {
+        format!("'{source}'")
+    } else {
+        source
+    }
+}
+
+/// The file an asset node is drawn from: `/{folder}/{stem}.{extension}`.
+///
+/// The plugin draws an instance from its main component and names the file
+/// after that node, so every instance of a variant is `Property 1=search.svg`:
+/// one file for the icon wherever it is used, but the same file for every
+/// component set that has a `search` variant, each overwriting the last. The
+/// layer name a designer gave the node is used instead, and where two assets
+/// in the snapshot that are not the same thing would share it, each says what
+/// it is: see `asset_stem`.
+pub(crate) fn asset_source(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    folder: &str,
+    extension: &str,
+    per_node: bool,
+) -> String {
+    format!(
+        "/{folder}/{}.{extension}",
+        asset_stem(snapshot, node, per_node)
+    )
+}
+
+/// The path the generated code refers to for an asset node - `/icons/x.svg`
+/// for a vector, `/images/x.png` for the first image fill - so a manifest
+/// can say where the code expects each asset. `None` for a node the code
+/// does not draw from a file.
+pub fn asset_path(snapshot: &Snapshot, node_id: &str, per_node: bool) -> Option<String> {
+    let node = snapshot.nodes.get(node_id)?;
+    let kind = asset_kind(snapshot, node)?;
+    let (folder, extension) = match kind {
+        AssetKind::Svg | AssetKind::SvgMask => ("icons", "svg"),
+        _ => ("images", "png"),
+    };
+    Some(asset_source(snapshot, node, folder, extension, per_node))
+}
+
+/// The `position/size` a cropped image fill is painted with, read from
+/// Figma's `imageTransform`. The matrix maps the image's own 0..1 space onto
+/// the box: the part on show runs from `tx` for `sx` across and from `ty` for
+/// `sy` down. Scaling the picture by `1/sx` makes that part as wide as the
+/// box, and `tx / (1 - sx)` is where along the overflow it has to sit - which
+/// is exactly the percentage CSS positions a background by. A scale of one
+/// leaves no overflow to position within, so it sits at the start.
+fn image_crop(paint: &Value) -> Option<String> {
+    let rows = paint.get("imageTransform")?.as_array()?;
+    let cell = |row: usize, column: usize| rows.get(row)?.as_array()?.get(column)?.as_f64();
+    let (scale_x, offset_x) = (cell(0, 0)?, cell(0, 2)?);
+    let (scale_y, offset_y) = (cell(1, 1)?, cell(1, 2)?);
+    if scale_x == 0.0 || scale_y == 0.0 {
+        return None;
+    }
+    let position = |scale: f64, offset: f64| {
+        if (1.0 - scale).abs() < 1e-6 {
+            0.0
+        } else {
+            offset / (1.0 - scale) * 100.0
+        }
+    };
+    Some(format!(
+        "{}% {}%/{}% {}%",
+        format_number(position(scale_x, offset_x)),
+        format_number(position(scale_y, offset_y)),
+        format_number(100.0 / scale_x),
+        format_number(100.0 / scale_y),
+    ))
+}
+
+/// Where the code draws one of a node's image fills from: `/images/x.png`
+/// for the first fill and `/images/x-2.png` past it, the same name
+/// `image_fill_source` writes into the code but without the quoting a CSS
+/// `url()` puts around a name with a space in it.
+///
+/// This answers for any node that carries the fill, where `asset_path` only
+/// answers for a node the code draws entirely from a file. A section painted
+/// over a photograph is a layout box holding children, not an asset - but the
+/// photograph on it is still a file the code points at, and a caller has to
+/// be told where.
+pub fn image_fill_path(
+    snapshot: &Snapshot,
+    node_id: &str,
+    fill_index: usize,
+    per_node: bool,
+) -> Option<String> {
+    let node = snapshot.nodes.get(node_id)?;
+    let stem = asset_stem(snapshot, node, per_node);
+    Some(if fill_index == 0 {
+        format!("/images/{stem}.png")
+    } else {
+        format!("/images/{stem}-{fill_index}.png")
+    })
+}
+
+/// The file name an asset node gets, without folder or extension.
+///
+/// The layer name, unless another asset in the snapshot has the same name
+/// and is a different thing. Three cards each hold an `Icons` instance at a
+/// different variant - chart, clock, lightning - and all three were
+/// `/icons/Icons.svg`, one file overwriting the next, and every card drew the
+/// chart. An instance whose name is shared then carries its variant, `Icons=chart`;
+/// a node that is not an instance carries its id. Instances of one variant
+/// share a name and a file, as the same icon at three widths should.
+pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) -> String {
+    let view = node.typed_view();
+    let name = view.name().unwrap_or("Asset");
+    let identity = asset_identity(node);
+    let shared = per_node
+        || snapshot.nodes.values().any(|other| {
+            other.id != node.id
+                && other.typed_view().name() == Some(name)
+                && asset_identity(other) != identity
+                && asset_kind(snapshot, other).is_some()
+        });
+    if !shared {
+        return name.to_owned();
+    }
+    match identity {
+        Some(variant) => format!("{name}={variant}"),
+        None => format!("{name}-{}", node.id.replace([':', ';'], "-")),
+    }
+}
+
+/// What makes an instance the thing it is: its variant, as `chart` or
+/// `lg,primary`. `None` for a node that is not an instance of a variant.
+fn asset_identity(node: &RawNode) -> Option<String> {
+    let view = node.typed_view();
+    let properties = view.value("variantProperties")?.as_object()?;
+    let values = properties
+        .values()
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    (!values.is_empty()).then(|| values.join(","))
+}
+
 fn paint_css(
     snapshot: &Snapshot,
     node: &RawNode,
     paint: &Value,
+    fill_index: usize,
     last: bool,
-    variable_tokens: &std::collections::BTreeMap<String, String>,
+    used_tokens: &mut BTreeSet<String>,
+    style: StyleOptions<'_>,
 ) -> Option<String> {
+    let StyleOptions {
+        variable_tokens,
+        asset_names_per_node: per_node,
+    } = style;
     let kind = paint.get("type")?.as_str()?;
     match kind {
         "SOLID" => {
             let color = bound_paint_token(paint, variable_tokens)
-                .map(|token| format!("${token}"))
+                .map(|token| {
+                    used_tokens.insert(token.clone());
+                    format!("${token}")
+                })
                 .or_else(|| color_from_paint(paint))?;
             Some(if last {
                 color
@@ -425,13 +903,24 @@ fn paint_css(
         "GRADIENT_ANGULAR" => gradient_css(node, paint, "angular", variable_tokens),
         "GRADIENT_DIAMOND" => gradient_css(node, paint, "diamond", variable_tokens),
         "IMAGE" => {
+            let source = image_fill_source(snapshot, node, fill_index, per_node);
+            // A cropped fill carries its crop as a matrix over the image's own
+            // 0..1 space. Painted `center/cover` that is thrown away and the
+            // whole picture is shown instead, which is a different crop: the
+            // about page's photographs came out zoomed in against the render
+            // Figma draws of the same frame.
+            if paint.get("scaleMode").and_then(Value::as_str) == Some("CROP")
+                && let Some(crop) = image_crop(paint)
+            {
+                return Some(format!("url({source}) {crop} no-repeat"));
+            }
             let fit = match paint.get("scaleMode").and_then(Value::as_str) {
                 Some("FIT") => "center/contain no-repeat",
                 Some("FILL" | "CROP") => "center/cover no-repeat",
                 Some("TILE") => "repeat",
                 _ => "center/cover no-repeat",
             };
-            Some(format!("url(/icons/image.png) {fit}"))
+            Some(format!("url({source}) {fit}"))
         }
         "PATTERN" => {
             let source_id = paint.get("sourceNodeId").and_then(Value::as_str)?;
@@ -439,10 +928,17 @@ fn paint_css(
             let name = source
                 .and_then(|node| node.typed_view().name())
                 .unwrap_or("pattern");
-            let extension = source
+            // A raster belongs with the images and a vector with the icons,
+            // which is the split every other asset reference follows. This one
+            // sent a png to the icon folder.
+            let raster = source
                 .and_then(|node| asset_kind(snapshot, node))
-                .map(|kind| if kind == AssetKind::Png { "png" } else { "svg" })
-                .unwrap_or("svg");
+                .is_some_and(|kind| kind == AssetKind::Png);
+            let (folder, extension) = if raster {
+                ("images", "png")
+            } else {
+                ("icons", "svg")
+            };
             let spacing = paint.get("spacing").and_then(Value::as_object);
             let x = spacing
                 .and_then(|value| value.get("x"))
@@ -474,7 +970,7 @@ fn paint_css(
                 .collect::<Vec<_>>()
                 .join(" ");
             Some(format!(
-                "url(/icons/{name}.{extension}){} repeat",
+                "url(/{folder}/{name}.{extension}){} repeat",
                 if position.is_empty() {
                     String::new()
                 } else {
@@ -515,8 +1011,23 @@ fn gradient_css(
             color
                 .as_object_mut()?
                 .insert("a".to_owned(), Value::from(alpha));
+            // A stop bound to a variable is the token — and where the stop or
+            // the paint is translucent, the token mixed with transparent by
+            // that much, as the plugin's `processGradientStopColor` writes it:
+            // a token names an opaque colour, and the alpha would be lost with
+            // it. The report section's backdrop is a 50% gradient between two
+            // tokens, `color-mix(in srgb, $primaryBg, transparent 50%)`.
             let color = bound_paint_token(stop, variable_tokens)
-                .map(|token| format!("${token}"))
+                .map(|token| {
+                    if alpha < 1.0 {
+                        format!(
+                            "color-mix(in srgb, ${token}, transparent {}%)",
+                            format_number((1.0 - alpha) * 100.0)
+                        )
+                    } else {
+                        format!("${token}")
+                    }
+                })
                 .or_else(|| color_from(&color))?;
             Some((stop.get("position")?.as_f64()?, color))
         })
@@ -882,7 +1393,13 @@ fn push_strokes(
     }
 }
 
-fn push_effects(view: &TypedNode<'_>, component: &str, props: &mut Vec<Prop>) {
+fn push_effects(
+    view: &TypedNode<'_>,
+    component: &str,
+    props: &mut Vec<Prop>,
+    used_tokens: &mut BTreeSet<String>,
+    variable_tokens: &std::collections::BTreeMap<String, String>,
+) {
     let Some(effects) = view.value("effects").and_then(Value::as_array) else {
         return;
     };
@@ -904,7 +1421,17 @@ fn push_effects(view: &TypedNode<'_>, component: &str, props: &mut Vec<Prop>) {
             let y = offset.get("y")?.as_f64()?;
             let radius = effect.get("radius")?.as_f64()?;
             let spread = effect.get("spread").and_then(Value::as_f64).unwrap_or(0.0);
-            let color = color_from(effect.get("color")?)?;
+            // A shadow's colour can be bound to a variable, exactly as a fill
+            // or a stroke can, and then the token is what the design means:
+            // the landing page's cards are `$shadow`, one value the theme can
+            // move for dark mode. Written as the resolved `#87878740` they
+            // were a colour nothing could reach.
+            let color = if let Some(token) = bound_paint_token(effect, variable_tokens) {
+                used_tokens.insert(token.clone());
+                format!("${token}")
+            } else {
+                color_from(effect.get("color")?)?
+            };
             let inset = if effect.get("type").and_then(Value::as_str) == Some("INNER_SHADOW") {
                 "inset "
             } else {
@@ -952,6 +1479,82 @@ fn push_effects(view: &TypedNode<'_>, component: &str, props: &mut Vec<Prop>) {
             _ => {}
         }
     }
+}
+
+/// Whether every visible effect on this node survives `push_effects` without
+/// loss. Mirrors that function case for case; the two must move together.
+///
+/// `DEVUP_CODEGEN_EFFECT_FALLBACK` used to fire whenever a node merely *had* an
+/// effects array. A plain drop shadow is present on nearly every real design,
+/// so that permanently pinned `projection` to `lossy` and made `strict: true`
+/// unusable, while saying nothing about what was actually lost.
+///
+/// Deliberately *not* counted as loss: `showShadowBehindNode`. CSS always
+/// paints a non-inset `box-shadow` behind the element's box, so the flag only
+/// changes rendering behind a translucent fill. Treating it as loss would put
+/// essentially every Figma shadow back into `lossy` for a difference that is
+/// usually invisible, recreating the problem this guard removes.
+pub(super) fn effects_are_exact(view: &TypedNode<'_>) -> bool {
+    let Some(effects) = view.value("effects").and_then(Value::as_array) else {
+        return true;
+    };
+    // `push_effects` picks `textShadow` for Text, which has no spread slot.
+    // `component.rs` resolves exactly this node type to the `Text` component.
+    let is_text = view.node_type() == "TEXT";
+    let visible = effects
+        .iter()
+        .filter(|effect| effect.get("visible").and_then(Value::as_bool) != Some(false))
+        .collect::<Vec<_>>();
+
+    // `push_effects` writes `filter` once per effect that maps to it, so two
+    // such effects would collide on a single prop and the later one wins.
+    let filter_writers = visible
+        .iter()
+        .filter(|effect| {
+            matches!(
+                effect.get("type").and_then(Value::as_str),
+                Some("LAYER_BLUR" | "NOISE" | "TEXTURE")
+            )
+        })
+        .count();
+    if filter_writers > 1 {
+        return false;
+    }
+
+    visible
+        .iter()
+        .all(|effect| match effect.get("type").and_then(Value::as_str) {
+            Some("DROP_SHADOW" | "INNER_SHADOW") => {
+                // Same fields `push_effects` requires before it emits a shadow;
+                // if any is missing the effect is dropped on the floor.
+                let renders = effect
+                    .get("offset")
+                    .and_then(|offset| {
+                        Some((offset.get("x")?.as_f64()?, offset.get("y")?.as_f64()?))
+                    })
+                    .is_some()
+                    && effect.get("radius").and_then(Value::as_f64).is_some()
+                    && effect.get("color").and_then(color_from).is_some();
+                // CSS shadows carry no per-shadow blend mode.
+                let blend_survives = effect
+                    .get("blendMode")
+                    .and_then(Value::as_str)
+                    .is_none_or(|mode| mode == "NORMAL");
+                // `text-shadow` has no spread component.
+                let spread_survives =
+                    !is_text || effect.get("spread").and_then(Value::as_f64).unwrap_or(0.0) == 0.0;
+                renders && blend_survives && spread_survives
+            }
+            // `push_effects` falls back to `blur(0px)` when the radius is
+            // missing or unparseable, which silently fabricates the blur away.
+            Some("LAYER_BLUR" | "BACKGROUND_BLUR") => {
+                effect.get("radius").and_then(Value::as_f64).is_some()
+            }
+            // `GLASS` is flattened to a plain backdrop blur, `NOISE`/`TEXTURE`
+            // become a no-op filter placeholder, and any other type is silently
+            // ignored. All of those are real losses.
+            _ => false,
+        })
 }
 
 fn zero_or_px(value: f64) -> String {

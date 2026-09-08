@@ -4,7 +4,7 @@ use devup_mcp_figma::{DevupError, ErrorCode, FidelityImpact, Snapshot, discover_
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::codegen::CodegenOutput;
+use crate::codegen::{CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
@@ -125,7 +125,18 @@ pub struct FidelityReport {
     pub assets: FidelityCoverage,
     pub layout: FidelityCoverage,
     pub impacts: FidelityImpactCounts,
+    /// The `nodeId#property` layout pairs the generated TSX does not account
+    /// for, bounded by [`MAX_REPORTED_UNCOVERED`]. Reporting only a ratio left
+    /// a shortfall untriageable: nothing said whether the layout was wrong or
+    /// merely expressed another way. Purely informational — it does not feed
+    /// `impacts`, `strict_compatible`, or the reported status.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uncovered_layout: Vec<String>,
 }
+
+/// Enough to see the shape of a shortfall without turning a diagnostic into a
+/// second payload.
+const MAX_REPORTED_UNCOVERED: usize = 40;
 
 impl FidelityReport {
     pub fn strict_compatible(&self) -> bool {
@@ -285,7 +296,7 @@ pub fn validate_fidelity(
     {
         return Err(DevupError::with_details(
             ErrorCode::DevupCodegenFailed,
-            "projection trace가 source node를 정확히 한 번씩 설명하지 못했습니다.",
+            "Projection trace did not account for each source node exactly once.",
             false,
             json!({
                 "missingNodeIds": missing,
@@ -388,26 +399,41 @@ pub fn validate_fidelity(
         .iter()
         .filter(|node_id| !has_asset_ancestor(node_id, &parents, &asset_nodes))
         .flat_map(|node_id| {
-            LAYOUT_FIELDS.iter().filter_map(|field| {
+            let is_asset = asset_nodes.contains(*node_id);
+            LAYOUT_FIELDS.iter().filter_map(move |field| {
                 snapshot
                     .nodes
                     .get(*node_id)
-                    .filter(|node| layout_field_is_semantic(snapshot, node, field))
+                    .filter(|node| {
+                        (!is_asset || !asset_layout_field_is_internal(field))
+                            && layout_field_is_semantic(snapshot, node, field)
+                    })
                     .map(|_| ((*node_id).to_owned(), (*field).to_owned()))
             })
         })
         .collect::<BTreeSet<_>>();
-    let covered_layout = layout
-        .iter()
-        .filter(|(node_id, property)| {
-            output.source_map.entries.iter().any(|entry| {
+    let (covered_layout, uncovered_layout) = {
+        let mut covered = 0usize;
+        // Which pairs were not represented, not just how many. A count alone
+        // cannot distinguish "the layout is wrong" from "the same layout is
+        // expressed differently", so a shortfall was previously impossible to
+        // act on or even to triage.
+        let mut uncovered = Vec::new();
+        for (node_id, property) in &layout {
+            let represented = output.source_map.entries.iter().any(|entry| {
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx)
                         .is_some_and(|source| layout_source_matches(property, source))
-            })
-        })
-        .count();
+            });
+            if represented {
+                covered += 1;
+            } else if uncovered.len() < MAX_REPORTED_UNCOVERED {
+                uncovered.push(format!("{node_id}#{property}"));
+            }
+        }
+        (covered, uncovered)
+    };
     let mut impacts = FidelityImpactCounts::default();
     for diagnostic in &output.diagnostics {
         match diagnostic.fidelity_impact() {
@@ -426,6 +452,7 @@ pub fn validate_fidelity(
         assets: FidelityCoverage::new(assets.len(), covered_assets),
         layout: FidelityCoverage::new(layout.len(), covered_layout),
         impacts,
+        uncovered_layout,
     })
 }
 
@@ -442,6 +469,18 @@ fn has_asset_ancestor(
         parent = parents.get(parent_id).map(String::as_str);
     }
     false
+}
+
+fn asset_layout_field_is_internal(field: &str) -> bool {
+    matches!(
+        field,
+        "layoutMode"
+            | "itemSpacing"
+            | "paddingTop"
+            | "paddingRight"
+            | "paddingBottom"
+            | "paddingLeft"
+    )
 }
 
 fn layout_field_is_semantic(
@@ -461,9 +500,67 @@ fn layout_field_is_semantic(
                     .child_ids()
                     .any(|child| child == node.id)
         });
-    let component_canvas_dimension = matches!(field, "width" | "height") && component_set_parent;
-    if component_canvas_dimension {
+    // A frame sitting on a page or section is the canvas the design was drawn
+    // on, and its own dimensions are deliberately left unsaid so the result is
+    // not pinned to that size. Counting them would report a shortfall for
+    // something the output declines to claim on purpose. Kept in step with the
+    // same test in `codegen::layout`.
+    let canvas_parent = component_set_parent
+        || view
+            .string("parentId")
+            .and_then(|parent_id| snapshot.nodes.get(parent_id))
+            .map(|parent| parent.node_type.as_str())
+            .or_else(|| view.string("parentType"))
+            .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
+    if matches!(field, "width" | "height") && canvas_parent {
         return false;
+    }
+    // An out-of-flow node whose children's inset became padding takes its size
+    // from that padding plus its content, so the size is not restated and
+    // counting it would report a shortfall for something said another way.
+    // Kept in step with the same test in `codegen::layout`.
+    if matches!(field, "width" | "height")
+        && view.string("layoutPositioning") == Some("ABSOLUTE")
+        && derived_padding(snapshot, node).is_some()
+    {
+        return false;
+    }
+    // An out-of-flow node that holds something takes its height from what it
+    // holds, and `codegen::layout` drops it for exactly that reason. Counting
+    // it here reported a shortfall against a value the converter is right not
+    // to state: a header pinned across the top of a screen came back as
+    // unaccounted-for height, and the reference implementation does not state
+    // it either.
+    let placed_out_of_flow = view.string("layoutPositioning") == Some("ABSOLUTE")
+        || placed_by_a_free_layout(
+            snapshot,
+            node,
+            view.string("parentId")
+                .and_then(|parent_id| snapshot.nodes.get(parent_id)),
+            canvas_parent,
+        );
+    if field == "height" && placed_out_of_flow && view.child_ids().next().is_some() {
+        // An asset folds its children away and is drawn at a size, so
+        // `codegen::layout` restores both sides for it — unless it is wider
+        // than its parent. Then the width is written as 100% and the height
+        // is dropped, and the reference does the same: two goldens carry a
+        // full-width rotated background mask with no h, and the 465px puzzle
+        // icon on a 328px `about` mobile column comes out the same way. The
+        // rule below is the one in `codegen::layout` for the absolute branch,
+        // kept in step by hand.
+        let wider_than_parent = || {
+            let parent_width = view
+                .string("parentId")
+                .and_then(|parent_id| snapshot.nodes.get(parent_id))
+                .and_then(|parent| parent.typed_view().number("width"));
+            matches!(
+                (view.number("width"), parent_width),
+                (Some(width), Some(parent_width)) if width >= parent_width
+            )
+        };
+        if !projects_as_asset(snapshot, node) || wider_than_parent() {
+            return false;
+        }
     }
     match field {
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
@@ -481,7 +578,17 @@ fn layout_field_is_semantic(
                     .is_none_or(|value| value == "FIXED")
         }
         "itemSpacing" => {
-            view.child_ids().count() > 1
+            // Spacing describes the distance between rendered siblings, so a
+            // hidden child leaves nothing to space apart and the generated code
+            // rightly omits the gap. Counting it here would report a shortfall
+            // for a fact that was deliberately not expressed. Kept in step with
+            // the same test in `codegen::layout`.
+            let visible_children = view
+                .child_ids()
+                .filter_map(|id| snapshot.nodes.get(id))
+                .filter(|child| child.typed_view().bool("visible") != Some(false))
+                .count();
+            visible_children > 1
                 && view.string("primaryAxisAlignItems") != Some("SPACE_BETWEEN")
                 && !projects_as_asset(snapshot, node)
                 && view.number(field).is_some_and(|value| value != 0.0)
@@ -494,84 +601,7 @@ fn layout_field_is_semantic(
 }
 
 fn projects_as_asset(snapshot: &Snapshot, node: &devup_mcp_figma::RawNode) -> bool {
-    fn nested(snapshot: &Snapshot, node: &devup_mcp_figma::RawNode) -> bool {
-        if projects_as_asset(snapshot, node) {
-            return true;
-        }
-        let view = node.typed_view();
-        if view.node_type() == "TEXT" || view.child_ids().next().is_some() {
-            return false;
-        }
-        view.value("fills")
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|fills| {
-                fills.iter().all(|paint| {
-                    paint.get("visible").and_then(serde_json::Value::as_bool) == Some(false)
-                        || paint.get("type").and_then(serde_json::Value::as_str) == Some("SOLID")
-                })
-            })
-    }
-
-    let view = node.typed_view();
-    if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
-        || view
-            .value("inferredAutoLayout")
-            .and_then(serde_json::Value::as_object)
-            .and_then(|layout| layout.get("layoutMode"))
-            .and_then(serde_json::Value::as_str)
-            == Some("GRID")
-    {
-        return false;
-    }
-    if matches!(view.node_type(), "VECTOR" | "STAR" | "POLYGON")
-        || (view.node_type() == "ELLIPSE"
-            && view
-                .value("arcData")
-                .and_then(|value| value.get("innerRadius"))
-                .and_then(serde_json::Value::as_f64)
-                .is_some_and(|value| value != 0.0))
-    {
-        return true;
-    }
-    let fills = view.value("fills").and_then(serde_json::Value::as_array);
-    if view.bool("isAsset") == Some(true)
-        && fills.is_some_and(|fills| {
-            (fills.len() == 1
-                && fills[0].get("type").and_then(serde_json::Value::as_str) == Some("IMAGE")
-                && fills[0]
-                    .get("scaleMode")
-                    .and_then(serde_json::Value::as_str)
-                    != Some("TILE"))
-                || (!fills.is_empty()
-                    && !fills.iter().all(|paint| {
-                        paint.get("type").and_then(serde_json::Value::as_str) == Some("SOLID")
-                            && paint.get("visible").and_then(serde_json::Value::as_bool)
-                                == Some(true)
-                    }))
-        })
-    {
-        return true;
-    }
-    let children = view
-        .child_ids()
-        .filter_map(|id| snapshot.nodes.get(id))
-        .collect::<Vec<_>>();
-    if children.is_empty()
-        || (children.len() == 1
-            && !children.iter().all(|child| {
-                matches!(
-                    child.typed_view().node_type(),
-                    "VECTOR" | "STAR" | "POLYGON"
-                )
-            })
-            && matches!(
-                view.string("layoutMode"),
-                Some("HORIZONTAL" | "VERTICAL" | "GRID")
-            ))
-    {
-        return false;
-    }
-    children.into_iter().all(|child| nested(snapshot, child))
+    asset_kind(snapshot, node).is_some()
 }
 
 fn semantic_nodes<'a>(snapshot: &'a Snapshot, root_id: &str) -> BTreeSet<&'a str> {
@@ -686,7 +716,7 @@ fn source_covers_text(source: &str, characters: &str) -> bool {
         return true;
     }
     let fragments = characters
-        .split(['\r', '\n'])
+        .split(['\r', '\n', '\u{2028}', '\u{2029}'])
         .map(str::trim)
         .filter(|fragment| !fragment.is_empty());
     let mut cursor = 0;
@@ -700,55 +730,10 @@ fn source_covers_text(source: &str, characters: &str) -> bool {
     cursor > 0 && cursor == source.len()
 }
 
+/// The text as the converter writes it, so a match is against the one rule
+/// both sides follow rather than a copy of it kept here.
 fn encode_jsx_text(input: &str) -> String {
-    let leading = input
-        .chars()
-        .take_while(|character| *character == ' ')
-        .count();
-    let trailing = input
-        .chars()
-        .rev()
-        .take_while(|character| *character == ' ')
-        .count();
-    let middle_end = input.len().saturating_sub(trailing);
-    let middle = &input[leading..middle_end];
-    let mut result = String::new();
-    if leading > 0 {
-        result.push_str(&format!("{{\"{}\"}}", " ".repeat(leading)));
-    }
-    let mut characters = middle.chars().peekable();
-    while let Some(character) = characters.next() {
-        match character {
-            '{' => result.push_str("{\"{\"}"),
-            '}' => result.push_str("{\"}\"}"),
-            '&' => result.push_str("{\"&\"}"),
-            '<' => result.push_str("{\"<\"}"),
-            '>' => result.push_str("{\">\"}"),
-            '\'' => result.push_str("{\"'\"}"),
-            '\r' => {
-                if characters.peek() == Some(&'\n') {
-                    characters.next();
-                }
-                if characters.peek().is_none() {
-                    result.push_str("{\" \"}");
-                } else {
-                    result.push_str("<br />");
-                }
-            }
-            '\n' => {
-                if characters.peek().is_none() {
-                    result.push_str("{\" \"}");
-                } else {
-                    result.push_str("<br />");
-                }
-            }
-            value => result.push(value),
-        }
-    }
-    if trailing > 0 {
-        result.push_str(&format!("{{\"{}\"}}", " ".repeat(trailing)));
-    }
-    result
+    crate::codegen::escape_jsx_text(input)
 }
 
 fn layout_source_matches(property: &str, source: &str) -> bool {
@@ -1422,7 +1407,7 @@ fn find_text_span(source: &str, characters: &str, search_start: usize) -> Option
         return Some((start, start + rendered.len()));
     }
     let fragments = characters
-        .split(['\r', '\n'])
+        .split(['\r', '\n', '\u{2028}', '\u{2029}'])
         .map(str::trim)
         .filter(|fragment| !fragment.is_empty())
         .map(encode_jsx_text)

@@ -4,3 +4,23 @@
 .env.*
 !.env.example
 
+# Agent session state (oh-my-claudecode / omo), local to a working copy
+.omc/
+.omo/
+
+# Snapshots captured from a live Figma file to iterate on codegen without
+# spending the tool-call allowance. Scratch, not ground truth: the pinned
+# corpus under fixtures/devup-figma-plugin is what decides correctness.
+/fixtures/local-screens/
+/fixtures/local-components/
+
+# Individual Figma reads banked by DEVUP_FIGMA_CALL_CACHE so that a capture too
+# large for one day's allowance can finish across several attempts. Each entry
+# is allowance already spent, which is why it is kept out of the temp directory
+# — and out of git, because it is a copy of someone's file, not a fixture.
+/fixtures/local-call-bank/
+
+# The capture and stitch drivers. Kept beside the bank rather than in the temp
+# directory, which was cleared overnight and took the previous copies with it.
+/fixtures/local-tools/
+

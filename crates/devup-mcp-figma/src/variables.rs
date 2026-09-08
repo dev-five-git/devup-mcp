@@ -125,7 +125,7 @@ pub(crate) fn merge_variable_results(
         let mut style = styles_by_id.remove(&style_ref.id).ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaVersionChanged,
-                "수집 중 Figma style이 삭제되거나 변경되었습니다.",
+                "A Figma style was deleted or changed during collection.",
                 true,
             )
         })?;
@@ -271,7 +271,7 @@ fn expand_consumer_entry(entry: Value) -> Result<Value, DevupError> {
 fn incomplete_consumers() -> DevupError {
     DevupError::new(
         ErrorCode::DevupFigmaVersionChanged,
-        "수집 중 Figma style consumer 목록이 변경되었습니다.",
+        "The Figma style consumer list changed during collection.",
         true,
     )
 }
@@ -307,7 +307,7 @@ where
 fn invalid_variable_result() -> DevupError {
     DevupError::new(
         ErrorCode::DevupThemeConflict,
-        "Figma MCP 응답에서 변수/style batch를 찾지 못했습니다.",
+        "variable/style batch not found in the Figma MCP response.",
         false,
     )
 }

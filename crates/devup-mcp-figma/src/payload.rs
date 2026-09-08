@@ -34,6 +34,8 @@ pub struct CollectedPayload {
     pub assets: Vec<AssetManifestEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_png: Option<ReferencePng>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub failures: Vec<crate::ScreenFailure>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +79,7 @@ impl CollectedPayload {
             CompletenessState::Failed
         } else if snapshot.state == CompletenessState::Partial
             || resources.state == CompletenessState::Partial
+            || !self.failures.is_empty()
         {
             CompletenessState::Partial
         } else {
@@ -128,6 +131,7 @@ impl TryFrom<CollectedParts> for CollectedPayload {
             stats: parts.stats,
             assets: parts.assets,
             reference_png: parts.reference_png,
+            failures: parts.failures,
         })
     }
 }
@@ -145,7 +149,7 @@ pub fn validate_payload_context(
     {
         return Err(DevupError::new(
             crate::ErrorCode::DevupFigmaHandoffInvalid,
-            "Figma payload가 요청한 파일 또는 node와 일치하지 않습니다.",
+            "Figma payload does not match the requested file or node.",
             false,
         ));
     }

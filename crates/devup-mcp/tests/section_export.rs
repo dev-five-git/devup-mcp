@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp::server::{DevupAuth, DevupServer, Services};
 use devup_mcp_figma::{
     AuthStatus, BuiltinScript, DevupError, ErrorCode, FigmaUpstream, ReadToolCall, UpstreamResult,
@@ -99,6 +98,18 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
+    assert_eq!(
+        selection["nextAction"]["why"],
+        "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit."
+    );
+    assert_eq!(
+        selection["nextAction"]["how"],
+        "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen."
+    );
+    assert_eq!(
+        selection["nextAction"]["doNot"],
+        "Do not try to collect the whole Section at once."
+    );
     assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
     let artifact_id = selection["cache"]["artifactId"].as_str().unwrap();
     assert_eq!(selection["cache"]["capabilities"]["kind"], "section-index");
@@ -137,8 +148,8 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
                 .any(|entry| entry["nodeId"] == "10:3" && entry["property"] == "type"))
     );
     assert_eq!(selected["cache"]["cacheHit"], false);
-    assert_eq!(selected["collection"]["figmaToolCalls"], 1);
-    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
+    assert_eq!(selected["collection"]["figmaToolCalls"], 2);
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 3);
     let selected_artifact_id = selected["cache"]["artifactId"].as_str().unwrap();
 
     let all = call(
@@ -159,10 +170,10 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .collect::<Vec<_>>(),
         ["10:3", "10:2"]
     );
-    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 3);
     assert_eq!(all["collection"]["figmaToolCalls"], 0);
-    assert_eq!(all["cache"]["originCollection"]["figmaToolCalls"], 1);
-    assert_eq!(all["cache"]["avoidedFigmaToolCalls"], 1);
+    assert_eq!(all["cache"]["originCollection"]["figmaToolCalls"], 2);
+    assert_eq!(all["cache"]["avoidedFigmaToolCalls"], 2);
 
     let invalid = client
         .call_tool(
@@ -179,6 +190,75 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
         )
         .await;
     assert!(invalid.is_err());
+
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+/// The real fast snapshot script does not return a Section snapshot: it throws
+/// `DEVUP_TARGET_IS_SECTION`, and MCP delivers a thrown error as a *successful*
+/// call whose result carries `isError`.
+///
+/// `SectionUpstream` above answers the very first call with the index, so it
+/// never exercises that step — which is how the direct path came to hand the
+/// thrown error straight to `accept` and fail with "snapshot data not found",
+/// leaving a Section link with no way to discover the screens inside it. The
+/// handoff path had always converted it into a rejection.
+#[derive(Debug, Default)]
+struct ThrowingSectionUpstream(AtomicUsize);
+
+#[async_trait]
+impl FigmaUpstream for ThrowingSectionUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        // Keyed on call order rather than script variant, so the test pins the
+        // recovery itself and not which script the collector retries with.
+        if self.0.fetch_add(1, Ordering::SeqCst) == 0 {
+            return Ok(UpstreamResult {
+                raw: json!({
+                    "content": [{"type": "text", "text": "Error: DEVUP_TARGET_IS_SECTION"}],
+                    "isError": true
+                }),
+            });
+        }
+        Ok(compact_section_index_result())
+    }
+}
+
+#[tokio::test]
+async fn a_thrown_section_error_on_the_direct_path_returns_selectable_screens() -> anyhow::Result<()>
+{
+    let upstream = Arc::new(ThrowingSectionUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+
+    let selection = call(
+        &client,
+        json!({
+            "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
+            "outputs": ["tsx"],
+            "sourcePolicy": "direct"
+        }),
+    )
+    .await?;
+
+    assert_eq!(selection["status"], "selection_required");
+    assert_eq!(selection["targetKind"], "section");
+    assert!(selection.get("tsx").is_none());
+    let candidates = selection["selection"]["candidates"]
+        .as_array()
+        .expect("a Section answers with the screens inside it");
+    assert!(!candidates.is_empty());
+    // The throw, then the index retry.
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 2);
 
     client.cancel().await?;
     task.await??;
@@ -260,6 +340,7 @@ fn multi_root_envelope(root_ids: &[String]) -> UpstreamResult {
         })
         .collect::<Vec<_>>();
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "10:1"},
         "snapshot": {
@@ -273,55 +354,19 @@ fn multi_root_envelope(root_ids: &[String]) -> UpstreamResult {
         },
         "integrity": {"nodeCount": root_ids.len(), "variableRefCount": 0, "styleRefCount": 0, "utf8Bytes": 0}
     });
-    let bytes = loop {
+    let _bytes = loop {
         let bytes = serde_json::to_vec(&envelope).unwrap();
         if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
             break bytes;
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut chunk = Vec::with_capacity(bytes.len() + 8);
-    chunk.extend_from_slice(&0_u32.to_be_bytes());
-    chunk.extend_from_slice(&1_u32.to_be_bytes());
-    chunk.extend_from_slice(&bytes);
-    push_chunk(&mut png, b"duVp", &chunk);
-    push_chunk(
-        &mut png,
-        b"IDAT",
-        &[0x78, 1, 1, 5, 0, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1],
-    );
-    push_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor", "schemaVersion": 1, "rootId": "10:1",
-        "nodeCount": root_ids.len(), "variableRefCount": 0, "styleRefCount": 0,
-        "utf8Bytes": bytes.len(), "chunkCount": 1
-    });
+    // No binary transport exists any more: fast snapshots are always plain
+    // text (`devupFastSnapshotEnvelope`). Omitting the cursor marker node is
+    // treated by the decoder as a single, already-complete page.
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
-}
-
-fn push_chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(kind);
-    output.extend_from_slice(data);
-    let mut crc_input = kind.to_vec();
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }

@@ -2,4 +2,4 @@
 source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
-"<Box bg="url(/icons/image.png) repeat" h="50px" w="100px" />"
+"<Box bg="url(/images/TileImageFrame.png) repeat" h="50px" w="100px" />"

@@ -87,7 +87,7 @@ export function Wquw151Frame387935887() {
               </Flex>
             </VStack>
           </VStack>
-          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="12px">
+          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="11px">
             <Flex alignItems="center" gap="12px">
               <Text color="$text" typography="bodyXs" wordBreak="keep-all">
                 공개 설정 :
@@ -116,13 +116,14 @@ export function Wquw151Frame387935887() {
             flexDir="column"
             gap="8px"
             h="185px"
-            px="16px"
-            py="24px"
+            px="14px"
+            py="22px"
           >
             <Box
               aspectRatio="1"
               bg="$captionLight"
               boxSize="40px"
+              flexShrink="0"
               maskImage="url(/icons/icons.svg)"
               maskPos="center"
               maskRepeat="no-repeat"
@@ -394,6 +395,7 @@ export function Wquw151Frame387935887() {
         left="50%"
         overflow="hidden"
         pos="absolute"
+        pt="171px"
         top="0px"
         transform="translateX(-50%)"
         w="100%"
@@ -404,11 +406,10 @@ export function Wquw151Frame387935887() {
           boxShadow="0 -8px 20px 0 #00000026"
           overflow="hidden"
           pb="12px"
-          pt="0px"
           px="12px"
           w="360px"
         >
-          <VStack pb="12px" pt="0px" px="0px">
+          <VStack pb="12px">
             <VStack gap="4px" pos="relative" px="12px" py="20px">
               <VStack gap="4px">
                 <Text color="$text" typography="h6" wordBreak="keep-all">
@@ -557,7 +558,7 @@ export function Wquw151Frame387935887() {
               maskRepeat="no-repeat"
               maskSize="contain"
             />
-            <VStack gap="2px" justifyContent="center">
+            <VStack alignSelf="flex-start" gap="2px" justifyContent="center">
               <Text color="$text" typography="body" wordBreak="keep-all">
                 내 문장 그대로 맞춤법만 다듬기
               </Text>
@@ -574,6 +575,8 @@ export function Wquw151Frame387935887() {
         left="50%"
         overflow="hidden"
         pos="absolute"
+        px="20px"
+        py="233.5px"
         top="0px"
         transform="translateX(-50%)"
         w="100%"

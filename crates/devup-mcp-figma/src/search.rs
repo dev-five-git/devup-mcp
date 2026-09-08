@@ -41,14 +41,14 @@ pub fn search_snapshot(
     if query.is_empty() {
         return Err(DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "검색 query는 비어 있을 수 없습니다.",
+            "Search query cannot be empty.",
             false,
         ));
     }
     if options.limit == 0 || options.limit > 100 {
         return Err(DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "검색 limit은 1 이상 100 이하여야 합니다.",
+            "Search limit must be between 1 and 100.",
             false,
         ));
     }
@@ -58,7 +58,7 @@ pub fn search_snapshot(
     ) {
         return Err(DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "match는 exact, normalized 또는 fuzzy여야 합니다.",
+            "match must be exact, normalized, or fuzzy.",
             false,
         ));
     }

@@ -33,7 +33,7 @@ export function Wquw151Frame387936144() {
           이야기가 글로 <br />정리되었어요
         </Text>
         <VStack justifyContent="center" w="100%">
-          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="12px">
+          <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="11px">
             <Flex alignItems="center" gap="12px">
               <Text color="$text" typography="bodyXs" wordBreak="keep-all">
                 공개 설정 :
@@ -62,13 +62,14 @@ export function Wquw151Frame387936144() {
             flexDir="column"
             gap="8px"
             h="185px"
-            px="16px"
-            py="24px"
+            px="14px"
+            py="22px"
           >
             <Box
               aspectRatio="1"
               bg="$captionLight"
               boxSize="40px"
+              flexShrink="0"
               maskImage="url(/icons/icons.svg)"
               maskPos="center"
               maskRepeat="no-repeat"
@@ -327,8 +328,8 @@ export function Wquw151Frame387936144() {
           bg="$innerBg"
           border="solid 1px $borderBold"
           borderRadius="10px"
-          px="20px"
-          py="10px"
+          px="19px"
+          py="9px"
         >
           <Text color="$text" typography="bodySemibold" wordBreak="keep-all">
             교정 설정

@@ -1,0 +1,26 @@
+{
+  "name": "devup-mcp-render-harness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "acquire": "python scripts/acquire.py",
+    "build": "vite build",
+    "render": "node scripts/render.mjs"
+  },
+  "dependencies": {
+    "@devup-ui/react": "^1.0.41",
+    "@devup-ui/reset-css": "^1.0.28",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@devup-ui/vite-plugin": "^1.0.41",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "playwright": "^1.54.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0"
+  }
+}

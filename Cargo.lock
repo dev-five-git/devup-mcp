@@ -712,6 +712,8 @@ dependencies = [
  "devup-mcp-figma",
  "insta",
  "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
  "oxc_parser",
  "oxc_span",
  "pretty_assertions",
@@ -1921,6 +1923,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.4",
+]
+
+[[package]]
+name = "oxc_ast_visit"
+version = "0.148.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34ec60272a8dead7c6fb21dd9709f66e4033194399296603a2c9f85dc63b5540"
+dependencies = [
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_span",
+ "oxc_syntax",
 ]
 
 [[package]]

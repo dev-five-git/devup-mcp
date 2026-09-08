@@ -1,5 +1,18 @@
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
-const MAX_ENVELOPE_CHUNK_BYTES = 512 * 1024;
+// The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the measurement is
+// written up in fast_snapshot.js.
+const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;
+// A file's resources rarely fit one answer - forty variables with their
+// modes are twice this - so they are paged: everything the theme is made of
+// (the resources, and the scan of which ids are used and what could not be
+// resolved) is one list in a fixed order, and a page is a run of it from
+// `offset` that says where the next one starts. The theme used to be one
+// envelope or nothing, and a file whose theme did not fit fell back to a
+// path that knows only local styles. The scan is paged like the rest
+// because it is not small: a file with three hundred used ids carries
+// 20 KB of them, a whole page on its own.
+const pageOptions = "__DEVUP_THEME__";
+const pageOffset = Math.max(0, Math.floor(Number(pageOptions.offset) || 0));
 
 function propertyNames(value) {
   const names = new Set(Object.keys(value));
@@ -235,89 +248,100 @@ function utf8Encode(value) {
   return new Uint8Array(bytes);
 }
 
-const envelope = {
-  schemaVersion: 1,
-  source: { fileKey: figma.fileKey || "", version: null },
-  resources: {
-    collections,
-    variables,
-    styles,
-    usedRemoteVariables: variables.filter((variable) => variable.remote === true),
-    usedVariableIds: [...usedVariableIds].sort(),
-    usedStyleIds: [...usedStyleTypes.keys()].sort(),
-    localComplete: true,
-    usedRemoteComplete: unresolved.length === 0,
-    unresolved,
-  },
-  integrity: {
-    collectionCount: collections.length,
-    variableCount: variables.length,
-    styleCount: styles.length,
-    unresolvedCount: unresolved.length,
-    utf8Bytes: 0,
-  },
-};
+// Everything in one order: collections, variables, styles, then the scan -
+// the used variable ids, the used style ids, the unresolved. A page is a run
+// of this list.
+const items = [
+  ...collections.map((value) => ({ kind: "collection", value })),
+  ...variables.map((value) => ({ kind: "variable", value })),
+  ...styles.map((value) => ({ kind: "style", value })),
+  ...[...usedVariableIds].sort().map((value) => ({ kind: "usedVariableId", value })),
+  ...[...usedStyleTypes.keys()].sort().map((value) => ({ kind: "usedStyleId", value })),
+  ...unresolved.map((value) => ({ kind: "unresolved", value })),
+];
+if (pageOffset > items.length) throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
 
-let envelopeBytes = new Uint8Array();
-for (let attempt = 0; attempt < 8; attempt += 1) {
+function buildEnvelope(pageItems, nextOffset) {
+  const of = (kind) => pageItems.filter((item) => item.kind === kind).map((item) => item.value);
+  const pageCollections = of("collection");
+  const pageVariables = of("variable");
+  const pageStyles = of("style");
+  const pageUnresolved = of("unresolved");
+  const envelope = {
+    kind: "devupFastThemeEnvelope",
+    schemaVersion: 1,
+    source: { fileKey: figma.fileKey || "", version: null },
+    resources: {
+      collections: pageCollections,
+      variables: pageVariables,
+      styles: pageStyles,
+      // Derived by the collector from `variables` once the pages are merged;
+      // listing a page's remote variables twice halved what a page held.
+      usedRemoteVariables: [],
+      usedVariableIds: of("usedVariableId"),
+      usedStyleIds: of("usedStyleId"),
+      localComplete: true,
+      usedRemoteComplete: unresolved.length === 0,
+      unresolved: pageUnresolved,
+    },
+    // Read by the Rust decoder: a page is one of several when `complete` is
+    // false, and the next one is asked for from `nextOffset`.
+    page: {
+      offset: pageOffset,
+      nextOffset,
+      complete: nextOffset >= items.length,
+      totalItems: items.length,
+    },
+    integrity: {
+      collectionCount: pageCollections.length,
+      variableCount: pageVariables.length,
+      styleCount: pageStyles.length,
+      unresolvedCount: pageUnresolved.length,
+      utf8Bytes: 0,
+    },
+  };
+  let envelopeBytes = new Uint8Array();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    envelopeBytes = utf8Encode(JSON.stringify(envelope));
+    if (envelope.integrity.utf8Bytes === envelopeBytes.length) break;
+    envelope.integrity.utf8Bytes = envelopeBytes.length;
+  }
   envelopeBytes = utf8Encode(JSON.stringify(envelope));
-  if (envelope.integrity.utf8Bytes === envelopeBytes.length) break;
-  envelope.integrity.utf8Bytes = envelopeBytes.length;
-}
-envelopeBytes = utf8Encode(JSON.stringify(envelope));
-if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
-  throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
-}
-if (envelopeBytes.length > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
-
-function crc32(bytes) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  if (envelope.integrity.utf8Bytes !== envelopeBytes.length) {
+    throw new Error("DEVUP_ENVELOPE_LENGTH_UNSTABLE");
   }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-function u32(value) {
-  return new Uint8Array([(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]);
-}
-function ascii(value) {
-  return new Uint8Array([...value].map((character) => character.charCodeAt(0)));
-}
-function concat(parts) {
-  const output = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
-  let offset = 0;
-  for (const part of parts) {
-    output.set(part, offset);
-    offset += part.length;
-  }
-  return output;
-}
-function pngChunk(type, data) {
-  const typeBytes = ascii(type);
-  return concat([u32(data.length), typeBytes, data, u32(crc32(concat([typeBytes, data])))]);
+  return { envelope, bytes: envelopeBytes.length };
 }
 
-const chunkCount = Math.ceil(envelopeBytes.length / MAX_ENVELOPE_CHUNK_BYTES);
-for (let sequence = 0; sequence < chunkCount; sequence += 1) {
-  const start = sequence * MAX_ENVELOPE_CHUNK_BYTES;
-  const end = Math.min(envelopeBytes.length, start + MAX_ENVELOPE_CHUNK_BYTES);
-  const png = concat([
-    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", new Uint8Array([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])),
-    pngChunk("duVp", concat([u32(sequence), u32(chunkCount), envelopeBytes.slice(start, end)])),
-    pngChunk("IDAT", new Uint8Array([120, 1, 1, 5, 0, 250, 255, 0, 0, 0, 0, 0, 5, 0, 1])),
-    pngChunk("IEND", new Uint8Array()),
-  ]);
-  figma.io.write(`devup-fast-theme-${sequence + 1}-of-${chunkCount}.png`, png);
+// Pack from the offset by the items' own sizes until the budget is spent,
+// then build the page; the envelope around the items - and the remote
+// variables a page lists twice - is only sized once built, so if the whole
+// overshoots, take the overshoot off the budget and pack again. Fewer items
+// can only make a smaller envelope, so this converges. One item alone that
+// does not fit cannot be split, and is reported rather than cut.
+const itemBytes = items.map((item) => utf8Encode(JSON.stringify(item.value)).length + 1);
+function packFrom(budget) {
+  const pageItems = [];
+  let packed = 0;
+  for (let index = pageOffset; index < items.length; index += 1) {
+    if (pageItems.length > 0 && packed + itemBytes[index] > budget) break;
+    pageItems.push(items[index]);
+    packed += itemBytes[index];
+  }
+  return { pageItems, packed };
 }
-return {
-  kind: "devupFastThemeDescriptor",
-  schemaVersion: 1,
-  collectionCount: collections.length,
-  variableCount: variables.length,
-  styleCount: styles.length,
-  unresolvedCount: unresolved.length,
-  utf8Bytes: envelopeBytes.length,
-  chunkCount,
-};
+let budget = MAX_TEXT_ENVELOPE_BYTES - 1024;
+let built = null;
+for (let attempt = 0; attempt < 6; attempt += 1) {
+  const { pageItems, packed } = packFrom(budget);
+  const candidate = buildEnvelope(pageItems, pageOffset + pageItems.length);
+  if (candidate.bytes <= MAX_TEXT_ENVELOPE_BYTES) {
+    built = candidate;
+    break;
+  }
+  if (pageItems.length <= 1) break;
+  budget = Math.max(1, Math.min(budget - 1, packed - (candidate.bytes - MAX_TEXT_ENVELOPE_BYTES) - 256));
+}
+if (built === null) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+if (built.bytes > MAX_ENVELOPE_BYTES) throw new Error("DEVUP_ENVELOPE_TOO_LARGE");
+return built.envelope;

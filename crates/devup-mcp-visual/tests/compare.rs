@@ -3,9 +3,13 @@ use std::{path::PathBuf, time::SystemTime};
 use devup_mcp_visual::{CompareOptions, VisualStatus, compare_png};
 use image::{ImageBuffer, Rgba};
 
-fn temp_dir() -> anyhow::Result<PathBuf> {
+/// One directory per test. The two tests here run on two threads of one
+/// process, and a clock read on each is the same value often enough that
+/// they shared a directory and each other's PNGs - a 4x2 reference next to
+/// a 3x2 actual, reported as `InvalidDimensions` by whichever test lost.
+fn temp_dir(test: &str) -> anyhow::Result<PathBuf> {
     let path = std::env::temp_dir().join(format!(
-        "devup-mcp-visual-{}-{}",
+        "devup-mcp-visual-{test}-{}-{}",
         std::process::id(),
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -29,7 +33,7 @@ fn write_png(path: &std::path::Path, pixels: &[[u8; 4]], width: u32) -> anyhow::
 
 #[test]
 fn exact_and_changed_pngs_report_deterministic_metrics_and_diff() -> anyhow::Result<()> {
-    let root = temp_dir()?;
+    let root = temp_dir("exact-and-changed")?;
     let reference = root.join("reference.png");
     let actual = root.join("actual.png");
     let diff = root.join("diff.png");
@@ -63,7 +67,7 @@ fn exact_and_changed_pngs_report_deterministic_metrics_and_diff() -> anyhow::Res
 
 #[test]
 fn tolerance_and_dimension_mismatch_are_explicit() -> anyhow::Result<()> {
-    let root = temp_dir()?;
+    let root = temp_dir("tolerance-and-dimensions")?;
     let reference = root.join("reference.png");
     let actual = root.join("actual.png");
     write_png(&reference, &[[100, 100, 100, 255]; 4], 2)?;

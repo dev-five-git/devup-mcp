@@ -5,12 +5,12 @@ use devup_mcp_figma::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{layout, style, text, variant};
+use super::{animation, layout, style, text, variant};
 use crate::provenance::{
     FidelityReport, ProjectionTrace, SourceMap, build_projection_trace, finalize_tsx, mark_node,
     validate_fidelity,
 };
-use crate::theme::{normalize_token, variable_token};
+use crate::theme::variable_token;
 use crate::validation::validate_tsx;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,12 +29,34 @@ pub struct CodegenOptions {
     pub text_style_tokens: std::collections::BTreeMap<String, String>,
     pub variable_tokens: std::collections::BTreeMap<String, String>,
     pub root_layout: RootLayout,
+    /// Name every asset after the node it came from, rather than after its
+    /// layer. Off by default, which is how the plugin names them: a layer
+    /// name is the file name, and two nodes named alike share a file.
+    ///
+    /// That sharing is a loss wherever the two are not the same picture. A
+    /// designer names three logos `Logo`, and only one of them can be
+    /// written; a photograph drawn at three widths is one file, so at two of
+    /// them the file is the wrong size for the box and the picture is
+    /// stretched into it. Named per node, each gets a file of its own.
+    pub asset_names_per_node: bool,
 }
 
 impl CodegenOptions {
-    pub fn with_payload_tokens(mut self, payload: &CollectedPayload) -> Self {
-        self.text_style_tokens = named_tokens(payload.styles.as_ref(), "styles");
-        self.variable_tokens = named_tokens(payload.variables.as_ref(), "variables");
+    pub fn with_payload_tokens(self, payload: &CollectedPayload) -> Self {
+        self.with_resource_results(payload.variables.as_ref(), payload.styles.as_ref())
+    }
+
+    /// The two collected resources on their own, for a caller that kept them
+    /// without the rest of the payload — a capture replayed from a fixture
+    /// has its variables and styles but no live target, stats or assets to
+    /// rebuild a `CollectedPayload` around them.
+    pub fn with_resource_results(
+        mut self,
+        variables: Option<&UpstreamResult>,
+        styles: Option<&UpstreamResult>,
+    ) -> Self {
+        self.text_style_tokens = named_tokens(styles, "styles");
+        self.variable_tokens = named_tokens(variables, "variables");
         self
     }
 }
@@ -59,7 +81,7 @@ pub fn generate_component(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -75,9 +97,19 @@ pub fn generate_component(
         .collect::<Vec<_>>()
         .join("\n");
     let mut tsx = format!(
-        "import {{ {} }} from \"@devup-ui/react\";\n\n",
+        "import {{ {} }} from \"@devup-ui/react\";\n",
         generated.imports.join(", ")
     );
+    // Naming a component without importing it produces code that reads well and
+    // does not compile. When instances are left as references, whatever they
+    // refer to has to be resolvable, and the project convention is one named
+    // export per file under `@/components`.
+    for name in referenced_components(&generated.tsx) {
+        tsx.push_str(&format!(
+            "import {{ {name} }} from \"@/components/{name}\";\n"
+        ));
+    }
+    tsx.push('\n');
     tsx.push_str(&format!(
         "export function {component_name}() {{\n  return (\n{body}\n  );\n}}\n"
     ));
@@ -98,7 +130,7 @@ pub fn generate_legacy_component(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -179,7 +211,7 @@ pub fn generate_component_set_target(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 component set을 찾지 못했습니다.",
+            "Component set was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -229,7 +261,7 @@ pub fn generate_component_set_target(
     .ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            format!("component set에서 '{target_name}' 출력을 찾지 못했습니다."),
+            format!("Output '{target_name}' was not found in the component set."),
             false,
         )
     })?;
@@ -282,14 +314,14 @@ pub fn generate_inlined_component_instance(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "inline instance root를 찾지 못했습니다.",
+            "Inline instance root was not found.",
             false,
         )
     })?;
     let instance = snapshot.nodes.get(instance_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "inline할 component instance를 찾지 못했습니다.",
+            "Component instance to inline was not found.",
             false,
         )
     })?;
@@ -320,7 +352,7 @@ pub fn generate_inlined_component_instance(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("'{name}' component set을 찾지 못했습니다."),
+                format!("Component set '{name}' was not found."),
                 false,
             )
         })?;
@@ -341,7 +373,7 @@ pub fn generate_inlined_component_instance(
         .ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("'{name}' instance variant를 찾지 못했습니다."),
+                format!("Instance variant '{name}' was not found."),
                 false,
             )
         })?;
@@ -431,7 +463,7 @@ pub fn render_component_registration_snapshot(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "component registration root를 찾지 못했습니다.",
+            "Component registration root was not found.",
             false,
         )
     })?;
@@ -453,7 +485,7 @@ pub fn render_component_registration_snapshot(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupFigmaNodeNotFound,
-                    format!("registration 대상 '{target_name}'을 찾지 못했습니다."),
+                    format!("Registration target '{target_name}' was not found."),
                     false,
                 )
             })?
@@ -963,7 +995,7 @@ fn generate_node_marked(
     let root = snapshot.nodes.get(root_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma snapshot에서 변환할 node를 찾지 못했습니다.",
+            "Node to convert was not found in the Figma snapshot.",
             false,
         )
     })?;
@@ -977,6 +1009,7 @@ fn generate_node_marked(
         root
     };
     let mut context = Context {
+        asset_names_per_node: options.asset_names_per_node,
         inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
         variable_tokens: options.variable_tokens.clone(),
@@ -1019,6 +1052,7 @@ fn finalize_codegen_output(
 
 #[derive(Default)]
 struct Context {
+    asset_names_per_node: bool,
     imports: BTreeSet<String>,
     used_tokens: BTreeSet<String>,
     diagnostics: Vec<Diagnostic>,
@@ -1046,7 +1080,7 @@ fn render_node(
     if !visiting.insert(node.id.clone()) {
         return Err(DevupError::new(
             ErrorCode::DevupCodegenFailed,
-            "Figma node 트리에 순환 참조가 있습니다.",
+            "Figma node tree contains a circular reference.",
             false,
         ));
     }
@@ -1163,6 +1197,8 @@ fn render_node(
         "Image"
     } else if view.node_type() == "TEXT" {
         "Text"
+    } else if layout::centres_its_only_child(snapshot, node) {
+        "Center"
     } else {
         match inferred_mode {
             Some("GRID") => "Grid",
@@ -1188,10 +1224,33 @@ fn render_node(
         context.root_layout,
         depth == 0,
     );
+    // A frame with no auto-layout places its children itself, and this keeps
+    // them resolvable. Once the gap around them is measurable it is emitted as
+    // padding instead, which puts them where they belong on its own — so the
+    // anchor is only still needed where nothing could be measured, as when the
+    // child fills the frame exactly or carries no position of its own.
+    // A page root is not anchored either: the plugin's `getPositionProps`
+    // leaves `pos: relative` off a frame that sits directly on a page or in
+    // a Section, and its positioned children resolve against the page.
+    let page_root = snapshot
+        .nodes
+        .values()
+        .find(|candidate| {
+            candidate
+                .typed_view()
+                .child_ids()
+                .any(|child| child == node.id)
+        })
+        .map(|parent| parent.typed_view().node_type())
+        .or_else(|| view.string("parentType"))
+        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
     if !(depth == 0 && context.root_layout == RootLayout::Embedded)
+        && !page_root
         && asset.is_none()
         && view.value("inferredAutoLayout").is_none()
         && view.string("layoutPositioning") == Some("AUTO")
+        && layout::derived_padding(snapshot, node).is_none()
+        && !layout::centres_its_only_child(snapshot, node)
         && view.child_ids().any(|child| {
             snapshot
                 .nodes
@@ -1208,7 +1267,10 @@ fn render_node(
         asset,
         &mut props,
         &mut context.used_tokens,
-        &context.variable_tokens,
+        style::StyleOptions {
+            variable_tokens: &context.variable_tokens,
+            asset_names_per_node: context.asset_names_per_node,
+        },
     );
     text::push_text_props(
         &view,
@@ -1217,6 +1279,14 @@ fn render_node(
         &mut context.used_tokens,
         &mut props,
     );
+    // Last, as the plugin merges `getReactionProps` last: what a timed Smart
+    // Animate changes becomes keyframes on the child it changes, or on the
+    // frame itself.
+    let before = props.len();
+    animation::push_animation_props(snapshot, node, &context.variable_tokens, &mut props);
+    if props.len() > before {
+        context.imports.insert("keyframes".to_owned());
+    }
     if asset.is_some() {
         props.retain(|(name, _)| {
             !matches!(
@@ -1329,6 +1399,12 @@ fn render_node(
     Ok(mark_node(&node.id, rendered))
 }
 
+/// A style name without a leading group that is only a number.
+///
+/// `0/` and `3/` in front of a style name are how a Figma library is made to
+/// sort in the picker; they are not part of what the style is called, and the
+/// reference does not carry them into the token. A group that names something
+/// (`typography/`) is part of the name and stays.
 fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<String, String> {
     fn visit(value: &serde_json::Value, collection: &str, tokens: &mut BTreeMap<String, String>) {
         if let Some(values) = value.get(collection).and_then(serde_json::Value::as_array) {
@@ -1347,7 +1423,12 @@ fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<S
                                 .and_then(serde_json::Value::as_str),
                         )
                     } else {
-                        normalize_token(name)
+                        // The rule `devup.json` names the style by, so the
+                        // `typography="…"` written here is a key that exists
+                        // there: a leading breakpoint or number says where the
+                        // style applies and is dropped, any other group is
+                        // kept. See `theme::style_token`.
+                        crate::theme::style_token(name).1
                     };
                     tokens.insert(id.to_owned(), token);
                 }
@@ -1386,11 +1467,18 @@ fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
             PropValue::String(value) => render_static_attribute(&name, &value),
         })
         .collect::<Vec<_>>();
-    let multiline = rendered.len() >= 5;
+    // Five props, or one that spans lines — a `keyframes({...})` — and the
+    // props go one to a line, which is the plugin's `propsToString` rule.
+    let multiline =
+        rendered.len() >= 5 || rendered.iter().any(|attribute| attribute.contains('\n'));
     if multiline {
         let prefix = "  ".repeat(depth + 1);
+        let padded = rendered
+            .iter()
+            .map(|attribute| attribute.replace('\n', &format!("\n{prefix}")))
+            .collect::<Vec<_>>();
         (
-            format!("\n{prefix}{}", rendered.join(&format!("\n{prefix}"))),
+            format!("\n{prefix}{}", padded.join(&format!("\n{prefix}"))),
             true,
         )
     } else {
@@ -1398,7 +1486,14 @@ fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
     }
 }
 
+/// A prop as JSX. A value is a quoted string, except `animationName` holding
+/// a `keyframes({...})` call, which is the expression itself — the plugin's
+/// `propsToString` makes the same exception, and it is how devup-ui's
+/// `keyframes` is meant to be written.
 pub(super) fn render_static_attribute(name: &str, value: &str) -> String {
+    if name == "animationName" && value.starts_with("keyframes(") {
+        return format!("{name}={{{value}}}");
+    }
     let mut escaped = String::with_capacity(value.len());
     for character in value.chars() {
         match character {
@@ -1420,22 +1515,29 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
         (
             view.bool("isMask") == Some(true),
             "DEVUP_CODEGEN_MASK_FALLBACK",
-            "Mask는 기본 Box 렌더링으로 보존됩니다.",
+            "Mask is preserved as a plain Box rendering.",
             FidelityImpact::Lossy,
         ),
         (
             view.string("layoutPositioning") == Some("ABSOLUTE")
                 && !layout::absolute_layout_is_exact(snapshot, node),
             "DEVUP_CODEGEN_ABSOLUTE_FALLBACK",
-            "절대 배치는 position props로 제한적으로 변환됩니다.",
+            "Absolute positioning is converted to position props with limited fidelity.",
             FidelityImpact::Approximated,
         ),
         (
             view.value("effects")
                 .and_then(serde_json::Value::as_array)
-                .is_some_and(|effects| !effects.is_empty()),
+                .is_some_and(|effects| !effects.is_empty())
+                && !style::effects_are_exact(&view),
             "DEVUP_CODEGEN_EFFECT_FALLBACK",
-            "일부 Figma effect는 계산된 CSS로 변환되지 않을 수 있습니다.",
+            "Some Figma effects may not be converted into computed CSS.",
+            FidelityImpact::Lossy,
+        ),
+        (
+            animation::has_unreachable_destination(snapshot, node),
+            "DEVUP_CODEGEN_ANIMATION_UNREACHABLE",
+            "A timed Smart Animate points at a frame that was not collected, so no keyframes are written for it.",
             FidelityImpact::Lossy,
         ),
     ];
@@ -1490,4 +1592,31 @@ pub fn normalize_component_name(input: &str) -> String {
         result.insert(0, '_');
     }
     result
+}
+
+/// The custom components a rendered body refers to, in the order a reader meets
+/// them, deduplicated. A devup-ui primitive is imported from the library and is
+/// not one of these; anything else opening in PascalCase is.
+fn referenced_components(body: &str) -> Vec<String> {
+    const PRIMITIVES: [&str; 8] = [
+        "Box", "Center", "Flex", "Grid", "Image", "Text", "VStack", "Input",
+    ];
+    let mut seen = BTreeSet::new();
+    let mut found = Vec::new();
+    for (index, _) in body.match_indices('<') {
+        let rest = &body[index + 1..];
+        let name = rest
+            .chars()
+            .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
+            .collect::<String>();
+        if name.is_empty()
+            || !name.starts_with(|character: char| character.is_ascii_uppercase())
+            || PRIMITIVES.contains(&name.as_str())
+            || !seen.insert(name.clone())
+        {
+            continue;
+        }
+        found.push(name);
+    }
+    found
 }

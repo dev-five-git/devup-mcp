@@ -108,7 +108,7 @@ impl TryFrom<&RawNode> for ExploreNode {
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "Figma 탐색 projection에 유효한 node bounds가 없습니다.",
+                    "Figma exploration projection has no valid node bounds.",
                     false,
                 )
             })?;
@@ -260,21 +260,21 @@ pub fn explore_snapshot(
     if options.limit == 0 || options.limit > 100 {
         return Err(DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "탐색 limit은 1 이상 100 이하여야 합니다.",
+            "Exploration limit must be between 1 and 100.",
             false,
         ));
     }
     let anchor_id = target.node_id.as_deref().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma 주변 화면 탐색에는 node-id가 필요합니다.",
+            "Figma nearby-screen exploration requires a node-id.",
             false,
         )
     })?;
     let raw_anchor = snapshot.nodes.get(anchor_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Figma 탐색 projection에서 anchor node를 찾지 못했습니다.",
+            "anchor node not found in the Figma exploration projection.",
             false,
         )
     })?;
@@ -463,14 +463,14 @@ pub fn collect_section_notes(snapshot: &Snapshot, section_id: &str) -> Result<St
     let section = snapshot.nodes.get(section_id).ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaNodeNotFound,
-            "Section note를 수집할 node를 찾지 못했습니다.",
+            "Node to collect Section notes from not found.",
             false,
         )
     })?;
     if section.node_type != "SECTION" {
         return Err(DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            "Section note 수집 대상은 SECTION이어야 합니다.",
+            "Section note collection target must be a SECTION.",
             false,
         ));
     }

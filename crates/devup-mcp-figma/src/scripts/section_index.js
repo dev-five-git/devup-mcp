@@ -24,6 +24,15 @@ function isScreen(node, box) {
     && aspect >= 0.25 && aspect <= 2.5;
 }
 
+function contains(ancestor, node) {
+  let parent = node.parent;
+  while (parent) {
+    if (parent.id === ancestor.id) return true;
+    parent = parent.parent;
+  }
+  return false;
+}
+
 function breadcrumb(node) {
   const names = [];
   let current = node;
@@ -88,6 +97,33 @@ for (let index = 0; index < queue.length && traversalCount < MAX_TRAVERSED_NODES
     if (!nestedInScreen) candidateNodes.push({ node, box });
   }
   if ("children" in node) queue.push(...node.children);
+}
+// Screen shape is a guess for finding screens on a page that has no grouping.
+// A Section is grouping, already explicit, and the guess applied there answers
+// with whatever happens to measure like a phone. A Section of small cases
+// annotated with tall notes turns it upside down: the notes pass and the cases
+// do not, so the index offered the notes and hid every case — an answer that
+// looked complete, which is worse than the empty list a Section of cases used
+// to give. What the Section holds is what it offers.
+if ("children" in section) {
+  const chosen = new Set(candidateNodes.map(({ node }) => node.id));
+  for (const node of section.children) {
+    if (chosen.has(node.id)) continue;
+    const box = bounds(node);
+    if (!box || node.visible === false) continue;
+    // And a child outranks whatever the guess found inside it. A long page
+    // never measures like a screen: the three widths of one page here are
+    // 1920x4757, 992x5619 and 360x7240, each rejected on height alone and two
+    // of them on aspect as well. So the traversal walks straight past all
+    // three and offers the frames within them instead, answering a request for
+    // three screens with twenty pieces of three screens -- while the widths
+    // themselves, which are the whole of what the Section holds, appear
+    // nowhere in the index. Taking the page apart is not a way of offering it.
+    for (let index = candidateNodes.length - 1; index >= 0; index -= 1) {
+      if (contains(node, candidateNodes[index].node)) candidateNodes.splice(index, 1);
+    }
+    candidateNodes.push({ node, box });
+  }
 }
 candidateNodes.sort((left, right) =>
   left.box.y - right.box.y

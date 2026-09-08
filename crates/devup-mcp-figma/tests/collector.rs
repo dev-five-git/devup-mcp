@@ -18,11 +18,19 @@ fn exact_node_fast_path_completes_in_one_call() {
         panic!("fast snapshot call expected")
     };
     assert_eq!(fast_call.call.tool_name(), "use_figma");
+    let arguments = fast_call.call.arguments();
+    assert!(!arguments.contains_key("nodeId"));
     assert!(
-        fast_call.call.arguments()["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastSnapshotDescriptor")
+            .contains("devupFastSnapshotEnvelope")
+    );
+    assert!(
+        !arguments["code"]
+            .as_str()
+            .unwrap()
+            .contains("figma.io.write")
     );
 
     collector
@@ -35,7 +43,7 @@ fn exact_node_fast_path_completes_in_one_call() {
     assert_eq!(parts.snapshot_chunks.len(), 1);
     assert_eq!(parts.snapshot_chunks[0].nodes.len(), 1);
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.node_count, 1);
     assert_eq!(parts.stats.variable_count, 0);
@@ -68,8 +76,138 @@ fn exact_node_fast_path_accepts_the_stringified_handoff_contract() {
         panic!("stringified fast snapshot should complete without fallback")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-envelope-v1");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
+}
+
+/// The about screen as the script really answers it: asked for `mobile`, it
+/// gathers `tablet` and `desktop` beside it and pages the three through the
+/// fast path. The collector must ride that to the end — it had been reading
+/// the family as a target mismatch and restarting a legacy walk that cost
+/// 282 calls for a screen the fast path pages through in a handful.
+#[test]
+fn a_family_gathered_around_the_target_pages_through_the_fast_path() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(first_call) = collector.advance().unwrap() else {
+        panic!("fast snapshot call expected")
+    };
+    let family = json!(["1:2", "2:2", "3:2"]);
+    collector
+        .accept(
+            &first_call.id,
+            family_page(
+                &family,
+                json!([
+                    {"id": "1:2", "type": "FRAME", "fields": {"name": "mobile", "childrenIds": ["1:3"]}, "extra": {}, "fieldErrors": {}},
+                    {"id": "2:2", "type": "FRAME", "fields": {"name": "tablet", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                    {"id": "3:2", "type": "FRAME", "fields": {"name": "desktop", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                ]),
+                (0, 3, false, 4),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Call(second_call) = collector.advance().unwrap() else {
+        panic!("the second fast page expected, not a legacy restart")
+    };
+    assert_eq!(second_call.call.tool_name(), "use_figma");
+    let code = second_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(code.contains("devupFastSnapshotEnvelope"), "{code}");
+    assert!(code.contains("\"offset\":3"), "{code}");
+    collector
+        .accept(
+            &second_call.id,
+            family_page(
+                &family,
+                json!([
+                    {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "Done", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                ]),
+                (3, 4, true, 4),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("the family should complete on the fast path")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 2);
+    assert_eq!(parts.stats.transport, "text-paginated");
+    assert!(
+        !parts.stats.fallback_used,
+        "{:?}",
+        parts.stats.fallback_reason
+    );
+    assert_eq!(parts.stats.node_count, 4);
+    assert_eq!(parts.metadata["rootId"], "1:2");
+    assert!(
+        parts
+            .snapshot_chunks
+            .iter()
+            .all(|chunk| json!(chunk.root_ids) == family),
+        "every page is rooted at the family"
+    );
+}
+
+/// One page of a fast snapshot that the script rooted at `root_ids`.
+fn family_page(
+    root_ids: &Value,
+    nodes: Value,
+    (offset, next_offset, complete, total_nodes): (u64, u64, bool, u64),
+) -> UpstreamResult {
+    let mut nodes = nodes.as_array().cloned().unwrap();
+    // The cursor marker is a node of the page and counts in `nodeCount`, as
+    // the script counts it.
+    let node_count = nodes.len() + 1;
+    nodes.push(json!({
+        "id": "__DEVUP_SNAPSHOT_CURSOR__",
+        "type": "DEVUP_INTERNAL",
+        "fields": {"offset": offset, "nextOffset": next_offset, "complete": complete, "totalNodes": total_nodes},
+        "extra": {},
+        "fieldErrors": {}
+    }));
+    let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "rootId": "1:2"},
+        "snapshot": {
+            "fileKey": "FileKey123",
+            "version": "v1",
+            "rootIds": root_ids,
+            "nodes": nodes,
+            "diagnostics": []
+        },
+        "resources": {
+            "collections": [],
+            "variables": [],
+            "styles": [],
+            "usedRemoteVariables": [],
+            "localComplete": false,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "integrity": {
+            "nodeCount": node_count,
+            "variableRefCount": 0,
+            "styleRefCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    }
+    UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": envelope.to_string()}]}),
+    }
 }
 
 #[test]
@@ -92,12 +230,25 @@ fn requested_reference_png_is_collected_after_the_design_snapshot() {
     assert_eq!(screenshot_call.call.tool_name(), "get_screenshot");
     assert_eq!(screenshot_call.call.arguments()["fileKey"], "FileKey123");
     assert_eq!(screenshot_call.call.arguments()["nodeId"], "1:2");
+    // The official tool inlines the PNG only when asked, and halves a 1920px
+    // screen unless its 1024px cap is raised.
+    assert_eq!(
+        screenshot_call.call.arguments()["enableBase64Response"],
+        true
+    );
+    assert_eq!(screenshot_call.call.arguments()["maxDimension"], 8192);
     let data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    // As the official tool answers, measured 2026-09-07: the URL as JSON in
+    // a text block, how to fetch it in another, and the PNG inlined after.
     collector
         .accept(
             &screenshot_call.id,
             UpstreamResult {
-                raw: json!({"content": [{"type": "image", "mimeType": "image/png", "data": data}]}),
+                raw: json!({"content": [
+                    {"type": "text", "text": "{\"image_url\":\"https://www.figma.com/api/mcp/asset/x.png\",\"width\":1,\"height\":1,\"format\":\"png\"}"},
+                    {"type": "text", "text": "The screenshot is hosted at the URL in the first content entry (as JSON)."},
+                    {"type": "image", "mimeType": "image/png", "data": data}
+                ]}),
             },
         )
         .unwrap();
@@ -302,7 +453,7 @@ fn malformed_fast_result_restarts_legacy_from_metadata() {
     assert!(parts.stats.fallback_used);
     assert_eq!(
         parts.stats.fallback_reason.as_deref(),
-        Some("descriptorMissing")
+        Some("textEnvelopeMissing")
     );
     assert_eq!(parts.stats.node_count, 1);
 }
@@ -422,6 +573,7 @@ fn valid_reference_png_base64() -> &'static str {
 
 fn fast_envelope_result() -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "1:2"},
         "snapshot": {
@@ -460,42 +612,20 @@ fn fast_envelope_result() -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "1:2",
-        "nodeCount": 1,
-        "variableRefCount": 0,
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
+    // No binary transport exists any more: fast snapshots are always plain
+    // text. Omitting the `__DEVUP_SNAPSHOT_CURSOR__` marker node is treated
+    // by the decoder as a single, already-complete page.
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }
 
 fn fast_theme_envelope_result() -> UpstreamResult {
     let mut envelope = json!({
+        "kind": "devupFastThemeEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "version": "v2"},
         "resources": {
@@ -524,58 +654,12 @@ fn fast_theme_envelope_result() -> UpstreamResult {
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastThemeDescriptor",
-        "schemaVersion": 1,
-        "collectionCount": 1,
-        "variableCount": 1,
-        "styleCount": 1,
-        "unresolvedCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
-}
-
-fn push_png_chunk(output: &mut Vec<u8>, chunk_type: &[u8; 4], data: &[u8]) {
-    output.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    output.extend_from_slice(chunk_type);
-    output.extend_from_slice(data);
-    let mut crc_input = Vec::with_capacity(4 + data.len());
-    crc_input.extend_from_slice(chunk_type);
-    crc_input.extend_from_slice(data);
-    output.extend_from_slice(&crc32(&crc_input).to_be_bytes());
-}
-
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = u32::MAX;
-    for byte in bytes {
-        crc ^= u32::from(*byte);
-        for _ in 0..8 {
-            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
-        }
-    }
-    !crc
 }
 
 fn file_target() -> FigmaTarget {
@@ -641,7 +725,7 @@ fn official_top_level_pages() -> UpstreamResult {
         raw: json!({
             "content": [{
                 "type": "text",
-                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: 표지\n- 12:34: 본문: 교정"
+                "text": "No nodeId was provided. Listing the top-level pages of the document. Call get_metadata again with one of the page ids below (or any node id underneath) to get the XML metadata for that subtree.\n\nTop-level pages of the document:\n- 0:1: Cover\n- 12:34: Body: Proofread"
             }]
         }),
     }
@@ -659,7 +743,7 @@ fn file_page_metadata() -> UpstreamResult {
                         {
                             "id": "0:1",
                             "type": "PAGE",
-                            "name": "표지",
+                            "name": "Cover",
                             "childrenIds": ["1:2"],
                             "descendantCount": 1
                         },
@@ -687,7 +771,8 @@ fn file_scope_starts_from_the_file_even_when_the_url_contains_a_node() {
     };
     assert_eq!(metadata_call.call.tool_name(), "get_metadata");
     assert_eq!(metadata_call.expected_node_id, None);
-    assert_eq!(metadata_call.call.arguments()["nodeId"], json!(null));
+    // Omitted, not null: the official schema refuses `nodeId: null`.
+    assert!(!metadata_call.call.arguments().contains_key("nodeId"));
 }
 
 #[test]
@@ -740,7 +825,7 @@ fn metadata_only_file_collection_completes_without_snapshot_calls() {
     second.raw["structuredContent"]["devupMetadata"]["nodes"] = json!([{
         "id": "12:34",
         "type": "PAGE",
-        "name": "본문: 교정",
+        "name": "Body: Proofread",
         "childrenIds": [],
         "descendantCount": 0
     }]);
@@ -767,11 +852,13 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("fast theme call expected")
     };
     assert_eq!(fast_theme.call.tool_name(), "use_figma");
+    let arguments = fast_theme.call.arguments();
+    assert!(!arguments.contains_key("nodeId"));
     assert!(
-        fast_theme.call.arguments()["code"]
+        arguments["code"]
             .as_str()
             .unwrap()
-            .contains("devupFastThemeDescriptor")
+            .contains("devupFastThemeEnvelope")
     );
     collector
         .accept(&fast_theme.id, fast_theme_envelope_result())
@@ -781,11 +868,160 @@ fn variables_only_file_collection_skips_page_and_node_snapshots() {
         panic!("valid fast theme should complete in one call")
     };
     assert_eq!(parts.stats.figma_tool_calls, 1);
-    assert_eq!(parts.stats.transport, "png-theme-envelope-v1");
+    assert_eq!(parts.stats.transport, "text");
     assert!(!parts.stats.fallback_used);
     assert_eq!(parts.stats.variable_count, 1);
     assert_eq!(parts.stats.style_count, 1);
     assert_eq!(parts.variables.as_ref().unwrap().raw["localComplete"], true);
+}
+
+/// A file's resources rarely fit one answer, so the theme script pages
+/// them: each page carries a run of the resources from an offset and says
+/// where the next starts, and the collector asks for the next page from
+/// there until one says it is the last. The pages are merged in order, a
+/// resource two pages both carry is kept once, and the scan every page
+/// repeats comes from the last one.
+#[test]
+fn a_paged_fast_theme_is_read_page_by_page_and_merged() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!("fast theme call expected")
+    };
+    assert!(
+        first.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("{\"offset\":0}")
+    );
+    collector
+        .accept(
+            &first.id,
+            fast_theme_page_result(
+                json!({"collections": [{"id": "c", "name": "Theme"}], "variables": [{"id": "v1", "name": "primary"}], "styles": [], "usedVariableIds": ["v1"]}),
+                json!({"offset": 0, "nextOffset": 2, "complete": false, "totalItems": 6}),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!("the next page is asked for")
+    };
+    assert_eq!(second.call.tool_name(), "use_figma");
+    assert!(
+        second.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("{\"offset\":2}")
+    );
+    collector
+        .accept(
+            &second.id,
+            fast_theme_page_result(
+                json!({"collections": [], "variables": [{"id": "v1", "name": "primary"}, {"id": "v2", "name": "text"}], "styles": [{"id": "s", "name": "body", "styleType": "TEXT"}], "usedVariableIds": ["v1", "v2"], "usedStyleIds": ["s"]}),
+                json!({"offset": 2, "nextOffset": 6, "complete": true, "totalItems": 6}),
+            ),
+        )
+        .unwrap();
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("the last page completes the theme")
+    };
+    assert_eq!(parts.stats.figma_tool_calls, 2);
+    assert_eq!(parts.stats.transport, "text");
+    assert!(!parts.stats.fallback_used);
+    let resources = &parts.variables.as_ref().unwrap().raw;
+    assert_eq!(resources["collections"].as_array().unwrap().len(), 1);
+    // v1 was on both pages and is kept once.
+    assert_eq!(
+        resources["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|variable| variable["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["v1", "v2"]
+    );
+    assert_eq!(resources["styles"].as_array().unwrap().len(), 1);
+    assert_eq!(resources["localComplete"], true);
+    // The scan came in two shares, v1 on both, and is whole and unrepeated.
+    assert_eq!(resources["usedVariableIds"], json!(["v1", "v2"]));
+    assert_eq!(resources["usedStyleIds"], json!(["s"]));
+    assert_eq!(parts.stats.variable_count, 2);
+    assert_eq!(parts.stats.style_count, 1);
+    assert_eq!(parts.metadata["pageCount"], 2);
+}
+
+/// A page that does not move forward is refused, not asked for forever.
+#[test]
+fn a_fast_theme_page_that_does_not_advance_is_refused() {
+    let mut request = CollectionRequest::new(file_target(), CollectionScope::File);
+    request.resource_scope = ResourceScope::File;
+    request.variables_only = true;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!("fast theme call expected")
+    };
+    let error = collector
+        .accept(
+            &first.id,
+            fast_theme_page_result(
+                json!({"collections": [], "variables": [], "styles": []}),
+                json!({"offset": 0, "nextOffset": 0, "complete": false, "totalItems": 4}),
+            ),
+        )
+        .expect_err("a page cursor that stands still is an error");
+    assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+}
+
+fn fast_theme_page_result(resources: Value, page: Value) -> UpstreamResult {
+    // The scan is paged like the resources: this page's share of the used
+    // ids, or none.
+    let used_variable_ids = resources
+        .get("usedVariableIds")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    let used_style_ids = resources
+        .get("usedStyleIds")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    let mut envelope = json!({
+        "kind": "devupFastThemeEnvelope",
+        "schemaVersion": 1,
+        "source": {"fileKey": "FileKey123", "version": "v2"},
+        "resources": {
+            "collections": resources["collections"],
+            "variables": resources["variables"],
+            "styles": resources["styles"],
+            "usedRemoteVariables": [],
+            "usedVariableIds": used_variable_ids,
+            "usedStyleIds": used_style_ids,
+            "localComplete": true,
+            "usedRemoteComplete": true,
+            "unresolved": []
+        },
+        "page": page,
+        "integrity": {
+            "collectionCount": resources["collections"].as_array().map_or(0, Vec::len),
+            "variableCount": resources["variables"].as_array().map_or(0, Vec::len),
+            "styleCount": resources["styles"].as_array().map_or(0, Vec::len),
+            "unresolvedCount": 0,
+            "utf8Bytes": 0
+        }
+    });
+    loop {
+        let bytes = serde_json::to_vec(&envelope).unwrap();
+        if envelope["integrity"]["utf8Bytes"] == bytes.len() as u64 {
+            break;
+        }
+        envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
+    }
+    UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": envelope.to_string()}]}),
+    }
 }
 
 #[test]
@@ -1407,7 +1643,7 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
                         {"id": "1:2", "type": "FRAME", "fields": {"name": "Root", "childrenIds": ["1:3"]}, "extra": {}, "fieldErrors": {}},
-                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 1, "complete": false, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),
             },
@@ -1430,8 +1666,8 @@ fn node_snapshot_follows_the_compiled_cursor_until_complete() {
                 raw: json!({
                     "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
                     "nodes": [
-                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "완료", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
-                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
+                        {"id": "1:3", "type": "TEXT", "fields": {"name": "Child", "characters": "Done", "childrenIds": []}, "extra": {}, "fieldErrors": {}},
+                        {"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {"offset":0,"nextOffset": 2, "complete": true, "totalNodes": 2}, "extra": {}, "fieldErrors": {}}
                     ], "diagnostics": []
                 }),
             },
@@ -1474,13 +1710,108 @@ fn section_collection_indexes_before_planning_selected_roots() {
         .accept(&index_call.id, compact_section_index())
         .unwrap();
 
-    let CollectorStep::Call(batch_call) = collector.advance().unwrap() else {
-        panic!("one bounded multi-root call expected")
+    let CollectorStep::Call(first_root_call) = collector.advance().unwrap() else {
+        panic!("first selected root call expected")
     };
-    let arguments = batch_call.call.arguments();
-    let code = arguments["code"].as_str().unwrap();
-    assert!(code.contains("[\"10:3\",\"10:2\"]"));
-    assert_eq!(batch_call.expected_node_id.as_deref(), Some("10:1"));
+    let CollectorStep::Call(second_root_call) = collector.advance().unwrap() else {
+        panic!("second selected root call expected")
+    };
+    assert_eq!(multi_root_ids(&first_root_call.call), ["10:3"]);
+    assert_eq!(multi_root_ids(&second_root_call.call), ["10:2"]);
+    assert_eq!(first_root_call.expected_node_id.as_deref(), Some("10:1"));
+}
+
+#[test]
+fn rejected_exact_section_probe_pivots_to_the_compact_index() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast section probe expected")
+    };
+
+    let recovered = collector
+        .reject(
+            &fast_call.id,
+            &DevupError::new(
+                ErrorCode::DevupSnapshotUnsupported,
+                "Error: DEVUP_TARGET_IS_SECTION",
+                false,
+            ),
+        )
+        .unwrap();
+
+    assert!(recovered);
+    let CollectorStep::Call(index_call) = collector.advance().unwrap() else {
+        panic!("compact section index expected")
+    };
+    assert!(
+        index_call.call.arguments()["code"]
+            .as_str()
+            .unwrap()
+            .contains("subtreeNodeCount")
+    );
+}
+
+#[test]
+fn failed_fast_and_legacy_section_root_is_reported_without_losing_siblings() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec!["root-0".to_owned(), "root-1".to_owned()],
+        all_screens: false,
+    });
+    request.cached_section_index = Some(section_index_with_node_counts(&[3_000, 3_000]));
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(first) = collector.advance().unwrap() else {
+        panic!()
+    };
+    let CollectorStep::Call(second) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &second.id,
+            fast_multi_envelope_result(&["root-1"], &["variable-success"]),
+        )
+        .unwrap();
+    assert!(
+        collector
+            .reject(
+                &first.id,
+                &DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, "fast failed", true,)
+            )
+            .unwrap()
+    );
+    let CollectorStep::Call(legacy) = collector.advance().unwrap() else {
+        panic!("legacy retry expected")
+    };
+    assert!(
+        collector
+            .reject(
+                &legacy.id,
+                &DevupError::new(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "legacy failed",
+                    true,
+                )
+            )
+            .unwrap()
+    );
+
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("successful sibling should complete")
+    };
+    assert_eq!(
+        merge_chunks(parts.snapshot_chunks).unwrap().roots,
+        ["root-1"]
+    );
+    assert_eq!(parts.failures.len(), 1);
+    assert_eq!(parts.failures[0].node_id, "root-0");
+    assert_eq!(
+        parts.failures[0].error_code,
+        ErrorCode::DevupFigmaDirectUnavailable
+    );
 }
 
 #[test]
@@ -1821,6 +2152,7 @@ fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> Upstr
         .map(|id| json!({"id": id, "name": id}))
         .collect::<Vec<_>>();
     let mut envelope = json!({
+        "kind": "devupFastSnapshotEnvelope",
         "schemaVersion": 1,
         "source": {"fileKey": "FileKey123", "rootId": "10:1"},
         "snapshot": {
@@ -1855,35 +2187,10 @@ fn fast_multi_envelope_result(root_ids: &[&str], variable_ids: &[&str]) -> Upstr
         }
         envelope["integrity"]["utf8Bytes"] = Value::from(bytes.len());
     };
-    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-    push_png_chunk(&mut png, b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
-    let mut payload = Vec::with_capacity(envelope_bytes.len() + 8);
-    payload.extend_from_slice(&0_u32.to_be_bytes());
-    payload.extend_from_slice(&1_u32.to_be_bytes());
-    payload.extend_from_slice(&envelope_bytes);
-    push_png_chunk(&mut png, b"duVp", &payload);
-    push_png_chunk(
-        &mut png,
-        b"IDAT",
-        &[
-            0x78, 0x01, 0x01, 0x05, 0x00, 0xfa, 0xff, 0, 0, 0, 0, 0, 5, 0, 1,
-        ],
-    );
-    push_png_chunk(&mut png, b"IEND", &[]);
-    let descriptor = json!({
-        "kind": "devupFastSnapshotDescriptor",
-        "schemaVersion": 1,
-        "rootId": "10:1",
-        "nodeCount": root_ids.len(),
-        "variableRefCount": variable_ids.len(),
-        "styleRefCount": 0,
-        "utf8Bytes": envelope_bytes.len(),
-        "chunkCount": 1
-    });
+    let _ = envelope_bytes;
     UpstreamResult {
         raw: json!({"content": [
-            {"type": "text", "text": descriptor.to_string()},
-            {"type": "image", "data": STANDARD.encode(png), "mimeType": "image/png"}
+            {"type": "text", "text": envelope.to_string()}
         ]}),
     }
 }

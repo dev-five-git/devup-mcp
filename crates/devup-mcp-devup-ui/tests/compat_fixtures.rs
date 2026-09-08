@@ -56,7 +56,7 @@ fn upstream_json_goldens() {
             .join("../snapshots")
             .join(category)
             .join(format!("{}.snap", case.id));
-        let committed = std::fs::read_to_string(snapshot)
+        let committed = std::fs::read_to_string(&snapshot)
             .expect("committed snapshot")
             .replace("\r\n", "\n");
         let expected = committed
@@ -65,6 +65,19 @@ fn upstream_json_goldens() {
             .expect("insta snapshot body")
             .trim();
         if actual == expected {
+            passed += 1;
+        } else if std::env::var_os("DEVUP_FIXTURE_UPDATE").is_some() {
+            // The pinned corpus is the plugin's own output and is not edited
+            // lightly: it moves only for a change this repo has decided to
+            // make on purpose, measured against Figma's own PNGs, and each
+            // such move is a reviewed diff. This is the one way to make it.
+            let header = committed
+                .splitn(3, "---\n")
+                .take(2)
+                .collect::<Vec<_>>()
+                .join("---\n");
+            std::fs::write(&snapshot, format!("{header}---\n\n{actual}\n"))
+                .expect("rewrite the committed snapshot");
             passed += 1;
         } else {
             let mismatch = expected

@@ -1,13 +1,17 @@
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_devup_ui::{
-    codegen::{CodegenOptions, generate_component},
+    codegen::{
+        CodegenOptions, generate_component, normalize_component_name, responsive::merge_breakpoints,
+    },
     theme::{generate_devup_json, variable_snapshot_from_result},
 };
 use devup_mcp_figma::{
-    AssetManifest, AssetStatus, CollectedPayload, CollectionStats, DevupError, ErrorCode,
-    ExploreOptions, SearchOptions, TargetKind, classify_target, explore_snapshot, search_snapshot,
+    AssetManifest, AssetStatus, CollectedPayload, CollectionStats, DevupError, Diagnostic,
+    DiagnosticSeverity, ErrorCode, ExploreOptions, SearchOptions, TargetKind, classify_target,
+    explore_snapshot, search_snapshot,
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -16,7 +20,7 @@ use super::{
     artifacts::{ArtifactLookup, ArtifactStore, OutputReservation},
     delivery::{DeliveryMode, ProjectedOutput, choose_delivery_for_result},
     format_epoch_rfc3339,
-    handoff::PendingOperation,
+    operation::PendingOperation,
     output::{OutputPolicy, OutputTransaction},
     parse_scope,
     quality::{
@@ -36,6 +40,13 @@ pub(super) fn projected_outputs_from_result(
             tsx.as_bytes().to_vec(),
         ));
     }
+    if let Some(tsx) = result.get("componentTsx").and_then(Value::as_str) {
+        outputs.push(ProjectedOutput::text(
+            "componentTsx",
+            "text/typescript",
+            tsx.as_bytes().to_vec(),
+        ));
+    }
     if let Some(devup_json) = result.get("devupJson").and_then(Value::as_str) {
         outputs.push(ProjectedOutput::text(
             "devupJson",
@@ -50,14 +61,14 @@ pub(super) fn projected_outputs_from_result(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "referencePng resource에 base64 data가 없습니다.",
+                    "The referencePng resource has no base64 data.",
                     false,
                 )
             })?;
         let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "referencePng resource의 base64가 올바르지 않습니다.",
+                "The referencePng resource base64 is invalid.",
                 false,
             )
         })?;
@@ -65,6 +76,7 @@ pub(super) fn projected_outputs_from_result(
     }
     for (field, name) in [
         ("rawSnapshot", "raw-snapshot.json"),
+        ("rawPayload", "raw-payload.json"),
         ("sourceMap", "source-map.json"),
         ("assetManifest", "asset-manifest.json"),
     ] {
@@ -101,7 +113,7 @@ fn encode_projected_json(value: &Value) -> Result<Vec<u8>, DevupError> {
     serde_json::to_vec(value).map_err(|error| {
         DevupError::new(
             ErrorCode::DevupSnapshotUnsupported,
-            format!("resource output을 JSON으로 직렬화할 수 없습니다: {error}"),
+            format!("Cannot serialize the resource output to JSON: {error}"),
             false,
         )
     })
@@ -130,7 +142,7 @@ pub(super) async fn apply_delivery(
     let result = result.as_object_mut().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
-            "resource delivery 결과가 JSON object가 아닙니다.",
+            "The resource delivery result is not a JSON object.",
             false,
         )
     })?;
@@ -138,6 +150,7 @@ pub(super) async fn apply_delivery(
         "tsx",
         "devupJson",
         "rawSnapshot",
+        "rawPayload",
         "sourceMap",
         "assetManifest",
         "referencePng",
@@ -211,7 +224,7 @@ fn materialize_asset_resource_references(
             .ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "asset resource에 대응하는 manifest 항목이 없습니다.",
+                    "No manifest entry matches this asset resource.",
                     false,
                 )
             })?;
@@ -234,7 +247,7 @@ fn materialize_asset_resource_references(
             encode_projected_json(result.get("assetManifest").ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "asset manifest resource가 없습니다.",
+                    "The asset manifest resource is missing.",
                     false,
                 )
             })?)?;
@@ -251,35 +264,35 @@ fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutp
         let data = asset.data_base64.as_deref().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset binary가 artifact에 없습니다.",
+                "The exported asset binary is not in the artifact.",
                 false,
             )
         })?;
         let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset binary의 base64가 올바르지 않습니다.",
+                "The exported asset binary base64 is invalid.",
                 false,
             )
         })?;
         let mime_type = asset.mime_type.as_deref().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset MIME 형식이 없습니다.",
+                "The exported asset has no MIME type.",
                 false,
             )
         })?;
         let expected_hash = asset.sha256.as_deref().ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset hash가 없습니다.",
+                "The exported asset has no hash.",
                 false,
             )
         })?;
         if asset.byte_length != Some(bytes.len()) || expected_hash != sha256_hex(&bytes) {
             return Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "export된 asset 길이 또는 hash가 일치하지 않습니다.",
+                "The exported asset length or hash does not match.",
                 false,
             ));
         }
@@ -294,6 +307,57 @@ fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutp
         ));
     }
     Ok(outputs)
+}
+
+/// The file name a host file system will take. A designer names a layer for
+/// the eye - `grommet-icons:language`, `ic:round-arrow-left` - and the plugin
+/// writes that name verbatim; Windows cannot create it. The characters no
+/// file system takes become dashes. A name that is already writable - nearly
+/// every one - passes through untouched, so what the server delivers keeps
+/// the plugin's own name wherever that name is a file at all.
+fn host_safe_file_name(name: &str) -> String {
+    name.chars()
+        .map(|character| match character {
+            ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\\' => '-',
+            other if other.is_control() => '-',
+            other => other,
+        })
+        .collect()
+}
+
+/// `/icons/ic:round-arrow-left.svg` as `/icons/ic-round-arrow-left.svg`. Only
+/// the file name is touched; the folder the code looks in is left alone.
+fn host_safe_asset_path(path: &str) -> String {
+    match path.rsplit_once('/') {
+        Some((directory, name)) => format!("{directory}/{}", host_safe_file_name(name)),
+        None => host_safe_file_name(path),
+    }
+}
+
+/// Every asset the generated code points at, renamed the way its bytes will
+/// be written. The code holds each path inside a string or a `url(...)`, so a
+/// name runs to the first quote or closing parenthesis - spaces and dots
+/// belong to it, as they do in `Frame 269.png`.
+fn with_host_safe_asset_paths(code: &str) -> String {
+    let mut safe = String::with_capacity(code.len());
+    let mut rest = code;
+    loop {
+        let Some((at, prefix)) = ["/icons/", "/images/"]
+            .into_iter()
+            .filter_map(|prefix| rest.find(prefix).map(|at| (at, prefix)))
+            .min_by_key(|(at, _)| *at)
+        else {
+            safe.push_str(rest);
+            return safe;
+        };
+        let after = at + prefix.len();
+        safe.push_str(&rest[..after]);
+        let end = rest[after..]
+            .find(['"', '\'', ')'])
+            .map_or(rest.len(), |offset| after + offset);
+        safe.push_str(&host_safe_file_name(&rest[after..end]));
+        rest = &rest[end..];
+    }
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -378,7 +442,7 @@ pub(super) async fn complete_operation(
             let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupFigmaNodeNotFound,
-                    "UI 변환 payload에는 node ID가 필요합니다.",
+                    "A UI conversion payload requires a node ID.",
                     false,
                 )
             })?;
@@ -390,6 +454,9 @@ pub(super) async fn complete_operation(
                     include_diagnostics,
                     inline_instances: true,
                     root_layout,
+                    // `devup_figma_to_ui` hands back one module and no files,
+                    // so there is nothing for a per-node name to keep apart.
+                    asset_names_per_node: false,
                     ..CodegenOptions::default()
                 }
                 .with_payload_tokens(payload),
@@ -459,6 +526,19 @@ pub(super) async fn complete_operation(
             };
             commit_delivery(attachment);
             result["outputPath"] = json!(written_path);
+            if status == "complete" {
+                // Unambiguous "this is the real, final answer" marker.
+                // Without it, an agent repeatedly seeing `needs_figma`
+                // intermediate steps has, in an observed real failure,
+                // concluded the conversion was "probably done" and moved
+                // on to hand-interpreting the raw node tree instead of
+                // waiting for this response.
+                result["deliverable"] = json!({
+                    "kind": "devup-ui-tsx",
+                    "isFinal": true,
+                    "note": "This tsx is the final deliverable. Implement from this value."
+                });
+            }
             Ok(result)
         }
         PendingOperation::ToJson {
@@ -470,7 +550,7 @@ pub(super) async fn complete_operation(
             let result = payload.variables.as_ref().ok_or_else(|| {
                 DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "Figma 변수/style 수집 결과가 없습니다.",
+                    "There is no Figma variable/style collection result.",
                     false,
                 )
             })?;
@@ -616,6 +696,7 @@ pub(super) async fn complete_operation(
             component_name,
             include_diagnostics,
             root_layout,
+            asset_names_per_node,
             scope,
             strict,
             output_paths,
@@ -630,6 +711,7 @@ pub(super) async fn complete_operation(
             result.insert("completenessReport".to_owned(), json!(&completeness_report));
             result.insert("collection".to_owned(), json!(collection));
             result.insert("cache".to_owned(), artifact_metadata(artifact));
+            result.insert("failures".to_owned(), json!(&payload.failures));
             result.insert(
                 "source".to_owned(),
                 json!({
@@ -650,14 +732,14 @@ pub(super) async fn complete_operation(
             if !frame_ids.is_empty() && all_screens {
                 return Err(DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "frameIds와 allScreens는 동시에 사용할 수 없습니다.",
+                    "frameIds and allScreens cannot be used together.",
                     false,
                 ));
             }
             if target_kind != TargetKind::Section && (!frame_ids.is_empty() || all_screens) {
                 return Err(DevupError::new(
                     ErrorCode::DevupSnapshotUnsupported,
-                    "frameIds와 allScreens는 Section artifact에서만 사용할 수 있습니다.",
+                    "frameIds and allScreens can only be used on a Section artifact.",
                     false,
                 ));
             }
@@ -702,6 +784,14 @@ pub(super) async fn complete_operation(
                         "truncated": candidates.len() == 100
                     }),
                 );
+                result.insert(
+                    "nextAction".to_owned(),
+                    json!({
+                        "why": "This link is a Section and holds several screens inside. Collecting them all at once exceeds the size limit.",
+                        "how": "Call again with the target screen's canonicalUrl from screens[], or use allScreens:true if you need every screen.",
+                        "doNot": "Do not try to collect the whole Section at once."
+                    }),
+                );
                 return Ok(Value::Object(result));
             }
 
@@ -722,8 +812,16 @@ pub(super) async fn complete_operation(
                     .iter()
                     .map(|candidate| (candidate.node.node_id.as_str(), candidate))
                     .collect::<std::collections::BTreeMap<_, _>>();
+                let failed_ids = payload
+                    .failures
+                    .iter()
+                    .map(|failure| failure.node_id.as_str())
+                    .collect::<std::collections::BTreeSet<_>>();
                 let selected = if all_screens {
-                    candidates.iter().collect::<Vec<_>>()
+                    candidates
+                        .iter()
+                        .filter(|candidate| !failed_ids.contains(candidate.node.node_id.as_str()))
+                        .collect::<Vec<_>>()
                 } else {
                     let requested = frame_ids
                         .iter()
@@ -732,7 +830,7 @@ pub(super) async fn complete_operation(
                     if requested.len() != frame_ids.len() {
                         return Err(DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "frameIds에 중복 node가 있습니다.",
+                            "frameIds contains a duplicate node.",
                             false,
                         ));
                     }
@@ -743,14 +841,17 @@ pub(super) async fn complete_operation(
                         return Err(DevupError::new(
                             ErrorCode::DevupFigmaNodeNotFound,
                             format!(
-                                "Section 내부 screen frame이 아니거나 존재하지 않습니다: {node_id}"
+                                "Not a screen frame inside the Section, or it does not exist: {node_id}"
                             ),
                             false,
                         ));
                     }
                     candidates
                         .iter()
-                        .filter(|candidate| requested.contains(candidate.node.node_id.as_str()))
+                        .filter(|candidate| {
+                            requested.contains(candidate.node.node_id.as_str())
+                                && !failed_ids.contains(candidate.node.node_id.as_str())
+                        })
                         .collect::<Vec<_>>()
                 };
                 let mut frames = Vec::with_capacity(selected.len());
@@ -770,6 +871,7 @@ pub(super) async fn complete_operation(
                             include_diagnostics,
                             inline_instances: true,
                             root_layout,
+                            asset_names_per_node,
                             ..CodegenOptions::default()
                         }
                         .with_payload_tokens(payload),
@@ -815,11 +917,82 @@ pub(super) async fn complete_operation(
                 section_tsx_projected = true;
             }
 
+            let component_name_for_components = component_name.clone();
+            // A screen captured with its other widths is convertible as one
+            // tree. It is offered whenever those widths are present rather than
+            // only on request, because a caller asking for a screen that has
+            // them almost always wants the responsive form and cannot know from
+            // the node id alone whether it exists.
+            if outputs
+                .iter()
+                .any(|output| output == "tsx" || output == "responsiveTsx")
+                && let Some(merged) = merge_breakpoints(
+                    &payload.snapshot,
+                    &CodegenOptions {
+                        component_name: component_name_for_components.clone(),
+                        include_diagnostics,
+                        inline_instances: false,
+                        root_layout,
+                        asset_names_per_node,
+                        ..CodegenOptions::default()
+                    }
+                    .with_payload_tokens(payload),
+                )?
+            {
+                // Named as the plugin names it: after the Section the widths
+                // sit in, with `Page` on the end — `AboutPage` for a Section
+                // called `about`. The Section is outside the collected
+                // subtree, so each width carries its name as `parentName`.
+                // A caller's own name wins; without one and without a
+                // Section name the page is `ResponsivePage`.
+                let section_name = payload
+                    .snapshot
+                    .roots
+                    .iter()
+                    .filter_map(|root| payload.snapshot.nodes.get(root))
+                    .find_map(|root| root.typed_view().string("parentName").map(str::to_owned));
+                let name = component_name_for_components.clone().map_or_else(
+                    || {
+                        section_name.map_or_else(
+                            || "ResponsivePage".to_owned(),
+                            |section| format!("{}Page", normalize_component_name(&section)),
+                        )
+                    },
+                    |name| normalize_component_name(&name),
+                );
+                let module = merged.module(&name);
+                if output_paths.contains_key("responsiveTsx") {
+                    pending_text_outputs.insert("responsiveTsx".to_owned(), module.clone());
+                }
+                result.insert("responsiveTsx".to_owned(), json!(module));
+                result.insert("responsiveImports".to_owned(), json!(merged.primitives()));
+                result.insert(
+                    "responsiveComponents".to_owned(),
+                    json!(merged.referenced_components()),
+                );
+                result.insert("responsiveSlots".to_owned(), json!(merged.slots));
+                if !merged.unrepresented.is_empty() {
+                    result.insert(
+                        "responsiveUnrepresented".to_owned(),
+                        json!(
+                            merged
+                                .unrepresented
+                                .iter()
+                                .map(|note| json!({
+                                    "nodeId": note.node_id,
+                                    "detail": note.detail
+                                }))
+                                .collect::<Vec<_>>()
+                        ),
+                    );
+                }
+            }
+
             if outputs.iter().any(|output| output == "tsx") && !section_tsx_projected {
                 let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupFigmaNodeNotFound,
-                        "TSX export payload에는 node ID가 필요합니다.",
+                        "A TSX export payload requires a node ID.",
                         false,
                     )
                 })?;
@@ -831,6 +1004,7 @@ pub(super) async fn complete_operation(
                         include_diagnostics,
                         inline_instances: true,
                         root_layout,
+                        asset_names_per_node,
                         ..CodegenOptions::default()
                     }
                     .with_payload_tokens(payload),
@@ -850,11 +1024,39 @@ pub(super) async fn complete_operation(
                 }
             }
 
+            if outputs.iter().any(|output| output == "componentTsx") {
+                let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
+                    DevupError::new(
+                        ErrorCode::DevupFigmaNodeNotFound,
+                        "A component TSX export payload requires a node ID.",
+                        false,
+                    )
+                })?;
+                let output = generate_component(
+                    &payload.snapshot,
+                    node_id,
+                    &CodegenOptions {
+                        component_name: component_name_for_components,
+                        include_diagnostics: false,
+                        inline_instances: false,
+                        root_layout,
+                        asset_names_per_node,
+                        ..CodegenOptions::default()
+                    }
+                    .with_payload_tokens(payload),
+                )?;
+                if output_paths.contains_key("componentTsx") {
+                    pending_text_outputs.insert("componentTsx".to_owned(), output.tsx.clone());
+                }
+                result.insert("componentTsx".to_owned(), json!(output.tsx));
+                result.insert("componentImports".to_owned(), json!(output.imports));
+            }
+
             if outputs.iter().any(|output| output == "devupJson") {
                 let variables = payload.variables.as_ref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "Figma 변수/style 수집 결과가 없습니다.",
+                        "There is no Figma variable/style collection result.",
                         false,
                     )
                 })?;
@@ -883,7 +1085,7 @@ pub(super) async fn complete_operation(
                 let raw = serde_json::to_value(&payload.snapshot).map_err(|error| {
                     DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        format!("raw snapshot을 직렬화할 수 없습니다: {error}"),
+                        format!("Cannot serialize the raw snapshot: {error}"),
                         false,
                     )
                 })?;
@@ -894,6 +1096,33 @@ pub(super) async fn complete_operation(
                     );
                 }
                 result.insert("rawSnapshot".to_owned(), raw);
+            }
+
+            // The whole collection, not only its node tree. A snapshot kept on
+            // its own can be converted, but not the way the server converts
+            // it: the token names come from the variables and styles collected
+            // beside it, and without them a `$gray200` fill comes out as the
+            // tail of its variable ID and a `typography="h4"` as five font
+            // props. Captures kept as fixtures need the resources too, so
+            // this writes them. The reference PNG is left out — it is large,
+            // binary, and has its own output.
+            if outputs.iter().any(|output| output == "rawPayload") {
+                let mut without_png = payload.clone();
+                without_png.reference_png = None;
+                let raw = serde_json::to_value(&without_png).map_err(|error| {
+                    DevupError::new(
+                        ErrorCode::DevupSnapshotUnsupported,
+                        format!("Cannot serialize the raw payload: {error}"),
+                        false,
+                    )
+                })?;
+                if output_paths.contains_key("rawPayload") {
+                    pending_text_outputs.insert(
+                        "rawPayload".to_owned(),
+                        serde_json::to_string_pretty(&raw).unwrap_or_default(),
+                    );
+                }
+                result.insert("rawPayload".to_owned(), raw);
             }
 
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
@@ -922,7 +1151,7 @@ pub(super) async fn complete_operation(
                 let reference = payload.reference_png.as_ref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupFigmaHandoffInvalid,
-                        "artifact에 요청한 reference PNG가 없습니다. URL로 다시 수집하세요.",
+                        "The requested reference PNG is not in the artifact. Re-collect it from the URL.",
                         false,
                     )
                 })?;
@@ -931,7 +1160,7 @@ pub(super) async fn complete_operation(
                     .map_err(|_| {
                         DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "artifact reference PNG의 base64가 올바르지 않습니다.",
+                            "The artifact reference PNG base64 is invalid.",
                             false,
                         )
                     })?;
@@ -944,7 +1173,7 @@ pub(super) async fn complete_operation(
                 {
                     return Err(DevupError::new(
                         ErrorCode::DevupSnapshotUnsupported,
-                        "artifact reference PNG의 길이 또는 hash가 일치하지 않습니다.",
+                        "The artifact reference PNG length or hash does not match.",
                         false,
                     ));
                 }
@@ -970,6 +1199,47 @@ pub(super) async fn complete_operation(
                 manifest
                     .assets
                     .sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
+                // Where the generated code refers to each asset, so a
+                // consumer can write the bytes there without re-deriving the
+                // name - which, for two icons of one layer name, it would get
+                // wrong.
+                for asset in &mut manifest.assets {
+                    if asset.path.is_none() {
+                        // An image fill is named from the node it is painted
+                        // on and which fill it is, which holds for a layout
+                        // box carrying a photograph as much as for a node
+                        // drawn entirely from a file. Anything else is named
+                        // after the node itself.
+                        asset.path = match asset
+                            .field
+                            .strip_prefix("fills/")
+                            .and_then(|index| index.parse::<usize>().ok())
+                        {
+                            Some(fill_index) => devup_mcp_devup_ui::codegen::image_fill_path(
+                                &payload.snapshot,
+                                &asset.node_id,
+                                fill_index,
+                                asset_names_per_node,
+                            ),
+                            None => devup_mcp_devup_ui::codegen::asset_path(
+                                &payload.snapshot,
+                                &asset.node_id,
+                                asset_names_per_node,
+                            ),
+                        };
+                    }
+                }
+                // Where the bytes will be written, if a layer name is one a
+                // file system refuses. The code that points at them is
+                // renamed the same way once every output is assembled.
+                for asset in &mut manifest.assets {
+                    if let Some(path) = asset.path.as_deref() {
+                        let safe = host_safe_asset_path(path);
+                        if safe != path {
+                            asset.path = Some(safe);
+                        }
+                    }
+                }
                 for capture in &asset_captures {
                     if !payload.assets.iter().any(|asset| {
                         asset.asset_id == capture.asset_id
@@ -980,7 +1250,7 @@ pub(super) async fn complete_operation(
                         return Err(DevupError::new(
                             ErrorCode::DevupFigmaHandoffInvalid,
                             format!(
-                                "artifact에 요청한 정확한 asset export가 없습니다. URL로 다시 수집하세요: {}",
+                                "The exact requested asset export is not in the artifact. Re-collect it from the URL: {}",
                                 capture.asset_id
                             ),
                             false,
@@ -1023,7 +1293,7 @@ pub(super) async fn complete_operation(
                 return Err(DevupError::with_details(
                     ErrorCode::DevupSnapshotUnsupported,
                     format!(
-                        "strict export는 exact/complete output만 허용합니다: status={}, quality={}",
+                        "strict export only allows exact/complete output: status={}, quality={}",
                         quality.status(),
                         serde_json::to_string(&quality).unwrap_or_default()
                     ),
@@ -1035,8 +1305,44 @@ pub(super) async fn complete_operation(
                     }),
                 ));
             }
-            result.insert("status".to_owned(), json!(quality.status()));
+            let final_status = quality.status();
+            result.insert("status".to_owned(), json!(final_status));
             result.insert("quality".to_owned(), json!(quality));
+            let tsx_produced =
+                section_tsx_projected || outputs.iter().any(|output| output == "tsx");
+            if final_status == "complete" && tsx_produced {
+                // Same unambiguous final-answer marker as devup_figma_to_ui
+                // — see that branch's comment for why this exists. Checked
+                // here (before `apply_delivery` may move `tsx`/each frame's
+                // `tsx` into `resources`) so the marker reflects whether a
+                // devup-ui TSX was actually produced, independent of how
+                // large output routed it for delivery.
+                result.insert(
+                    "deliverable".to_owned(),
+                    json!({
+                        "kind": "devup-ui-tsx",
+                        "isFinal": true,
+                        "note": "This tsx is the final deliverable. Implement from this value."
+                    }),
+                );
+            }
+            // The code and the bytes have to name an asset alike. Renaming
+            // here, once both are assembled, keeps the two in step while the
+            // code generator itself stays byte-for-byte the plugin's.
+            for output in ["tsx", "responsiveTsx", "componentTsx"] {
+                if let Some(Value::String(code)) = result.get_mut(output) {
+                    let safe = with_host_safe_asset_paths(code.as_str());
+                    if safe != *code {
+                        *code = safe;
+                    }
+                }
+                if let Some(code) = pending_text_outputs.get_mut(output) {
+                    let safe = with_host_safe_asset_paths(code.as_str());
+                    if safe != *code {
+                        *code = safe;
+                    }
+                }
+            }
             let mut planned_outputs = Vec::new();
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {
@@ -1063,14 +1369,14 @@ pub(super) async fn complete_operation(
                     let data = asset.data_base64.as_deref().ok_or_else(|| {
                         DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "export된 asset binary가 artifact에 없습니다.",
+                            "The exported asset binary is not in the artifact.",
                             false,
                         )
                     })?;
                     let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
                         DevupError::new(
                             ErrorCode::DevupSnapshotUnsupported,
-                            "export된 asset binary의 base64가 올바르지 않습니다.",
+                            "The exported asset binary base64 is invalid.",
                             false,
                         )
                     })?;
@@ -1082,11 +1388,33 @@ pub(super) async fn complete_operation(
                 }
             }
             let mut transaction = OutputTransaction::new();
+            // Two nodes can be one picture - a logo drawn at three sizes
+            // shares a file, as the plugin has it - so several assets resolve
+            // to one path. That is one write, not a collision. Only differing
+            // bytes under one name are a mistake, and that is worth refusing.
+            // Two different drawings under one layer name land here too: the
+            // plugin names an asset after its layer, and a snapshot cannot
+            // tell two drawings of one name apart - only the exported bytes
+            // can. The first is written and the rest are reported, so the
+            // code still points at a file that exists and the caller learns
+            // which names hide more than one picture.
+            let mut staged_content: BTreeMap<String, String> = BTreeMap::new();
+            let mut shared_names: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for (name, target, bytes) in planned_outputs {
-                written_paths.insert(
-                    name.clone(),
-                    json!(target.display_path().to_string_lossy().into_owned()),
-                );
+                let path = target.display_path().to_string_lossy().into_owned();
+                written_paths.insert(name.clone(), json!(path.clone()));
+                let fingerprint = sha256_hex(&bytes);
+                match staged_content.get(&path) {
+                    Some(staged) if *staged == fingerprint => continue,
+                    Some(_) => {
+                        let asset = name.strip_prefix("asset:").unwrap_or(&name).to_owned();
+                        shared_names.entry(path).or_default().push(asset);
+                        continue;
+                    }
+                    None => {
+                        staged_content.insert(path, fingerprint);
+                    }
+                }
                 transaction.stage(name, target, &bytes)?;
             }
             if let Some(mut manifest) = pending_asset_manifest {
@@ -1101,6 +1429,21 @@ pub(super) async fn complete_operation(
                     };
                     asset.output_path = Some(path.to_owned());
                     asset.data_base64 = None;
+                }
+                for (path, others) in &shared_names {
+                    manifest.diagnostics.push(Diagnostic {
+                        code: "DEVUP_ASSET_NAME_SHARED".to_owned(),
+                        message: format!(
+                            "{} further drawing(s) claim the file {path}; the first is written. \
+                             An asset is named after its layer, as the plugin names it, so two \
+                             drawings a designer named alike cannot both be written.",
+                            others.len()
+                        ),
+                        severity: Some(DiagnosticSeverity::Warning),
+                        resource_kind: Some("asset".to_owned()),
+                        details: Some(json!({ "outputPath": path, "notWritten": others })),
+                        ..Diagnostic::default()
+                    });
                 }
                 result.insert("assetManifest".to_owned(), json!(manifest));
             }
@@ -1126,8 +1469,44 @@ pub(super) async fn complete_operation(
         }
         PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
-            "내부 수집 operation은 MCP artifact로 완료할 수 없습니다.",
+            "An internal collect operation cannot be completed from an MCP artifact.",
             false,
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{host_safe_asset_path, with_host_safe_asset_paths};
+
+    #[test]
+    fn a_layer_name_no_file_system_takes_is_renamed_wherever_the_code_points_at_it() {
+        let code = concat!(
+            "<Box maskImage=\"url(/icons/ic:round-arrow-left.svg)\" />\n",
+            "<Image src=\"/images/Frame 269.png\" />\n",
+            "<Box maskImage=\"url('/icons/Frame 287.svg')\" />\n",
+            "<Box maskImage=\"url(/icons/grommet-icons:language.svg)\" />\n",
+        );
+        assert_eq!(
+            with_host_safe_asset_paths(code),
+            concat!(
+                "<Box maskImage=\"url(/icons/ic-round-arrow-left.svg)\" />\n",
+                "<Image src=\"/images/Frame 269.png\" />\n",
+                "<Box maskImage=\"url('/icons/Frame 287.svg')\" />\n",
+                "<Box maskImage=\"url(/icons/grommet-icons-language.svg)\" />\n",
+            )
+        );
+    }
+
+    #[test]
+    fn the_written_path_is_renamed_the_same_way_the_code_is() {
+        assert_eq!(
+            host_safe_asset_path("/icons/grommet-icons:language.svg"),
+            "/icons/grommet-icons-language.svg"
+        );
+        assert_eq!(
+            host_safe_asset_path("/images/Frame 269.png"),
+            "/images/Frame 269.png"
+        );
     }
 }

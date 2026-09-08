@@ -12,10 +12,9 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 - `devup_figma_export`: Figma를 한 번 수집해 TSX, `devup.json`, raw snapshot, source map, asset manifest와 선택적 reference PNG를 함께 생성하거나 같은 artifact를 재사용
 - `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
-- `devup_figma_continue`: host가 실행한 공식 Figma MCP read 결과로 중단된 변환을 재개
 - Figma Plugin API의 readable data property를 raw JSON으로 보존하고, 알려지지 않은 runtime field는 `extra`, 실패한 getter는 `fieldErrors`로 유지
 
-host handoff 경로에는 Figma PAT, 사용자가 만든 OAuth app, 내장 client secret이 필요하지 않습니다. direct 경로는 Figma Remote MCP의 OAuth discovery, Dynamic Client Registration, PKCE S256과 일시적인 `127.0.0.1` callback을 구현하지만, Figma는 현재 MCP Catalog에 승인된 client의 registration만 허용합니다. private build에서는 이미 인증된 공식 Figma MCP를 사용하는 `auto` 또는 `host`가 기본 경로입니다.
+devup-mcp는 Figma Remote MCP에 직접 붙습니다 — OAuth discovery, Dynamic Client Registration, PKCE S256, 일시적인 `127.0.0.1` callback을 구현합니다. Figma는 MCP Catalog에 승인된 client의 registration만 허용하므로 등록은 allowlist에 있는 `client_name`으로 이루어집니다(기본값 `Codex`). Figma PAT나 사용자가 만든 OAuth app은 필요하지 않습니다.
 
 ## 빌드와 설치
 
@@ -83,25 +82,36 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 {
   "status": "disconnected",
   "paths": {
-    "direct": { "available": false, "reason": "저장된 자격증명 없음. ..." },
-    "localDevMode": { "endpoint": "http://127.0.0.1:3845/mcp", "reachable": false, "hint": "..." },
-    "hostHandoff": { "expectedTool": "use_figma", "note": "..." }
+    "direct": {
+      "available": false,
+      "credentialSource": "none",
+      "tokenState": "absent",
+      "callbackPort": { "port": null, "free": null },
+      "reason": "저장된 자격증명 없음. ..."
+    },
   },
-  "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "...", "localDevMode": { ... } }
+  "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "..." }
 }
 ```
 
-`paths.localDevMode.reachable`은 `127.0.0.1:3845`에 대한 300ms 이내 로컬 TCP 연결 확인 결과이며 실패해도 오류를 던지지 않습니다. `needs_figma` 응답에도 같은 프로브 결과가 `hostRequirement.localDevMode`로 포함됩니다. 자세한 제약과 3가지 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+`doctor`는 네트워크 호출을 전혀 하지 않습니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약과 두 연결 경로는 아래 "Figma 연결 설정" 절을 참고하세요.
+
+### direct 경로에 사전 등록된 client 자격증명 주입하기
+
+Figma MCP Catalog에 승인된 client(예: 직접 waitlist로 등록해 발급받은 client)의 `client_id`/`client_secret`을 이미 가지고 있다면, devup-mcp에 다음 세 가지 방법 중 하나로 주입해 Dynamic Client Registration을 완전히 건너뛸 수 있습니다. 우선순위는 시작 인자 > 환경변수 > `configure`로 저장한 값입니다.
+
+- **시작 인자**: `devup-mcp --figma-client-id <id> --figma-client-secret <secret>`
+- **환경변수**: `DEVUP_FIGMA_CLIENT_ID`, `DEVUP_FIGMA_CLIENT_SECRET`
+- **도구**: `devup_figma_auth { "action": "configure", "clientId": "...", "clientSecret": "..." }` — OS credential store(시작 인자/환경변수와는 별도 항목)에 저장되어 프로세스를 재시작해도 유지됩니다.
+
+자격증명이 해석되면 `devup_figma_auth { "action": "login" }`은 registration 엔드포인트를 전혀 호출하지 않고 바로 authorization_code + PKCE 흐름으로 진입합니다. 자격증명이 없으면 DCR을 시도하고, 403이면 그대로 보고합니다. DCR 요청의 `client_name` 기본값은 `"Codex"`입니다(`DEFAULT_CLIENT_NAME`). allowlist는 이름을 정확히 일치시켜 판정하고 `"devup-mcp"`는 거기에 없으므로, 그 이름으로 보내면 등록이 403으로 거절되어 direct 경로 자체가 성립하지 않습니다. 이 등록은 Figma에게 devup-mcp가 아니라 Codex로 기록됩니다. 본인 client가 카탈로그에 승인되면 `--figma-client-name` 또는 `DEVUP_FIGMA_CLIENT_NAME`으로 그 이름을 넘기세요. `client_secret`은 로그, 에러, MCP 응답, `doctor` 출력 어디에도 노출되지 않으며 `doctor`는 `credentialSource`로 존재 여부만 보고합니다.
 
 ## Figma 연결 설정
 
-devup-mcp가 Figma에 붙는 경로는 세 가지입니다.
+devup-mcp가 Figma에 붙는 경로는 하나입니다 — **원격 OAuth (`direct`)**. `devup_figma_auth { action: "login" }`으로 브라우저 인증. Figma MCP Catalog에 승인된 client만 등록할 수 있습니다.
+현재 사용 가능한지는 `devup_figma_auth { action: "doctor" }`로 확인하세요.
 
-1. **원격 OAuth (`direct`)** — `devup_figma_auth { action: "login" }`으로 브라우저 인증. Figma MCP Catalog에 승인된 client만 등록할 수 있습니다.
-2. **로컬 Dev Mode MCP (`http://127.0.0.1:3845/mcp`)** — Figma 데스크톱 앱의 Dev Mode MCP 서버. OAuth가 필요 없고 어떤 MCP 클라이언트에서도 동일하게 동작하지만, Figma 데스크톱 앱에서 켜야 하고 Dev/Full 시트가 있는 유료 플랜이 필요합니다.
-3. **호스트 핸드오프 (`host`)** — devup-mcp가 직접 Figma에 붙지 않고, 호스트에 이미 등록된 공식 Figma MCP가 `needs_figma` 응답의 `calls`를 대신 실행하도록 위임합니다. `auto` 정책의 기본 fallback 경로입니다.
-
-세 경로 중 무엇이 지금 사용 가능한지는 `devup_figma_auth { action: "doctor" }`로 확인하세요.
+Figma 데스크톱 앱의 로컬 Dev Mode MCP(`http://127.0.0.1:3845/mcp`)는 세 번째 경로로 안내했으나 제거했습니다. 읽기 도구 6개(`get_design_context`, `get_variable_defs`, `get_screenshot`, `get_motion_context`, `get_metadata`, `get_figjam`)만 제공하고 그중에 `use_figma`가 없습니다. devup-mcp의 수집은 snapshot·explore·section index·theme 모두 `use_figma`로 스크립트를 실행하므로 로컬에서는 실행할 도구 자체가 없습니다. 도구들이 `fileKey`를 받지 않고 데스크톱 앱에 열려 있는 파일만 가리키는 것도 같은 이유로 맞지 않습니다. "OAuth 없이 바로 쓸 수 있다"는 안내는 확신에 차서 틀린 안내였고, 믿은 쪽이 한 턴을 버린 뒤에야 알게 됩니다.
 
 ### 원격 OAuth 등록 제약 (실측)
 
@@ -110,7 +120,7 @@ Figma Remote MCP 등록 엔드포인트는 `POST https://api.figma.com/v1/oauth/
 | client_name | 결과 |
 |---|---|
 | `Codex` | 200 (client_id + client_secret 발급) |
-| `Claude Code` | 200 |
+| `Claude Code` | **403** (2026-09-06 실측; 이전 표에는 200으로 적혀 있었음) |
 | `OpenCode` | 403 |
 | `opencode` | 403 |
 | `Cursor` | 403 |
@@ -131,6 +141,8 @@ Figma Remote MCP 등록 엔드포인트는 `POST https://api.figma.com/v1/oauth/
 ### 숨은 함정 — 콜백 포트 점유
 
 로컬 OAuth 콜백이 쓰는 포트를 OS나 보안 소프트웨어(예: 사내 보안 에이전트)가 이미 점유하고 있으면, 브라우저는 리다이렉트에 "성공"한 것처럼 보이지만 그 요청은 다른 프로세스로 전달됩니다. 클라이언트는 **아무 에러 없이** `Waiting for authorization...` 상태로 영원히 남습니다. 로그인이 멈춘 것처럼 보이면 가장 먼저 콜백 포트를 다른 프로세스가 쓰고 있지 않은지 확인하세요.
+
+기본값은 OS가 매번 빈 임시 포트를 골라주므로(`0`) 이 충돌을 피합니다. 사전 등록한 client의 `redirect_uri`가 고정 포트로 등록되어 있어 특정 포트를 고정해야 한다면 `devup-mcp --figma-callback-port <port>`를 지정하세요. 이 경우 devup-mcp는 그 포트가 이미 사용 중이면 **연결을 기다리지 않고** `DEVUP_FIGMA_CALLBACK_PORT_IN_USE` 오류를 즉시 반환합니다. `devup_figma_auth { "action": "doctor" }`의 `paths.direct.callbackPort.free`에서도 지정한 포트가 실제로 비어 있는지 실측한 값을 확인할 수 있습니다.
 
 ### opencode에서 direct 경로 미리 설정하기
 
@@ -154,7 +166,14 @@ Dynamic Client Registration을 건너뛰려면 `mcp.<name>.oauth`에 이미 발�
 }
 ```
 
-Claude Code와 Codex는 allowlist에 있어 별도 설정 없이 등록할 수 있습니다.
+Codex는 allowlist에 있어 별도 설정 없이 등록할 수 있습니다. `Claude Code`는 한때
+200이었으나 2026-09-06 실측에서 403으로 거절됐습니다 — allowlist는 Figma가 바꿀 수
+있으며, 위 표는 측정 시점의 기록입니다.
+
+devup-mcp는 **직접 경로만** 씁니다. 호스트(Codex)에 등록된 공식 Figma MCP를 빌리는
+우회 경로는 만들지 않습니다 — devup-mcp가 스스로 `Codex`로 등록해 Figma 원격 MCP에
+붙고, 수집에 필요한 `use_figma`를 그 연결로 직접 부릅니다. 호스트에 Figma MCP를
+따로 설정할 필요가 없고, 설정돼 있어도 devup-mcp는 그것을 쓰지 않습니다.
 
 ```bash
 claude mcp add --transport http figma https://mcp.figma.com/mcp
@@ -200,7 +219,7 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
-  "outputs": ["tsx", "devupJson", "sourceMap", "assetManifest", "referencePng"],
+  "outputs": ["tsx", "responsiveTsx", "devupJson", "rawSnapshot", "rawPayload", "sourceMap", "assetManifest", "referencePng"],
   "scope": "node",
   "strict": true,
   "refresh": false,
@@ -213,7 +232,7 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 `delivery`는 `auto | inline | resource`입니다. `auto`는 JSON escape, base64와 structured/text 이중 표현을 포함한 실제 MCP wire 크기를 계산해 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고, 그보다 큰 결과는 native MCP `ResourceLink`와 `devup://artifact/...` URI로 바꿉니다. 링크 URI는 JSON manifest를 가리키므로 link MIME은 `application/json`이고 payload MIME·길이·SHA-256은 `payload*` metadata로 분리합니다. `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
-`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 결과는 정확히 하나의 top-level `image/png` content block이어야 하며, JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. Section의 여러 Frame은 먼저 반환된 canonical URL별로 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
+`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. Section의 여러 Frame은 먼저 반환된 canonical URL별로 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 
@@ -235,7 +254,61 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다. renderer pinning, 기본 0.5% threshold, diff PNG와 개인정보 취급 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
+### 렌더링 하네스 — 생성 코드를 Figma가 그린 PNG와 비교
+
+생성 코드를 플러그인의 답안과 줄 단위로 맞춰보면 둘이 일치한다는 것까지는 알 수 있지만, **둘 중 어느 쪽도 Figma가 그리는 그림과 같은지는 말해주지 못합니다.** `harness/render`는 그 질문에 답합니다 — 각 화면을 devup-ui로 빌드해 프레임 크기 그대로 열고, Figma가 같은 프레임을 렌더한 PNG와 픽셀 비교합니다.
+
+```bash
+cd harness/render && npm install
+python scripts/acquire.py            # 모듈·테마·에셋·기준 PNG를 실행 중인 devup-mcp에서 가져옴
+node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계값 초과 시 exit 1
+```
+
+`acquire.py`는 Figma 호출을 `fixtures/local-call-bank`에 적립하므로 재실행은 이미 지불한 만큼 무료입니다. 화면마다 **자기 테마를 node scope로** 받습니다 — 파일 하나에 여러 브랜드 컬렉션이 섞이면 `primary` 같은 토큰이 서로 덮어써서, 공지 화면이 Figma가 파랑으로 그리는 자리를 보라색으로 그렸습니다. devup-ui는 테마를 빌드 시점에 굽기 때문에 화면들은 필요한 테마별로 묶여 그룹마다 한 번씩 빌드됩니다. 리셋은 생성 코드가 전제하는 `@devup-ui/reset-css` 그대로입니다.
+
+`thresholds.json`이 화면별로 Figma와 벌어져도 되는 최대치를 들고 있습니다. 초과하면 실패하고, 밑돌면 그렇다고 알려줍니다(= 수치를 조일 차례). 측정값:
+
+| 화면 | 1920 | 992 / 768 | 360 / 390 |
+|---|---|---|---|
+| popup | **0.83%** | 2.19% | 3.59% |
+| popup (플러그인 답안) | 21.06% | 7.14% | 12.02% |
+| notice | **2.33%** | 4.19% | 8.29% |
+| about | 4.54% | 6.94% | 11.26% |
+| report **1.87%** · grid 2.96% · keyframes 6.71% | | | |
+
+차이가 **어디** 있는지는 보조 도구가 답합니다 — `bands.mjs`(가장 많이 어긋난 구간), `drift.mjs`(단순 이동인지 실제 차이인지), `crop.mjs`(구간을 기준/캡처 나란히), `boxes.mjs`(DOM 상자를 Figma 좌표와 대조), `elements.mjs`(그림이 실제로 몇 픽셀로 나왔는지). 긴 화면을 통째로 줄인 스크린샷은 아무것도 보여주지 않습니다.
+
+`text-check.mjs`는 픽셀이 아니라 **글자**를 봅니다. 생성기는 텍스트 노드의 `characters`를 JSX에 쓰는데, JSX는 공백에 자기 규칙이 있습니다 — 한 문장이 소스 두 줄로 나뉘면 사이에 공백 하나가 들어갑니다. 디자인에 그 공백이 없으면 화면은 디자인에 없는 단어를 찍고, 문단은 Figma가 끊지 않는 자리에서 감깁니다. JSX를 읽어 무엇이 그려질지 추론하는 건 그 규칙을 다시 구현하는 일이고, 그렇게 넘겨짚으면 없는 결함을 만들어냅니다 — 그래서 **브라우저가 실제로 찍은 글자**를 `characters`와 대조합니다. 현재 245개 텍스트 중 3개(같은 문단의 세 폭)가 디자인대로 찍히지 않습니다.
+
+캡처·테마·에셋·빌드 산출물은 커밋하지 않습니다(`harness/render/.gitignore`). 이 하네스가 찾아낸 결함은 테마 스코프, 컨테이너가 칠하는 그림의 매니페스트 누락, 잘린 fill의 crop 행렬, 파일시스템이 못 받는 레이어 이름, 폭마다 크기가 다른 사진의 파일 공유, 투명도 0 노드의 export 거부, 그리고 positioned child 너머로 CSS가 못 미치는 높이입니다.
+
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
+
+asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플러그인이 그렇게 짓기 때문입니다. 그래서 디자이너가 같은 이름을 준 노드들은 파일 하나를 공유합니다. 같은 그림이면 맞지만 아니면 손실입니다. 한 화면에서 여덟 노드가 `Logo.svg` 하나를 주장하는데 실제로는 서로 다른 그림 다섯 개였고, 폭마다 그려진 사진은 마지막으로 export된 폭의 파일만 남아 다른 폭에서는 상자와 크기가 어긋난 채 늘어납니다(파일이 상자와 같은 크기이면 `object-fit`이 무엇이든 결과가 같으므로, 플러그인에서는 이 문제가 드러나지 않습니다).
+
+`assetNamesPerNode`는 각 asset을 **그 노드**의 이름으로 지어(`Logo-422-6921.svg`, `Frame 269-422-3392.png`) 둘을 함께 없앱니다. **기본값은 `true`입니다** — 렌더링해 보면 이쪽이 Figma가 그리는 그림에 가깝고(공지 화면 992폭 6.48% → 4.19%, about 992폭 10.79% → 6.94%), 플러그인 golden 268개는 그대로 통과합니다. golden은 `CodegenOptions`를 직접 쓰고 그 **라이브러리 기본값은 여전히 플러그인과 동일**하기 때문입니다. 플러그인과 byte 단위로 같은 이름이 필요하면 `assetNamesPerNode: false`로 끄십시오.
+
+끈 상태에서 서로 다른 그림이 한 파일을 계속 주장하면 첫 번째만 기록하고 나머지는 `DEVUP_ASSET_NAME_SHARED` diagnostic으로 보고합니다 — 조용히 덮어쓰지 않습니다.
+
+레이어 이름이 파일시스템이 받지 못하는 이름일 때(`ic:round-arrow-left`처럼 콜론이 든 이름은 Windows가 만들지 못합니다) 전달 시점에 생성 코드와 manifest를 **함께** 개명해 둘이 어긋나지 않게 합니다. 생성기 자체는 플러그인의 이름을 그대로 쓰므로 golden parity는 유지됩니다.
+
+Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다.
+
+### 한 화면의 여러 폭 — 반응형 모듈
+
+Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이름**을 가지면, 그 frame 하나를 요청해도 같은 이름 규칙의 형제 frame이 함께 수집됩니다(Section 자체는 수집 범위 밖이며, 그 이름은 각 frame의 `parentName`으로 전달됩니다). 이때 `tsx`나 `responsiveTsx`를 요청하면 결과에 `responsiveTsx`가 추가됩니다 — 세 폭을 하나의 트리로 접고 폭마다 다른 값을 devup-ui 반응형 배열 `[mobile, sm, tablet, lg, pc]`로 쓴 모듈입니다. 각 폭이 놓이는 slot은 frame **이름이 아니라 폭**으로 정해집니다(`≤480 / ≤768 / ≤992 / ≤1280 / 그 이상`). 컴포넌트 이름은 `componentName`이 우선이고, 없으면 Section 이름의 PascalCase에 `Page`를 붙입니다(`about` → `AboutPage`).
+
+한 폭에만 있는 노드는 다른 폭에서 `display: none`으로 숨긴 복사본과 병합되며, 이때 복사본은 **Section 레이어 순서상 첫 폭**의 값을 가집니다 — 그래서 배열의 첫 slot에 desktop 값이 놓일 수 있습니다. 폭마다 줄바꿈 위치만 다른 텍스트는 `<Box as="br" display={[...]} />`로 쓰고, 컴포넌트 인스턴스의 variant prop이 폭마다 다르면 배열로 쓸 수 없으므로 가장 넓은 폭의 값을 쓰고 `responsiveUnrepresented`에 보고합니다. 함께 반환되는 `responsiveSlots`, `responsiveImports`, `responsiveComponents`가 slot과 import 목록입니다.
+
+`rawPayload`는 `rawSnapshot`이 node 트리만 쓰는 것과 달리 수집 전체(variables, styles, stats, assets 포함, `referencePng` 제외)를 씁니다. 캡처를 fixture로 보관해 오프라인에서 서버와 같은 토큰 이름(`$gray200`, `typography="h4"`)으로 변환하려면 이것이 필요합니다.
+
+### 시간 트리거 Smart Animate — CSS keyframes
+
+frame에 `After delay` 트리거로 다른 frame에 **Smart animate**하는 reaction이 있고, 그 frame이 다시 다음 frame으로 이어지면 하나의 체인입니다(처음 frame으로 돌아오면 루프). 체인의 frame들은 요청한 node의 subtree 밖에 있는 형제 frame이므로, 요청 루트가 하나일 때 snapshot 스크립트가 체인을 따라가며 추가 루트로 함께 수집합니다(다중 루트 요청은 루트 목록을 그대로 둡니다).
+
+변환기는 플러그인의 `getReactionProps` 규칙대로 frame 사이에서 바뀌는 것 — 위치, 크기, opacity, 첫 fill, 회전(누적 delta) — 을 이름이 같은 자식에서 먼저 찾아 자식마다 `animationName={keyframes({...})}` / `animationDuration` / `animationTimingFunction` / `animationFillMode` / `animationIterationCount`(루프면 `infinite`)로 쓰고, 바뀌는 자식이 없을 때만 frame 자체에 씁니다. `0%`는 시작 frame, 각 단계는 도착 시점의 퍼센트에 직전 keyframe과 다른 속성만, 루프는 `100%`에서 시작 값으로 닫히며 duration은 되돌아가는 구간까지 셉니다. 10ms 미만 timeout은 delay로 쓰지 않습니다. `keyframes`가 쓰이면 `@devup-ui/react`에서 import됩니다.
+
+snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 버리지 않고 `DEVUP_CODEGEN_ANIMATION_UNREACHABLE` diagnostic으로 보고합니다.
 
 ### Figma 이름 검색
 
@@ -268,9 +341,9 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 
 탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `devup_figma_to_json`만 file 전체 로컬 catalog를 수집합니다.
 
-`sourcePolicy`는 `auto`, `direct`, `host` 중 하나입니다. `needs_figma` 응답의 read-only call을 host의 공식 Figma MCP에서 실행한 뒤 원본 result를 `devup_figma_continue`의 `sessionId`, `callId`, `result`로 전달하면 동일한 Rust collector가 이어서 처리합니다. session은 메모리에만 최대 10분 유지되며 완료·오류·만료 시 제거됩니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
+`sourcePolicy`는 `auto` 또는 `direct`입니다 — 둘 다 direct 연결을 쓰며, 남겨둔 이유는 하위호환뿐입니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 
-정확한 node 링크의 UI 변환은 우선 하나의 공식 `use_figma` 호출 안에서 subtree 전체와 실제 사용 리소스를 수집합니다. JSON envelope를 512 KiB 단위로 나누고 각 조각을 CRC가 있는 1×1 PNG에 담아 MCP 응답 크기 제한을 피하며, Rust는 MIME·base64·PNG 구조·청크 순서·schema·대상 ID·node graph·리소스 참조를 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`, `fallbackUsed`, node/variable/style 수와 byte/청크 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
+정확한 node 링크의 UI 변환은 하나 이상의 공식 `use_figma` 호출 안에서 subtree와 실제 사용 리소스를 수집합니다. 수집 스크립트는 checked-in manifest(devup-ui 변환기가 실제로 읽는 필드만)만 확인하고 — 프로토타입 체인 전체를 훑거나 미분류 필드를 `extra`에 담지 않습니다 — `null`/빈 배열/미바인딩 style ID 같은 기본값은 봉투에서 생략합니다. 결과는 항상 텍스트(`devupFastSnapshotEnvelope`)이며 PNG 같은 바이너리 transport는 없습니다. 한 subtree가 15KB 텍스트 한도를 넘으면 같은 스크립트를 `offset`을 옮겨 다시 호출하는 방식으로 텍스트 페이지네이션합니다 — 각 라운드는 그 라운드가 보낸 node에서만 리소스를 스캔해 자기 완결적이며, Rust가 여러 라운드의 node와 리소스를 병합합니다. Rust는 schema·대상 ID·node graph·리소스 참조·(페이지 중이 아닐 때의) 자식 완전성을 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`(`text` | `text-paginated` | `legacy-cursor`), `fallbackUsed`, node/variable/style 수와 byte 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
 
 완전성 등급은 다음과 같습니다.
 
@@ -281,7 +354,7 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 ## 읽기 전용·개인정보 보호
 
 - upstream 호출은 `get_metadata`, `get_variable_defs`, `get_design_context`, `get_code_connect_map`, `get_screenshot`과 내장된 read-only `use_figma` script로 닫혀 있습니다.
-- 사용자 입력 JavaScript를 받지 않으며 Figma document mutation API를 호출하지 않습니다. `figma.io.write`는 공식 MCP 응답으로 검증 가능한 1×1 PNG를 반환하는 transport에만 사용하며 Figma 파일을 변경하지 않습니다.
+- 사용자 입력 JavaScript를 받지 않으며 Figma document mutation API를 호출하지 않습니다. `figma.io.write`는 asset export(`devup_figma_export`의 `assetRequests`)에만 read-only로 사용하며 Figma 파일을 변경하지 않습니다. fast snapshot/theme envelope는 항상 텍스트로만 반환되며 바이너리 transport를 쓰지 않습니다.
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
@@ -298,7 +371,7 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 
 `crates/devup-mcp-figma/tests/explore_script_behavior.mjs`는 compile-in `explore.js` 자체를 mock Figma scene graph에서 실행합니다. 두 단계 이상 중첩된 화면의 parent chain, 화면이 없는 1,000-node Section의 `projectionLimit * 8` 방문 상한, 필수 node만 남기는 14,000자 이하 fallback을 검증하며 CI의 Node 내장 test runner로 실행됩니다. 제품 binary와 기본 Cargo test에는 JavaScript runtime 의존성이 추가되지 않습니다.
 
-legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 약 20,500자 text 상한을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
+legacy 경로에서 실제 확인된 공식 metadata는 XML text content envelope이며, local 변수/style은 catalog 후 resource 단위로 수집합니다. style의 `consumers`처럼 단일 field가 공식 MCP의 text 상한(실측 20,480 UTF-8 바이트, 넘는 만큼 잘리고 `// truncated to 20kb`가 붙음)을 넘을 수 있으므로, base field와 320개 단위의 compact consumer relation을 분리해 읽고 Rust에서 원래 exhaustive JSON shape로 재조립합니다. legacy node snapshot도 byte budget과 cursor를 사용해 같은 상한 아래에서 자동 재개합니다. range의 누락·중복이나 수집 중 목록 변경은 성공으로 숨기지 않고 오류로 처리합니다.
 
 ### Server module ownership
 
@@ -315,7 +388,7 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 - 공식 `get_metadata`의 file-level page 목록은 실제 page 전체보다 적게 반환될 수 있습니다. 이름 검색은 Plugin API page catalog와 per-page projection으로 우회하며 실제 13개 page 파일에서 검증했습니다.
 - 매우 큰 computed field(예: vector `fillGeometry`)는 현재 값 전체 대신 명시적인 byte-length marker로 보존됩니다. 모든 대용량 field 값을 lossless하게 export하는 기능은 후속 wire-format 개선 대상입니다.
 - exact-node fast envelope가 8 MiB 안전 상한을 넘거나 공식 MCP가 image transport를 바꾸면 자동 legacy fallback이 여러 cursor call을 사용하므로 subtree 크기에 따라 시간이 늘어날 수 있습니다.
-- direct OAuth registration은 Figma MCP Catalog 승인이 없는 private client에서 거절됩니다. `auto`/`host` fallback은 host가 인증한 공식 Figma MCP로 실제 검증했습니다.
+- direct OAuth registration은 Figma MCP Catalog 승인이 없는 `client_name`으로는 거절됩니다. 승인된 이름(기본값 `Codex`)으로만 등록이 성립하며, 그 등록은 Figma에게 해당 제품으로 기록됩니다.
 - 사용되지 않은 외부 Figma library 변수 전체는 Remote MCP가 제공하지 않을 수 있습니다.
 - node/page theme scope는 로컬 변수 API의 file-wide 결과를 기반으로 하며 세밀한 사용 범위 필터는 후속 보강 대상입니다.
 - vector, mask, image, absolute layout과 일부 effect는 diagnostics를 포함한 제한적 fallback입니다.

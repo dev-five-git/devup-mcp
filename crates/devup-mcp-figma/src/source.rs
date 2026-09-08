@@ -9,13 +9,6 @@ pub enum SourcePolicy {
     #[default]
     Auto,
     Direct,
-    Host,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SelectedSource {
-    Direct,
-    Host,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,31 +31,6 @@ pub enum UpstreamFailureKind {
     VersionChanged,
     Transport,
     InvalidResponse,
-}
-
-pub fn fallback_allowed(policy: SourcePolicy, kind: UpstreamFailureKind) -> bool {
-    policy == SourcePolicy::Auto
-        && matches!(
-            kind,
-            UpstreamFailureKind::CatalogRejected
-                | UpstreamFailureKind::AuthUnavailable
-                | UpstreamFailureKind::CapabilityUnavailable
-                | UpstreamFailureKind::PermissionDenied
-        )
-}
-
-pub fn fallback_allowed_for_error(policy: SourcePolicy, error: &DevupError) -> bool {
-    let kind = match error.code {
-        ErrorCode::DevupFigmaCatalogRejected => UpstreamFailureKind::CatalogRejected,
-        ErrorCode::DevupAuthRequired => UpstreamFailureKind::AuthUnavailable,
-        ErrorCode::DevupFigmaDirectUnavailable => UpstreamFailureKind::CapabilityUnavailable,
-        ErrorCode::DevupFigmaPermissionDenied => UpstreamFailureKind::PermissionDenied,
-        ErrorCode::DevupFigmaRateLimited => UpstreamFailureKind::RateLimited,
-        ErrorCode::DevupFigmaNodeNotFound => UpstreamFailureKind::NodeNotFound,
-        ErrorCode::DevupFigmaVersionChanged => UpstreamFailureKind::VersionChanged,
-        _ => return false,
-    };
-    fallback_allowed(policy, kind)
 }
 
 pub fn classify_upstream_failure(
@@ -118,55 +86,58 @@ impl UpstreamFailureKind {
         let (code, message, retryable) = match self {
             Self::CatalogRejected => (
                 ErrorCode::DevupFigmaCatalogRejected,
-                "이 client는 Figma MCP Catalog에서 승인되지 않았습니다.",
+                "This client is not approved in the Figma MCP Catalog.",
                 false,
             ),
             Self::AuthUnavailable => (
                 ErrorCode::DevupAuthRequired,
-                "Figma direct 연결 인증을 사용할 수 없습니다.",
+                "Figma direct connection authentication is unavailable.",
                 false,
             ),
             Self::CapabilityUnavailable => (
                 ErrorCode::DevupFigmaDirectUnavailable,
-                "Figma direct 연결에 필요한 읽기 capability가 없습니다.",
+                "The read capability required for a Figma direct connection is missing.",
                 false,
             ),
             Self::PermissionDenied => (
                 ErrorCode::DevupFigmaPermissionDenied,
-                "Figma 파일을 읽을 권한이 없습니다.",
+                "No permission to read this Figma file.",
                 false,
             ),
             Self::RateLimited => (
                 ErrorCode::DevupFigmaRateLimited,
-                "Figma 요청 한도에 도달했습니다.",
+                "Figma request rate limit reached.",
                 true,
             ),
             Self::NodeNotFound => (
                 ErrorCode::DevupFigmaNodeNotFound,
-                "Figma node를 찾지 못했습니다.",
+                "Figma node not found.",
                 false,
             ),
             Self::VersionChanged => (
                 ErrorCode::DevupFigmaVersionChanged,
-                "수집 중 Figma 파일 버전이 변경되었습니다.",
+                "The Figma file version changed during collection.",
                 true,
             ),
             Self::Transport => (
                 ErrorCode::DevupFigmaDirectUnavailable,
-                "Figma direct 연결을 완료하지 못했습니다.",
+                "Failed to complete the Figma direct connection.",
                 true,
             ),
             Self::InvalidResponse => (
                 ErrorCode::DevupSnapshotUnsupported,
-                "Figma MCP 응답을 안전하게 해석하지 못했습니다.",
+                "Failed to safely interpret the Figma MCP response.",
                 false,
             ),
         };
-        DevupError::with_details(
-            code,
-            message,
-            retryable,
-            json!({ "source": "direct", "status": status }),
-        )
+        let mut details = json!({ "source": "direct", "status": status });
+        if self == Self::CatalogRejected {
+            details["options"] = json!([
+                "Register devup-mcp on the Figma MCP Catalog waitlist: https://www.figma.com/mcp-catalog/",
+                "Inject client credentials you obtained yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }",
+                "Hand off to the official Figma MCP registered on the host (sourcePolicy: auto or host, the current default fallback)"
+            ]);
+        }
+        DevupError::with_details(code, message, retryable, details)
     }
 }

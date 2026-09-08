@@ -7,7 +7,7 @@ expression: actual
   return (
     <Text
       WebkitTextFillColor="transparent"
-      bg="url(/icons/image.png) center/cover no-repeat"
+      bg="url(/images/데브파이브.png) center/cover no-repeat"
       bgClip="text"
       fontFamily="Jalnan Gothic TTF"
       fontSize="64px"

@@ -8,7 +8,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 127,
-        "end": 14425
+        "end": 14453
       },
       "nodeId": "3879:35518",
       "resolution": "node"
@@ -80,7 +80,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 250,
-        "end": 4286
+        "end": 4315
       },
       "nodeId": "3879:35519",
       "resolution": "node"
@@ -583,39 +583,9 @@ expression: output.source_map
         "start": 1035,
         "end": 1057
       },
-      "nodeId": "I3879:35525;17:2032",
+      "nodeId": "3879:35525",
       "property": "node",
-      "assetId": "I3879:35525;17:2032:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
-      "nodeId": "I3879:35525;17:2034",
-      "property": "node",
-      "assetId": "I3879:35525;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
-      "nodeId": "I3879:35525;17:2036",
-      "property": "node",
-      "assetId": "I3879:35525;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
-      "nodeId": "I3879:35525;17:2038",
-      "property": "node",
-      "assetId": "I3879:35525;17:2038:node",
+      "assetId": "3879:35525:node",
       "resolution": "asset"
     },
     {
@@ -1001,15 +971,15 @@ expression: output.source_map
         "start": 1620,
         "end": 1653
       },
-      "nodeId": "3879:35531",
+      "nodeId": "3879:35530",
       "property": "node",
-      "assetId": "3879:35531:node",
+      "assetId": "3879:35530:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
         "start": 1882,
-        "end": 3210
+        "end": 3239
       },
       "nodeId": "3879:35532",
       "resolution": "node"
@@ -1053,7 +1023,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 1919,
-        "end": 2967
+        "end": 2996
       },
       "nodeId": "3879:35533",
       "resolution": "node"
@@ -1171,7 +1141,7 @@ expression: output.source_map
     {
       "generatedRange": {
         "start": 2173,
-        "end": 2441
+        "end": 2470
       },
       "nodeId": "3879:35534",
       "resolution": "node"
@@ -1384,26 +1354,26 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2292,
-        "end": 2325
+        "start": 2321,
+        "end": 2354
       },
-      "nodeId": "I3879:35534;20:3849",
+      "nodeId": "3879:35534",
       "property": "node",
-      "assetId": "I3879:35534;20:3849:node",
+      "assetId": "3879:35534:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 2446,
-        "end": 2947
+        "start": 2475,
+        "end": 2976
       },
       "nodeId": "3879:35535",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 2455,
-        "end": 2459
+        "start": 2484,
+        "end": 2488
       },
       "nodeId": "3879:35535",
       "property": "type",
@@ -1411,8 +1381,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2474,
-        "end": 2492
+        "start": 2503,
+        "end": 2521
       },
       "nodeId": "3879:35535",
       "property": "fills",
@@ -1421,8 +1391,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2474,
-        "end": 2492
+        "start": 2503,
+        "end": 2521
       },
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
@@ -1431,8 +1401,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2474,
-        "end": 2492
+        "start": 2503,
+        "end": 2521
       },
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
@@ -1441,8 +1411,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2507,
-        "end": 2525
+        "start": 2536,
+        "end": 2554
       },
       "nodeId": "3879:35535",
       "property": "textAlignHorizontal",
@@ -1450,8 +1420,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2540,
-        "end": 2560
+        "start": 2569,
+        "end": 2589
       },
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
@@ -1460,8 +1430,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2540,
-        "end": 2560
+        "start": 2569,
+        "end": 2589
       },
       "nodeId": "3879:35535",
       "property": "textStyleId",
@@ -1470,8 +1440,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2575,
-        "end": 2583
+        "start": 2604,
+        "end": 2612
       },
       "nodeId": "3879:35535",
       "property": "width",
@@ -1479,8 +1449,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2598,
-        "end": 2618
+        "start": 2627,
+        "end": 2647
       },
       "nodeId": "3879:35535",
       "property": "characters",
@@ -1488,8 +1458,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2653,
-        "end": 2669
+        "start": 2682,
+        "end": 2698
       },
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
@@ -1498,8 +1468,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2670,
-        "end": 2698
+        "start": 2699,
+        "end": 2727
       },
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
@@ -1508,8 +1478,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2716,
-        "end": 2724
+        "start": 2745,
+        "end": 2753
       },
       "nodeId": "3879:35535",
       "property": "characters",
@@ -1517,8 +1487,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2761,
-        "end": 2927
+        "start": 2790,
+        "end": 2956
       },
       "nodeId": "3879:35535",
       "property": "characters",
@@ -1526,16 +1496,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2972,
-        "end": 3192
+        "start": 3001,
+        "end": 3221
       },
       "nodeId": "3879:35536",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 2979,
-        "end": 2983
+        "start": 3008,
+        "end": 3012
       },
       "nodeId": "3879:35536",
       "property": "type",
@@ -1543,8 +1513,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2984,
-        "end": 3002
+        "start": 3013,
+        "end": 3031
       },
       "nodeId": "3879:35536",
       "property": "fills",
@@ -1553,8 +1523,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2984,
-        "end": 3002
+        "start": 3013,
+        "end": 3031
       },
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
@@ -1563,8 +1533,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2984,
-        "end": 3002
+        "start": 3013,
+        "end": 3031
       },
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
@@ -1573,8 +1543,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3003,
-        "end": 3025
+        "start": 3032,
+        "end": 3054
       },
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
@@ -1583,8 +1553,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3003,
-        "end": 3025
+        "start": 3032,
+        "end": 3054
       },
       "nodeId": "3879:35536",
       "property": "textStyleId",
@@ -1593,8 +1563,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3026,
-        "end": 3046
+        "start": 3055,
+        "end": 3075
       },
       "nodeId": "3879:35536",
       "property": "characters",
@@ -1602,8 +1572,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3060,
-        "end": 3174
+        "start": 3089,
+        "end": 3203
       },
       "nodeId": "3879:35536",
       "property": "characters",
@@ -1611,16 +1581,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3215,
-        "end": 4270
+        "start": 3244,
+        "end": 4299
       },
       "nodeId": "3879:35537",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 3220,
-        "end": 3226
+        "start": 3249,
+        "end": 3255
       },
       "nodeId": "3879:35537",
       "property": "layoutMode",
@@ -1628,8 +1598,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3220,
-        "end": 3226
+        "start": 3249,
+        "end": 3255
       },
       "nodeId": "3879:35537",
       "property": "type",
@@ -1637,8 +1607,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3237,
-        "end": 3253
+        "start": 3266,
+        "end": 3282
       },
       "nodeId": "3879:35537",
       "property": "fills",
@@ -1647,8 +1617,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3264,
-        "end": 3283
+        "start": 3293,
+        "end": 3312
       },
       "nodeId": "3879:35537",
       "property": "cornerRadius",
@@ -1656,8 +1626,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3294,
-        "end": 3303
+        "start": 3323,
+        "end": 3332
       },
       "nodeId": "3879:35537",
       "property": "itemSpacing",
@@ -1665,8 +1635,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3314,
-        "end": 3322
+        "start": 3343,
+        "end": 3351
       },
       "nodeId": "3879:35537",
       "property": "paddingBottom",
@@ -1674,8 +1644,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3314,
-        "end": 3322
+        "start": 3343,
+        "end": 3351
       },
       "nodeId": "3879:35537",
       "property": "paddingLeft",
@@ -1683,8 +1653,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3314,
-        "end": 3322
+        "start": 3343,
+        "end": 3351
       },
       "nodeId": "3879:35537",
       "property": "paddingRight",
@@ -1692,8 +1662,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3314,
-        "end": 3322
+        "start": 3343,
+        "end": 3351
       },
       "nodeId": "3879:35537",
       "property": "paddingTop",
@@ -1701,8 +1671,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3333,
-        "end": 3347
+        "start": 3362,
+        "end": 3376
       },
       "nodeId": "3879:35537",
       "property": "layoutPositioning",
@@ -1710,8 +1680,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3358,
-        "end": 3366
+        "start": 3387,
+        "end": 3395
       },
       "nodeId": "3879:35537",
       "property": "width",
@@ -1719,16 +1689,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3381,
-        "end": 3469
+        "start": 3410,
+        "end": 3498
       },
       "nodeId": "3879:35538",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 3388,
-        "end": 3392
+        "start": 3417,
+        "end": 3421
       },
       "nodeId": "3879:35538",
       "property": "type",
@@ -1736,8 +1706,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3393,
-        "end": 3406
+        "start": 3422,
+        "end": 3435
       },
       "nodeId": "3879:35538",
       "property": "fills",
@@ -1746,8 +1716,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3393,
-        "end": 3406
+        "start": 3422,
+        "end": 3435
       },
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
@@ -1756,8 +1726,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3407,
-        "end": 3434
+        "start": 3436,
+        "end": 3463
       },
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
@@ -1766,8 +1736,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3407,
-        "end": 3434
+        "start": 3436,
+        "end": 3463
       },
       "nodeId": "3879:35538",
       "property": "textStyleId",
@@ -1776,8 +1746,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3448,
-        "end": 3451
+        "start": 3477,
+        "end": 3480
       },
       "nodeId": "3879:35538",
       "property": "characters",
@@ -1785,16 +1755,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3474,
-        "end": 3740
+        "start": 3503,
+        "end": 3769
       },
       "nodeId": "3879:35539",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 3481,
-        "end": 3485
+        "start": 3510,
+        "end": 3514
       },
       "nodeId": "3879:35539",
       "property": "type",
@@ -1802,8 +1772,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3486,
-        "end": 3499
+        "start": 3515,
+        "end": 3528
       },
       "nodeId": "3879:35539",
       "property": "fills",
@@ -1812,8 +1782,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3486,
-        "end": 3499
+        "start": 3515,
+        "end": 3528
       },
       "nodeId": "3879:35539",
       "property": "styledTextSegments",
@@ -1822,8 +1792,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3500,
-        "end": 3519
+        "start": 3529,
+        "end": 3548
       },
       "nodeId": "3879:35539",
       "property": "styledTextSegments",
@@ -1832,8 +1802,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3500,
-        "end": 3519
+        "start": 3529,
+        "end": 3548
       },
       "nodeId": "3879:35539",
       "property": "textStyleId",
@@ -1842,8 +1812,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3520,
-        "end": 3540
+        "start": 3549,
+        "end": 3569
       },
       "nodeId": "3879:35539",
       "property": "characters",
@@ -1851,8 +1821,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3554,
-        "end": 3722
+        "start": 3583,
+        "end": 3751
       },
       "nodeId": "3879:35539",
       "property": "characters",
@@ -1860,16 +1830,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3745,
-        "end": 4252
+        "start": 3774,
+        "end": 4281
       },
       "nodeId": "3879:35540",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 3752,
-        "end": 3756
+        "start": 3781,
+        "end": 3785
       },
       "nodeId": "3879:35540",
       "property": "layoutMode",
@@ -1877,8 +1847,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3752,
-        "end": 3756
+        "start": 3781,
+        "end": 3785
       },
       "nodeId": "3879:35540",
       "property": "type",
@@ -1886,8 +1856,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3769,
-        "end": 3788
+        "start": 3798,
+        "end": 3817
       },
       "nodeId": "3879:35540",
       "property": "counterAxisAlignItems",
@@ -1895,8 +1865,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3801,
-        "end": 3822
+        "start": 3830,
+        "end": 3851
       },
       "nodeId": "3879:35540",
       "property": "cornerRadius",
@@ -1904,8 +1874,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3835,
-        "end": 3843
+        "start": 3864,
+        "end": 3872
       },
       "nodeId": "3879:35540",
       "property": "paddingBottom",
@@ -1913,8 +1883,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3835,
-        "end": 3843
+        "start": 3864,
+        "end": 3872
       },
       "nodeId": "3879:35540",
       "property": "paddingLeft",
@@ -1922,8 +1892,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3835,
-        "end": 3843
+        "start": 3864,
+        "end": 3872
       },
       "nodeId": "3879:35540",
       "property": "paddingRight",
@@ -1931,8 +1901,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3835,
-        "end": 3843
+        "start": 3864,
+        "end": 3872
       },
       "nodeId": "3879:35540",
       "property": "paddingTop",
@@ -1940,8 +1910,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3856,
-        "end": 3870
+        "start": 3885,
+        "end": 3899
       },
       "nodeId": "3879:35540",
       "property": "layoutPositioning",
@@ -1949,8 +1919,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3883,
-        "end": 3894
+        "start": 3912,
+        "end": 3923
       },
       "nodeId": "3879:35540",
       "property": "x",
@@ -1958,8 +1928,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3907,
-        "end": 3916
+        "start": 3936,
+        "end": 3945
       },
       "nodeId": "3879:35540",
       "property": "y",
@@ -1967,16 +1937,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3933,
-        "end": 4234
+        "start": 3962,
+        "end": 4263
       },
       "nodeId": "3879:35541",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 3942,
-        "end": 3945
+        "start": 3971,
+        "end": 3974
       },
       "nodeId": "3879:35541",
       "property": "type",
@@ -1984,8 +1954,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3960,
-        "end": 3975
+        "start": 3989,
+        "end": 4004
       },
       "nodeId": "3879:35541",
       "property": "targetAspectRatio",
@@ -1993,8 +1963,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3990,
-        "end": 4000
+        "start": 4019,
+        "end": 4029
       },
       "nodeId": "3879:35541",
       "property": "fills",
@@ -2003,8 +1973,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 3990,
-        "end": 4000
+        "start": 4019,
+        "end": 4029
       },
       "nodeId": "3879:35542",
       "property": "fills",
@@ -2013,8 +1983,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4015,
-        "end": 4029
+        "start": 4044,
+        "end": 4058
       },
       "nodeId": "3879:35541",
       "property": "height",
@@ -2022,8 +1992,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4015,
-        "end": 4029
+        "start": 4044,
+        "end": 4058
       },
       "nodeId": "3879:35541",
       "property": "width",
@@ -2031,78 +2001,78 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4044,
-        "end": 4077
+        "start": 4073,
+        "end": 4106
       },
-      "nodeId": "3879:35542",
+      "nodeId": "3879:35541",
       "property": "node",
-      "assetId": "3879:35542:node",
+      "assetId": "3879:35541:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 4291,
-        "end": 13586
+        "start": 4320,
+        "end": 13615
       },
       "nodeId": "3879:35543",
       "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4294,
-        "end": 4300
-      },
-      "nodeId": "3879:35543",
-      "property": "layoutMode",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 4294,
-        "end": 4300
-      },
-      "nodeId": "3879:35543",
-      "property": "type",
-      "resolution": "exact"
-    },
-    {
-      "generatedRange": {
-        "start": 4306,
-        "end": 5191
-      },
-      "nodeId": "3879:35544",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4311,
-        "end": 4317
-      },
-      "nodeId": "3879:35544",
-      "property": "layoutMode",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 4311,
-        "end": 4317
-      },
-      "nodeId": "3879:35544",
-      "property": "type",
-      "resolution": "exact"
     },
     {
       "generatedRange": {
         "start": 4323,
-        "end": 4946
+        "end": 4329
+      },
+      "nodeId": "3879:35543",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4323,
+        "end": 4329
+      },
+      "nodeId": "3879:35543",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
+        "start": 4335,
+        "end": 5220
+      },
+      "nodeId": "3879:35544",
+      "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 4340,
+        "end": 4346
+      },
+      "nodeId": "3879:35544",
+      "property": "layoutMode",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 4340,
+        "end": 4346
+      },
+      "nodeId": "3879:35544",
+      "property": "type",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
+        "start": 4352,
+        "end": 4975
       },
       "nodeId": "3879:35545",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 4330,
-        "end": 4334
+        "start": 4359,
+        "end": 4363
       },
       "nodeId": "3879:35545",
       "property": "layoutMode",
@@ -2110,8 +2080,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4330,
-        "end": 4334
+        "start": 4359,
+        "end": 4363
       },
       "nodeId": "3879:35545",
       "property": "type",
@@ -2119,8 +2089,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4347,
-        "end": 4366
+        "start": 4376,
+        "end": 4395
       },
       "nodeId": "3879:35545",
       "property": "counterAxisAlignItems",
@@ -2128,8 +2098,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4379,
-        "end": 4400
+        "start": 4408,
+        "end": 4429
       },
       "nodeId": "3879:35545",
       "property": "fills",
@@ -2138,8 +2108,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4413,
-        "end": 4443
+        "start": 4442,
+        "end": 4472
       },
       "nodeId": "3879:35545",
       "property": "primaryAxisAlignItems",
@@ -2147,8 +2117,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4456,
-        "end": 4465
+        "start": 4485,
+        "end": 4494
       },
       "nodeId": "3879:35545",
       "property": "paddingLeft",
@@ -2156,8 +2126,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4456,
-        "end": 4465
+        "start": 4485,
+        "end": 4494
       },
       "nodeId": "3879:35545",
       "property": "paddingRight",
@@ -2165,8 +2135,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4478,
-        "end": 4487
+        "start": 4507,
+        "end": 4516
       },
       "nodeId": "3879:35545",
       "property": "paddingBottom",
@@ -2174,8 +2144,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4478,
-        "end": 4487
+        "start": 4507,
+        "end": 4516
       },
       "nodeId": "3879:35545",
       "property": "paddingTop",
@@ -2183,8 +2153,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4500,
-        "end": 4509
+        "start": 4529,
+        "end": 4538
       },
       "nodeId": "3879:35545",
       "property": "width",
@@ -2192,16 +2162,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4526,
-        "end": 4644
+        "start": 4555,
+        "end": 4673
       },
       "nodeId": "I3879:35545;1690:32933",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 4535,
-        "end": 4539
+        "start": 4564,
+        "end": 4568
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "type",
@@ -2209,8 +2179,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4540,
-        "end": 4553
+        "start": 4569,
+        "end": 4582
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "fills",
@@ -2219,8 +2189,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4540,
-        "end": 4553
+        "start": 4569,
+        "end": 4582
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
@@ -2229,8 +2199,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4554,
-        "end": 4581
+        "start": 4583,
+        "end": 4610
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
@@ -2239,8 +2209,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4554,
-        "end": 4581
+        "start": 4583,
+        "end": 4610
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "textStyleId",
@@ -2249,8 +2219,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4582,
-        "end": 4602
+        "start": 4611,
+        "end": 4631
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "characters",
@@ -2258,8 +2228,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4618,
-        "end": 4624
+        "start": 4647,
+        "end": 4653
       },
       "nodeId": "I3879:35545;1690:32933",
       "property": "characters",
@@ -2267,16 +2237,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4649,
-        "end": 4928
+        "start": 4678,
+        "end": 4957
       },
       "nodeId": "I3879:35545;1690:32948",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 4658,
-        "end": 4662
+        "start": 4687,
+        "end": 4691
       },
       "nodeId": "I3879:35545;1690:32948",
       "property": "layoutMode",
@@ -2284,8 +2254,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4658,
-        "end": 4662
+        "start": 4687,
+        "end": 4691
       },
       "nodeId": "I3879:35545;1690:32948",
       "property": "type",
@@ -2293,8 +2263,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4663,
-        "end": 4682
+        "start": 4692,
+        "end": 4711
       },
       "nodeId": "I3879:35545;1690:32948",
       "property": "counterAxisAlignItems",
@@ -2302,8 +2272,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4683,
-        "end": 4692
+        "start": 4712,
+        "end": 4721
       },
       "nodeId": "I3879:35545;1690:32948",
       "property": "itemSpacing",
@@ -2311,16 +2281,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4698,
-        "end": 4771
+        "start": 4727,
+        "end": 4800
       },
       "nodeId": "I3879:35545;1690:32934",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 4709,
-        "end": 4714
+        "start": 4738,
+        "end": 4743
       },
       "nodeId": "I3879:35545;1690:32934",
       "property": "type",
@@ -2328,8 +2298,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4715,
-        "end": 4730
+        "start": 4744,
+        "end": 4759
       },
       "nodeId": "I3879:35545;1690:32934",
       "property": "targetAspectRatio",
@@ -2337,8 +2307,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4731,
-        "end": 4745
+        "start": 4760,
+        "end": 4774
       },
       "nodeId": "I3879:35545;1690:32934",
       "property": "height",
@@ -2346,8 +2316,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4731,
-        "end": 4745
+        "start": 4760,
+        "end": 4774
       },
       "nodeId": "I3879:35545;1690:32934",
       "property": "width",
@@ -2355,56 +2325,26 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4746,
-        "end": 4768
+        "start": 4775,
+        "end": 4797
       },
-      "nodeId": "I3879:35545;1690:32934;17:2032",
+      "nodeId": "I3879:35545;1690:32934",
       "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2032:node",
+      "assetId": "I3879:35545;1690:32934:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 4746,
-        "end": 4768
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 4746,
-        "end": 4768
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 4746,
-        "end": 4768
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35545;1690:32934;17:2038:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 4776,
-        "end": 4908
+        "start": 4805,
+        "end": 4937
       },
       "nodeId": "I3879:35545;1690:32947",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 4787,
-        "end": 4791
+        "start": 4816,
+        "end": 4820
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "type",
@@ -2412,8 +2352,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4792,
-        "end": 4810
+        "start": 4821,
+        "end": 4839
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "fills",
@@ -2422,8 +2362,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4792,
-        "end": 4810
+        "start": 4821,
+        "end": 4839
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
@@ -2432,8 +2372,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4792,
-        "end": 4810
+        "start": 4821,
+        "end": 4839
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
@@ -2442,8 +2382,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4811,
-        "end": 4841
+        "start": 4840,
+        "end": 4870
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
@@ -2452,8 +2392,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4811,
-        "end": 4841
+        "start": 4840,
+        "end": 4870
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "textStyleId",
@@ -2462,8 +2402,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4842,
-        "end": 4862
+        "start": 4871,
+        "end": 4891
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "characters",
@@ -2471,8 +2411,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4880,
-        "end": 4886
+        "start": 4909,
+        "end": 4915
       },
       "nodeId": "I3879:35545;1690:32947",
       "property": "characters",
@@ -2480,16 +2420,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4951,
-        "end": 5173
+        "start": 4980,
+        "end": 5202
       },
       "nodeId": "3879:35546",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 4958,
-        "end": 4964
+        "start": 4987,
+        "end": 4993
       },
       "nodeId": "3879:35546",
       "property": "layoutMode",
@@ -2497,8 +2437,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4958,
-        "end": 4964
+        "start": 4987,
+        "end": 4993
       },
       "nodeId": "3879:35546",
       "property": "type",
@@ -2506,8 +2446,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4965,
-        "end": 4990
+        "start": 4994,
+        "end": 5019
       },
       "nodeId": "3879:35546",
       "property": "fills",
@@ -2516,8 +2456,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4991,
-        "end": 5000
+        "start": 5020,
+        "end": 5029
       },
       "nodeId": "3879:35546",
       "property": "paddingLeft",
@@ -2525,8 +2465,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4991,
-        "end": 5000
+        "start": 5020,
+        "end": 5029
       },
       "nodeId": "3879:35546",
       "property": "paddingRight",
@@ -2534,8 +2474,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5001,
-        "end": 5010
+        "start": 5030,
+        "end": 5039
       },
       "nodeId": "3879:35546",
       "property": "paddingBottom",
@@ -2543,8 +2483,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5001,
-        "end": 5010
+        "start": 5030,
+        "end": 5039
       },
       "nodeId": "3879:35546",
       "property": "paddingTop",
@@ -2552,16 +2492,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5016,
-        "end": 5153
+        "start": 5045,
+        "end": 5182
       },
       "nodeId": "3879:35547",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5025,
-        "end": 5029
+        "start": 5054,
+        "end": 5058
       },
       "nodeId": "3879:35547",
       "property": "type",
@@ -2569,8 +2509,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5030,
-        "end": 5046
+        "start": 5059,
+        "end": 5075
       },
       "nodeId": "3879:35547",
       "property": "fills",
@@ -2579,8 +2519,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5030,
-        "end": 5046
+        "start": 5059,
+        "end": 5075
       },
       "nodeId": "3879:35547",
       "property": "styledTextSegments",
@@ -2589,8 +2529,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5047,
-        "end": 5055
+        "start": 5076,
+        "end": 5084
       },
       "nodeId": "3879:35547",
       "property": "layoutGrow",
@@ -2598,8 +2538,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5056,
-        "end": 5071
+        "start": 5085,
+        "end": 5100
       },
       "nodeId": "3879:35547",
       "property": "styledTextSegments",
@@ -2608,8 +2548,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5056,
-        "end": 5071
+        "start": 5085,
+        "end": 5100
       },
       "nodeId": "3879:35547",
       "property": "textStyleId",
@@ -2618,8 +2558,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5072,
-        "end": 5092
+        "start": 5101,
+        "end": 5121
       },
       "nodeId": "3879:35547",
       "property": "characters",
@@ -2627,8 +2567,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5108,
-        "end": 5133
+        "start": 5137,
+        "end": 5162
       },
       "nodeId": "3879:35547",
       "property": "characters",
@@ -2636,16 +2576,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5196,
-        "end": 6802
+        "start": 5225,
+        "end": 6831
       },
       "nodeId": "3879:35548",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5201,
-        "end": 5207
+        "start": 5230,
+        "end": 5236
       },
       "nodeId": "3879:35548",
       "property": "layoutMode",
@@ -2653,8 +2593,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5201,
-        "end": 5207
+        "start": 5230,
+        "end": 5236
       },
       "nodeId": "3879:35548",
       "property": "type",
@@ -2662,16 +2602,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5213,
-        "end": 5837
+        "start": 5242,
+        "end": 5866
       },
       "nodeId": "3879:35549",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5220,
-        "end": 5224
+        "start": 5249,
+        "end": 5253
       },
       "nodeId": "3879:35549",
       "property": "layoutMode",
@@ -2679,8 +2619,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5220,
-        "end": 5224
+        "start": 5249,
+        "end": 5253
       },
       "nodeId": "3879:35549",
       "property": "type",
@@ -2688,8 +2628,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5237,
-        "end": 5256
+        "start": 5266,
+        "end": 5285
       },
       "nodeId": "3879:35549",
       "property": "counterAxisAlignItems",
@@ -2697,8 +2637,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5269,
-        "end": 5290
+        "start": 5298,
+        "end": 5319
       },
       "nodeId": "3879:35549",
       "property": "fills",
@@ -2707,8 +2647,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5303,
-        "end": 5333
+        "start": 5332,
+        "end": 5362
       },
       "nodeId": "3879:35549",
       "property": "primaryAxisAlignItems",
@@ -2716,8 +2656,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5346,
-        "end": 5355
+        "start": 5375,
+        "end": 5384
       },
       "nodeId": "3879:35549",
       "property": "paddingLeft",
@@ -2725,8 +2665,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5346,
-        "end": 5355
+        "start": 5375,
+        "end": 5384
       },
       "nodeId": "3879:35549",
       "property": "paddingRight",
@@ -2734,8 +2674,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5368,
-        "end": 5377
+        "start": 5397,
+        "end": 5406
       },
       "nodeId": "3879:35549",
       "property": "paddingBottom",
@@ -2743,8 +2683,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5368,
-        "end": 5377
+        "start": 5397,
+        "end": 5406
       },
       "nodeId": "3879:35549",
       "property": "paddingTop",
@@ -2752,8 +2692,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5390,
-        "end": 5399
+        "start": 5419,
+        "end": 5428
       },
       "nodeId": "3879:35549",
       "property": "width",
@@ -2761,16 +2701,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5416,
-        "end": 5535
+        "start": 5445,
+        "end": 5564
       },
       "nodeId": "I3879:35549;1690:32933",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5425,
-        "end": 5429
+        "start": 5454,
+        "end": 5458
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "type",
@@ -2778,8 +2718,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5430,
-        "end": 5443
+        "start": 5459,
+        "end": 5472
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "fills",
@@ -2788,8 +2728,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5430,
-        "end": 5443
+        "start": 5459,
+        "end": 5472
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "styledTextSegments",
@@ -2798,8 +2738,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5444,
-        "end": 5471
+        "start": 5473,
+        "end": 5500
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "styledTextSegments",
@@ -2808,8 +2748,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5444,
-        "end": 5471
+        "start": 5473,
+        "end": 5500
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "textStyleId",
@@ -2818,8 +2758,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5472,
-        "end": 5492
+        "start": 5501,
+        "end": 5521
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "characters",
@@ -2827,8 +2767,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5508,
-        "end": 5515
+        "start": 5537,
+        "end": 5544
       },
       "nodeId": "I3879:35549;1690:32933",
       "property": "characters",
@@ -2836,16 +2776,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5540,
-        "end": 5819
+        "start": 5569,
+        "end": 5848
       },
       "nodeId": "I3879:35549;1690:32948",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5549,
-        "end": 5553
+        "start": 5578,
+        "end": 5582
       },
       "nodeId": "I3879:35549;1690:32948",
       "property": "layoutMode",
@@ -2853,8 +2793,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5549,
-        "end": 5553
+        "start": 5578,
+        "end": 5582
       },
       "nodeId": "I3879:35549;1690:32948",
       "property": "type",
@@ -2862,8 +2802,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5554,
-        "end": 5573
+        "start": 5583,
+        "end": 5602
       },
       "nodeId": "I3879:35549;1690:32948",
       "property": "counterAxisAlignItems",
@@ -2871,8 +2811,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5574,
-        "end": 5583
+        "start": 5603,
+        "end": 5612
       },
       "nodeId": "I3879:35549;1690:32948",
       "property": "itemSpacing",
@@ -2880,16 +2820,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5589,
-        "end": 5662
+        "start": 5618,
+        "end": 5691
       },
       "nodeId": "I3879:35549;1690:32934",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5600,
-        "end": 5605
+        "start": 5629,
+        "end": 5634
       },
       "nodeId": "I3879:35549;1690:32934",
       "property": "type",
@@ -2897,8 +2837,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5606,
-        "end": 5621
+        "start": 5635,
+        "end": 5650
       },
       "nodeId": "I3879:35549;1690:32934",
       "property": "targetAspectRatio",
@@ -2906,8 +2846,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5622,
-        "end": 5636
+        "start": 5651,
+        "end": 5665
       },
       "nodeId": "I3879:35549;1690:32934",
       "property": "height",
@@ -2915,8 +2855,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5622,
-        "end": 5636
+        "start": 5651,
+        "end": 5665
       },
       "nodeId": "I3879:35549;1690:32934",
       "property": "width",
@@ -2924,56 +2864,26 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5637,
-        "end": 5659
+        "start": 5666,
+        "end": 5688
       },
-      "nodeId": "I3879:35549;1690:32934;17:2032",
+      "nodeId": "I3879:35549;1690:32934",
       "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2032:node",
+      "assetId": "I3879:35549;1690:32934:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 5637,
-        "end": 5659
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 5637,
-        "end": 5659
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 5637,
-        "end": 5659
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35549;1690:32934;17:2038:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 5667,
-        "end": 5799
+        "start": 5696,
+        "end": 5828
       },
       "nodeId": "I3879:35549;1690:32947",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5678,
-        "end": 5682
+        "start": 5707,
+        "end": 5711
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "type",
@@ -2981,8 +2891,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5683,
-        "end": 5701
+        "start": 5712,
+        "end": 5730
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "fills",
@@ -2991,8 +2901,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5683,
-        "end": 5701
+        "start": 5712,
+        "end": 5730
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
@@ -3001,8 +2911,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5683,
-        "end": 5701
+        "start": 5712,
+        "end": 5730
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
@@ -3011,8 +2921,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5702,
-        "end": 5732
+        "start": 5731,
+        "end": 5761
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
@@ -3021,8 +2931,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5702,
-        "end": 5732
+        "start": 5731,
+        "end": 5761
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "textStyleId",
@@ -3031,8 +2941,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5733,
-        "end": 5753
+        "start": 5762,
+        "end": 5782
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "characters",
@@ -3040,8 +2950,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5771,
-        "end": 5777
+        "start": 5800,
+        "end": 5806
       },
       "nodeId": "I3879:35549;1690:32947",
       "property": "characters",
@@ -3049,16 +2959,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5842,
-        "end": 6784
+        "start": 5871,
+        "end": 6813
       },
       "nodeId": "3879:35550",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 5849,
-        "end": 5855
+        "start": 5878,
+        "end": 5884
       },
       "nodeId": "3879:35550",
       "property": "layoutMode",
@@ -3066,8 +2976,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5849,
-        "end": 5855
+        "start": 5878,
+        "end": 5884
       },
       "nodeId": "3879:35550",
       "property": "type",
@@ -3075,8 +2985,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5856,
-        "end": 5881
+        "start": 5885,
+        "end": 5910
       },
       "nodeId": "3879:35550",
       "property": "fills",
@@ -3085,8 +2995,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5882,
-        "end": 5898
+        "start": 5911,
+        "end": 5927
       },
       "nodeId": "3879:35550",
       "property": "layoutMode",
@@ -3094,61 +3004,61 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5899,
-        "end": 5908
-      },
-      "nodeId": "3879:35550",
-      "property": "paddingLeft",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 5899,
-        "end": 5908
-      },
-      "nodeId": "3879:35550",
-      "property": "paddingRight",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 5909,
-        "end": 5918
-      },
-      "nodeId": "3879:35550",
-      "property": "paddingBottom",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 5909,
-        "end": 5918
-      },
-      "nodeId": "3879:35550",
-      "property": "paddingTop",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 5924,
-        "end": 6764
-      },
-      "nodeId": "3879:35551",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5933,
+        "start": 5928,
         "end": 5937
       },
+      "nodeId": "3879:35550",
+      "property": "paddingLeft",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5928,
+        "end": 5937
+      },
+      "nodeId": "3879:35550",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5938,
+        "end": 5947
+      },
+      "nodeId": "3879:35550",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5938,
+        "end": 5947
+      },
+      "nodeId": "3879:35550",
+      "property": "paddingTop",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 5953,
+        "end": 6793
+      },
+      "nodeId": "3879:35551",
+      "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 5962,
+        "end": 5966
+      },
       "nodeId": "3879:35551",
       "property": "type",
       "resolution": "exact"
     },
     {
       "generatedRange": {
-        "start": 5938,
-        "end": 5951
+        "start": 5967,
+        "end": 5980
       },
       "nodeId": "3879:35551",
       "property": "fills",
@@ -3157,8 +3067,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5938,
-        "end": 5951
+        "start": 5967,
+        "end": 5980
       },
       "nodeId": "3879:35551",
       "property": "styledTextSegments",
@@ -3167,8 +3077,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5952,
-        "end": 5969
+        "start": 5981,
+        "end": 5998
       },
       "nodeId": "3879:35551",
       "property": "styledTextSegments",
@@ -3177,8 +3087,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5952,
-        "end": 5969
+        "start": 5981,
+        "end": 5998
       },
       "nodeId": "3879:35551",
       "property": "textStyleId",
@@ -3187,8 +3097,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5970,
-        "end": 5978
+        "start": 5999,
+        "end": 6007
       },
       "nodeId": "3879:35551",
       "property": "width",
@@ -3196,8 +3106,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 5979,
-        "end": 5999
+        "start": 6008,
+        "end": 6028
       },
       "nodeId": "3879:35551",
       "property": "characters",
@@ -3205,8 +3115,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6015,
-        "end": 6744
+        "start": 6044,
+        "end": 6773
       },
       "nodeId": "3879:35551",
       "property": "characters",
@@ -3214,16 +3124,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6807,
-        "end": 8893
+        "start": 6836,
+        "end": 8922
       },
       "nodeId": "3879:35552",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 6812,
-        "end": 6818
+        "start": 6841,
+        "end": 6847
       },
       "nodeId": "3879:35552",
       "property": "layoutMode",
@@ -3231,8 +3141,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6812,
-        "end": 6818
+        "start": 6841,
+        "end": 6847
       },
       "nodeId": "3879:35552",
       "property": "type",
@@ -3240,16 +3150,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6824,
-        "end": 7448
+        "start": 6853,
+        "end": 7477
       },
       "nodeId": "3879:35553",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 6831,
-        "end": 6835
+        "start": 6860,
+        "end": 6864
       },
       "nodeId": "3879:35553",
       "property": "layoutMode",
@@ -3257,8 +3167,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6831,
-        "end": 6835
+        "start": 6860,
+        "end": 6864
       },
       "nodeId": "3879:35553",
       "property": "type",
@@ -3266,8 +3176,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6848,
-        "end": 6867
+        "start": 6877,
+        "end": 6896
       },
       "nodeId": "3879:35553",
       "property": "counterAxisAlignItems",
@@ -3275,8 +3185,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6880,
-        "end": 6901
+        "start": 6909,
+        "end": 6930
       },
       "nodeId": "3879:35553",
       "property": "fills",
@@ -3285,8 +3195,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6914,
-        "end": 6944
+        "start": 6943,
+        "end": 6973
       },
       "nodeId": "3879:35553",
       "property": "primaryAxisAlignItems",
@@ -3294,8 +3204,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6957,
-        "end": 6966
+        "start": 6986,
+        "end": 6995
       },
       "nodeId": "3879:35553",
       "property": "paddingLeft",
@@ -3303,8 +3213,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6957,
-        "end": 6966
+        "start": 6986,
+        "end": 6995
       },
       "nodeId": "3879:35553",
       "property": "paddingRight",
@@ -3312,8 +3222,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6979,
-        "end": 6988
+        "start": 7008,
+        "end": 7017
       },
       "nodeId": "3879:35553",
       "property": "paddingBottom",
@@ -3321,8 +3231,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 6979,
-        "end": 6988
+        "start": 7008,
+        "end": 7017
       },
       "nodeId": "3879:35553",
       "property": "paddingTop",
@@ -3330,8 +3240,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7001,
-        "end": 7010
+        "start": 7030,
+        "end": 7039
       },
       "nodeId": "3879:35553",
       "property": "width",
@@ -3339,16 +3249,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7027,
-        "end": 7146
+        "start": 7056,
+        "end": 7175
       },
       "nodeId": "I3879:35553;1690:32933",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 7036,
-        "end": 7040
+        "start": 7065,
+        "end": 7069
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "type",
@@ -3356,8 +3266,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7041,
-        "end": 7054
+        "start": 7070,
+        "end": 7083
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "fills",
@@ -3366,8 +3276,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7041,
-        "end": 7054
+        "start": 7070,
+        "end": 7083
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "styledTextSegments",
@@ -3376,8 +3286,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7055,
-        "end": 7082
+        "start": 7084,
+        "end": 7111
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "styledTextSegments",
@@ -3386,8 +3296,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7055,
-        "end": 7082
+        "start": 7084,
+        "end": 7111
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "textStyleId",
@@ -3396,8 +3306,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7083,
-        "end": 7103
+        "start": 7112,
+        "end": 7132
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "characters",
@@ -3405,8 +3315,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7119,
-        "end": 7126
+        "start": 7148,
+        "end": 7155
       },
       "nodeId": "I3879:35553;1690:32933",
       "property": "characters",
@@ -3414,16 +3324,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7151,
-        "end": 7430
+        "start": 7180,
+        "end": 7459
       },
       "nodeId": "I3879:35553;1690:32948",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 7160,
-        "end": 7164
+        "start": 7189,
+        "end": 7193
       },
       "nodeId": "I3879:35553;1690:32948",
       "property": "layoutMode",
@@ -3431,8 +3341,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7160,
-        "end": 7164
+        "start": 7189,
+        "end": 7193
       },
       "nodeId": "I3879:35553;1690:32948",
       "property": "type",
@@ -3440,8 +3350,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7165,
-        "end": 7184
+        "start": 7194,
+        "end": 7213
       },
       "nodeId": "I3879:35553;1690:32948",
       "property": "counterAxisAlignItems",
@@ -3449,8 +3359,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7185,
-        "end": 7194
+        "start": 7214,
+        "end": 7223
       },
       "nodeId": "I3879:35553;1690:32948",
       "property": "itemSpacing",
@@ -3458,16 +3368,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7200,
-        "end": 7273
+        "start": 7229,
+        "end": 7302
       },
       "nodeId": "I3879:35553;1690:32934",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 7211,
-        "end": 7216
+        "start": 7240,
+        "end": 7245
       },
       "nodeId": "I3879:35553;1690:32934",
       "property": "type",
@@ -3475,8 +3385,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7217,
-        "end": 7232
+        "start": 7246,
+        "end": 7261
       },
       "nodeId": "I3879:35553;1690:32934",
       "property": "targetAspectRatio",
@@ -3484,8 +3394,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7233,
-        "end": 7247
+        "start": 7262,
+        "end": 7276
       },
       "nodeId": "I3879:35553;1690:32934",
       "property": "height",
@@ -3493,8 +3403,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7233,
-        "end": 7247
+        "start": 7262,
+        "end": 7276
       },
       "nodeId": "I3879:35553;1690:32934",
       "property": "width",
@@ -3502,56 +3412,26 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7248,
-        "end": 7270
+        "start": 7277,
+        "end": 7299
       },
-      "nodeId": "I3879:35553;1690:32934;17:2032",
+      "nodeId": "I3879:35553;1690:32934",
       "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2032:node",
+      "assetId": "I3879:35553;1690:32934:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 7248,
-        "end": 7270
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 7248,
-        "end": 7270
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 7248,
-        "end": 7270
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35553;1690:32934;17:2038:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 7278,
-        "end": 7410
+        "start": 7307,
+        "end": 7439
       },
       "nodeId": "I3879:35553;1690:32947",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 7289,
-        "end": 7293
+        "start": 7318,
+        "end": 7322
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "type",
@@ -3559,8 +3439,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7294,
-        "end": 7312
+        "start": 7323,
+        "end": 7341
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "fills",
@@ -3569,8 +3449,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7294,
-        "end": 7312
+        "start": 7323,
+        "end": 7341
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
@@ -3579,8 +3459,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7294,
-        "end": 7312
+        "start": 7323,
+        "end": 7341
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
@@ -3589,8 +3469,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7313,
-        "end": 7343
+        "start": 7342,
+        "end": 7372
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
@@ -3599,8 +3479,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7313,
-        "end": 7343
+        "start": 7342,
+        "end": 7372
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "textStyleId",
@@ -3609,8 +3489,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7344,
-        "end": 7364
+        "start": 7373,
+        "end": 7393
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "characters",
@@ -3618,8 +3498,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7382,
-        "end": 7388
+        "start": 7411,
+        "end": 7417
       },
       "nodeId": "I3879:35553;1690:32947",
       "property": "characters",
@@ -3627,16 +3507,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7453,
-        "end": 8875
+        "start": 7482,
+        "end": 8904
       },
       "nodeId": "3879:35554",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 7460,
-        "end": 7466
+        "start": 7489,
+        "end": 7495
       },
       "nodeId": "3879:35554",
       "property": "layoutMode",
@@ -3644,8 +3524,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7460,
-        "end": 7466
+        "start": 7489,
+        "end": 7495
       },
       "nodeId": "3879:35554",
       "property": "type",
@@ -3653,8 +3533,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7467,
-        "end": 7492
+        "start": 7496,
+        "end": 7521
       },
       "nodeId": "3879:35554",
       "property": "fills",
@@ -3663,8 +3543,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7493,
-        "end": 7509
+        "start": 7522,
+        "end": 7538
       },
       "nodeId": "3879:35554",
       "property": "layoutMode",
@@ -3672,8 +3552,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7510,
-        "end": 7519
+        "start": 7539,
+        "end": 7548
       },
       "nodeId": "3879:35554",
       "property": "paddingLeft",
@@ -3681,8 +3561,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7510,
-        "end": 7519
+        "start": 7539,
+        "end": 7548
       },
       "nodeId": "3879:35554",
       "property": "paddingRight",
@@ -3690,8 +3570,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7520,
-        "end": 7529
+        "start": 7549,
+        "end": 7558
       },
       "nodeId": "3879:35554",
       "property": "paddingBottom",
@@ -3699,8 +3579,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7520,
-        "end": 7529
+        "start": 7549,
+        "end": 7558
       },
       "nodeId": "3879:35554",
       "property": "paddingTop",
@@ -3708,16 +3588,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7535,
-        "end": 8855
+        "start": 7564,
+        "end": 8884
       },
       "nodeId": "3879:35555",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 7544,
-        "end": 7548
+        "start": 7573,
+        "end": 7577
       },
       "nodeId": "3879:35555",
       "property": "type",
@@ -3725,8 +3605,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7549,
-        "end": 7562
+        "start": 7578,
+        "end": 7591
       },
       "nodeId": "3879:35555",
       "property": "fills",
@@ -3735,8 +3615,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7549,
-        "end": 7562
+        "start": 7578,
+        "end": 7591
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3745,8 +3625,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7563,
-        "end": 7580
+        "start": 7592,
+        "end": 7609
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3755,8 +3635,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7563,
-        "end": 7580
+        "start": 7592,
+        "end": 7609
       },
       "nodeId": "3879:35555",
       "property": "textStyleId",
@@ -3765,8 +3645,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7581,
-        "end": 7589
+        "start": 7610,
+        "end": 7618
       },
       "nodeId": "3879:35555",
       "property": "width",
@@ -3774,8 +3654,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7590,
-        "end": 7610
+        "start": 7619,
+        "end": 7639
       },
       "nodeId": "3879:35555",
       "property": "characters",
@@ -3783,8 +3663,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7626,
-        "end": 8109
+        "start": 7655,
+        "end": 8138
       },
       "nodeId": "3879:35555",
       "property": "characters",
@@ -3792,8 +3672,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8130,
-        "end": 8151
+        "start": 8159,
+        "end": 8180
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3802,8 +3682,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8130,
-        "end": 8151
+        "start": 8159,
+        "end": 8180
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3812,27 +3692,18 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8152,
-        "end": 8177
-      },
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
-      "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
-    },
-    {
-      "generatedRange": {
-        "start": 8195,
+        "start": 8181,
         "end": 8206
       },
       "nodeId": "3879:35555",
-      "property": "characters",
-      "resolution": "exact"
+      "property": "styledTextSegments",
+      "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
+      "resolution": "style-token"
     },
     {
       "generatedRange": {
-        "start": 8243,
-        "end": 8662
+        "start": 8224,
+        "end": 8235
       },
       "nodeId": "3879:35555",
       "property": "characters",
@@ -3840,8 +3711,17 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8683,
-        "end": 8704
+        "start": 8272,
+        "end": 8691
+      },
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedRange": {
+        "start": 8712,
+        "end": 8733
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3850,8 +3730,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8683,
-        "end": 8704
+        "start": 8712,
+        "end": 8733
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3860,8 +3740,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8705,
-        "end": 8730
+        "start": 8734,
+        "end": 8759
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -3870,8 +3750,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8748,
-        "end": 8759
+        "start": 8777,
+        "end": 8788
       },
       "nodeId": "3879:35555",
       "property": "characters",
@@ -3879,8 +3759,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8796,
-        "end": 8835
+        "start": 8825,
+        "end": 8864
       },
       "nodeId": "3879:35555",
       "property": "characters",
@@ -3888,16 +3768,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8898,
-        "end": 11146
+        "start": 8927,
+        "end": 11175
       },
       "nodeId": "3879:35556",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 8903,
-        "end": 8909
+        "start": 8932,
+        "end": 8938
       },
       "nodeId": "3879:35556",
       "property": "layoutMode",
@@ -3905,8 +3785,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8903,
-        "end": 8909
+        "start": 8932,
+        "end": 8938
       },
       "nodeId": "3879:35556",
       "property": "type",
@@ -3914,16 +3794,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8915,
-        "end": 9539
+        "start": 8944,
+        "end": 9568
       },
       "nodeId": "3879:35557",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 8922,
-        "end": 8926
+        "start": 8951,
+        "end": 8955
       },
       "nodeId": "3879:35557",
       "property": "layoutMode",
@@ -3931,8 +3811,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8922,
-        "end": 8926
+        "start": 8951,
+        "end": 8955
       },
       "nodeId": "3879:35557",
       "property": "type",
@@ -3940,8 +3820,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8939,
-        "end": 8958
+        "start": 8968,
+        "end": 8987
       },
       "nodeId": "3879:35557",
       "property": "counterAxisAlignItems",
@@ -3949,8 +3829,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 8971,
-        "end": 8992
+        "start": 9000,
+        "end": 9021
       },
       "nodeId": "3879:35557",
       "property": "fills",
@@ -3959,8 +3839,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9005,
-        "end": 9035
+        "start": 9034,
+        "end": 9064
       },
       "nodeId": "3879:35557",
       "property": "primaryAxisAlignItems",
@@ -3968,8 +3848,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9048,
-        "end": 9057
+        "start": 9077,
+        "end": 9086
       },
       "nodeId": "3879:35557",
       "property": "paddingLeft",
@@ -3977,8 +3857,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9048,
-        "end": 9057
+        "start": 9077,
+        "end": 9086
       },
       "nodeId": "3879:35557",
       "property": "paddingRight",
@@ -3986,8 +3866,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9070,
-        "end": 9079
+        "start": 9099,
+        "end": 9108
       },
       "nodeId": "3879:35557",
       "property": "paddingBottom",
@@ -3995,8 +3875,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9070,
-        "end": 9079
+        "start": 9099,
+        "end": 9108
       },
       "nodeId": "3879:35557",
       "property": "paddingTop",
@@ -4004,8 +3884,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9092,
-        "end": 9101
+        "start": 9121,
+        "end": 9130
       },
       "nodeId": "3879:35557",
       "property": "width",
@@ -4013,16 +3893,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9118,
-        "end": 9237
+        "start": 9147,
+        "end": 9266
       },
       "nodeId": "I3879:35557;1690:32933",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 9127,
-        "end": 9131
+        "start": 9156,
+        "end": 9160
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "type",
@@ -4030,8 +3910,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9132,
-        "end": 9145
+        "start": 9161,
+        "end": 9174
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "fills",
@@ -4040,8 +3920,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9132,
-        "end": 9145
+        "start": 9161,
+        "end": 9174
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "styledTextSegments",
@@ -4050,8 +3930,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9146,
-        "end": 9173
+        "start": 9175,
+        "end": 9202
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "styledTextSegments",
@@ -4060,8 +3940,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9146,
-        "end": 9173
+        "start": 9175,
+        "end": 9202
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "textStyleId",
@@ -4070,8 +3950,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9174,
-        "end": 9194
+        "start": 9203,
+        "end": 9223
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "characters",
@@ -4079,8 +3959,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9210,
-        "end": 9217
+        "start": 9239,
+        "end": 9246
       },
       "nodeId": "I3879:35557;1690:32933",
       "property": "characters",
@@ -4088,16 +3968,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9242,
-        "end": 9521
+        "start": 9271,
+        "end": 9550
       },
       "nodeId": "I3879:35557;1690:32948",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 9251,
-        "end": 9255
+        "start": 9280,
+        "end": 9284
       },
       "nodeId": "I3879:35557;1690:32948",
       "property": "layoutMode",
@@ -4105,8 +3985,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9251,
-        "end": 9255
+        "start": 9280,
+        "end": 9284
       },
       "nodeId": "I3879:35557;1690:32948",
       "property": "type",
@@ -4114,8 +3994,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9256,
-        "end": 9275
+        "start": 9285,
+        "end": 9304
       },
       "nodeId": "I3879:35557;1690:32948",
       "property": "counterAxisAlignItems",
@@ -4123,8 +4003,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9276,
-        "end": 9285
+        "start": 9305,
+        "end": 9314
       },
       "nodeId": "I3879:35557;1690:32948",
       "property": "itemSpacing",
@@ -4132,16 +4012,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9291,
-        "end": 9364
+        "start": 9320,
+        "end": 9393
       },
       "nodeId": "I3879:35557;1690:32934",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 9302,
-        "end": 9307
+        "start": 9331,
+        "end": 9336
       },
       "nodeId": "I3879:35557;1690:32934",
       "property": "type",
@@ -4149,8 +4029,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9308,
-        "end": 9323
+        "start": 9337,
+        "end": 9352
       },
       "nodeId": "I3879:35557;1690:32934",
       "property": "targetAspectRatio",
@@ -4158,8 +4038,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9324,
-        "end": 9338
+        "start": 9353,
+        "end": 9367
       },
       "nodeId": "I3879:35557;1690:32934",
       "property": "height",
@@ -4167,8 +4047,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9324,
-        "end": 9338
+        "start": 9353,
+        "end": 9367
       },
       "nodeId": "I3879:35557;1690:32934",
       "property": "width",
@@ -4176,56 +4056,26 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9339,
-        "end": 9361
+        "start": 9368,
+        "end": 9390
       },
-      "nodeId": "I3879:35557;1690:32934;17:2032",
+      "nodeId": "I3879:35557;1690:32934",
       "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2032:node",
+      "assetId": "I3879:35557;1690:32934:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 9339,
-        "end": 9361
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 9339,
-        "end": 9361
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 9339,
-        "end": 9361
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35557;1690:32934;17:2038:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 9369,
-        "end": 9501
+        "start": 9398,
+        "end": 9530
       },
       "nodeId": "I3879:35557;1690:32947",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 9380,
-        "end": 9384
+        "start": 9409,
+        "end": 9413
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "type",
@@ -4233,8 +4083,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9385,
-        "end": 9403
+        "start": 9414,
+        "end": 9432
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "fills",
@@ -4243,8 +4093,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9385,
-        "end": 9403
+        "start": 9414,
+        "end": 9432
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
@@ -4253,8 +4103,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9385,
-        "end": 9403
+        "start": 9414,
+        "end": 9432
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
@@ -4263,8 +4113,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9404,
-        "end": 9434
+        "start": 9433,
+        "end": 9463
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
@@ -4273,8 +4123,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9404,
-        "end": 9434
+        "start": 9433,
+        "end": 9463
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "textStyleId",
@@ -4283,8 +4133,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9435,
-        "end": 9455
+        "start": 9464,
+        "end": 9484
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "characters",
@@ -4292,8 +4142,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9473,
-        "end": 9479
+        "start": 9502,
+        "end": 9508
       },
       "nodeId": "I3879:35557;1690:32947",
       "property": "characters",
@@ -4301,16 +4151,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9544,
-        "end": 11128
+        "start": 9573,
+        "end": 11157
       },
       "nodeId": "3879:35558",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 9551,
-        "end": 9557
+        "start": 9580,
+        "end": 9586
       },
       "nodeId": "3879:35558",
       "property": "layoutMode",
@@ -4318,8 +4168,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9551,
-        "end": 9557
+        "start": 9580,
+        "end": 9586
       },
       "nodeId": "3879:35558",
       "property": "type",
@@ -4327,8 +4177,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9558,
-        "end": 9583
+        "start": 9587,
+        "end": 9612
       },
       "nodeId": "3879:35558",
       "property": "fills",
@@ -4337,8 +4187,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9584,
-        "end": 9600
+        "start": 9613,
+        "end": 9629
       },
       "nodeId": "3879:35558",
       "property": "layoutMode",
@@ -4346,61 +4196,61 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9601,
-        "end": 9610
-      },
-      "nodeId": "3879:35558",
-      "property": "paddingLeft",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 9601,
-        "end": 9610
-      },
-      "nodeId": "3879:35558",
-      "property": "paddingRight",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 9611,
-        "end": 9620
-      },
-      "nodeId": "3879:35558",
-      "property": "paddingBottom",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 9611,
-        "end": 9620
-      },
-      "nodeId": "3879:35558",
-      "property": "paddingTop",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedRange": {
-        "start": 9626,
-        "end": 11108
-      },
-      "nodeId": "3879:35559",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9635,
+        "start": 9630,
         "end": 9639
       },
+      "nodeId": "3879:35558",
+      "property": "paddingLeft",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9630,
+        "end": 9639
+      },
+      "nodeId": "3879:35558",
+      "property": "paddingRight",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9640,
+        "end": 9649
+      },
+      "nodeId": "3879:35558",
+      "property": "paddingBottom",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9640,
+        "end": 9649
+      },
+      "nodeId": "3879:35558",
+      "property": "paddingTop",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 9655,
+        "end": 11137
+      },
+      "nodeId": "3879:35559",
+      "resolution": "node"
+    },
+    {
+      "generatedRange": {
+        "start": 9664,
+        "end": 9668
+      },
       "nodeId": "3879:35559",
       "property": "type",
       "resolution": "exact"
     },
     {
       "generatedRange": {
-        "start": 9640,
-        "end": 9653
+        "start": 9669,
+        "end": 9682
       },
       "nodeId": "3879:35559",
       "property": "fills",
@@ -4409,8 +4259,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9640,
-        "end": 9653
+        "start": 9669,
+        "end": 9682
       },
       "nodeId": "3879:35559",
       "property": "styledTextSegments",
@@ -4419,8 +4269,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9654,
-        "end": 9671
+        "start": 9683,
+        "end": 9700
       },
       "nodeId": "3879:35559",
       "property": "styledTextSegments",
@@ -4429,8 +4279,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9654,
-        "end": 9671
+        "start": 9683,
+        "end": 9700
       },
       "nodeId": "3879:35559",
       "property": "textStyleId",
@@ -4439,8 +4289,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9672,
-        "end": 9680
+        "start": 9701,
+        "end": 9709
       },
       "nodeId": "3879:35559",
       "property": "width",
@@ -4448,8 +4298,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9681,
-        "end": 9701
+        "start": 9710,
+        "end": 9730
       },
       "nodeId": "3879:35559",
       "property": "characters",
@@ -4457,8 +4307,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 9717,
-        "end": 11088
+        "start": 9746,
+        "end": 11117
       },
       "nodeId": "3879:35559",
       "property": "characters",
@@ -4466,16 +4316,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11151,
-        "end": 13570
+        "start": 11180,
+        "end": 13599
       },
       "nodeId": "3879:35560",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11156,
-        "end": 11162
+        "start": 11185,
+        "end": 11191
       },
       "nodeId": "3879:35560",
       "property": "layoutMode",
@@ -4483,8 +4333,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11156,
-        "end": 11162
+        "start": 11185,
+        "end": 11191
       },
       "nodeId": "3879:35560",
       "property": "type",
@@ -4492,16 +4342,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11168,
-        "end": 11792
+        "start": 11197,
+        "end": 11821
       },
       "nodeId": "3879:35561",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11175,
-        "end": 11179
+        "start": 11204,
+        "end": 11208
       },
       "nodeId": "3879:35561",
       "property": "layoutMode",
@@ -4509,8 +4359,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11175,
-        "end": 11179
+        "start": 11204,
+        "end": 11208
       },
       "nodeId": "3879:35561",
       "property": "type",
@@ -4518,8 +4368,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11192,
-        "end": 11211
+        "start": 11221,
+        "end": 11240
       },
       "nodeId": "3879:35561",
       "property": "counterAxisAlignItems",
@@ -4527,8 +4377,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11224,
-        "end": 11245
+        "start": 11253,
+        "end": 11274
       },
       "nodeId": "3879:35561",
       "property": "fills",
@@ -4537,8 +4387,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11258,
-        "end": 11288
+        "start": 11287,
+        "end": 11317
       },
       "nodeId": "3879:35561",
       "property": "primaryAxisAlignItems",
@@ -4546,8 +4396,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11301,
-        "end": 11310
+        "start": 11330,
+        "end": 11339
       },
       "nodeId": "3879:35561",
       "property": "paddingLeft",
@@ -4555,8 +4405,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11301,
-        "end": 11310
+        "start": 11330,
+        "end": 11339
       },
       "nodeId": "3879:35561",
       "property": "paddingRight",
@@ -4564,8 +4414,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11323,
-        "end": 11332
+        "start": 11352,
+        "end": 11361
       },
       "nodeId": "3879:35561",
       "property": "paddingBottom",
@@ -4573,8 +4423,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11323,
-        "end": 11332
+        "start": 11352,
+        "end": 11361
       },
       "nodeId": "3879:35561",
       "property": "paddingTop",
@@ -4582,8 +4432,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11345,
-        "end": 11354
+        "start": 11374,
+        "end": 11383
       },
       "nodeId": "3879:35561",
       "property": "width",
@@ -4591,16 +4441,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11371,
-        "end": 11490
+        "start": 11400,
+        "end": 11519
       },
       "nodeId": "I3879:35561;1690:32933",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11380,
-        "end": 11384
+        "start": 11409,
+        "end": 11413
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "type",
@@ -4608,8 +4458,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11385,
-        "end": 11398
+        "start": 11414,
+        "end": 11427
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "fills",
@@ -4618,8 +4468,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11385,
-        "end": 11398
+        "start": 11414,
+        "end": 11427
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
@@ -4628,8 +4478,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11399,
-        "end": 11426
+        "start": 11428,
+        "end": 11455
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
@@ -4638,8 +4488,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11399,
-        "end": 11426
+        "start": 11428,
+        "end": 11455
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "textStyleId",
@@ -4648,8 +4498,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11427,
-        "end": 11447
+        "start": 11456,
+        "end": 11476
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "characters",
@@ -4657,8 +4507,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11463,
-        "end": 11470
+        "start": 11492,
+        "end": 11499
       },
       "nodeId": "I3879:35561;1690:32933",
       "property": "characters",
@@ -4666,16 +4516,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11495,
-        "end": 11774
+        "start": 11524,
+        "end": 11803
       },
       "nodeId": "I3879:35561;1690:32948",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11504,
-        "end": 11508
+        "start": 11533,
+        "end": 11537
       },
       "nodeId": "I3879:35561;1690:32948",
       "property": "layoutMode",
@@ -4683,8 +4533,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11504,
-        "end": 11508
+        "start": 11533,
+        "end": 11537
       },
       "nodeId": "I3879:35561;1690:32948",
       "property": "type",
@@ -4692,8 +4542,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11509,
-        "end": 11528
+        "start": 11538,
+        "end": 11557
       },
       "nodeId": "I3879:35561;1690:32948",
       "property": "counterAxisAlignItems",
@@ -4701,8 +4551,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11529,
-        "end": 11538
+        "start": 11558,
+        "end": 11567
       },
       "nodeId": "I3879:35561;1690:32948",
       "property": "itemSpacing",
@@ -4710,16 +4560,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11544,
-        "end": 11617
+        "start": 11573,
+        "end": 11646
       },
       "nodeId": "I3879:35561;1690:32934",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11555,
-        "end": 11560
+        "start": 11584,
+        "end": 11589
       },
       "nodeId": "I3879:35561;1690:32934",
       "property": "type",
@@ -4727,8 +4577,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11561,
-        "end": 11576
+        "start": 11590,
+        "end": 11605
       },
       "nodeId": "I3879:35561;1690:32934",
       "property": "targetAspectRatio",
@@ -4736,8 +4586,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11577,
-        "end": 11591
+        "start": 11606,
+        "end": 11620
       },
       "nodeId": "I3879:35561;1690:32934",
       "property": "height",
@@ -4745,8 +4595,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11577,
-        "end": 11591
+        "start": 11606,
+        "end": 11620
       },
       "nodeId": "I3879:35561;1690:32934",
       "property": "width",
@@ -4754,56 +4604,26 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11592,
-        "end": 11614
+        "start": 11621,
+        "end": 11643
       },
-      "nodeId": "I3879:35561;1690:32934;17:2032",
+      "nodeId": "I3879:35561;1690:32934",
       "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2032:node",
+      "assetId": "I3879:35561;1690:32934:node",
       "resolution": "asset"
     },
     {
       "generatedRange": {
-        "start": 11592,
-        "end": 11614
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2034",
-      "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2034:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 11592,
-        "end": 11614
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2036",
-      "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2036:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 11592,
-        "end": 11614
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2038",
-      "property": "node",
-      "assetId": "I3879:35561;1690:32934;17:2038:node",
-      "resolution": "asset"
-    },
-    {
-      "generatedRange": {
-        "start": 11622,
-        "end": 11754
+        "start": 11651,
+        "end": 11783
       },
       "nodeId": "I3879:35561;1690:32947",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11633,
-        "end": 11637
+        "start": 11662,
+        "end": 11666
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "type",
@@ -4811,8 +4631,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11638,
-        "end": 11656
+        "start": 11667,
+        "end": 11685
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "fills",
@@ -4821,8 +4641,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11638,
-        "end": 11656
+        "start": 11667,
+        "end": 11685
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
@@ -4831,8 +4651,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11638,
-        "end": 11656
+        "start": 11667,
+        "end": 11685
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
@@ -4841,8 +4661,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11657,
-        "end": 11687
+        "start": 11686,
+        "end": 11716
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
@@ -4851,8 +4671,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11657,
-        "end": 11687
+        "start": 11686,
+        "end": 11716
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "textStyleId",
@@ -4861,8 +4681,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11688,
-        "end": 11708
+        "start": 11717,
+        "end": 11737
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "characters",
@@ -4870,8 +4690,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11726,
-        "end": 11732
+        "start": 11755,
+        "end": 11761
       },
       "nodeId": "I3879:35561;1690:32947",
       "property": "characters",
@@ -4879,16 +4699,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11797,
-        "end": 13552
+        "start": 11826,
+        "end": 13581
       },
       "nodeId": "3879:35562",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11804,
-        "end": 11810
+        "start": 11833,
+        "end": 11839
       },
       "nodeId": "3879:35562",
       "property": "layoutMode",
@@ -4896,8 +4716,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11804,
-        "end": 11810
+        "start": 11833,
+        "end": 11839
       },
       "nodeId": "3879:35562",
       "property": "type",
@@ -4905,8 +4725,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11811,
-        "end": 11836
+        "start": 11840,
+        "end": 11865
       },
       "nodeId": "3879:35562",
       "property": "fills",
@@ -4915,8 +4735,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11837,
-        "end": 11853
+        "start": 11866,
+        "end": 11882
       },
       "nodeId": "3879:35562",
       "property": "layoutMode",
@@ -4924,8 +4744,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11854,
-        "end": 11863
+        "start": 11883,
+        "end": 11892
       },
       "nodeId": "3879:35562",
       "property": "paddingLeft",
@@ -4933,8 +4753,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11854,
-        "end": 11863
+        "start": 11883,
+        "end": 11892
       },
       "nodeId": "3879:35562",
       "property": "paddingRight",
@@ -4942,8 +4762,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11864,
-        "end": 11873
+        "start": 11893,
+        "end": 11902
       },
       "nodeId": "3879:35562",
       "property": "paddingBottom",
@@ -4951,8 +4771,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11864,
-        "end": 11873
+        "start": 11893,
+        "end": 11902
       },
       "nodeId": "3879:35562",
       "property": "paddingTop",
@@ -4960,16 +4780,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11879,
-        "end": 13532
+        "start": 11908,
+        "end": 13561
       },
       "nodeId": "3879:35563",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 11888,
-        "end": 11892
+        "start": 11917,
+        "end": 11921
       },
       "nodeId": "3879:35563",
       "property": "type",
@@ -4977,8 +4797,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11893,
-        "end": 11906
+        "start": 11922,
+        "end": 11935
       },
       "nodeId": "3879:35563",
       "property": "fills",
@@ -4987,8 +4807,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11893,
-        "end": 11906
+        "start": 11922,
+        "end": 11935
       },
       "nodeId": "3879:35563",
       "property": "styledTextSegments",
@@ -4997,8 +4817,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11907,
-        "end": 11924
+        "start": 11936,
+        "end": 11953
       },
       "nodeId": "3879:35563",
       "property": "styledTextSegments",
@@ -5007,8 +4827,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11907,
-        "end": 11924
+        "start": 11936,
+        "end": 11953
       },
       "nodeId": "3879:35563",
       "property": "textStyleId",
@@ -5017,8 +4837,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11925,
-        "end": 11933
+        "start": 11954,
+        "end": 11962
       },
       "nodeId": "3879:35563",
       "property": "width",
@@ -5026,8 +4846,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11934,
-        "end": 11954
+        "start": 11963,
+        "end": 11983
       },
       "nodeId": "3879:35563",
       "property": "characters",
@@ -5035,8 +4855,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 11970,
-        "end": 13512
+        "start": 11999,
+        "end": 13541
       },
       "nodeId": "3879:35563",
       "property": "characters",
@@ -5044,16 +4864,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13591,
-        "end": 14411
+        "start": 13620,
+        "end": 14439
       },
       "nodeId": "3879:35564",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 13594,
-        "end": 13598
+        "start": 13623,
+        "end": 13627
       },
       "nodeId": "3879:35564",
       "property": "layoutMode",
@@ -5061,8 +4881,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13594,
-        "end": 13598
+        "start": 13623,
+        "end": 13627
       },
       "nodeId": "3879:35564",
       "property": "type",
@@ -5070,8 +4890,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13607,
-        "end": 13626
+        "start": 13636,
+        "end": 13655
       },
       "nodeId": "3879:35564",
       "property": "counterAxisAlignItems",
@@ -5079,8 +4899,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13635,
-        "end": 13660
+        "start": 13664,
+        "end": 13689
       },
       "nodeId": "3879:35564",
       "property": "fills",
@@ -5089,8 +4909,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13669,
-        "end": 13698
+        "start": 13698,
+        "end": 13727
       },
       "nodeId": "3879:35564",
       "property": "strokes",
@@ -5099,8 +4919,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13707,
-        "end": 13719
+        "start": 13736,
+        "end": 13748
       },
       "nodeId": "3879:35564",
       "property": "y",
@@ -5108,8 +4928,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13728,
-        "end": 13758
+        "start": 13757,
+        "end": 13787
       },
       "nodeId": "3879:35564",
       "property": "primaryAxisAlignItems",
@@ -5117,8 +4937,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13767,
-        "end": 13777
+        "start": 13796,
+        "end": 13806
       },
       "nodeId": "3879:35564",
       "property": "x",
@@ -5126,8 +4946,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13786,
-        "end": 13803
+        "start": 13815,
+        "end": 13832
       },
       "nodeId": "3879:35564",
       "property": "clipsContent",
@@ -5135,8 +4955,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13812,
-        "end": 13826
+        "start": 13841,
+        "end": 13855
       },
       "nodeId": "3879:35564",
       "property": "layoutPositioning",
@@ -5144,8 +4964,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13835,
-        "end": 13844
+        "start": 13864,
+        "end": 13873
       },
       "nodeId": "3879:35564",
       "property": "paddingLeft",
@@ -5153,8 +4973,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13835,
-        "end": 13844
+        "start": 13864,
+        "end": 13873
       },
       "nodeId": "3879:35564",
       "property": "paddingRight",
@@ -5162,8 +4982,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13853,
-        "end": 13861
+        "start": 13882,
+        "end": 13890
       },
       "nodeId": "3879:35564",
       "property": "paddingBottom",
@@ -5171,8 +4991,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13853,
-        "end": 13861
+        "start": 13882,
+        "end": 13890
       },
       "nodeId": "3879:35564",
       "property": "paddingTop",
@@ -5180,8 +5000,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13870,
-        "end": 13878
+        "start": 13899,
+        "end": 13907
       },
       "nodeId": "3879:35564",
       "property": "width",
@@ -5189,16 +5009,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13891,
-        "end": 14187
+        "start": 13920,
+        "end": 14215
       },
       "nodeId": "3879:35565",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 13896,
-        "end": 13902
+        "start": 13925,
+        "end": 13931
       },
       "nodeId": "3879:35565",
       "property": "layoutMode",
@@ -5206,8 +5026,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13896,
-        "end": 13902
+        "start": 13925,
+        "end": 13931
       },
       "nodeId": "3879:35565",
       "property": "type",
@@ -5215,8 +5035,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13913,
-        "end": 13926
+        "start": 13942,
+        "end": 13955
       },
       "nodeId": "3879:35565",
       "property": "fills",
@@ -5225,8 +5045,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13937,
-        "end": 13967
+        "start": 13966,
+        "end": 13996
       },
       "nodeId": "3879:35565",
       "property": "strokes",
@@ -5235,8 +5055,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 13978,
-        "end": 13997
+        "start": 14007,
+        "end": 14026
       },
       "nodeId": "3879:35565",
       "property": "cornerRadius",
@@ -5244,8 +5064,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14008,
-        "end": 14017
+        "start": 14037,
+        "end": 14046
       },
       "nodeId": "3879:35565",
       "property": "paddingLeft",
@@ -5253,8 +5073,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14008,
-        "end": 14017
+        "start": 14037,
+        "end": 14046
       },
       "nodeId": "3879:35565",
       "property": "paddingRight",
@@ -5262,8 +5082,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14028,
-        "end": 14037
+        "start": 14057,
+        "end": 14065
       },
       "nodeId": "3879:35565",
       "property": "paddingBottom",
@@ -5271,8 +5091,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14028,
-        "end": 14037
+        "start": 14057,
+        "end": 14065
       },
       "nodeId": "3879:35565",
       "property": "paddingTop",
@@ -5280,16 +5100,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14052,
-        "end": 14169
+        "start": 14080,
+        "end": 14197
       },
       "nodeId": "3879:35566",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 14059,
-        "end": 14063
+        "start": 14087,
+        "end": 14091
       },
       "nodeId": "3879:35566",
       "property": "type",
@@ -5297,8 +5117,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14064,
-        "end": 14077
+        "start": 14092,
+        "end": 14105
       },
       "nodeId": "3879:35566",
       "property": "fills",
@@ -5307,8 +5127,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14064,
-        "end": 14077
+        "start": 14092,
+        "end": 14105
       },
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
@@ -5317,8 +5137,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14078,
-        "end": 14103
+        "start": 14106,
+        "end": 14131
       },
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
@@ -5327,8 +5147,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14078,
-        "end": 14103
+        "start": 14106,
+        "end": 14131
       },
       "nodeId": "3879:35566",
       "property": "textStyleId",
@@ -5337,8 +5157,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14104,
-        "end": 14124
+        "start": 14132,
+        "end": 14152
       },
       "nodeId": "3879:35566",
       "property": "characters",
@@ -5346,8 +5166,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14138,
-        "end": 14151
+        "start": 14166,
+        "end": 14179
       },
       "nodeId": "3879:35566",
       "property": "characters",
@@ -5355,16 +5175,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14192,
-        "end": 14397
+        "start": 14220,
+        "end": 14425
       },
       "nodeId": "3879:35567",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 14197,
-        "end": 14203
+        "start": 14225,
+        "end": 14231
       },
       "nodeId": "3879:35567",
       "property": "layoutMode",
@@ -5372,8 +5192,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14197,
-        "end": 14203
+        "start": 14225,
+        "end": 14231
       },
       "nodeId": "3879:35567",
       "property": "type",
@@ -5381,8 +5201,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14204,
-        "end": 14217
+        "start": 14232,
+        "end": 14245
       },
       "nodeId": "3879:35567",
       "property": "fills",
@@ -5391,8 +5211,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14218,
-        "end": 14237
+        "start": 14246,
+        "end": 14265
       },
       "nodeId": "3879:35567",
       "property": "cornerRadius",
@@ -5400,8 +5220,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14238,
-        "end": 14247
+        "start": 14266,
+        "end": 14275
       },
       "nodeId": "3879:35567",
       "property": "paddingLeft",
@@ -5409,8 +5229,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14238,
-        "end": 14247
+        "start": 14266,
+        "end": 14275
       },
       "nodeId": "3879:35567",
       "property": "paddingRight",
@@ -5418,8 +5238,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14248,
-        "end": 14257
+        "start": 14276,
+        "end": 14285
       },
       "nodeId": "3879:35567",
       "property": "paddingBottom",
@@ -5427,8 +5247,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14248,
-        "end": 14257
+        "start": 14276,
+        "end": 14285
       },
       "nodeId": "3879:35567",
       "property": "paddingTop",
@@ -5436,16 +5256,16 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14263,
-        "end": 14379
+        "start": 14291,
+        "end": 14407
       },
       "nodeId": "3879:35568",
       "resolution": "node"
     },
     {
       "generatedRange": {
-        "start": 14270,
-        "end": 14274
+        "start": 14298,
+        "end": 14302
       },
       "nodeId": "3879:35568",
       "property": "type",
@@ -5453,8 +5273,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14275,
-        "end": 14287
+        "start": 14303,
+        "end": 14315
       },
       "nodeId": "3879:35568",
       "property": "fills",
@@ -5462,8 +5282,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14288,
-        "end": 14313
+        "start": 14316,
+        "end": 14341
       },
       "nodeId": "3879:35568",
       "property": "styledTextSegments",
@@ -5472,8 +5292,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14288,
-        "end": 14313
+        "start": 14316,
+        "end": 14341
       },
       "nodeId": "3879:35568",
       "property": "textStyleId",
@@ -5482,8 +5302,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14314,
-        "end": 14334
+        "start": 14342,
+        "end": 14362
       },
       "nodeId": "3879:35568",
       "property": "characters",
@@ -5491,8 +5311,8 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 14348,
-        "end": 14361
+        "start": 14376,
+        "end": 14389
       },
       "nodeId": "3879:35568",
       "property": "characters",

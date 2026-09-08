@@ -33,7 +33,7 @@ impl FromStr for DeliveryMode {
             "resource" => Ok(Self::Resource),
             _ => Err(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "delivery는 auto, inline 또는 resource여야 합니다.",
+                "delivery must be auto, inline, or resource.",
                 false,
             )),
         }
@@ -110,7 +110,7 @@ pub fn choose_delivery(
         total.checked_add(output.bytes.len()).ok_or_else(|| {
             DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
-                "생성 output 크기가 안전한 범위를 초과했습니다.",
+                "The generated output size exceeded the safe range.",
                 false,
             )
         })
@@ -125,7 +125,7 @@ pub fn choose_delivery(
         }),
         DeliveryMode::Inline if total_bytes > MAX_INLINE_TOTAL_BYTES => Err(DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "inline output이 1 MiB 상한을 초과했습니다. delivery=auto 또는 resource를 사용하세요.",
+            "The inline output exceeded the 1 MiB limit. Use delivery=auto or resource.",
             false,
         )),
         DeliveryMode::Inline => Ok(DeliveryDecision { inline: true }),
@@ -145,7 +145,7 @@ fn projected_output_wire_bytes(output: &ProjectedOutput) -> Result<usize, DevupE
         let text = std::str::from_utf8(&output.bytes).map_err(|_| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                "inline text output은 UTF-8이어야 합니다.",
+                "An inline text output must be UTF-8.",
                 false,
             )
         })?;
@@ -156,7 +156,7 @@ fn projected_output_wire_bytes(output: &ProjectedOutput) -> Result<usize, DevupE
         .map_err(|error| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                format!("MCP output 크기를 계산할 수 없습니다: {error}"),
+                format!("Cannot compute the MCP output size: {error}"),
                 false,
             )
         })
@@ -172,7 +172,7 @@ pub fn choose_delivery_for_result(
         .map_err(|error| {
             DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
-                format!("MCP tool response 크기를 계산할 수 없습니다: {error}"),
+                format!("Cannot compute the MCP tool response size: {error}"),
                 false,
             )
         })?
@@ -183,7 +183,7 @@ pub fn choose_delivery_for_result(
         }),
         DeliveryMode::Inline if wire_bytes > MAX_INLINE_TOTAL_BYTES => Err(DevupError::new(
             ErrorCode::DevupFigmaResponseTooLarge,
-            "직렬화된 inline MCP response가 1 MiB 상한을 초과했습니다. delivery=auto 또는 resource를 사용하세요.",
+            "The serialized inline MCP response exceeded the 1 MiB limit. Use delivery=auto or resource.",
             false,
         )),
         DeliveryMode::Inline => Ok(DeliveryDecision { inline: true }),

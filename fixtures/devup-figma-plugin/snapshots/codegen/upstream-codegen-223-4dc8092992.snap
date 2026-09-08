@@ -10,8 +10,8 @@ expression: actual
       bg="$primaryBg"
       border="solid 1px $border"
       gap="20px"
-      px="40px"
-      py="30px"
+      px="39px"
+      py="29px"
     >
       <Text
         color="$text"
@@ -59,8 +59,8 @@ expression: actual
             bg="$primary"
             border="solid 1px $primary"
             borderRadius="100px"
-            px="12px"
-            py="4px"
+            px="11px"
+            py="3px"
           >
             <Text
               color="#FFF"
@@ -108,8 +108,8 @@ expression: actual
             bg="$primary"
             border="solid 1px $primary"
             borderRadius="100px"
-            px="12px"
-            py="4px"
+            px="11px"
+            py="3px"
           >
             <Text
               color="#FFF"

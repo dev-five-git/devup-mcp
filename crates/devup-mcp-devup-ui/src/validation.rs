@@ -49,7 +49,7 @@ pub fn validate_tsx(source: &str) -> Result<TsxValidation, DevupError> {
         .collect::<Vec<_>>();
     Err(DevupError::with_details(
         ErrorCode::DevupCodegenFailed,
-        "생성된 DevupUI TSX가 TypeScript JSX 문법 검증을 통과하지 못했습니다.",
+        "Generated DevupUI TSX failed TypeScript JSX syntax validation.",
         false,
         json!({
             "errorCount": errors.len(),

@@ -6,6 +6,7 @@ pub enum ErrorCode {
     DevupAuthRequired,
     DevupAuthCallbackTimeout,
     DevupAuthStateMismatch,
+    DevupFigmaCallbackPortInUse,
     DevupFigmaPermissionDenied,
     DevupFigmaRateLimited,
     DevupFigmaDirectUnavailable,
@@ -21,6 +22,8 @@ pub enum ErrorCode {
     DevupCodegenFailed,
     DevupThemeConflict,
     DevupCompatCorpusDrift,
+    DevupInvalidInput,
+    DevupProjectRootNotFound,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
