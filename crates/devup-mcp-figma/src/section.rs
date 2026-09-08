@@ -20,6 +20,8 @@ pub struct SectionCandidate {
     pub node_id: String,
     pub name: String,
     pub node_type: String,
+    #[serde(default)]
+    pub text_preview: String,
     pub visible: bool,
     pub bounds: ExploreBounds,
     pub parent_id: Option<String>,
@@ -239,6 +241,7 @@ pub fn build_section_index(
                 node_id: node.node_id,
                 name: node.name,
                 node_type: node.node_type,
+                text_preview: node.text_preview,
                 visible: node.visible,
                 bounds: node.bounds,
                 parent_id: node.parent_id,

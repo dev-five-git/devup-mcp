@@ -2081,6 +2081,7 @@ fn section_index_with_node_counts(node_counts: &[usize]) -> SectionIndex {
                 node_id: format!("root-{index}"),
                 name: format!("Root {index}"),
                 node_type: "FRAME".to_owned(),
+                text_preview: String::new(),
                 visible: true,
                 bounds: ExploreBounds {
                     y: index as f64 * 200.0,

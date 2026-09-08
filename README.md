@@ -328,6 +328,8 @@ asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플�
 
 Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다.
 
+SECTION 기본 응답은 화면 아티팩트가 아닌 선택 목록입니다. `selection.status`와 `selection.count`로 목록 조회 상태와 후보 수를 알 수 있으며, 최상위 `status: "selection_required"`는 아직 화면을 선택해야 한다는 뜻입니다. `selection.candidates[]`는 `node.name`, `node.nodeType`, `node.textPreview`, `canonicalUrl`로 서로 구분할 수 있습니다. 미리보기는 보이는 텍스트만 모아 최대 120자, 전체 최대 2KB로 제한하므로 비어 있거나 짧아도 실제 화면 내용이 없다는 뜻은 아닙니다. `nextAction.example`에는 첫 후보를 선택하는 `devup_figma_export` 호출 예시가 들어 있습니다. 예시의 `frameIds`를 검토한 후보 ID로 바꿔 호출하면 선택한 화면만 수집합니다.
+
 ### 한 화면의 여러 폭 — 반응형 모듈
 
 Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이름**을 가지면, 그 frame 하나를 요청해도 같은 이름 규칙의 형제 frame이 함께 수집됩니다(Section 자체는 수집 범위 밖이며, 그 이름은 각 frame의 `parentName`으로 전달됩니다). 이때 `tsx`나 `responsiveTsx`를 요청하면 결과에 `responsiveTsx`가 추가됩니다 — 세 폭을 하나의 트리로 접고 폭마다 다른 값을 devup-ui 반응형 배열 `[mobile, sm, tablet, lg, pc]`로 쓴 모듈입니다. 각 폭이 놓이는 slot은 frame **이름이 아니라 폭**으로 정해집니다(`≤480 / ≤768 / ≤992 / ≤1280 / 그 이상`). 컴포넌트 이름은 `componentName`이 우선이고, 없으면 Section 이름의 PascalCase에 `Page`를 붙입니다(`about` → `AboutPage`).
