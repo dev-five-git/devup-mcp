@@ -190,6 +190,20 @@ jobs:
           SUFFIX: ${{ matrix.suffix }}
           EXT: ${{ matrix.ext }}
           OS: ${{ matrix.os }}
+          # Name the commit outright instead of letting build.rs infer it.
+          #
+          # It infers by asking git for HEAD and whether the tree is dirty,
+          # and on a release build the tree always is: `changepacks update`
+          # moves the version in Cargo.toml and leaves Cargo.lock behind, so
+          # the first cargo invocation rewrites the lock and dirties the
+          # checkout. Every published binary then reported its build id as
+          # `<sha>-dirty`, which is precisely the state `--version` and
+          # `--self-check` exist to tell apart from a developer's working
+          # tree. Committing the lock fixed the instance; the next Update
+          # Versions pull request brings it straight back.
+          #
+          # CI knows exactly which commit it is building, so it says so.
+          DEVUP_MCP_BUILD_ID: ${{ github.sha }}
         run: |
           set -euo pipefail
           for target in $TARGETS; do

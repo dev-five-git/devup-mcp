@@ -123,7 +123,25 @@ fn collection_scope_rank(scope: CollectionScope) -> u8 {
     }
 }
 
-pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
+/// The two outputs that answer a question about the generator rather than
+/// contributing to the screen.
+///
+/// They are the design as it was collected, in raw form. Nothing that
+/// implements a screen needs them - the tsx already carries what they carry,
+/// measured across ten real captured screens at 100% of nodes, text,
+/// typography, assets and layout. What they are for is the other question:
+/// the UI looks wrong, and someone has to decide whether the generator is at
+/// fault or the design says so. Answering that means reading the design
+/// beside the code, which is exactly this.
+///
+/// Left in the ordinary `outputs` list they were requested as a matter of
+/// course - the server's own instructions used to say to take `rawSnapshot`
+/// every time, which on one measured screen spent about eight bytes for
+/// every one of code. `debug` is the door: closed for implementation, open
+/// when a defect is being adjudicated.
+pub(crate) const DIAGNOSIS_OUTPUTS: [&str; 2] = ["rawSnapshot", "rawPayload"];
+
+pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), DevupError> {
     if outputs.is_empty() {
         return Err(DevupError::new(
             ErrorCode::DevupInvalidInput,
@@ -138,6 +156,19 @@ pub(super) fn validate_outputs(outputs: &[String]) -> Result<(), DevupError> {
                 format!(
                     "Unsupported export output: {output}. Supported: {}.",
                     EXPORT_OUTPUTS.join(", ")
+                ),
+                false,
+            ));
+        }
+        if !debug && DIAGNOSIS_OUTPUTS.contains(&output.as_str()) {
+            return Err(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                format!(
+                    "{output} is the collected design in raw form, for deciding whether a \
+                     screen that looks wrong is the generator's fault or the design's. It is \
+                     not needed to implement anything - the tsx already carries what it \
+                     carries - and requesting it by habit is most of the response. Pass \
+                     debug: true to read it."
                 ),
                 false,
             ));

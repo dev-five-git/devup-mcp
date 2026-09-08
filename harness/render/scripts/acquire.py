@@ -184,8 +184,11 @@ def acquire(server, name, target, manifest):
             # conflicts.
             outputs.append("devupJson")
             paths["devupJson"] = theme_path
+        # rawSnapshot describes the design rather than the screen, so it needs
+        # debug: true. This harness is the case that flag is for - it compares
+        # what the browser drew against what the design says.
         body = server.export({"url": url_for(target, frame), "outputs": outputs, "scope": "node",
-                              "outputPaths": paths, "includeDiagnostics": True})
+                              "outputPaths": paths, "includeDiagnostics": True, "debug": True})
         print(f"  {frame}: status={body.get('status')} quality={body.get('quality')}", flush=True)
         # The module refers to assets by layer name; the manifest by node id.
         with open(os.path.join(HARNESS, paths["rawSnapshot"]), encoding="utf-8") as handle:
