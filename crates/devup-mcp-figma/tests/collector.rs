@@ -2113,6 +2113,194 @@ fn multi_root_ids(call: &ReadToolCall) -> Vec<&str> {
     root_ids.iter().map(String::as_str).collect()
 }
 
+fn boolean_logo_page(root: &str, offset: usize) -> UpstreamResult {
+    let variable = format!("{root}-variable-{offset}");
+    let base = fast_multi_envelope_result(&[root], &[&variable]);
+    let mut envelope: Value =
+        serde_json::from_str(base.raw["content"][0]["text"].as_str().unwrap()).unwrap();
+    let union = format!("{root}-union");
+    let operands = (0..6)
+        .map(|i| format!("{root}-vector-{i}"))
+        .collect::<Vec<_>>();
+    let mut first = envelope["snapshot"]["nodes"][0].clone();
+    let mut nodes = if offset == 0 {
+        first["fields"]["childrenIds"] = json!([union]);
+        vec![
+            first,
+            json!({"id": union, "type": "BOOLEAN_OPERATION", "fields": {"parentId": root, "childrenIds": operands}}),
+        ]
+    } else {
+        first["id"] = json!(operands[0]);
+        first["type"] = json!("VECTOR");
+        first["fields"]["parentId"] = json!(union);
+        let mut nodes = vec![first];
+        nodes.extend(
+            operands
+                .iter()
+                .skip(1)
+                .map(|id| json!({"id": id, "type": "VECTOR", "fields": {"parentId": union}})),
+        );
+        nodes
+    };
+    nodes.push(json!({"id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL", "fields": {
+        "offset": offset, "nextOffset": if offset == 0 {2} else {8}, "totalNodes": 8, "complete": offset != 0
+    }}));
+    envelope["integrity"]["nodeCount"] = json!(nodes.len());
+    envelope["snapshot"]["nodes"] = json!(nodes);
+    UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": envelope.to_string()}]}),
+    }
+}
+
+#[test]
+fn section_boolean_operands_are_collected_from_each_roots_continuation() {
+    let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    request.section = Some(SectionReadOptions {
+        frame_ids: vec!["root-0".into(), "root-1".into()],
+        all_screens: false,
+    });
+    request.cached_section_index = Some(section_index_with_node_counts(&[8, 8]));
+    let mut collector = CollectorSession::new(request);
+    let mut first = Vec::new();
+    for _ in 0..2 {
+        let CollectorStep::Call(call) = collector.advance().unwrap() else {
+            panic!("first page expected")
+        };
+        first.push(call);
+    }
+    // Complete siblings out of order, as the server does with concurrent reads.
+    for call in first.iter().rev() {
+        let root = multi_root_ids(&call.call)[0];
+        collector
+            .accept(&call.id, boolean_logo_page(root, 0))
+            .unwrap();
+    }
+    for _ in 0..2 {
+        let CollectorStep::Call(call) = collector.advance().unwrap() else {
+            panic!("six boolean operands still need a continuation page")
+        };
+        let root = multi_root_ids(&call.call)[0];
+        assert_eq!(call.expected_node_id.as_deref(), Some("10:1"));
+        assert!(
+            call.call.arguments()["code"]
+                .as_str()
+                .unwrap()
+                .contains("\"offset\":2")
+        );
+        collector
+            .accept(&call.id, boolean_logo_page(root, 2))
+            .unwrap();
+    }
+    let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+        panic!("all pages should complete")
+    };
+    let snapshot = merge_chunks(parts.snapshot_chunks).unwrap();
+    assert_eq!(snapshot.nodes.len(), 16);
+    assert!(snapshot.audit().missing_children.is_empty());
+    assert!(!snapshot.nodes.contains_key("__DEVUP_SNAPSHOT_CURSOR__"));
+    assert_eq!(
+        parts.variables.unwrap().raw["variables"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+}
+
+#[test]
+fn section_pages_reject_mismatched_or_nonadvancing_cursors() {
+    for (field, value) in [
+        ("offset", json!(1)),
+        ("nextOffset", json!(0)),
+        ("nextOffset", json!(3)),
+        ("totalNodes", json!(1)),
+        // nextOffset == totalNodes requires complete: true.
+        ("totalNodes", json!(2)),
+    ] {
+        let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+        request.resource_scope = ResourceScope::Used;
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["root-0".into()],
+            all_screens: false,
+        });
+        request.cached_section_index = Some(section_index_with_node_counts(&[8]));
+        let mut collector = CollectorSession::new(request);
+        let CollectorStep::Call(call) = collector.advance().unwrap() else {
+            panic!("first page expected")
+        };
+        let mut result = boolean_logo_page("root-0", 0);
+        let mut envelope: Value =
+            serde_json::from_str(result.raw["content"][0]["text"].as_str().unwrap()).unwrap();
+        envelope["snapshot"]["nodes"][2]["fields"][field] = value;
+        result.raw["content"][0]["text"] = json!(envelope.to_string());
+        assert!(
+            collector.accept(&call.id, result).is_err(),
+            "invalid {field} must not be cached or followed"
+        );
+    }
+}
+
+#[test]
+fn failed_section_continuations_do_not_restart_over_accepted_large_values() {
+    for malformed_response in [false, true] {
+        let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+        request.resource_scope = ResourceScope::Used;
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["root-0".into()],
+            all_screens: false,
+        });
+        request.cached_section_index = Some(section_index_with_node_counts(&[8]));
+        let mut collector = CollectorSession::new(request);
+        let CollectorStep::Call(first) = collector.advance().unwrap() else {
+            panic!("first page expected")
+        };
+        let mut page = boolean_logo_page("root-0", 0);
+        let mut envelope: Value =
+            serde_json::from_str(page.raw["content"][0]["text"].as_str().unwrap()).unwrap();
+        envelope["snapshot"]["nodes"][0]["fields"]["characters"] = json!({"$largeValue": {
+            "nodeId": "root-0", "field": "characters", "byteLength": 19,
+            "sha256": "5ab6efd34df9db2f30a0581487fd5d023fde8f658c3dfe9378dbed52332e11f8",
+            "cursor": {"nextOffset": 0, "maxChunkBytes": 8}
+        }});
+        page.raw["content"][0]["text"] = json!(envelope.to_string());
+        collector.accept(&first.id, page).unwrap();
+        let CollectorStep::Call(large_value) = collector.advance().unwrap() else {
+            panic!("large value read expected")
+        };
+        assert!(matches!(large_value.call, ReadToolCall::LargeValue { .. }));
+        let CollectorStep::Call(continuation) = collector.advance().unwrap() else {
+            panic!("continuation expected")
+        };
+        if malformed_response {
+            assert!(
+                collector
+                    .accept(
+                        &continuation.id,
+                        UpstreamResult {
+                            raw: json!({"content": []})
+                        }
+                    )
+                    .is_err()
+            );
+        } else {
+            let error = DevupError::new(
+                ErrorCode::DevupFigmaDirectUnavailable,
+                "continuation failed",
+                true,
+            );
+            assert!(
+                !collector.reject(&continuation.id, &error).unwrap(),
+                "propagate the failure instead of restarting at offset zero"
+            );
+        }
+        assert!(
+            matches!(collector.advance().unwrap(), CollectorStep::AwaitingResults),
+            "no legacy restart may mix with the pending field read"
+        );
+    }
+}
+
 fn legacy_root_id(call: &ReadToolCall) -> &str {
     let ReadToolCall::Snapshot {
         node_id,
