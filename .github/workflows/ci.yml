@@ -13,8 +13,11 @@ name: CI
 #      *draft* releases and reports them in `pending_releases`.
 #   4. `build` compiles every MCP binary for all three platforms and uploads
 #      them onto those drafts.
-#   5. `finalize` publishes the drafts, but only once the uploads succeeded —
-#      so a release is never visible without its binaries attached.
+#   5. `bundle` collects those same three binaries back into one `.mcpb`
+#      MCP Bundle, so a user on any operating system installs the one file
+#      rather than picking a binary and wiring up stdio by hand.
+#   6. `finalize` publishes the drafts, but only once the uploads succeeded —
+#      so a release is never visible without its binaries and its bundle.
 
 on:
   push:
@@ -28,6 +31,12 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  # Pinned so a release cannot start producing a differently shaped bundle on
+  # its own. `pack` writes the archive's Unix permission bits from the mode it
+  # finds on disk in this version, which is why `bundle` chmods first.
+  MCPB_CLI_VERSION: "2.1.2"
 
 jobs:
   # The action comments the changepack status on a pull request but does not
@@ -105,6 +114,20 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo insta test --workspace --all-features --check
       - run: cargo build --workspace --release
+      # The bundle is only assembled on a release run, so without this the
+      # first time anyone learns the manifest is malformed is after the tag
+      # and the draft release already exist. Schema-check it on every pull
+      # request instead, against the same rendering step `bundle` performs.
+      - name: Validate the MCPB manifest
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bash packaging/mcpb/workspace-version.sh)"
+          mkdir -p build
+          jq --arg version "$version" '.version = $version' \
+            packaging/mcpb/manifest.json > build/manifest.json
+          npx --yes "@anthropic-ai/mcpb@$MCPB_CLI_VERSION" validate build/manifest.json
 
   changepacks:
     name: changepacks
@@ -187,6 +210,17 @@ jobs:
             fi
           done
           ls -l dist
+      # `bundle` needs all three platforms' server binaries in one place, and
+      # each is produced on a different runner. Only the MCP server itself is
+      # carried: devup-mcp-visual is a comparison CLI a consumer repository
+      # runs in its own CI, not something an MCP host ever launches.
+      - name: Hand the server binary to the bundle job
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcpb-binary-${{ matrix.suffix }}
+          path: dist/devup-mcp-${{ matrix.suffix }}${{ matrix.ext }}
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload binaries onto the draft release
         shell: bash
         env:
@@ -216,9 +250,116 @@ jobs:
               "${upload}?name=${name}" >/dev/null
           done
 
+  # Six loose binaries make a user pick the right file for their machine and
+  # then wire stdio up by hand. One `.mcpb` — a zip carrying manifest.json and
+  # all three platform binaries — installs in a click on any of them, because
+  # the manifest's platform_overrides selects the matching command at launch.
+  bundle:
+    name: bundle mcpb
+    needs: [changepacks, build]
+    if: >-
+      needs.changepacks.outputs.pending_releases != ''
+      && needs.changepacks.outputs.pending_releases != '{}'
+    # Must not be windows-latest. mcpb writes the archive's Unix permission
+    # bits only when packing from a Unix host; from Windows it writes none at
+    # all, and macOS and Linux then fail to launch the binary with EACCES.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mcpb-binary-*
+          path: artifacts
+          merge-multiple: true
+      - name: Assemble and pack the bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bash packaging/mcpb/workspace-version.sh)"
+          echo "bundling devup-mcp $version"
+
+          mkdir -p build/server/linux build/server/macos build/server/win
+          cp artifacts/devup-mcp-linux-x86_64 build/server/linux/devup-mcp
+          cp artifacts/devup-mcp-macos-universal build/server/macos/devup-mcp
+          cp artifacts/devup-mcp-windows-x86_64.exe build/server/win/devup-mcp.exe
+          # The artifact round trip does not carry file modes, and the pinned
+          # mcpb copies the mode it finds rather than forcing +x on the entry
+          # point, so the executable bit has to be put back here.
+          chmod +x build/server/linux/devup-mcp build/server/macos/devup-mcp
+
+          jq --arg version "$version" '.version = $version' \
+            packaging/mcpb/manifest.json > build/manifest.json
+
+          # `mcpb validate` only ever looks at server.entry_point, so a typo in
+          # a platform_overrides path would ship a bundle that is broken on
+          # exactly one operating system and healthy on the two we can see from
+          # here. Check every command the manifest is able to select.
+          missing=0
+          while read -r referenced; do
+            [ -n "$referenced" ] || continue
+            if [ ! -f "build/$referenced" ]; then
+              echo "manifest.json names a file the bundle does not carry: $referenced" >&2
+              missing=1
+            fi
+          done < <(jq -r '
+            [ .server.entry_point,
+              .server.mcp_config.command,
+              (.server.mcp_config.platform_overrides // {} | .[] | .command // empty) ]
+            | .[] | ltrimstr("${__dirname}/")' build/manifest.json | sort -u)
+          [ "$missing" -eq 0 ]
+
+          npx --yes "@anthropic-ai/mcpb@$MCPB_CLI_VERSION" pack build "devup-mcp-$version.mcpb"
+          echo "MCPB_FILE=devup-mcp-$version.mcpb" >> "$GITHUB_ENV"
+      # A bundle whose binaries lost their executable bit installs cleanly and
+      # then fails at first launch, which is exactly the kind of defect a
+      # release should not be able to carry. Read it back out of the archive.
+      - name: Verify the archive kept the executable bit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for entry in server/linux/devup-mcp server/macos/devup-mcp; do
+            mode="$(unzip -Z "$MCPB_FILE" "$entry" \
+              | awk -v entry="$entry" '$NF == entry { print $1 }')"
+            echo "$entry: ${mode:-<absent>}"
+            # mcpb stores the permission bits alone, without the regular-file
+            # type bits, so zipinfo prints the type column as "?" rather than
+            # "-" even for a correctly packed archive. Only the owner execute
+            # position is meaningful, and an absent entry yields an empty
+            # string, which fails this the same way a non-executable one does.
+            if [ "${mode:3:1}" != "x" ]; then
+              echo "$entry is not executable inside $MCPB_FILE" >&2
+              exit 1
+            fi
+          done
+      - name: Upload the bundle onto the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET_URLS: ${{ needs.changepacks.outputs.release_assets_urls }}
+        run: |
+          set -euo pipefail
+          upload="$(printf '%s' "$ASSET_URLS" \
+            | jq -r '.["crates/devup-mcp/Cargo.toml"] // empty')"
+          if [ -z "$upload" ]; then
+            echo "no asset upload URL for crates/devup-mcp/Cargo.toml" >&2
+            printf '%s\n' "$ASSET_URLS" >&2
+            exit 1
+          fi
+          # Drop the RFC 6570 template suffix, e.g. "{?name,label}".
+          upload="${upload%%\{*}"
+          echo "uploading $MCPB_FILE"
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$MCPB_FILE" \
+            "${upload}?name=${MCPB_FILE}" >/dev/null
+
   finalize:
     name: finalize release
-    needs: [changepacks, build]
+    needs: [changepacks, build, bundle]
     if: >-
       needs.changepacks.outputs.pending_releases != ''
       && needs.changepacks.outputs.pending_releases != '{}'

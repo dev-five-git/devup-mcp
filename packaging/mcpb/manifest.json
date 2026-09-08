@@ -1,0 +1,91 @@
+{
+  "manifest_version": "0.2",
+  "name": "devup-mcp",
+  "display_name": "Devup MCP",
+  "version": "0.0.0",
+  "description": "Read Figma designs and generate DevupUI TSX, devup.json theme tokens and exported assets",
+  "long_description": "devup-mcp is a Rust-native stdio MCP server and a read-only client of Figma Remote MCP. It converts a Figma node link into deterministic @devup-ui/react TSX, projects Figma variables and local styles into devup.json, exports the assets a screen actually paints, and reports how much of the source it reproduced exactly. Connecting to Figma is a browser OAuth login run once from the devup_figma_auth tool; no Figma personal access token is involved and credentials live only in the operating system credential store. This bundle carries a self-contained binary for Linux, Windows and macOS (universal), so no Rust toolchain, Node runtime or cargo install is needed.",
+  "author": {
+    "name": "dev-five-git",
+    "url": "https://github.com/dev-five-git"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dev-five-git/devup-mcp"
+  },
+  "homepage": "https://github.com/dev-five-git/devup-mcp",
+  "documentation": "https://github.com/dev-five-git/devup-mcp#readme",
+  "support": "https://github.com/dev-five-git/devup-mcp/issues",
+  "license": "MIT",
+  "keywords": ["figma", "devup-ui", "design-to-code", "react", "tsx", "design-tokens"],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/linux/devup-mcp",
+    "mcp_config": {
+      "command": "${__dirname}/server/linux/devup-mcp",
+      "args": ["--allow-write-root", "${user_config.workspace_directory}"],
+      "env": {},
+      "platform_overrides": {
+        "linux": {
+          "command": "${__dirname}/server/linux/devup-mcp"
+        },
+        "darwin": {
+          "command": "${__dirname}/server/macos/devup-mcp"
+        },
+        "win32": {
+          "command": "${__dirname}/server/win/devup-mcp.exe"
+        }
+      }
+    }
+  },
+  "user_config": {
+    "workspace_directory": {
+      "type": "directory",
+      "title": "Workspace directory",
+      "description": "The project directory devup-mcp may write generated TSX, devup.json and exported assets into. It is the only writable location: a path outside it is refused before anything is written, including one reached through .., another drive or a symlink. Pick the repository you are generating code for.",
+      "required": true
+    }
+  },
+  "tools": [
+    {
+      "name": "devup_figma_auth",
+      "description": "Check, start or clear the Figma connection, or diagnose why it is not connecting"
+    },
+    {
+      "name": "devup_figma_export",
+      "description": "Acquire a Figma design once and project TSX, component TSX, responsive TSX, devup.json, source map, raw snapshot and assets from it"
+    },
+    {
+      "name": "devup_figma_to_ui",
+      "description": "Convert a Figma node link to deterministic DevupUI TSX"
+    },
+    {
+      "name": "devup_figma_to_json",
+      "description": "Convert Figma variables and local styles to a devup.json theme"
+    },
+    {
+      "name": "devup_figma_search",
+      "description": "Find pages, sections, frames and components in a Figma file by name"
+    },
+    {
+      "name": "devup_figma_explore",
+      "description": "List the screen candidates spatially related to a linked Figma node"
+    },
+    {
+      "name": "devup_project_context",
+      "description": "Read a project's real devup.json tokens, openapi.json endpoints or Vespertide models"
+    },
+    {
+      "name": "devup_ui_validate",
+      "description": "Validate DevupUI TSX against a project's real devup.json tokens and component props"
+    },
+    {
+      "name": "devup_stack_diff",
+      "description": "Detect drift across the devup stack from database model to generated API client"
+    }
+  ],
+  "tools_generated": false,
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}
