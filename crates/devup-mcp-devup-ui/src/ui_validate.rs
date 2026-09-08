@@ -27,13 +27,10 @@
 //! length-like props (`style_props.rs`, itself sourced from devup-ui's
 //! published Style Props API reference, not invented).
 //!
-//! The two `hardcoded-*` rules report a literal **only when the project's
-//! `devup.json` already defines that exact value as a token**. See
-//! [`TsxVisitor::report_hardcoded_value`] for why: the length rule used to
-//! fire on every `px` literal regardless, and on a project whose theme has
-//! no `length` key at all that meant ten warnings telling the author to
-//! use a kind of token the project does not have one of
-//! (`devup-mcp-defects.md` D11).
+//! The two `hardcoded-*` rules always report literals. Exact token matches
+//! are warnings with actionable token advice; unmatched values are info
+//! without token suggestions. Empty token categories are summarized once
+//! in `themeNotes`, avoiding repeated, impossible advice (D11).
 
 use std::collections::BTreeSet;
 
@@ -62,6 +59,7 @@ const LITERAL_ONLY_CALLS: &[&str] = &["css", "globalCss", "keyframes"];
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    Info,
     Warning,
     Error,
 }
@@ -97,11 +95,14 @@ pub struct UiValidation {
     /// `true` is therefore compatible with a non-empty `violations`:
     /// warnings are values that would be better written as a token, and
     /// code that ignores every one of them still compiles and renders.
-    /// Pass `strict` to require an empty `violations` instead.
+    /// Pass `strict` to fail on warnings too. Info alone never fails `ok`.
     pub ok: bool,
     /// Every finding, in source order per rule. `severity` is what
     /// decides `ok`; the count alone does not.
     pub violations: Vec<Violation>,
+    /// One note per empty token category encountered by the hardcoded rules.
+    /// An unavailable theme is handled by the caller's guardrail instead.
+    pub theme_notes: Vec<String>,
     /// How many `$token` references this TSX makes — i.e. how many string
     /// attribute values began with `$` and were looked up. It counts the
     /// *code's* references, not the theme's tokens, and it counts them
@@ -164,14 +165,30 @@ pub fn validate_devup_ui_tsx(
     violations.extend(visitor.violations);
     let checked_tokens = visitor.checked_tokens;
 
-    let ok = violations
-        .iter()
-        .all(|violation| violation.severity != Severity::Error)
-        && (!strict || violations.is_empty());
+    let ok = violations.iter().all(|violation| {
+        violation.severity != Severity::Error
+            && !(strict && violation.severity == Severity::Warning)
+    });
+    let theme_notes = theme
+        .map(|theme| {
+            [
+                ("hardcoded-color", "color", &theme.colors),
+                ("hardcoded-length", "length", &theme.length),
+            ]
+            .into_iter()
+            .filter(|(rule, _, modes)| {
+                modes.values().all(|tokens| tokens.is_empty())
+                    && violations.iter().any(|finding| finding.rule == *rule)
+            })
+            .map(|(_, kind, _)| format!("The theme defines no {kind} tokens."))
+            .collect()
+        })
+        .unwrap_or_default();
 
     UiValidation {
         ok,
         violations,
+        theme_notes,
         checked_tokens,
         available_token_count,
     }
@@ -246,24 +263,8 @@ impl<'t> TsxVisitor<'t> {
         }
     }
 
-    /// Reports a literal value written where a theme token would do — but
-    /// only when a token holding that exact value actually exists.
-    ///
-    /// Both hardcoded rules are held to this one standard, and that is a
-    /// deliberate narrowing (`devup-mcp-defects.md` D11). The length rule
-    /// used to fire on every `px` literal whatever the theme held: on a
-    /// real project whose `devup.json` has **no `length` key at all**, the
-    /// generator's own output drew ten "Consider using a devup.json token"
-    /// warnings naming a kind of token the project does not have one of.
-    /// Advice that cannot be followed is not a finding, and a validator
-    /// that its own generator cannot satisfy teaches callers to ignore it.
-    ///
-    /// A near-miss is not reported either: `#752E2E` beside a `$primary`
-    /// of `#752D2D` is not a token anyone can type, and guessing which
-    /// near value was meant is how a wrong token gets written. What is
-    /// reported is only what can be proved — this value already has a
-    /// name — so the message states the token rather than advising in the
-    /// abstract.
+    /// Every literal remains visible. Only exact matches justify a warning
+    /// and token advice; unmatched values carry factual info with no suggestion.
     fn report_hardcoded_value(
         &mut self,
         rule: &'static str,
@@ -274,6 +275,18 @@ impl<'t> TsxVisitor<'t> {
         span: Span,
     ) {
         if tokens.is_empty() {
+            let context = if self.theme.is_some() {
+                "the theme has no matching token"
+            } else {
+                "no theme is available to check for a matching token"
+            };
+            self.violations.push(Violation {
+                rule,
+                severity: Severity::Info,
+                byte_range: [span.start as usize, span.end as usize],
+                message: format!("{prop_name} uses hardcoded {kind} {text}; {context}."),
+                suggestion: None,
+            });
             return;
         }
         let named = tokens
@@ -557,11 +570,24 @@ mod tests {
             .iter()
             .filter(|violation| violation.rule == "hardcoded-length")
             .collect::<Vec<_>>();
-        assert!(lengths.is_empty(), "{lengths:?}");
+        assert_eq!(
+            lengths.len(),
+            8,
+            "every literal remains visible: {lengths:?}"
+        );
+        for finding in lengths {
+            assert_eq!(serde_json::to_value(finding).unwrap()["severity"], "info");
+            assert!(finding.suggestion.is_none());
+            assert!(finding.message.contains("no matching token"));
+        }
+        assert_eq!(
+            serde_json::to_value(report).unwrap()["themeNotes"],
+            serde_json::json!(["The theme defines no length tokens."])
+        );
     }
 
     #[test]
-    fn a_length_the_theme_has_no_token_for_is_not_reported() {
+    fn unmatched_lengths_are_info_and_exact_matches_remain_warnings() {
         let tsx = r##"export const X = () => <Box gap="40px" borderRadius="16px" />;"##;
         let report = validate_devup_ui_tsx(tsx, Some(&fixture_theme()), false);
         let lengths = report
@@ -569,38 +595,83 @@ mod tests {
             .iter()
             .filter(|violation| violation.rule == "hardcoded-length")
             .collect::<Vec<_>>();
-        assert_eq!(lengths.len(), 1, "{lengths:?}");
-        // 16px is `$md`; 40px is nothing this theme defines.
-        assert!(lengths[0].message.contains("16px"), "{lengths:?}");
+        // Both are visible; only 16px has actionable advice ($md).
+        assert_eq!(lengths.len(), 2, "{lengths:?}");
+        assert!(lengths[0].message.contains("40px"));
+        assert_eq!(
+            serde_json::to_value(lengths[0]).unwrap()["severity"],
+            "info"
+        );
+        assert!(lengths[0].suggestion.is_none());
+        assert!(lengths[1].message.contains("16px"));
+        assert_eq!(lengths[1].severity, Severity::Warning);
+        assert!(lengths[1].suggestion.as_ref().unwrap().contains("$md"));
     }
 
+    /// Nonmatching colors remain visible without speculative token advice.
     #[test]
-    fn a_color_the_theme_has_no_token_for_is_not_reported() {
-        // The same standard the length rule is held to: `#752E2E` is near
-        // `$primary` but is not it, and "near" is not a token you can type.
-        let tsx = r##"export const X = () => <Box color="#752E2E" />;"##;
-        let report = validate_devup_ui_tsx(tsx, Some(&fixture_theme()), false);
-        assert!(
-            report
-                .violations
-                .iter()
-                .all(|violation| violation.rule != "hardcoded-color"),
-            "{:?}",
-            report.violations
+    fn unmatched_colors_are_info_even_in_strict_mode() {
+        for strict in [false, true] {
+            let report = validate_devup_ui_tsx(
+                r##"export const X = () => <Box color="#752E2E" />;"##,
+                Some(&fixture_theme()),
+                strict,
+            );
+            assert!(report.ok);
+            assert_eq!(report.violations.len(), 1);
+            let finding = &report.violations[0];
+            assert_eq!(finding.rule, "hardcoded-color");
+            assert_eq!(serde_json::to_value(finding).unwrap()["severity"], "info");
+            assert!(finding.message.contains("no matching token"));
+            assert!(finding.suggestion.is_none());
+        }
+    }
+
+    /// An unavailable theme cannot suppress literals or imply an empty theme.
+    #[test]
+    fn without_a_theme_both_hardcoded_rules_report_info_without_advice() {
+        let report = validate_devup_ui_tsx(
+            r##"export const X = () => <Box color="#999999" borderRadius="16px" />;"##,
+            None,
+            true,
+        );
+        assert!(report.ok);
+        assert_eq!(report.violations.len(), 2);
+        for finding in &report.violations {
+            assert_eq!(serde_json::to_value(finding).unwrap()["severity"], "info");
+            assert!(finding.suggestion.is_none());
+            assert!(finding.message.contains("no theme is available"));
+        }
+        assert_eq!(
+            serde_json::to_value(report).unwrap()["themeNotes"],
+            serde_json::json!([])
         );
     }
 
+    /// Missing categories are summarized once each, never on every literal.
     #[test]
-    fn without_a_theme_neither_hardcoded_rule_fires() {
-        let tsx = r##"export const X = () => <Box color="#999999" borderRadius="16px" />;"##;
-        let report = validate_devup_ui_tsx(tsx, None, false);
-        assert!(
-            report.violations.iter().all(|violation| {
-                violation.rule != "hardcoded-color" && violation.rule != "hardcoded-length"
-            }),
-            "with no devup.json there is no token to point at: {:?}",
-            report.violations
+    fn empty_color_and_length_categories_are_summarized_once_each() {
+        let theme =
+            parse_project_theme(r#"{"theme":{"colors":{"default":{}},"length":{}}}"#).unwrap();
+        let report = validate_devup_ui_tsx(
+            r##"export const X = () => <Box bg="#999999" color="#ffffff" p="8px" m="16px" />;"##,
+            Some(&theme),
+            true,
         );
+        assert!(report.ok);
+        assert_eq!(report.violations.len(), 4);
+        let value = serde_json::to_value(report).unwrap();
+        assert_eq!(
+            value["themeNotes"],
+            serde_json::json!([
+                "The theme defines no color tokens.",
+                "The theme defines no length tokens."
+            ])
+        );
+        for finding in value["violations"].as_array().unwrap() {
+            assert_eq!(finding["severity"], "info");
+            assert!(!finding["message"].as_str().unwrap().contains("defines no"));
+        }
     }
 
     #[test]

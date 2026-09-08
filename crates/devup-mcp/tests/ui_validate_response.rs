@@ -78,15 +78,19 @@ async fn validate(arguments: Value) -> anyhow::Result<Value> {
 /// error. Reading the two fields alone, without the struct's rustdoc, has
 /// to reach that conclusion.
 #[tokio::test]
-async fn ok_beside_warnings_explains_itself() -> anyhow::Result<()> {
+async fn exact_token_matches_are_actionable_warnings() -> anyhow::Result<()> {
     let output = validate(json!({
-        "tsx": r##"export const S = () => <Box bg="#752E2E" p="20px" gap="40px" />;"##,
+        "tsx": r##"export const S = () => <Box bg="#3366ff" p="16px" gap="24px" />;"##,
         "projectRoot": fixture_project_root()
     }))
     .await?;
 
     assert_eq!(output["ok"], true);
     assert_eq!(output["okReason"], "warnings-only");
+    assert_eq!(
+        output["violationCounts"],
+        json!({"error":0,"warning":3,"info":0})
+    );
     assert_eq!(output["strict"], false);
     assert_eq!(output["violationCounts"]["error"], 0);
     assert!(
@@ -110,7 +114,7 @@ async fn ok_beside_warnings_explains_itself() -> anyhow::Result<()> {
             .any(|violation| violation["rule"] == "hardcoded-color"
                 && violation["message"]
                     .as_str()
-                    .is_some_and(|message| message.contains("bg") && message.contains("#752E2E"))),
+                    .is_some_and(|message| message.contains("bg") && message.contains("#3366ff"))),
         "the hardcoded bg color must be reported: {output}"
     );
     Ok(())
@@ -119,9 +123,9 @@ async fn ok_beside_warnings_explains_itself() -> anyhow::Result<()> {
 /// The same TSX under `strict` fails, and says that strictness is why -
 /// not that new problems appeared.
 #[tokio::test]
-async fn strict_mode_says_strictness_is_why_it_failed() -> anyhow::Result<()> {
+async fn strict_mode_fails_on_actionable_warnings() -> anyhow::Result<()> {
     let output = validate(json!({
-        "tsx": r##"export const S = () => <Box bg="#752E2E" />;"##,
+        "tsx": r##"export const S = () => <Box bg="#3366ff" />;"##,
         "projectRoot": fixture_project_root(),
         "strict": true
     }))
@@ -161,6 +165,7 @@ async fn clean_tsx_reports_clean() -> anyhow::Result<()> {
 
     assert_eq!(output["ok"], true);
     assert_eq!(output["okReason"], "clean");
+    assert_eq!(output["violationCounts"]["info"], 0);
     assert_eq!(output["violations"].as_array().unwrap().len(), 0);
     assert_eq!(output["violationCounts"]["error"], 0);
     assert_eq!(output["violationCounts"]["warning"], 0);
@@ -256,5 +261,97 @@ async fn the_tool_description_states_the_ok_rule() -> anyhow::Result<()> {
     );
     client.cancel().await?;
     task.await??;
+    Ok(())
+}
+
+/// Nonmatching values stay visible; info never becomes a strict failure.
+#[tokio::test]
+async fn unmatched_literals_are_info_only_in_both_modes() -> anyhow::Result<()> {
+    for strict in [false, true] {
+        let output = validate(json!({"tsx": r##"export const S = () => <Box bg="#752E2E" p="20px" gap="40px" />;"##, "projectRoot": fixture_project_root(), "strict": strict})).await?;
+        assert_eq!(output["ok"], true);
+        assert_eq!(output["okReason"], "info-only");
+        assert_eq!(
+            output["violationCounts"],
+            json!({"error":0,"warning":0,"info":3})
+        );
+        assert_eq!(output["violations"].as_array().unwrap().len(), 3);
+        assert_eq!(output["themeNotes"], json!([]));
+        for finding in output["violations"].as_array().unwrap() {
+            assert_eq!(finding["severity"], "info");
+            assert!(finding.get("suggestion").is_none());
+            assert!(
+                finding["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("no matching token")
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Info must not inflate warning counts or override errors/strict warnings.
+#[tokio::test]
+async fn mixed_severities_keep_counts_and_failure_reasons_consistent() -> anyhow::Result<()> {
+    for (strict, token, ok, reason, errors) in [
+        (false, "$primaryColor", true, "warnings-and-info", 0),
+        (true, "$primaryColor", false, "strict-warnings", 0),
+        (false, "$missingToken", false, "error-violations", 1),
+        (true, "$missingToken", false, "error-violations", 1),
+    ] {
+        let output = validate(json!({"tsx":format!(r##"export const S = () => <Box bg="#3366ff" p="20px" color="{token}" />;"##),"projectRoot":fixture_project_root(),"strict":strict})).await?;
+        assert_eq!(output["ok"], ok);
+        assert_eq!(output["okReason"], reason);
+        assert_eq!(
+            output["violationCounts"],
+            json!({"error":errors,"warning":1,"info":1})
+        );
+    }
+    Ok(())
+}
+
+/// A sparse theme reports each literal while explaining the missing category once.
+#[tokio::test]
+async fn empty_length_category_is_summarized_once_in_the_response() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!(
+        "devup-mcp-ui-empty-length-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root)?;
+    std::fs::write(
+        root.join("devup.json"),
+        r##"{"theme":{"colors":{"default":{"primary":"#3366ff"}},"length":{}}}"##,
+    )?;
+    let result = validate(json!({
+        "tsx": r##"export const S = () => <Box p="20px" gap="40px" />;"##,
+        "projectRoot": root.to_string_lossy(), "strict":true
+    }))
+    .await;
+    std::fs::remove_file(root.join("devup.json"))?;
+    std::fs::remove_dir(&root)?;
+    let output = result?;
+    assert_eq!(output["ok"], true);
+    assert_eq!(output["okReason"], "info-only");
+    assert_eq!(
+        output["violationCounts"],
+        json!({"error":0,"warning":0,"info":2})
+    );
+    assert_eq!(
+        output["themeNotes"],
+        json!(["The theme defines no length tokens."])
+    );
+    for finding in output["violations"].as_array().unwrap() {
+        assert!(finding.get("suggestion").is_none());
+        assert!(
+            !finding["message"]
+                .as_str()
+                .unwrap()
+                .contains("defines no length")
+        );
+    }
     Ok(())
 }
