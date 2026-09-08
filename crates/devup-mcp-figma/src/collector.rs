@@ -1166,12 +1166,14 @@ impl CollectorSession {
         let ReadToolCall::Snapshot {
             script: BuiltinScript::MultiRootSnapshotEnvelope,
             root_ids: Some(root_ids),
+            snapshot: options,
             ..
         } = &planned.call
         else {
             return Err(invalid_call("multi-root snapshot call format is invalid."));
         };
-        let payload = match decode_fast_multi_snapshot(&result, &self.request.target, root_ids) {
+        let mut payload = match decode_fast_multi_snapshot(&result, &self.request.target, root_ids)
+        {
             Ok(payload) => payload,
             Err(error) if fast_call_fallback_allowed(&error) => {
                 self.fallback_multi_root_batch(planned, fallback_category(&error))?;
@@ -1179,6 +1181,30 @@ impl CollectorSession {
             }
             Err(error) => return Err(error),
         };
+        let cursor = take_snapshot_cursor(&mut payload.snapshot)?;
+        let options = options.clone().unwrap_or_default();
+        if let Some(cursor) = cursor {
+            let expected_next = options
+                .offset
+                .checked_add(payload.snapshot.nodes.len())
+                .ok_or_else(|| invalid_call("Figma snapshot cursor offset overflowed."))?;
+            if cursor.offset != options.offset
+                || cursor.next_offset != expected_next
+                || cursor.next_offset > cursor.total_nodes
+            {
+                return Err(invalid_call(
+                    "Figma snapshot cursor does not match the collected node range.",
+                ));
+            }
+            if cursor.complete != (cursor.next_offset == cursor.total_nodes) {
+                return Err(invalid_call(
+                    "Figma snapshot cursor completion state does not match the node count.",
+                ));
+            }
+            if !cursor.complete && cursor.next_offset <= cursor.offset {
+                return Err(invalid_call("Figma snapshot cursor did not advance."));
+            }
+        }
         if let (Some(existing), Some(incoming)) = (&self.source_version, &payload.snapshot.version)
             && existing != incoming
         {
@@ -1194,7 +1220,13 @@ impl CollectorSession {
         self.fast_multi_has_large_values |= !descriptors_in_chunk(&payload.snapshot)?.is_empty();
         merge_fast_resources(&mut self.fast_multi_resources, payload.resources)?;
         self.stats.transport = if self.section_fallback_roots.is_empty() {
-            payload.stats.transport
+            if self.stats.transport == "text-paginated"
+                || cursor.is_some_and(|cursor| !cursor.complete || cursor.offset > 0)
+            {
+                "text-paginated"
+            } else {
+                payload.stats.transport
+            }
         } else {
             "hybrid-multi-root-cursor"
         }
@@ -1209,6 +1241,24 @@ impl CollectorSession {
             .envelope_chunks
             .saturating_add(payload.stats.chunk_count);
         self.record_snapshot_chunk(order, payload.snapshot)?;
+        if let Some(cursor) = cursor
+            && !cursor.complete
+        {
+            // Continue this selection, preserving the Section envelope root and
+            // the selected frame IDs. The compact index is not a snapshot page.
+            let mut next = planned.call.clone();
+            if let ReadToolCall::Snapshot { snapshot, .. } = &mut next {
+                *snapshot = Some(SnapshotReadOptions {
+                    offset: cursor.next_offset,
+                    ..options
+                });
+            }
+            self.enqueue(
+                next,
+                planned.expected_node_id.clone(),
+                CallKind::FastMultiRoot,
+            );
+        }
         Ok(())
     }
 

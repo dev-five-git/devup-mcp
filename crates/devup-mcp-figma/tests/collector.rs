@@ -2113,6 +2113,227 @@ fn multi_root_ids(call: &ReadToolCall) -> Vec<&str> {
     root_ids.iter().map(String::as_str).collect()
 }
 
+// Explicit SECTION selection asks for full screen artifacts, unlike the compact
+// index/menu. A first page with unresolved child edges must not finish collection.
+#[test]
+fn selected_section_roots_follow_pages_and_merge_tokens() {
+    for selected in [vec!["root-0"], vec!["root-1", "root-0"]] {
+        let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+        request.resource_scope = ResourceScope::Used;
+        request.section = Some(SectionReadOptions {
+            frame_ids: selected.iter().map(|id| (*id).to_owned()).collect(),
+            all_screens: false,
+        });
+        request.cached_section_index = Some(section_index_with_node_counts(&[3, 3]));
+        let mut collector = CollectorSession::new(request);
+        let roots = if selected.len() == 1 {
+            vec!["root-0"]
+        } else {
+            vec!["root-0", "root-1"]
+        };
+        let width = roots.len();
+        for page in 0..3 {
+            let mut calls = Vec::new();
+            for _ in &roots {
+                let CollectorStep::Call(call) = collector.advance().unwrap() else {
+                    panic!("selected frames need page {page} before collection can complete")
+                };
+                assert_eq!(multi_root_ids(&call.call).len(), 1);
+                assert_eq!(call.expected_node_id.as_deref(), Some("10:1"));
+                let ReadToolCall::Snapshot { snapshot, .. } = &call.call else {
+                    unreachable!()
+                };
+                assert_eq!(snapshot.as_ref().map_or(0, |options| options.offset), page);
+                calls.push(call);
+            }
+            let mut page_roots = calls
+                .iter()
+                .map(|call| multi_root_ids(&call.call)[0])
+                .collect::<Vec<_>>();
+            page_roots.sort();
+            assert_eq!(page_roots, roots);
+            // Responses and continuations may arrive in a different order from
+            // the visual index. The resulting artifact must retain index order.
+            for call in calls.into_iter().rev() {
+                let root = multi_root_ids(&call.call)[0];
+                collector
+                    .accept(&call.id, selected_section_page(&[root], page))
+                    .unwrap();
+            }
+        }
+        let CollectorStep::Complete(parts) = collector.advance().unwrap() else {
+            panic!("the final cursor must end collection without another call")
+        };
+        assert_eq!(parts.stats.transport, "text-paginated");
+        assert!(!parts.stats.fallback_used);
+        assert_eq!(parts.stats.figma_tool_calls, width * 3);
+        assert_eq!(parts.stats.node_count, width * 3);
+        let resources = &parts.variables.as_ref().unwrap().raw;
+        assert_eq!(resources["variables"].as_array().unwrap().len(), 2);
+        assert_eq!(resources["usedVariableIds"], json!(["late", "shared"]));
+        let snapshot = merge_chunks(parts.snapshot_chunks).unwrap();
+        assert_eq!(snapshot.roots, roots);
+        assert_eq!(snapshot.nodes.len(), width * 3);
+        for root in roots {
+            assert_eq!(
+                snapshot.nodes[&format!("{root}-text")].fields["characters"],
+                "Upload guidance / TIP"
+            );
+            assert!(snapshot.nodes.contains_key(&format!("{root}-body")));
+        }
+        assert!(!snapshot.nodes.contains_key("__DEVUP_SNAPSHOT_CURSOR__"));
+    }
+}
+
+#[test]
+fn selected_section_continuation_rejects_replayed_and_empty_pages() {
+    for replay in [true, false] {
+        let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+        request.resource_scope = ResourceScope::Used;
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["root-0".to_owned()],
+            all_screens: false,
+        });
+        request.cached_section_index = Some(section_index_with_node_counts(&[3]));
+        let mut collector = CollectorSession::new(request);
+        let CollectorStep::Call(first) = collector.advance().unwrap() else {
+            panic!()
+        };
+        collector
+            .accept(&first.id, selected_section_page(&["root-0"], 0))
+            .unwrap();
+        let CollectorStep::Call(next) = collector.advance().unwrap() else {
+            panic!("continuation required")
+        };
+        let result = if replay {
+            selected_section_page(&["root-0"], 0)
+        } else {
+            let mut envelope: Value = serde_json::from_str(
+                selected_section_page(&["root-0"], 1).raw["content"][0]["text"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            envelope["snapshot"]["nodes"]
+                .as_array_mut()
+                .unwrap()
+                .remove(0);
+            envelope["snapshot"]["nodes"][0]["fields"]["nextOffset"] = json!(1);
+            envelope["integrity"]["nodeCount"] = json!(1);
+            envelope["integrity"]["variableRefCount"] = json!(0);
+            encode_section_page(envelope)
+        };
+        let error = collector
+            .accept(&next.id, result)
+            .expect_err("continuation must advance");
+        assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid);
+    }
+}
+
+#[test]
+fn selected_section_cursor_rejects_wrong_ranges_and_nonadvancing_pages() {
+    for (label, offset, next, complete, total) in [
+        ("wrong request offset", 1, 2, false, 3),
+        ("skipped nodes", 0, 2, false, 3),
+        ("does not advance", 0, 0, false, 3),
+        ("past total", 0, 4, false, 3),
+        ("premature completion", 0, 1, true, 3),
+        ("unterminated final page", 0, 1, false, 1),
+    ] {
+        let mut request = CollectionRequest::new(target("10:1"), CollectionScope::Node);
+        request.resource_scope = ResourceScope::Used;
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["root-0".to_owned()],
+            all_screens: false,
+        });
+        request.cached_section_index = Some(section_index_with_node_counts(&[3]));
+        let mut collector = CollectorSession::new(request);
+        let CollectorStep::Call(call) = collector.advance().unwrap() else {
+            panic!()
+        };
+        // A leaf keeps envelope containment valid even for malformed completion.
+        let mut envelope: Value = serde_json::from_str(
+            selected_section_page(&["root-0"], 0).raw["content"][0]["text"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        envelope["snapshot"]["nodes"][0]["fields"]["childrenIds"] = json!([]);
+        envelope["snapshot"]["nodes"][1]["fields"] = json!({
+            "offset": offset, "nextOffset": next, "complete": complete, "totalNodes": total
+        });
+        let error = collector
+            .accept(&call.id, encode_section_page(envelope))
+            .expect_err(label);
+        assert_eq!(error.code, ErrorCode::DevupFigmaHandoffInvalid, "{label}");
+    }
+}
+
+fn selected_section_page(roots: &[&str], page: usize) -> UpstreamResult {
+    let mut envelope: Value = serde_json::from_str(
+        fast_multi_envelope_result(&["root-0"], &["shared"]).raw["content"][0]["text"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let variable = if page == 2 { "late" } else { "shared" };
+    let nodes = roots
+        .iter()
+        .map(|root| {
+            let (id, parent, children, kind) = match page {
+                0 => (
+                    root.to_string(),
+                    "10:1".to_owned(),
+                    vec![format!("{root}-body")],
+                    "FRAME",
+                ),
+                1 => (
+                    format!("{root}-body"),
+                    root.to_string(),
+                    vec![format!("{root}-text")],
+                    "FRAME",
+                ),
+                _ => (
+                    format!("{root}-text"),
+                    format!("{root}-body"),
+                    vec![],
+                    "TEXT",
+                ),
+            };
+            json!({"id": id, "type": kind, "fields": {
+            "name": id, "parentId": parent, "childrenIds": children,
+            "characters": "Upload guidance / TIP",
+            "boundVariables": {"fills": [{"type": "VARIABLE_ALIAS", "id": variable}]}
+        }, "extra": {}, "fieldErrors": {}})
+        })
+        .chain(std::iter::once(json!({
+            "id": "__DEVUP_SNAPSHOT_CURSOR__", "type": "DEVUP_INTERNAL",
+            "fields": {"offset": page * roots.len(), "nextOffset": (page + 1) * roots.len(),
+                       "complete": page == 2, "totalNodes": roots.len() * 3},
+            "extra": {}, "fieldErrors": {}
+        })))
+        .collect::<Vec<_>>();
+    envelope["snapshot"]["rootIds"] = json!(roots);
+    envelope["snapshot"]["nodes"] = json!(nodes);
+    envelope["integrity"]["nodeCount"] = json!(nodes.len());
+    envelope["resources"]["variables"] = json!([{"id": variable, "name": variable}]);
+    envelope["resources"]["usedVariableIds"] = json!([variable]);
+    encode_section_page(envelope)
+}
+
+fn encode_section_page(mut envelope: Value) -> UpstreamResult {
+    loop {
+        let size = serde_json::to_vec(&envelope).unwrap().len();
+        if envelope["integrity"]["utf8Bytes"] == size {
+            break;
+        }
+        envelope["integrity"]["utf8Bytes"] = json!(size);
+    }
+    UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": envelope.to_string()}]}),
+    }
+}
+
 fn legacy_root_id(call: &ReadToolCall) -> &str {
     let ReadToolCall::Snapshot {
         node_id,
