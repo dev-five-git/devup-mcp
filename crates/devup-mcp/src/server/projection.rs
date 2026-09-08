@@ -1157,16 +1157,31 @@ pub(super) async fn complete_operation(
                     }),
                 ));
             }
-            result.insert("status".to_owned(), json!(quality.status()));
+            let final_status = quality.status();
+            result.insert("status".to_owned(), json!(final_status));
             result.insert("quality".to_owned(), json!(quality));
-            // `deliverable` used to be attached here to say "this tsx is the
-            // final answer". It existed because an agent watching a run of
-            // `needs_figma` handoff steps had concluded the conversion was
-            // probably done and gone off to read the node tree by hand. That
-            // handoff no longer exists - there are no intermediate steps left
-            // to mistake for an answer - so the marker was restating `status`
-            // in prose on every single response.
+            // An unambiguous "this is the answer, implement from it" marker.
+            // It was removed once on the reasoning that the `needs_figma`
+            // handoff it guarded against is gone, so it only restated
+            // `status`. A consumer reported relying on it, which settles it:
+            // `status: "complete"` says the run went well, and this says
+            // which value is the deliverable. 109 bytes for that is cheap.
             //
+            // Checked before `apply_delivery` may move `tsx` into
+            // `resources`, so it reflects whether a devup-ui TSX was
+            // produced rather than how it was routed for delivery.
+            let tsx_produced =
+                section_tsx_projected || outputs.iter().any(|output| output == "tsx");
+            if final_status == "complete" && tsx_produced {
+                result.insert(
+                    "deliverable".to_owned(),
+                    json!({
+                        "kind": "devup-ui-tsx",
+                        "isFinal": true,
+                        "note": "This tsx is the final deliverable. Implement from this value."
+                    }),
+                );
+            }
             // Only the whole-node tsx is missing its fidelity report at this
             // point; each Section frame already carries its own.
             if !section_tsx_projected && let Some(report) = fidelity_reports.first() {

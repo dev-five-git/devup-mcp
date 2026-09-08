@@ -298,12 +298,16 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     // exactly what it should get.
     assert!(first["fidelity"].is_object());
     assert!(first["completenessReport"].is_object());
+    // `status` says the run went well; `deliverable` says which value is the
+    // answer to implement from. A consumer reported relying on it, so it is
+    // sent whenever a tsx was actually produced.
+    assert_eq!(first["deliverable"]["kind"], "devup-ui-tsx");
+    assert_eq!(first["deliverable"]["isFinal"], true);
+    assert!(!first["deliverable"]["note"].as_str().unwrap().is_empty());
     // These restate something already in the response whether diagnostics
     // were asked for or not: `imports` and `usedTokens` restate the tsx's own
-    // import line and its `$token`s, `completeness` and `themeCompleteness`
-    // restate two axes of `quality`, and `deliverable` restated `status` in
-    // prose. None of them is sent any more.
-    for restated in ["deliverable", "imports", "usedTokens", "componentImports"] {
+    // import line and its `$token`s. Neither is sent any more.
+    for restated in ["imports", "usedTokens", "componentImports"] {
         assert!(
             first.get(restated).is_none(),
             "{restated} restates something already in the response and must not be sent"
