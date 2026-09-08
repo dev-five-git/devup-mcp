@@ -141,8 +141,35 @@ jobs:
           # fails and the release never publishes.
           fetch-depth: 0
           fetch-tags: true
+      # This job runs after `verify`, which takes about ten minutes, so by the
+      # time it evaluates, main may already be several commits further on. It
+      # then judges a state that no longer exists: on 2026-09-08 three merges
+      # landed inside one such window, each stale run opened a fresh Update
+      # Versions pull request instead of releasing, all three were merged, and
+      # the workspace went 0.2.1 -> 0.3.0 -> 0.3.1 while the newest release
+      # stayed 0.2.1. Nothing was tagged, and re-running could not recover it,
+      # because the action only cuts a release in the run that actually
+      # consumes the changepacks - and by then there were none left.
+      #
+      # Only the run for the current tip may act. A superseded run stops here,
+      # and the run for the commit that replaced it does the work.
+      - name: Stop if a newer commit already replaced this one
+        id: freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          head="$(git ls-remote origin refs/heads/main | cut -f1)"
+          echo "this run: $GITHUB_SHA"
+          echo "main tip: $head"
+          if [ -n "$head" ] && [ "$head" != "$GITHUB_SHA" ]; then
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "Superseded by $head; leaving the release decision to its run."
+          else
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: changepacks/action@main
         id: changepacks
+        if: steps.freshness.outputs.superseded == 'false'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           create_release: true
