@@ -1,9 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "Keep the vector operands of a Section screen that does not fit one page. A multi-root snapshot answers with a cursor when it has more nodes to give, and the collector read the first page and stopped, so on the two Loading screens of section 4279:7810 the twelve operands of two Boolean logos never arrived and the logos came out as grey boxes. The continuation is now followed to the end with the same Section and the same root set, and the cursor is checked rather than trusted: the offset has to be the one that was asked for, the next offset has to be the requested offset plus the nodes that came back, it may not pass the total, the complete flag has to agree with it, and a cursor that does not advance is refused. A continuation can no longer fall back to a legacy restart either, because the pages already accepted would be mixed with a second capture, and a first page is never cached as a finished design while operands remain unread. BOOLEAN_OPERATION is recognised as a vector asset, in asset discovery and in the single-colour test that decides between a masked Box and an Image, so the logo is exported as SVG and the generated TSX refers to those bytes. Fidelity gains uncoveredNodeIds: a declared child absent from both the snapshot and any asset projection is a hole nothing represents, so it counts against node coverage and as a lossy impact, where an operand deliberately flattened into an SVG does not. Verified against file 85CgSws3o5XsLv7aAwWJyS with cache bypassed - status partial to complete, 18 nodes to 30, 16 of 28 formats collected to 28 of 28, twelve missing formats to none, and both logos exported as SVG whose manifest, file hash, source map and TSX reference agree.",
-  "date": "2026-09-08T18:40:00+09:00"
-}
