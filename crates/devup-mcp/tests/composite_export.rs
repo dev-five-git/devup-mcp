@@ -244,12 +244,30 @@ async fn a_clean_conversion_sends_the_code_and_the_grade_but_not_the_paperwork()
     assert_eq!(result["quality"]["projection"], "exact");
     assert_eq!(result["quality"]["acquisition"], "complete");
     assert!(result["tsx"].as_str().unwrap().contains("$primary"));
-    for silent in ["fidelity", "completenessReport"] {
-        assert!(
-            result.get(silent).is_none(),
-            "{silent} says nothing a clean quality has not already said"
-        );
-    }
+    // `completenessReport` is keyed on the capture, which is clean here.
+    assert!(
+        result.get("completenessReport").is_none(),
+        "a clean capture says nothing the grade has not already said"
+    );
+    // `fidelity` is keyed on the report itself rather than on
+    // `quality.projection`, because the grade is computed from diagnostics
+    // alone: a coverage shortfall that raises none leaves it reading `exact`
+    // while an axis is short. This fixture is exactly that case, so the
+    // report is sent - and printing it is the point, since hiding it is what
+    // the first attempt at this did on a real screen.
+    let fidelity = result
+        .get("fidelity")
+        .expect("a report that disagrees with a clean grade must be sent");
+    assert_eq!(result["quality"]["projection"], "exact");
+    assert!(
+        fidelity["variables"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["layout"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["nodes"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["text"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["typography"]["basisPoints"].as_u64() < Some(10_000)
+            || fidelity["assets"]["basisPoints"].as_u64() < Some(10_000),
+        "it is sent because an axis is short: {fidelity}"
+    );
 
     client.cancel().await?;
     task.await??;

@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Send the fidelity report whenever it disagrees with the grade above it, rather than whenever the grade is not exact. Keying it on quality.projection was wrong in a way that hid a real defect: projection_quality is computed from diagnostics alone, so a coverage shortfall that raises no diagnostic leaves the grade reading exact and took the report away with it. Measured on a real 50-node screen, fidelity.variables was 19 of 20 - a $primary binding on an ellipse whose parent was exported as an SVG, so the theme colour is frozen into the file and cannot follow the theme - while quality.projection read exact. Before this the response showed that shortfall; after the first attempt it hid it. The condition is now strict_compatible, which is the same predicate strict: true refuses on, so the two cannot disagree about whether anything was lost. On the ten real captured screens it stays silent for every screen that has neither a shortfall nor an approximation, which is what the change was for.",
+  "date": "2026-09-08T17:20:00+09:00"
+}
