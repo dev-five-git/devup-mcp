@@ -151,14 +151,16 @@ pub struct OAuthManager<S: CredentialStore> {
 }
 
 impl<S: CredentialStore> OAuthManager<S> {
-    pub fn with_endpoint(endpoint: impl AsRef<str>, store: S) -> Self {
-        let endpoint = Url::parse(endpoint.as_ref()).expect("OAuth endpoint must be a valid URL");
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(30))
-            .build()
-            .expect("reqwest client configuration is valid");
-        Self {
+    pub fn with_endpoint(endpoint: impl AsRef<str>, store: S) -> Result<Self, DevupError> {
+        let endpoint = Url::parse(endpoint.as_ref()).map_err(|error| {
+            DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                format!("Cannot start Figma OAuth: invalid endpoint URL: {error}"),
+                false,
+            )
+        })?;
+        let client = build_oauth_client(reqwest::Client::builder())?;
+        Ok(Self {
             endpoint,
             store,
             client,
@@ -167,7 +169,7 @@ impl<S: CredentialStore> OAuthManager<S> {
             static_client_credentials: None,
             client_credential_store: Arc::new(MemoryClientCredentialStore::default()),
             client_name: DEFAULT_CLIENT_NAME.to_owned(),
-        }
+        })
     }
 
     pub fn with_callback_timeout(mut self, timeout: Duration) -> Self {
@@ -801,10 +803,53 @@ fn auth_network_error(error: reqwest::Error) -> DevupError {
     )
 }
 
+fn build_oauth_client(builder: reqwest::ClientBuilder) -> Result<reqwest::Client, DevupError> {
+    builder
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|error| {
+            let mut causes = vec![error.to_string()];
+            let mut source = std::error::Error::source(&error);
+            while let Some(cause) = source {
+                causes.push(cause.to_string());
+                source = cause.source();
+            }
+            DevupError::new(
+                ErrorCode::DevupFigmaDirectUnavailable,
+                format!(
+                    "Cannot start Figma OAuth: HTTP client initialization failed. Check TLS configuration and system certificate initialization, then restart devup-mcp. Cause: {}",
+                    causes.join(": ")
+                ),
+                false,
+            )
+        })
+}
+
 fn callback_error(_error: std::io::Error) -> DevupError {
     DevupError::new(
         ErrorCode::DevupAuthRequired,
         "Failed to handle the local Figma authentication callback.",
         true,
     )
+}
+
+#[cfg(test)]
+mod p4_tests {
+    use super::*;
+
+    #[test]
+    fn p4_tls_initialization_error_preserves_actionable_cause() {
+        // Exercise reqwest's real TLS builder failure without changing the
+        // machine's trust store or depending on its TLS configuration.
+        let error =
+            build_oauth_client(reqwest::Client::builder().use_preconfigured_tls(())).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupFigmaDirectUnavailable);
+        assert!(!error.retryable);
+        let message = error.to_string();
+        assert!(message.contains("Cannot start Figma OAuth"));
+        assert!(message.contains("system certificate"));
+        assert!(message.contains("restart devup-mcp"));
+        assert!(message.contains("Unknown TLS backend"), "{message}");
+    }
 }

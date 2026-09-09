@@ -58,15 +58,6 @@ function isScreen(node, box) {
     && aspect >= 0.25 && aspect <= 2.5;
 }
 
-function contains(ancestor, node) {
-  let parent = node.parent;
-  while (parent) {
-    if (parent.id === ancestor.id) return true;
-    parent = parent.parent;
-  }
-  return false;
-}
-
 function breadcrumb(node) {
   const names = [];
   let current = node;
@@ -145,17 +136,8 @@ if ("children" in section) {
     if (chosen.has(node.id)) continue;
     const box = bounds(node);
     if (!box || node.visible === false) continue;
-    // And a child outranks whatever the guess found inside it. A long page
-    // never measures like a screen: the three widths of one page here are
-    // 1920x4757, 992x5619 and 360x7240, each rejected on height alone and two
-    // of them on aspect as well. So the traversal walks straight past all
-    // three and offers the frames within them instead, answering a request for
-    // three screens with twenty pieces of three screens -- while the widths
-    // themselves, which are the whole of what the Section holds, appear
-    // nowhere in the index. Taking the page apart is not a way of offering it.
-    for (let index = candidateNodes.length - 1; index >= 0; index -= 1) {
-      if (contains(node, candidateNodes[index].node)) candidateNodes.splice(index, 1);
-    }
+    // Keep the whole child available for explicit selection alongside any
+    // automatic screens inside it. Rust cannot recover discarded descendants.
     candidateNodes.push({ node, box });
   }
 }
@@ -166,7 +148,19 @@ candidateNodes.sort((left, right) =>
 );
 const projectionTruncated = queue.length > traversalCount || candidateNodes.length > MAX_CANDIDATES;
 const selected = candidateNodes.slice(0, MAX_CANDIDATES);
-const candidateIds = selected.map(({ node }) => node.id);
+const selectedIds = new Set(selected.map(({ node }) => node.id));
+// Link to the nearest retained ancestor: intermediate layout groups are not
+// included in this compact projection, but container/screen ancestry survives.
+const parentIds = new Map(selected.map(({ node }) => {
+  let parent = node.parent;
+  while (parent && parent.id !== section.id && !selectedIds.has(parent.id)) {
+    parent = parent.parent;
+  }
+  return [node.id, parent && selectedIds.has(parent.id) ? parent.id : section.id];
+}));
+const childrenIds = (id) => selected
+  .filter(({ node }) => parentIds.get(node.id) === id)
+  .map(({ node }) => node.id);
 const sectionBox = bounds(section);
 if (!sectionBox) throw new Error("DEVUP_NODE_BOUNDS_UNAVAILABLE");
 
@@ -176,7 +170,7 @@ const sectionNode = {
   fields: {
     name: section.name,
     parentId: section.parent && section.parent.type !== "DOCUMENT" ? section.parent.id : null,
-    childrenIds: candidateIds,
+    childrenIds: childrenIds(section.id),
     absoluteBoundingBox: sectionBox,
     visible: section.visible !== false,
     projectionTruncated,
@@ -191,8 +185,8 @@ const candidates = selected.map(({ node, box }) => {
     type: node.type,
     fields: {
       name: typeof node.name === "string" ? node.name : "",
-      parentId: section.id,
-      childrenIds: [],
+      parentId: parentIds.get(node.id),
+      childrenIds: childrenIds(node.id),
       absoluteBoundingBox: box,
       visible: node.visible !== false,
       breadcrumb: breadcrumb(node),
@@ -200,7 +194,7 @@ const candidates = selected.map(({ node, box }) => {
       textPreview: textPreview(node),
       subtreeNodeCount: estimate.subtreeNodeCount,
       estimatedSerializedBytes: estimate.estimatedSerializedBytes,
-      selectionReasons: ["screen-like", "inside-section"],
+      selectionReasons: [isScreen(node, box) ? "screen-like" : "explicit-selection-only", "inside-section"],
       estimateTruncated: estimate.truncated,
     },
     extra: {},

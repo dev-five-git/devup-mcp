@@ -2510,6 +2510,55 @@ const figma = {fileKey:'file', getNodeByIdAsync: async () => section,
     }
 
     #[test]
+    fn p4_section_keeps_long_page_and_nested_automatic_screens() {
+        let setup = format!(
+            r#"{TREE}
+frame.height = 7240;
+const wrapper = node('4:1', 'GROUP', 'Wrapper', frame);
+node('5:1', 'FRAME', 'Screen', wrapper);
+node('5:2', 'FRAME', 'Screen contents', wrapper.children[0]);
+const small = node('6:1', 'FRAME', 'Case', section); small.width = small.height = 150;
+node('6:2', 'TEXT', 'Text case', section);
+"#
+        );
+        let output = run_script(
+            include_str!("scripts/section_index.js"),
+            &setup,
+            "unused",
+            Value::Null,
+        );
+        let nodes = output["nodes"].as_array().unwrap();
+        assert!(
+            nodes.iter().any(|n| n["id"] == "5:1"),
+            "nested screen was discarded"
+        );
+        assert!(!nodes.iter().any(|n| n["id"] == "5:2"));
+        let screen = nodes.iter().find(|n| n["id"] == "5:1").unwrap();
+        assert_eq!(screen["fields"]["parentId"], "3:1");
+        let snapshot = merge_chunks(vec![
+            snapshot_chunk_from_result(&UpstreamResult { raw: output }).unwrap(),
+        ])
+        .unwrap();
+        let target = FigmaTarget {
+            file_key: "file".into(),
+            node_id: Some("2:1".into()),
+            branch_key: None,
+        };
+        let index = build_section_index(&snapshot, &target).unwrap();
+        assert_eq!(index.select(&[], true).unwrap(), ["5:1"]);
+        assert_eq!(index.select(&["3:1".into()], false).unwrap(), ["3:1"]);
+        for id in ["3:1", "6:1", "6:2"] {
+            let candidate = index.candidates.iter().find(|c| c.node_id == id).unwrap();
+            assert!(!candidate.is_screen_candidate());
+            assert!(
+                candidate
+                    .selection_reasons
+                    .contains(&"explicit-selection-only".into())
+            );
+        }
+    }
+
+    #[test]
     fn w5_search_accepts_section_and_frame_roots_without_scanning_siblings() {
         for setup in [
             TREE.to_owned(),

@@ -14,6 +14,23 @@ use devup_mcp_figma::{
 use serde_json::{Value, json};
 use tokio::{net::TcpListener, sync::Mutex};
 
+#[test]
+fn p4_invalid_oauth_endpoint_does_not_panic() {
+    let result = std::panic::catch_unwind(|| {
+        OAuthManager::with_endpoint("invalid endpoint", MemoryCredentialStore::default())
+    });
+    assert!(
+        result.is_ok(),
+        "OAuth startup must return a diagnostic error"
+    );
+    let error = result
+        .unwrap()
+        .err()
+        .expect("invalid endpoint must fail startup");
+    assert_eq!(error.code, ErrorCode::DevupInvalidInput);
+    assert!(error.message.contains("invalid endpoint URL"));
+}
+
 #[derive(Clone, Default)]
 struct Captured {
     registration: Arc<Mutex<Option<Value>>>,
@@ -109,7 +126,7 @@ async fn login_discovers_registers_uses_pkce_and_stores_tokens() -> anyhow::Resu
     });
 
     let store = MemoryCredentialStore::default();
-    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store.clone())
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store.clone())?
         .with_callback_timeout(Duration::from_secs(3));
     let authorization = manager.login(&CallbackOpener).await?;
 
@@ -162,7 +179,7 @@ async fn login_discovers_registers_uses_pkce_and_stores_tokens() -> anyhow::Resu
 async fn logout_clears_persisted_authorization() -> anyhow::Result<()> {
     let store = MemoryCredentialStore::default();
     assert!(CredentialStore::load(&store).await?.is_none());
-    let manager = OAuthManager::with_endpoint("https://mcp.figma.com/mcp", store);
+    let manager = OAuthManager::with_endpoint("https://mcp.figma.com/mcp", store)?;
     manager.logout().await?;
     assert_eq!(manager.status().await?, AuthStatus::Disconnected);
     Ok(())
@@ -190,7 +207,7 @@ async fn a_dcr_issued_client_secret_is_used_for_the_token_exchange_and_refresh()
     let (base, captured) = spawn_mock_oauth_server(post(register_confidential)).await?;
 
     let store = MemoryCredentialStore::default();
-    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store.clone())
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store.clone())?
         .with_callback_timeout(Duration::from_secs(3));
     let authorization = manager.login(&CallbackOpener).await?;
 
@@ -290,7 +307,7 @@ async fn static_client_credentials_skip_dynamic_client_registration() -> anyhow:
     let (base, captured) = spawn_mock_oauth_server(post(register)).await?;
 
     let store = MemoryCredentialStore::default();
-    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)?
         .with_callback_timeout(Duration::from_secs(3))
         .with_static_client_credentials(
             ClientCredentials {
@@ -336,7 +353,7 @@ async fn dcr_403_is_classified_as_catalog_rejected_with_actionable_options() -> 
     let (base, captured) = spawn_mock_oauth_server(post(register_forbidden)).await?;
 
     let store = MemoryCredentialStore::default();
-    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)?
         .with_callback_timeout(Duration::from_secs(3));
     let error = manager
         .login(&CallbackOpener)
@@ -408,7 +425,7 @@ async fn configured_client_name_is_sent_verbatim_to_dynamic_client_registration(
     let (base, captured) = spawn_mock_oauth_server(post(register)).await?;
 
     let store = MemoryCredentialStore::default();
-    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)?
         .with_callback_timeout(Duration::from_secs(3))
         .with_client_name("Acme Registered Client");
     manager.login(&CallbackOpener).await?;
@@ -441,7 +458,7 @@ async fn blank_client_name_override_falls_back_to_the_default() -> anyhow::Resul
     let manager = OAuthManager::with_endpoint(
         "https://mcp.figma.com/mcp",
         MemoryCredentialStore::default(),
-    )
+    )?
     .with_client_name("   ");
 
     let snapshot = manager.direct_path_snapshot().await?;
@@ -468,7 +485,7 @@ async fn occupied_callback_port_fails_immediately_instead_of_waiting() -> anyhow
     // A generous timeout: if the implementation regressed to "wait for a
     // connection", this test would hang for the full duration instead of
     // returning within milliseconds.
-    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)
+    let manager = OAuthManager::with_endpoint(format!("{base}/mcp"), store)?
         .with_callback_timeout(Duration::from_secs(120))
         .with_callback_port(Some(occupied_port));
 
@@ -504,7 +521,7 @@ async fn direct_path_snapshot_reports_measured_credential_and_port_state() -> an
     let manager = OAuthManager::with_endpoint(
         "https://mcp.figma.com/mcp",
         MemoryCredentialStore::default(),
-    )
+    )?
     .with_client_credential_store(Arc::new(credential_store));
 
     // Nothing configured yet: no credential, no token, no fixed port.
@@ -541,7 +558,7 @@ async fn direct_path_snapshot_probes_the_real_callback_port_state() -> anyhow::R
     let manager = OAuthManager::with_endpoint(
         "https://mcp.figma.com/mcp",
         MemoryCredentialStore::default(),
-    );
+    )?;
 
     let probe_listener = TcpListener::bind("127.0.0.1:0").await?;
     let free_port = probe_listener.local_addr()?.port();
