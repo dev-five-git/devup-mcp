@@ -189,6 +189,27 @@ pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), De
     Ok(())
 }
 
+pub(super) const MAX_ASSET_COUNT: usize = 6;
+pub(super) const RECOMMENDED_ASSET_COUNT: usize = 3;
+
+pub(super) fn validate_asset_budget(requests: &[FigmaAssetRequestInput]) -> Result<(), DevupError> {
+    if requests.len() > MAX_ASSET_COUNT {
+        return Err(DevupError::with_details(
+            ErrorCode::DevupInvalidInput,
+            "Export exceeds the asset batch budget. Split assetRequests into calls of 1–3 assets (maximum 6); retain each format, scale and outputPath. Poll or resume an existing assetJob instead of restarting it.",
+            false,
+            json!({"requestedAssetCount":requests.len(),"maxAssetCount":MAX_ASSET_COUNT,
+                "recommendedBatchSize":RECOMMENDED_ASSET_COUNT,
+                "recommendedAssetRequests":&requests[..RECOMMENDED_ASSET_COUNT],
+                "remainingAssetRequests":&requests[RECOMMENDED_ASSET_COUNT..],
+                "clientTimeoutSeconds":300,
+                "nextAction":{"type":"split_asset_requests","tool":"devup_figma_export",
+                    "preserveOtherArguments":true,"replaceAssetRequests":&requests[..RECOMMENDED_ASSET_COUNT]}}),
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn parse_asset_requests(
     requests: &[FigmaAssetRequestInput],
 ) -> Result<
@@ -198,13 +219,7 @@ pub(super) fn parse_asset_requests(
     ),
     DevupError,
 > {
-    if requests.len() > 16 {
-        return Err(DevupError::new(
-            ErrorCode::DevupInvalidInput,
-            "At most 16 assets can be exported at once.",
-            false,
-        ));
-    }
+    validate_asset_budget(requests)?;
     let mut seen = std::collections::BTreeSet::new();
     let mut selections = Vec::with_capacity(requests.len());
     let mut output_paths = std::collections::BTreeMap::new();
@@ -482,6 +497,34 @@ mod p3_tests {
             "Cannot create the output staging file: disk full",
             false
         )));
+    }
+
+    #[test]
+    fn r3_asset_budget_splits_sixteen_requests_without_losing_paths() {
+        let requests: Vec<FigmaAssetRequestInput> = (0..16)
+            .map(|i| {
+                serde_json::from_value(json!({
+            "assetId":format!("1:{i}:node"),"outputPath":format!("icons/{i}.svg"),"format":"svg"
+        })).unwrap()
+            })
+            .collect();
+        let error = parse_asset_requests(&requests).unwrap_err();
+        assert_eq!(error.details["maxAssetCount"], 6);
+        assert_eq!(error.details["recommendedBatchSize"], 3);
+        assert_eq!(
+            error.details["recommendedAssetRequests"][0]["outputPath"],
+            "icons/0.svg"
+        );
+        assert_eq!(
+            error.details["remainingAssetRequests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            13
+        );
+        for batch in requests.chunks(3) {
+            assert_eq!(parse_asset_requests(batch).unwrap().0.len(), batch.len());
+        }
     }
 
     #[test]

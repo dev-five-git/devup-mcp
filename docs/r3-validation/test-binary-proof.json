@@ -1,0 +1,22 @@
+{
+  "workspaceRoot": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r3-asset-batch-placement",
+  "targetDirectory": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r3-asset-batch-placement\\target",
+  "testExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r3-asset-batch-placement\\target\\debug\\deps\\composite_export-7affd3449f5d32bc.exe",
+  "sha256": "9e80585393586844c9226ad7be0c160bdce66f896f92e5e8fc2afa24617f4cdd",
+  "tests": {
+    "passed": 652,
+    "failed": 0,
+    "ignored": 2
+  },
+  "r3TestsInExecutedBinary": [
+    "r3_asset_job_resumes_only_pending_read_and_recovers_identical_request: test",
+    "r3_asset_job_timeout_keeps_first_asset_and_resumes_pending_read: test",
+    "r3_cancelled_client_recovers_retained_asset_job: test",
+    "r3_different_output_job_does_not_wait_on_unresumable_owner: test",
+    "r3_distinct_resource_jobs_keep_both_manifests_readable: test",
+    "r3_oversized_assets_rejected_before_upstream: test",
+    "r3_sixteen_assets_succeed_in_recommended_batches: test"
+  ],
+  "installedMcpUsed": false,
+  "cargoTargetDirSet": false
+}

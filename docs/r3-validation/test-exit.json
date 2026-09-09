@@ -1,0 +1,4 @@
+{
+  "command": "cargo test --workspace -j 2 --no-fail-fast",
+  "exitCode": 0
+}
