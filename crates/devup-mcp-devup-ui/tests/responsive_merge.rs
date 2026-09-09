@@ -402,3 +402,20 @@ fn a_width_lands_in_the_slot_its_size_falls_into() {
     );
     assert_eq!([390, 768].map(slot_of_width), [0, 1], "popup");
 }
+#[test]
+fn r2_visibility_restores_middle_breakpoint_between_hidden_assets() {
+    use devup_mcp_devup_ui::codegen::responsive::Drawn::{Absent, Set, Unset};
+    assert_eq!(
+        merge_slots(
+            "visibility",
+            &[Set("hidden"), Absent, Unset, Absent, Set("hidden")]
+        ),
+        Merged::Array(vec![
+            Some("hidden".into()),
+            None,
+            Some("initial".into()),
+            None,
+            Some("hidden".into())
+        ])
+    );
+}

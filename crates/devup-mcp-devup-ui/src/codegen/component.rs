@@ -1045,6 +1045,45 @@ fn finalize_codegen_output(
     output.tsx = tsx;
     output.source_map = source_map;
     validate_tsx(&output.tsx)?;
+    // Background and variant projections share paint suppression in style;
+    // attach evidence for those paths as well as ordinary asset leaves.
+    for entry in output
+        .source_map
+        .entries
+        .iter()
+        .filter(|e| e.property.is_none() && e.resolution == "node")
+    {
+        let Some(node) = entry.node_id.as_ref().and_then(|id| snapshot.nodes.get(id)) else {
+            continue;
+        };
+        let Some(reason) = style::non_rendering_asset_reason(snapshot, node) else {
+            continue;
+        };
+        if output.diagnostics.iter().any(|d| {
+            d.code == "DEVUP_CODEGEN_NON_RENDERING_ASSET" && d.node_id.as_deref() == Some(&node.id)
+        }) {
+            continue;
+        }
+        let Some(source) = entry
+            .generated_range
+            .as_ref()
+            .and_then(|r| output.tsx.get(r.start..r.end))
+            .filter(|s| !s.is_empty())
+        else {
+            continue;
+        };
+        output.diagnostics.push(Diagnostic {
+            code: "DEVUP_CODEGEN_NON_RENDERING_ASSET".into(),
+            node_id: Some(node.id.clone()), property: Some("assetReference".into()),
+            message: "Non-rendering asset paint omitted while retaining layout without an asset reference.".into(),
+            fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
+            details: Some(serde_json::json!({"originalValue":{"visible":node.typed_view().value("visible"),"opacity":node.typed_view().value("opacity"),"absoluteRenderBounds":node.typed_view().value("absoluteRenderBounds")},
+                "appliedValue":{"state":"layout-only","generatedNodeId":node.id,"generatedSource":source.chars().take(800).collect::<String>(),"sourceTruncated":source.chars().count()>800},
+                "reason":reason,"classification":"non-rendering-asset",
+                "nextAction":"Review the invisible layout element; correct visibility or clipping in Figma if this paint should be visible."})),
+            ..Diagnostic::default()
+        });
+    }
     output
         .diagnostics
         .extend(unresolved_token_bindings(snapshot, root_id, options));
@@ -1060,16 +1099,11 @@ fn finalize_codegen_output(
         if let Some((node_id, property)) = pair.rsplit_once('#') {
             output.diagnostics.push(Diagnostic {
                 code: "DEVUP_CODEGEN_LAYOUT_UNCOVERED".into(),
-                message: "No generated source mapping proves this layout field was represented; exclusion is unclassified.".into(),
+                message: "No verified property mapping accounts for this layout field; generated evidence describes what was emitted.".into(),
                 node_id: Some(node_id.into()),
                 property: Some(property.into()),
                 fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
-                details: Some(serde_json::json!({
-                    "originalValue": snapshot.nodes.get(node_id).and_then(|n| n.typed_view().value(property)),
-                    "appliedValue": null,
-                    "classification": "unclassified",
-                    "appliedValueReason": "No verified generated mapping for this field."
-                })),
+                details: Some(super::evidence::uncovered_layout_details(snapshot, &output, options, node_id, property)),
                 ..Diagnostic::default()
             });
         }
@@ -1294,7 +1328,10 @@ fn render_node(
         visiting.remove(&node.id);
         return Ok(mark_node(&node.id, String::new()));
     }
-    if view.node_type() == "INSTANCE" && !context.inline_instances {
+    if view.node_type() == "INSTANCE"
+        && !context.inline_instances
+        && style::non_rendering_asset_reason(snapshot, node).is_none()
+    {
         let references = view
             .value("componentPropertyReferences")
             .and_then(serde_json::Value::as_object);
@@ -1367,6 +1404,47 @@ fn render_node(
         ));
     }
     let asset = style::asset_kind(snapshot, node);
+    if asset.is_some()
+        && let Some(reason) = devup_mcp_figma::asset_exclusion_reason(node)
+    {
+        // A transparent/clipped asset still occupies layout space. Keep the
+        // asset sizing policy, but emit no external paint or descendant asset.
+        let mut props = Vec::new();
+        layout::push_layout_props(
+            snapshot,
+            node,
+            "Image",
+            &mut props,
+            context.root_layout,
+            depth == 0,
+        );
+        layout::string_prop(&mut props, "visibility", "hidden");
+        let (opening, multiline) = render_props(&props, depth);
+        let indent = "  ".repeat(depth);
+        let rendered = if multiline {
+            format!("{indent}<Box{opening}\n{indent}/>")
+        } else {
+            format!("{indent}<Box{opening} />")
+        };
+        context.imports.insert("Box".into());
+        context.diagnostics.push(Diagnostic {
+            code: "DEVUP_CODEGEN_NON_RENDERING_ASSET".into(),
+            node_id: Some(node.id.clone()),
+            property: Some("assetReference".into()),
+            message: "Non-rendering asset replaced by an invisible layout box without an asset reference.".into(),
+            fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
+            details: Some(serde_json::json!({
+                "originalValue": {"visible":view.value("visible"),"opacity":view.value("opacity"),
+                    "absoluteBoundingBox":view.value("absoluteBoundingBox"),"absoluteRenderBounds":view.value("absoluteRenderBounds")},
+                "appliedValue": {"generatedSource":rendered,"state":"layout-only"},
+                "reason":reason,"classification":"non-rendering-asset",
+                "nextAction":"Review the retained layout box; no asset bytes are needed. If the asset should be visible, correct its visibility or clipping in Figma and export again."
+            })),
+            ..Diagnostic::default()
+        });
+        visiting.remove(&node.id);
+        return Ok(mark_node(&node.id, rendered));
+    }
     let inferred_mode = view
         .value("inferredAutoLayout")
         .and_then(serde_json::Value::as_object)

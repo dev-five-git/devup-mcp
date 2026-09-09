@@ -457,7 +457,7 @@ fn project_tree_inner(
             }
         }
         let mut expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
-        if is_asset_leaf(&expanded) {
+        if is_asset_leaf(&expanded) || style::non_rendering_asset_reason(snapshot, node).is_some() {
             // Spelling the shape out loses which component it came from, and
             // that is the one thing a reader needs to change it in the right
             // place. The reference leaves the call it declined to write.
@@ -523,7 +523,9 @@ fn project_tree_inner(
                 .and_then(Value::as_str)
         })
     };
-    let component = if asset == Some(style::AssetKind::SvgMask) {
+    let component = if asset == Some(style::AssetKind::SvgMask)
+        || (asset.is_some() && style::non_rendering_asset_reason(snapshot, node).is_some())
+    {
         "Box"
     } else if asset.is_some() {
         "Image"

@@ -712,6 +712,23 @@ fn component_set_snapshot(with_effect: bool) -> Snapshot {
 }
 
 #[test]
+fn r2_component_set_nonrendering_asset_retains_valid_code_without_reference() {
+    let mut snapshot = component_set_snapshot(false);
+    let n = snapshot.nodes.get_mut("default").unwrap();
+    n.fields.insert("opacity".into(), json!(0));
+    n.fields.insert(
+        "fills".into(),
+        json!([{"type":"IMAGE","imageHash":"hidden","scaleMode":"FILL"}]),
+    );
+    let output =
+        generate_component_set_target(&snapshot, "set", "Card", &CodegenOptions::default())
+            .unwrap();
+    assert!(!output.tsx.contains("/images/"), "{}", output.tsx);
+    assert!(output.tsx.contains("visibility="));
+    devup_mcp_devup_ui::validation::validate_tsx(&output.tsx).unwrap();
+}
+
+#[test]
 fn devup_json_pointers_trace_variable_alias_and_style_sources() {
     let snapshot = VariableSnapshot {
         collections: vec![VariableCollection {
