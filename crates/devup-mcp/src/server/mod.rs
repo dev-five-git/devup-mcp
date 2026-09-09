@@ -10,6 +10,7 @@ mod project_root;
 mod projection;
 mod quality;
 pub mod resources;
+mod result_contract;
 mod stack_diff;
 mod tools;
 mod validation;

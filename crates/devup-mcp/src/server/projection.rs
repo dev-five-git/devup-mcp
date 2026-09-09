@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
+use super::result_contract::{
+    attach_review_and_deliverable, failure_issue, output_result, scope_output,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use devup_mcp_devup_ui::{
     codegen::{
@@ -1339,7 +1342,7 @@ pub(super) async fn complete_operation(
                             format!("{name}{}", index + 1)
                         }
                     });
-                    let mut frame = json!({"nodeId":candidate.node.node_id,"name":candidate.node.name,
+                    let mut frame = json!({"nodeId":candidate.node.node_id,"name":candidate.node.name,"outputResults":{},
                         "canonicalUrl":candidate.canonical_url});
                     let before_failures = failures.len();
                     let mut frame_diagnostics = Vec::new();
@@ -1360,7 +1363,7 @@ pub(super) async fn complete_operation(
                             }
                             .with_payload_tokens(payload),
                         );
-                        let output = match output {
+                        let mut output = match output {
                             Ok(output) => output,
                             Err(error) => {
                                 failures.push(projection_failure(
@@ -1372,6 +1375,8 @@ pub(super) async fn complete_operation(
                                 continue;
                             }
                         };
+                        scope_output(&mut output, field);
+                        frame["outputResults"][field] = output_result(&output);
                         frame_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
                         frame[field] = json!(with_host_safe_asset_paths(&output.tsx));
@@ -1599,7 +1604,7 @@ pub(super) async fn complete_operation(
                         false,
                     )
                 })?;
-                let output = generate_component(
+                let mut output = generate_component(
                     &payload.snapshot,
                     node_id,
                     &CodegenOptions {
@@ -1612,6 +1617,9 @@ pub(super) async fn complete_operation(
                     }
                     .with_payload_tokens(payload),
                 )?;
+                scope_output(&mut output, "tsx");
+                result.entry("outputResults").or_insert_with(|| json!({}))["tsx"] =
+                    output_result(&output);
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
                 tsx_source_map = Some(output.source_map.clone());
@@ -1646,7 +1654,10 @@ pub(super) async fn complete_operation(
                     .with_payload_tokens(payload),
                 );
                 match output {
-                    Ok(output) => {
+                    Ok(mut output) => {
+                        scope_output(&mut output, "componentTsx");
+                        result.entry("outputResults").or_insert_with(|| json!({}))["componentTsx"] =
+                            output_result(&output);
                         projection_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
                         if tsx_source_map.is_none() {
@@ -1945,12 +1956,20 @@ pub(super) async fn complete_operation(
                     code.as_str()
                         .is_some_and(|code| paths.iter().any(|path| code.contains(path)))
                 };
+                let source_node = payload.snapshot.nodes.get(&asset.node_id);
+                let exclusion_details = json!({"referencePaths":paths,
+                    "assetNodeId":asset.node_id,
+                    "exclusionReason":source_node.and_then(devup_mcp_figma::asset_exclusion_reason),
+                    "visible":source_node.and_then(|n| n.typed_view().value("visible")),
+                    "opacity":source_node.and_then(|n| n.typed_view().value("opacity")),
+                    "absoluteRenderBounds":source_node.and_then(|n| n.typed_view().value("absoluteRenderBounds")),
+                    "policyConflict":source_node.is_some_and(|n| devup_mcp_figma::asset_exclusion_reason(n).is_none())});
                 for field in ["tsx", "componentTsx", "responsiveTsx"] {
                     if result.get(field).is_some_and(&references) {
                         result.remove(field);
                         pending_text_outputs.remove(field);
                         failures.push(json!({"nodeId":payload.target.node_id,"assetId":asset.asset_id,"output":field,
-                            "errorCode":"DEVUP_EXCLUDED_ASSET_REFERENCED","stage":"projection",
+                            "errorCode":"DEVUP_EXCLUDED_ASSET_REFERENCED","stage":"projection","details":exclusion_details,
                             "message":"Generated code references an excluded asset; this output was withheld."}));
                     }
                     if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
@@ -1961,10 +1980,25 @@ pub(super) async fn complete_operation(
                                 frame["quality"]["projection"] = json!("lossy");
                                 frame["quality"]["assets"] = json!("partial");
                                 failures.push(json!({"nodeId":frame["nodeId"],"assetId":asset.asset_id,"output":field,
-                                    "errorCode":"DEVUP_EXCLUDED_ASSET_REFERENCED","stage":"projection",
+                                    "errorCode":"DEVUP_EXCLUDED_ASSET_REFERENCED","stage":"projection","details":exclusion_details,
                                     "message":"Generated code references an excluded asset; this output was withheld."}));
                             }
                         }
+                    }
+                }
+            }
+            for failure in failures.iter().filter(|f| f.get("output").is_some()) {
+                let issue = failure_issue(failure);
+                projection_diagnostics.push(issue.clone());
+                if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
+                    for frame in frames
+                        .iter_mut()
+                        .filter(|f| f["nodeId"] == failure["nodeId"])
+                    {
+                        frame["projectionIssues"]
+                            .as_array_mut()
+                            .unwrap()
+                            .push(json!(issue));
                     }
                 }
             }
@@ -2078,38 +2112,28 @@ pub(super) async fn complete_operation(
             };
             result.insert("status".to_owned(), json!(final_status));
             result.insert("quality".to_owned(), json!(quality));
-            // An unambiguous "this is the answer, implement from it" marker.
-            // It was removed once on the reasoning that the `needs_figma`
-            // handoff it guarded against is gone, so it only restated
-            // `status`. A consumer reported relying on it, which settles it:
-            // `status: "complete"` says the run went well, and this says
-            // which value is the deliverable. 109 bytes for that is cheap.
-            //
-            // Checked before `apply_delivery` may move `tsx` into
-            // `resources`, so it reflects whether a devup-ui TSX was
-            // produced rather than how it was routed for delivery.
-            let tsx_produced = ["tsx", "componentTsx", "responsiveTsx"]
-                .iter()
-                .any(|field| result.get(*field).is_some_and(Value::is_string))
-                || result
-                    .get("frames")
-                    .and_then(Value::as_array)
-                    .is_some_and(|frames| {
-                        frames.iter().any(|frame| {
-                            frame.get("tsx").is_some_and(Value::is_string)
-                                || frame.get("componentTsx").is_some_and(Value::is_string)
-                        })
-                    });
-            if final_status == "complete" && tsx_produced {
-                result.insert(
-                    "deliverable".to_owned(),
-                    json!({
-                        "kind": "devup-ui-tsx",
-                        "isFinal": true,
-                        "note": "This tsx is the final deliverable. Implement from this value."
-                    }),
-                );
+            if let Some(frames) = result.get_mut("frames").and_then(Value::as_array_mut) {
+                for frame in frames {
+                    let id = frame["nodeId"].as_str().unwrap_or_default().to_owned();
+                    let frame_failures = failures
+                        .iter()
+                        .filter(|f| f["nodeId"] == id)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    attach_review_and_deliverable(
+                        frame.as_object_mut().unwrap(),
+                        &outputs,
+                        &frame_failures,
+                        Some(&id),
+                    );
+                }
             }
+            attach_review_and_deliverable(
+                &mut result,
+                &outputs,
+                &failures,
+                payload.target.node_id.as_deref(),
+            );
             // Only the whole-node tsx is missing its fidelity report at this
             // point; each Section frame already carries its own.
             if !section_tsx_projected && let Some(report) = fidelity_reports.first() {
@@ -2347,6 +2371,329 @@ mod w1_regressions {
     use super::super::artifacts::ArtifactRequestKey;
     use super::*;
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
+
+    #[tokio::test]
+    async fn r2_responsive_hidden_instance_and_visible_desktop() {
+        for instance in [true, false] {
+            let mut data = responsive_payload();
+            for i in 1..=2 {
+                let root = format!("1:{i}");
+                let child = format!("2:{i}");
+                data.snapshot
+                    .nodes
+                    .get_mut(&root)
+                    .unwrap()
+                    .fields
+                    .insert("childrenIds".into(), json!([child]));
+                data.snapshot.nodes.insert(
+                    child.clone(),
+                    serde_json::from_value(json!({
+                        "id":child,"type":if instance {"INSTANCE"} else {"FRAME"},
+                        "fields":{"parentId":root,"name":"Logo","width":24,"height":24,
+                            "opacity":if instance || i == 1 {0} else {1},
+                            "fills":[{"type":"IMAGE","imageHash":"logo","scaleMode":"TILE"}]}
+                    }))
+                    .unwrap(),
+                );
+            }
+            let mut op = operation(&["responsiveTsx"]);
+            if let PendingOperation::Export { all_screens, .. } = &mut op {
+                *all_screens = true;
+            }
+            let result = project(data, op).await.unwrap();
+            let code = result["responsiveTsx"]
+                .as_str()
+                .expect("responsive TSX exists");
+            devup_mcp_devup_ui::validation::validate_tsx(code).unwrap();
+            assert!(
+                code.contains("visibility="),
+                "hidden layout must survive: {code}"
+            );
+            if instance {
+                assert!(!code.contains("/images/"), "{code}");
+            } else {
+                // Different paint prop sets can produce separate responsive
+                // branches. The desktop branch must then be independently
+                // visible instead of inheriting the hidden mobile box.
+                let desktop = &code[code.find("bg=").expect("desktop paint")..];
+                assert!(
+                    code.contains("\"initial\"")
+                        || (!desktop.contains("visibility=\"hidden\"")
+                            && desktop.contains("\"block\"")),
+                    "desktop must restore paint: {code}"
+                );
+                assert!(code.contains("/images/"), "desktop paint retained: {code}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r2_nonrendering_background_and_responsive_keep_code() {
+        for scale in ["FILL", "TILE", "BACKGROUND"] {
+            for field in ["tsx", "componentTsx", "responsiveTsx"] {
+                let mut data = responsive_payload();
+                for i in 1..=2 {
+                    let root = format!("1:{i}");
+                    let child = format!("2:{i}");
+                    data.snapshot
+                        .nodes
+                        .get_mut(&root)
+                        .unwrap()
+                        .fields
+                        .insert("childrenIds".into(), json!([child]));
+                    data.snapshot.nodes.insert(child.clone(), serde_json::from_value(json!({"id":child,"type":if field == "componentTsx" { "INSTANCE" } else { "FRAME" },
+                        "fields":{"parentId":root,"name":"Transparent paint","width":24,"height":24,"visible":true,"opacity":0,
+                            "fills":[{"type":"IMAGE","imageHash":"hidden","scaleMode":if scale == "BACKGROUND" { "FILL" } else { scale }}]}})).unwrap());
+                    if scale == "BACKGROUND" {
+                        let text_id = format!("3:{i}");
+                        data.snapshot
+                            .nodes
+                            .get_mut(&child)
+                            .unwrap()
+                            .fields
+                            .insert("childrenIds".into(), json!([text_id]));
+                        data.snapshot.nodes.insert(text_id.clone(), serde_json::from_value(json!({"id":text_id,"type":"TEXT",
+                            "fields":{"parentId":child,"characters":"Retained text","width":20,"height":12}})).unwrap());
+                    }
+                }
+                let mut op = operation(&[field, "assetManifest"]);
+                if let PendingOperation::Export { all_screens, .. } = &mut op {
+                    *all_screens = true;
+                }
+                let result = project(data, op).await.unwrap();
+                assert!(
+                    result["failures"].as_array().unwrap().is_empty(),
+                    "{scale}/{field}: {result}"
+                );
+                if field != "responsiveTsx" {
+                    for frame in result["frames"].as_array().unwrap() {
+                        let code = frame[field]
+                            .as_str()
+                            .expect("background exclusion must retain code");
+                        assert!(!code.contains("/images/"));
+                        assert!(code.contains("visibility=\"hidden\""), "{field}: {code}");
+                        devup_mcp_devup_ui::validation::validate_tsx(code).unwrap();
+                    }
+                } else {
+                    let code = result[field]
+                        .as_str()
+                        .expect("responsive exclusion must retain code");
+                    assert!(!code.contains("/images/"));
+                    devup_mcp_devup_ui::validation::validate_tsx(code).unwrap();
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r2_production_six_frames_return_valid_story_tsx() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-119-payload.json"
+        ))
+        .unwrap();
+        let generated = generate_collected_component(
+            &data,
+            "3997:46690",
+            &CodegenOptions {
+                inline_instances: true,
+                asset_names_per_node: true,
+                ..CodegenOptions::default()
+            }
+            .with_payload_tokens(&data),
+        )
+        .unwrap();
+        let path =
+            devup_mcp_devup_ui::codegen::image_fill_path(&data.snapshot, "3997:46703", 0, true)
+                .unwrap();
+        eprintln!(
+            "story pre-guard excluded path {path}; referenced={}",
+            generated.tsx.contains(&path)
+        );
+        let mut op = operation(&["tsx", "assetManifest"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = [
+                "3997:46315",
+                "3997:46715",
+                "3997:46333",
+                "3997:46361",
+                "3997:46461",
+                "3997:46690",
+            ]
+            .map(str::to_owned)
+            .to_vec();
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["frames"].as_array().unwrap().len(), 6);
+        for frame in result["frames"].as_array().unwrap() {
+            let tsx = frame["tsx"]
+                .as_str()
+                .expect("every selected frame must retain TSX");
+            devup_mcp_devup_ui::validation::validate_tsx(tsx).unwrap();
+            assert!(!tsx.contains(&host_safe_asset_path(&path)));
+            if frame["nodeId"] == "3997:46690" {
+                assert!(tsx.contains("작은 시장, 큰 사랑"));
+                assert!(tsx.contains("visibility=\"hidden\""));
+                assert!(tsx.contains("boxSize=\"24px\""));
+            }
+        }
+        assert!(result["failures"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn r2_withheld_output_has_issue_and_explicit_deliverable() {
+        let mut data = payload();
+        data.snapshot.nodes.get_mut("1:1").unwrap().node_type = "VECTOR".into();
+        data.assets.push(serde_json::from_value(json!({"assetId":"1:1:node", "nodeId":"1:1",
+            "field":"node", "sourceKind":"node", "status":"failed", "errorCode":"DEVUP_ASSET_NODE_HIDDEN"})).unwrap());
+        let result = project(data, operation(&["tsx", "assetManifest"]))
+            .await
+            .unwrap();
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert_eq!(result["deliverable"]["withheldOutputs"][0]["output"], "tsx");
+        let issue = result["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["code"] == "DEVUP_EXCLUDED_ASSET_REFERENCED")
+            .unwrap();
+        assert_eq!(issue["code"], "DEVUP_EXCLUDED_ASSET_REFERENCED");
+        assert_eq!(issue["property"], "assetReference");
+        assert!(issue["details"]["originalValue"].is_object());
+        assert_eq!(issue["details"]["appliedValue"]["state"], "withheld");
+        assert!(issue["details"]["nextAction"].is_string());
+    }
+
+    #[tokio::test]
+    async fn r2_component_layout_has_generated_evidence_and_output_scope() {
+        let mut data = section(1);
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["2:1"]));
+        data.snapshot.nodes.insert(
+            "2:1".into(),
+            serde_json::from_value(json!({
+                "id":"2:1","type":"INSTANCE","fields":{"name":"Header", "parentId":"1:1",
+                "visible":true,"width":360,"height":66,"childrenIds":[]}
+            }))
+            .unwrap(),
+        );
+        let mut op = operation(&["tsx", "componentTsx"]);
+        if let PendingOperation::Export {
+            all_screens,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *all_screens = true;
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        let frame = &result["frames"][0];
+        let issues = frame["projectionIssues"].as_array().unwrap();
+        for issue in issues
+            .iter()
+            .filter(|i| i["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+        {
+            assert!(issue["details"]["appliedValue"].is_object(), "{issue}");
+            assert!(issue["details"]["output"].is_string(), "{issue}");
+            assert!(issue["details"]["nextAction"].is_string(), "{issue}");
+        }
+        assert!(frame["outputResults"]["tsx"]["fidelity"].is_object());
+        assert!(frame["outputResults"]["componentTsx"]["fidelity"].is_object());
+        assert!(
+            !frame["projectionReview"]["groups"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn r2_production_layout_evidence_is_actionable_per_output() {
+        for (raw, ids, fields, count) in [
+            (
+                include_str!("../../../../fixtures/r2/wquw-118-payload.json"),
+                vec!["3997:46242", "3997:46277", "3997:46129"],
+                vec!["tsx", "assetManifest"],
+                2,
+            ),
+            (
+                include_str!("../../../../fixtures/r2/wquw-120-payload.json"),
+                vec!["3997:46582"],
+                vec!["tsx", "componentTsx", "assetManifest"],
+                40,
+            ),
+        ] {
+            let data: CollectedPayload = serde_json::from_str(raw).unwrap();
+            let mut op = operation(&fields);
+            if let PendingOperation::Export {
+                frame_ids,
+                include_diagnostics,
+                ..
+            } = &mut op
+            {
+                *frame_ids = ids.into_iter().map(str::to_owned).collect();
+                *include_diagnostics = false;
+            }
+            let result = project(data, op).await.unwrap();
+            let issues = result["projectionIssues"].as_array().unwrap();
+            let layout: Vec<_> = issues
+                .iter()
+                .filter(|i| i["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+                .collect();
+            assert_eq!(layout.len(), count);
+            for issue in layout {
+                assert_eq!(
+                    issue["details"]["appliedValue"]["state"], "emitted",
+                    "{issue}"
+                );
+                assert!(
+                    issue["details"]["appliedValue"]["generatedSource"]
+                        .as_str()
+                        .is_some_and(|s| !s.is_empty())
+                );
+                assert!(issue["details"]["nextAction"].is_string());
+                if count == 40 {
+                    assert_eq!(issue["details"]["output"], "componentTsx");
+                    assert_eq!(issue["details"]["classification"], "component-reference");
+                } else {
+                    assert_eq!(issue["details"]["output"], "tsx");
+                    assert_eq!(issue["details"]["classification"], "text-auto-size");
+                    assert!(
+                        issue["details"]["appliedValue"]["generatedSource"]
+                            .as_str()
+                            .unwrap()
+                            .contains("<Text")
+                    );
+                }
+            }
+            if count == 40 {
+                let frame = &result["frames"][0];
+                assert_eq!(frame["outputResults"]["tsx"]["projection"], "approximated");
+                assert_eq!(
+                    frame["outputResults"]["componentTsx"]["projection"],
+                    "lossy"
+                );
+                let groups = frame["projectionReview"]["groups"].as_array().unwrap();
+                assert_eq!(
+                    groups
+                        .iter()
+                        .filter(|g| g["classification"] == "component-reference")
+                        .count(),
+                    5
+                );
+            }
+        }
+    }
 
     #[tokio::test]
     async fn r1_hidden_asset_paths_absent_from_all_six_frames() {
