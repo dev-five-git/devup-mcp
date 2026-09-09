@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp/Cargo.toml": "Patch",
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
-  },
-  "note": "R1 fixes contradictions in existing export results: hidden snapshot subtrees no longer emit asset references, and generated outputs that still require excluded assets are withheld with failures and partial status. Default projectionIssues expose approximation evidence and unclassified uncovered layout is lossy instead of exact. Asset quality describes binary collection consistently with assetSummary, whose statuses now have descriptions and an exclusion count. Budget recommendations are capped at three frames and hard maxFrameCount=6 is explicit. Patch: restores the existing truthfulness/completeness contract; adds compatible explanatory fields without adding a new capability or changing accepted request limits. Regression fixtures model paths confirmed from WQUW-118/119 reports; they are not claimed to replay missing source snapshots.",
-  "date": "2026-09-09T14:35:44+09:00"
-}
