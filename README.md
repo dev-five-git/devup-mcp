@@ -99,6 +99,8 @@ credential backend 초기화와 server 구성을 안전한 JSON으로 확인합�
 stdio pipe를 보유한 상태이므로 host의 MCP 연결을 재시작하거나 다시 등록해야 합니다.
 새로 실행된 server가 host가 보유한 이전 pipe를 스스로 복구할 수는 없습니다.
 
+서버 시작 시 OAuth 준비가 실패하면 **프로세스가 죽지 않고 진단 가능한 오류로 나옵니다.** HTTP 클라이언트 초기화가 실패하면 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`로 `Cannot start Figma OAuth: HTTP client initialization failed. Check TLS configuration and system certificate initialization, then restart devup-mcp.`와 함께 원인 체인을 붙여 돌려줍니다. endpoint URL이 잘못됐으면 `DEVUP_INVALID_INPUT`입니다. 예전에는 이 경로가 panic이라 무엇이 잘못됐는지 알 수 없었습니다 — TLS나 시스템 인증서 설정을 먼저 확인하세요.
+
 소스에서 검증하려면 다음을 실행합니다.
 
 ```bash
@@ -379,9 +381,26 @@ Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 ca
 
 > `This artifact was collected without the requested asset captures. Remove artifactId and call again with the original url and assetRequests.`
 
-기본값에서는 manifest의 `path`와 TSX의 자산 참조가 **자리표시자로 남습니다.** 실제 경로로 바꾸려면 같은 호출에서 `assetPublicRoot`와 `assetRequests.outputPath`를 함께 주세요. `assetPublicRoot`는 URL `/`로 서빙되는 **이미 존재하는 절대 로컬 디렉터리**여야 하고, 그 아래에 쓰인 파일은 manifest와 **모든 TSX output**에서 percent-encoding된 상대 URL로 바뀝니다. `outputPath`가 `assetPublicRoot` 밖이면 거절됩니다. 저장된 output 매핑은 artifact에 보존되지 않으므로 이 지정은 호출마다 해야 합니다.
+기본값에서는 manifest의 `path`와 TSX의 자산 참조가 **자리표시자로 남습니다.** 이것이 기본 동작이고, `assetPublicRoot`는 **옵트인**입니다.
 
-내보낸 바이트가 **동일하면** 하나의 canonical `path`/`outputPath`를 공유합니다. 중복 제거는 내용 해시로만 판단하며, 이름이 같다는 것만으로는 절대 합치지 않습니다. `assetNamesPerNode` 기본값은 여전히 `true`입니다.
+실제 경로로 바꾸려면 같은 호출에서 `assetPublicRoot`와 `assetRequests.outputPath`를 함께 주세요. 규칙은 이렇습니다.
+
+- `assetPublicRoot`는 URL `/`로 서빙되는 **이미 존재하는 절대 로컬 디렉터리**여야 합니다. 상대 경로이거나 존재하지 않으면 호출자 오류입니다.
+- 같은 호출에 `assetRequests.outputPath`가 **최소 한 개** 있어야 합니다. 저장된 output 매핑은 artifact에 보존되지 않으므로 `artifactId`로 재사용해도 이어지지 않고, 이 지정은 호출마다 해야 합니다.
+- `outputPath`가 `assetPublicRoot` 밖이거나 허용 write root를 벗어나면 거절됩니다.
+
+조건이 맞으면 그 루트 아래에 쓰인 파일이 manifest와 **모든 TSX output**에서 percent-encoding된 상대 URL로 바뀝니다.
+
+내보낸 바이트가 **동일하면** 하나의 canonical `path`/`outputPath`를 공유하고, 그 canonical 경로는 응답에 실려 돌아오므로 **반환된 경로를 그대로 확인해 쓰면 됩니다.**
+
+중복 제거의 판단 기준은 좁습니다.
+
+- **디코드한 export 바이트의 SHA-256**으로만 판단합니다. 레이어 이름이나 검증되지 않은 `imageHash`로는 합치지 않습니다.
+- 먼저 **무결성을 검증**합니다. 자산이 신고한 `byteLength`·`sha256`이 실제 디코드 결과와 다르면 합치기 전에 거절합니다.
+- **내용과 포맷이 모두 같을 때만** 공유합니다. 판정 키는 (내용 해시, 확장자, MIME)이라 같은 그림의 SVG와 PNG는 각각 남습니다.
+- **manifest의 노드별 항목은 그대로 유지됩니다.** 합쳐지는 것은 파일 경로이지 목록의 줄이 아니므로, 어느 노드가 어느 자산을 쓰는지는 계속 보입니다.
+
+`assetNamesPerNode` 기본값은 여전히 `true`입니다.
 
 asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플러그인이 그렇게 짓기 때문입니다. 그래서 디자이너가 같은 이름을 준 노드들은 파일 하나를 공유합니다. 같은 그림이면 맞지만 아니면 손실입니다. 한 화면에서 여덟 노드가 `Logo.svg` 하나를 주장하는데 실제로는 서로 다른 그림 다섯 개였고, 폭마다 그려진 사진은 마지막으로 export된 폭의 파일만 남아 다른 폭에서는 상자와 크기가 어긋난 채 늘어납니다(파일이 상자와 같은 크기이면 `object-fit`이 무엇이든 결과가 같으므로, 플러그인에서는 이 문제가 드러나지 않습니다).
 
@@ -405,7 +424,16 @@ Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection
 
 화면 후보 판정은 `explore`, export의 `selection`, `allScreens`가 **같은 규칙 하나**를 씁니다. 셋이 서로 다른 "화면" 정의를 갖던 문제가 사라져, `allScreens`가 배너·주석 프레임을 화면으로 만들어내지 않습니다.
 
-SECTION 기본 응답은 화면 아티팩트가 아닌 선택 목록입니다. `selection.status`와 `selection.count`로 목록 조회 상태와 후보 수를 알 수 있으며, 최상위 `status: "selection_required"`는 아직 화면을 선택해야 한다는 뜻입니다. `selection.candidates[]`는 `node.name`, `node.nodeType`, `node.textPreview`, `canonicalUrl`로 서로 구분할 수 있습니다. 미리보기는 보이는 텍스트만 모아 최대 120자, 전체 최대 2KB로 제한하므로 비어 있거나 짧아도 실제 화면 내용이 없다는 뜻은 아닙니다. `nextAction.example`에는 첫 후보를 선택하는 `devup_figma_export` 호출 예시가 들어 있습니다. 예시의 `frameIds`를 검토한 후보 ID로 바꿔 호출하면 선택한 화면만 수집합니다.
+SECTION은 **2단계**입니다. 1단계로 `status: "selection_required"`와 선택 목록을 받고, 2단계로 `nextAction.example`을 실행해 고른 화면을 export합니다. 한 번에 Section 전체를 수집하려 하지 마세요.
+
+SECTION 기본 응답은 화면 아티팩트가 아닌 선택 목록입니다. `selection.status`와 `selection.count`로 목록 조회 상태와 후보 수를 알 수 있으며, 최상위 `status: "selection_required"`는 아직 화면을 선택해야 한다는 뜻입니다.
+
+목록은 **두 갈래**로 나뉩니다.
+
+- `selection.candidates[]` — 자동으로 화면이라고 판정한 후보입니다. `node.name`, `node.nodeType`, `node.textPreview`, `canonicalUrl`로 서로 구분합니다. **`allScreens: true`는 메뉴의 모든 항목이 아니라 바로 이 자동 화면 후보를 한꺼번에 고르는 것**입니다.
+- `selection.explicitCandidates[]` — 자동 판정이 화면으로 보지 않은 것들입니다. 작은 사례, 주석·텍스트, 그리고 화면 치수로 측정되지 않는 **긴 페이지** 같은 것이 여기 들어옵니다. `allScreens`는 이들을 고르지 않으므로, 필요하면 `frameIds`나 그 `canonicalUrl`로 **명시적으로** 선택하세요.
+
+긴 페이지는 높이·비율 어느 쪽으로도 화면으로 측정되지 않습니다. 그렇다고 그 안을 뜯어 조각들만 후보로 내놓으면 정작 페이지 자체는 목록에 없게 되므로, 페이지는 `explicitCandidates`에 통째로 남기고 그 **안에 있는 자동 화면 후보도 함께** 보존합니다. 둘 중 무엇을 고를지는 호출자가 정합니다. 미리보기는 보이는 텍스트만 모아 최대 120자, 전체 최대 2KB로 제한하므로 비어 있거나 짧아도 실제 화면 내용이 없다는 뜻은 아닙니다. `nextAction.example`에는 첫 후보를 선택하는 `devup_figma_export` 호출 예시가 들어 있습니다. 예시의 `frameIds`를 검토한 후보 ID로 바꿔 호출하면 선택한 화면만 수집합니다.
 
 ### 한 화면의 여러 폭 — 반응형 모듈
 
