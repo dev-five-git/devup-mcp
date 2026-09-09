@@ -195,24 +195,10 @@ pub fn build_section_index(
         .filter_map(|child| ExploreNode::try_from(child).ok())
         .filter(|child| child.visible)
         .filter(|child| !found_screen_ids.contains(&child.node_id))
-        // A child holding a screen would offer that screen twice over, once
-        // whole and once inside itself.
-        .filter(|child| {
-            !found_screen_ids
-                .iter()
-                .any(|screen| is_descendant(snapshot, screen, &child.node_id))
-        })
         .collect::<Vec<_>>();
     screen_nodes.extend(children);
-    let screen_ids = screen_nodes
-        .iter()
-        .map(|node| node.node_id.clone())
-        .collect::<BTreeSet<_>>();
-    screen_nodes.retain(|node| {
-        !ancestor_ids(snapshot, &node.node_id, section_id)
-            .iter()
-            .any(|ancestor| ancestor != section_id && screen_ids.contains(ancestor.as_str()))
-    });
+    // Automatic screens were already deduplicated by section_screen_nodes.
+    // Explicit containers must not suppress the screens they contain.
     screen_nodes.sort_by(|left, right| {
         left.bounds
             .y
@@ -459,12 +445,6 @@ fn ancestor_ids(snapshot: &Snapshot, node_id: &str, stop_id: &str) -> Vec<String
             .and_then(|node| node.typed_view().string("parentId"));
     }
     result
-}
-
-fn is_descendant(snapshot: &Snapshot, node_id: &str, section_id: &str) -> bool {
-    ancestor_ids(snapshot, node_id, section_id)
-        .iter()
-        .any(|ancestor| ancestor == section_id)
 }
 
 fn breadcrumb(snapshot: &Snapshot, node_id: &str) -> Vec<String> {

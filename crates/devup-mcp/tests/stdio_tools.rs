@@ -84,7 +84,7 @@ fn collect_boolean_schemas(path: &str, node: &Value, hits: &mut Vec<String>) {
 async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     let (server_transport, client_transport) = tokio::io::duplex(16 * 1024);
     let server = tokio::spawn(async move {
-        DevupServer::default()
+        DevupServer::production_with_output_roots(vec![std::env::current_dir()?])?
             .serve(server_transport)
             .await?
             .waiting()

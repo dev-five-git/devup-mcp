@@ -224,8 +224,8 @@ impl Services {
         }
     }
 
-    fn production(figma_direct: crate::FigmaDirectConfig) -> Self {
-        let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)
+    fn production(figma_direct: crate::FigmaDirectConfig) -> Result<Self, DevupError> {
+        let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)?
             .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
         if figma_direct.callback_port.is_some() {
             oauth = oauth.with_callback_port(figma_direct.callback_port);
@@ -256,7 +256,7 @@ impl Services {
             );
         }
         let upstream = RemoteFigmaClient::new(oauth.clone());
-        Self::new(Arc::new(oauth), Arc::new(upstream))
+        Ok(Self::new(Arc::new(oauth), Arc::new(upstream)))
     }
 }
 
@@ -293,19 +293,13 @@ impl DevupServer {
         roots: Vec<std::path::PathBuf>,
         figma_direct: crate::FigmaDirectConfig,
     ) -> Result<Self, DevupError> {
-        Self::with_output_roots(Services::production(figma_direct), roots)
+        Self::with_output_roots(Services::production(figma_direct)?, roots)
     }
 
     pub fn production_with_output_roots(
         roots: Vec<std::path::PathBuf>,
     ) -> Result<Self, DevupError> {
         Self::production_with_config(roots, crate::FigmaDirectConfig::default())
-    }
-}
-
-impl Default for DevupServer {
-    fn default() -> Self {
-        Self::new(Services::production(crate::FigmaDirectConfig::default()))
     }
 }
 
