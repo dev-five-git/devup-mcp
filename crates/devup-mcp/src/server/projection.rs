@@ -412,6 +412,194 @@ fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
+/// Compare the generated text, removing only known asset references in codegen's
+/// src and CSS URL forms. Literal text, layout, imports and component names stay
+/// significant. Separate segments avoid collisions with a placeholder string.
+fn generated_structure(code: &str, paths: &[String]) -> Vec<String> {
+    let mut ranges = Vec::new();
+    for attribute in ["src", "bg", "backgroundImage", "maskImage"] {
+        let opening = format!("{attribute}=\"");
+        for (at, _) in code.match_indices(&opening) {
+            // An attribute name must start at a word boundary, not inside an
+            // unrelated prop. Codegen quotes literal text containing quotes.
+            if !code[..at]
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace)
+            {
+                continue;
+            }
+            let start = at + opening.len();
+            let Some(end) = code[start..].find('"') else {
+                continue;
+            };
+            let value = &code[start..start + end];
+            for path in paths {
+                if attribute == "src" {
+                    if value == path {
+                        ranges.push((start, start + path.len()));
+                    }
+                    continue;
+                }
+                // Preserve all paint layers and positions while recognizing
+                // every image, including URLs after gradients or other images.
+                for (prefix, suffix) in [("url(", ")"), ("url('", "')")] {
+                    let reference = format!("{prefix}{path}{suffix}");
+                    for (offset, _) in value.match_indices(&reference) {
+                        let asset_start = start + offset + prefix.len();
+                        ranges.push((asset_start, asset_start + path.len()));
+                    }
+                }
+            }
+        }
+    }
+    ranges.sort_unstable();
+    ranges.dedup();
+    let mut segments = Vec::new();
+    let mut previous = 0;
+    for (start, end) in ranges {
+        if start < previous {
+            continue;
+        }
+        segments.push(code[previous..start].to_owned());
+        previous = end;
+    }
+    segments.push(code[previous..].to_owned());
+    segments
+}
+
+fn annotate_identical_frames(frames: &mut [Value], payload: &CollectedPayload, per_node: bool) {
+    let paths = devup_mcp_figma::discover_asset_manifest(&payload.snapshot)
+        .assets
+        .iter()
+        .filter_map(|asset| {
+            match asset
+                .field
+                .strip_prefix("fills/")
+                .and_then(|n| n.parse::<usize>().ok())
+            {
+                Some(index) => devup_mcp_devup_ui::codegen::image_fill_path(
+                    &payload.snapshot,
+                    &asset.node_id,
+                    index,
+                    per_node,
+                ),
+                None => devup_mcp_devup_ui::codegen::asset_path(
+                    &payload.snapshot,
+                    &asset.node_id,
+                    per_node,
+                ),
+            }
+        })
+        .map(|path| host_safe_asset_path(&path))
+        .collect::<Vec<_>>();
+    let mut seen = BTreeMap::new();
+    for frame in frames {
+        // Fidelity warnings may make a frame partial without changing the
+        // generated text. Compare exactly the outputs that exist; the key and
+        // comparedOutputs prevent missing outputs from implying equivalence.
+        let generated = ["tsx", "componentTsx"]
+            .into_iter()
+            .filter_map(|field| frame[field].as_str().map(|code| (field, code.to_owned())))
+            .collect::<Vec<_>>();
+        if generated.is_empty() {
+            continue;
+        }
+        let key = generated
+            .iter()
+            .map(|(field, code)| (*field, generated_structure(code, &paths)))
+            .collect::<Vec<_>>();
+        if let Some((node_id, original)) = seen.get(&key) {
+            frame["structurallyIdenticalTo"] = json!(node_id);
+            frame["differsOnly"] = if original == &generated {
+                json!([])
+            } else {
+                json!(["assetReferences"])
+            };
+            frame["comparedOutputs"] = json!(
+                generated
+                    .iter()
+                    .map(|(field, _)| *field)
+                    .collect::<Vec<_>>()
+            );
+        } else {
+            seen.insert(key, (frame["nodeId"].clone(), generated));
+        }
+    }
+}
+
+/// This describes collection, even when the caller did not request a manifest.
+/// Missing evidence is never reported as proof that the design has no assets.
+fn asset_summary(
+    payload: &CollectedPayload,
+    artifact: &ArtifactLookup,
+    roots: &[String],
+    manifest_requested: bool,
+) -> Value {
+    let mut snapshot = payload.snapshot.clone();
+    snapshot.roots = roots.to_vec();
+    let mut reachable = std::collections::BTreeSet::new();
+    let mut pending = roots.to_vec();
+    while let Some(id) = pending.pop() {
+        if !reachable.insert(id.clone()) {
+            continue;
+        }
+        if let Some(node) = snapshot.nodes.get(&id) {
+            pending.extend(node.typed_view().child_ids().map(str::to_owned));
+        }
+    }
+    snapshot.nodes.retain(|id, _| reachable.contains(id));
+    let mut assets = devup_mcp_figma::discover_asset_manifest(&snapshot).assets;
+    for captured in payload
+        .assets
+        .iter()
+        .filter(|asset| reachable.contains(&asset.node_id))
+    {
+        if let Some(existing) = assets
+            .iter_mut()
+            .find(|asset| asset.asset_id == captured.asset_id)
+        {
+            *existing = captured.clone();
+        } else {
+            assets.push(captured.clone());
+        }
+    }
+    let index_only = artifact.capabilities.kind == super::artifacts::ArtifactKind::SectionIndex;
+    let incomplete = index_only
+        || snapshot.audit().state != devup_mcp_figma::CompletenessState::Complete
+        || snapshot
+            .nodes
+            .values()
+            .any(|node| node.typed_view().bool("projectionTruncated") == Some(true));
+    let collected = assets
+        .iter()
+        .filter(|asset| asset.status == AssetStatus::Exported)
+        .count();
+    let unavailable = assets.iter().filter(|asset| asset.status != AssetStatus::Exported).map(|asset| {
+        let reason = match asset.error_code.as_deref() {
+            Some("DEVUP_ASSET_NODE_HIDDEN") => "hidden-node",
+            Some(_) => "export-failed",
+            None if artifact.capabilities.asset_capture_count == 0 => "not-requested",
+            None => "capture-not-in-artifact",
+        };
+        json!({"assetId":asset.asset_id,"nodeId":asset.node_id,"reason":reason,"errorCode":asset.error_code})
+    }).collect::<Vec<_>>();
+    let status = if assets.is_empty() {
+        if incomplete { "unknown" } else { "none" }
+    } else if collected == 0 {
+        "not-collected"
+    } else if collected < assets.len() || incomplete {
+        "partial"
+    } else {
+        "collected"
+    };
+    json!({"status":status,"scopeRootIds":roots,
+        "discovery":if incomplete { "incomplete" } else { "complete" },
+        "discoveryReason":if index_only { Some("index-only") } else if incomplete { Some("snapshot-incomplete") } else { None },
+        "discoveredCount":assets.len(),"collectedCount":collected,
+        "manifestIncluded":manifest_requested,"unavailable":unavailable})
+}
+
 fn projection_key(outputs: &[ProjectedOutput]) -> String {
     let mut hasher = Sha256::new();
     for output in outputs {
@@ -725,6 +913,16 @@ pub(super) async fn complete_operation(
                 classify_target(&payload.snapshot, &payload.target)
             };
             result.insert("targetKind".to_owned(), json!(target_kind));
+            let manifest_requested = outputs.iter().any(|output| output == "assetManifest");
+            result.insert(
+                "assetSummary".to_owned(),
+                asset_summary(
+                    payload,
+                    artifact,
+                    &payload.snapshot.roots,
+                    manifest_requested,
+                ),
+            );
 
             if !frame_ids.is_empty() && all_screens {
                 return Err(DevupError::new(
@@ -751,7 +949,17 @@ pub(super) async fn complete_operation(
                     index
                         .candidates
                         .iter()
-                        .map(section_candidate_as_explore)
+                        .map(|candidate| {
+                            let mut explored = section_candidate_as_explore(candidate);
+                            explored.node.kind =
+                                devup_mcp_figma::classify_explore_node(&explored.node);
+                            explored.selection_reasons = if explored.node.is_screen_candidate() {
+                                vec!["screen-like".into(), "inside-section".into()]
+                            } else {
+                                vec!["explicit-selection-only".into(), "inside-section".into()]
+                            };
+                            explored
+                        })
                         .collect()
                 } else {
                     let explored = explore_snapshot(
@@ -772,6 +980,9 @@ pub(super) async fn complete_operation(
                 // Both candidate producers report actual list truncation.
                 // Reaching the limit alone does not mean candidates were omitted.
                 let truncated = candidates_truncated;
+                let (screens, explicit_candidates): (Vec<_>, Vec<_>) = candidates
+                    .iter()
+                    .partition(|candidate| candidate.node.is_screen_candidate());
                 let quality = OutputQuality {
                     acquisition: acquisition_quality(&completeness_report, false),
                     projection: projection_quality(false, &[]),
@@ -779,14 +990,18 @@ pub(super) async fn complete_operation(
                     assets: assets_quality(false, &[], &[]),
                 };
                 result.insert("status".to_owned(), json!("selection_required"));
+                if let Some(summary) = result.get_mut("assetSummary") {
+                    summary["manifestIncluded"] = json!(false);
+                }
                 result.insert("quality".to_owned(), json!(quality));
                 result.insert(
                     "selection".to_owned(),
                     json!({
                         "kind": "screen-frame",
                         "status": if truncated { "partial" } else { "complete" },
-                        "count": candidates.len(),
-                        "candidates": candidates,
+                        "count": screens.len(),
+                        "candidates": screens,
+                        "explicitCandidates": explicit_candidates,
                         "truncated": truncated
                     }),
                 );
@@ -794,14 +1009,14 @@ pub(super) async fn complete_operation(
                     "nextAction".to_owned(),
                     json!({
                         "why": "This is a Section candidate list. Screen artifacts have not been exported yet.",
-                        "how": "Review selection.candidates using name, nodeType and textPreview. Call devup_figma_export with frameIds to export selected screens, use a candidate's canonicalUrl for one screen, or allScreens:true for every candidate in a complete list.",
+                        "how": "Review selection.candidates using name, nodeType and textPreview. Use allScreens:true for these automatic screen candidates in a complete list. Nonstandard cases and notes are in selection.explicitCandidates; select them with frameIds or their canonicalUrl.",
                         "doNot": "Do not try to collect the whole Section at once."
                     }),
                 );
                 // An example built from this call's own artifact and a real
                 // candidate, so the next step is a call to run rather than a
                 // shape to assemble.
-                if let Some(candidate) = candidates.first() {
+                if let Some(candidate) = screens.first().or_else(|| explicit_candidates.first()) {
                     result
                         .get_mut("nextAction")
                         .expect("nextAction was inserted")["example"] = json!({
@@ -843,11 +1058,7 @@ pub(super) async fn complete_operation(
                 let selected = if all_screens {
                     candidates
                         .iter()
-                        .filter(|candidate| {
-                            candidate.node.visible
-                                && devup_mcp_figma::classify_explore_node(&candidate.node)
-                                    == devup_mcp_figma::ExploreKind::Screen
-                        })
+                        .filter(|candidate| candidate.node.is_screen_candidate())
                         .filter(|candidate| !failed_ids.contains(candidate.node.node_id.as_str()))
                         .collect::<Vec<_>>()
                 } else {
@@ -980,6 +1191,12 @@ pub(super) async fn complete_operation(
                     } else {
                         frame_quality.status()
                     });
+                    frame["assetSummary"] = asset_summary(
+                        payload,
+                        artifact,
+                        std::slice::from_ref(&candidate.node.node_id),
+                        manifest_requested,
+                    );
                     attach_completeness_report(
                         &mut frame,
                         frame_quality,
@@ -990,6 +1207,13 @@ pub(super) async fn complete_operation(
                         frame["diagnostics"] = json!(frame_diagnostics);
                     }
                     frames.push(frame);
+                }
+                annotate_identical_frames(&mut frames, payload, asset_names_per_node);
+                if let Some(roots) = &selected_projection_roots {
+                    result.insert(
+                        "assetSummary".to_owned(),
+                        asset_summary(payload, artifact, roots, manifest_requested),
+                    );
                 }
                 if outputs
                     .iter()
@@ -1777,6 +2001,215 @@ mod w1_regressions {
                     "visible":true,"childrenIds":[]}}},"diagnostics":[]}
         }))
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn p1_frames_report_generated_asset_only_equivalence() {
+        let mut data = section(3);
+        for i in 1..=3 {
+            let id = format!("1:{i}");
+            let node = data.snapshot.nodes.get_mut(&id).unwrap();
+            node.fields.insert(
+                "fills".into(),
+                json!([{"type":"IMAGE", "imageHash":format!("image{i}"), "scaleMode":"FILL"}]),
+            );
+        }
+        data.snapshot
+            .nodes
+            .get_mut("1:3")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["3:1"]));
+        data.snapshot.nodes.insert(
+            "3:1".into(),
+            serde_json::from_value(json!({
+                "id":"3:1", "type":"TEXT", "fields":{"name":"Copy", "parentId":"1:3",
+                    "characters":"Different copy", "fontSize":16, "width":100, "height":24}
+            }))
+            .unwrap(),
+        );
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { all_screens, .. } = &mut op {
+            *all_screens = true;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["frames"][1]["structurallyIdenticalTo"], "1:1");
+        assert_eq!(
+            result["frames"][1]["differsOnly"],
+            json!(["assetReferences"])
+        );
+        assert!(result["frames"][2].get("structurallyIdenticalTo").is_none());
+    }
+
+    #[tokio::test]
+    async fn p1_asset_summary_distinguishes_none_uncollected_and_hidden() {
+        let result = project(payload(), operation(&["tsx"])).await.unwrap();
+        assert_eq!(result["assetSummary"]["status"], "none");
+        let mut data = payload();
+        data.snapshot.nodes.get_mut("1:1").unwrap().node_type = "VECTOR".into();
+        let result = project(data.clone(), operation(&["assetManifest"]))
+            .await
+            .unwrap();
+        assert_eq!(result["assetSummary"]["status"], "not-collected");
+        assert_eq!(
+            result["assetSummary"]["unavailable"][0]["reason"],
+            "not-requested"
+        );
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("visible".into(), json!(false));
+        let result = project(data, operation(&["assetManifest"])).await.unwrap();
+        assert_eq!(result["assetSummary"]["status"], "not-collected");
+        assert_eq!(
+            result["assetSummary"]["unavailable"][0]["reason"],
+            "hidden-node"
+        );
+    }
+
+    #[tokio::test]
+    async fn p1_incomplete_asset_discovery_never_claims_no_assets() {
+        let mut data = payload();
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["missing"]));
+        let result = project(data, operation(&["assetManifest"])).await.unwrap();
+        assert_eq!(result["assetSummary"]["status"], "unknown");
+        assert_eq!(result["assetSummary"]["discovery"], "incomplete");
+    }
+
+    #[tokio::test]
+    async fn p1_selection_separates_explicit_cases_from_automatic_screens() {
+        let mut data = section(2);
+        data.metadata["sectionIndex"]["candidates"][1]["bounds"]["width"] = json!(150);
+        data.metadata["sectionIndex"]["candidates"][1]["bounds"]["height"] = json!(150);
+        let result = project(data.clone(), operation(&["tsx"])).await.unwrap();
+        assert_eq!(result["selection"]["count"], 1);
+        assert_eq!(
+            result["selection"]["explicitCandidates"][0]["node"]["nodeId"],
+            "1:2"
+        );
+        assert_eq!(
+            result["selection"]["explicitCandidates"][0]["node"]["kind"],
+            "annotation"
+        );
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["1:2".into()];
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["frames"][0]["nodeId"], "1:2");
+    }
+
+    #[test]
+    fn p1_asset_comparison_preserves_literal_text_and_unknown_paths() {
+        let paths = vec!["/icons/a.svg".into(), "/icons/b.svg".into()];
+        assert_eq!(
+            generated_structure("<Box maskImage=\"url('/icons/a.svg')\" />", &paths),
+            generated_structure("<Box maskImage=\"url('/icons/b.svg')\" />", &paths)
+        );
+        assert_ne!(
+            generated_structure("<Text>{\"url(/icons/a.svg)\"}</Text>", &paths),
+            generated_structure("<Text>{\"url(/icons/b.svg)\"}</Text>", &paths)
+        );
+        assert_ne!(
+            generated_structure("<Image src=\"/icons/a.svg\" />", &paths),
+            generated_structure("<Image src=\"/icons/unknown.svg\" />", &paths)
+        );
+    }
+
+    #[test]
+    fn p1_layered_backgrounds_compare_every_asset_reference() {
+        let paths = vec!["/images/a.png".into(), "/images/b.png".into()];
+        let first = "<Box bg=\"linear-gradient(red, blue), url('/images/a.png') center/cover, url(/images/b.png)\" />";
+        let second = "<Box bg=\"linear-gradient(red, blue), url('/images/b.png') center/cover, url(/images/a.png)\" />";
+        assert_eq!(
+            generated_structure(first, &paths),
+            generated_structure(second, &paths)
+        );
+        assert_ne!(
+            generated_structure(first, &paths),
+            generated_structure(&second.replace("red", "green"), &paths)
+        );
+    }
+
+    #[tokio::test]
+    async fn p1_selection_does_not_claim_to_include_an_unproduced_manifest() {
+        let result = project(section(2), operation(&["tsx", "assetManifest"]))
+            .await
+            .unwrap();
+        assert_eq!(result["status"], "selection_required");
+        assert!(result.get("assetManifest").is_none());
+        assert_eq!(result["assetSummary"]["manifestIncluded"], false);
+    }
+
+    #[test]
+    fn p1_comparison_scopes_partial_frames_to_their_generated_outputs() {
+        let mut frames = vec![
+            json!({"nodeId":"1", "status":"complete", "tsx":"code", "componentTsx":"component"}),
+            json!({"nodeId":"2", "status":"partial", "tsx":"code"}),
+            json!({"nodeId":"3", "status":"partial", "tsx":"code", "componentTsx":"component"}),
+            json!({"nodeId":"4", "status":"partial"}),
+        ];
+        annotate_identical_frames(&mut frames, &payload(), true);
+        assert!(frames[1].get("structurallyIdenticalTo").is_none());
+        assert_eq!(frames[2]["structurallyIdenticalTo"], "1");
+        assert_eq!(frames[2]["comparedOutputs"], json!(["tsx", "componentTsx"]));
+        assert!(frames[3].get("structurallyIdenticalTo").is_none());
+    }
+
+    #[tokio::test]
+    async fn p1_identical_hints_and_asset_summary_survive_resource_delivery() {
+        let mut op = operation(&["tsx", "componentTsx"]);
+        if let PendingOperation::Export {
+            all_screens,
+            delivery,
+            ..
+        } = &mut op
+        {
+            *all_screens = true;
+            *delivery = DeliveryMode::Resource;
+        }
+        let result = project(section(2), op).await.unwrap();
+        assert!(result["frames"][0].get("tsx").is_none());
+        assert_eq!(result["frames"][1]["structurallyIdenticalTo"], "1:1");
+        assert_eq!(result["frames"][1]["differsOnly"], json!([]));
+        assert_eq!(
+            result["frames"][1]["comparedOutputs"],
+            json!(["tsx", "componentTsx"])
+        );
+        assert!(result["assetSummary"].is_object());
+        assert!(result["frames"][0]["assetSummary"].is_object());
+    }
+
+    #[tokio::test]
+    async fn p1_collected_assets_are_distinct_from_delivered_manifest() {
+        let mut data = payload();
+        data.snapshot.nodes.get_mut("1:1").unwrap().node_type = "VECTOR".into();
+        data.assets.push(
+            devup_mcp_figma::exported_asset_from_bytes(
+                &devup_mcp_figma::AssetRequest {
+                    asset_id: "1:1:node".into(),
+                    node_id: "1:1".into(),
+                    field: "node".into(),
+                    image_hash: None,
+                    format: devup_mcp_figma::AssetFormat::Svg,
+                    scale: 1,
+                },
+                b"<svg/>",
+            )
+            .unwrap(),
+        );
+        let result = project(data, operation(&["tsx"])).await.unwrap();
+        assert_eq!(result["assetSummary"]["status"], "collected");
+        assert_eq!(result["assetSummary"]["collectedCount"], 1);
+        assert_eq!(result["assetSummary"]["manifestIncluded"], false);
+        assert!(result.get("assetManifest").is_none());
     }
 
     fn section(count: usize) -> CollectedPayload {
