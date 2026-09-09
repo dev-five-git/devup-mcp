@@ -388,3 +388,93 @@ fn multi_root_envelope(root_ids: &[String]) -> UpstreamResult {
         ]}),
     }
 }
+
+#[derive(Default)]
+struct P3LargeSectionUpstream(AtomicUsize);
+
+#[async_trait]
+impl FigmaUpstream for P3LargeSectionUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".into()])
+    }
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        assert!(
+            matches!(
+                call,
+                ReadToolCall::Snapshot {
+                    script: BuiltinScript::SectionIndex,
+                    ..
+                }
+            ),
+            "oversized allScreens reached a screen read: {call:?}"
+        );
+        let mut result = compact_section_index_result();
+        let template = result.raw["nodes"][1].clone();
+        result.raw["nodes"][0]["fields"]["childrenIds"] =
+            json!((2..=15).map(|i| format!("10:{i}")).collect::<Vec<_>>());
+        result.raw["nodes"].as_array_mut().unwrap().truncate(1);
+        for i in 2..=15 {
+            let mut node = template.clone();
+            node["id"] = json!(format!("10:{i}"));
+            result.raw["nodes"].as_array_mut().unwrap().push(node);
+        }
+        Ok(result)
+    }
+}
+
+#[tokio::test]
+async fn p3_all_screens_is_refused_after_index_before_any_screen_reads() -> anyhow::Result<()> {
+    let upstream = Arc::new(P3LargeSectionUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let error = call(
+        &client,
+        json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
+        "allScreens":true,"outputs":["tsx","devupJson","assetManifest"]}),
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+    assert!(
+        error.contains("batch budget") && error.contains("-32602"),
+        "{error}"
+    );
+    assert_eq!(upstream.0.load(Ordering::SeqCst), 1);
+    client.cancel().await?;
+    task.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn p3_section_next_action_executes_without_editing_arguments() -> anyhow::Result<()> {
+    let upstream = Arc::new(SectionUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let selection = call(
+        &client,
+        json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=10-1",
+        "componentName":"TicketScreen", "outputs":["tsx"]}),
+    )
+    .await?;
+    let result = call(
+        &client,
+        selection["nextAction"]["example"]["arguments"].clone(),
+    )
+    .await?;
+    assert_ne!(result["status"], "selection_required");
+    assert!(!result["resources"].as_array().unwrap().is_empty());
+    client.cancel().await?;
+    task.abort();
+    Ok(())
+}

@@ -209,3 +209,92 @@ async fn the_description_carries_the_guidance_the_usage_report_asked_for() -> an
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn p3_large_export_is_rejected_before_collection() {
+    let result = export(
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2",
+        "frameIds": (1..=14).map(|i| format!("1:{i}")).collect::<Vec<_>>(),
+        "outputs":["tsx","devupJson","assetManifest"]}),
+    )
+    .await;
+    let message = result.unwrap_err().to_string();
+    assert!(message.contains("batch"), "{message}");
+}
+
+#[tokio::test]
+async fn p3_public_root_requires_absolute_existing_directory() {
+    let result = export(
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2",
+        "assetPublicRoot":"relative/public", "outputs":["tsx","assetManifest"]}),
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "relative assetPublicRoot was silently ignored"
+    );
+}
+
+#[tokio::test]
+async fn p3_parameter_failures_do_not_spend_upstream_calls() -> anyhow::Result<()> {
+    let fixture = Arc::new(Fixture::default());
+    let server = DevupServer::new(Services::new(Arc::new(Auth), fixture.clone()));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    for arguments in [
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "assetPublicRoot":std::env::temp_dir()}),
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "outputs":["referencePng"], "frameIds":["1:2"]}),
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "assetRequests":[{"assetId":"x"}]}),
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "outputPaths":{"tsx":"../escape.tsx"}}),
+        json!({"url":"https://www.figma.com/design/FileKey123/Test?node-id=1-2", "frameIds":(1..=14).map(|i| format!("1:{i}")).collect::<Vec<_>>()}),
+    ] {
+        let error = client
+            .call_tool(
+                CallToolRequestParams::new("devup_figma_export")
+                    .with_arguments(arguments.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("-32602"), "{error}");
+        assert_eq!(fixture.calls.load(Ordering::SeqCst), 0);
+    }
+    let error = client
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_export")
+                .with_arguments(json!({"artifactId":"missing"}).as_object().unwrap().clone()),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("-32603") && error.contains("The Figma artifact is missing or expired."),
+        "{error}"
+    );
+    client.cancel().await?;
+    task.abort();
+    Ok(())
+}
+
+#[tokio::test]
+async fn p3_schema_exposes_opt_in_and_cost_and_section_contract() -> anyhow::Result<()> {
+    let (schema, description) = export_tool_schema().await?;
+    assert!(schema["properties"].get("assetPublicRoot").is_some());
+    assert_eq!(schema["properties"]["assetNamesPerNode"]["default"], true);
+    for hint in [
+        "1–3",
+        "6 frames",
+        "12 frame-times-output",
+        "15–60 seconds",
+        "300 seconds",
+        "two stages",
+        "nextAction.example",
+    ] {
+        assert!(description.contains(hint), "Missing {hint}");
+    }
+    Ok(())
+}

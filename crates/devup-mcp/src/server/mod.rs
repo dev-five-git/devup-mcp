@@ -57,6 +57,19 @@ pub use tools::{
     ProjectContextInput, StackDiffInput, UiValidateInput,
 };
 
+/// Additive workflow options; existing input defaults remain in tools.rs.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FigmaExportWorkflowInput {
+    #[serde(flatten)]
+    pub input: FigmaExportInput,
+    /// Opt in to rewriting exported asset references. Existing absolute local
+    /// directory served at URL /. Only exported files below it are mapped;
+    /// URL path segments are percent-encoded. Omit to keep placeholder paths.
+    #[serde(default)]
+    pub asset_public_root: Option<String>,
+}
+
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
 
 /// The most matches `devup_figma_search` and screen candidates
@@ -369,7 +382,7 @@ impl DevupServer {
         match self
             .artifacts
             .get_or_acquire(artifact_key.clone(), refresh, || async {
-                CollectedPayload::try_from(self.run_direct(request.clone()).await?)
+                CollectedPayload::try_from(self.run_direct(request.clone(), &operation).await?)
             })
             .await
         {
@@ -466,12 +479,35 @@ impl DevupServer {
         }
     }
 
-    async fn run_direct(&self, request: CollectionRequest) -> Result<CollectedParts, DevupError> {
+    async fn run_direct(
+        &self,
+        request: CollectionRequest,
+        operation: &PendingOperation,
+    ) -> Result<CollectedParts, DevupError> {
+        let budget = match operation {
+            PendingOperation::Export {
+                outputs,
+                all_screens: true,
+                ..
+            } => Some(outputs),
+            _ => None,
+        };
+        if let (Some(outputs), Some(index)) = (budget, &request.cached_section_index) {
+            validation::validate_export_budget(&index.select(&[], true)?, outputs)?;
+        }
+        let target = request.target.clone();
         let mut collector = CollectorSession::new(request);
         loop {
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
+                    let section_index_call = matches!(
+                        &planned.call,
+                        ReadToolCall::Snapshot {
+                            script: devup_mcp_figma::BuiltinScript::SectionIndex,
+                            ..
+                        }
+                    );
                     match self.call_waiting_out_a_spent_allowance(planned.call).await {
                         // A Section target is not a failed call — the script
                         // throws, and MCP delivers that as a successful result
@@ -501,7 +537,20 @@ impl DevupServer {
                                     return Err(error);
                                 }
                             }
-                            None => collector.accept(&call_id, result)?,
+                            None => {
+                                if section_index_call && let Some(outputs) = budget {
+                                    let chunk =
+                                        devup_mcp_figma::snapshot_chunk_from_result(&result)?;
+                                    let snapshot = devup_mcp_figma::merge_chunks(vec![chunk])?;
+                                    let index =
+                                        devup_mcp_figma::build_section_index(&snapshot, &target)?;
+                                    validation::validate_export_budget(
+                                        &index.select(&[], true)?,
+                                        outputs,
+                                    )?;
+                                }
+                                collector.accept(&call_id, result)?;
+                            }
                         },
                         Err(error) if collector.reject(&call_id, &error)? => continue,
                         Err(error) => return Err(error),
@@ -906,7 +955,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Acquire a Figma design once and project any combination of outputs from that one collection; the Figma-to-code entry point. \
+        description = "Export a small Figma selection; the Figma-to-code entry point. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 15–60 seconds per frame as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into batches. Partial per-frame projection failures retain successful frame outputs. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
@@ -914,14 +963,48 @@ impl DevupServer {
                        `rawSnapshot` and `rawPayload` are the collected design in raw form and need `debug: true`. Use them for one question only - a screen looks wrong and you must decide whether the generator is at fault or the design says so - never to implement, since the tsx already carries what they carry. \
                        `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
-                       `assetManifest` lists the assets and their ids and writes nothing. To get files, call again with `assetRequests`, giving each entry an `outputPath` under an allowed write root - and make that call with the original `url` rather than `artifactId`, because an acquisition made without asset capture cannot serve asset requests. The `path` the manifest reports, which is also the `src`/`maskImage` in the generated tsx, is a placeholder built from the layer name: it is not the file you wrote, so change the code's path to the `outputPath` you chose. \
+                       `assetManifest` lists the assets and their ids and writes nothing. To get files, call again with `assetRequests`, giving each entry an `outputPath` under an allowed write root - and make that call with the original `url` rather than `artifactId`, because an acquisition made without asset capture cannot serve asset requests. By default manifest `path` and TSX references remain placeholders. Opt in with `assetPublicRoot`, an existing absolute local directory served at URL /, together with assetRequests.outputPath in this call (saved output mappings are not part of artifacts): files below that root map to percent-encoded relative URLs in manifest and all TSX outputs. Identical exported bytes share one canonical path/outputPath; inspect the returned paths. assetNamesPerNode remains true by default; matching names alone never trigger deduplication. \
                        Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
         &self,
-        Parameters(input): Parameters<FigmaExportInput>,
+        Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
+        let input = workflow.input;
+        let asset_public_root =
+            validation::validate_public_root(workflow.asset_public_root.as_deref())
+                .map_err(to_mcp_error)?;
+        if asset_public_root.is_some()
+            && !input
+                .asset_requests
+                .iter()
+                .any(|asset| asset.output_path.is_some())
+        {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "assetPublicRoot requires an assetRequests outputPath in this call; saved output mappings are not part of an artifact.",
+                false,
+            )));
+        }
+        validation::validate_export_budget(&input.frame_ids, &input.outputs)
+            .map_err(to_mcp_error)?;
+        for path in input.output_paths.values().chain(
+            input
+                .asset_requests
+                .iter()
+                .filter_map(|asset| asset.output_path.as_ref()),
+        ) {
+            let target = self.output_policy.resolve(path).map_err(to_mcp_error)?;
+            if let Some(root) = &asset_public_root
+                && input
+                    .asset_requests
+                    .iter()
+                    .any(|asset| asset.output_path.as_ref() == Some(path))
+            {
+                validation::public_asset_url(root, target.display_path()).map_err(to_mcp_error)?;
+            }
+        }
         validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
             && !input.outputs.iter().any(|output| output == "assetManifest")
@@ -1008,6 +1091,7 @@ impl DevupServer {
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
                             asset_output_paths,
+                            asset_public_root: asset_public_root.clone(),
                             delivery,
                         },
                         request,
@@ -1038,6 +1122,7 @@ impl DevupServer {
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
+                    asset_public_root: asset_public_root.clone(),
                     delivery,
                 },
                 &artifact.payload,
@@ -1101,6 +1186,7 @@ impl DevupServer {
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
+                    asset_public_root: asset_public_root.clone(),
                     delivery,
                 },
                 request,
@@ -1287,7 +1373,7 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
 /// decision can be made without parsing the message. `data` keeps carrying
 /// the exact `code` and `retryable`, unchanged.
 fn to_mcp_error(error: DevupError) -> ErrorData {
-    let mcp_code = if error.code.is_caller_mistake() {
+    let mcp_code = if validation::is_caller_mistake(&error) {
         McpErrorCode::INVALID_PARAMS
     } else {
         McpErrorCode::INTERNAL_ERROR
@@ -1357,5 +1443,28 @@ impl ServerHandler for DevupServer {
             .await
             .map(Into::into)
             .map_err(|_| ErrorData::resource_not_found("resource not found", None))
+    }
+}
+
+#[cfg(test)]
+mod p3_error_tests {
+    use super::*;
+
+    #[test]
+    fn p3_expired_artifact_is_state_failure_with_original_message() {
+        let error = to_mcp_error(DevupError::new(
+            ErrorCode::DevupFigmaHandoffExpired,
+            "The Figma artifact is missing or expired.",
+            true,
+        ));
+        assert_eq!(error.code, McpErrorCode::INTERNAL_ERROR);
+        assert_eq!(error.message, "The Figma artifact is missing or expired.");
+    }
+
+    #[test]
+    fn p3_output_root_violation_is_invalid_params() {
+        let policy = OutputPolicy::from_roots(vec![std::env::current_dir().unwrap()]).unwrap();
+        let error = policy.resolve("../outside.svg").err().unwrap();
+        assert_eq!(to_mcp_error(error).code, McpErrorCode::INVALID_PARAMS);
     }
 }
