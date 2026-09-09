@@ -5,7 +5,7 @@ expression: actual
 
 "export function Greetings() {
   return (
-    <VStack>
+    <VStack pos="relative" w="992px">
       <PageHeader />
       <VStack
         alignItems="center"

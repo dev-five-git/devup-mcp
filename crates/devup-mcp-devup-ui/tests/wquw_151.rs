@@ -167,7 +167,7 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     let embedded_root = component_root_opening(&embedded.tsx);
     assert!(!embedded_root.contains("h=\"740px\""));
     assert!(!embedded_root.contains("w=\"360px\""));
-    assert!(!embedded_root.contains("pos=\"relative\""));
+    assert!(embedded_root.contains("pos=\"relative\""));
     assert!(embedded.tsx.contains("bottom=\"0px\""));
     assert!(embedded.tsx.contains("pos=\"absolute\""));
 

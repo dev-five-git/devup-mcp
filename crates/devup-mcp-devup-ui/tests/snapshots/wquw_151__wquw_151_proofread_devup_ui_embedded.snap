@@ -6,7 +6,7 @@ import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
 
 export function AStoryFProofread() {
   return (
-    <VStack bg="$backgroundLight" overflow="hidden">
+    <VStack bg="$backgroundLight" overflow="hidden" pos="relative">
       <VStack
         alignItems="center"
         bg="$containerBackground"

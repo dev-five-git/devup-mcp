@@ -16,9 +16,9 @@
       "description": "layout, paint, prop 문자열화 및 기본 TSX 생성 규칙의 대표 Rust assertion"
     },
     {
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position",
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children",
       "sourcePath": "crates/devup-mcp-devup-ui/tests/codegen.rs",
-      "function": "embedded_root_omits_only_selected_frame_geometry_and_position",
+      "function": "embedded_root_omits_external_geometry_but_anchors_absolute_children",
       "coverage": "representative_assertion",
       "description": "position과 root layout 처리의 대표 Rust assertion"
     },

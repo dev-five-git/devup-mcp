@@ -10,8 +10,11 @@ expression: actual
       gap="20px"
       justifyContent="center"
       overflow="hidden"
+      pos="relative"
       px="20px"
       py="50px"
+      w="360px"
+      zIndex="0"
     >
       <Image
         filter="blur(12px)"
@@ -23,6 +26,7 @@ expression: actual
         transform="rotate(8.83deg)"
         transformOrigin="top left"
         w="300px"
+        zIndex="-1"
       />
       <Box
         bg="linear-gradient(0deg, #EDEEFF 0%, #EDEEFF00 100%)"
@@ -30,6 +34,7 @@ expression: actual
         left="0px"
         pos="absolute"
         top="0px"
+        zIndex="-1"
       />
       <VStack gap="8px" justifyContent="center">
         <Text

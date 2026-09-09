@@ -1387,6 +1387,12 @@ pub(super) async fn complete_operation(
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version}});
                         }
                     }
+                    frame["placementContracts"] = json!(
+                        frame_diagnostics
+                            .iter()
+                            .filter(|d| d.code == "DEVUP_CODEGEN_PLACEMENT_CONTRACT")
+                            .collect::<Vec<_>>()
+                    );
                     frame["projectionIssues"] = json!(
                             frame_diagnostics
                                 .iter()
@@ -2028,6 +2034,15 @@ pub(super) async fn complete_operation(
                 }
             }
             result.insert(
+                "placementContracts".into(),
+                json!(
+                    projection_diagnostics
+                        .iter()
+                        .filter(|d| d.code == "DEVUP_CODEGEN_PLACEMENT_CONTRACT")
+                        .collect::<Vec<_>>()
+                ),
+            );
+            result.insert(
                 "projectionIssues".into(),
                 json!(
                     projection_diagnostics
@@ -2656,6 +2671,74 @@ mod w1_regressions {
                 .as_array()
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    #[tokio::test]
+    async fn r4_direct_export_discloses_capture_boundary_without_diagnostics() {
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *include_diagnostics = false;
+        }
+        let result = project(payload(), op).await.unwrap();
+        let contract = &result["placementContracts"][0]["details"];
+        assert_eq!(contract["output"], "tsx");
+        assert_eq!(contract["parentCollected"], false);
+        assert!(contract["parentMissingReason"].is_string());
+        assert_eq!(contract["containingBlock"], "normal-flow-host");
+        assert!(contract["coordinateBasis"].is_string());
+    }
+
+    #[tokio::test]
+    async fn r4_export_exposes_placement_contract_without_diagnostics() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "componentTsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46582".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        let frame = &result["frames"][0];
+        for field in ["tsx", "componentTsx"] {
+            let source = frame[field].as_str().unwrap();
+            let tag = source
+                .split("return (")
+                .nth(1)
+                .unwrap()
+                .split('>')
+                .next()
+                .unwrap();
+            for prop in ["pos=\"relative\"", "w=\"360px\"", "h=\"740px\""] {
+                assert!(tag.contains(prop), "{tag}");
+            }
+            let contract = frame["placementContracts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|d| d["details"]["output"] == field)
+                .unwrap();
+            assert_eq!(contract["details"]["containingBlock"], "generated-root");
+        }
+        assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
+            104
+        );
+        assert_eq!(
+            frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
+            40
         );
     }
 

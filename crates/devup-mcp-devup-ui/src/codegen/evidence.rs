@@ -5,6 +5,102 @@ use serde_json::{Value, json};
 
 use super::{CodegenOptions, CodegenOutput, style};
 
+/// Describe the emitted root's placement separately from property coverage.
+/// The selected root's parent is never rendered by this component, even when
+/// that parent was collected as part of a larger snapshot.
+pub(super) fn placement_contract(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    options: &CodegenOptions,
+    root_id: &str,
+) -> Option<devup_mcp_figma::Diagnostic> {
+    use devup_mcp_figma::{Diagnostic, DiagnosticSeverity, FidelityImpact};
+    let selected = snapshot.nodes.get(root_id)?;
+    let node = if selected.node_type == "SECTION" {
+        selected
+            .typed_view()
+            .child_ids()
+            .next()
+            .and_then(|id| snapshot.nodes.get(id))
+            .unwrap_or(selected)
+    } else {
+        selected
+    };
+    let root_id = node.id.as_str();
+    let view = node.typed_view();
+    if view.bool("visible") == Some(false) {
+        return None;
+    }
+    let parent = view
+        .string("parentId")
+        .and_then(|id| snapshot.nodes.get(id));
+    let source = output
+        .source_map
+        .entries
+        .iter()
+        .find(|e| e.node_id.as_deref() == Some(root_id) && e.property.is_none())
+        .and_then(|e| e.generated_range.as_ref())
+        .and_then(|r| output.tsx.get(r.start..r.end))?;
+    let tag = source.split_once('>')?.0;
+    let absolute = tag.contains("pos=\"absolute\"");
+    let positioned = super::layout::holds_positioned_children(snapshot, node);
+    if parent.is_some() && !absolute && !positioned {
+        return None;
+    }
+    let relative = tag.contains("pos=\"relative\"");
+    let embedded = options.root_layout == super::RootLayout::Embedded;
+    let mut requirements = Vec::new();
+    if absolute {
+        requirements.push("Provide a positioned host matching the original parent dimensions and coordinate origin; the parent is not included in this component. Review the emitted offsets before insertion.".to_owned());
+    }
+    if positioned {
+        for (axis, sizing, prop) in [
+            ("width", "layoutSizingHorizontal", "w"),
+            ("height", "layoutSizingVertical", "h"),
+        ] {
+            let captured = view.number(axis);
+            let emitted = captured.is_some_and(|value| {
+                let px = super::layout::px(value);
+                tag.contains(&format!("{prop}=\"{px}\""))
+                    || tag.contains(&format!("boxSize=\"{px}\""))
+            });
+            if embedded || view.string(sizing) != Some("FIXED") || !emitted {
+                let size = captured
+                    .map(super::layout::px)
+                    .unwrap_or_else(|| "not collected".into());
+                requirements.push(format!("Ensure the generated root's {axis} matches the intended containing block (captured {axis}: {size}); this axis is determined by host CSS or in-flow content, not a generated fixed size."));
+            }
+        }
+        if !absolute && !relative {
+            requirements.push("The emitted component reference must implement the original frame's containing block and dimensions; its internal CSS is not included.".into());
+        }
+    }
+    let dependent = !requirements.is_empty();
+    Some(Diagnostic {
+        code: "DEVUP_CODEGEN_PLACEMENT_CONTRACT".into(),
+        message: "Root placement contract: inspect the coordinate basis and host requirements before inserting this TSX.".into(),
+        node_id: Some(root_id.into()), property: Some("placement".into()),
+        severity: Some(if dependent { DiagnosticSeverity::Warning } else { DiagnosticSeverity::Info }),
+        fidelity_impact: Some(if dependent { FidelityImpact::Approximated } else { FidelityImpact::None }),
+        details: Some(json!({
+            "rootLayout": options.root_layout,
+            "parentId": view.string("parentId"), "parentCollected": parent.is_some(),
+            "parentIncludedInOutput": false,
+            "parentMissingReason": if parent.is_none() { Some("The root is at the capture boundary; its parent geometry was not collected.") } else { None },
+            "containingBlock": if absolute { "external-host" } else if relative { "generated-root" } else { "normal-flow-host" },
+            "coordinateBasis": if absolute { "Emitted offsets resolve against the external positioned host; source parent placement is not self-contained." } else { "The root is inserted in normal document flow; source canvas x/y are not its placement in the application. Positioned children resolve against the generated root when it establishes a containing block." },
+            "sourceSize": {"width":view.number("width"), "height":view.number("height"), "horizontal":view.string("layoutSizingHorizontal"), "vertical":view.string("layoutSizingVertical")},
+            "sourcePosition": {"x":view.number("x"), "y":view.number("y"), "constraints":view.value("constraints")},
+            "sourceParentSize": parent.map(|p| json!({"width":p.typed_view().number("width"), "height":p.typed_view().number("height")})),
+            "generatedRoot": format!("{tag}>"), "hostRequirements":requirements,
+            "classification":"placement-contract",
+            "nextAction": if dependent { "Satisfy hostRequirements or export the containing parent in standalone mode before accepting placement." } else { "Insert in normal flow using the emitted root props. External parent placement is outside this capture." },
+            "evidenceLimit":"This is a generated CSS placement contract, not a measured browser or responsive equivalence result."
+        })),
+        ..Diagnostic::default()
+    })
+}
+
 /// Generated evidence is not proof that a Figma property was preserved. In
 /// particular, an instance reference does not prove its implementation's CSS.
 pub(super) fn uncovered_layout_details(
