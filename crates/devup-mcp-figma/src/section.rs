@@ -2,9 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    DevupError, ErrorCode, ExploreBounds, ExploreKind, ExploreNode, FigmaTarget, Snapshot,
-};
+use crate::{DevupError, ErrorCode, ExploreBounds, ExploreNode, FigmaTarget, Snapshot};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +29,25 @@ pub struct SectionCandidate {
     pub estimated_serialized_bytes: usize,
     pub selection_reasons: Vec<String>,
     pub canonical_url: String,
+}
+
+impl SectionCandidate {
+    pub fn is_screen_candidate(&self) -> bool {
+        ExploreNode {
+            node_id: self.node_id.clone(),
+            name: self.name.clone(),
+            node_type: self.node_type.clone(),
+            bounds: self.bounds,
+            child_count: self.direct_child_count,
+            text_preview: self.text_preview.clone(),
+            parent_id: self.parent_id.clone(),
+            kind: crate::ExploreKind::Unknown,
+            visible: self.visible,
+            breadcrumb: self.breadcrumb.clone(),
+            page_child_index: None,
+        }
+        .is_screen_candidate()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,12 +102,24 @@ impl SectionIndex {
                 false,
             ));
         }
-        Ok(self
+        let selected = self
             .candidates
             .iter()
-            .filter(|candidate| all_screens || requested.contains(candidate.node_id.as_str()))
+            .filter(|candidate| {
+                if all_screens {
+                    candidate.is_screen_candidate()
+                } else {
+                    requested.contains(candidate.node_id.as_str())
+                }
+            })
             .map(|candidate| candidate.node_id.clone())
-            .collect())
+            .collect::<Vec<_>>();
+        if all_screens && selected.is_empty() {
+            return Err(invalid_selection(
+                "No automatic screen candidates exist in this Section. Use frameIds to select an explicit nonstandard case, or explore another Section.",
+            ));
+        }
+        Ok(selected)
     }
 }
 
@@ -145,30 +174,16 @@ pub fn build_section_index(
         return Err(invalid_selection("Section index target must be a SECTION."));
     }
     let section_node = ExploreNode::try_from(section)?;
-    let mut screen_nodes = Vec::new();
-    for node in snapshot.nodes.values() {
-        if node.id == section_id || node.node_type != "FRAME" {
-            continue;
-        }
-        let explore = match ExploreNode::try_from(node) {
-            Ok(explore) => explore,
-            Err(_) => continue,
-        };
-        if explore.visible
-            && explore.kind == ExploreKind::Screen
-            && is_descendant(snapshot, &node.id, section_id)
-        {
-            screen_nodes.push(explore);
-        }
-    }
+    let mut screen_nodes = crate::explore::section_screen_nodes(snapshot, section_id);
     // A Section is answered with the screens inside it, because converting one
     // whole is too much. But a Section is an explicit grouping, and screen shape
     // is a guess used to find screens on a page that has no grouping: applied
     // here it silently drops whatever is not phone or desktop shaped. A section
     // of small cases offered nothing at all, and — worse, because it looked
     // like an answer — a section mixing tall notes with small cases offered the
-    // notes and hid every case. What the Section holds is what it offers, so its
-    // own children stand alongside the screens found within it.
+    // notes and hid every case. Keep its own children available for explicit
+    // frameIds selection, but mark them separately: offering a menu must not
+    // automatically export banners/notes as screens via allScreens (D16).
     let found_screen_ids = screen_nodes
         .iter()
         .map(|node| node.node_id.clone())
@@ -180,24 +195,10 @@ pub fn build_section_index(
         .filter_map(|child| ExploreNode::try_from(child).ok())
         .filter(|child| child.visible)
         .filter(|child| !found_screen_ids.contains(&child.node_id))
-        // A child holding a screen would offer that screen twice over, once
-        // whole and once inside itself.
-        .filter(|child| {
-            !found_screen_ids
-                .iter()
-                .any(|screen| is_descendant(snapshot, screen, &child.node_id))
-        })
         .collect::<Vec<_>>();
     screen_nodes.extend(children);
-    let screen_ids = screen_nodes
-        .iter()
-        .map(|node| node.node_id.clone())
-        .collect::<BTreeSet<_>>();
-    screen_nodes.retain(|node| {
-        !ancestor_ids(snapshot, &node.node_id, section_id)
-            .iter()
-            .any(|ancestor| ancestor != section_id && screen_ids.contains(ancestor.as_str()))
-    });
+    // Automatic screens were already deduplicated by section_screen_nodes.
+    // Explicit containers must not suppress the screens they contain.
     screen_nodes.sort_by(|left, right| {
         left.bounds
             .y
@@ -210,10 +211,21 @@ pub fn build_section_index(
         .into_iter()
         .map(|node| {
             let (computed_count, computed_bytes) = subtree_estimate(snapshot, &node.node_id);
-            let raw = snapshot
-                .nodes
-                .get(&node.node_id)
-                .expect("candidate originated from snapshot");
+            // Every candidate was read out of this snapshot above, so this
+            // lookup is expected to hit. It is written as an error anyway:
+            // a node the snapshot does not carry is the failure class that
+            // already reached production once, and a panic here kills the MCP
+            // server rather than failing the one call that provoked it.
+            let raw = snapshot.nodes.get(&node.node_id).ok_or_else(|| {
+                DevupError::new(
+                    ErrorCode::DevupFigmaNodeNotFound,
+                    format!(
+                        "Section candidate {} is not in the Figma projection.",
+                        node.node_id
+                    ),
+                    false,
+                )
+            })?;
             let view = raw.typed_view();
             let direct_child_count = view
                 .value("directChildCount")
@@ -236,7 +248,15 @@ pub fn build_section_index(
             } else {
                 node.breadcrumb.clone()
             };
-            SectionCandidate {
+            let selection_reasons = if node.is_screen_candidate() {
+                vec!["screen-like".to_owned(), "inside-section".to_owned()]
+            } else {
+                vec![
+                    "explicit-selection-only".to_owned(),
+                    "inside-section".to_owned(),
+                ]
+            };
+            Ok(SectionCandidate {
                 canonical_url: canonical_url(target, &node.node_id),
                 node_id: node.node_id,
                 name: node.name,
@@ -249,10 +269,10 @@ pub fn build_section_index(
                 direct_child_count,
                 subtree_node_count,
                 estimated_serialized_bytes,
-                selection_reasons: vec!["screen-like".to_owned(), "inside-section".to_owned()],
-            }
+                selection_reasons,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, DevupError>>()?;
 
     Ok(SectionIndex {
         file_key: snapshot.file_key.clone(),
@@ -425,12 +445,6 @@ fn ancestor_ids(snapshot: &Snapshot, node_id: &str, stop_id: &str) -> Vec<String
             .and_then(|node| node.typed_view().string("parentId"));
     }
     result
-}
-
-fn is_descendant(snapshot: &Snapshot, node_id: &str, section_id: &str) -> bool {
-    ancestor_ids(snapshot, node_id, section_id)
-        .iter()
-        .any(|ancestor| ancestor == section_id)
 }
 
 fn breadcrumb(snapshot: &Snapshot, node_id: &str) -> Vec<String> {

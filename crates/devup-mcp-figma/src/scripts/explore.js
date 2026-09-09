@@ -192,7 +192,8 @@ const compact = [...included.values()]
       width: box.width,
       height: box.height,
       childCount: "children" in node ? node.children.length : 0,
-      textPreview: textPreview(node),
+      // Select the structural projection before spending space on previews.
+      textPreview: "",
       pageChildIndex: pageChildIndex >= 0 ? pageChildIndex : null,
       // A page or the document itself has no `visible`, and Figma throws on
       // reading a property a node does not have rather than returning
@@ -278,6 +279,26 @@ if (JSON.stringify(output).length > MAX_PROJECTION_JSON_CHARS) {
 }
 if (JSON.stringify(output).length > MAX_PROJECTION_JSON_CHARS) {
   throw new Error("DEVUP_EXPLORE_PROJECTION_TOO_LARGE");
+}
+
+// Optional previews may only consume space left by the structural projection.
+// Count JSON escaping as well, so quotes/control characters cannot push a
+// preview over the envelope cap or evict a candidate.
+let previewBudget = MAX_PROJECTION_JSON_CHARS - JSON.stringify(output).length;
+if (textPreviewLimit > 0 && previewBudget > 0) {
+  for (const projected of output.nodes) {
+    const source = included.get(projected.id);
+    if (!source || projected.id === page.id) continue;
+    let preview = "";
+    for (const character of textPreview(source.node)) {
+      const cost = JSON.stringify(character).length - 2;
+      if (cost > previewBudget) break;
+      preview += character;
+      previewBudget -= cost;
+    }
+    projected.fields.textPreview = preview;
+    if (previewBudget === 0) break;
+  }
 }
 
 return output;

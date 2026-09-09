@@ -26,9 +26,27 @@
 //! Naming it as a path sent agents to a dead end, so it is named nowhere.
 
 use devup_mcp_figma::{
-    AuthStatus, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot,
+    AuthStatus, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot, TokenState,
 };
 use serde_json::{Value, json};
+
+/// What `credentialSource` counts, said in the response rather than only in
+/// the README.
+///
+/// Two different credentials reach the direct path and only one of them is
+/// this field. `credentialSource` is the **client registration** credential —
+/// the `client_id`/`client_secret` a pre-registered Figma client is injected
+/// with. The **user's** OAuth access token, the thing `login` obtains, is
+/// `tokenState`. They move independently, so `credentialSource: "none"` beside
+/// `tokenState: "valid"` is an ordinary signed-in session that registered
+/// dynamically — not a contradiction, and not a reason to log in again.
+///
+/// Read as one word, though, it was: `doctor` answered `credentialSource:
+/// "none"` and `reason: "A stored credential is present."` in the same object,
+/// and a reader has no way to tell which of the two the tool means. A
+/// diagnostic that misreports its own state cannot be used to diagnose
+/// anything, so the field now carries what it counts next to the value.
+const CREDENTIAL_SOURCE_NOTE: &str = "Where the OAuth *client registration* credential (client_id/client_secret) came from: cli-arg, env, credential-store, or none. This is not the user's access token — that is tokenState, and whether the direct path is usable right now is available. \"none\" only means no pre-registered client is injected, so login registers dynamically under registrationClientName; a signed-in session that registered that way reads credentialSource \"none\" with tokenState \"valid\", which is normal.";
 
 /// Builds the response for `devup_figma_auth {"action":"doctor"}`.
 ///
@@ -53,6 +71,7 @@ pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Va
             "direct": {
                 "available": direct_available,
                 "credentialSource": direct.credential_source,
+                "credentialSourceNote": CREDENTIAL_SOURCE_NOTE,
                 "tokenState": direct.token_state,
                 "callbackPort": {
                     "port": direct.callback_port,
@@ -63,41 +82,87 @@ pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Va
                     "isDefault": direct.client_name == DEFAULT_CLIENT_NAME,
                     "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
                 },
-                "reason": direct_reason(direct_available, direct.credential_source)
+                "reason": direct_reason(direct_available, direct.token_state, direct.credential_source)
             }
         },
         "clientSetup": client_setup()
     })
 }
 
-/// `direct.available` only reflects whether *some* token is stored (see
-/// `AuthStatus`), so this fills in *why* it isn't yet, using the measured
-/// `credentialSource` rather than assuming DCR is the only path — a
-/// pre-registered client just needs `login`, not `configure` or the
-/// waitlist.
+/// Says which of the two credentials is present, and never lets one of them
+/// stand in for the other.
+///
+/// This answered `"A stored credential is present."` the moment `available`
+/// was true, reading nothing else. So a perfectly ordinary signed-in session
+/// that had registered dynamically reported `credentialSource: "none"` and
+/// that sentence inside the same object, and nothing in the object said the
+/// two words meant different credentials. A reader has no way to tell which
+/// one the tool means, and something whose whole purpose is to be believed
+/// about the connection's state cannot afford to be ambiguous about it.
+///
+/// Two clauses now, in the order a reader needs them. The first is the user's
+/// access token — what `available`/`tokenState` measure, and what carries the
+/// next step when there isn't one. The second is the client registration
+/// credential — what `credentialSource` measures, and what decides whether
+/// `login` registers dynamically or goes straight to the code flow. A
+/// pre-registered client still just needs `login`, never `configure` or the
+/// waitlist, so that guidance stays where it belongs.
 fn direct_reason(
     direct_available: bool,
+    token_state: TokenState,
     credential_source: ClientCredentialSource,
-) -> &'static str {
-    if direct_available {
-        return "A stored credential is present.";
-    }
-    match credential_source {
+) -> String {
+    let token = match (direct_available, token_state) {
+        (true, TokenState::Valid) => {
+            "An authorized access token is stored and unexpired, so the direct path is usable now."
+        }
+        (true, TokenState::Expired) => {
+            "An authorized access token is stored but has expired. It is refreshed on the next \
+             call when a refresh token was stored with it, and otherwise needs devup_figma_auth \
+             { action: \"login\" } again."
+        }
+        // `available` and `tokenState` are read by two separate calls on the
+        // auth backend, so they can disagree. Saying so is the useful answer;
+        // picking whichever one makes a tidier sentence is what produced the
+        // contradiction this function exists to stop.
+        (true, TokenState::Absent) => {
+            "The direct path reports itself usable while no access token is stored — these are \
+             measured separately and have disagreed. Treat the path as unusable and re-run \
+             devup_figma_auth { action: \"login\" }."
+        }
+        (false, TokenState::Valid) => {
+            "An unexpired access token is stored while the direct path reports itself unusable — \
+             these are measured separately and have disagreed. Re-run devup_figma_auth \
+             { action: \"status\" }, then devup_figma_auth { action: \"login\" } if it still \
+             answers disconnected."
+        }
+        (false, TokenState::Expired) => {
+            "The stored access token has expired and was not refreshed. Run devup_figma_auth \
+             { action: \"login\" } again."
+        }
+        (false, TokenState::Absent) => {
+            "No access token is stored. Run devup_figma_auth { action: \"login\" } to authorize \
+             the direct path."
+        }
+    };
+    let client = match credential_source {
         ClientCredentialSource::None => {
-            "No stored credential. Run devup_figma_auth { action: \"login\" }: with no \
-             pre-registered credential it falls back to Dynamic Client Registration under the \
-             default allowlisted client_name (see registrationClientName). If that returns 403, \
-             the allowlist rejected the name — register a client credential you obtained yourself \
-             via devup_figma_auth { action: \"configure\", clientId, clientSecret }, join the \
-             Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/)."
+            "Separately, no pre-registered client registration credential is injected \
+             (credentialSource \"none\"), so login falls back to Dynamic Client Registration \
+             under the allowlisted client_name in registrationClientName. If that returns 403 \
+             the allowlist rejected the name — register a client credential you obtained \
+             yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }, or \
+             join the Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/)."
         }
         ClientCredentialSource::CliArg
         | ClientCredentialSource::Env
         | ClientCredentialSource::CredentialStore => {
-            "A pre-registered client credential is present. Authenticate with devup_figma_auth \
-             { action: \"login\" } to use the direct path."
+            "Separately, a pre-registered client registration credential is in play (see \
+             credentialSource), so login skips Dynamic Client Registration and goes straight to \
+             the authorization code flow."
         }
-    }
+    };
+    format!("{token} {client}")
 }
 
 fn client_setup() -> Value {
@@ -241,6 +306,151 @@ mod tests {
                 .as_str()
                 .unwrap()
                 .contains("waitlist")
+        );
+    }
+
+    /// The response has to be readable as one object without contradicting
+    /// itself.
+    ///
+    /// Measured `doctor` output said `credentialSource: "none"` and
+    /// `reason: "A stored credential is present."` about the same path, in the
+    /// same breath. Both sentences were true, of different credentials, and
+    /// the object said nothing about which was which — so the only tool for
+    /// diagnosing a connection could not be trusted about the connection.
+    ///
+    /// A signed-in session that registered dynamically is exactly that shape,
+    /// so it is the case pinned here: the reason must speak of the access
+    /// token it actually means, must not claim a stored *client* credential
+    /// that `credentialSource` denies, and the field has to carry what it
+    /// counts.
+    #[tokio::test]
+    async fn a_dynamically_registered_session_does_not_claim_a_stored_client_credential() {
+        let report = doctor_report(
+            AuthStatus::Connected,
+            DirectPathSnapshot {
+                credential_source: ClientCredentialSource::None,
+                token_state: devup_mcp_figma::TokenState::Valid,
+                ..absent_direct_snapshot()
+            },
+        )
+        .await;
+        let direct = &report["paths"]["direct"];
+        assert_eq!(direct["available"], true);
+        assert_eq!(direct["credentialSource"], "none");
+        assert_eq!(direct["tokenState"], "valid");
+
+        let reason = direct["reason"].as_str().expect("a reason");
+        assert!(
+            !reason.contains("A stored credential is present."),
+            "the sentence that read as a denial of credentialSource: {reason}"
+        );
+        assert!(
+            reason.contains("access token is stored"),
+            "the reason has to name the token it means: {reason}"
+        );
+        assert!(
+            reason.contains("no pre-registered client registration credential is injected"),
+            "and has to agree with credentialSource \"none\": {reason}"
+        );
+
+        let note = direct["credentialSourceNote"]
+            .as_str()
+            .expect("credentialSource has to say what it counts");
+        assert!(note.contains("client_id/client_secret"));
+        assert!(note.contains("tokenState"));
+    }
+
+    /// The other half of the same distinction: an injected client credential
+    /// and no token at all. `credentialSource` is not evidence of being
+    /// signed in, so the reason must still send the caller to `login` — and
+    /// must not send a caller who already has a client to `configure` or the
+    /// waitlist.
+    #[tokio::test]
+    async fn a_pre_registered_client_without_a_token_is_still_told_to_log_in() {
+        let report = doctor_report(
+            AuthStatus::Disconnected,
+            DirectPathSnapshot {
+                credential_source: ClientCredentialSource::CredentialStore,
+                token_state: devup_mcp_figma::TokenState::Absent,
+                ..absent_direct_snapshot()
+            },
+        )
+        .await;
+        let direct = &report["paths"]["direct"];
+        assert_eq!(direct["available"], false);
+        assert_eq!(direct["credentialSource"], "credential-store");
+
+        let reason = direct["reason"].as_str().expect("a reason");
+        assert!(reason.contains("No access token is stored."), "{reason}");
+        assert!(reason.contains("action: \"login\""), "{reason}");
+        assert!(
+            reason.contains("pre-registered client registration credential is in play"),
+            "{reason}"
+        );
+        assert!(!reason.contains("waitlist"), "{reason}");
+        assert!(!reason.contains("configure"), "{reason}");
+    }
+
+    /// `available` and `tokenState` come from two separate calls on the auth
+    /// backend, so they can disagree. When they do, `doctor` has to report the
+    /// disagreement — smoothing it into one confident sentence is how the
+    /// original contradiction got written.
+    #[tokio::test]
+    async fn a_disagreement_between_availability_and_token_state_is_reported_as_one() {
+        for (status, token_state) in [
+            (AuthStatus::Connected, devup_mcp_figma::TokenState::Absent),
+            (AuthStatus::Disconnected, devup_mcp_figma::TokenState::Valid),
+        ] {
+            let report = doctor_report(
+                status,
+                DirectPathSnapshot {
+                    token_state,
+                    ..absent_direct_snapshot()
+                },
+            )
+            .await;
+            let reason = report["paths"]["direct"]["reason"]
+                .as_str()
+                .expect("a reason");
+            assert!(
+                reason.contains("measured separately and have disagreed"),
+                "{status:?}/{token_state:?} must be reported, not smoothed over: {reason}"
+            );
+        }
+    }
+
+    /// The verified reference block is the part of this response that was
+    /// already right, and it stays whole: every constraint that cost a
+    /// measurement against the real registration endpoint is still published.
+    #[tokio::test]
+    async fn the_measured_client_setup_constraints_survive_the_reason_rewrite() {
+        let report = doctor_report(AuthStatus::Connected, absent_direct_snapshot()).await;
+        let constraints = &report["clientSetup"]["constraints"];
+        for key in [
+            "registerEndpoint",
+            "clientNameAllowlist",
+            "redirectUri",
+            "callbackPortCaution",
+            "personalAccessToken",
+        ] {
+            assert!(
+                constraints[key]
+                    .as_str()
+                    .is_some_and(|text| !text.is_empty()),
+                "clientSetup.constraints.{key} went missing"
+            );
+        }
+        assert!(
+            constraints["redirectUri"]
+                .as_str()
+                .unwrap()
+                .contains("/callback")
+        );
+        assert!(
+            constraints["callbackPortCaution"]
+                .as_str()
+                .unwrap()
+                .contains("Waiting for authorization")
         );
     }
 

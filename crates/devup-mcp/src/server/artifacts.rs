@@ -97,6 +97,7 @@ impl ArtifactRequestKey {
             asset_capture_count: self.asset_selections.len(),
             asset_captures: self.asset_selections.clone(),
             reference_png: self.reference_png,
+            section_selection: self.section.clone(),
         }
     }
 
@@ -169,11 +170,31 @@ pub struct ArtifactCapabilities {
     pub resource_scope: ResourceScope,
     pub asset_capture_count: usize,
     pub reference_png: bool,
+    /// Last validated Section selection; projection callers restore this when no selection is supplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section_selection: Option<SectionReadOptions>,
     #[serde(skip)]
     asset_captures: Vec<AssetSelection>,
 }
 
 impl ArtifactCapabilities {
+    /// Validate exact asset ID, format and scale coverage before projecting a cached artifact.
+    pub fn validate_asset_captures(&self, requested: &[AssetSelection]) -> Result<(), DevupError> {
+        let missing = requested
+            .iter()
+            .filter(|capture| !self.asset_captures.contains(capture))
+            .collect::<Vec<_>>();
+        if missing.is_empty() {
+            return Ok(());
+        }
+        Err(DevupError::with_details(
+            ErrorCode::DevupFigmaHandoffInvalid,
+            "This artifact was collected without the requested asset captures. Remove artifactId and call again with the original url and assetRequests.",
+            false,
+            json!({"missingAssetCaptures": missing, "assetCaptureCount": self.asset_capture_count}),
+        ))
+    }
+
     pub fn supports_asset_captures(&self, requested: &[AssetSelection]) -> bool {
         requested
             .iter()
@@ -251,6 +272,7 @@ pub struct AttachedOutputManifest {
     pub sha256: String,
     pub chunk_count: usize,
     pub chunk_bytes: usize,
+    pub chunk_uris: Vec<String>,
     pub is_binary: bool,
     pub manifest_uri: String,
     pub expires_at_epoch_seconds: u64,
@@ -268,6 +290,7 @@ struct AttachedOutput {
 struct Entry {
     key_digest: String,
     request_key: ArtifactRequestKey,
+    selection_bytes: usize,
     content_hash: String,
     created_at: u64,
     expires_at: u64,
@@ -417,26 +440,34 @@ impl ArtifactStore {
                         key_digest.clone(),
                         InFlightWait::Exact,
                     )
-                } else if let Some((compatible_digest, reuse_kind)) = state
+                } else if let Some((compatible_digest, receiver, reuse_kind)) = state
                     .in_flight_keys
                     .iter()
+                    // The receiver is taken here, from the same read of the
+                    // same lock that picked the key, rather than looked up
+                    // again below. `in_flight` and `in_flight_keys` are meant
+                    // to hold the same digests — they are written together and
+                    // erased together — but that is an agreement between three
+                    // separate sites, one of which only runs when a waiter
+                    // notices a cancelled owner. Reading the key without its
+                    // receiver leaves somewhere for the two to disagree, and
+                    // what a disagreement would have cost is the process: this
+                    // is the shared store every collection goes through. A
+                    // candidate that has no receiver simply is not a candidate.
                     .filter_map(|(digest, in_flight_key)| {
+                        let receiver = state.in_flight.get(digest)?;
                         in_flight_key.explore_reuse_kind(&key).map(|reuse_kind| {
                             (
                                 digest.clone(),
+                                receiver.clone(),
                                 reuse_kind,
                                 in_flight_key.explore_projection_limit(),
                             )
                         })
                     })
-                    .min_by_key(|(_, _, projection_limit)| *projection_limit)
-                    .map(|(digest, reuse_kind, _)| (digest, reuse_kind))
+                    .min_by_key(|(_, _, _, projection_limit)| *projection_limit)
+                    .map(|(digest, receiver, reuse_kind, _)| (digest, receiver, reuse_kind))
                 {
-                    let receiver = state
-                        .in_flight
-                        .get(&compatible_digest)
-                        .expect("in-flight request key has a matching receiver")
-                        .clone();
                     (
                         false,
                         receiver,
@@ -530,6 +561,74 @@ impl ArtifactStore {
     ) -> Result<ArtifactLookup, DevupError> {
         self.insert_with_digest(key.clone(), key.digest(), key.capabilities(), payload)
             .await
+    }
+
+    /// Remember a selection after the caller has validated it against the Section candidates.
+    /// This updates projection state only: the original acquisition key and capture capabilities stay intact.
+    pub async fn remember_section_selection(
+        &self,
+        artifact_id: &str,
+        selection: SectionReadOptions,
+    ) -> Result<ArtifactLookup, DevupError> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        let entry = state
+            .entries
+            .get(artifact_id)
+            .ok_or_else(resource_expired)?;
+        if (entry.capabilities.section_selection.is_none()
+            && entry.capabilities.kind != ArtifactKind::SectionIndex)
+            || (selection.all_screens && !selection.frame_ids.is_empty())
+            || (!selection.all_screens && selection.frame_ids.is_empty())
+            || selection
+                .frame_ids
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != selection.frame_ids.len()
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaHandoffInvalid,
+                "A Section selection must contain distinct frameIds or allScreens:true.",
+                false,
+            ));
+        }
+        let selection_bytes = serde_json::to_vec(&selection)
+            .map_err(|error| {
+                DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    error.to_string(),
+                    false,
+                )
+            })?
+            .len();
+        let previous_bytes = entry.selection_bytes;
+        let size_bytes = entry
+            .size_bytes
+            .saturating_sub(previous_bytes)
+            .saturating_add(selection_bytes);
+        let total_bytes = state
+            .total_bytes
+            .saturating_sub(previous_bytes)
+            .saturating_add(selection_bytes);
+        if size_bytes > self.limits.max_entry_bytes || total_bytes > self.limits.max_total_bytes {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "The Section selection exceeded the artifact memory limit.",
+                false,
+            ));
+        }
+        let entry = state
+            .entries
+            .get_mut(artifact_id)
+            .ok_or_else(resource_expired)?;
+        entry.capabilities.section_selection = Some(selection);
+        entry.selection_bytes = selection_bytes;
+        entry.size_bytes = size_bytes;
+        state.total_bytes = total_bytes;
+        touch_entry(&mut state, artifact_id, now, CacheReuseKind::Exact)
+            .ok_or_else(resource_expired)
     }
 
     pub async fn get(&self, artifact_id: &str) -> Option<ArtifactLookup> {
@@ -685,11 +784,18 @@ impl ArtifactStore {
             staged.push(AttachedOutput {
                 manifest: AttachedOutputManifest {
                     artifact_id: artifact_id.to_owned(),
-                    output_id,
+                    output_id: output_id.clone(),
                     name: output.name,
                     mime_type: output.mime_type,
                     raw_bytes,
                     sha256: sha256_hex(&output.bytes),
+                    chunk_uris: (0..ranges.len())
+                        .map(|index| {
+                            format!(
+                                "devup://artifact/{artifact_id}/outputs/{output_id}/chunks/{index}"
+                            )
+                        })
+                        .collect(),
                     chunk_count: ranges.len(),
                     chunk_bytes: RESOURCE_CHUNK_BYTES,
                     is_binary: output.is_binary,
@@ -778,6 +884,50 @@ impl ArtifactStore {
         true
     }
 
+    pub(crate) async fn read_resource_output(
+        &self,
+        artifact_id: &str,
+        output_id: &str,
+        index: Option<usize>,
+    ) -> Result<(AttachedOutputManifest, Vec<u8>), DevupError> {
+        let mut state = self.state.lock().await;
+        let now = self.clock.now_epoch_seconds();
+        let entry = state
+            .entries
+            .get(artifact_id)
+            .ok_or_else(|| resource_missing("artifact"))?;
+        if entry.expires_at <= now {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaHandoffExpired,
+                "The resource artifact has expired. Re-collect it from the original URL.",
+                true,
+            ));
+        }
+        state.access_sequence = state.access_sequence.saturating_add(1);
+        let access = state.access_sequence;
+        let entry = state
+            .entries
+            .get_mut(artifact_id)
+            .ok_or_else(|| resource_missing("artifact"))?;
+        let output = entry
+            .outputs
+            .get(output_id)
+            .ok_or_else(|| resource_missing("output"))?;
+        let bytes = if let Some(index) = index {
+            let (start, end) = output
+                .ranges
+                .get(index)
+                .copied()
+                .ok_or_else(|| resource_missing("chunk"))?;
+            output.bytes[start..end].to_vec()
+        } else {
+            Vec::new()
+        };
+        let manifest = output.manifest.clone();
+        entry.last_access = access;
+        Ok((manifest, bytes))
+    }
+
     pub async fn read_output_chunk(
         &self,
         artifact_id: &str,
@@ -845,8 +995,22 @@ impl ArtifactStore {
                 false,
             )
         })?;
-        if bytes.len() > self.limits.max_entry_bytes
-            || bytes.len() > self.limits.max_total_bytes
+        let selection_bytes = capabilities
+            .section_selection
+            .as_ref()
+            .map(serde_json::to_vec)
+            .transpose()
+            .map_err(|error| {
+                DevupError::new(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    error.to_string(),
+                    false,
+                )
+            })?
+            .map_or(0, |bytes| bytes.len());
+        let size_bytes = bytes.len().saturating_add(selection_bytes);
+        if size_bytes > self.limits.max_entry_bytes
+            || size_bytes > self.limits.max_total_bytes
             || self.limits.max_entries == 0
         {
             return Err(DevupError::with_details(
@@ -865,7 +1029,7 @@ impl ArtifactStore {
             remove_entry(&mut state, &previous_id);
         }
         while state.entries.len() >= self.limits.max_entries
-            || state.total_bytes.saturating_add(bytes.len()) > self.limits.max_total_bytes
+            || state.total_bytes.saturating_add(size_bytes) > self.limits.max_total_bytes
         {
             let Some(lru_id) = state
                 .entries
@@ -881,7 +1045,7 @@ impl ArtifactStore {
         let last_access = state.access_sequence;
         let artifact_id = unique_id(&state.entries);
         let expires_at = now.saturating_add(self.limits.ttl.as_secs());
-        state.total_bytes = state.total_bytes.saturating_add(bytes.len());
+        state.total_bytes = state.total_bytes.saturating_add(size_bytes);
         state
             .key_index
             .insert(key_digest.clone(), artifact_id.clone());
@@ -890,10 +1054,11 @@ impl ArtifactStore {
             Entry {
                 key_digest,
                 request_key,
+                selection_bytes,
                 content_hash: content_hash.clone(),
                 created_at: now,
                 expires_at,
-                size_bytes: bytes.len(),
+                size_bytes,
                 last_access,
                 capabilities: capabilities.clone(),
                 payload: payload.clone(),
@@ -908,7 +1073,7 @@ impl ArtifactStore {
             expires_at_epoch_seconds: expires_at,
             age_seconds: 0,
             remaining_ttl_seconds: self.limits.ttl.as_secs(),
-            size_bytes: bytes.len(),
+            size_bytes,
             cache_hit: false,
             reuse_kind: CacheReuseKind::Miss,
             capabilities,
@@ -1046,10 +1211,420 @@ fn acquisition_cancelled() -> DevupError {
     )
 }
 
+fn resource_missing(kind: &str) -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffInvalid,
+        format!("The resource {kind} was not found. It may have been removed from the cache."),
+        false,
+        json!({"reason": "not_found", "resourceKind": kind}),
+    )
+}
+
 fn resource_expired() -> DevupError {
     DevupError::new(
         ErrorCode::DevupFigmaHandoffExpired,
         "The resource artifact is missing or expired.",
         true,
     )
+}
+
+#[cfg(test)]
+pub(crate) mod w3_tests {
+    use super::*;
+    use devup_mcp_figma::{
+        AssetFormat, CollectionStats, FigmaTarget, PayloadCompleteness, Snapshot,
+    };
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Default)]
+    pub(crate) struct Clock(pub AtomicU64);
+    impl ArtifactClock for Clock {
+        fn now_epoch_seconds(&self) -> u64 {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+    pub(crate) fn request() -> CollectionRequest {
+        CollectionRequest::new(
+            FigmaTarget {
+                file_key: "fixture".into(),
+                node_id: Some("1:1".into()),
+                branch_key: None,
+            },
+            CollectionScope::Node,
+        )
+    }
+    pub(crate) fn payload() -> CollectedPayload {
+        CollectedPayload {
+            target: request().target,
+            scope: CollectionScope::Node,
+            metadata: json!({}),
+            snapshot: Snapshot {
+                file_key: "fixture".into(),
+                version: None,
+                roots: vec!["1:1".into()],
+                nodes: BTreeMap::new(),
+                diagnostics: vec![],
+            },
+            variables: None,
+            styles: None,
+            completeness: PayloadCompleteness::ResolvedValuesOnly,
+            source_version: None,
+            stats: CollectionStats::default(),
+            assets: vec![],
+            reference_png: None,
+            failures: vec![],
+        }
+    }
+
+    /// Settles the question W3 left open about `ArtifactRequestKey::digest`.
+    ///
+    /// It ends in `unwrap_or_default()`, so a serialisation failure would not
+    /// raise anything — it would hand back the digest of the *empty* byte
+    /// string, and every key that failed would land on that one entry. Two
+    /// unrelated collections would then read each other's design.
+    ///
+    /// It cannot fail today. The key is `String`, `Option<String>`, `bool`,
+    /// `usize`, `u8`, three fieldless enums and `Vec`s of those, every one of
+    /// them `#[derive(Serialize)]`; `serde_json` fails on a non-string map
+    /// key, a hand-written `Serialize` that returns an error, or a writer that
+    /// errors, and the writer here is a `Vec<u8>`. There is no float, so not
+    /// even a non-finite one to argue about. So the fallback stays.
+    ///
+    /// What it stays subject to is a field added later that *can* fail — at
+    /// which point the collapse is silent. This fills every field and asserts
+    /// each one still reaches a digest of its own, none of them the empty one.
+    #[test]
+    fn w3_every_field_of_a_request_key_reaches_its_digest() {
+        let populated = || {
+            let mut request = request();
+            request.resource_scope = ResourceScope::Used;
+            request.include_context = true;
+            request.metadata_only = true;
+            request.variables_only = true;
+            request.reference_png = true;
+            request.search = Some(SearchReadOptions {
+                query: "STORY-F-PROOFREAD".into(),
+                node_types: vec!["FRAME".into()],
+                match_kind: "normalized".into(),
+                limit: 20,
+            });
+            request.explore = Some(ExploreReadOptions {
+                projection_limit: 50,
+                text_preview_limit: 10,
+            });
+            request.section = Some(SectionReadOptions {
+                frame_ids: vec!["2:2".into()],
+                all_screens: false,
+            });
+            request.asset_selections = vec![AssetSelection {
+                asset_id: "asset".into(),
+                format: AssetFormat::Png,
+                scale: 2,
+            }];
+            request
+        };
+
+        let mut branch_key = populated();
+        branch_key.target.branch_key = Some("branch".into());
+        let mut file_key = populated();
+        file_key.target.file_key = "other".into();
+        let mut node_id = populated();
+        node_id.target.node_id = Some("9:9".into());
+        let mut scope = populated();
+        scope.scope = CollectionScope::File;
+        let mut resource_scope = populated();
+        resource_scope.resource_scope = ResourceScope::File;
+        let mut include_context = populated();
+        include_context.include_context = false;
+        let mut metadata_only = populated();
+        metadata_only.metadata_only = false;
+        let mut variables_only = populated();
+        variables_only.variables_only = false;
+        let mut reference_png = populated();
+        reference_png.reference_png = false;
+        let mut search = populated();
+        search.search = None;
+        let mut explore = populated();
+        explore.explore = None;
+        let mut section = populated();
+        section.section = None;
+        let mut asset_format = populated();
+        asset_format.asset_selections[0].format = AssetFormat::Svg;
+        let mut asset_scale = populated();
+        asset_scale.asset_selections[0].scale = 3;
+        let mut asset_id = populated();
+        asset_id.asset_selections[0].asset_id = "elsewhere".into();
+
+        let empty = sha256_hex(&[]);
+        let digests = [
+            populated(),
+            branch_key,
+            file_key,
+            node_id,
+            scope,
+            resource_scope,
+            include_context,
+            metadata_only,
+            variables_only,
+            reference_png,
+            search,
+            explore,
+            section,
+            asset_format,
+            asset_scale,
+            asset_id,
+        ]
+        .iter()
+        .map(|request| ArtifactRequestKey::from_collection(request).digest())
+        .collect::<Vec<_>>();
+
+        for digest in &digests {
+            assert_ne!(
+                digest, &empty,
+                "a key that serialised to nothing would share one cache entry with every other such key"
+            );
+        }
+        let distinct = digests.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            distinct.len(),
+            digests.len(),
+            "each field has to reach the digest, or two different collections share an artifact"
+        );
+    }
+
+    #[tokio::test]
+    async fn w3_selection_is_available_after_artifact_id_lookup() {
+        let store = ArtifactStore::default();
+        let mut request = request();
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["2:2".into(), "3:3".into()],
+            all_screens: false,
+        });
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), payload())
+            .await
+            .unwrap();
+        let restored = store.get(&artifact.artifact_id).await.unwrap();
+        let metadata = serde_json::to_value(&restored.capabilities).unwrap();
+        assert_eq!(
+            metadata["sectionSelection"]["frameIds"],
+            json!(["2:2", "3:3"])
+        );
+    }
+
+    #[tokio::test]
+    async fn w3_last_selection_survives_lookup_without_changing_acquisition_key() {
+        let store = ArtifactStore::default();
+        let mut request = request();
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec![],
+            all_screens: false,
+        });
+        let key = ArtifactRequestKey::from_collection(&request);
+        let artifact = store.insert(key.clone(), payload()).await.unwrap();
+        store
+            .remember_section_selection(
+                &artifact.artifact_id,
+                SectionReadOptions {
+                    frame_ids: vec!["3:3".into()],
+                    all_screens: false,
+                },
+            )
+            .await
+            .unwrap();
+        let restored = store.lookup(&key).await.unwrap();
+        assert_eq!(restored.artifact_id, artifact.artifact_id);
+        assert_eq!(
+            serde_json::to_value(&restored.capabilities).unwrap()["sectionSelection"]["frameIds"],
+            json!(["3:3"])
+        );
+        store
+            .remember_section_selection(
+                &artifact.artifact_id,
+                SectionReadOptions {
+                    frame_ids: vec![],
+                    all_screens: true,
+                },
+            )
+            .await
+            .unwrap();
+        let restored = store.get(&artifact.artifact_id).await.unwrap();
+        assert_eq!(
+            serde_json::to_value(&restored.capabilities).unwrap()["sectionSelection"]["allScreens"],
+            true
+        );
+    }
+
+    #[tokio::test]
+    async fn w3_unselected_section_index_remembers_its_first_selection() {
+        let store = ArtifactStore::default();
+        let mut payload = payload();
+        payload.metadata = json!({"sectionIndex": {}});
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request()), payload)
+            .await
+            .unwrap();
+        assert_eq!(artifact.capabilities.kind, ArtifactKind::SectionIndex);
+        let selection = SectionReadOptions {
+            frame_ids: vec!["2:2".into()],
+            all_screens: false,
+        };
+        store
+            .remember_section_selection(&artifact.artifact_id, selection.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            store
+                .get(&artifact.artifact_id)
+                .await
+                .unwrap()
+                .capabilities
+                .section_selection,
+            Some(selection)
+        );
+    }
+
+    #[tokio::test]
+    async fn w3_expired_key_is_reacquired_at_ttl_boundary() {
+        let clock = Arc::new(Clock::default());
+        let store = ArtifactStore::with_clock(
+            clock.clone(),
+            ArtifactLimits {
+                ttl: Duration::from_secs(10),
+                ..ArtifactLimits::default()
+            },
+        );
+        let key = ArtifactRequestKey::from_collection(&request());
+        let first = store.insert(key.clone(), payload()).await.unwrap();
+        clock.0.store(10, Ordering::SeqCst);
+        assert!(store.lookup(&key).await.is_none());
+        let second = store
+            .get_or_acquire(key, false, || async { Ok(payload()) })
+            .await
+            .unwrap();
+        assert!(!second.cache_hit);
+        assert_ne!(first.artifact_id, second.artifact_id);
+    }
+
+    #[tokio::test]
+    async fn w3_invalid_or_oversized_selection_does_not_replace_previous_selection() {
+        let store = ArtifactStore::with_limits(ArtifactLimits {
+            max_entry_bytes: 2048,
+            ..ArtifactLimits::default()
+        });
+        let mut request = request();
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["2:2".into()],
+            all_screens: false,
+        });
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), payload())
+            .await
+            .unwrap();
+        let original_bytes = store.stats().await.total_bytes;
+        for selection in [
+            SectionReadOptions {
+                frame_ids: vec![],
+                all_screens: false,
+            },
+            SectionReadOptions {
+                frame_ids: vec!["3:3".into()],
+                all_screens: true,
+            },
+            SectionReadOptions {
+                frame_ids: vec!["3:3".into(), "3:3".into()],
+                all_screens: false,
+            },
+            SectionReadOptions {
+                frame_ids: vec!["x".repeat(4096)],
+                all_screens: false,
+            },
+        ] {
+            assert!(
+                store
+                    .remember_section_selection(&artifact.artifact_id, selection)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(
+                store
+                    .get(&artifact.artifact_id)
+                    .await
+                    .unwrap()
+                    .capabilities
+                    .section_selection,
+                request.section
+            );
+            assert_eq!(store.stats().await.total_bytes, original_bytes);
+        }
+        let updated = store
+            .remember_section_selection(
+                &artifact.artifact_id,
+                SectionReadOptions {
+                    frame_ids: vec![],
+                    all_screens: true,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(updated.size_bytes, store.stats().await.total_bytes);
+        assert_eq!(updated.content_hash, artifact.content_hash);
+        assert_eq!(
+            updated.expires_at_epoch_seconds,
+            artifact.expires_at_epoch_seconds
+        );
+    }
+
+    #[test]
+    fn w3_asset_capture_validation_reports_only_missing_exact_variants() {
+        let mut request = request();
+        let captured = AssetSelection {
+            asset_id: "2:2:node".into(),
+            format: AssetFormat::Svg,
+            scale: 1,
+        };
+        request.asset_selections = vec![captured.clone()];
+        let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
+        assert!(capabilities.validate_asset_captures(&[]).is_ok());
+        assert!(
+            capabilities
+                .validate_asset_captures(std::slice::from_ref(&captured))
+                .is_ok()
+        );
+        let missing = AssetSelection {
+            scale: 2,
+            ..captured.clone()
+        };
+        let error = capabilities
+            .validate_asset_captures(&[captured, missing])
+            .unwrap_err();
+        assert_eq!(
+            error.details["missingAssetCaptures"],
+            json!([{"assetId":"2:2:node", "format":"svg", "scale":2}])
+        );
+        assert!(!error.retryable);
+    }
+
+    #[test]
+    fn w3_missing_asset_capture_has_actionable_details() {
+        let capabilities = ArtifactRequestKey::from_collection(&request()).capabilities();
+        let selection = AssetSelection {
+            asset_id: "2:2:node".into(),
+            format: AssetFormat::Svg,
+            scale: 1,
+        };
+        // The storage-layer validator will be consumed by W1's projection validation.
+        let error = capabilities
+            .validate_asset_captures(&[selection])
+            .unwrap_err();
+        assert!(
+            error.message.contains("Remove artifactId")
+                && error.message.contains("original url")
+                && error.message.contains("assetRequests")
+        );
+        assert_eq!(
+            error.details["missingAssetCaptures"][0]["assetId"],
+            "2:2:node"
+        );
+    }
 }

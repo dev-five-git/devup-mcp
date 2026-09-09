@@ -31,6 +31,7 @@ use crate::{
 };
 
 const LARGE_SUBTREE_THRESHOLD: usize = 200;
+
 const MAX_PENDING_CALLS: usize = 4;
 const VARIABLE_BATCH_SIZE: usize = 8;
 const STYLE_BATCH_SIZE: usize = 8;
@@ -199,6 +200,7 @@ enum CallKind {
     VariableBatch,
     UsedResourceBatch,
     Explore,
+    ScopedSearch,
     SectionIndex,
     FastMultiRoot,
     LargeValue,
@@ -357,7 +359,22 @@ impl CollectorSession {
                 );
                 return self.advance();
             }
-            if self.request.search.is_some() {
+            if let Some(options) = self.request.search.clone() {
+                if self.request.scope == CollectionScope::Node {
+                    let node_id = self.request.target.node_id.clone().ok_or_else(|| {
+                        invalid_call("Node-scoped Figma search requires a node ID.")
+                    })?;
+                    self.enqueue(
+                        ReadToolCall::search_snapshot(
+                            &self.request.target.file_key,
+                            &node_id,
+                            options,
+                        ),
+                        Some(node_id),
+                        CallKind::ScopedSearch,
+                    );
+                    return self.advance();
+                }
                 self.enqueue(
                     ReadToolCall::page_catalog(&self.request.target.file_key),
                     None,
@@ -594,7 +611,9 @@ impl CollectorSession {
                 self.variable_batches.insert(pending.order, batch);
                 Ok(())
             }
-            CallKind::Explore => self.accept_explore(&pending.planned, pending.order, result),
+            CallKind::Explore | CallKind::ScopedSearch => {
+                self.accept_projection(&pending.planned, pending.order, result)
+            }
             CallKind::SectionIndex => {
                 self.accept_section_index(&pending.planned, pending.order, result)
             }
@@ -1000,7 +1019,7 @@ impl CollectorSession {
         Ok(())
     }
 
-    fn accept_explore(
+    fn accept_projection(
         &mut self,
         planned: &PlannedCall,
         order: usize,
@@ -1009,16 +1028,17 @@ impl CollectorSession {
         let chunk = snapshot_chunk_from_result(&result)?;
         if chunk.file_key != planned.expected_file_key {
             return Err(invalid_call(
-                "Figma exploration projection file key does not match the request.",
+                "Figma projection file key does not match the request.",
             ));
         }
-        let expected_node_id = planned.expected_node_id.as_deref().ok_or_else(|| {
-            invalid_call("Figma exploration projection expected node ID is missing.")
-        })?;
+        let expected_node_id = planned
+            .expected_node_id
+            .as_deref()
+            .ok_or_else(|| invalid_call("Figma projection expected node ID is missing."))?;
         if !chunk.nodes.iter().any(|node| node.id == expected_node_id) {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
-                "anchor node not found in the Figma exploration projection.",
+                "anchor node not found in the Figma projection.",
                 false,
             ));
         }
@@ -2425,4 +2445,315 @@ fn add_used_resource(batch: &mut ResourceBatch, item: UsedResourceItem) {
 fn used_resource_batch_fits(batch: &ResourceBatch) -> bool {
     batch.variable_ids.len() + batch.styles.len() <= USED_RESOURCE_BATCH_ITEMS
         && serde_json::to_vec(batch).is_ok_and(|bytes| bytes.len() <= USED_RESOURCE_BATCH_BYTES)
+}
+
+#[cfg(test)]
+mod w5_tests {
+    use super::*;
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
+
+    fn run_script(script: &str, setup: &str, key: &str, options: Value) -> Value {
+        let script = script
+            .replace("__DEVUP_NODE_ID__", "2:1")
+            .replace(&format!("\"{key}\""), &options.to_string());
+        let program = format!(
+            "{setup}\n(async () => {{ {script} }})().then(v => process.stdout.write(JSON.stringify(v))).catch(e => {{ console.error(e); process.exit(1); }});"
+        );
+        let mut child = Command::new("node")
+            .arg("-")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Node.js required for script tests");
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(program.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).unwrap()
+    }
+
+    const TREE: &str = r#"
+const doc = {id:'0:0', type:'DOCUMENT'};
+const page = {id:'1:1', type:'PAGE', name:'Page', parent:doc, children:[]};
+function node(id, type, name, parent) {
+ const n = {id, type, name, parent, children:[], x:0, y:0, width:390, height:844, visible:true};
+ n.findAll = predicate => n.children.flatMap(c => [c, ...c.findAll(predicate)]).filter(predicate);
+ parent.children.push(n); return n;
+}
+const section = node('2:1', 'SECTION', 'Loading section', page);
+const frame = node('3:1', 'FRAME', 'Loading', section);
+node('3:2', 'FRAME', 'Loading', page);
+page.findAll = () => { throw new Error('must not traverse whole page'); };
+const figma = {fileKey:'file', getNodeByIdAsync: async () => section,
+ setCurrentPageAsync: async p => { if (p !== page) throw new Error('wrong page'); }};
+"#;
+
+    fn search_output(setup: &str) -> Value {
+        run_script(
+            include_str!("scripts/search.js"),
+            setup,
+            "__DEVUP_SEARCH__",
+            json!({"query":"Loading", "nodeTypes":["FRAME"], "matchKind":"exact", "limit":5}),
+        )
+    }
+
+    #[test]
+    fn p4_section_keeps_long_page_and_nested_automatic_screens() {
+        let setup = format!(
+            r#"{TREE}
+frame.height = 7240;
+const wrapper = node('4:1', 'GROUP', 'Wrapper', frame);
+node('5:1', 'FRAME', 'Screen', wrapper);
+node('5:2', 'FRAME', 'Screen contents', wrapper.children[0]);
+const small = node('6:1', 'FRAME', 'Case', section); small.width = small.height = 150;
+node('6:2', 'TEXT', 'Text case', section);
+"#
+        );
+        let output = run_script(
+            include_str!("scripts/section_index.js"),
+            &setup,
+            "unused",
+            Value::Null,
+        );
+        let nodes = output["nodes"].as_array().unwrap();
+        assert!(
+            nodes.iter().any(|n| n["id"] == "5:1"),
+            "nested screen was discarded"
+        );
+        assert!(!nodes.iter().any(|n| n["id"] == "5:2"));
+        let screen = nodes.iter().find(|n| n["id"] == "5:1").unwrap();
+        assert_eq!(screen["fields"]["parentId"], "3:1");
+        let snapshot = merge_chunks(vec![
+            snapshot_chunk_from_result(&UpstreamResult { raw: output }).unwrap(),
+        ])
+        .unwrap();
+        let target = FigmaTarget {
+            file_key: "file".into(),
+            node_id: Some("2:1".into()),
+            branch_key: None,
+        };
+        let index = build_section_index(&snapshot, &target).unwrap();
+        assert_eq!(index.select(&[], true).unwrap(), ["5:1"]);
+        assert_eq!(index.select(&["3:1".into()], false).unwrap(), ["3:1"]);
+        for id in ["3:1", "6:1", "6:2"] {
+            let candidate = index.candidates.iter().find(|c| c.node_id == id).unwrap();
+            assert!(!candidate.is_screen_candidate());
+            assert!(
+                candidate
+                    .selection_reasons
+                    .contains(&"explicit-selection-only".into())
+            );
+        }
+    }
+
+    #[test]
+    fn w5_search_accepts_section_and_frame_roots_without_scanning_siblings() {
+        for setup in [
+            TREE.to_owned(),
+            format!("{TREE}\nfigma.getNodeByIdAsync = async () => frame;"),
+        ] {
+            let output = search_output(&setup);
+            let nodes = output["nodes"].as_array().unwrap();
+            assert!(nodes.iter().any(|n| n["id"] == "3:1"));
+            assert!(!nodes.iter().any(|n| n["id"] == "3:2"));
+            assert!(nodes.iter().any(|n| n["id"] == "2:1"));
+            assert_eq!(output["rootIds"], json!(["1:1"]));
+        }
+    }
+
+    #[test]
+    fn w5_text_preview_does_not_change_candidates_or_projection_truncation() {
+        let setup = format!(
+            r#"{TREE}
+for (let i=0; i<60; i++) {{
+ const f = node('4:'+i, 'FRAME', 'Screen '+i, section);
+ const t = node('5:'+i, 'TEXT', 'Copy', f); t.characters = '한글 " preview '.repeat(40);
+}}
+"#
+        );
+        let mut baseline = None;
+        for limit in [0, 160, 500] {
+            let output = run_script(
+                include_str!("scripts/explore.js"),
+                &setup,
+                "__DEVUP_EXPLORE__",
+                json!({"projectionLimit":200,"textPreviewLimit":limit}),
+            );
+            let nodes = output["nodes"].as_array().unwrap();
+            let ids: Vec<_> = nodes
+                .iter()
+                .filter(|n| n["type"] == "FRAME")
+                .map(|n| n["id"].clone())
+                .collect();
+            assert!(!ids.is_empty());
+            let snapshot = merge_chunks(vec![
+                snapshot_chunk_from_result(&UpstreamResult {
+                    raw: output.clone(),
+                })
+                .unwrap(),
+            ])
+            .unwrap();
+            let target = FigmaTarget {
+                file_key: "file".into(),
+                node_id: Some("2:1".into()),
+                branch_key: None,
+            };
+            let explored =
+                crate::explore_snapshot(&snapshot, &target, &crate::ExploreOptions { limit: 100 })
+                    .unwrap();
+            let candidate_ids: Vec<_> = explored
+                .candidates
+                .iter()
+                .map(|candidate| candidate.node.node_id.clone())
+                .collect();
+            assert_eq!(candidate_ids.len(), ids.len());
+            let state = (
+                ids,
+                candidate_ids,
+                nodes[0]["fields"]["projectionTruncated"].clone(),
+            );
+            if let Some(expected) = &baseline {
+                assert_eq!(&state, expected);
+            } else {
+                baseline = Some(state);
+            }
+            assert!(output.to_string().chars().count() <= 14_000);
+        }
+    }
+
+    #[test]
+    fn w5_previews_are_retained_when_the_envelope_has_room() {
+        let setup =
+            format!("{TREE}\nnode('4:1', 'TEXT', 'Copy', frame).characters = 'Preview text';");
+        let output = run_script(
+            include_str!("scripts/explore.js"),
+            &setup,
+            "__DEVUP_EXPLORE__",
+            json!({"projectionLimit":200,"textPreviewLimit":160}),
+        );
+        let nodes = output["nodes"].as_array().unwrap();
+        let frame = nodes.iter().find(|node| node["id"] == "3:1").unwrap();
+        assert_eq!(frame["fields"]["textPreview"], "Preview text");
+        assert_eq!(nodes[0]["fields"]["projectionTruncated"], false);
+    }
+
+    #[test]
+    fn w5_empty_search_preserves_anchor_and_ancestry() {
+        let output = search_output(&format!("{TREE}\nframe.name = 'Unrelated';"));
+        let ids: BTreeSet<_> = output["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, BTreeSet::from(["1:1", "2:1"]));
+    }
+
+    fn page_output(ids: &[String]) -> UpstreamResult {
+        UpstreamResult {
+            raw: json!({
+                "fileKey": "file",
+                "version": null,
+                "rootIds": ids,
+                "nodes": ids.iter().map(|id| json!({
+                    "id": id, "type": "PAGE",
+                    "fields": {"name": "Page", "parentId": null, "childrenIds": []},
+                    "extra": {}, "fieldErrors": {}
+                })).collect::<Vec<_>>(),
+                "diagnostics": []
+            }),
+        }
+    }
+
+    #[test]
+    fn w5_file_search_still_schedules_all_thirteen_pages() {
+        let target = FigmaTarget {
+            file_key: "file".into(),
+            node_id: Some("2:1".into()),
+            branch_key: None,
+        };
+        let mut request = CollectionRequest::new(target, CollectionScope::File);
+        request.search = Some(SearchReadOptions {
+            query: "Loading".into(),
+            match_kind: "exact".into(),
+            limit: 5,
+            ..Default::default()
+        });
+        let mut session = CollectorSession::new(request);
+        let CollectorStep::Call(call) = session.advance().unwrap() else {
+            panic!("expected catalog")
+        };
+        assert!(matches!(call.call, ReadToolCall::PageCatalog { .. }));
+        let pages: Vec<_> = (1..=13).map(|i| format!("1:{i}")).collect();
+        session.accept(&call.id, page_output(&pages)).unwrap();
+        let mut searched = BTreeSet::new();
+        loop {
+            match session.advance().unwrap() {
+                CollectorStep::Call(call) => {
+                    let ReadToolCall::SearchSnapshot { node_id, .. } = &call.call else {
+                        panic!("expected page search")
+                    };
+                    searched.insert(node_id.clone());
+                    session
+                        .accept(&call.id, page_output(std::slice::from_ref(node_id)))
+                        .unwrap();
+                }
+                CollectorStep::Complete(parts) => {
+                    assert_eq!(parts.stats.figma_tool_calls, 14);
+                    assert_eq!(parts.scope, CollectionScope::File);
+                    break;
+                }
+                CollectorStep::AwaitingResults => panic!("all calls were accepted"),
+            }
+        }
+        assert_eq!(searched, pages.into_iter().collect());
+    }
+
+    #[test]
+    fn w5_node_search_finishes_in_one_call_without_page_catalog() {
+        let target = FigmaTarget {
+            file_key: "file".into(),
+            node_id: Some("2:1".into()),
+            branch_key: None,
+        };
+        let mut request = CollectionRequest::new(target, CollectionScope::Node);
+        request.search = Some(SearchReadOptions {
+            query: "Loading".into(),
+            match_kind: "exact".into(),
+            limit: 5,
+            ..Default::default()
+        });
+        let mut session = CollectorSession::new(request);
+        let CollectorStep::Call(call) = session.advance().unwrap() else {
+            panic!("expected search call")
+        };
+        assert!(
+            matches!(&call.call, ReadToolCall::SearchSnapshot {node_id, ..} if node_id == "2:1")
+        );
+        session
+            .accept(
+                &call.id,
+                UpstreamResult {
+                    raw: search_output(TREE),
+                },
+            )
+            .unwrap();
+        let CollectorStep::Complete(parts) = session.advance().unwrap() else {
+            panic!("extra Figma call")
+        };
+        assert_eq!(parts.stats.figma_tool_calls, 1);
+        assert_eq!(parts.scope, CollectionScope::Node);
+    }
 }

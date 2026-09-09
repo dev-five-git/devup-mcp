@@ -15,7 +15,7 @@
 //! never claims a clean layer is drift-free with unwarranted certainty;
 //! see each layer's doc comment for exactly what it can and cannot see.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use devup_mcp_figma::{DevupError, ErrorCode};
@@ -71,16 +71,19 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
         ));
     };
 
-    let model_dirs = find_dirs_named(&root, "models", 5);
+    let (model_dirs, excluded_models) = find_dirs_named(&root, "models", 5);
     let mut layers_out = serde_json::Map::new();
     for layer in &requested {
-        let result = match layer.as_str() {
+        let mut result = match layer.as_str() {
             "db-entity" => db_entity_layer(&model_dirs),
             "entity-route" => entity_route_layer(&root, &model_dirs),
             "route-openapi" => route_openapi_layer(&root),
             "openapi-client" => openapi_client_layer(&root),
             _ => unreachable!("validated above"),
         };
+        if matches!(layer.as_str(), "db-entity" | "entity-route") {
+            attach_excluded_paths(&mut result, excluded_models.clone());
+        }
         layers_out.insert(layer.clone(), result);
     }
 
@@ -183,9 +186,40 @@ fn db_entity_layer(model_dirs: &[PathBuf]) -> Value {
     })
 }
 
+/// sea-orm relation accessors that `#[sea_orm::model]` lets an entity
+/// declare inside the `Model` struct itself — `pub user:
+/// HasOne<super::user::Entity>`, `pub projects:
+/// HasMany<super::project::Entity>`.
+///
+/// They are how this entity reaches a *related table*, not columns of
+/// this one: the column backing a `HasOne` is a separate field
+/// (`user_id`) and is in the Vespertide model. Counting them as columns
+/// reported a missing column for every relation in the schema — 70 of
+/// them across 22 of 31 tables on a real project, not one of them real.
+const RELATION_FIELD_TYPES: &[&str] = &["HasOne", "HasMany"];
+
+fn is_relation_field(declared_type: &str) -> bool {
+    RELATION_FIELD_TYPES.iter().any(|wrapper| {
+        declared_type
+            .strip_prefix(*wrapper)
+            .is_some_and(|rest| rest.starts_with('<'))
+    })
+}
+
 /// Text-scans a sea-orm entity source for `pub struct Model { ... }` and
-/// extracts each `pub <field>: <Type>,` line's field name via brace-depth
-/// tracking (not a real Rust parser).
+/// extracts the name of the **database column** each `pub <field>:
+/// <Type>,` line stands for, via brace-depth tracking (not a real Rust
+/// parser).
+///
+/// A field's name and its column's name are not always the same string,
+/// and this returns the column's:
+///
+/// - `#[sea_orm(column_name = "...")]` names the column outright and wins.
+/// - `pub r#type:` is the column `type`; the raw-identifier escape is
+///   Rust's, not the database's. (Two of these in one real schema were
+///   reported as columns the entity is missing.)
+/// - A [relation accessor](RELATION_FIELD_TYPES) is not a column at all
+///   and is skipped.
 fn extract_model_struct_fields(source: &str) -> BTreeSet<String> {
     let mut fields = BTreeSet::new();
     let Some(struct_start) = source.find("struct Model") else {
@@ -211,15 +245,32 @@ fn extract_model_struct_fields(source: &str) -> BTreeSet<String> {
         }
     }
     let body = &source[body_start..end];
+    let mut column_name_attribute: Option<String> = None;
     for line in body.lines() {
         let line = line.trim();
+        if line.starts_with("#[") {
+            if let Some(name) = extract_quoted_value_after(line, "column_name") {
+                column_name_attribute = Some(name);
+            }
+            continue;
+        }
         let Some(rest) = line.strip_prefix("pub ") else {
             continue;
         };
         let Some(colon) = rest.find(':') else {
             continue;
         };
+        let declared_type = rest[colon + 1..].trim();
+        let named_by_attribute = column_name_attribute.take();
+        if is_relation_field(declared_type) {
+            continue;
+        }
+        if let Some(column) = named_by_attribute {
+            fields.insert(column);
+            continue;
+        }
         let field_name = rest[..colon].trim();
+        let field_name = field_name.strip_prefix("r#").unwrap_or(field_name);
         if !field_name.is_empty() && field_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
             fields.insert(field_name.to_owned());
         }
@@ -250,6 +301,15 @@ fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
     let mut drifts = Vec::new();
     let mut columns_checked = 0usize;
     for models_dir in model_dirs {
+        // `find_dirs_named` matches any directory called `models`, and a
+        // real project has several that hold no Vespertide model at all:
+        // `src/models/` is the *generated sea-orm entities*, and another
+        // app's `models/` may not be Rust. Announcing "entity-route
+        // correspondence cannot be checked" for a directory with nothing
+        // to check is a finding about this scan, not about the project.
+        if json_files_in(models_dir).is_empty() {
+            continue;
+        }
         let Some(vespertide_root) = models_dir.parent() else {
             continue;
         };
@@ -339,7 +399,17 @@ fn find_files_by_extension(dir: &Path, extension: &str, max_depth: usize) -> Vec
         return found;
     }
     let mut queue = vec![(dir.to_path_buf(), 0usize)];
-    const SKIP: &[&str] = &["node_modules", "target", "dist", "build", ".git", ".next"];
+    const SKIP: &[&str] = &[
+        "node_modules",
+        "target",
+        "dist",
+        "build",
+        ".git",
+        ".next",
+        // A `git worktree` container holds another branch's copy of the
+        // same tree; scanning it doubles every route (defects D7/D17).
+        ".worktrees",
+    ];
     while let Some((current, depth)) = queue.pop() {
         let Ok(entries) = std::fs::read_dir(&current) else {
             continue;
@@ -379,17 +449,22 @@ fn find_files_by_extension(dir: &Path, extension: &str, max_depth: usize) -> Vec
 /// (`vespera::export_app!`/`merge = [...]`) and non-standard route-macro
 /// formatting can produce false positives — `confidence: "medium"`.
 fn route_openapi_layer(root: &Path) -> Value {
-    let routes_dirs = find_dirs_named(root, "routes", 5)
+    let (routes_dirs, excluded_routes) = find_dirs_named(root, "routes", 5);
+    let routes_dirs = routes_dirs
         .into_iter()
         .filter(|dir| dir.join("mod.rs").is_file() || !collect_rust_sources(dir, 0).is_empty())
         .collect::<Vec<_>>();
-    let openapi_files = find_files_named(root, "openapi.json", 4);
+    let (openapi_files, excluded_specs) = find_files_named(root, "openapi.json", 4);
+    let mut excluded = excluded_routes;
+    excluded.extend(excluded_specs);
     if routes_dirs.is_empty() && openapi_files.is_empty() {
-        return json!({
+        let mut layer = json!({
             "checked": false,
             "reason": "Found neither src/routes/ nor openapi.json.",
             "drifts": [],
         });
+        attach_excluded_paths(&mut layer, excluded);
+        return layer;
     }
 
     let mut code_routes = BTreeSet::<(String, String)>::new();
@@ -425,30 +500,31 @@ fn route_openapi_layer(root: &Path) -> Value {
     }
 
     if routes_dirs.is_empty() {
-        return json!({
+        let mut layer = json!({
             "checked": false,
             "reason": "No src/routes/ found, so the code-side routes cannot be checked.",
             "openapiSpecsFound": specs_checked,
             "drifts": [],
         });
+        attach_excluded_paths(&mut layer, excluded);
+        return layer;
     }
     if openapi_files.is_empty() {
-        return json!({
+        let mut layer = json!({
             "checked": false,
             "reason": "No openapi.json found, so there is no spec to compare against.",
             "codeRoutesFound": code_routes.len(),
             "drifts": [],
         });
+        attach_excluded_paths(&mut layer, excluded);
+        return layer;
     }
 
-    let stale_spec = code_routes
-        .difference(&spec_routes)
-        .map(|(method, path)| json!({ "method": method, "path": path }))
-        .collect::<Vec<_>>();
-    let stale_code_or_merged = spec_routes
-        .difference(&code_routes)
-        .map(|(method, path)| json!({ "method": method, "path": path }))
-        .collect::<Vec<_>>();
+    let code_by_key = group_by_comparison_key(&code_routes);
+    let spec_by_key = group_by_comparison_key(&spec_routes);
+    let stale_spec = routes_absent_from(&code_by_key, &spec_by_key);
+    let stale_code_or_merged = routes_absent_from(&spec_by_key, &code_by_key);
+    let spelling_only_matches = spelling_only_match_count(&code_by_key, &spec_by_key);
 
     let mut drifts = Vec::new();
     if !stale_spec.is_empty() {
@@ -468,13 +544,163 @@ fn route_openapi_layer(root: &Path) -> Value {
         }));
     }
 
-    json!({
+    let mut notes = Vec::new();
+    if spelling_only_matches > 0 {
+        notes.push(json!(format!(
+            "{spelling_only_matches} route(s) exist on both sides in different spellings and were matched rather than reported. Vespera writes a handler's URL into openapi.json in kebab-case — including inside {{...}} parameters — and gives a module-root route a trailing slash, while this scan reads the file name and path attribute verbatim. Only `_` vs `-` and a trailing slash are folded; every other difference is still reported as drift."
+        )));
+    }
+
+    let mut layer = json!({
         "checked": true,
         "codeRouteCount": code_routes.len(),
         "openapiRouteCount": spec_routes.len(),
         "openapiSpecsFound": specs_checked,
+        "spellingNormalizedMatches": spelling_only_matches,
         "drifts": drifts,
-    })
+    });
+    if !notes.is_empty()
+        && let Some(object) = layer.as_object_mut()
+    {
+        object.insert("notes".to_owned(), Value::Array(notes));
+    }
+    let mirrored = mirrored_drift_count(&stale_spec, &stale_code_or_merged);
+    if mirrored > 0
+        && let Some(object) = layer.as_object_mut()
+    {
+        object.insert(
+            "selfCheck".to_owned(),
+            json!({
+                "kind": "mirrored-drift",
+                "count": mirrored,
+                "message": "These routes are on both drift lists in different spellings, which means the two sides write the same route differently — not that a route is missing. Treat them as unverified rather than as drift, and report the spelling difference instead.",
+                "confidence": "low",
+            }),
+        );
+    }
+    attach_excluded_paths(&mut layer, excluded);
+    layer
+}
+
+/// Adds `excludedPaths` — what the scan found and dropped, and why — to a
+/// layer result. Silently returning fewer files than the filesystem holds
+/// is its own way of being wrong, so the drop is always visible.
+fn attach_excluded_paths(layer: &mut Value, excluded: Vec<Value>) {
+    if excluded.is_empty() {
+        return;
+    }
+    if let Some(object) = layer.as_object_mut() {
+        object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+    }
+}
+
+/// Folds the two spellings the same route can have on the two sides of
+/// this comparison into one key.
+///
+/// Vespera writes a handler's URL into `openapi.json` in kebab-case —
+/// `src/routes/ai_character.rs` becomes `/ai-character`, and even a
+/// `path = "/{order_number}"` attribute becomes `/order/{order-number}`
+/// — and gives a module-root handler (one with no `path` attribute) a
+/// trailing slash, `/order/`. The scan on this side reads the file name
+/// and the attribute verbatim.
+///
+/// Comparing the two verbatim reports every snake_case route twice, once
+/// from each side, as mirror images of each other. Measured on a real
+/// project with 222 code routes, 222 spec routes and no actual drift,
+/// that was ~158 false positives — the tool's entire output
+/// (`devup-mcp-defects.md` D17).
+///
+/// So the key folds exactly those two spellings and nothing else: case,
+/// parameter names, and every other difference still count as drift.
+/// Reported drifts always carry the path *as written in their own layer*;
+/// only the matching is spelling-insensitive, and the layer says how many
+/// routes needed it.
+fn route_comparison_key(method: &str, path: &str) -> (String, String) {
+    let folded = path.replace('_', "-");
+    let trimmed = folded.trim_end_matches('/');
+    let path = if trimmed.is_empty() {
+        "/".to_owned()
+    } else {
+        trimmed.to_owned()
+    };
+    (method.to_ascii_uppercase(), path)
+}
+
+/// Groups `(METHOD, path as written)` routes by their comparison key,
+/// keeping every original spelling so drift can be reported verbatim.
+fn group_by_comparison_key(
+    routes: &BTreeSet<(String, String)>,
+) -> BTreeMap<(String, String), BTreeSet<String>> {
+    let mut grouped: BTreeMap<(String, String), BTreeSet<String>> = BTreeMap::new();
+    for (method, path) in routes {
+        grouped
+            .entry(route_comparison_key(method, path))
+            .or_default()
+            .insert(path.clone());
+    }
+    grouped
+}
+
+/// The routes in `only_here` that `also_there` has no counterpart for,
+/// each written the way its own layer writes it.
+fn routes_absent_from(
+    only_here: &BTreeMap<(String, String), BTreeSet<String>>,
+    also_there: &BTreeMap<(String, String), BTreeSet<String>>,
+) -> Vec<Value> {
+    let mut routes = Vec::new();
+    for (key, paths) in only_here {
+        if also_there.contains_key(key) {
+            continue;
+        }
+        let (method, _) = key;
+        for path in paths {
+            routes.push(json!({ "method": method, "path": path }));
+        }
+    }
+    routes
+}
+
+/// How many routes are the same route on both sides but written
+/// differently, so the fold is disclosed rather than silently applied.
+fn spelling_only_match_count(
+    code: &BTreeMap<(String, String), BTreeSet<String>>,
+    spec: &BTreeMap<(String, String), BTreeSet<String>>,
+) -> usize {
+    code.iter()
+        .filter(|(key, code_paths)| {
+            spec.get(*key)
+                .is_some_and(|spec_paths| spec_paths != *code_paths)
+        })
+        .count()
+}
+
+/// The self-check `devup-mcp-defects.md` D17 asks for: two drift lists
+/// that are each other's mirror image mean the two sides spell the same
+/// route differently, not that a route is missing.
+///
+/// [`route_comparison_key`] already folds the two spellings that are known
+/// to differ. This catches whatever is left — a case difference, a renamed
+/// parameter, a doubled separator — before it is reported as drift with a
+/// straight face. Separators are removed rather than unified so that the
+/// path's `/` and `{}` structure still has to agree: `/users/{id}` and
+/// `/user/{sid}` are not each other's mirror.
+fn mirrored_drift_count(left: &[Value], right: &[Value]) -> usize {
+    fn loose_key(route: &Value) -> (String, String) {
+        let method = route["method"]
+            .as_str()
+            .unwrap_or_default()
+            .to_ascii_uppercase();
+        let path = route["path"]
+            .as_str()
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .replace(['_', '-'], "");
+        (method, path.trim_end_matches('/').to_owned())
+    }
+    let right_keys = right.iter().map(loose_key).collect::<BTreeSet<_>>();
+    left.iter()
+        .filter(|route| right_keys.contains(&loose_key(route)))
+        .count()
 }
 
 /// Extracts `(method, path_attribute)` pairs from every
@@ -628,23 +854,28 @@ fn extract_openapi_path_methods(spec: &Value) -> Vec<(String, String)> {
 /// `confidence: "low"`.
 fn openapi_client_layer(root: &Path) -> Value {
     let ts_files = find_frontend_sources(root, 6);
-    let openapi_files = find_files_named(root, "openapi.json", 4);
+    let (openapi_files, excluded) = find_files_named(root, "openapi.json", 4);
     if ts_files.is_empty() {
-        return json!({
+        let mut layer = json!({
             "checked": false,
             "reason": "No frontend .ts/.tsx files found.",
             "drifts": [],
         });
+        attach_excluded_paths(&mut layer, excluded);
+        return layer;
     }
     if openapi_files.is_empty() {
-        return json!({
+        let mut layer = json!({
             "checked": false,
             "reason": "No openapi.json found, so frontend calls cannot be verified.",
             "drifts": [],
         });
+        attach_excluded_paths(&mut layer, excluded);
+        return layer;
     }
 
     let mut known_identifiers = BTreeSet::<String>::new();
+    let mut known_paths = BTreeSet::<String>::new();
     for file in &openapi_files {
         let Ok(source) = std::fs::read_to_string(file) else {
             continue;
@@ -655,6 +886,7 @@ fn openapi_client_layer(root: &Path) -> Value {
         if let Some(paths) = spec.get("paths").and_then(Value::as_object) {
             for (path, methods) in paths {
                 known_identifiers.insert(path.clone());
+                known_paths.insert(client_path_key(path));
                 if let Some(methods) = methods.as_object() {
                     for operation in methods.values() {
                         if let Some(operation_id) =
@@ -670,32 +902,73 @@ fn openapi_client_layer(root: &Path) -> Value {
 
     let mut drifts = Vec::new();
     let mut calls_checked = 0usize;
+    let mut spelling_only_matches = 0usize;
     for file in &ts_files {
         let Ok(source) = std::fs::read_to_string(file) else {
             continue;
         };
         for (call_site, identifier) in extract_devup_api_calls(&source) {
             calls_checked += 1;
-            if !known_identifiers.contains(&identifier) {
-                drifts.push(json!({
-                    "kind": "client-call-not-in-openapi",
-                    "file": relative_or_absolute(root, file),
-                    "callSite": call_site,
-                    "identifier": identifier,
-                    "message": "The endpoint/operationId the frontend calls was not found in openapi.json.",
-                    "confidence": "low",
-                }));
+            if known_identifiers.contains(&identifier) {
+                continue;
             }
+            if identifier.starts_with('/') && known_paths.contains(&client_path_key(&identifier)) {
+                spelling_only_matches += 1;
+                continue;
+            }
+            drifts.push(json!({
+                "kind": "client-call-not-in-openapi",
+                "file": relative_or_absolute(root, file),
+                "callSite": call_site,
+                "identifier": identifier,
+                "message": "The endpoint/operationId the frontend calls was not found in openapi.json.",
+                "confidence": "low",
+            }));
         }
     }
 
-    json!({
+    let mut layer = json!({
         "checked": true,
         "filesScanned": ts_files.len(),
         "callsChecked": calls_checked,
         "knownIdentifierCount": known_identifiers.len(),
+        "spellingNormalizedMatches": spelling_only_matches,
         "drifts": drifts,
-    })
+    });
+    if spelling_only_matches > 0
+        && let Some(object) = layer.as_object_mut()
+    {
+        object.insert("notes".to_owned(), json!([format!(
+            "{spelling_only_matches} call(s) name an endpoint that openapi.json has under a different spelling and were matched rather than reported. openapi.json carries Vespera's kebab-case paths, parameters included (`/order/{{order-number}}`), while the generated @devup-api client and the code calling it use the camelCase parameter name (`/order/{{orderNumber}}`). Case and the `_`/`-` separators are folded; the path's `/` and `{{}}` structure still has to agree exactly."
+        )]));
+    }
+    attach_excluded_paths(&mut layer, excluded);
+    layer
+}
+
+/// Folds the ways the same endpoint path is spelled on the two sides of
+/// the `openapi-client` comparison.
+///
+/// `openapi.json` carries Vespera's kebab-case paths, parameters included
+/// (`/order/{order-number}`), while the generated `@devup-api` client and
+/// the code calling it use the camelCase parameter name
+/// (`/order/{orderNumber}`). Comparing them verbatim reported every
+/// parameterised call the frontend makes as an endpoint the spec does not
+/// have — 12 of them on a real project, not one real. That is the same
+/// false-positive class `route-openapi` had (`devup-mcp-defects.md` D17),
+/// arriving through a second door.
+///
+/// Case and the `_`/`-` separators are folded and nothing else; the
+/// path's `/` and `{}` structure still has to agree exactly, so
+/// `/users/{id}` and `/user/{sid}` remain different endpoints.
+fn client_path_key(path: &str) -> String {
+    let folded = path.to_ascii_lowercase().replace(['_', '-'], "");
+    let trimmed = folded.trim_end_matches('/');
+    if trimmed.is_empty() {
+        "/".to_owned()
+    } else {
+        trimmed.to_owned()
+    }
 }
 
 fn relative_or_absolute(root: &Path, file: &Path) -> String {
@@ -714,6 +987,8 @@ fn find_frontend_sources(root: &Path, max_depth: usize) -> Vec<PathBuf> {
         ".turbo",
         "df",
         "target",
+        // Another branch's copy of the same frontend (defect D7).
+        ".worktrees",
     ];
     let mut found = Vec::new();
     let mut queue = vec![(root.to_path_buf(), 0usize)];
@@ -886,6 +1161,176 @@ mod tests {
     }
 
     #[test]
+    fn a_relation_accessor_is_not_a_column_and_r_hash_is_not_part_of_the_name() {
+        // The shape `#[sea_orm::model]` produces: relation accessors live
+        // in the `Model` struct beside the columns, a Rust keyword column
+        // is escaped, and `column_name` names the column outright.
+        let source = r##"
+            #[sea_orm::model]
+            #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+            #[sea_orm(table_name = "alarm")]
+            pub struct Model {
+                #[sea_orm(primary_key)]
+                pub id: i64,
+                #[sea_orm(indexed)]
+                pub user_id: i64,
+                /// The alarm kind.
+                #[sea_orm(indexed, default_value = "message", column_name = "type")]
+                pub r#type: AlarmType,
+                #[sea_orm(belongs_to, relation_enum = "User", from = "user_id", to = "id")]
+                pub user: HasOne<super::user::Entity>,
+                #[sea_orm(has_many)]
+                pub projects: HasMany<super::project::Entity>,
+            }
+        "##;
+        assert_eq!(
+            extract_model_struct_fields(source),
+            BTreeSet::from(["id".to_owned(), "user_id".to_owned(), "type".to_owned()])
+        );
+    }
+
+    #[tokio::test]
+    async fn db_entity_layer_does_not_call_a_relation_a_missing_column() {
+        let temp = ScopedTempDir::new("db-entity-relations");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let api_root = temp.path().join("apis").join("api");
+        let models_dir = api_root.join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+        std::fs::write(
+            models_dir.join("alarm.json"),
+            r##"{ "name": "alarm", "columns": [
+                { "name": "id", "type": "bigint" },
+                { "name": "user_id", "type": "bigint" },
+                { "name": "type", "type": "text" }
+            ] }"##,
+        )
+        .unwrap();
+        let entity_dir = api_root.join("src").join("models");
+        std::fs::create_dir_all(&entity_dir).unwrap();
+        std::fs::write(
+            entity_dir.join("alarm.rs"),
+            r##"
+            pub struct Model {
+                #[sea_orm(primary_key)]
+                pub id: i64,
+                pub user_id: i64,
+                #[sea_orm(column_name = "type")]
+                pub r#type: AlarmType,
+                #[sea_orm(belongs_to, from = "user_id", to = "id")]
+                pub user: HasOne<super::user::Entity>,
+            }
+            "##,
+        )
+        .unwrap();
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["db-entity".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["db-entity"];
+        assert_eq!(layer["tablesChecked"], 1);
+        assert_eq!(
+            layer["drifts"].as_array().unwrap().len(),
+            0,
+            "the entity and the model agree; `user` is a relation and \
+             `r#type` is the `type` column: {layer}"
+        );
+    }
+
+    #[tokio::test]
+    async fn entity_route_layer_ignores_a_models_directory_with_no_vespertide_models() {
+        let temp = ScopedTempDir::new("entity-route-empty-models");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let api_root = temp.path().join("apis").join("api");
+        // The real Vespertide models, with a routes tree beside them.
+        std::fs::create_dir_all(api_root.join("models")).unwrap();
+        std::fs::write(
+            api_root.join("models").join("user.json"),
+            r##"{ "name": "user", "columns": [ { "name": "email", "type": "text" } ] }"##,
+        )
+        .unwrap();
+        let routes_dir = api_root.join("src").join("routes");
+        std::fs::create_dir_all(&routes_dir).unwrap();
+        std::fs::write(
+            routes_dir.join("user.rs"),
+            r##"
+            #[vespera::route(get, tags = ["user"])]
+            pub async fn list_users() -> Json<()> { let _ = "email"; todo!() }
+            "##,
+        )
+        .unwrap();
+        // Generated sea-orm entities, and another app's models: both are
+        // called `models` and neither holds a Vespertide model.
+        std::fs::create_dir_all(api_root.join("src").join("models")).unwrap();
+        std::fs::write(
+            api_root.join("src").join("models").join("user.rs"),
+            "pub struct Model { pub email: String, }",
+        )
+        .unwrap();
+        let other_app = temp.path().join("apis").join("ai").join("app");
+        std::fs::create_dir_all(other_app.join("models")).unwrap();
+        std::fs::write(other_app.join("models").join("schema.py"), "").unwrap();
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["entity-route".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["entity-route"];
+        assert_eq!(layer["checked"], true);
+        assert!(
+            !layer["drifts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|drift| drift["kind"] == "no-routes-dir"),
+            "a directory with no Vespertide model has no correspondence to \
+             report on: {layer}"
+        );
+    }
+
+    #[tokio::test]
+    async fn openapi_client_layer_matches_a_camel_case_parameter_to_the_kebab_case_spec() {
+        let temp = ScopedTempDir::new("openapi-client-camel");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        std::fs::write(
+            temp.path().join("openapi.json"),
+            r##"{ "paths": {
+                "/order/{order-number}": { "get": { "operationId": "getOrder" } },
+                "/delivery/projects/{project-id}": { "get": { "operationId": "getDelivery" } }
+            } }"##,
+        )
+        .unwrap();
+        let front = temp.path().join("apps").join("front").join("src");
+        std::fs::create_dir_all(&front).unwrap();
+        std::fs::write(
+            front.join("page.tsx"),
+            r##"
+            const order = await api.get('/order/{orderNumber}')
+            const delivery = await api.get('/delivery/projects/{projectId}')
+            const nope = await api.get('/order/{orderNumber}/refund')
+            "##,
+        )
+        .unwrap();
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["openapi-client".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["openapi-client"];
+        assert_eq!(layer["callsChecked"], 3);
+        assert_eq!(layer["spellingNormalizedMatches"], 2, "{layer}");
+        let drifts = layer["drifts"].as_array().unwrap();
+        assert_eq!(drifts.len(), 1, "{layer}");
+        assert_eq!(drifts[0]["identifier"], "/order/{orderNumber}/refund");
+    }
+
+    #[test]
     fn route_url_prefix_matches_vespera_file_structure_convention() {
         assert_eq!(route_url_prefix(Path::new("mod.rs")), "");
         assert_eq!(route_url_prefix(Path::new("users.rs")), "/users");
@@ -996,6 +1441,216 @@ mod tests {
                 .iter()
                 .any(|drift| drift["kind"] == "route-missing-from-openapi")
         );
+    }
+
+    /// A project whose handlers are snake_case and whose `openapi.json`
+    /// Vespera therefore wrote in kebab-case — including inside `{...}`
+    /// parameters, and with a trailing slash on the module-root route.
+    /// This is the shape of the real project in `devup-mcp-defects.md`
+    /// D17, where 222 code routes and 222 spec routes with no actual drift
+    /// produced ~158 mirror-image false positives.
+    fn write_kebab_case_spec_project(root: &Path) {
+        std::fs::write(root.join("package.json"), "{}").unwrap();
+        let api_root = root.join("apis").join("api");
+        let routes_dir = api_root.join("src").join("routes");
+        std::fs::create_dir_all(&routes_dir).unwrap();
+        std::fs::write(
+            routes_dir.join("ai_character.rs"),
+            r##"
+            #[vespera::route(get, tags = ["ai_character"])]
+            pub async fn list_ai_characters() -> Json<()> { todo!() }
+
+            #[vespera::route(get, path = "/{id}", tags = ["ai_character"])]
+            pub async fn get_ai_character() -> Json<()> { todo!() }
+            "##,
+        )
+        .unwrap();
+        std::fs::write(
+            routes_dir.join("order.rs"),
+            r##"
+            #[vespera::route(get, path = "/{order_number}", tags = ["order"])]
+            pub async fn get_order() -> Json<()> { todo!() }
+            "##,
+        )
+        .unwrap();
+        std::fs::write(
+            api_root.join("openapi.json"),
+            r##"{ "paths": {
+                "/ai-character/": { "get": { "operationId": "listAiCharacters" } },
+                "/ai-character/{id}": { "get": { "operationId": "getAiCharacter" } },
+                "/order/{order-number}": { "get": { "operationId": "getOrder" } }
+            } }"##,
+        )
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn route_openapi_layer_reports_no_drift_when_only_the_spelling_differs() {
+        let temp = ScopedTempDir::new("route-openapi-kebab");
+        write_kebab_case_spec_project(temp.path());
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        assert_eq!(layer["checked"], true);
+        assert_eq!(layer["codeRouteCount"], 3);
+        assert_eq!(layer["openapiRouteCount"], 3);
+        assert_eq!(
+            layer["drifts"].as_array().unwrap().len(),
+            0,
+            "snake_case handlers against Vespera's kebab_case spec are the \
+             same routes, not drift: {layer}"
+        );
+    }
+
+    #[tokio::test]
+    async fn route_openapi_layer_says_how_many_routes_only_matched_on_spelling() {
+        let temp = ScopedTempDir::new("route-openapi-kebab-note");
+        write_kebab_case_spec_project(temp.path());
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        // All three differ in spelling: `/ai_character` vs `/ai-character/`,
+        // `/ai_character/{id}` vs `/ai-character/{id}`, and
+        // `/order/{order_number}` vs `/order/{order-number}`.
+        assert_eq!(layer["spellingNormalizedMatches"], 3, "{layer}");
+        assert!(
+            layer["notes"][0].as_str().unwrap().contains("separator")
+                || layer["notes"][0].as_str().unwrap().contains("spelling"),
+            "the fold must be disclosed, not silent: {layer}"
+        );
+    }
+
+    #[tokio::test]
+    async fn route_openapi_layer_still_reports_a_route_the_spec_really_lacks() {
+        let temp = ScopedTempDir::new("route-openapi-real-drift");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let api_root = temp.path().join("apis").join("api");
+        let routes_dir = api_root.join("src").join("routes");
+        std::fs::create_dir_all(&routes_dir).unwrap();
+        std::fs::write(
+            routes_dir.join("story_comment.rs"),
+            r##"
+            #[vespera::route(get, path = "/{comment_id}", tags = ["story_comment"])]
+            pub async fn get_comment() -> Json<()> { todo!() }
+
+            #[vespera::route(delete, path = "/{comment_id}", tags = ["story_comment"])]
+            pub async fn delete_comment() -> Json<()> { todo!() }
+            "##,
+        )
+        .unwrap();
+        // The spec has the GET in Vespera's kebab spelling but no DELETE.
+        std::fs::write(
+            api_root.join("openapi.json"),
+            r##"{ "paths": {
+                "/story-comment/{comment-id}": { "get": { "operationId": "getComment" } }
+            } }"##,
+        )
+        .unwrap();
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        let drifts = layer["drifts"].as_array().unwrap();
+        let missing = drifts
+            .iter()
+            .find(|drift| drift["kind"] == "route-missing-from-openapi")
+            .expect("the DELETE really is absent from the spec");
+        let routes = missing["routes"].as_array().unwrap();
+        assert_eq!(routes.len(), 1, "{layer}");
+        assert_eq!(routes[0]["method"], "DELETE");
+        assert_eq!(
+            routes[0]["path"], "/story_comment/{comment_id}",
+            "a drift must be reported in the spelling its own layer uses"
+        );
+        assert!(
+            !drifts
+                .iter()
+                .any(|drift| drift["kind"] == "openapi-path-not-found-in-scanned-routes"),
+            "the GET matched, so nothing may be reported from the spec side: {layer}"
+        );
+    }
+
+    #[tokio::test]
+    async fn stack_diff_skips_openapi_specs_inside_a_nested_worktree() {
+        let temp = ScopedTempDir::new("stackdiff-worktree");
+        write_kebab_case_spec_project(temp.path());
+        let checkout = temp.path().join(".worktrees").join("revert-some-branch");
+        std::fs::create_dir_all(checkout.join("apis").join("api")).unwrap();
+        std::fs::write(checkout.join(".git"), "gitdir: ../../.git/worktrees/x").unwrap();
+        std::fs::write(
+            checkout.join("apis").join("api").join("openapi.json"),
+            r##"{ "paths": { "/deleted-last-month": { "get": {} } } }"##,
+        )
+        .unwrap();
+
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".to_owned()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        let specs = layer["openapiSpecsFound"].as_array().unwrap();
+        assert_eq!(specs.len(), 1, "{layer}");
+        assert!(
+            !specs[0].as_str().unwrap().contains(".worktrees"),
+            "{layer}"
+        );
+        assert_eq!(
+            layer["drifts"].as_array().unwrap().len(),
+            0,
+            "a stale branch's endpoint is not this project's drift: {layer}"
+        );
+        assert_eq!(layer["excludedPaths"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn all_layers_report_nested_only_inputs_without_using_them() {
+        let temp = ScopedTempDir::new("stackdiff-nested-only");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        let checkout = temp.path().join(".worktrees/stale");
+        std::fs::create_dir_all(checkout.join("models")).unwrap();
+        std::fs::create_dir_all(checkout.join("routes")).unwrap();
+        std::fs::write(checkout.join("openapi.json"), "not valid JSON").unwrap();
+        let result = run(Some(&temp.path().to_string_lossy()), &[])
+            .await
+            .unwrap();
+        for (layer, paths) in [
+            ("db-entity", vec![".worktrees/stale/models"]),
+            ("entity-route", vec![".worktrees/stale/models"]),
+            (
+                "route-openapi",
+                vec![".worktrees/stale/routes", ".worktrees/stale/openapi.json"],
+            ),
+            ("openapi-client", vec![".worktrees/stale/openapi.json"]),
+        ] {
+            let layer = &result["layers"][layer];
+            assert_eq!(layer["checked"], false, "{layer}");
+            assert_eq!(layer["drifts"], json!([]), "{layer}");
+            let expected = paths
+                .into_iter()
+                .map(|path| {
+                    json!({
+                        "path": path, "reason": "nested-checkout-directory"
+                    })
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(layer["excludedPaths"], json!(expected), "{layer}");
+        }
     }
 
     #[tokio::test]

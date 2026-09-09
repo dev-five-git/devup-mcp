@@ -53,15 +53,7 @@
     },
     {
       "name": "devup_figma_export",
-      "description": "Acquire a Figma design once and project TSX, component TSX, responsive TSX, devup.json, source map, raw snapshot and assets from it"
-    },
-    {
-      "name": "devup_figma_to_ui",
-      "description": "Convert a Figma node link to deterministic DevupUI TSX"
-    },
-    {
-      "name": "devup_figma_to_json",
-      "description": "Convert Figma variables and local styles to a devup.json theme"
+      "description": "Acquire a Figma design once and project TSX, component TSX, responsive TSX, devup.json, source map and assets from it; raw snapshot and raw payload are diagnosis-only and need debug: true"
     },
     {
       "name": "devup_figma_search",

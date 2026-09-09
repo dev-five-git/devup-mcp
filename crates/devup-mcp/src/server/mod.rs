@@ -36,7 +36,7 @@ use devup_mcp_figma::{
     DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
     ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
     KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
-    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions,
+    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
     SystemBrowser, TokenState, UpstreamResult,
 };
 
@@ -57,7 +57,37 @@ pub use tools::{
     ProjectContextInput, StackDiffInput, UiValidateInput,
 };
 
+/// Additive workflow options; existing input defaults remain in tools.rs.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FigmaExportWorkflowInput {
+    #[serde(flatten)]
+    pub input: FigmaExportInput,
+    /// Opt in to rewriting exported asset references. Existing absolute local
+    /// directory served at URL /. Only exported files below it are mapped;
+    /// URL path segments are percent-encoded. Omit to keep placeholder paths.
+    #[serde(default)]
+    pub asset_public_root: Option<String>,
+}
+
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
+
+/// The most matches `devup_figma_search` and screen candidates
+/// `devup_figma_explore` rank before the caller's `limit` cuts the answer.
+///
+/// Both tools rank first and cut afterwards, so the ranked list has to be
+/// built past `limit` or the cut decides the answer. In search it decided it
+/// wrongly: five frames share the name `Loading` across the file, ranking put
+/// the two outside the linked Section first, and a `limit` of five removed
+/// both of the frames the caller had actually pointed at. This is also the
+/// ceiling both tools already validate `limit` against, so nothing above it
+/// could have been asked for.
+const MATCH_CEILING: usize = 100;
+
+/// The byte-and-node budget every `devup_figma_explore` collection is given,
+/// which is the highest the collection script accepts. It is a constant on
+/// purpose - see the comment where it is used.
+const EXPLORE_PROJECTION_LIMIT: usize = 400;
 
 #[async_trait]
 pub trait DevupAuth: Send + Sync {
@@ -194,8 +224,8 @@ impl Services {
         }
     }
 
-    fn production(figma_direct: crate::FigmaDirectConfig) -> Self {
-        let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)
+    fn production(figma_direct: crate::FigmaDirectConfig) -> Result<Self, DevupError> {
+        let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)?
             .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
         if figma_direct.callback_port.is_some() {
             oauth = oauth.with_callback_port(figma_direct.callback_port);
@@ -226,7 +256,7 @@ impl Services {
             );
         }
         let upstream = RemoteFigmaClient::new(oauth.clone());
-        Self::new(Arc::new(oauth), Arc::new(upstream))
+        Ok(Self::new(Arc::new(oauth), Arc::new(upstream)))
     }
 }
 
@@ -263,19 +293,13 @@ impl DevupServer {
         roots: Vec<std::path::PathBuf>,
         figma_direct: crate::FigmaDirectConfig,
     ) -> Result<Self, DevupError> {
-        Self::with_output_roots(Services::production(figma_direct), roots)
+        Self::with_output_roots(Services::production(figma_direct)?, roots)
     }
 
     pub fn production_with_output_roots(
         roots: Vec<std::path::PathBuf>,
     ) -> Result<Self, DevupError> {
         Self::production_with_config(roots, crate::FigmaDirectConfig::default())
-    }
-}
-
-impl Default for DevupServer {
-    fn default() -> Self {
-        Self::new(Services::production(crate::FigmaDirectConfig::default()))
     }
 }
 
@@ -286,9 +310,25 @@ impl DevupServer {
         request: CollectionRequest,
         refresh: bool,
     ) -> Result<Value, DevupError> {
+        self.start_operation_scoped(operation, request, refresh, None)
+            .await
+    }
+
+    /// As [`Self::start_operation`], plus the one shaping step that cannot be
+    /// done by the tool handler on its own: narrowing search matches to the
+    /// node the caller linked. Deciding whether a match sits inside that node
+    /// needs the collected snapshot's parent chain, and this is the last place
+    /// that still holds the snapshot.
+    async fn start_operation_scoped(
+        &self,
+        operation: PendingOperation,
+        request: CollectionRequest,
+        refresh: bool,
+        scope: Option<&SearchScope>,
+    ) -> Result<Value, DevupError> {
         let artifact_key = ArtifactRequestKey::from_collection(&request);
         if !refresh && let Some(artifact) = self.artifacts.lookup(&artifact_key).await {
-            return complete_operation(
+            let response = complete_operation(
                 operation,
                 &artifact.payload,
                 "artifact",
@@ -296,12 +336,18 @@ impl DevupServer {
                 &self.output_policy,
                 &self.artifacts,
             )
-            .await;
+            .await?;
+            return Ok(apply_search_scope(
+                response,
+                &artifact.payload.snapshot,
+                artifact.capabilities.collection_scope,
+                scope,
+            ));
         }
         if !refresh
             && let Some(artifact) = self.artifacts.lookup_related_explore(&artifact_key).await
         {
-            return complete_operation(
+            let response = complete_operation(
                 operation,
                 &artifact.payload,
                 "artifact",
@@ -309,7 +355,13 @@ impl DevupServer {
                 &self.output_policy,
                 &self.artifacts,
             )
-            .await;
+            .await?;
+            return Ok(apply_search_scope(
+                response,
+                &artifact.payload.snapshot,
+                artifact.capabilities.collection_scope,
+                scope,
+            ));
         }
         let auth_status = self.services.auth.status().await?;
         if auth_status == AuthStatus::Disconnected {
@@ -324,12 +376,12 @@ impl DevupServer {
         match self
             .artifacts
             .get_or_acquire(artifact_key.clone(), refresh, || async {
-                CollectedPayload::try_from(self.run_direct(request.clone()).await?)
+                CollectedPayload::try_from(self.run_direct(request.clone(), &operation).await?)
             })
             .await
         {
             Ok(artifact) => {
-                complete_operation(
+                let response = complete_operation(
                     operation,
                     &artifact.payload,
                     "direct",
@@ -337,7 +389,13 @@ impl DevupServer {
                     &self.output_policy,
                     &self.artifacts,
                 )
-                .await
+                .await?;
+                Ok(apply_search_scope(
+                    response,
+                    &artifact.payload.snapshot,
+                    artifact.capabilities.collection_scope,
+                    scope,
+                ))
             }
             Err(error) => Err(error),
         }
@@ -415,12 +473,35 @@ impl DevupServer {
         }
     }
 
-    async fn run_direct(&self, request: CollectionRequest) -> Result<CollectedParts, DevupError> {
+    async fn run_direct(
+        &self,
+        request: CollectionRequest,
+        operation: &PendingOperation,
+    ) -> Result<CollectedParts, DevupError> {
+        let budget = match operation {
+            PendingOperation::Export {
+                outputs,
+                all_screens: true,
+                ..
+            } => Some(outputs),
+            _ => None,
+        };
+        if let (Some(outputs), Some(index)) = (budget, &request.cached_section_index) {
+            validation::validate_export_budget(&index.select(&[], true)?, outputs)?;
+        }
+        let target = request.target.clone();
         let mut collector = CollectorSession::new(request);
         loop {
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
+                    let section_index_call = matches!(
+                        &planned.call,
+                        ReadToolCall::Snapshot {
+                            script: devup_mcp_figma::BuiltinScript::SectionIndex,
+                            ..
+                        }
+                    );
                     match self.call_waiting_out_a_spent_allowance(planned.call).await {
                         // A Section target is not a failed call — the script
                         // throws, and MCP delivers that as a successful result
@@ -450,7 +531,20 @@ impl DevupServer {
                                     return Err(error);
                                 }
                             }
-                            None => collector.accept(&call_id, result)?,
+                            None => {
+                                if section_index_call && let Some(outputs) = budget {
+                                    let chunk =
+                                        devup_mcp_figma::snapshot_chunk_from_result(&result)?;
+                                    let snapshot = devup_mcp_figma::merge_chunks(vec![chunk])?;
+                                    let index =
+                                        devup_mcp_figma::build_section_index(&snapshot, &target)?;
+                                    validation::validate_export_budget(
+                                        &index.select(&[], true)?,
+                                        outputs,
+                                    )?;
+                                }
+                                collector.accept(&call_id, result)?;
+                            }
                         },
                         Err(error) if collector.reject(&call_id, &error)? => continue,
                         Err(error) => return Err(error),
@@ -479,6 +573,204 @@ fn permissive_object_output_schema() -> Arc<JsonObject> {
     let mut schema = JsonObject::new();
     schema.insert("type".to_owned(), json!("object"));
     Arc::new(schema)
+}
+
+/// What `devup_figma_search` was pointed at, and how much of it to answer
+/// with. `node_id` is read from the URL rather than from a parameter of its
+/// own: a caller who links a node has already said where to look, and a
+/// search that ignores that says nothing about having ignored it.
+struct SearchScope {
+    node_id: Option<String>,
+    limit: usize,
+    /// The same file with no node linked - the call that widens the search.
+    file_url: String,
+}
+
+/// Whether `node_id` is `ancestor_id` itself or sits beneath it, following the
+/// parent chain the collection recorded.
+///
+/// The search projection keeps each match's ancestors up to its page, so the
+/// chain of anything that matched is present even when the ancestors did not
+/// match themselves. A node with no recorded chain to `ancestor_id` is out of
+/// scope, which is the answer wanted when the linked node holds nothing.
+fn is_within(snapshot: &Snapshot, node_id: &str, ancestor_id: &str) -> bool {
+    if node_id == ancestor_id {
+        return true;
+    }
+    let parent_of = |id: &str| {
+        snapshot
+            .nodes
+            .get(id)
+            .and_then(|node| node.typed_view().string("parentId"))
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    let mut current = parent_of(node_id);
+    while let Some(parent) = current {
+        if parent == ancestor_id {
+            return true;
+        }
+        if !seen.insert(parent.to_owned()) {
+            return false;
+        }
+        current = parent_of(parent);
+    }
+    false
+}
+
+/// Cuts the ranked match list down to what the caller linked and says so.
+///
+/// Report the stored artifact capability for both fresh and cached reads.
+fn apply_search_scope(
+    mut response: Value,
+    snapshot: &Snapshot,
+    collection_scope: CollectionScope,
+    scope: Option<&SearchScope>,
+) -> Value {
+    let Some(scope) = scope else {
+        return response;
+    };
+    let Some(Value::Array(matches)) = response.get_mut("matches").map(Value::take) else {
+        return response;
+    };
+    let scanned = matches.len();
+    let node_id = match scope.node_id.as_deref() {
+        None => {
+            let mut kept = matches;
+            kept.truncate(scope.limit);
+            response["count"] = json!(kept.len());
+            response["matches"] = Value::Array(kept);
+            response["scope"] = json!({
+                "kind": "file",
+                "nodeId": Value::Null,
+                "collectionScope": collection_scope,
+                "scannedMatches": scanned,
+                "note": "The URL carried no node-id, so the whole file was searched. \
+                         Put the node you care about in the URL to search only inside it.",
+            });
+            return response;
+        }
+        Some(node_id) => node_id,
+    };
+
+    let (mut inside, outside): (Vec<Value>, Vec<Value>) = matches.into_iter().partition(|entry| {
+        entry["nodeId"]
+            .as_str()
+            .is_some_and(|id| is_within(snapshot, id, node_id))
+    });
+    let found = inside.len();
+    inside.truncate(scope.limit);
+    let mut scope_report = json!({
+        "kind": "node",
+        "nodeId": node_id,
+        "collectionScope": collection_scope,
+        "scannedMatches": scanned,
+        "matchedInScope": found,
+        "returned": inside.len(),
+        "excludedOutOfScope": outside.len(),
+        "candidatesTruncated": found > inside.len(),
+        "note": "The URL carried a node-id, so only matches inside that node are \
+                 returned. Remove the node-id to search elsewhere in the file.",
+    });
+    if inside.is_empty() {
+        scope_report["nextAction"] = json!({
+            "reason": "Nothing inside the linked node matched. Search the whole file \
+                       with the node-id removed to look beyond this scope.",
+            "example": {
+                "url": scope.file_url,
+                "note": "The same call with the node-id removed from the URL.",
+            },
+        });
+        if !outside.is_empty() {
+            let mut elsewhere = outside;
+            elsewhere.truncate(scope.limit);
+            response["outOfScopeMatches"] = Value::Array(elsewhere);
+        }
+    }
+    response["count"] = json!(inside.len());
+    response["matches"] = Value::Array(inside);
+    response["scope"] = scope_report;
+    response
+}
+
+/// Cuts the ranked candidate list to `limit` and reports the two truncations
+/// apart.
+///
+/// `limit` is applied here rather than inside the projection so that it stays
+/// a property of the answer alone: the projection is always asked for the same
+/// ceiling, so no choice of `limit` can change how much of the design was read.
+/// `truncated` arrives meaning "the snapshot itself was incomplete" and is
+/// widened back to "something was cut" only after the two are recorded apart.
+fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
+    let Some(Value::Array(mut candidates)) = response.get_mut("candidates").map(Value::take) else {
+        return response;
+    };
+    let projection_truncated = response["truncated"].as_bool().unwrap_or(false);
+    let found = candidates.len();
+    candidates.truncate(limit);
+    let returned = candidates.len();
+    let candidates_truncated = found > returned;
+    let at_ceiling = found >= MATCH_CEILING;
+
+    let reason = match (projection_truncated, candidates_truncated) {
+        (false, false) => {
+            "Nothing was cut: every screen candidate found is in this answer.".to_owned()
+        }
+        (false, true) => format!(
+            "{found} screen candidates were found and {returned} returned, because limit is \
+             {limit}. Nothing is missing from the design - raise limit to see the rest."
+        ),
+        (true, false) => "The Figma projection this was read from is itself incomplete - the \
+                          collection script reached its byte ceiling and left nodes out - so \
+                          screens may be missing that no limit would bring back. Explore a \
+                          narrower anchor. Text previews use a separate budget and do not \
+                          change candidate count, IDs, or projection truncation."
+            .to_owned(),
+        (true, true) => format!(
+            "Two cuts: limit {limit} returned {returned} of {found} candidates, and the Figma \
+             projection was itself incomplete, so further screens may exist that no limit \
+             would bring back. Raise limit to see collected candidates, or explore a narrower \
+             anchor for missing screens. Text previews use a separate budget and do not \
+             change candidate count, IDs, or projection truncation."
+        ),
+    };
+    let mut truncation = json!({
+        "projection": projection_truncated,
+        "candidates": candidates_truncated,
+        "returned": returned,
+        "found": found,
+        "atCeiling": at_ceiling,
+        "reason": reason,
+    });
+    if candidates_truncated {
+        truncation["nextAction"] = json!({
+            "limit": found.max(returned).min(MATCH_CEILING),
+            "note": if at_ceiling {
+                "This is the highest limit there is; a Section holding more screens than that \
+                 has to be exported in parts."
+            } else {
+                "The ranked order is stable, so a larger limit extends this list rather than \
+                 reshuffling it."
+            },
+        });
+    }
+    response["candidates"] = Value::Array(candidates);
+    response["count"] = json!(returned);
+    // There is no cursor to hand back: the projection is rebuilt per call and
+    // has no position to resume from. `truncation` says which lever moves it.
+    response["truncated"] = json!(projection_truncated || candidates_truncated);
+    response["truncation"] = truncation;
+    response
+}
+
+/// The same Figma file with no node linked.
+fn file_scope_url(target: &FigmaTarget) -> String {
+    match &target.branch_key {
+        Some(branch_key) => format!(
+            "https://www.figma.com/branch/{}/{branch_key}/devup",
+            target.file_key
+        ),
+        None => format!("https://www.figma.com/design/{}/devup", target.file_key),
+    }
 }
 
 #[tool_router]
@@ -535,31 +827,63 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Search Figma pages, sections, frames, and components by name to locate the target before devup_figma_export",
+        description = "Search Figma pages, sections, frames, and components by name to locate the target before devup_figma_export. \
+                       A node-id in the URL scopes the search to that node and everything under it; a URL without one searches the whole file. \
+                       The answer says which of the two it did under `scope`, and `limit` is the number of matches returned.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_search(
         &self,
         Parameters(input): Parameters<FigmaSearchInput>,
     ) -> Result<CallToolResult, ErrorData> {
+        // Refused here rather than after collecting, the way the explore tool
+        // already refuses one: the projection below asks for the ceiling when
+        // the search is scoped, and would otherwise swallow the rejection that
+        // an out-of-range limit is owed.
+        if !(1..=MATCH_CEILING).contains(&input.limit) {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "The search limit must be between 1 and 100 inclusive.",
+                false,
+            )));
+        }
         let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
-        let mut request = CollectionRequest::new(target, CollectionScope::File);
+        let scope = SearchScope {
+            node_id: target.node_id.clone(),
+            limit: input.limit,
+            file_url: file_scope_url(&target),
+        };
+        // Scope the upstream read itself to the linked subtree. Keep the ranked
+        // projection above the caller's limit so ancestry filtering happens
+        // before the response is cut.
+        let collection_scope = if scope.node_id.is_some() {
+            CollectionScope::Node
+        } else {
+            CollectionScope::File
+        };
+        let projected_limit = if scope.node_id.is_some() {
+            MATCH_CEILING
+        } else {
+            input.limit
+        };
+        let mut request = CollectionRequest::new(target, collection_scope);
         request.search = Some(SearchReadOptions {
             query: input.query.clone(),
             node_types: input.node_types.clone(),
             match_kind: input.match_kind.clone(),
-            limit: input.limit,
+            limit: projected_limit,
         });
         let result = self
-            .start_operation(
+            .start_operation_scoped(
                 PendingOperation::Search {
                     query: input.query,
                     node_types: input.node_types,
                     match_kind: input.match_kind,
-                    limit: input.limit,
+                    limit: projected_limit,
                 },
                 request,
                 false,
+                Some(&scope),
             )
             .await
             .map_err(to_mcp_error)?;
@@ -567,7 +891,10 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export",
+        description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export. \
+                       `limit` is the number of candidates returned and nothing else - it never changes how much of the design is read, so raising it can only lengthen the answer. \
+                       `truncation` reports the two cuts apart: `candidates` means limit cut the list and raising it returns the rest, `projection` means the collected snapshot was itself incomplete and no limit will bring those screens back. \
+                       `includeTextPreview` uses a separate budget; turning it on or off does not change candidate count, IDs, or `truncation.projection`.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_explore(
@@ -582,7 +909,7 @@ impl DevupServer {
                 false,
             ))
         })?;
-        if !(1..=100).contains(&input.limit) {
+        if !(1..=MATCH_CEILING).contains(&input.limit) {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
                 "The explore limit must be between 1 and 100 inclusive.",
@@ -593,13 +920,24 @@ impl DevupServer {
         let mut request = CollectionRequest::new(target, CollectionScope::Node);
         request.resource_scope = ResourceScope::None;
         request.explore = Some(ExploreReadOptions {
-            projection_limit: input.limit.saturating_mul(4).clamp(50, 400),
+            // Fixed, not derived from `limit`. Derived, it made `limit` two
+            // things at once - how many screens come back, and how much of the
+            // page the collection script is allowed to walk - and the second
+            // one is why limit 33 could answer with fewer screens than limit
+            // 30. Asking for the script's own ceiling every time also means
+            // one anchor's projection can be reused for a neighbour's, since
+            // every explore of a file now reads the same amount.
+            projection_limit: EXPLORE_PROJECTION_LIMIT,
             text_preview_limit: if input.include_text_preview { 160 } else { 0 },
         });
         let result = self
             .start_operation(
                 PendingOperation::Explore {
-                    limit: input.limit,
+                    // The projection ranks up to the ceiling and `limit` cuts
+                    // the ranked list afterwards, in `apply_explore_limit`, so
+                    // that what was found and what was returned are both known
+                    // and can be reported apart.
+                    limit: MATCH_CEILING,
                     target: requested_target,
                 },
                 request,
@@ -607,23 +945,60 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(tool_result(result))
+        Ok(tool_result(apply_explore_limit(result, input.limit)))
     }
 
     #[tool(
-        description = "Acquire a Figma design once and project any combination of outputs from that one collection; the Figma-to-code entry point. \
+        description = "Export a small Figma selection; the Figma-to-code entry point. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 15–60 seconds per frame as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into batches. Partial per-frame projection failures retain successful frame outputs. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
+                       `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
+                       If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
                        Each output adds its own keys and nothing else - tsx adds `tsx`; componentTsx adds `componentTsx`; responsiveTsx adds `responsiveTsx`, `responsiveSlots` and, where a width asked for something one tree cannot say, `responsiveUnrepresented`; devupJson adds `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts` and `unresolvedVariables`; sourceMap, assetManifest and referencePng each add the key they name. \
                        `rawSnapshot` and `rawPayload` are the collected design in raw form and need `debug: true`. Use them for one question only - a screen looks wrong and you must decide whether the generator is at fault or the design says so - never to implement, since the tsx already carries what they carry. \
                        `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
+                       `assetManifest` lists the assets and their ids and writes nothing. To get files, call again with `assetRequests`, giving each entry an `outputPath` under an allowed write root - and make that call with the original `url` rather than `artifactId`, because an acquisition made without asset capture cannot serve asset requests. By default manifest `path` and TSX references remain placeholders. Opt in with `assetPublicRoot`, an existing absolute local directory served at URL /, together with assetRequests.outputPath in this call (saved output mappings are not part of artifacts): files below that root map to percent-encoded relative URLs in manifest and all TSX outputs. Identical exported bytes share one canonical path/outputPath; inspect the returned paths. assetNamesPerNode remains true by default; matching names alone never trigger deduplication. \
                        Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
         &self,
-        Parameters(input): Parameters<FigmaExportInput>,
+        Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
+        let input = workflow.input;
+        let asset_public_root =
+            validation::validate_public_root(workflow.asset_public_root.as_deref())
+                .map_err(to_mcp_error)?;
+        if asset_public_root.is_some()
+            && !input
+                .asset_requests
+                .iter()
+                .any(|asset| asset.output_path.is_some())
+        {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "assetPublicRoot requires an assetRequests outputPath in this call; saved output mappings are not part of an artifact.",
+                false,
+            )));
+        }
+        validation::validate_export_budget(&input.frame_ids, &input.outputs)
+            .map_err(to_mcp_error)?;
+        for path in input.output_paths.values().chain(
+            input
+                .asset_requests
+                .iter()
+                .filter_map(|asset| asset.output_path.as_ref()),
+        ) {
+            let target = self.output_policy.resolve(path).map_err(to_mcp_error)?;
+            if let Some(root) = &asset_public_root
+                && input
+                    .asset_requests
+                    .iter()
+                    .any(|asset| asset.output_path.as_ref() == Some(path))
+            {
+                validation::public_asset_url(root, target.display_path()).map_err(to_mcp_error)?;
+            }
+        }
         validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
             && !input.outputs.iter().any(|output| output == "assetManifest")
@@ -710,6 +1085,7 @@ impl DevupServer {
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
                             asset_output_paths,
+                            asset_public_root: asset_public_root.clone(),
                             delivery,
                         },
                         request,
@@ -740,6 +1116,7 @@ impl DevupServer {
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
+                    asset_public_root: asset_public_root.clone(),
                     delivery,
                 },
                 &artifact.payload,
@@ -803,6 +1180,7 @@ impl DevupServer {
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
+                    asset_public_root: asset_public_root.clone(),
                     delivery,
                 },
                 request,
@@ -832,7 +1210,9 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths with a matching token, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls",
+        description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
+                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations. `themeNotes` summarizes each encountered empty token category once. \
+                       `checkedTokens` counts $token references this TSX makes and `availableTokenCount` counts tokens devup.json defines; they count different things and are not a ratio, which `tokens` restates by name.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_ui_validate(
@@ -846,11 +1226,55 @@ impl DevupServer {
             theme_lookup.theme.as_ref(),
             input.strict,
         );
+        // These keys are assembled here rather than serialized from
+        // `UiValidation`, so anything the struct's own documentation
+        // explains reaches nobody unless it is answered here too. Three
+        // things in this response cannot be read off it:
+        //
+        // `ok: true` next to ten violations looks like a contradiction
+        // until you know severity decides it and count does not, so the
+        // severity split is reported and `okReason` names the case.
+        //
+        // `checkedTokens: 4` next to `availableTokenCount: 81` reads as
+        // "4 of 81 checked". It is not: one counts references the code
+        // makes, the other definitions the theme holds. `tokens` says
+        // which is which in the key names, where a reader cannot miss it.
+        //
+        // And with no theme the token check is skipped rather than passed,
+        // which a bare `checkedTokens` cannot distinguish.
+        use devup_mcp_devup_ui::ui_validate::Severity;
+        let count_severity = |severity| {
+            report
+                .violations
+                .iter()
+                .filter(|finding| finding.severity == severity)
+                .count()
+        };
+        let errors = count_severity(Severity::Error);
+        let warnings = count_severity(Severity::Warning);
+        let infos = count_severity(Severity::Info);
+        let ok_reason = match (errors, warnings, infos, input.strict) {
+            (1.., _, _, _) => "error-violations",
+            (_, 1.., _, true) => "strict-warnings",
+            (_, 1.., 1.., _) => "warnings-and-info",
+            (_, 1.., _, _) => "warnings-only",
+            (_, _, 1.., _) => "info-only",
+            _ => "clean",
+        };
         Ok(tool_result(json!({
             "ok": report.ok,
+            "okReason": ok_reason,
+            "strict": input.strict,
             "violations": report.violations,
+            "violationCounts": { "error": errors, "warning": warnings, "info": infos },
+            "themeNotes": report.theme_notes,
             "checkedTokens": report.checked_tokens,
             "availableTokenCount": report.available_token_count,
+            "tokens": {
+                "referencedByTsx": report.checked_tokens,
+                "definedByTheme": report.available_token_count,
+                "unknownTokenCheckRan": theme_lookup.theme.is_some(),
+            },
             "themeAvailable": theme_lookup.theme.is_some(),
             "themeGuardrail": theme_lookup.guardrail,
         })))
@@ -943,7 +1367,7 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
 /// decision can be made without parsing the message. `data` keeps carrying
 /// the exact `code` and `retryable`, unchanged.
 fn to_mcp_error(error: DevupError) -> ErrorData {
-    let mcp_code = if error.code.is_caller_mistake() {
+    let mcp_code = if validation::is_caller_mistake(&error) {
         McpErrorCode::INVALID_PARAMS
     } else {
         McpErrorCode::INTERNAL_ERROR
@@ -1013,5 +1437,28 @@ impl ServerHandler for DevupServer {
             .await
             .map(Into::into)
             .map_err(|_| ErrorData::resource_not_found("resource not found", None))
+    }
+}
+
+#[cfg(test)]
+mod p3_error_tests {
+    use super::*;
+
+    #[test]
+    fn p3_expired_artifact_is_state_failure_with_original_message() {
+        let error = to_mcp_error(DevupError::new(
+            ErrorCode::DevupFigmaHandoffExpired,
+            "The Figma artifact is missing or expired.",
+            true,
+        ));
+        assert_eq!(error.code, McpErrorCode::INTERNAL_ERROR);
+        assert_eq!(error.message, "The Figma artifact is missing or expired.");
+    }
+
+    #[test]
+    fn p3_output_root_violation_is_invalid_params() {
+        let policy = OutputPolicy::from_roots(vec![std::env::current_dir().unwrap()]).unwrap();
+        let error = policy.resolve("../outside.svg").err().unwrap();
+        assert_eq!(to_mcp_error(error).code, McpErrorCode::INVALID_PARAMS);
     }
 }

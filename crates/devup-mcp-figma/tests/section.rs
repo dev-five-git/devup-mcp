@@ -7,6 +7,44 @@ use devup_mcp_figma::{
 use serde_json::{Map, json};
 
 #[test]
+fn p1_no_automatic_screens_explains_explicit_selection() {
+    let index = packing_index(&[1]);
+    let error = index.select(&[], true).unwrap_err();
+    assert!(error.message.contains("No automatic screen candidates"));
+    assert!(error.message.contains("frameIds"));
+    assert_eq!(index.select(&["root-0".into()], false).unwrap(), ["root-0"]);
+}
+
+#[test]
+fn p1_all_screens_matches_explore_but_small_cases_remain_explicitly_selectable()
+-> anyhow::Result<()> {
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1")?;
+    let snapshot = fixture_snapshot();
+    let index = build_section_index(&snapshot, &target)?;
+    let explored = devup_mcp_figma::explore_snapshot(&snapshot, &target, &Default::default())?;
+    assert_eq!(
+        index.select(&[], true)?,
+        explored
+            .candidates
+            .iter()
+            .map(|c| c.node.node_id.clone())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(index.select(&["10:5".into()], false)?, ["10:5"]);
+    assert!(
+        !index
+            .candidates
+            .iter()
+            .find(|c| c.node_id == "10:5")
+            .unwrap()
+            .selection_reasons
+            .contains(&"screen-like".into())
+    );
+    Ok(())
+}
+
+#[test]
 fn index_contains_top_level_visible_children_in_visual_order() -> anyhow::Result<()> {
     let target =
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1")?;
@@ -136,10 +174,7 @@ fn selection_and_batches_are_strict_bounded_and_deterministic() -> anyhow::Resul
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1")?;
     let index = build_section_index(&fixture_snapshot(), &target)?;
 
-    assert_eq!(
-        index.select(&[], true)?,
-        vec!["10:3", "10:2", "10:5", "10:4"]
-    );
+    assert_eq!(index.select(&[], true)?, vec!["10:3", "10:2", "10:4"]);
     assert_eq!(
         index.select(&["10:4".to_owned(), "10:3".to_owned()], false)?,
         vec!["10:3", "10:4"]
@@ -153,7 +188,11 @@ fn selection_and_batches_are_strict_bounded_and_deterministic() -> anyhow::Resul
     assert!(index.select(&[], false).is_err());
     assert!(index.select(&["10:3".to_owned()], true).is_err());
 
-    let selected = index.select(&[], true)?;
+    // Batching preserves explicit selection of notes as well as screens.
+    let selected = index.select(
+        &["10:3".into(), "10:2".into(), "10:5".into(), "10:4".into()],
+        false,
+    )?;
     let max_nodes = index.candidates[0].subtree_node_count + index.candidates[1].subtree_node_count;
     let batches = plan_batches(
         &index,

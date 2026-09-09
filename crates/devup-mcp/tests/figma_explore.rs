@@ -182,7 +182,12 @@ async fn related_nodes_reuse_one_explore_projection_without_changing_the_request
     assert_eq!(screen["anchor"]["nodeId"], "1:2");
     assert_eq!(screen["source"]["nodeId"], "1:2");
     assert_eq!(screen["cache"]["cacheHit"], true);
-    assert_eq!(screen["cache"]["reuseKind"], "related-node-superset");
+    // `related-node`, not `related-node-superset`: the projection budget no
+    // longer moves with `limit`, so the second call asks for exactly what the
+    // first one collected and there is no larger projection to be a subset of.
+    // The two calls here differ only in anchor - 50 then 10 - which used to
+    // make them two differently sized reads of the same page.
+    assert_eq!(screen["cache"]["reuseKind"], "related-node");
     assert_eq!(screen["cache"]["avoidedFigmaToolCalls"], 1);
     assert_eq!(screen["cache"]["ageSeconds"], 0);
     assert!(screen["cache"]["remainingTtlSeconds"].as_u64().unwrap() > 0);

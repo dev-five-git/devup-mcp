@@ -75,9 +75,21 @@ pub(super) fn validate_artifact_projection(
     let kind_compatible = match capabilities.kind {
         ArtifactKind::Design => true,
         ArtifactKind::ThemeOnly => theme_requested && !design_output_requested,
-        ArtifactKind::SectionIndex => outputs.iter().any(|output| output == "tsx"),
+        // An index can return a selection for any code projection. Actual
+        // generation still requires collected frame snapshots.
+        ArtifactKind::SectionIndex => outputs
+            .iter()
+            .any(|output| matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")),
         ArtifactKind::Search | ArtifactKind::Explore => false,
     };
+    if capabilities.kind == ArtifactKind::SectionIndex && !kind_compatible {
+        return Err(DevupError::with_details(
+            ErrorCode::DevupInvalidInput,
+            "These outputs need collected screen data; this artifact is only a Section candidate index. Pass frameIds or allScreens:true to collect screens, then request the outputs again.",
+            false,
+            json!({"outputs":outputs,"artifactId":artifact.artifact_id,"capabilities":capabilities}),
+        ));
+    }
     let collection_compatible = collection_scope_rank(requested_scope)
         <= collection_scope_rank(capabilities.collection_scope);
     let resources_compatible = !theme_requested
@@ -260,5 +272,237 @@ pub(super) fn parse_root_layout(root_layout: &str) -> Result<RootLayout, DevupEr
             format!("rootLayout must be one of: {}.", ROOT_LAYOUTS.join(", ")),
             false,
         )),
+    }
+}
+
+/// MCP classification is exhaustive here because the shared Figma enum also
+/// serves collectors, where unsupported snapshots can mean corrupt data.
+/// Keep internal acquisition failures distinct from editable tool arguments.
+pub(super) fn is_caller_mistake(error: &DevupError) -> bool {
+    match error.code {
+        ErrorCode::DevupInvalidInput
+        | ErrorCode::DevupFigmaNodeNotFound
+        | ErrorCode::DevupFigmaUnsupportedFile
+        | ErrorCode::DevupProjectRootNotFound
+        | ErrorCode::DevupFigmaHandoffInvalid => true,
+        // output.rs currently uses CodegenFailed for both validation and I/O.
+        // Only its explicit parameter refusals are caller mistakes.
+        ErrorCode::DevupCodegenFailed => matches!(
+            error.message.as_str(),
+            "outputPath must be a file path."
+                | "outputPath is outside the allowed root."
+                | "outputPath contains an unsafe file name."
+                | "outputPath cannot escape the allowed root."
+                | "A symlink or junction in an outputPath ancestor is not allowed."
+                | "An outputPath ancestor is not a directory."
+                | "Two or more outputs cannot use the same file path."
+        ),
+        ErrorCode::DevupSnapshotUnsupported => matches!(
+            error.message.as_str(),
+            "Using assetRequests requires assetManifest in outputs."
+                | "referencePng can only be collected for a single Figma link target."
+                | "The Section Frame collection scope must be node."
+                | "frameIds and allScreens cannot be used together."
+                | "frameIds and allScreens can only be used on a Section artifact."
+                | "frameIds contains a duplicate node."
+        ),
+        ErrorCode::DevupAuthRequired
+        | ErrorCode::DevupAuthCallbackTimeout
+        | ErrorCode::DevupAuthStateMismatch
+        | ErrorCode::DevupFigmaCallbackPortInUse
+        | ErrorCode::DevupFigmaPermissionDenied
+        | ErrorCode::DevupFigmaRateLimited
+        | ErrorCode::DevupFigmaDirectUnavailable
+        | ErrorCode::DevupFigmaCatalogRejected
+        | ErrorCode::DevupFigmaHandoffExpired
+        | ErrorCode::DevupFigmaResponseTooLarge
+        | ErrorCode::DevupFigmaVersionChanged
+        | ErrorCode::DevupThemeConflict => false,
+    }
+}
+
+pub(super) fn validate_export_budget(
+    frame_ids: &[String],
+    outputs: &[String],
+) -> Result<(), DevupError> {
+    let output_count = outputs
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        .max(1);
+    let batch_size = (12 / output_count).clamp(1, 6);
+    if frame_ids.len() > batch_size {
+        return Err(DevupError::with_details(
+            ErrorCode::DevupInvalidInput,
+            "Export exceeds the batch budget for a 300-second client timeout. Split frameIds into smaller calls; use 1–3 frames per call and reuse artifactId when its capture covers the selected frames.",
+            false,
+            json!({"requestedFrameCount":frame_ids.len(),"outputCount":output_count,
+                "frameOutputUnits":frame_ids.len().saturating_mul(output_count),
+                "maxFrameOutputUnits":12,"recommendedBatchSize":batch_size,
+                "recommendedFrameIds":&frame_ids[..batch_size],"remainingFrameIds":&frame_ids[batch_size..],
+                "estimatedSecondsPerFrame":[15,60],"estimateKind":"planning heuristic; complexity, paging and throttling can exceed this",
+                "clientTimeoutSeconds":300}),
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_public_root(
+    root: Option<&str>,
+) -> Result<Option<std::path::PathBuf>, DevupError> {
+    let Some(root) = root else {
+        return Ok(None);
+    };
+    let invalid = || {
+        DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "assetPublicRoot must be an existing absolute directory served at URL /.",
+            false,
+        )
+    };
+    if !std::path::Path::new(root).is_absolute() {
+        return Err(invalid());
+    }
+    let root = dunce::canonicalize(root).map_err(|_| invalid())?;
+    if !root.is_dir() {
+        return Err(invalid());
+    }
+    Ok(Some(root))
+}
+
+pub(super) fn public_asset_url(
+    root: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<String, DevupError> {
+    let relative = target.strip_prefix(root).map_err(|_| {
+        DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "Asset outputPath must be inside assetPublicRoot.",
+            false,
+        )
+    })?;
+    let mut url = String::new();
+    for component in relative.components() {
+        let std::path::Component::Normal(segment) = component else {
+            return Err(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "Invalid public asset path.",
+                false,
+            ));
+        };
+        url.push('/');
+        for byte in segment.to_string_lossy().as_bytes() {
+            if byte.is_ascii_alphanumeric() || b"-._~".contains(byte) {
+                url.push(char::from(*byte));
+            } else {
+                use std::fmt::Write as _;
+                write!(&mut url, "%{byte:02X}").expect("writing to String");
+            }
+        }
+    }
+    Ok(url)
+}
+
+#[cfg(test)]
+mod p3_tests {
+    use super::*;
+
+    #[test]
+    fn p3_error_variants_are_audited_at_the_mcp_boundary() {
+        use ErrorCode::*;
+        for (code, expected) in [
+            (DevupAuthRequired, false),
+            (DevupAuthCallbackTimeout, false),
+            (DevupAuthStateMismatch, false),
+            (DevupFigmaCallbackPortInUse, false),
+            (DevupFigmaPermissionDenied, false),
+            (DevupFigmaRateLimited, false),
+            (DevupFigmaDirectUnavailable, false),
+            (DevupFigmaCatalogRejected, false),
+            (DevupFigmaHandoffExpired, false),
+            (DevupFigmaHandoffInvalid, true),
+            (DevupFigmaNodeNotFound, true),
+            (DevupFigmaUnsupportedFile, true),
+            (DevupFigmaResponseTooLarge, false),
+            (DevupFigmaVersionChanged, false),
+            (DevupSnapshotUnsupported, false),
+            (DevupCodegenFailed, false),
+            (DevupThemeConflict, false),
+            (DevupInvalidInput, true),
+            (DevupProjectRootNotFound, true),
+        ] {
+            assert_eq!(
+                is_caller_mistake(&DevupError::new(code, "internal detail", false)),
+                expected,
+                "{code:?}"
+            );
+        }
+        for message in [
+            "Using assetRequests requires assetManifest in outputs.",
+            "referencePng can only be collected for a single Figma link target.",
+            "The Section Frame collection scope must be node.",
+            "frameIds and allScreens cannot be used together.",
+            "frameIds and allScreens can only be used on a Section artifact.",
+            "frameIds contains a duplicate node.",
+        ] {
+            assert!(is_caller_mistake(&DevupError::new(
+                DevupSnapshotUnsupported,
+                message,
+                false
+            )));
+        }
+        for message in [
+            "The exported asset binary base64 is invalid.",
+            "The exported asset length or hash does not match.",
+        ] {
+            assert!(!is_caller_mistake(&DevupError::new(
+                DevupSnapshotUnsupported,
+                message,
+                false
+            )));
+        }
+        for message in [
+            "outputPath must be a file path.",
+            "outputPath is outside the allowed root.",
+            "outputPath contains an unsafe file name.",
+            "outputPath cannot escape the allowed root.",
+            "A symlink or junction in an outputPath ancestor is not allowed.",
+            "An outputPath ancestor is not a directory.",
+            "Two or more outputs cannot use the same file path.",
+        ] {
+            assert!(is_caller_mistake(&DevupError::new(
+                DevupCodegenFailed,
+                message,
+                false
+            )));
+        }
+        assert!(!is_caller_mistake(&DevupError::new(
+            DevupCodegenFailed,
+            "Cannot create the output staging file: disk full",
+            false
+        )));
+    }
+
+    #[test]
+    fn p3_budget_counts_frames_times_distinct_outputs() {
+        let frames = (1..=6).map(|i| format!("1:{i}")).collect::<Vec<_>>();
+        assert!(validate_export_budget(&frames, &["tsx".into(), "assetManifest".into()]).is_ok());
+        let error = validate_export_budget(
+            &frames,
+            &["tsx".into(), "devupJson".into(), "assetManifest".into()],
+        )
+        .unwrap_err();
+        assert_eq!(error.details["recommendedBatchSize"], 4);
+        assert_eq!(error.details["frameOutputUnits"], 18);
+        assert_eq!(error.details["remainingFrameIds"], json!(["1:5", "1:6"]));
+        assert!(validate_export_budget(&frames, &["tsx".into(), "tsx".into()]).is_ok());
+    }
+
+    #[test]
+    fn p3_public_mapping_rejects_outside_root_and_encodes_url_segments() {
+        let root = std::env::temp_dir();
+        let mapped = public_asset_url(&root, &root.join("icons").join("로고 #1.png")).unwrap();
+        assert_eq!(mapped, "/icons/%EB%A1%9C%EA%B3%A0%20%231.png");
+        assert!(public_asset_url(&root.join("public"), &root.join("private.png")).is_err());
     }
 }

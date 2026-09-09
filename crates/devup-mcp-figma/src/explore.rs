@@ -73,6 +73,41 @@ pub struct ExploreNode {
     pub page_child_index: Option<usize>,
 }
 
+impl ExploreNode {
+    /// Automatic Section screen selection. Explicit nonstandard cases are a
+    /// separate menu, never an exception to this predicate.
+    pub fn is_screen_candidate(&self) -> bool {
+        self.visible
+            && self.node_type == "FRAME"
+            && classify_explore_node(self) == ExploreKind::Screen
+    }
+}
+
+pub(crate) fn section_screen_nodes(snapshot: &Snapshot, section_id: &str) -> Vec<ExploreNode> {
+    let mut nodes = snapshot
+        .nodes
+        .values()
+        .filter_map(|node| ExploreNode::try_from(node).ok())
+        .filter(|node| {
+            node.is_screen_candidate() && is_descendant_of(snapshot, &node.node_id, section_id)
+        })
+        .collect::<Vec<_>>();
+    let ids = nodes
+        .iter()
+        .map(|node| node.node_id.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    nodes.retain(|node| {
+        !ancestor_ids(snapshot, &node.node_id, section_id)
+            .iter()
+            .any(|ancestor| ancestor != section_id && ids.contains(ancestor))
+    });
+    for node in &mut nodes {
+        enrich_node(snapshot, node);
+    }
+    nodes.sort_by(visual_order);
+    nodes
+}
+
 impl TryFrom<&RawNode> for ExploreNode {
     type Error = DevupError;
 
@@ -113,7 +148,8 @@ impl TryFrom<&RawNode> for ExploreNode {
                 )
             })?;
         let child_count = view
-            .value("childCount")
+            .value("directChildCount")
+            .or_else(|| view.value("childCount"))
             .and_then(|value| value.as_u64())
             .map(|value| value as usize)
             .unwrap_or_else(|| view.child_ids().count());
@@ -145,6 +181,12 @@ impl TryFrom<&RawNode> for ExploreNode {
     }
 }
 
+/// `limit` is the number of candidates handed back, and nothing else. It is
+/// deliberately not the collection script's budget: when the two were one
+/// number, asking for more candidates changed how much of the design got read,
+/// and a caller who raised `limit` from 30 to 33 was answered with fewer
+/// screens than before. Whatever the walk finds beyond `limit` is reported as
+/// [`ExploreResult::candidates_truncated`] rather than silently dropped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExploreOptions {
@@ -183,7 +225,23 @@ pub struct ExploreResult {
     pub anchor: ExploreNode,
     pub group: Option<ExploreGroup>,
     pub candidates: Vec<ExploreCandidate>,
+    /// The snapshot this was read from is itself incomplete - the collection
+    /// script hit its byte ceiling and left nodes out - so screens may be
+    /// missing that no `limit` would bring back.
+    ///
+    /// This used to be the two truncations at once, which meant a caller who
+    /// saw `true` could not tell whether raising `limit` would help or whether
+    /// the design had simply not arrived whole. The other half is
+    /// [`Self::candidates_truncated`].
     pub truncated: bool,
+    /// More candidates were found than [`ExploreOptions::limit`] allowed back.
+    /// Raising `limit` returns them; the ranked order is stable, so a larger
+    /// `limit` extends the same list rather than reshuffling it.
+    #[serde(default)]
+    pub candidates_truncated: bool,
+    /// How many candidates the walk found before `limit` was applied.
+    #[serde(default)]
+    pub candidates_found: usize,
 }
 
 pub fn classify_target(snapshot: &Snapshot, target: &FigmaTarget) -> TargetKind {
@@ -303,6 +361,8 @@ pub fn explore_snapshot(
             }],
             anchor,
             truncated: projection_truncated,
+            candidates_truncated: false,
+            candidates_found: 1,
         });
     }
 
@@ -320,38 +380,23 @@ pub fn explore_snapshot(
     };
 
     if let Some(section_scope_id) = section_scope_id {
-        let mut section_scope = ExploreNode::try_from(
-            snapshot
-                .nodes
-                .get(&section_scope_id)
-                .expect("resolved section scope exists"),
-        )?;
+        // The id came from this snapshot a line ago - it is either the anchor
+        // or an ancestor that was looked up to read its type - so this lookup
+        // is expected to hit. It is written as an error anyway: the class of
+        // bug behind it is a node that the snapshot does not carry, and that
+        // one already reached production once. Panicking here would take the
+        // whole MCP server down with it rather than answering one call badly.
+        let scope_node = snapshot.nodes.get(&section_scope_id).ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "The Section that scopes this exploration is not in the Figma projection.",
+                false,
+            )
+        })?;
+        let mut section_scope = ExploreNode::try_from(scope_node)?;
         enrich_node(snapshot, &mut section_scope);
-        let mut nodes = snapshot
-            .nodes
-            .values()
-            .filter(|node| node.id != anchor.node_id)
-            .filter(|node| node.id != section_scope_id)
-            .filter(|node| node.node_type == "FRAME")
-            .filter_map(|node| {
-                let mut node = ExploreNode::try_from(node).ok()?;
-                enrich_node(snapshot, &mut node);
-                (node.visible
-                    && node.kind == ExploreKind::Screen
-                    && is_descendant_of(snapshot, &node.node_id, &section_scope_id))
-                .then_some(node)
-            })
-            .collect::<Vec<_>>();
-        let screen_ids = nodes
-            .iter()
-            .map(|node| node.node_id.clone())
-            .collect::<std::collections::BTreeSet<_>>();
-        nodes.retain(|node| {
-            !ancestor_ids(snapshot, &node.node_id, &section_scope_id)
-                .iter()
-                .any(|ancestor| screen_ids.contains(ancestor))
-        });
-        nodes.sort_by(visual_order);
+        let mut nodes = section_screen_nodes(snapshot, &section_scope_id);
+        nodes.retain(|node| node.node_id != anchor.node_id);
         let candidate_count = nodes.len();
         nodes.truncate(options.limit);
         let candidates = nodes
@@ -379,7 +424,9 @@ pub fn explore_snapshot(
             }),
             anchor,
             candidates,
-            truncated: projection_truncated || candidate_count > options.limit,
+            truncated: projection_truncated,
+            candidates_truncated: candidate_count > options.limit,
+            candidates_found: candidate_count,
         });
     }
 
@@ -455,7 +502,9 @@ pub fn explore_snapshot(
         }),
         anchor,
         candidates,
-        truncated: projection_truncated || candidate_count > options.limit,
+        truncated: projection_truncated,
+        candidates_truncated: candidate_count > options.limit,
+        candidates_found: candidate_count,
     })
 }
 
