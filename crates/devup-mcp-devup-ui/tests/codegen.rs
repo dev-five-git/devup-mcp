@@ -406,7 +406,7 @@ fn mixed_stroke_without_side_weights_does_not_invent_uniform_border() {
 }
 
 #[test]
-fn embedded_root_omits_only_selected_frame_geometry_and_position() {
+fn embedded_root_omits_external_geometry_but_anchors_absolute_children() {
     let mut snapshot = snapshot();
     let child = snapshot.nodes.get_mut("1:2").unwrap();
     child
@@ -435,7 +435,14 @@ fn embedded_root_omits_only_selected_frame_geometry_and_position() {
     let embedded_root = component_root_opening(&embedded.tsx);
     assert!(!embedded_root.contains("h=\""));
     assert!(!embedded_root.contains("w=\""));
-    assert!(!embedded_root.contains("pos=\""));
+    assert!(embedded_root.contains("pos=\"relative\""));
+    assert!(
+        embedded
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "DEVUP_CODEGEN_PLACEMENT_CONTRACT"
+                && d.fidelity_impact() == devup_mcp_figma::FidelityImpact::Approximated)
+    );
     assert!(embedded.tsx.contains("left=\"10px\""));
     assert!(embedded.tsx.contains("pos=\"absolute\""));
     assert!(embedded.tsx.contains("top=\"12px\""));

@@ -5,7 +5,7 @@ expression: actual
 
 "export function Location() {
   return (
-    <VStack>
+    <VStack pos="relative" w="1920px">
       <PageHeader />
       <VStack
         alignItems="center"

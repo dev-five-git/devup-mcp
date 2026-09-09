@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Preserve generated containing blocks and FIXED axes for frames with absolute children, including selected page/section roots. Anchor embedded roots while explicitly reporting host sizing requirements. Expose output-scoped placementContracts without includeDiagnostics, including capture-boundary parent availability and external coordinate dependencies. Replay WQUW-120 placement evidence and the full export payload while preserving R3 per-output layout evidence.",
+  "date": "2026-09-10T00:56:55+09:00"
+}

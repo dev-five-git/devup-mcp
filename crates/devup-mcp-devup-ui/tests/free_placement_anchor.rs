@@ -200,10 +200,10 @@ fn shapes_in_a_pinned_group_are_placed_in_the_group_at_their_own_size() {
         tsx.contains("left=\"-277px\"") && tsx.contains("top=\"-187px\""),
         "the group keeps its place in the card: {tsx}"
     );
-    let group_line = tsx
-        .lines()
-        .find(|line| line.contains("left=\"-277px\""))
-        .expect("the group's own line");
+    let offset = tsx.find("left=\"-277px\"").expect("the group's offset");
+    let start = tsx[..offset].rfind('<').expect("group opening");
+    let end = offset + tsx[offset..].find('>').expect("group opening end");
+    let group_line = &tsx[start..=end];
     assert!(
         group_line.contains("pos=\"absolute\"") && !group_line.contains("relative"),
         "the group is not told `relative` over the `absolute` it already has: {group_line}"

@@ -4386,126 +4386,126 @@
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > canBeAbsolute > position > should return true for AUTO positioned node in freelayout parent with constraints",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > canBeAbsolute > position > should return false for AUTO positioned node in freelayout parent without constraints",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > canBeAbsolute > position > should return false for node without parent",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return absolute position props with constraints",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return absolute position props in freelayout using fallback x/y",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return undefined when no constraints in freelayout and canBeAbsolute is false",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return absolute position with x/y when ABSOLUTE node has no constraints in freelayout parent",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return undefined when no constraints and parent is not freelayout (line 43)",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return relative position for parent with absolute children",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return relative position for freelayout parent with AUTO children",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should handle MAX constraints",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should handle CENTER constraints (default case)",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should get constraints from children[0] when node has no constraints",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should return undefined when children[0] exists but has no constraints and parent is not freelayout",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should handle SCALE horizontal constraint (default case)",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should handle STRETCH vertical constraint (default case)",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/position.test.ts > getPositionProps > position > should handle both SCALE constraints (default case for both)",
       "sourceFile": "src/codegen/props/__tests__/position.test.ts",
       "classification": "rust_assertion",
       "fixtureIds": [],
-      "rustTest": "codegen::embedded_root_omits_only_selected_frame_geometry_and_position"
+      "rustTest": "codegen::embedded_root_omits_external_geometry_but_anchors_absolute_children"
     },
     {
       "testId": "src/codegen/props/__tests__/reaction.test.ts > getReactionProps > should return empty object when node has no reactions",

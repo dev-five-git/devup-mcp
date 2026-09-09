@@ -106,6 +106,7 @@ pub(super) fn push_layout_props(
     let absolute = view.string("layoutPositioning") == Some("ABSOLUTE")
         || placed_by_a_free_layout(snapshot, node, parent, is_page_root);
     let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
+    let containing_block = holds_positioned_children(snapshot, node);
     let mut width = None;
     let mut height = None;
 
@@ -130,11 +131,9 @@ pub(super) fn push_layout_props(
         // where Figma has it: above the parent's own background, under the
         // content.
         //
-        // Only under a parent that opens that context. A page root is not
-        // told `relative` and opens none, and `-1` under it would fall
-        // behind the root's own background instead of resting on it.
+        // Only under a parent that opens that context, including page roots.
         if let Some(parent) = parent
-            && !is_page_root_node(snapshot, parent)
+            && holds_positioned_children(snapshot, parent)
             && sits_behind_in_flow_siblings(snapshot, parent, &node.id)
         {
             string_prop(props, "zIndex", "-1");
@@ -390,6 +389,18 @@ pub(super) fn push_layout_props(
         {
             width = Some("100%".to_owned());
             height = Some("100%".to_owned());
+        }
+    }
+
+    // A canvas with positioned children is their coordinate system, not just
+    // a responsive page measurement. Preserve each FIXED axis even on a page
+    // or section root. Embedded mode explicitly delegates dimensions to host.
+    if containing_block && !embedded_root {
+        if fixed_w {
+            width = view.number("width").map(px);
+        }
+        if fixed_h {
+            height = view.number("height").map(px);
         }
     }
 
@@ -671,27 +682,19 @@ pub(super) fn push_layout_props(
     // A node that is itself positioned is already that ancestor, and saying
     // `relative` over its `absolute` would put it back in flow: the join-us
     // group of circles, pinned at -277,-187, took 1,102px of the page.
-    if !embedded_root
-        && !is_page_root
-        && !absolute
-        && super::style::asset_kind(snapshot, node).is_none()
-        && view.child_ids().any(|child| {
-            snapshot.nodes.get(child).is_some_and(|child| {
-                child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
-                    || placed_by_a_free_layout(snapshot, child, Some(node), false)
-            })
-        })
-    {
+    if containing_block && (!absolute || embedded_root) {
         string_prop(props, "pos", "relative");
-        // A child sent behind its siblings with `zIndex="-1"` would fall
-        // behind this node's own background too, unless this node is the
-        // stacking context it is placed in. `zIndex="0"` makes it one.
-        if view
+    }
+    // Position (relative or absolute) establishes a containing block, but
+    // needs an explicit z-index to contain negative-z children above its own
+    // background. Keep an existing z-index that places this entire subtree.
+    if containing_block
+        && !props.iter().any(|(name, _)| name == "zIndex")
+        && view
             .child_ids()
             .any(|child| sits_behind_in_flow_siblings(snapshot, node, child))
-        {
-            string_prop(props, "zIndex", "0");
-        }
+    {
+        string_prop(props, "zIndex", "0");
     }
     // An export is drawn with its rotation in it, so an asset whose bounds
     // the snapshot carries is not rotated again; without the bounds it is
@@ -711,6 +714,19 @@ pub(super) fn push_layout_props(
             string_prop(props, "transformOrigin", "top left");
         }
     }
+}
+
+/// Only children that can survive projection need a containing block.
+pub(super) fn holds_positioned_children(snapshot: &Snapshot, node: &RawNode) -> bool {
+    super::style::asset_kind(snapshot, node).is_none()
+        && node.typed_view().child_ids().any(|id| {
+            snapshot.nodes.get(id).is_some_and(|child| {
+                let view = child.typed_view();
+                view.bool("visible") != Some(false)
+                    && (view.string("layoutPositioning") == Some("ABSOLUTE")
+                        || placed_by_a_free_layout(snapshot, child, Some(node), false))
+            })
+        })
 }
 
 pub(super) fn absolute_layout_is_exact(snapshot: &Snapshot, node: &RawNode) -> bool {
@@ -1250,34 +1266,6 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     }
 }
 
-/// Whether a node in flow is nonetheless placed by its parent, because the
-/// parent lays nothing out.
-///
-/// A frame with no auto layout puts each child where the designer left it,
-/// and the plugin's `canBeAbsolute` writes every such child at its
-/// constraints — `pos="absolute"` with the edges it is pinned to — and gives
-/// the frame `pos="relative"` to hold them. Here that was only done for a
-/// child marked absolute, so the notice banner's title and its two logos, three
-/// children of a free frame, were stacked in flow with no position at all.
-///
-/// Two cases are kept out. A frame whose single child's inset can be measured
-/// is written with that inset as padding and the child in flow, which puts it
-/// in the same place and lets it size the frame; and a frame whose single
-/// child is centred is written as a `Center` with the child in flow, see
-/// `centres_its_only_child`.
-/// Whether a node is a screen's root on the canvas: its parent is a page, a
-/// section or a component set, read from the parent when it was collected
-/// and from the node's own record of it when it was not. The same reading
-/// `push_layout_props` makes for the node it is laying out.
-fn is_page_root_node(snapshot: &Snapshot, node: &RawNode) -> bool {
-    let view = node.typed_view();
-    view.string("parentId")
-        .and_then(|parent_id| snapshot.nodes.get(parent_id))
-        .map(|parent| parent.typed_view().node_type())
-        .or_else(|| view.string("parentType"))
-        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"))
-}
-
 /// Whether `child_id` is a positioned child of `parent` that Figma draws
 /// under everything else in it: nothing in flow comes before it, and
 /// something in flow comes after. CSS paints a positioned element after every
@@ -1317,6 +1305,21 @@ fn sits_behind_in_flow_siblings(snapshot: &Snapshot, parent: &RawNode, child_id:
     !earlier_in_flow && later_in_flow
 }
 
+/// Whether a node in flow is nonetheless placed by its parent, because the
+/// parent lays nothing out.
+///
+/// A frame with no auto layout puts each child where the designer left it,
+/// and the plugin's `canBeAbsolute` writes every such child at its
+/// constraints — `pos="absolute"` with the edges it is pinned to — and gives
+/// the frame `pos="relative"` to hold them. Here that was only done for a
+/// child marked absolute, so the notice banner's title and its two logos, three
+/// children of a free frame, were stacked in flow with no position at all.
+///
+/// Two cases are kept out. A frame whose single child's inset can be measured
+/// is written with that inset as padding and the child in flow, which puts it
+/// in the same place and lets it size the frame; and a frame whose single
+/// child is centred is written as a `Center` with the child in flow, see
+/// `centres_its_only_child`.
 pub(crate) fn placed_by_a_free_layout(
     snapshot: &Snapshot,
     node: &RawNode,

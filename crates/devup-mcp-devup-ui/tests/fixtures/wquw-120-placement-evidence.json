@@ -1,0 +1,257 @@
+{
+  "nodeId": "3997:46621",
+  "nodeType": "FRAME",
+  "parentId": "3997:46582",
+  "x": 0,
+  "y": 0,
+  "width": 360,
+  "height": 740,
+  "rotation": null,
+  "relativeTransform": null,
+  "absoluteTransform": null,
+  "absoluteBoundingBox": {
+    "height": 740,
+    "width": 360,
+    "x": 20142,
+    "y": 14988
+  },
+  "absoluteRenderBounds": {
+    "height": 740,
+    "width": 360,
+    "x": 20142,
+    "y": 14988
+  },
+  "constraints": {
+    "horizontal": "CENTER",
+    "vertical": "MIN"
+  },
+  "layoutPositioning": "ABSOLUTE",
+  "layoutMode": "NONE",
+  "layoutSizingHorizontal": "FIXED",
+  "layoutSizingVertical": "FIXED",
+  "layoutAlign": null,
+  "layoutGrow": 0,
+  "inferredAutoLayout": null,
+  "paddingTop": 0,
+  "paddingRight": 0,
+  "paddingBottom": 0,
+  "paddingLeft": 0,
+  "itemSpacing": 0,
+  "primaryAxisAlignItems": null,
+  "counterAxisAlignItems": null,
+  "minWidth": null,
+  "maxWidth": null,
+  "minHeight": null,
+  "maxHeight": null,
+  "clipsContent": true,
+  "isMask": null,
+  "maskType": null,
+  "visible": true,
+  "opacity": 1,
+  "effects": [
+    {
+      "blurType": "NORMAL",
+      "boundVariables": {},
+      "radius": 8,
+      "type": "BACKGROUND_BLUR",
+      "visible": true
+    }
+  ],
+  "fills": [
+    {
+      "blendMode": "NORMAL",
+      "boundVariables": {},
+      "color": {
+        "b": 0,
+        "g": 0,
+        "r": 0
+      },
+      "opacity": 0.699999988079071,
+      "type": "SOLID",
+      "visible": true
+    }
+  ],
+  "missingFields": [],
+  "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping.",
+  "parent": {
+    "nodeId": "3997:46582",
+    "nodeType": "FRAME",
+    "parentId": "4279:7806",
+    "x": 5813,
+    "y": 365,
+    "width": 360,
+    "height": 740,
+    "rotation": null,
+    "relativeTransform": null,
+    "absoluteTransform": null,
+    "absoluteBoundingBox": {
+      "height": 740,
+      "width": 360,
+      "x": 20142,
+      "y": 14988
+    },
+    "absoluteRenderBounds": {
+      "height": 740,
+      "width": 360,
+      "x": 20142,
+      "y": 14988
+    },
+    "constraints": {
+      "horizontal": "MIN",
+      "vertical": "MIN"
+    },
+    "layoutPositioning": "AUTO",
+    "layoutMode": "VERTICAL",
+    "layoutSizingHorizontal": "FIXED",
+    "layoutSizingVertical": "FIXED",
+    "layoutAlign": null,
+    "layoutGrow": 0,
+    "inferredAutoLayout": {
+      "counterAxisAlignItems": "MIN",
+      "counterAxisSizingMode": "FIXED",
+      "itemSpacing": 0,
+      "layoutAlign": "INHERIT",
+      "layoutGrow": 0,
+      "layoutMode": "VERTICAL",
+      "layoutPositioning": "AUTO",
+      "paddingBottom": 0,
+      "paddingLeft": 0,
+      "paddingRight": 0,
+      "paddingTop": 0,
+      "primaryAxisAlignItems": "MIN",
+      "primaryAxisSizingMode": "FIXED"
+    },
+    "paddingTop": 0,
+    "paddingRight": 0,
+    "paddingBottom": 0,
+    "paddingLeft": 0,
+    "itemSpacing": 0,
+    "primaryAxisAlignItems": null,
+    "counterAxisAlignItems": null,
+    "minWidth": null,
+    "maxWidth": null,
+    "minHeight": null,
+    "maxHeight": null,
+    "clipsContent": true,
+    "isMask": null,
+    "maskType": null,
+    "visible": true,
+    "opacity": 1,
+    "effects": null,
+    "fills": [
+      {
+        "blendMode": "NORMAL",
+        "boundVariables": {},
+        "color": {
+          "b": 1,
+          "g": 1,
+          "r": 1
+        },
+        "opacity": 1,
+        "type": "SOLID",
+        "visible": true
+      }
+    ],
+    "missingFields": [],
+    "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+  },
+  "parentMissingReason": null,
+  "parentRelativeBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 360,
+    "height": 740,
+    "basis": "absoluteBoundingBox offsets; axis-aligned canvas bounds, not inverse-transformed local coordinates"
+  },
+  "children": [
+    {
+      "nodeId": "3997:46624",
+      "nodeType": "INSTANCE",
+      "parentId": "3997:46621",
+      "x": 20,
+      "y": 232.5,
+      "width": 320,
+      "height": 275,
+      "rotation": null,
+      "relativeTransform": null,
+      "absoluteTransform": null,
+      "absoluteBoundingBox": {
+        "height": 275,
+        "width": 320,
+        "x": 20162,
+        "y": 15220.5
+      },
+      "absoluteRenderBounds": {
+        "height": 275,
+        "width": 320,
+        "x": 20162,
+        "y": 15220.5
+      },
+      "constraints": {
+        "horizontal": "CENTER",
+        "vertical": "CENTER"
+      },
+      "layoutPositioning": "AUTO",
+      "layoutMode": "VERTICAL",
+      "layoutSizingHorizontal": "FIXED",
+      "layoutSizingVertical": "HUG",
+      "layoutAlign": null,
+      "layoutGrow": 0,
+      "inferredAutoLayout": {
+        "counterAxisAlignItems": "MIN",
+        "counterAxisSizingMode": "FIXED",
+        "itemSpacing": 0,
+        "layoutAlign": "INHERIT",
+        "layoutGrow": 0,
+        "layoutMode": "VERTICAL",
+        "layoutPositioning": "AUTO",
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "primaryAxisAlignItems": "MIN",
+        "primaryAxisSizingMode": "AUTO"
+      },
+      "paddingTop": 0,
+      "paddingRight": 0,
+      "paddingBottom": 0,
+      "paddingLeft": 0,
+      "itemSpacing": 0,
+      "primaryAxisAlignItems": null,
+      "counterAxisAlignItems": null,
+      "minWidth": null,
+      "maxWidth": null,
+      "minHeight": null,
+      "maxHeight": null,
+      "clipsContent": true,
+      "isMask": null,
+      "maskType": null,
+      "visible": true,
+      "opacity": 1,
+      "effects": null,
+      "fills": [
+        {
+          "blendMode": "NORMAL",
+          "boundVariables": {
+            "color": {
+              "id": "VariableID:1:1000",
+              "type": "VARIABLE_ALIAS"
+            }
+          },
+          "color": {
+            "b": 1,
+            "g": 1,
+            "r": 1
+          },
+          "opacity": 1,
+          "type": "SOLID",
+          "visible": true
+        }
+      ],
+      "missingFields": [],
+      "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+    }
+  ],
+  "childCount": 1,
+  "childrenTruncated": false
+}

@@ -594,6 +594,14 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 
 `docs/superpowers/` 아래의 plan·spec은 **작성 시점의 기록**이지 현재 API 문서가 아닙니다. 예를 들어 위에서 제거했다고 적은 `devup_figma_to_ui`/`devup_figma_to_json`을 그 문서들은 아직 현재 도구처럼 기술합니다. 현재 도구 목록과 동작의 기준은 이 README와 서버가 게시하는 스키마·tool description입니다.
 
+### 생성 코드의 배치 계약
+
+absolute 자식이 있는 프레임은 생성 코드가 containing block을 만듭니다. `standalone`에서는 PAGE/SECTION 아래의 루트도 FIXED 축의 원본 크기를 보존합니다. 예를 들어 WQUW-120의 360×740 수직 프레임은 `VStack pos="relative" w="360px" h="740px"`가 되어 모달의 `left="50%"`, `w="100%"`가 이 루트를 기준으로 계산됩니다. absolute 자식이 없는 화면의 기존 유동 크기 정책은 유지됩니다.
+
+`placementContracts`는 `includeDiagnostics` 없이도 반환하며 SECTION 응답에는 프레임별 목록도 있습니다. 각 계약의 `details.output`, `generatedRoot`, `sourceSize`, `containingBlock`, `parentCollected`, `parentIncludedInOutput`, `hostRequirements`를 함께 확인하세요. 캡처 밖 부모가 없으면 그 사실을 명시하며, 일반 루트는 앱의 normal flow에 삽입됩니다. Figma canvas의 x/y가 앱 안의 위치를 뜻하지 않습니다.
+
+`embedded`에서도 absolute 자식의 기준 요소는 유지하지만 루트 크기는 호스트/내용에 의존합니다. 이 의존이나 absolute 루트의 외부 부모 의존은 `hostRequirements`와 `projectionIssues`에 근사로 기록합니다. 이를 충족하거나 containing parent를 `standalone`으로 export한 후 배치를 수용하세요. 이 계약은 CSS 생성 근거이며 브라우저 픽셀 비교나 반응형 동일성 보증이 아닙니다.
+
 ### R1 응답 일관성
 
 `projectionIssues`는 `includeDiagnostics` 없이도 근사·손실의 노드, 필드, 사유와 원본/적용 근거를 반환합니다. 분류 근거 없는 `uncoveredLayout`은 `lossy`이며 `exact`나 최종 산출물로 표시하지 않습니다. 숨김 자산 참조를 제거하고, 제외 자산이 여전히 필요한 출력은 실패 사유와 함께 보류합니다.

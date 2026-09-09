@@ -1045,6 +1045,10 @@ fn finalize_codegen_output(
     output.tsx = tsx;
     output.source_map = source_map;
     validate_tsx(&output.tsx)?;
+    if let Some(contract) = super::evidence::placement_contract(snapshot, &output, options, root_id)
+    {
+        output.diagnostics.push(contract);
+    }
     // Background and variant projections share paint suppression in style;
     // attach evidence for those paths as well as ordinary asset leaves.
     for entry in output
@@ -1502,9 +1506,9 @@ fn render_node(
     // padding instead, which puts them where they belong on its own — so the
     // anchor is only still needed where nothing could be measured, as when the
     // child fills the frame exactly or carries no position of its own.
-    // A page root is not anchored either: the plugin's `getPositionProps`
-    // leaves `pos: relative` off a frame that sits directly on a page or in
-    // a Section, and its positioned children resolve against the page.
+    // Positioned children, including those of page and embedded roots, are
+    // anchored by push_layout_props above. This legacy AUTO fallback only
+    // applies to other frames.
     let page_root = snapshot
         .nodes
         .values()

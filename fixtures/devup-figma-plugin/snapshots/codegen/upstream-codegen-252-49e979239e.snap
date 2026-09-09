@@ -9,9 +9,13 @@ expression: actual
       bg="$background"
       flexDir="column"
       gap="76px"
+      h="852px"
       overflow="hidden"
+      pos="relative"
       px="20px"
       py="60px"
+      w="393px"
+      zIndex="0"
     >
       <Box
         bg="#C8A46B"
@@ -25,6 +29,7 @@ expression: actual
         transform="rotate(11.24deg)"
         transformOrigin="top left"
         w="100%"
+        zIndex="-1"
       />
       <VStack alignItems="center" gap="60px" w="100%">
         <VStack alignItems="center" gap="30px" w="100%">

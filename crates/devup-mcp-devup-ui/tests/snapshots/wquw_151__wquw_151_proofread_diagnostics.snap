@@ -2,4 +2,42 @@
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
 expression: json!(output.diagnostics)
 ---
-[]
+[
+  {
+    "code": "DEVUP_CODEGEN_PLACEMENT_CONTRACT",
+    "message": "Root placement contract: inspect the coordinate basis and host requirements before inserting this TSX.",
+    "nodeId": "3879:35518",
+    "severity": "info",
+    "fidelityImpact": "none",
+    "property": "placement",
+    "details": {
+      "rootLayout": "standalone",
+      "parentId": "3686:1678",
+      "parentCollected": false,
+      "parentIncludedInOutput": false,
+      "parentMissingReason": "The root is at the capture boundary; its parent geometry was not collected.",
+      "containingBlock": "generated-root",
+      "coordinateBasis": "The root is inserted in normal document flow; source canvas x/y are not its placement in the application. Positioned children resolve against the generated root when it establishes a containing block.",
+      "sourceSize": {
+        "width": 360.0,
+        "height": 740.0,
+        "horizontal": "FIXED",
+        "vertical": "FIXED"
+      },
+      "sourcePosition": {
+        "x": 8946.0,
+        "y": 10200.0,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        }
+      },
+      "sourceParentSize": null,
+      "generatedRoot": "<VStack\n      bg=\"$backgroundLight\"\n      h=\"740px\"\n      overflow=\"hidden\"\n      pos=\"relative\"\n      w=\"360px\"\n    >",
+      "hostRequirements": [],
+      "classification": "placement-contract",
+      "nextAction": "Insert in normal flow using the emitted root props. External parent placement is outside this capture.",
+      "evidenceLimit": "This is a generated CSS placement contract, not a measured browser or responsive equivalence result."
+    }
+  }
+]
