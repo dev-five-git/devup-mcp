@@ -1,9 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "Bound asset exports to recommended batches of 1–3 and a maximum of 6 before acquisition. Retain server-local asset jobs across client timeouts with per-call and per-asset progress, explicit status/resume, and verified file delivery; resume only pending reads. Provide numeric original placement, parent/child geometry, constraints and derived-padding evidence for approximations. Preserve per-output fidelity attribution and add explicitly scoped responsive breakpoint reports. Replay WQUW production evidence and exercise split exports, timeouts, cancellation and concurrent resource jobs.",
-  "date": "2026-09-09T22:33:14.714557+09:00"
-}
