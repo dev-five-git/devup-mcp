@@ -77,6 +77,41 @@ fn generates_deterministic_devup_ui_tsx() {
 }
 
 #[test]
+fn r3_absolute_fallback_carries_parent_geometry_and_constraints() {
+    let mut data = snapshot();
+    data.nodes.get_mut("1:1").unwrap().fields.insert(
+        "absoluteBoundingBox".into(),
+        json!({"x":1000,"y":2000,"width":320,"height":80}),
+    );
+    let node = data.nodes.get_mut("1:2").unwrap();
+    node.node_type = "FRAME".into();
+    node.fields.extend(
+        serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(json!({
+            "layoutPositioning":"ABSOLUTE","x":20,"y":12,"width":280,"height":50,
+            "constraints":{"horizontal":"CENTER","vertical":"MIN"},
+            "absoluteBoundingBox":{"x":1020,"y":2012,"width":280,"height":50},
+            "paddingTop":8,"paddingBottom":8
+        }))
+        .unwrap(),
+    );
+    let output = generate_component(&data, "1:1", &CodegenOptions::default()).unwrap();
+    let issue = output
+        .diagnostics
+        .iter()
+        .find(|d| d.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
+        .unwrap();
+    let evidence = &issue.details.as_ref().unwrap()["originalValue"];
+    assert_eq!(evidence["x"], 20);
+    assert_eq!(evidence["width"], 280);
+    assert_eq!(evidence["parent"]["nodeId"], "1:1");
+    assert_eq!(evidence["parent"]["width"], 320);
+    assert_eq!(evidence["parentRelativeBounds"]["x"], 20.0);
+    assert_eq!(evidence["constraints"]["horizontal"], "CENTER");
+    assert_eq!(evidence["absoluteBoundingBox"]["y"], 2012);
+    assert_eq!(evidence["paddingTop"], 8);
+}
+
+#[test]
 fn normalizes_names_to_valid_typescript_identifiers() {
     assert_eq!(normalize_component_name("[FR-026] 본연체"), "Fr026본연체");
     assert_eq!(normalize_component_name("123"), "_123");

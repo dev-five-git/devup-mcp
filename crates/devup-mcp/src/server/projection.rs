@@ -1520,8 +1520,9 @@ pub(super) async fn complete_operation(
                 let module = merged.module(&name);
                 // The responsive tree builder does not run the ordinary
                 // finalizer. Preserve each breakpoint's source limitations.
+                let mut breakpoint_fidelity = Vec::new();
                 for root_id in &responsive_snapshot.roots {
-                    let source_output = generate_component(
+                    let mut source_output = generate_component(
                         &responsive_snapshot,
                         root_id,
                         &CodegenOptions {
@@ -1532,6 +1533,9 @@ pub(super) async fn complete_operation(
                         }
                         .with_payload_tokens(payload),
                     )?;
+                    scope_output(&mut source_output, "responsiveTsx");
+                    breakpoint_fidelity
+                        .push(json!({"rootId":root_id,"fidelity":source_output.fidelity_report}));
                     for mut issue in source_output
                         .diagnostics
                         .into_iter()
@@ -1556,6 +1560,27 @@ pub(super) async fn complete_operation(
                 }
                 result.insert("responsiveTsx".to_owned(), json!(module));
                 result.insert("responsiveSlots".to_owned(), json!(merged.slots));
+                let responsive_issues: Vec<_> = projection_diagnostics
+                    .iter()
+                    .filter(|d| {
+                        d.details
+                            .as_ref()
+                            .is_some_and(|v| v["output"] == "responsiveTsx")
+                    })
+                    .cloned()
+                    .collect();
+                let responsive_quality = if merged.unrepresented.is_empty() {
+                    projection_quality(true, &responsive_issues)
+                } else {
+                    ProjectionQuality::Lossy
+                };
+                result.entry("outputResults").or_insert_with(|| json!({}))["responsiveTsx"] = json!({
+                    "state":"produced","projection":responsive_quality,
+                    "fidelity":{"scope":"breakpoint-source-projections","sourceOutput":"tsx","breakpoints":breakpoint_fidelity,
+                        "syntaxValid":devup_mcp_devup_ui::validation::validate_tsx(&module).is_ok(),
+                        "mergedMappingVerified":false,"unrepresentedCount":merged.unrepresented.len(),
+                        "note":"Breakpoint reports describe their source projections; they do not certify the merged responsive module. Review responsiveUnrepresented and projectionIssues."}});
+
                 if !merged.unrepresented.is_empty() {
                     for note in &merged.unrepresented {
                         projection_diagnostics.push(Diagnostic {
@@ -2373,6 +2398,23 @@ mod w1_regressions {
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
 
     #[tokio::test]
+    async fn r3_responsive_has_its_own_fidelity_result() {
+        let mut op = operation(&["responsiveTsx"]);
+        if let PendingOperation::Export { all_screens, .. } = &mut op {
+            *all_screens = true;
+        }
+        let result = project(responsive_payload(), op).await.unwrap();
+        assert_eq!(
+            result["outputResults"]["responsiveTsx"]["state"],
+            "produced"
+        );
+        let fidelity = &result["outputResults"]["responsiveTsx"]["fidelity"];
+        assert_eq!(fidelity["scope"], "breakpoint-source-projections");
+        assert_eq!(fidelity["breakpoints"].as_array().unwrap().len(), 2);
+        assert_eq!(fidelity["mergedMappingVerified"], false);
+    }
+
+    #[tokio::test]
     async fn r2_responsive_hidden_instance_and_visible_desktop() {
         for instance in [true, false] {
             let mut data = responsive_payload();
@@ -2646,6 +2688,22 @@ mod w1_regressions {
             }
             let result = project(data, op).await.unwrap();
             let issues = result["projectionIssues"].as_array().unwrap();
+            for issue in issues
+                .iter()
+                .filter(|i| i["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
+            {
+                let original = &issue["details"]["originalValue"];
+                assert_eq!(original["x"], 0);
+                assert_eq!(original["y"], 0);
+                assert_eq!(original["width"], 360);
+                assert_eq!(original["height"], 740);
+                assert_eq!(original["parent"]["width"], 360);
+                assert_eq!(original["constraints"]["horizontal"], "CENTER");
+                assert_eq!(original["children"][0]["x"], 20);
+                let padding = &issue["details"]["appliedValue"]["derivedPadding"];
+                assert_eq!(padding["left"], 20.0);
+                assert_eq!(padding["top"], if count == 40 { 232.5 } else { 185.5 });
+            }
             let layout: Vec<_> = issues
                 .iter()
                 .filter(|i| i["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
@@ -2762,7 +2820,15 @@ mod w1_regressions {
         let issue = &frame["projectionIssues"][0];
         assert_eq!(issue["nodeId"], "1:1");
         assert_eq!(issue["property"], "layoutPositioning");
-        assert!(issue["details"]["originalValue"].is_string());
+        assert_eq!(
+            issue["details"]["originalValue"]["layoutPositioning"],
+            "ABSOLUTE"
+        );
+        assert_eq!(
+            issue["details"]["originalValue"]["relativeTransform"],
+            json!([[1, 0, 0], [0.5, 1, 0]])
+        );
+        assert!(issue["details"]["originalValue"]["parentMissingReason"].is_string());
         assert!(issue["details"]["appliedValue"].is_object());
         assert!(issue["message"].is_string());
     }

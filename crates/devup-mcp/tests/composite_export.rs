@@ -640,6 +640,14 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         .as_ref()
         .expect("structured compatibility summary");
     let summaries = structured["resources"].as_array().unwrap();
+    assert_eq!(
+        result.structured_content.as_ref().unwrap()["assetJob"]["assets"][0]["status"],
+        "exported"
+    );
+    assert_eq!(
+        result.structured_content.as_ref().unwrap()["assetJob"]["assets"][0]["fileState"],
+        "written"
+    );
     assert_eq!(summaries.len(), 2, "manifest plus one binary asset");
     let manifest_uri = summaries
         .iter()
@@ -1129,5 +1137,368 @@ async fn p3_public_root_mapping_survives_resource_delivery_and_file_writes() -> 
     client.cancel().await?;
     task.await??;
     fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+#[derive(Default)]
+struct R3InterruptedUpstream {
+    timeout_first: bool,
+    snapshots: AtomicUsize,
+    first_asset: AtomicUsize,
+    second_asset: AtomicUsize,
+}
+#[async_trait]
+impl FigmaUpstream for R3InterruptedUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".into()])
+    }
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        match call {
+            ReadToolCall::Snapshot { .. } => {
+                self.snapshots.fetch_add(1, Ordering::SeqCst);
+                Ok(fast_envelope_result(false, false))
+            }
+            ReadToolCall::AssetExport {
+                version, request, ..
+            } => {
+                let counter = if request.asset_id == "1:2:fills:1" {
+                    &self.first_asset
+                } else {
+                    &self.second_asset
+                };
+                let attempt = counter.fetch_add(1, Ordering::SeqCst);
+                if request.asset_id == "1:3:fills:0" && attempt == 0 {
+                    if self.timeout_first {
+                        std::future::pending::<()>().await;
+                    }
+                    return Err(DevupError::new(
+                        ErrorCode::DevupFigmaDirectUnavailable,
+                        "synthetic interrupted asset read",
+                        true,
+                    ));
+                }
+                Ok(asset_export_result(version.as_deref(), &request))
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn r3_asset_job_resumes_only_pending_read_and_recovers_identical_request()
+-> anyhow::Result<()> {
+    r3_assert_resume(false).await
+}
+
+#[tokio::test(start_paused = true)]
+async fn r3_asset_job_timeout_keeps_first_asset_and_resumes_pending_read() -> anyhow::Result<()> {
+    r3_assert_resume(true).await
+}
+
+async fn r3_assert_resume(timeout_first: bool) -> anyhow::Result<()> {
+    let upstream = Arc::new(R3InterruptedUpstream {
+        timeout_first,
+        ..Default::default()
+    });
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2", "outputs":["assetManifest"],
+        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+    let mut paused = call(&client, "devup_figma_export", args.clone()).await?;
+    if timeout_first {
+        assert_eq!(paused["assetJob"]["state"], "running");
+        tokio::time::advance(std::time::Duration::from_secs(91)).await;
+        paused = call(
+            &client,
+            "devup_figma_export",
+            json!({"jobId":paused["assetJob"]["jobId"]}),
+        )
+        .await?;
+    }
+    assert_eq!(paused["assetJob"]["state"], "paused", "{paused}");
+    let id = paused["assetJob"]["jobId"].as_str().unwrap();
+    assert_eq!(paused["assetJob"]["assets"][0]["status"], "exported");
+    assert_eq!(
+        paused["assetJob"]["assets"][0]["fileState"],
+        "not-requested"
+    );
+    let recovered = call(&client, "devup_figma_export", args).await?;
+    assert_eq!(recovered["assetJob"]["jobId"], id);
+    let resumed = call(
+        &client,
+        "devup_figma_export",
+        json!({"jobId":id,"jobAction":"resume"}),
+    )
+    .await?;
+    let mut result = resumed;
+    for _ in 0..50 {
+        if result["assetJob"]["state"] == "complete" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        result = call(&client, "devup_figma_export", json!({"jobId":id})).await?;
+    }
+    assert_eq!(result["assetJob"]["state"], "complete", "{result}");
+    assert_eq!(
+        asset_by_id(&result["assetManifest"], "1:3:fills:0")["status"],
+        "exported"
+    );
+    assert_eq!(upstream.snapshots.load(Ordering::SeqCst), 1);
+    assert_eq!(upstream.first_asset.load(Ordering::SeqCst), 1);
+    assert_eq!(upstream.second_asset.load(Ordering::SeqCst), 2);
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn r3_oversized_assets_rejected_before_upstream() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let assets: Vec<_> = (0..16)
+        .map(|i| json!({"assetId":format!("1:{i}:node")}))
+        .collect();
+    let result=client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({
+        "url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],"assetRequests":assets
+    }).as_object().unwrap().clone())).await;
+    assert!(result.is_err(), "oversized batch must be rejected");
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[derive(Default)]
+struct R3BatchUpstream {
+    snapshots: AtomicUsize,
+    assets: AtomicUsize,
+}
+#[async_trait]
+impl FigmaUpstream for R3BatchUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".into()])
+    }
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        match call {
+            ReadToolCall::Snapshot { .. } => {
+                self.snapshots.fetch_add(1, Ordering::SeqCst);
+                let raw = fast_envelope_result(false, false).raw;
+                let mut envelope: Value =
+                    serde_json::from_str(raw["content"][0]["text"].as_str().unwrap()).unwrap();
+                let mut nodes = vec![envelope["snapshot"]["nodes"][0].clone()];
+                nodes[0]["fields"]["childrenIds"] =
+                    json!((10..26).map(|i| format!("1:{i}")).collect::<Vec<_>>());
+                nodes[0]["fields"]["fills"]
+                    .as_array_mut()
+                    .unwrap()
+                    .truncate(1);
+                for i in 10..26 {
+                    let mut node = envelope["snapshot"]["nodes"][1].clone();
+                    node["id"] = json!(format!("1:{i}"));
+                    nodes.push(node);
+                }
+                envelope["snapshot"]["nodes"] = json!(nodes);
+                envelope["integrity"]["nodeCount"] = json!(17);
+                loop {
+                    let size = serde_json::to_vec(&envelope).unwrap().len();
+                    if envelope["integrity"]["utf8Bytes"] == size {
+                        break;
+                    }
+                    envelope["integrity"]["utf8Bytes"] = json!(size);
+                }
+                Ok(UpstreamResult {
+                    raw: json!({"content":[{"type":"text","text":envelope.to_string()}]}),
+                })
+            }
+            ReadToolCall::AssetExport {
+                version, request, ..
+            } => {
+                self.assets.fetch_add(1, Ordering::SeqCst);
+                Ok(asset_export_result(version.as_deref(), &request))
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn r3_sixteen_assets_succeed_in_recommended_batches() -> anyhow::Result<()> {
+    let upstream = Arc::new(R3BatchUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let assets: Vec<_> = (10..26)
+        .map(|i| json!({"assetId":format!("1:{i}:fills:0")}))
+        .collect();
+    for batch in assets.chunks(3) {
+        let mut result = call(
+            &client,
+            "devup_figma_export",
+            json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+            "outputs":["assetManifest"],"assetRequests":batch}),
+        )
+        .await?;
+        for _ in 0..120 {
+            if result["assetJob"]["state"] == "complete" {
+                break;
+            }
+            tokio::time::advance(std::time::Duration::from_secs(1)).await;
+            result = call(
+                &client,
+                "devup_figma_export",
+                json!({"jobId":result["assetJob"]["jobId"]}),
+            )
+            .await?;
+        }
+        assert_eq!(result["assetJob"]["state"], "complete", "{result}");
+        for asset in batch {
+            assert_eq!(
+                asset_by_id(&result["assetManifest"], asset["assetId"].as_str().unwrap())["status"],
+                "exported"
+            );
+        }
+    }
+    assert_eq!(upstream.assets.load(Ordering::SeqCst), 16);
+    assert_eq!(upstream.snapshots.load(Ordering::SeqCst), 6);
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn r3_different_output_job_does_not_wait_on_unresumable_owner() -> anyhow::Result<()> {
+    let upstream = Arc::new(R3InterruptedUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let mut args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],
+        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+    let owner = call(&client, "devup_figma_export", args.clone()).await?;
+    assert_eq!(owner["assetJob"]["state"], "paused");
+    args["outputs"] = json!(["tsx", "assetManifest"]);
+    let independent = call(&client, "devup_figma_export", args).await?;
+    assert_eq!(
+        independent["assetJob"]["state"], "complete",
+        "{independent}"
+    );
+    assert_ne!(owner["assetJob"]["jobId"], independent["assetJob"]["jobId"]);
+    let resumed = call(
+        &client,
+        "devup_figma_export",
+        json!({"jobId":owner["assetJob"]["jobId"],"jobAction":"resume"}),
+    )
+    .await?;
+    assert_eq!(resumed["assetJob"]["state"], "complete");
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn r3_cancelled_client_recovers_retained_asset_job() -> anyhow::Result<()> {
+    let upstream = Arc::new(R3InterruptedUpstream {
+        timeout_first: true,
+        ..Default::default()
+    });
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],
+        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+    let dropped = tokio::time::timeout(
+        std::time::Duration::from_millis(100),
+        call(&client, "devup_figma_export", args.clone()),
+    )
+    .await;
+    assert!(dropped.is_err());
+    let recovered = call(&client, "devup_figma_export", args).await?;
+    let id = &recovered["assetJob"]["jobId"];
+    assert!(id.is_string());
+    assert_eq!(upstream.snapshots.load(Ordering::SeqCst), 1);
+    tokio::time::advance(std::time::Duration::from_secs(91)).await;
+    let paused = call(&client, "devup_figma_export", json!({"jobId":id})).await?;
+    assert_eq!(paused["assetJob"]["state"], "paused");
+    let complete = call(
+        &client,
+        "devup_figma_export",
+        json!({"jobId":id,"jobAction":"resume"}),
+    )
+    .await?;
+    assert_eq!(complete["assetJob"]["state"], "complete");
+    assert_eq!(upstream.first_asset.load(Ordering::SeqCst), 1);
+    assert_eq!(upstream.second_asset.load(Ordering::SeqCst), 2);
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn r3_distinct_resource_jobs_keep_both_manifests_readable() -> anyhow::Result<()> {
+    let upstream = Arc::new(R3InterruptedUpstream::default());
+    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let mut args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],"delivery":"resource",
+        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+    let owner = call(&client, "devup_figma_export", args.clone()).await?;
+    assert_eq!(owner["assetJob"]["state"], "paused");
+    args["outputs"] = json!(["tsx", "assetManifest"]);
+    let second = call(&client, "devup_figma_export", args).await?;
+    let first = call(
+        &client,
+        "devup_figma_export",
+        json!({"jobId":owner["assetJob"]["jobId"],"jobAction":"resume"}),
+    )
+    .await?;
+    for value in [first, second] {
+        assert_eq!(value["assetJob"]["state"], "complete");
+        assert!(
+            value["assetJob"]["assets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|a| a["status"] == "exported")
+        );
+        let uri = value["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["name"] == "asset-manifest.json")
+            .unwrap()["uri"]
+            .as_str()
+            .unwrap();
+        let bytes = read_resource_bytes(&client, uri).await?;
+        let manifest: Value = serde_json::from_slice(&bytes)?;
+        assert_eq!(asset_by_id(&manifest, "1:3:fills:0")["status"], "exported");
+    }
+    client.cancel().await?;
+    task.await??;
     Ok(())
 }

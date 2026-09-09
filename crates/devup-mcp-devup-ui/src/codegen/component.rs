@@ -1132,9 +1132,15 @@ fn finalize_codegen_output(
                 .filter_map(|range| output.tsx.get(range.start..range.end))
                 .collect::<Vec<_>>();
             diagnostic.details = Some(serde_json::json!({
-                "originalValue": snapshot.nodes.get(node_id).and_then(|n| n.typed_view().value(&property)),
+                "originalValue": super::evidence::fallback_original(snapshot, node_id, &property),
                 "originalResourceId": diagnostic.resource_id,
-                "appliedValue": {"generatedSource": generated, "fallback": diagnostic.fallback},
+                "appliedValue": {"generatedSource": generated, "fallback": diagnostic.fallback,
+                    "derivedPadding": if property == "layoutPositioning" {
+                        snapshot.nodes.get(node_id).and_then(|node|layout::derived_padding(snapshot,node))
+                            .map(|[top,right,bottom,left]|serde_json::json!({"top":top,"right":right,"bottom":bottom,"left":left,
+                                "basis":"Generator-derived inset from visible child geometry; not the source padding fields."}))
+                    } else { None }},
+                "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
                 "stage": "projection"
             }));
         }
