@@ -105,3 +105,146 @@ pub(super) fn uncovered_layout_details(
         "appliedValueReason":format!("No generated range exists for {node_id}#{property} or an enclosing asset/component replacement; trace={}",trace.map(|t| t.reason.as_str()).unwrap_or("absent")),
         "nextAction":"Inspect the source node and its projection trace; no computed CSS value can be inferred from absent source mapping."})
 }
+
+/// Original coordinates must travel with the approximation, not just its enum.
+/// Bounding-box deltas are labelled explicitly: rotated ancestors need an
+/// inverse transform to recover local coordinates, so never call those exact x/y.
+pub(super) fn placement_evidence(snapshot: &Snapshot, node_id: &str) -> Value {
+    let Some(node) = snapshot.nodes.get(node_id) else {
+        return json!({"nodeId":node_id,"missingReason":"The source node was not collected."});
+    };
+    let parent = node
+        .typed_view()
+        .string("parentId")
+        .and_then(|id| snapshot.nodes.get(id))
+        .or_else(|| {
+            snapshot
+                .nodes
+                .values()
+                .find(|n| n.typed_view().child_ids().any(|id| id == node_id))
+        });
+    let mut original = geometry(node);
+    original["parent"] = parent.map(geometry).unwrap_or(Value::Null);
+    original["parentMissingReason"] = if parent.is_none() {
+        json!("Parent was not collected; containing-block geometry cannot be verified.")
+    } else {
+        Value::Null
+    };
+    let view = node.typed_view();
+    let bounds = view.value("absoluteBoundingBox");
+    let parent_bounds = parent.and_then(|n| n.typed_view().value("absoluteBoundingBox"));
+    let delta = |axis: &str| {
+        bounds
+            .and_then(|b| b[axis].as_f64())
+            .zip(parent_bounds.and_then(|b| b[axis].as_f64()))
+            .map(|(a, b)| a - b)
+    };
+    let (x, y) = (delta("x"), delta("y"));
+    original["parentRelativeBounds"] = if let (Some(x), Some(y)) = (x, y) {
+        json!({"x":x,"y":y,"width":bounds.and_then(|b|b.get("width")),"height":bounds.and_then(|b|b.get("height")),
+            "basis":"absoluteBoundingBox offsets; axis-aligned canvas bounds, not inverse-transformed local coordinates"})
+    } else if parent.is_some_and(|p| p.node_type != "GROUP")
+        && view.number("x").is_some()
+        && view.number("y").is_some()
+    {
+        json!({"x":view.number("x"),"y":view.number("y"),"width":view.number("width"),"height":view.number("height"),
+            "basis":"collected x/y in the parent coordinate system"})
+    } else {
+        json!({"x":null,"y":null,"basis":"unavailable","reason":"Need both bounding boxes or unambiguous parent-local x/y."})
+    };
+    let mut children: Vec<_> = view.child_ids().collect();
+    // derived_padding uses the only visible child; keep that source even if
+    // many hidden siblings precede it in the design's child ordering.
+    children.sort_by_key(|id| {
+        snapshot
+            .nodes
+            .get(*id)
+            .is_some_and(|n| n.typed_view().bool("visible") == Some(false))
+    });
+    original["children"] =
+        json!(
+            children
+                .iter()
+                .take(16)
+                .map(|id| snapshot.nodes.get(*id).map(geometry).unwrap_or_else(
+                    || json!({"nodeId":id,"missingReason":"Child was not collected."})
+                ))
+                .collect::<Vec<_>>()
+        );
+    original["childCount"] = json!(children.len());
+    original["childrenTruncated"] = json!(children.len() > 16);
+    original
+}
+
+fn geometry(node: &devup_mcp_figma::RawNode) -> Value {
+    let view = node.typed_view();
+    let mut value = json!({"nodeId":node.id,"nodeType":node.node_type});
+    for field in [
+        "parentId",
+        "x",
+        "y",
+        "width",
+        "height",
+        "rotation",
+        "relativeTransform",
+        "absoluteTransform",
+        "absoluteBoundingBox",
+        "absoluteRenderBounds",
+        "constraints",
+        "layoutPositioning",
+        "layoutMode",
+        "layoutSizingHorizontal",
+        "layoutSizingVertical",
+        "layoutAlign",
+        "layoutGrow",
+        "inferredAutoLayout",
+        "paddingTop",
+        "paddingRight",
+        "paddingBottom",
+        "paddingLeft",
+        "itemSpacing",
+        "primaryAxisAlignItems",
+        "counterAxisAlignItems",
+        "minWidth",
+        "maxWidth",
+        "minHeight",
+        "maxHeight",
+        "clipsContent",
+        "isMask",
+        "maskType",
+        "visible",
+        "opacity",
+        "effects",
+        "fills",
+    ] {
+        value[field] = view.value(field).cloned().unwrap_or(Value::Null);
+    }
+    let missing: Vec<_> = [
+        "x",
+        "y",
+        "width",
+        "height",
+        "constraints",
+        "absoluteBoundingBox",
+    ]
+    .into_iter()
+    .filter(|field| value[*field].is_null())
+    .collect();
+    value["missingFields"] = json!(missing);
+    value["missingValueReason"] = json!(
+        "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+    );
+    value
+}
+
+pub(super) fn fallback_original(snapshot: &Snapshot, node_id: &str, property: &str) -> Value {
+    match property {
+        "layoutPositioning" | "isMask" | "childrenIds" => placement_evidence(snapshot, node_id),
+        _ => snapshot
+            .nodes
+            .get(node_id)
+            .and_then(|n| n.typed_view().value(property))
+            .cloned()
+            .unwrap_or(Value::Null),
+    }
+}

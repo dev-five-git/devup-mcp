@@ -1,4 +1,5 @@
 pub mod artifacts;
+mod asset_jobs;
 mod call_cache;
 pub mod delivery;
 mod diagnostics;
@@ -69,6 +70,13 @@ pub struct FigmaExportWorkflowInput {
     /// URL path segments are percent-encoded. Omit to keep placeholder paths.
     #[serde(default)]
     pub asset_public_root: Option<String>,
+    /// Poll a server-local asset job. Omit url/artifactId/assetRequests when polling.
+    #[serde(default)]
+    pub job_id: Option<String>,
+    /// status (default) or resume a paused asset job without repeating accepted reads.
+    #[serde(default)]
+    #[schemars(extend("enum" = ["status", "resume"]))]
+    pub job_action: Option<String>,
 }
 
 const FIGMA_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -267,6 +275,7 @@ pub struct DevupServer {
     services: Services,
     artifacts: ArtifactStore,
     output_policy: OutputPolicy,
+    asset_jobs: asset_jobs::AssetJobs,
 }
 
 impl DevupServer {
@@ -284,6 +293,7 @@ impl DevupServer {
     ) -> Result<Self, DevupError> {
         Ok(Self {
             tool_router: Self::tool_router(),
+            asset_jobs: asset_jobs::AssetJobs::default(),
             services,
             artifacts: ArtifactStore::default(),
             output_policy: OutputPolicy::from_roots(roots)?,
@@ -311,6 +321,9 @@ impl DevupServer {
         request: CollectionRequest,
         refresh: bool,
     ) -> Result<Value, DevupError> {
+        if !request.asset_selections.is_empty() {
+            return self.start_asset_job(operation, request, refresh).await;
+        }
         self.start_operation_scoped(operation, request, refresh, None)
             .await
     }
@@ -327,8 +340,23 @@ impl DevupServer {
         refresh: bool,
         scope: Option<&SearchScope>,
     ) -> Result<Value, DevupError> {
+        self.start_operation_scoped_tracked(operation, request, refresh, scope, None)
+            .await
+    }
+
+    async fn start_operation_scoped_tracked(
+        &self,
+        operation: PendingOperation,
+        request: CollectionRequest,
+        refresh: bool,
+        scope: Option<&SearchScope>,
+        job: Option<&asset_jobs::AssetJob>,
+    ) -> Result<Value, DevupError> {
         let artifact_key = ArtifactRequestKey::from_collection(&request);
         if !refresh && let Some(artifact) = self.artifacts.lookup(&artifact_key).await {
+            if let Some(job) = job {
+                job.captured(&artifact.payload.assets);
+            }
             let response = complete_operation(
                 operation,
                 &artifact.payload,
@@ -348,6 +376,9 @@ impl DevupServer {
         if !refresh
             && let Some(artifact) = self.artifacts.lookup_related_explore(&artifact_key).await
         {
+            if let Some(job) = job {
+                job.captured(&artifact.payload.assets);
+            }
             let response = complete_operation(
                 operation,
                 &artifact.payload,
@@ -374,14 +405,32 @@ impl DevupServer {
             ));
         }
 
-        match self
-            .artifacts
-            .get_or_acquire(artifact_key.clone(), refresh, || async {
-                CollectedPayload::try_from(self.run_direct(request.clone(), &operation).await?)
-            })
-            .await
-        {
+        // Each tracked job owns its collector. Artifact single-flight would
+        // make another output-path job wait on a paused collector it cannot resume.
+        let acquisition = if job.is_some() {
+            let payload = CollectedPayload::try_from(
+                self.run_direct(request.clone(), &operation, job).await?,
+            )?;
+            // Only deduplicate publication once this collector has finished.
+            // A ready payload cannot strand another job behind a paused read,
+            // and the winning artifact's resource URIs remain valid.
+            self.artifacts
+                .get_or_acquire(artifact_key.clone(), refresh, || async { Ok(payload) })
+                .await
+        } else {
+            self.artifacts
+                .get_or_acquire(artifact_key.clone(), refresh, || async {
+                    CollectedPayload::try_from(
+                        self.run_direct(request.clone(), &operation, None).await?,
+                    )
+                })
+                .await
+        };
+        match acquisition {
             Ok(artifact) => {
+                if let Some(job) = job {
+                    job.captured(&artifact.payload.assets);
+                }
                 let response = complete_operation(
                     operation,
                     &artifact.payload,
@@ -478,6 +527,7 @@ impl DevupServer {
         &self,
         request: CollectionRequest,
         operation: &PendingOperation,
+        job: Option<&asset_jobs::AssetJob>,
     ) -> Result<CollectedParts, DevupError> {
         let budget = match operation {
             PendingOperation::Export {
@@ -493,6 +543,9 @@ impl DevupServer {
         let target = request.target.clone();
         let mut collector = CollectorSession::new(request);
         loop {
+            if let Some(job) = job {
+                job.progress(&collector);
+            }
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
@@ -503,7 +556,12 @@ impl DevupServer {
                             ..
                         }
                     );
-                    match self.call_waiting_out_a_spent_allowance(planned.call).await {
+                    let upstream_result = if let Some(job) = job {
+                        job.call(self, planned.call).await
+                    } else {
+                        self.call_waiting_out_a_spent_allowance(planned.call).await
+                    };
+                    match upstream_result {
                         // A Section target is not a failed call — the script
                         // throws, and MCP delivers that as a successful result
                         // carrying `isError`. Handing it to `accept` made the
@@ -950,7 +1008,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Export a small Figma selection; the Figma-to-code entry point. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 15–60 seconds per frame as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into batches. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations and unclassified layout loss, even without includeDiagnostics. quality.assets grades binary collection; assetSummary.description explains collection state. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. Slow asset calls return assetJob with per-asset and per-stage progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 15–60 seconds per frame as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into batches. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations and unclassified layout loss, even without includeDiagnostics. quality.assets grades binary collection; assetSummary.description explains collection state. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
@@ -967,6 +1025,48 @@ impl DevupServer {
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let input = workflow.input;
+        validation::validate_asset_budget(&input.asset_requests).map_err(to_mcp_error)?;
+        if let Some(id) = workflow.job_id.as_deref() {
+            if input.url.is_some()
+                || input.artifact_id.is_some()
+                || !input.asset_requests.is_empty()
+                || !input.output_paths.is_empty()
+                || workflow.asset_public_root.is_some()
+                || input.refresh
+                || !input.frame_ids.is_empty()
+                || input.all_screens
+            {
+                return Err(to_mcp_error(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "jobId status/resume cannot change the original request or output paths.",
+                    false,
+                )));
+            }
+            let job = self.asset_jobs.get(id).map_err(to_mcp_error)?;
+            match workflow.job_action.as_deref().unwrap_or("status") {
+                "status" => {}
+                "resume" => job.resume(),
+                _ => {
+                    return Err(to_mcp_error(DevupError::new(
+                        ErrorCode::DevupInvalidInput,
+                        "jobAction must be status or resume.",
+                        false,
+                    )));
+                }
+            }
+            return job
+                .wait_briefly()
+                .await
+                .map(tool_result)
+                .map_err(to_mcp_error);
+        }
+        if workflow.job_action.is_some() {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "jobAction requires jobId.",
+                false,
+            )));
+        }
         let asset_public_root =
             validation::validate_public_root(workflow.asset_public_root.as_deref())
                 .map_err(to_mcp_error)?;

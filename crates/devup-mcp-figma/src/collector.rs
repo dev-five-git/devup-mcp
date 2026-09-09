@@ -304,6 +304,18 @@ impl CollectorSession {
         }
     }
 
+    /// Validated per-asset acquisition results retained before final payload assembly.
+    /// Binary data is deliberately not part of progress responses.
+    pub fn asset_progress(&self) -> Vec<Value> {
+        self.request.asset_selections.iter().map(|selection| {
+            match self.asset_results.iter().find(|asset| asset.asset_id == selection.asset_id) {
+                Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,
+                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code}),
+                None => serde_json::json!({"assetId":selection.asset_id,"status":"pending"}),
+            }
+        }).collect()
+    }
+
     pub fn stats(&self) -> &CollectionStats {
         &self.stats
     }
