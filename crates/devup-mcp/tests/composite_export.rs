@@ -881,7 +881,12 @@ async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Re
 #[tokio::test]
 async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
     let upstream = Arc::new(FastFixtureUpstream::lossy());
-    let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
+    // Path validation now precedes collection: use an allowed path so this
+    // test still isolates strict projection rejection and no-write behavior.
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(ConnectedAuth), upstream),
+        vec![std::env::temp_dir()],
+    )?;
     let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
     let task = tokio::spawn(async move {
         server.serve(server_transport).await?.waiting().await?;
@@ -1051,4 +1056,54 @@ fn asset_export_result(
 
 fn reference_png_base64() -> &'static str {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+}
+
+#[tokio::test]
+async fn p3_public_root_mapping_survives_resource_delivery_and_file_writes() -> anyhow::Result<()> {
+    let upstream = Arc::new(FastFixtureUpstream::complete());
+    let root = unique_temp_dir("p3-public-root")?;
+    let output_path = root.join("icons").join("BI icon.png");
+    let code_path = root.join("Screen.tsx");
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(ConnectedAuth), upstream),
+        vec![root.clone()],
+    )?;
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let result = call_result(&client, "devup_figma_export", json!({
+        "url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
+        "outputs":["tsx","assetManifest"], "delivery":"resource", "assetPublicRoot":root,
+        "outputPaths":{"tsx":code_path},
+        "assetRequests":[{"assetId":"1:3:fills:0","format":"png","scale":2,"outputPath":output_path}]
+    })).await?;
+    let resources = result.structured_content.as_ref().unwrap()["resources"]
+        .as_array()
+        .unwrap();
+    let manifest_uri = resources
+        .iter()
+        .find(|item| item["name"] == "asset-manifest.json")
+        .unwrap()["uri"]
+        .as_str()
+        .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&read_resource_bytes(&client, manifest_uri).await?)?;
+    assert_eq!(
+        asset_by_id(&manifest, "1:3:fills:0")["path"],
+        "/icons/BI%20icon.png"
+    );
+    let code_uri = resources.iter().find(|item| item["name"] == "tsx").unwrap()["uri"]
+        .as_str()
+        .unwrap();
+    let code = String::from_utf8(read_resource_bytes(&client, code_uri).await?)?;
+    assert!(code.contains("/icons/BI%20icon.png"), "{code}");
+    assert_eq!(fs::read_to_string(&code_path)?, code);
+    assert_eq!(fs::read(&output_path)?, b"synthetic-png");
+    client.cancel().await?;
+    task.await??;
+    fs::remove_dir_all(root)?;
+    Ok(())
 }

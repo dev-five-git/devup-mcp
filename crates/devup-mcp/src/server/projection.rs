@@ -30,6 +30,126 @@ use super::{
     section_candidate_as_explore, section_index_from_payload,
 };
 
+/// Reconcile only exports backed by verified bytes. Preserve an entry per node,
+/// but make identical content use one file and one code reference.
+fn reconcile_asset_paths(
+    manifest: &mut AssetManifest,
+    output_paths: &mut BTreeMap<String, String>,
+    public_root: Option<&std::path::Path>,
+    policy: &OutputPolicy,
+) -> Result<BTreeMap<String, String>, DevupError> {
+    // This verifies decoded length/hash as well as MIME before any write.
+    projected_asset_outputs(manifest)?;
+    let mut groups = BTreeMap::<_, Vec<usize>>::new();
+    for (index, asset) in manifest.assets.iter().enumerate() {
+        if asset.status != AssetStatus::Exported {
+            continue;
+        }
+        let bytes = STANDARD
+            .decode(asset.data_base64.as_deref().unwrap_or_default())
+            .map_err(|_| {
+                DevupError::new(
+                    ErrorCode::DevupCodegenFailed,
+                    "Invalid exported asset base64.",
+                    false,
+                )
+            })?;
+        let key = (
+            sha256_hex(&bytes),
+            asset.format.map(|format| format.extension()),
+            asset.mime_type.clone(),
+        );
+        groups.entry(key).or_default().push(index);
+    }
+    let mut replacements = BTreeMap::new();
+    for members in groups.values() {
+        // Canonical code names must survive a later code-only projection.
+        // Select the placeholder independently from the requested file target.
+        let canonical_path = members
+            .iter()
+            .find_map(|&index| manifest.assets[index].path.clone());
+        let output_path = members
+            .iter()
+            .find_map(|&index| output_paths.get(&manifest.assets[index].asset_id).cloned());
+        let path = if let (Some(root), Some(output)) = (public_root, &output_path) {
+            Some(super::validation::public_asset_url(
+                root,
+                policy.resolve(output)?.display_path(),
+            )?)
+        } else {
+            canonical_path
+        };
+        for &index in members {
+            let asset = &mut manifest.assets[index];
+            if let Some(output) = &output_path {
+                output_paths.insert(asset.asset_id.clone(), output.clone());
+            }
+            let old_path = std::mem::replace(&mut asset.path, path.clone());
+            if let (Some(old), Some(new)) = (old_path, path.as_ref())
+                && old != *new
+                && let Some(previous) = replacements.insert(old, new.clone())
+                && previous != *new
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "One placeholder refers to different exported assets. Use assetNamesPerNode:true.",
+                    false,
+                ));
+            }
+        }
+    }
+    Ok(replacements)
+}
+
+fn rewrite_asset_references(code: &str, paths: &BTreeMap<String, String>) -> String {
+    // One pass prevents a replacement from becoming another replacement's input.
+    let mut result = String::with_capacity(code.len());
+    let mut cursor = 0;
+    while cursor < code.len() {
+        let rest = &code[cursor..];
+        let matched = paths.iter().find(|(old, _)| {
+            rest.starts_with(old.as_str())
+                && cursor > 0
+                && matches!(code.as_bytes()[cursor - 1], b'"' | b'\'' | b'(')
+                && rest
+                    .as_bytes()
+                    .get(old.len())
+                    .is_some_and(|next| matches!(next, b'"' | b'\'' | b')'))
+        });
+        if let Some((old, new)) = matched {
+            result.push_str(new);
+            cursor += old.len();
+        } else {
+            let character = rest.chars().next().expect("nonempty remainder");
+            result.push(character);
+            cursor += character.len_utf8();
+        }
+    }
+    result
+}
+
+fn rewrite_result_asset_references(value: &mut Value, paths: &BTreeMap<String, String>) {
+    match value {
+        Value::Object(object) => {
+            for (key, value) in object {
+                if matches!(key.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
+                    if let Value::String(code) = value {
+                        *code = rewrite_asset_references(&with_host_safe_asset_paths(code), paths);
+                    }
+                } else if key == "frames" {
+                    rewrite_result_asset_references(value, paths);
+                }
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                rewrite_result_asset_references(value, paths);
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(super) fn projected_outputs_from_result(
     result: &Map<String, Value>,
 ) -> Result<Vec<ProjectedOutput>, DevupError> {
@@ -228,27 +348,38 @@ fn materialize_asset_resource_references(
     };
     for output in outputs.iter().filter(|output| output.asset_id.is_some()) {
         let asset_id = output.asset_id.as_deref().unwrap_or_default();
-        let asset = assets
-            .iter_mut()
-            .find(|asset| asset.get("assetId").and_then(Value::as_str) == Some(asset_id))
-            .and_then(Value::as_object_mut)
-            .ok_or_else(|| {
-                DevupError::new(
-                    ErrorCode::DevupSnapshotUnsupported,
-                    "No manifest entry matches this asset resource.",
-                    false,
-                )
-            })?;
-        asset.remove("dataBase64");
-        asset.insert(
-            "resource".to_owned(),
-            json!({
-                "uri": output.manifest_uri(artifact_id),
-                "mimeType": output.mime_type,
-                "byteLength": output.bytes.len(),
-                "sha256": sha256_hex(&output.bytes)
-            }),
-        );
+        if !assets
+            .iter()
+            .any(|asset| asset["assetId"].as_str() == Some(asset_id))
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupCodegenFailed,
+                "No manifest entry matches this asset resource.",
+                false,
+            ));
+        }
+        let format = assets
+            .iter()
+            .find(|asset| asset["assetId"].as_str() == Some(asset_id))
+            .expect("asset checked above")["format"]
+            .clone();
+        let hash = sha256_hex(&output.bytes);
+        for asset in assets.iter_mut().filter(|asset| {
+            asset["status"] == "exported"
+                && asset["sha256"].as_str() == Some(hash.as_str())
+                && asset["mimeType"] == output.mime_type
+                && asset["format"] == format
+        }) {
+            let asset = asset.as_object_mut().expect("manifest asset object");
+            asset.remove("dataBase64");
+            asset.insert(
+                "resource".to_owned(),
+                json!({
+                    "uri":output.manifest_uri(artifact_id),"mimeType":output.mime_type,
+                    "byteLength":output.bytes.len(),"sha256":hash
+                }),
+            );
+        }
     }
     if let Some(manifest_output) = outputs
         .iter_mut()
@@ -268,6 +399,7 @@ fn materialize_asset_resource_references(
 
 fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutput>, DevupError> {
     let mut outputs = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
     for (index, asset) in manifest.assets.iter().enumerate() {
         if asset.status != AssetStatus::Exported {
             continue;
@@ -310,6 +442,9 @@ fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutp
         let extension = asset
             .format
             .map_or("bin", devup_mcp_figma::AssetFormat::extension);
+        if !seen.insert((sha256_hex(&bytes), extension, mime_type)) {
+            continue;
+        }
         outputs.push(ProjectedOutput::asset(
             format!("asset-{}.{extension}", index + 1),
             mime_type,
@@ -852,7 +987,8 @@ pub(super) async fn complete_operation(
             frame_ids,
             all_screens,
             asset_captures,
-            asset_output_paths,
+            mut asset_output_paths,
+            asset_public_root,
             delivery,
         } => {
             if outputs.iter().any(|output| output == "sourceMap")
@@ -1025,7 +1161,38 @@ pub(super) async fn complete_operation(
                             "artifactId": artifact.artifact_id,
                             "frameIds": [candidate.node.node_id],
                             "outputs": outputs,
-                            "delivery": "resource"
+                            "delivery": "resource",
+                            "componentName": component_name,
+                            "includeDiagnostics": include_diagnostics,
+                            "rootLayout": if root_layout == devup_mcp_devup_ui::codegen::RootLayout::Embedded { "embedded" } else { "standalone" },
+                            "assetNamesPerNode": asset_names_per_node,
+                            "scope": scope,
+                            "strict": strict,
+                            "debug": outputs.iter().any(|output| super::validation::DIAGNOSIS_OUTPUTS.contains(&output.as_str())),
+                            "outputPaths": output_paths,
+                            "assetPublicRoot": asset_public_root,
+                            "assetRequests": asset_captures.iter().map(|capture| json!({
+                                "assetId":capture.asset_id,"format":capture.format,"scale":capture.scale,
+                                "outputPath":asset_output_paths.get(&capture.asset_id)
+                            })).collect::<Vec<_>>()
+                        }
+                    });
+                    let arguments =
+                        result.get_mut("nextAction").expect("nextAction")["example"]["arguments"]
+                            .as_object_mut()
+                            .expect("example arguments");
+                    arguments.insert("scope".into(), json!("node"));
+                    if outputs.iter().any(|output| output == "referencePng") {
+                        arguments.remove("artifactId");
+                        arguments.remove("frameIds");
+                        arguments.insert("url".into(), json!(candidate.canonical_url));
+                    }
+                } else {
+                    result.get_mut("nextAction").expect("nextAction")["example"] = json!({
+                        "tool":"devup_figma_explore", "arguments":{
+                            "url":format!("https://www.figma.com/design/{}?node-id={}", payload.target.file_key,
+                                payload.target.node_id.as_deref().unwrap_or_default().replace(':', "-")),
+                            "limit":100
                         }
                     });
                 }
@@ -1118,6 +1285,13 @@ pub(super) async fn complete_operation(
                             "remainingFrameIds":selected.iter().skip(MAX_SECTION_FRAMES).map(|c| &c.node.node_id).collect::<Vec<_>>() }),
                     ));
                 }
+                super::validation::validate_export_budget(
+                    &selected
+                        .iter()
+                        .map(|candidate| candidate.node.node_id.clone())
+                        .collect::<Vec<_>>(),
+                    &outputs,
+                )?;
                 let mut frames = Vec::with_capacity(selected.len());
                 for (index, candidate) in selected.iter().enumerate() {
                     let frame_component_name = component_name.as_ref().map(|name| {
@@ -1520,7 +1694,14 @@ pub(super) async fn complete_operation(
                 result.insert("referencePng".to_owned(), json!(reference));
             }
 
-            if outputs.iter().any(|output| output == "assetManifest") {
+            let reconcile_captured_assets = payload
+                .assets
+                .iter()
+                .any(|asset| asset.status == AssetStatus::Exported)
+                && outputs.iter().any(|output| {
+                    matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")
+                });
+            if manifest_requested || reconcile_captured_assets {
                 let mut manifest = devup_mcp_figma::discover_asset_manifest(&payload.snapshot);
                 for exported in &payload.assets {
                     if let Some(existing) = manifest
@@ -1804,6 +1985,22 @@ pub(super) async fn complete_operation(
                     }
                 }
             }
+            if let Some(manifest) = &mut pending_asset_manifest {
+                let replacements = reconcile_asset_paths(
+                    manifest,
+                    &mut asset_output_paths,
+                    asset_public_root.as_deref(),
+                    output_policy,
+                )?;
+                let mut value = Value::Object(std::mem::take(&mut result));
+                rewrite_result_asset_references(&mut value, &replacements);
+                result = value.as_object().expect("result object").clone();
+                for (name, code) in &mut pending_text_outputs {
+                    if matches!(name.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
+                        *code = rewrite_asset_references(code, &replacements);
+                    }
+                }
+            }
             let mut planned_outputs = Vec::new();
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {
@@ -1878,7 +2075,7 @@ pub(super) async fn complete_operation(
                 }
                 transaction.stage(name, target, &bytes)?;
             }
-            if let Some(mut manifest) = pending_asset_manifest {
+            if manifest_requested && let Some(mut manifest) = pending_asset_manifest {
                 asset_resource_outputs = projected_asset_outputs(&manifest)?;
                 for asset in &mut manifest.assets {
                     if asset.status != AssetStatus::Exported {
@@ -2212,6 +2409,278 @@ mod w1_regressions {
         assert!(result.get("assetManifest").is_none());
     }
 
+    #[tokio::test]
+    async fn p3_identical_bytes_share_manifest_paths() {
+        let mut data = payload();
+        for (id, path) in [("1:2", "/icons/a.svg"), ("1:3", "/icons/b.svg")] {
+            data.assets.push(
+                serde_json::from_value(json!({
+                    "assetId":id,"nodeId":id,"field":"svg","sourceKind":"svg",
+                    "status":"exported","format":"svg","scale":1,"mimeType":"image/svg+xml",
+                    "dataBase64":STANDARD.encode(b"<svg/>"), "byteLength":6,
+                    "sha256":sha256_hex(b"<svg/>"),"path":path
+                }))
+                .unwrap(),
+            );
+        }
+        let result = project(data, operation(&["assetManifest"])).await.unwrap();
+        let assets = result["assetManifest"]["assets"].as_array().unwrap();
+        assert_eq!(assets[0]["path"], assets[1]["path"]);
+    }
+
+    #[tokio::test]
+    async fn p3_selection_call_preserves_export_options() {
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            component_name,
+            strict,
+            ..
+        } = &mut op
+        {
+            *component_name = Some("TicketScreen".into());
+            *strict = true;
+        }
+        let result = project(section(2), op).await.unwrap();
+        let args = &result["nextAction"]["example"]["arguments"];
+        assert_eq!(args["componentName"], "TicketScreen");
+        assert_eq!(args["strict"], true);
+        assert_eq!(args["frameIds"], json!(["1:1"]));
+    }
+
+    fn p3_asset_payload(second_bytes: &[u8]) -> CollectedPayload {
+        let mut data = payload();
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["1:2", "1:3"]));
+        for (id, bytes) in [("1:2", b"first image".as_slice()), ("1:3", second_bytes)] {
+            data.snapshot.nodes.insert(
+                id.into(),
+                serde_json::from_value(json!({
+                    "id":id,"type":"RECTANGLE","fields":{"name":"Logo","parentId":"1:1",
+                    "visible":true,"width":40,"height":40,"x":0,"y":0,"isAsset":true,
+                    "fills":[{"type":"IMAGE","imageHash":id,"scaleMode":"FILL"}]}
+                }))
+                .unwrap(),
+            );
+            data.assets.push(serde_json::from_value(json!({
+                "assetId":format!("{id}:fills:0"),"nodeId":id,"field":"fills/0","sourceKind":"image",
+                "status":"exported","format":"png","scale":1,"mimeType":"image/png",
+                "dataBase64":STANDARD.encode(bytes),"byteLength":bytes.len(),"sha256":sha256_hex(bytes)
+            })).unwrap());
+        }
+        data
+    }
+
+    #[tokio::test]
+    async fn p3_public_mapping_and_dedup_rewrite_inline_and_written_tsx() {
+        let directory = std::env::temp_dir().join(format!(
+            "devup-p3-assets-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let root = dunce::canonicalize(&directory).unwrap();
+        let first_path = root.join("icons/BI icon.png");
+        let second_path = root.join("icons/other.png");
+        let tsx_path = root.join("Screen.tsx");
+        let mut op = operation(&["tsx", "assetManifest"]);
+        if let PendingOperation::Export {
+            asset_public_root,
+            asset_output_paths,
+            output_paths,
+            ..
+        } = &mut op
+        {
+            *asset_public_root = Some(root.clone());
+            asset_output_paths.insert("1:2:fills:0".into(), first_path.to_string_lossy().into());
+            asset_output_paths.insert("1:3:fills:0".into(), second_path.to_string_lossy().into());
+            output_paths.insert("tsx".into(), tsx_path.to_string_lossy().into());
+        }
+        let result = project(p3_asset_payload(b"first image"), op).await.unwrap();
+        let code = result["tsx"].as_str().unwrap();
+        assert!(code.contains("/icons/BI%20icon.png"), "{code}");
+        assert_eq!(std::fs::read_to_string(&tsx_path).unwrap(), code);
+        assert_eq!(std::fs::read(&first_path).unwrap(), b"first image");
+        assert!(!second_path.exists());
+        for asset in result["assetManifest"]["assets"].as_array().unwrap() {
+            assert_eq!(asset["path"], "/icons/BI%20icon.png");
+            assert_eq!(
+                std::path::Path::new(asset["outputPath"].as_str().unwrap()),
+                first_path
+            );
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn p3_same_name_different_bytes_keep_distinct_paths_and_default_names() {
+        let result = project(
+            p3_asset_payload(b"different image"),
+            operation(&["tsx", "assetManifest"]),
+        )
+        .await
+        .unwrap();
+        let assets = result["assetManifest"]["assets"].as_array().unwrap();
+        assert_ne!(assets[0]["path"], assets[1]["path"]);
+        for asset in assets {
+            assert!(
+                result["tsx"]
+                    .as_str()
+                    .unwrap()
+                    .contains(asset["path"].as_str().unwrap())
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn p3_identical_assets_share_one_binary_resource() {
+        let mut op = operation(&["tsx", "assetManifest"]);
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Resource;
+        }
+        let result = project(p3_asset_payload(b"first image"), op).await.unwrap();
+        let resources = result["resources"].as_array().unwrap();
+        assert_eq!(
+            resources
+                .iter()
+                .filter(|resource| resource["mimeType"] == "image/png")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn p3_rewrites_all_code_variants_without_cascading_or_prefix_changes() {
+        let paths = BTreeMap::from([
+            ("/icons/a.svg".into(), "/icons/b.svg".into()),
+            ("/icons/b.svg".into(), "/icons/c.svg".into()),
+        ]);
+        let mut result = json!({"tsx":"<Image src=\"/icons/a.svg\" />",
+            "componentTsx":"<Box maskImage=\"url(/icons/a.svg)\" />",
+            "responsiveTsx":"<Image src=\"/icons/b.svg\" />",
+            "frames":[{"tsx":"<Image src=\"/icons/a.svg\" />"}],
+            "other":"/icons/a.svg"});
+        rewrite_result_asset_references(&mut result, &paths);
+        assert_eq!(result["tsx"], "<Image src=\"/icons/b.svg\" />");
+        assert_eq!(result["frames"][0]["tsx"], result["tsx"]);
+        assert_eq!(
+            result["componentTsx"],
+            "<Box maskImage=\"url(/icons/b.svg)\" />"
+        );
+        assert_eq!(result["responsiveTsx"], "<Image src=\"/icons/c.svg\" />");
+        assert_eq!(result["other"], "/icons/a.svg");
+        assert_eq!(
+            rewrite_asset_references("url(/icons/a.svg.extra)", &paths),
+            "url(/icons/a.svg.extra)"
+        );
+    }
+
+    #[tokio::test]
+    async fn p3_selection_reference_png_followup_targets_single_url() {
+        let result = project(section(2), operation(&["tsx", "referencePng"]))
+            .await
+            .unwrap();
+        let args = &result["nextAction"]["example"]["arguments"];
+        assert!(args["url"].is_string());
+        assert!(args.get("frameIds").is_none());
+        assert!(args.get("artifactId").is_none());
+        assert_eq!(args["scope"], "node");
+    }
+
+    #[tokio::test]
+    async fn p3_default_paths_are_not_rewritten_to_requested_files() {
+        let directory = std::env::temp_dir().join(format!(
+            "devup-p3-default-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("chosen.png");
+        let mut op = operation(&["tsx", "assetManifest"]);
+        if let PendingOperation::Export {
+            asset_output_paths, ..
+        } = &mut op
+        {
+            asset_output_paths.insert("1:2:fills:0".into(), path.to_string_lossy().into());
+        }
+        let result = project(p3_asset_payload(b"different"), op).await.unwrap();
+        assert!(path.exists());
+        let asset = &result["assetManifest"]["assets"][0];
+        assert_ne!(asset["path"], "/chosen.png");
+        assert!(
+            result["tsx"]
+                .as_str()
+                .unwrap()
+                .contains(asset["path"].as_str().unwrap())
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn p3_unverified_equal_hashes_do_not_merge_different_bytes() {
+        let mut data = p3_asset_payload(b"different");
+        data.assets[1].sha256 = data.assets[0].sha256.clone();
+        let error = project(data, operation(&["tsx", "assetManifest"]))
+            .await
+            .unwrap_err();
+        assert!(error.message.contains("hash does not match"), "{error}");
+        assert!(!super::super::validation::is_caller_mistake(&error));
+    }
+
+    #[tokio::test]
+    async fn p3_tsx_only_reprojection_preserves_deduplicated_references() {
+        let data = p3_asset_payload(b"first image");
+        let with_manifest = project(data.clone(), operation(&["tsx", "assetManifest"]))
+            .await
+            .unwrap();
+        let without_manifest = project(data, operation(&["tsx"])).await.unwrap();
+        assert_eq!(with_manifest["tsx"], without_manifest["tsx"]);
+        assert!(without_manifest.get("assetManifest").is_none());
+    }
+
+    #[tokio::test]
+    async fn p3_canonical_reference_is_independent_of_requested_duplicate_file() {
+        let directory = std::env::temp_dir().join(format!(
+            "devup-p3-canonical-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let data = p3_asset_payload(b"first image");
+        let canonical = project(data.clone(), operation(&["tsx", "assetManifest"]))
+            .await
+            .unwrap();
+        let mut op = operation(&["tsx", "assetManifest"]);
+        if let PendingOperation::Export {
+            asset_output_paths, ..
+        } = &mut op
+        {
+            asset_output_paths.insert(
+                "1:3:fills:0".into(),
+                directory.join("chosen.png").to_string_lossy().into(),
+            );
+        }
+        let written = project(data, op).await.unwrap();
+        assert_eq!(canonical["tsx"], written["tsx"]);
+        assert_eq!(
+            canonical["assetManifest"]["assets"][0]["path"],
+            written["assetManifest"]["assets"][0]["path"]
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
     fn section(count: usize) -> CollectedPayload {
         let mut payload = payload();
         let template = payload.snapshot.nodes["1:1"].clone();
@@ -2251,6 +2720,7 @@ mod w1_regressions {
             all_screens: false,
             asset_captures: vec![],
             asset_output_paths: BTreeMap::new(),
+            asset_public_root: None,
             delivery: DeliveryMode::Inline,
         }
     }
