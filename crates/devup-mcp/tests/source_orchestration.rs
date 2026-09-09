@@ -299,7 +299,14 @@ async fn connected_auto_completes_through_the_direct_collector() -> anyhow::Resu
     let result = call_tool(auth.clone(), upstream.clone(), input()).await?;
     let output = result.structured_content.unwrap();
 
-    assert_eq!(output["status"], "complete");
+    assert_eq!(output["status"], "partial");
+    assert!(
+        output["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     assert_eq!(output["source"]["kind"], "direct");
     assert!(output["tsx"].as_str().unwrap().contains("SyntheticFrame"));
     assert_eq!(output["collection"]["figmaToolCalls"], 3);
@@ -375,7 +382,14 @@ async fn direct_fast_call_error_restarts_the_legacy_collector() -> anyhow::Resul
     .await?;
     let output = result.structured_content.unwrap();
 
-    assert_eq!(output["status"], "complete");
+    assert_eq!(output["status"], "partial");
+    assert!(
+        output["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     assert_eq!(output["collection"]["figmaToolCalls"], 3);
     assert_eq!(output["collection"]["fallbackUsed"], true);
     assert_eq!(

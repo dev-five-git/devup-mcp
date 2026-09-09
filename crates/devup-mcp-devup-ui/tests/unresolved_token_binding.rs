@@ -101,6 +101,13 @@ fn a_binding_whose_name_never_arrived_is_reported_rather_than_quietly_resolved()
             .map(|diagnostic| &diagnostic.code)
             .collect::<Vec<_>>()
     );
+    for issue in &unresolved {
+        assert!(issue.node_id.is_some());
+        assert!(issue.property.is_some());
+        let details = issue.details.as_ref().expect("result evidence");
+        assert!(details.get("originalValue").is_some());
+        assert!(details["appliedValue"].is_object());
+    }
     let reported = serde_json::to_string(&unresolved).expect("diagnostics serialize");
     assert!(
         reported.contains("VariableID:1:1009"),

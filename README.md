@@ -591,3 +591,11 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 상세 설계는 [`docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md`](docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md)를 참고하세요.
 
 `docs/superpowers/` 아래의 plan·spec은 **작성 시점의 기록**이지 현재 API 문서가 아닙니다. 예를 들어 위에서 제거했다고 적은 `devup_figma_to_ui`/`devup_figma_to_json`을 그 문서들은 아직 현재 도구처럼 기술합니다. 현재 도구 목록과 동작의 기준은 이 README와 서버가 게시하는 스키마·tool description입니다.
+
+### R1 응답 일관성
+
+`projectionIssues`는 `includeDiagnostics` 없이도 근사·손실의 노드, 필드, 사유와 원본/적용 근거를 반환합니다. 분류 근거 없는 `uncoveredLayout`은 `lossy`이며 `exact`나 최종 산출물로 표시하지 않습니다. 숨김 자산 참조를 제거하고, 제외 자산이 여전히 필요한 출력은 실패 사유와 함께 보류합니다.
+
+`quality.assets`는 자산 바이트 수집 품질이며 manifest 생성 성공을 뜻하지 않습니다. `assetSummary.description`과 `excludedCount`가 미수집·부분 수집·숨김 제외를 설명합니다. 바이트 수집을 요청하지 않았다면 `not-collected` 요약과 `quality.assets: not-requested`가 함께 올 수 있습니다.
+
+배치 응답의 `recommendedBatchSize`는 최대 3, `maxFrameCount`는 6, `maxFrameOutputUnits`는 12입니다. 자세한 정의는 [R1 응답 계약](docs/r1-result-contract.md)을 참고하세요.

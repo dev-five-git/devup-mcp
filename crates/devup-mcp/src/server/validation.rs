@@ -332,14 +332,15 @@ pub(super) fn validate_export_budget(
         .max(1);
     let batch_size = (12 / output_count).clamp(1, 6);
     if frame_ids.len() > batch_size {
+        let recommended = batch_size.min(3);
         return Err(DevupError::with_details(
             ErrorCode::DevupInvalidInput,
             "Export exceeds the batch budget for a 300-second client timeout. Split frameIds into smaller calls; use 1–3 frames per call and reuse artifactId when its capture covers the selected frames.",
             false,
             json!({"requestedFrameCount":frame_ids.len(),"outputCount":output_count,
                 "frameOutputUnits":frame_ids.len().saturating_mul(output_count),
-                "maxFrameOutputUnits":12,"recommendedBatchSize":batch_size,
-                "recommendedFrameIds":&frame_ids[..batch_size],"remainingFrameIds":&frame_ids[batch_size..],
+                "maxFrameOutputUnits":12,"maxFrameCount":6,"recommendedBatchSize":recommended,
+                "recommendedFrameIds":&frame_ids[..recommended],"remainingFrameIds":&frame_ids[recommended..],
                 "estimatedSecondsPerFrame":[15,60],"estimateKind":"planning heuristic; complexity, paging and throttling can exceed this",
                 "clientTimeoutSeconds":300}),
         ));
@@ -492,9 +493,13 @@ mod p3_tests {
             &["tsx".into(), "devupJson".into(), "assetManifest".into()],
         )
         .unwrap_err();
-        assert_eq!(error.details["recommendedBatchSize"], 4);
+        assert_eq!(error.details["recommendedBatchSize"], 3);
+        assert_eq!(error.details["maxFrameCount"], 6);
         assert_eq!(error.details["frameOutputUnits"], 18);
-        assert_eq!(error.details["remainingFrameIds"], json!(["1:5", "1:6"]));
+        assert_eq!(
+            error.details["remainingFrameIds"],
+            json!(["1:4", "1:5", "1:6"])
+        );
         assert!(validate_export_budget(&frames, &["tsx".into(), "tsx".into()]).is_ok());
     }
 

@@ -492,28 +492,6 @@ export function Wquw151Frame387935887() {
               </VStack>
             </Flex>
           </VStack>
-          <Flex
-            alignItems="center"
-            display="none"
-            px="12px"
-            py="14px"
-            w="336px"
-          >
-            <Text color="$text" typography="body" wordBreak="keep-all">
-              선택지
-            </Text>
-          </Flex>
-          <Flex
-            alignItems="center"
-            display="none"
-            px="12px"
-            py="14px"
-            w="336px"
-          >
-            <Text color="$text" typography="body" wordBreak="keep-all">
-              선택지
-            </Text>
-          </Flex>
           <VStack borderTop="solid 1px $border" px="12px" py="20px">
             <VStack gap="4px">
               <Text color="$text" typography="h6" wordBreak="keep-all">

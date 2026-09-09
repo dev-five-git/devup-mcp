@@ -588,9 +588,27 @@ fn non_default_nested_variant_difference_is_lossy_not_falsely_covered() {
     assert!(output.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK"
             && diagnostic.node_id.as_deref() == Some("hover-child")
+            && diagnostic.property.as_deref() == Some("childrenIds")
+            && diagnostic
+                .details
+                .as_ref()
+                .is_some_and(|d| d["appliedValue"].is_object())
             && diagnostic.fidelity_impact() == devup_mcp_figma::FidelityImpact::Lossy
     }));
-    assert_eq!(output.fidelity_report.impacts.lossy, 1);
+    assert_eq!(
+        output.fidelity_report.impacts.lossy,
+        output
+            .diagnostics
+            .iter()
+            .filter(|d| d.fidelity_impact() == devup_mcp_figma::FidelityImpact::Lossy)
+            .count()
+    );
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     assert!(!output.fidelity_report.layout.complete());
     assert!(!output.fidelity_report.strict_compatible());
 }

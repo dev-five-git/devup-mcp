@@ -296,9 +296,16 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     )
     .await?;
 
-    assert_eq!(result["status"], "complete");
+    assert_eq!(result["status"], "partial");
+    assert!(
+        result["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     assert_eq!(result["quality"]["acquisition"], "complete");
-    assert_eq!(result["quality"]["projection"], "exact");
+    assert_eq!(result["quality"]["projection"], "lossy");
     assert_eq!(result["quality"]["theme"], "not-requested");
     assert_eq!(result["quality"]["assets"], "not-requested");
     assert!(
