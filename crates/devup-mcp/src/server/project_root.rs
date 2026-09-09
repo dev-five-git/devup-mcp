@@ -32,7 +32,6 @@ const SKIP_DIRS: &[&str] = &[
     "dist",
     "build",
     ".git",
-    ".worktrees",
     ".next",
     ".turbo",
     ".nuxt",
@@ -58,44 +57,38 @@ pub fn find_project_root(start: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Breadth-first search from `root` down to `max_depth` directories for
-/// every file whose name is exactly `filename`, skipping [`SKIP_DIRS`].
-/// Returns paths sorted for deterministic output.
-pub fn find_files_named(root: &Path, filename: &str, max_depth: usize) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let mut queue = vec![(root.to_path_buf(), 0usize)];
-    while let Some((dir, depth)) = queue.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if file_type.is_file() && name == filename {
-                found.push(path);
-            } else if file_type.is_dir()
-                && depth < max_depth
-                && !SKIP_DIRS.contains(&name.as_ref())
-                && !path.join(".git").exists()
-            {
-                queue.push((path, depth + 1));
-            }
-        }
-    }
-    found.sort();
-    found
+/// Worktree containers are excluded from authoritative results, but searched
+/// for matching names so callers can explain what was excluded.
+const NESTED_CHECKOUT_DIRS: &[&str] = &[".worktrees", ".worktree", ".git-worktrees"];
+
+/// Bounded search for files named exactly `filename`. Returns sorted current
+/// project paths and sorted `excludedPaths` entries (relative path and reason).
+/// Excluded matches are names only: their contents are never read here.
+pub fn find_files_named(
+    root: &Path,
+    filename: &str,
+    max_depth: usize,
+) -> (Vec<PathBuf>, Vec<Value>) {
+    find_named(root, filename, max_depth, false)
 }
 
-/// Breadth-first search for every directory named exactly `dirname` (e.g.
-/// vespertide's conventional `models/` directory), skipping [`SKIP_DIRS`].
-pub fn find_dirs_named(root: &Path, dirname: &str, max_depth: usize) -> Vec<PathBuf> {
+/// Like [`find_files_named`], but matches directories (including a checkout
+/// root with the requested name, which is reported only as excluded).
+pub fn find_dirs_named(root: &Path, dirname: &str, max_depth: usize) -> (Vec<PathBuf>, Vec<Value>) {
+    find_named(root, dirname, max_depth, true)
+}
+
+fn find_named(
+    root: &Path,
+    target_name: &str,
+    max_depth: usize,
+    directories: bool,
+) -> (Vec<PathBuf>, Vec<Value>) {
     let mut found = Vec::new();
-    let mut queue = vec![(root.to_path_buf(), 0usize)];
-    while let Some((dir, depth)) = queue.pop() {
+    let mut excluded = Vec::new();
+    // The explicit root is authoritative even when it is itself a worktree.
+    let mut queue = vec![(root.to_path_buf(), 0usize, None)];
+    while let Some((dir, depth, inherited_reason)) = queue.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
@@ -103,27 +96,58 @@ pub fn find_dirs_named(root: &Path, dirname: &str, max_depth: usize) -> Vec<Path
             let Ok(file_type) = entry.file_type() else {
                 continue;
             };
-            if !file_type.is_dir() {
-                continue;
-            }
             let path = entry.path();
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            // A nested checkout may use either a .git directory or a gitfile.
-            // Skip before matching too: the checkout root itself is not a result.
-            if SKIP_DIRS.contains(&name.as_ref()) || path.join(".git").exists() {
+            let is_dir = file_type.is_dir();
+            // Dependency/build output stays pruned even in diagnostic traversal.
+            if is_dir && SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
-            if name == dirname {
-                found.push(path.clone());
+            let reason = inherited_reason.or_else(|| {
+                if !is_dir {
+                    None
+                } else if NESTED_CHECKOUT_DIRS.contains(&name.as_ref()) {
+                    Some("nested-checkout-directory")
+                } else if path.join(".git").exists() {
+                    Some("nested-git-checkout")
+                } else {
+                    None
+                }
+            });
+            if name == target_name
+                && (if directories {
+                    is_dir
+                } else {
+                    file_type.is_file()
+                })
+            {
+                if let Some(reason) = reason {
+                    excluded.push((path.clone(), reason));
+                } else {
+                    found.push(path.clone());
+                }
             }
-            if depth < max_depth {
-                queue.push((path, depth + 1));
+            // Preserve the original depth budget across checkout boundaries.
+            // Never follow symlinks or read excluded file contents.
+            if is_dir && depth < max_depth {
+                queue.push((path, depth + 1, reason));
             }
         }
     }
     found.sort();
-    found
+    excluded.sort();
+    let excluded = excluded
+        .into_iter()
+        .map(|(path, reason)| {
+            json!({
+                "path": path.strip_prefix(root).expect("scan stays under root")
+                    .to_string_lossy().replace('\\', "/"),
+                "reason": reason,
+            })
+        })
+        .collect();
+    (found, excluded)
 }
 
 /// Every `*.json` file directly inside `dir` (non-recursive), sorted.
@@ -243,7 +267,8 @@ mod tests {
         let real = temp.path().join("apps").join("front");
         std::fs::create_dir_all(&real).unwrap();
         std::fs::write(real.join("devup.json"), "{}").unwrap();
-        let found = find_files_named(temp.path(), "devup.json", 4);
+        let (found, excluded) = find_files_named(temp.path(), "devup.json", 4);
+        assert!(excluded.is_empty());
         assert_eq!(found, vec![real.join("devup.json")]);
     }
 
@@ -264,18 +289,89 @@ mod tests {
         std::fs::create_dir(temp.path().join("copies/repo/.git")).unwrap();
         std::fs::write(temp.path().join("copies/linked/.git"), "gitdir: elsewhere").unwrap();
         assert_eq!(
-            find_files_named(temp.path(), "devup.json", 6),
+            find_files_named(temp.path(), "devup.json", 6).0,
             vec![temp.path().join("apps/front/devup.json")]
         );
         assert_eq!(
-            find_dirs_named(temp.path(), "models", 6),
+            find_dirs_named(temp.path(), "models", 6).0,
             vec![temp.path().join("apps/front/models")]
         );
-        assert!(find_dirs_named(temp.path(), ".worktrees", 6).is_empty());
-        assert!(find_dirs_named(temp.path(), "repo", 6).is_empty());
+        for (name, directories) in [("devup.json", false), ("models", true)] {
+            let (_, excluded) = find_named(temp.path(), name, 6, directories);
+            assert_eq!(
+                excluded,
+                vec![
+                    json!({ "path": format!(".worktrees/stale/{name}"), "reason": "nested-checkout-directory" }),
+                    json!({ "path": format!("copies/linked/{name}"), "reason": "nested-git-checkout" }),
+                    json!({ "path": format!("copies/repo/{name}"), "reason": "nested-git-checkout" }),
+                ]
+            );
+        }
+        assert!(find_dirs_named(temp.path(), ".worktrees", 6).0.is_empty());
+        assert!(find_dirs_named(temp.path(), "repo", 6).0.is_empty());
         assert_eq!(
-            find_files_named(&temp.path().join("copies/repo"), "devup.json", 2).len(),
+            find_dirs_named(temp.path(), "repo", 6).1,
+            vec![json!({
+                "path": "copies/repo", "reason": "nested-git-checkout",
+            })]
+        );
+        assert_eq!(
+            find_files_named(&temp.path().join("copies/repo"), "devup.json", 2)
+                .0
+                .len(),
             1
+        );
+    }
+
+    #[test]
+    fn scans_skip_all_worktree_container_names() {
+        let temp = ScopedTempDir::new("all-worktree-containers");
+        for container in [".worktrees", ".worktree", ".git-worktrees"] {
+            let checkout = temp.path().join(container).join("stale");
+            std::fs::create_dir_all(checkout.join("models")).unwrap();
+            std::fs::write(checkout.join("devup.json"), "{}").unwrap();
+        }
+        assert!(find_files_named(temp.path(), "devup.json", 4).0.is_empty());
+        assert!(find_dirs_named(temp.path(), "models", 4).0.is_empty());
+    }
+
+    #[test]
+    fn diagnostic_scan_keeps_depth_limits_and_prunes_build_output() {
+        let temp = ScopedTempDir::new("diagnostic-depth");
+        for dir in [
+            ".worktrees/stale",
+            ".worktrees/stale/deeper",
+            ".worktrees/stale/node_modules/pkg",
+            ".worktrees/stale/target/pkg",
+        ] {
+            let dir = temp.path().join(dir);
+            std::fs::create_dir_all(dir.join("models")).unwrap();
+            std::fs::write(dir.join("devup.json"), "{}").unwrap();
+        }
+        let (files, excluded) = find_files_named(temp.path(), "devup.json", 2);
+        assert!(files.is_empty());
+        assert_eq!(
+            excluded,
+            vec![json!({
+                "path": ".worktrees/stale/devup.json", "reason": "nested-checkout-directory",
+            })]
+        );
+        let (dirs, excluded) = find_dirs_named(temp.path(), "models", 2);
+        assert!(dirs.is_empty());
+        assert_eq!(
+            excluded,
+            vec![json!({
+                "path": ".worktrees/stale/models", "reason": "nested-checkout-directory",
+            })]
+        );
+        // A larger depth admits only the deeper match, never dependency/build files.
+        assert_eq!(find_files_named(temp.path(), "devup.json", 6).1.len(), 2);
+        assert_eq!(find_dirs_named(temp.path(), "models", 6).1.len(), 2);
+        assert!(find_files_named(temp.path(), "devup.json", 0).1.is_empty());
+        let checkout = temp.path().join(".worktrees/stale");
+        assert_eq!(
+            find_files_named(&checkout, "devup.json", 0),
+            (vec![checkout.join("devup.json")], vec![])
         );
     }
 

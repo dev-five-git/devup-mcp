@@ -9,7 +9,7 @@
 //! exists") and was written up as one. These lock the rule to the props.
 
 use devup_mcp_devup_ui::theme::{ProjectTheme, parse_project_theme};
-use devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx;
+use devup_mcp_devup_ui::ui_validate::{Severity, validate_devup_ui_tsx};
 
 fn theme() -> ProjectTheme {
     parse_project_theme(
@@ -51,15 +51,10 @@ fn the_shorthand_and_the_long_form_agree() {
     assert_eq!(shorthand.len(), 1);
 }
 
-/// A matching token is a suggestion attached to the report, never a
-/// precondition for making it. This is the half the defect write-up got
-/// backwards: it read `bg="#752E2E"` going unreported as evidence that
-/// colors are only reported when a token matches, and concluded the color
-/// and length rules were asymmetric. They are not - `bg` was simply not a
-/// prop the rule looked at. Both of these are reported; only one carries a
-/// token, because only one is a token's exact value.
+/// Every color literal is reported. Exact matches are actionable warnings;
+/// unmatched values are info with no speculative token suggestion (INT1/D11).
 #[test]
-fn a_color_is_reported_whether_or_not_a_token_matches_it() {
+fn colors_are_always_reported_but_only_exact_matches_warn_and_suggest() {
     let suggestion_for = |value: &str| {
         validate_devup_ui_tsx(
             &format!(r##"export const S = () => <Box bg="{value}" />;"##),
@@ -69,27 +64,30 @@ fn a_color_is_reported_whether_or_not_a_token_matches_it() {
         .violations
         .into_iter()
         .find(|violation| violation.rule == "hardcoded-color")
-        .map(|violation| violation.suggestion)
+        .map(|violation| (violation.severity, violation.suggestion))
     };
 
     // Exactly `$primary`'s value: reported, with the token named.
     let exact = suggestion_for("#752D2D").expect("an exact-value color is reported");
     assert!(
-        exact.is_some_and(|text| text.contains("$primary")),
+        exact.1.is_some_and(|text| text.contains("$primary")),
         "the token whose value this is should be suggested"
     );
 
+    assert_eq!(exact.0, Severity::Warning);
     // One digit away, and nothing else close: still reported, nothing to
     // suggest. Suggestions are exact-value only.
     let near = suggestion_for("#752E2E").expect("a near-miss color is still reported");
     assert!(
-        near.is_none(),
+        near.1.is_none(),
         "no token holds this value, so none is named"
     );
 
+    assert_eq!(serde_json::to_value(near.0).unwrap(), "info");
     // Nothing like it in the theme at all: still reported.
     let far = suggestion_for("#0A9F4C").expect("an unrelated color is still reported");
-    assert!(far.is_none());
+    assert!(far.1.is_none());
+    assert_eq!(serde_json::to_value(far.0).unwrap(), "info");
 }
 
 /// `bg` also takes images and gradients. Only a color literal is a color,

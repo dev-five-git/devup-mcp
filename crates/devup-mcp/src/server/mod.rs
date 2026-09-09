@@ -1137,7 +1137,7 @@ impl DevupServer {
 
     #[tool(
         description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
-                       `ok` is decided by severity, not by count: it is false only when a violation is an error (syntax failure, unknown $token, unknown prop, runtime value in a build-time call), so `ok: true` beside a list of warnings is correct output rather than a contradiction - `okReason` says which case it was, and `strict: true` makes any warning fail instead. \
+                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations. `themeNotes` summarizes each encountered empty token category once. \
                        `checkedTokens` counts $token references this TSX makes and `availableTokenCount` counts tokens devup.json defines; they count different things and are not a ratio, which `tokens` restates by name.",
         output_schema = permissive_object_output_schema()
     )]
@@ -1168,26 +1168,32 @@ impl DevupServer {
         //
         // And with no theme the token check is skipped rather than passed,
         // which a bare `checkedTokens` cannot distinguish.
-        let errors = report
-            .violations
-            .iter()
-            .filter(|violation| {
-                violation.severity == devup_mcp_devup_ui::ui_validate::Severity::Error
-            })
-            .count();
-        let warnings = report.violations.len() - errors;
-        let ok_reason = match (report.ok, errors, warnings) {
-            (false, 0, _) => "strict-warnings",
-            (false, _, _) => "error-violations",
-            (true, _, 0) => "clean",
-            (true, _, _) => "warnings-only",
+        use devup_mcp_devup_ui::ui_validate::Severity;
+        let count_severity = |severity| {
+            report
+                .violations
+                .iter()
+                .filter(|finding| finding.severity == severity)
+                .count()
+        };
+        let errors = count_severity(Severity::Error);
+        let warnings = count_severity(Severity::Warning);
+        let infos = count_severity(Severity::Info);
+        let ok_reason = match (errors, warnings, infos, input.strict) {
+            (1.., _, _, _) => "error-violations",
+            (_, 1.., _, true) => "strict-warnings",
+            (_, 1.., 1.., _) => "warnings-and-info",
+            (_, 1.., _, _) => "warnings-only",
+            (_, _, 1.., _) => "info-only",
+            _ => "clean",
         };
         Ok(tool_result(json!({
             "ok": report.ok,
             "okReason": ok_reason,
             "strict": input.strict,
             "violations": report.violations,
-            "violationCounts": { "error": errors, "warning": warnings },
+            "violationCounts": { "error": errors, "warning": warnings, "info": infos },
+            "themeNotes": report.theme_notes,
             "checkedTokens": report.checked_tokens,
             "availableTokenCount": report.available_token_count,
             "tokens": {
