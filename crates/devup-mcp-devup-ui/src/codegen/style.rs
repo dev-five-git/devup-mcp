@@ -1114,14 +1114,22 @@ fn gradient_css(
         .join(", ");
     Some(match kind {
         "linear" | "radial" | "angular" => format!("{prefix}{stops})"),
+        // A diamond is four linear gradients, one into each corner. The pairs
+        // are written as pairs rather than as `"corner|direction"` strings
+        // split back apart at runtime. Nothing outside this array ever reached
+        // that split — the design comes in through `raw_stops`, `transform`
+        // and `kind`, all of which are already `Option`-handled above — so the
+        // only way it could have failed was a typo in the four lines below,
+        // and it would have failed by killing the server rather than by
+        // drawing a wrong gradient. Said as tuples, the same four facts cannot
+        // be written malformed at all.
         "diamond" => [
-            "bottom right|to bottom right",
-            "bottom left|to bottom left",
-            "top left|to top left",
-            "top right|to top right",
+            ("bottom right", "to bottom right"),
+            ("bottom left", "to bottom left"),
+            ("top left", "to top left"),
+            ("top right", "to top right"),
         ]
-        .map(|entry| {
-            let (position, direction) = entry.split_once('|').expect("diamond direction");
+        .map(|(position, direction)| {
             format!("linear-gradient({direction}, {stops}) {position} / 50.1% 50.1% no-repeat")
         })
         .join(", "),
