@@ -104,13 +104,6 @@ expression: actual
             제주국제관악제 최신 소식 확인하기
           </Text>
           <Flex gap="30px">
-            <Image
-              aspectRatio="1"
-              borderRadius="4px"
-              boxSize="32px"
-              display="none"
-              src="/icons/twitter_5968830 (1) 1.svg"
-            />
             <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/instagram_15713420 1.svg" />
             <Image aspectRatio="1" borderRadius="4px" boxSize="32px" src="/icons/facebook_1384053 1.svg" />
             <Box
@@ -123,7 +116,6 @@ expression: actual
             >
               <Image boxSize="32px" src="/icons/Layer 2.svg" />
             </Box>
-            <Image aspectRatio="1" boxSize="32px" display="none" src="/icons/Group 21.svg" />
           </Flex>
           <Text
             color="$text"

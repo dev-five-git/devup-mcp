@@ -1051,6 +1051,61 @@ fn finalize_codegen_output(
     output.projection_trace =
         build_projection_trace(snapshot, root_id, &output.tsx, &output.source_map);
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
+    output
+        .diagnostics
+        .retain(|d| d.code != "DEVUP_CODEGEN_LAYOUT_UNCOVERED");
+    // A coverage shortfall has no proven intentional-exclusion classification.
+    // Report the actual field instead of allowing an exact quality grade.
+    for pair in &output.fidelity_report.uncovered_layout {
+        if let Some((node_id, property)) = pair.rsplit_once('#') {
+            output.diagnostics.push(Diagnostic {
+                code: "DEVUP_CODEGEN_LAYOUT_UNCOVERED".into(),
+                message: "No generated source mapping proves this layout field was represented; exclusion is unclassified.".into(),
+                node_id: Some(node_id.into()),
+                property: Some(property.into()),
+                fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
+                details: Some(serde_json::json!({
+                    "originalValue": snapshot.nodes.get(node_id).and_then(|n| n.typed_view().value(property)),
+                    "appliedValue": null,
+                    "classification": "unclassified",
+                    "appliedValueReason": "No verified generated mapping for this field."
+                })),
+                ..Diagnostic::default()
+            });
+        }
+    }
+    for diagnostic in &mut output.diagnostics {
+        let property = match diagnostic.code.as_str() {
+            "DEVUP_CODEGEN_ABSOLUTE_FALLBACK" => Some("layoutPositioning"),
+            "DEVUP_CODEGEN_MASK_FALLBACK" => Some("isMask"),
+            "DEVUP_CODEGEN_EFFECT_FALLBACK" => Some("effects"),
+            "DEVUP_CODEGEN_ANIMATION_UNREACHABLE" => Some("reactions"),
+            "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK" => Some("childrenIds"),
+            "DEVUP_CODEGEN_TOKEN_NAME_UNRESOLVED" => diagnostic.property.as_deref(),
+            _ => None,
+        };
+        if let Some(property) = property.map(str::to_owned) {
+            diagnostic.property = Some(property.clone());
+            let node_id = diagnostic.node_id.as_deref().unwrap_or(root_id);
+            let generated = output
+                .source_map
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.node_id.as_deref() == Some(node_id) && entry.property.is_none()
+                })
+                .filter_map(|entry| entry.generated_range.as_ref())
+                .filter_map(|range| output.tsx.get(range.start..range.end))
+                .collect::<Vec<_>>();
+            diagnostic.details = Some(serde_json::json!({
+                "originalValue": snapshot.nodes.get(node_id).and_then(|n| n.typed_view().value(&property)),
+                "originalResourceId": diagnostic.resource_id,
+                "appliedValue": {"generatedSource": generated, "fallback": diagnostic.fallback},
+                "stage": "projection"
+            }));
+        }
+    }
+    output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     Ok(output)
 }
 
@@ -1154,6 +1209,9 @@ fn unresolved_token_bindings(
                      still needs a name."
                 ),
                 severity: Some(DiagnosticSeverity::Warning),
+                node_id: Some(id.clone()),
+                property: Some(property.to_owned()),
+                resource_id: Some(resource_id.clone()),
                 resource_kind: Some(kind.to_owned()),
                 details: Some(serde_json::json!({
                     "nodeId": id,
@@ -1202,8 +1260,21 @@ fn render_node(
             false,
         ));
     }
-    add_fallback_diagnostics(snapshot, node, context);
     let view = node.typed_view();
+    // Hidden snapshot subtrees have no deliverable assets. Do not emit their
+    // image/background/mask references, even under display:none.
+    if view.bool("visible") == Some(false) {
+        visiting.remove(&node.id);
+        return Ok(mark_node(
+            &node.id,
+            if depth == 0 {
+                "<></>".into()
+            } else {
+                String::new()
+            },
+        ));
+    }
+    add_fallback_diagnostics(snapshot, node, context);
     let concrete_visibility = if context.inline_instances {
         view.value("componentPropertyReferences")
             .and_then(serde_json::Value::as_object)
@@ -1457,6 +1528,7 @@ fn render_node(
     } else {
         view.child_ids()
             .filter_map(|id| snapshot.nodes.get(id))
+            .filter(|child| child.typed_view().bool("visible") != Some(false))
             .map(|child| render_node(snapshot, child, depth + 1, context, visiting))
             .collect::<Result<Vec<_>, _>>()
     };
