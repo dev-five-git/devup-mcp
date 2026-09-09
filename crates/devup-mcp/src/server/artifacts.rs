@@ -440,26 +440,34 @@ impl ArtifactStore {
                         key_digest.clone(),
                         InFlightWait::Exact,
                     )
-                } else if let Some((compatible_digest, reuse_kind)) = state
+                } else if let Some((compatible_digest, receiver, reuse_kind)) = state
                     .in_flight_keys
                     .iter()
+                    // The receiver is taken here, from the same read of the
+                    // same lock that picked the key, rather than looked up
+                    // again below. `in_flight` and `in_flight_keys` are meant
+                    // to hold the same digests — they are written together and
+                    // erased together — but that is an agreement between three
+                    // separate sites, one of which only runs when a waiter
+                    // notices a cancelled owner. Reading the key without its
+                    // receiver leaves somewhere for the two to disagree, and
+                    // what a disagreement would have cost is the process: this
+                    // is the shared store every collection goes through. A
+                    // candidate that has no receiver simply is not a candidate.
                     .filter_map(|(digest, in_flight_key)| {
+                        let receiver = state.in_flight.get(digest)?;
                         in_flight_key.explore_reuse_kind(&key).map(|reuse_kind| {
                             (
                                 digest.clone(),
+                                receiver.clone(),
                                 reuse_kind,
                                 in_flight_key.explore_projection_limit(),
                             )
                         })
                     })
-                    .min_by_key(|(_, _, projection_limit)| *projection_limit)
-                    .map(|(digest, reuse_kind, _)| (digest, reuse_kind))
+                    .min_by_key(|(_, _, _, projection_limit)| *projection_limit)
+                    .map(|(digest, receiver, reuse_kind, _)| (digest, receiver, reuse_kind))
                 {
-                    let receiver = state
-                        .in_flight
-                        .get(&compatible_digest)
-                        .expect("in-flight request key has a matching receiver")
-                        .clone();
                     (
                         false,
                         receiver,
@@ -1266,6 +1274,122 @@ pub(crate) mod w3_tests {
             reference_png: None,
             failures: vec![],
         }
+    }
+
+    /// Settles the question W3 left open about `ArtifactRequestKey::digest`.
+    ///
+    /// It ends in `unwrap_or_default()`, so a serialisation failure would not
+    /// raise anything — it would hand back the digest of the *empty* byte
+    /// string, and every key that failed would land on that one entry. Two
+    /// unrelated collections would then read each other's design.
+    ///
+    /// It cannot fail today. The key is `String`, `Option<String>`, `bool`,
+    /// `usize`, `u8`, three fieldless enums and `Vec`s of those, every one of
+    /// them `#[derive(Serialize)]`; `serde_json` fails on a non-string map
+    /// key, a hand-written `Serialize` that returns an error, or a writer that
+    /// errors, and the writer here is a `Vec<u8>`. There is no float, so not
+    /// even a non-finite one to argue about. So the fallback stays.
+    ///
+    /// What it stays subject to is a field added later that *can* fail — at
+    /// which point the collapse is silent. This fills every field and asserts
+    /// each one still reaches a digest of its own, none of them the empty one.
+    #[test]
+    fn w3_every_field_of_a_request_key_reaches_its_digest() {
+        let populated = || {
+            let mut request = request();
+            request.resource_scope = ResourceScope::Used;
+            request.include_context = true;
+            request.metadata_only = true;
+            request.variables_only = true;
+            request.reference_png = true;
+            request.search = Some(SearchReadOptions {
+                query: "STORY-F-PROOFREAD".into(),
+                node_types: vec!["FRAME".into()],
+                match_kind: "normalized".into(),
+                limit: 20,
+            });
+            request.explore = Some(ExploreReadOptions {
+                projection_limit: 50,
+                text_preview_limit: 10,
+            });
+            request.section = Some(SectionReadOptions {
+                frame_ids: vec!["2:2".into()],
+                all_screens: false,
+            });
+            request.asset_selections = vec![AssetSelection {
+                asset_id: "asset".into(),
+                format: AssetFormat::Png,
+                scale: 2,
+            }];
+            request
+        };
+
+        let mut branch_key = populated();
+        branch_key.target.branch_key = Some("branch".into());
+        let mut file_key = populated();
+        file_key.target.file_key = "other".into();
+        let mut node_id = populated();
+        node_id.target.node_id = Some("9:9".into());
+        let mut scope = populated();
+        scope.scope = CollectionScope::File;
+        let mut resource_scope = populated();
+        resource_scope.resource_scope = ResourceScope::File;
+        let mut include_context = populated();
+        include_context.include_context = false;
+        let mut metadata_only = populated();
+        metadata_only.metadata_only = false;
+        let mut variables_only = populated();
+        variables_only.variables_only = false;
+        let mut reference_png = populated();
+        reference_png.reference_png = false;
+        let mut search = populated();
+        search.search = None;
+        let mut explore = populated();
+        explore.explore = None;
+        let mut section = populated();
+        section.section = None;
+        let mut asset_format = populated();
+        asset_format.asset_selections[0].format = AssetFormat::Svg;
+        let mut asset_scale = populated();
+        asset_scale.asset_selections[0].scale = 3;
+        let mut asset_id = populated();
+        asset_id.asset_selections[0].asset_id = "elsewhere".into();
+
+        let empty = sha256_hex(&[]);
+        let digests = [
+            populated(),
+            branch_key,
+            file_key,
+            node_id,
+            scope,
+            resource_scope,
+            include_context,
+            metadata_only,
+            variables_only,
+            reference_png,
+            search,
+            explore,
+            section,
+            asset_format,
+            asset_scale,
+            asset_id,
+        ]
+        .iter()
+        .map(|request| ArtifactRequestKey::from_collection(request).digest())
+        .collect::<Vec<_>>();
+
+        for digest in &digests {
+            assert_ne!(
+                digest, &empty,
+                "a key that serialised to nothing would share one cache entry with every other such key"
+            );
+        }
+        let distinct = digests.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            distinct.len(),
+            digests.len(),
+            "each field has to reach the digest, or two different collections share an artifact"
+        );
     }
 
     #[tokio::test]

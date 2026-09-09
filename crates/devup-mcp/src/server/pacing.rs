@@ -19,7 +19,11 @@
 //! allowance, so the ceiling can be reached by calls this process never made,
 //! and the retry above it still answers for that.
 
-use std::{collections::VecDeque, sync::Mutex, time::Duration};
+use std::{
+    collections::VecDeque,
+    sync::{Mutex, PoisonError},
+    time::Duration,
+};
 
 use tokio::time::{Instant, sleep};
 
@@ -47,6 +51,24 @@ pub struct CallPacer {
     window: Duration,
     /// When each call still inside the window was let through, oldest first.
     spent: Mutex<VecDeque<Instant>>,
+}
+
+/// The window, whether or not a thread died holding it.
+///
+/// Poisoning says a thread unwound mid-update; it does not say the deque is
+/// unreadable, and here it cannot be: every critical section below is a push,
+/// a pop, a clear and some arithmetic on `Instant`, so the worst a half-done
+/// update leaves is a window that counts one call wrong for at most a minute.
+/// Taking the guard back is the whole recovery.
+///
+/// Unwrapping instead would spend that thread's panic twice. The first one
+/// ends one call; the poison it leaves ends *every* later call, because each
+/// one has to pass through this same lock before it can reach Figma — and a
+/// server that answers nothing until it is restarted is a far worse failure
+/// than the collection that was already lost. The cost of not doing that is
+/// this line.
+fn window<T>(result: Result<T, PoisonError<T>>) -> T {
+    result.unwrap_or_else(PoisonError::into_inner)
 }
 
 impl CallPacer {
@@ -86,7 +108,7 @@ impl CallPacer {
     /// allowance to refill.
     pub fn penalise(&self) {
         let now = Instant::now();
-        let mut spent = self.spent.lock().expect("call pacer");
+        let mut spent = window(self.spent.lock());
         spent.clear();
         for _ in 0..self.limit {
             spent.push_back(now);
@@ -101,7 +123,7 @@ impl CallPacer {
     /// against the clock.
     fn reserve(&self) -> Option<Duration> {
         let now = Instant::now();
-        let mut spent = self.spent.lock().expect("call pacer");
+        let mut spent = window(self.spent.lock());
         while spent
             .front()
             .is_some_and(|at| now.duration_since(*at) >= self.window)
@@ -202,6 +224,37 @@ mod tests {
         let start = Instant::now();
         pacer.acquire().await;
         assert_eq!(Instant::now().duration_since(start), WINDOW);
+    }
+
+    /// A thread that dies holding the window must not take every later call
+    /// with it.
+    ///
+    /// Every read passes through this one lock, so a poisoned window is not
+    /// one failed call — it is the end of the process's ability to reach
+    /// Figma at all, for as long as it runs. The deque is still readable
+    /// after such a panic, so the pacer takes it back and keeps pacing.
+    #[tokio::test(start_paused = true)]
+    async fn a_window_poisoned_by_another_thread_still_paces() {
+        let pacer = CallPacer::new(10, WINDOW);
+        let died = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _held = window(pacer.spent.lock());
+            panic!("a thread unwound while holding the window");
+        }));
+        assert!(died.is_err(), "the window has to actually be poisoned");
+        assert!(pacer.spent.is_poisoned());
+
+        // Both paths through the lock still work, and still pace: ten calls
+        // fit, and the eleventh waits out the window rather than panicking.
+        let start = Instant::now();
+        for _ in 0..11 {
+            pacer.acquire().await;
+        }
+        assert_eq!(Instant::now().duration_since(start), WINDOW);
+
+        pacer.penalise();
+        let after_penalty = Instant::now();
+        pacer.acquire().await;
+        assert_eq!(Instant::now().duration_since(after_penalty), WINDOW);
     }
 
     /// And it is a pause, not a shutdown: once the window has passed the pacer
