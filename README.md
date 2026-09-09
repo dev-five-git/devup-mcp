@@ -9,12 +9,12 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 Figma 쪽 4개, 프로젝트 쪽 3개, 모두 7개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
-- `devup_figma_search`: 파일 전체의 page, section, frame, component를 이름으로 탐색
+- `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
-- `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음
-- `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증
-- `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지
+- `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
+- `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
+- `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
 
@@ -22,7 +22,9 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 
 ### 응답에 무엇이 들어오는가
 
-`devup_figma_export`는 **요청한 `outputs`가 만드는 키만** 추가합니다. `outputs`를 생략했을 때의 스키마 기본값은 `["tsx", "devupJson"]`이며, 아래 표는 무엇을 더 요청할 수 있는지에 대한 **레퍼런스**이지 한 번에 전부 요청하라는 목록이 아닙니다.
+`devup_figma_export`는 **요청한 `outputs`가 만드는 키만** 추가합니다. `outputs`를 생략했을 때의 스키마 기본값은 **`["tsx"]`** 하나뿐이며, 아래 표는 무엇을 더 요청할 수 있는지에 대한 **레퍼런스**이지 한 번에 전부 요청하라는 목록이 아닙니다.
+
+`devupJson`은 기본값에서 빠졌습니다. **프로젝트에 이미 `devup.json`이 있으면 코드가 맞춰야 할 대상은 그 파일**이지 Figma에서 새로 뽑은 이름 집합이 아니고, 그 파일을 읽는 도구는 `devup_project_context`입니다. `devupJson`은 프로젝트에 아직 `devup.json`이 없거나, 그 파일이 정의하지 않은 토큰을 새로 들일 때만 함께 요청하세요.
 
 | output | 추가되는 키 |
 |---|---|
@@ -33,7 +35,30 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 | `sourceMap` / `assetManifest` / `referencePng` | 같은 이름의 키 |
 | `rawSnapshot` / `rawPayload` | 같은 이름의 키 — **`debug: true` 필요** |
 
-그 밖에 항상 붙는 것은 `status`, `quality`, `completeness`, `cache`, `collection`, `source`, `targetKind`, `failures`, `outputPaths`뿐입니다. `fidelity`와 `completenessReport`는 결과가 exact/complete가 **아닐 때**, 또는 `includeDiagnostics: true`일 때만 나옵니다 — 깨끗한 결과에서는 `quality`가 이미 한 말을 되풀이할 뿐이라 빼두었고, 그만큼(측정값 797 B) 매 응답이 가벼워집니다.
+그 밖에 항상 붙는 것은 `status`, `quality`, `completeness`, `cache`, `collection`, `source`, `targetKind`, `failures`, `assetSummary`, `outputPaths`뿐입니다.
+
+조건이 맞을 때만 붙는 키는 다음과 같습니다.
+
+| 키 | 나오는 조건 |
+|---|---|
+| `fidelity` / `completenessReport` | 결과가 exact/complete가 **아닐 때**, 또는 `includeDiagnostics: true`일 때 |
+| `deliverable` | `status`가 `complete`이고 TSX를 만들었을 때 |
+| `warnings` | 숨김 노드처럼 실패가 아닌 자산 문제가 있을 때 |
+| `frames` | Section에서 여러 화면을 한 번에 export했을 때 |
+| `selection` / `nextAction` | `status`가 `selection_required`일 때 |
+
+`fidelity`와 `completenessReport`를 기본에서 뺀 이유는 깨끗한 결과에서 `quality`가 이미 한 말을 되풀이할 뿐이기 때문이고, 그만큼(측정값 797 B) 매 응답이 가벼워집니다.
+
+#### `assetSummary` — 자산이 "없음"인지 "못 받음"인지
+
+자산은 없는 것과 못 받은 것이 전혀 다른 상황인데 예전에는 둘 다 빈 목록으로 보였습니다. 지금은 `assetSummary`가 구분해 줍니다.
+
+- `status`: `none`(자산이 없다) · `unknown`(스냅샷이 불완전해 판단 불가) · `not-collected` · `partial` · `collected`
+- `discovery`: `complete` | `incomplete`, `discoveryReason`: `index-only` | `snapshot-incomplete`
+- `discoveredCount` / `collectedCount` / `manifestIncluded`
+- `unavailable[]`: 항목마다 `assetId`, `nodeId`, `errorCode`와 **`reason`** — `hidden-node`(숨김 노드) · `export-failed`(export 실패) · `not-requested`(애초에 요청하지 않음) · `capture-not-in-artifact`(요청했지만 이 artifact엔 그 format/scale이 없음)
+
+숨김 노드 실패는 `failures[]`가 아니라 `warnings[]`로 갑니다. 구현을 막는 실패가 아니기 때문입니다.
 
 `rawSnapshot`과 `rawPayload`는 수집한 디자인을 raw로 담은 것이라 `debug: true` 없이는 거절됩니다. 화면을 구현하는 데는 필요 없습니다 — 실제 캡처 10개 화면에서 tsx가 node·text·typography·asset·layout 기대치를 100% 담고 있습니다. 쓰는 자리는 하나입니다: **화면이 이상해 보일 때 생성기 탓인지 디자인이 원래 그런지 판정하는 것.** 그때는 디자인을 코드 옆에 놓고 읽어야 하고, 그게 이 플래그입니다.
 
@@ -122,8 +147,10 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
     "direct": {
       "available": false,
       "credentialSource": "none",
+      "credentialSourceNote": "Where the OAuth *client registration* credential came from ...",
       "tokenState": "absent",
       "callbackPort": { "port": null, "free": null },
+      "registrationClientName": { "value": "Codex", "isDefault": true },
       "reason": "저장된 자격증명 없음. ..."
     }
   },
@@ -131,7 +158,15 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`doctor`는 네트워크 호출을 전혀 하지 않습니다. `paths.direct.credentialSource`는 `cli-arg`, `env`, `credential-store`, `none` 중 하나이고, `tokenState`는 `valid`, `expired`, `absent` 중 하나이며, `callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담습니다. 자세한 제약은 아래 "Figma 연결 설정" 절을 참고하세요.
+`doctor`는 네트워크 호출을 전혀 하지 않습니다. 세 필드는 **서로 다른 것**을 말하므로 함께 읽어야 합니다.
+
+- `credentialSource` — **client 등록 자격증명**(`client_id`/`client_secret`)이 어디서 왔는지. `cli-arg`, `env`, `credential-store`, `none` 중 하나입니다.
+- `tokenState` — **사용자의 access token** 상태. `valid`, `expired`, `absent` 중 하나입니다.
+- `available` — 지금 direct 경로를 쓸 수 있는지.
+
+`credentialSource: "none"`은 "사전 등록된 client가 주입되지 않았다"는 뜻일 뿐이며, 그 경우 로그인은 `registrationClientName`의 이름으로 동적 등록합니다. **그렇게 로그인한 정상 세션은 `credentialSource: "none"`과 `tokenState: "valid"`를 동시에 보입니다.** 예전에는 이 조합이 모순처럼 보였는데, 지금은 `credentialSourceNote`가 응답 안에서 직접 설명합니다.
+
+`callbackPort`는 `--figma-callback-port`를 지정했을 때만 실측한 `port`/`free`를 담고, `registrationClientName`은 DCR이 보낼 이름(`value`)과 그것이 기본값인지(`isDefault`)를 알려줍니다. 자세한 제약은 아래 "Figma 연결 설정" 절을 참고하세요.
 
 ### direct 경로에 사전 등록된 client 자격증명 주입하기
 
@@ -254,7 +289,7 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",
-  "outputs": ["tsx", "devupJson"],
+  "outputs": ["tsx"],
   "scope": "node",
   "strict": true,
   "refresh": false,
@@ -264,9 +299,25 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 위 `outputs`는 스키마 기본값과 같은 **권장 호출**입니다. 읽을 output만 요청하세요 — 위의 [응답에 무엇이 들어오는가](#응답에-무엇이-들어오는가) 표가 **전체 목록 레퍼런스**이고, 그 표를 그대로 한 배열에 옮겨 적으라는 뜻이 아닙니다. 특히 `rawSnapshot`/`rawPayload`를 `debug: true` 없이 `outputs`에 넣은 호출은 투영 전에 `-32602`로 **거절됩니다**. 실제로 이 절의 예시가 한때 여덟 output을 전부 나열하면서 `debug`는 빠뜨리고 있었고, 그대로 복사하면 실행되지 않는 호출이었습니다.
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. `artifactId`는 `url`·`refresh`와 동시에 쓸 수 없고, 함께 보내면 `DEVUP_FIGMA_HANDOFF_INVALID`로 거절됩니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부와 redacted `assetCaptureCount`만 공개합니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+### 한 번에 얼마나 요청할 것인가
 
-`delivery`는 `auto | inline | resource`입니다. `auto`는 JSON escape, base64와 structured/text 이중 표현을 포함한 실제 MCP wire 크기를 계산해 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고, 그보다 큰 결과는 native MCP `ResourceLink`와 `devup://artifact/...` URI로 바꿉니다. 링크 URI는 JSON manifest를 가리키므로 link MIME은 `application/json`이고 payload MIME·길이·SHA-256은 `payload*` metadata로 분리합니다. `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
+`devup_figma_export`는 **작은 선택**을 위한 도구입니다.
+
+- 한 호출에 **프레임 1~3개를 권장**하고, **프레임 6개·(프레임 × output) 12단위**까지만 허용합니다.
+- 상한을 넘는 선택은 화면 수집을 시작하기 전에 거절하므로, `frameIds`를 배치로 나눠 부르세요.
+- 계획용 어림값은 **프레임당 15~60초**입니다. 보장이 아니라 어림이며, 페이지네이션·복잡도·스로틀링이 겹치면 넘어갑니다. 클라이언트는 보통 300초에서 타임아웃합니다.
+- 프레임별 투영이 일부 실패해도 **성공한 프레임의 산출물은 유지**됩니다.
+
+이미 노드 ID를 알고 있다면(브리프에 적혀 있거나 앞선 호출이 알려줬다면) `devup_figma_explore`를 건너뛰고 `frameIds`에 바로 넘기세요. 갖고 있는 ID를 다시 찾으려고 탐색하는 것은 Figma 호출 하나를 그냥 쓰는 일입니다. 탐색은 **Section 링크밖에 없을 때** 쓰는 도구입니다.
+
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. `artifactId`는 `url`·`refresh`와 동시에 쓸 수 없고, 함께 보내면 `DEVUP_FIGMA_HANDOFF_INVALID`로 거절됩니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`, `section-index`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부, redacted `assetCaptureCount`와 `sectionSelection`만 공개합니다. **`sectionSelection`이 마지막으로 검증된 Section 선택(`frameIds` 또는 `allScreens`)을 보존하므로**, artifact를 재사용할 때 `frameIds`를 다시 보내지 않아도 선택이 유지됩니다. 예전에는 `artifactId`만 넘기면 선택이 사라져 후보 목록 전체가 다시 돌아왔습니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+
+`delivery`는 `auto | inline | resource`입니다. `auto`는 JSON escape, base64와 structured/text 이중 표현을 포함한 실제 MCP wire 크기를 계산해 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고, 그보다 큰 결과는 native MCP `ResourceLink`와 `devup://artifact/...` URI로 바꿉니다. 링크 URI는 JSON manifest를 가리키므로 link MIME은 `application/json`이고 payload MIME·길이·SHA-256은 `payload*` metadata로 분리합니다. **manifest는 `chunkUris`로 내용 청크를 직접 가리킵니다** — 링크만 따라가면 manifest에서 막히고 청크 URI 형식을 따로 알아내 손으로 조립해야 했던 문제가 없어졌습니다. 두 URI 형식은 `resources/templates/list`에도 그대로 게시됩니다.
+
+```
+devup://artifact/{artifactId}/outputs/{outputId}/manifest
+devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
+``` `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
 `referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
@@ -284,7 +335,11 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 }
 ```
 
-`acquisition`은 `complete | expected-projection | partial | failed`, `projection`은 `exact | approximated | lossy | failed | not-requested`, `theme`은 `complete | conflicted | unresolved | not-requested`, `assets`는 `complete | partial | failed | not-requested`입니다. 검색·탐색의 의도적인 얕은 graph는 `expected-projection`으로 정상 완료하지만, 포함된 field의 실패나 truncation은 `partial`입니다. mask/effect fallback은 `lossy`, absolute layout fallback은 `approximated`이며 `includeDiagnostics: false`여도 품질 판정에는 반영됩니다. 기존 `status`는 요청한 모든 축이 정확하거나 완전할 때만 `complete`이고, `strict: true`는 모든 요청 축이 exact/complete가 아니면 quality와 `completenessReport`를 담은 오류로 거절합니다.
+`acquisition`은 `complete | expected-projection | partial | failed`, `projection`은 `exact | approximated | lossy | failed | not-requested`, `theme`은 `complete | conflicted | unresolved | not-requested`, `assets`는 `complete | partial | failed | not-requested`입니다. 검색·탐색의 의도적인 얕은 graph는 `expected-projection`으로 정상 완료하지만, 포함된 field의 실패나 truncation은 `partial`입니다. mask/effect fallback은 `lossy`, absolute layout fallback은 `approximated`이며 `includeDiagnostics: false`여도 품질 판정에는 반영됩니다. 최상위 `status`는 `complete | partial | failed | selection_required` 중 하나입니다. 요청한 모든 축이 정확·완전하고 **`failures[]`가 비어 있을 때만** `complete`입니다. 축 하나라도 어긋나거나 실패가 하나라도 집계되면 `partial`이고, 수집이나 투영 자체가 죽으면 `failed`, Section 링크에서 아직 화면을 고르지 않았으면 `selection_required`입니다.
+
+`failures[]`에는 노드 단위 투영 실패, 자산 export 실패, Section의 프레임 단위 실패가 **모두 함께** 집계됩니다. 예전처럼 최상위가 `complete`인데 안에서 자산이 실패해 있는 상태는 나오지 않습니다.
+
+`strict: true`는 모든 요청 축이 exact/complete가 아니면 quality와 `completenessReport`를 담은 오류로 거절합니다.
 
 모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 생성된 mapping 수가 아니라 수집한 source snapshot에서 독립적으로 계산한 node/text segment/variable/style/asset/layout 기대 집합을 분모로 사용하고, 각 항목이 최종 TSX byte range에서 `emitted | flattened | ignored` 중 정확히 하나로 추적되었는지와 축별 coverage·typed impact count를 담습니다. component set, non-default variant selector와 inline instance도 최종 변환 후 source identity별 provenance를 다시 만들며, 반복된 동일 text segment는 하나의 mapping을 재사용하지 않고 occurrence별로 소비하고 multiline·중첩 text와 asset identity를 검증합니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, source-derived trace coverage, lossy/failed impact를 함께 검사합니다.
 
@@ -320,6 +375,14 @@ node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계�
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 최대 16개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
+**`assetManifest`는 목록일 뿐 파일을 쓰지 않습니다.** 파일을 얻으려면 `assetRequests`로 다시 부르되, 그 호출은 **`artifactId`가 아니라 원래 `url`로** 해야 합니다. 자산 캡처 없이 수집된 artifact는 자산 요청을 처리할 수 없기 때문입니다. 그 조합으로 부르면 무엇이 없는지와 어떻게 복구하는지를 담아 거절합니다:
+
+> `This artifact was collected without the requested asset captures. Remove artifactId and call again with the original url and assetRequests.`
+
+기본값에서는 manifest의 `path`와 TSX의 자산 참조가 **자리표시자로 남습니다.** 실제 경로로 바꾸려면 같은 호출에서 `assetPublicRoot`와 `assetRequests.outputPath`를 함께 주세요. `assetPublicRoot`는 URL `/`로 서빙되는 **이미 존재하는 절대 로컬 디렉터리**여야 하고, 그 아래에 쓰인 파일은 manifest와 **모든 TSX output**에서 percent-encoding된 상대 URL로 바뀝니다. `outputPath`가 `assetPublicRoot` 밖이면 거절됩니다. 저장된 output 매핑은 artifact에 보존되지 않으므로 이 지정은 호출마다 해야 합니다.
+
+내보낸 바이트가 **동일하면** 하나의 canonical `path`/`outputPath`를 공유합니다. 중복 제거는 내용 해시로만 판단하며, 이름이 같다는 것만으로는 절대 합치지 않습니다. `assetNamesPerNode` 기본값은 여전히 `true`입니다.
+
 asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플러그인이 그렇게 짓기 때문입니다. 그래서 디자이너가 같은 이름을 준 노드들은 파일 하나를 공유합니다. 같은 그림이면 맞지만 아니면 손실입니다. 한 화면에서 여덟 노드가 `Logo.svg` 하나를 주장하는데 실제로는 서로 다른 그림 다섯 개였고, 폭마다 그려진 사진은 마지막으로 export된 폭의 파일만 남아 다른 폭에서는 상자와 크기가 어긋난 채 늘어납니다(파일이 상자와 같은 크기이면 `object-fit`이 무엇이든 결과가 같으므로, 플러그인에서는 이 문제가 드러나지 않습니다).
 
 `assetNamesPerNode`는 각 asset을 **그 노드**의 이름으로 지어(`Logo-422-6921.svg`, `Frame 269-422-3392.png`) 둘을 함께 없앱니다. **기본값은 `true`입니다** — 렌더링해 보면 이쪽이 Figma가 그리는 그림에 가깝고(공지 화면 992폭 6.48% → 4.19%, about 992폭 10.79% → 6.94%), 플러그인 golden 268개는 그대로 통과합니다. golden은 `CodegenOptions`를 직접 쓰고 그 **라이브러리 기본값은 여전히 플러그인과 동일**하기 때문입니다. 플러그인과 byte 단위로 같은 이름이 필요하면 `assetNamesPerNode: false`로 끄십시오.
@@ -328,7 +391,19 @@ asset의 파일 이름은 기본적으로 **레이어 이름**입니다 — 플�
 
 레이어 이름이 파일시스템이 받지 못하는 이름일 때(`ic:round-arrow-left`처럼 콜론이 든 이름은 Windows가 만들지 못합니다) 전달 시점에 생성 코드와 manifest를 **함께** 개명해 둘이 어긋나지 않게 합니다. 생성기 자체는 플러그인의 이름을 그대로 쓰므로 golden parity는 유지됩니다.
 
-Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다.
+개명 규칙은 이렇습니다. 영숫자·`-`·`_`가 아닌 문자를 `-`로 바꾸고 앞뒤 `-`를 떼며, Windows 예약어(`CON`, `NUL`, `COM1`…)이거나 비ASCII가 있었거나 이름이 바뀌었거나 120자를 넘으면 원래 이름의 SHA-256 앞 12자리를 접미사로 붙여 서로 다른 이름이 한 파일로 합쳐지지 않게 합니다. 확장자는 ASCII 영숫자 10자까지만 남깁니다.
+
+```
+/icons/ic:round-arrow-left.svg  ->  /icons/ic-round-arrow-left-b041d24e668d.svg
+```
+
+그래서 공백이나 한글이 든 레이어 이름도 코드와 manifest 양쪽에서 같은 ASCII 경로가 됩니다.
+
+Section 링크는 전체 subtree를 직접 변환하지 않습니다. `selection_required.nextAction`에 따라 후보를 확인한 뒤 `frameIds` 또는 `allScreens: true`로 화면별 export를 계속하며, 일부 화면 수집이 실패하면 성공한 화면은 유지하고 실패한 node는 `failures`에 보고합니다. `nextAction`은 `why`·`how`·`doNot`과 함께 첫 후보를 고르는 **그대로 실행 가능한** `example` 호출을 담습니다.
+
+여러 화면을 한 번에 받으면 `frames[]`의 각 항목이 서로 같은 구조인지 알려줍니다. 생성 구조가 앞선 프레임과 같으면 그 프레임에 `structurallyIdenticalTo`(같은 구조인 첫 프레임의 node ID), `differsOnly`(예: `["assetReferences"]`), `comparedOutputs`가 붙습니다. 두 화면이 정말 다른지 확인하려고 TSX를 직접 대조할 필요가 없습니다.
+
+화면 후보 판정은 `explore`, export의 `selection`, `allScreens`가 **같은 규칙 하나**를 씁니다. 셋이 서로 다른 "화면" 정의를 갖던 문제가 사라져, `allScreens`가 배너·주석 프레임을 화면으로 만들어내지 않습니다.
 
 SECTION 기본 응답은 화면 아티팩트가 아닌 선택 목록입니다. `selection.status`와 `selection.count`로 목록 조회 상태와 후보 수를 알 수 있으며, 최상위 `status: "selection_required"`는 아직 화면을 선택해야 한다는 뜻입니다. `selection.candidates[]`는 `node.name`, `node.nodeType`, `node.textPreview`, `canonicalUrl`로 서로 구분할 수 있습니다. 미리보기는 보이는 텍스트만 모아 최대 120자, 전체 최대 2KB로 제한하므로 비어 있거나 짧아도 실제 화면 내용이 없다는 뜻은 아닙니다. `nextAction.example`에는 첫 후보를 선택하는 `devup_figma_export` 호출 예시가 들어 있습니다. 예시의 `frameIds`를 검토한 후보 ID로 바꿔 호출하면 선택한 화면만 수집합니다.
 
@@ -360,7 +435,9 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 }
 ```
 
-검색은 먼저 read-only Plugin API로 실제 `figma.root.children` page catalog를 얻고, page마다 한 번씩 전환하는 작은 query projection을 병렬 실행합니다. 전체 page snapshot을 응답하지 않으므로 큰 파일에서도 공식 MCP text 상한을 피합니다. 결과는 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬하고 `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_export`에 그대로 전달할 canonical URL을 포함합니다.
+검색 범위는 URL이 정합니다. `node-id`가 있으면 그 노드와 그 subtree만, 없으면 파일 전체를 봅니다. 응답의 `scope`가 실제로 어느 쪽을 검색했는지 보고하므로, 결과가 기대와 다를 때 범위 때문인지 이름 때문인지 구분할 수 있습니다. `limit`은 **반환할 일치 개수**입니다.
+
+파일 전체 검색은 먼저 read-only Plugin API로 실제 `figma.root.children` page catalog를 얻고, page마다 한 번씩 전환하는 작은 query projection을 병렬 실행합니다. 전체 page snapshot을 응답하지 않으므로 큰 파일에서도 공식 MCP text 상한을 피합니다. 결과는 원문 exact, Unicode NFC·공백·대소문자를 정규화한 exact, prefix, contains 순으로 정렬하고 `match: "fuzzy"`일 때만 오타 허용 검색을 추가하며, node ID, type, page, 전체 breadcrumb와 후속 `devup_figma_export`에 그대로 전달할 canonical URL을 포함합니다.
 
 ### 링크 주변 화면 탐색
 
@@ -373,7 +450,18 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 }
 ```
 
-요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. `url`에는 `node-id`가 있어야 하고(없으면 `DEVUP_FIGMA_NODE_NOT_FOUND`), `limit`은 1~100 범위 밖이면 거절됩니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
+요구사항 제목이나 설명 node 링크가 실제 구현 화면이 아닐 때 `devup_figma_explore`를 먼저 호출합니다. `url`에는 `node-id`가 있어야 하고(없으면 `DEVUP_FIGMA_NODE_NOT_FOUND`), `limit`은 1~100 범위 밖이면 거절됩니다. anchor와 같은 공간 묶음의 frame/component 후보를 시각 순서와 canonical URL로 반환하며, 다음 요구사항 제목에서 탐색 범위를 끝냅니다.
+
+`limit`은 **반환할 후보 개수일 뿐이고 그 이상 아무것도 아닙니다.** 디자인을 얼마나 읽을지는 바꾸지 않으므로(투영 예산은 항상 고정입니다), `limit`을 올려서 할 수 있는 일은 답을 길게 만드는 것뿐입니다. 예전에는 `limit`이 투영 예산으로 4배 확대돼 30→33으로 올렸더니 후보가 23→18로 **줄어드는** 일이 있었습니다.
+
+잘린 이유도 이제 둘로 나눠 보고합니다.
+
+- `truncation.candidates` — `limit`이 목록을 잘랐다는 뜻입니다. **`limit`을 올리면 나머지가 나옵니다.**
+- `truncation.projection` — 수집한 스냅샷 자체가 불완전했다는 뜻입니다. **`limit`을 아무리 올려도 그 화면들은 돌아오지 않습니다.**
+
+최상위 `truncated`는 둘의 OR입니다. 둘을 구분하지 못하면 고칠 수 없는 상황에서 `limit`만 올리며 호출을 반복하게 됩니다.
+
+`includeTextPreview`는 **별도 예산**을 씁니다. 미리보기는 구조 투영이 쓰고 남긴 공간만 소비하므로, 켜고 끄는 것이 후보 개수·ID·`truncation.projection` 중 무엇도 바꾸지 않습니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
 
 탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집합니다.
 
@@ -386,6 +474,48 @@ Figma 연결은 direct 하나뿐입니다. `sourcePolicy` 파라미터는 `auto`
 - `full-local-plus-used-remote`: 로컬 전체와 사용된 외부 token을 모두 확인
 - `used-tokens`: 확보한 token만 변환했으며 외부 전체를 보장하지 않음
 - `resolved-values-only`: 의미 있는 token binding 없이 계산값만 확보
+
+## 프로젝트 쪽 도구
+
+### `devup_project_context` — 무엇을 읽고 무엇을 건너뛰는가
+
+`scope`는 `theme`(프로젝트 `devup.json`), `api`(`openapi.json`), `db`(Vespertide `models/*.json`), `all`입니다. 호출 시점에 디스크에 실제로 있는 파일만 읽고, 세션 간 캐시하지 않으며, 없는 것을 추측하지 않습니다. 스캔 깊이는 4단계입니다.
+
+다음 디렉터리는 스캔하지 않습니다.
+
+- 빌드·의존성 산출물: `node_modules`, `target`, `dist`, `build`, `out`, `.next`, `.turbo`, `.nuxt`, `.venv`, `venv`, `__pycache__`, `.cache`, `coverage`, `.git`
+- 중첩 체크아웃: `.worktrees`, `.worktree`, `.git-worktrees`
+
+**제외는 조용히 일어나지 않습니다.** 무언가를 건너뛰었으면 `excludedPaths[]`에 `path`와 `reason`(`nested-checkout-directory` 또는 `nested-git-checkout`)으로 보고합니다. 파일을 하나도 못 찾았는데 제외한 것이 있으면 그 사실도 함께 보고하므로, "없음"과 "제외해서 안 보임"을 구분할 수 있습니다. 예전에는 스테일 브랜치의 `devup.json`이 권위 있는 것과 섞여 4개가 반환됐고, 어느 것이 맞는지 표시가 없었습니다.
+
+같은 종류의 파일이 여러 개일 때는 각 항목이 `authority`(`project-root` | `package-local`)와 `appliesTo`(적용 디렉터리)를 갖고, `authorityNote`가 **어느 하나도 프로젝트 전체를 지배하지 않는다**는 사실을 알려줍니다. 코드를 쓰는 파일이 어느 `appliesTo` 안에 있는지로 골라야 합니다.
+
+### `devup_ui_validate` — 심각도로 판정한다
+
+응답은 다음을 담습니다.
+
+| 필드 | 내용 |
+|---|---|
+| `ok` | 심각도로 판정. error가 있으면 실패, `strict: true`면 warning도 실패 |
+| `okReason` | `clean` · `info-only` · `warnings-only` · `warnings-and-info` · `strict-warnings` · `error-violations` |
+| `violations[]` | `rule`, `severity`(`info`\|`warning`\|`error`), `byteRange`, `message`, `suggestion` |
+| `violationCounts` | `error` / `warning` / `info` 개수 |
+| `themeNotes[]` | 비어 있는 토큰 카테고리를 종류마다 한 번씩만 요약 |
+| `tokens` | `referencedByTsx`, `definedByTheme`, `unknownTokenCheckRan` |
+| `checkedTokens` / `availableTokenCount` | 위 두 값과 같은 수를 예전 이름으로 유지 |
+| `themeAvailable` / `themeGuardrail` | 테마를 찾았는지, 못 찾았으면 왜 |
+
+규칙은 `invalid-syntax`, `unknown-token`, `hardcoded-color`, `hardcoded-length`, `unknown-prop`, `runtime-value`입니다.
+
+하드코딩 값의 판정 기준은 **일치하는 토큰이 실제로 있는지**입니다. 있으면 `warning`으로 올리고 토큰 이름을 알려줍니다. 없으면 `info`로 낮추고 **권고 없이 사실만** 적으며 strict 모드에서도 실패시키지 않습니다. 그래서 `length` 토큰이 하나도 없는 테마가 "토큰을 쓰라"는 권고를 받는 일은 없고, 대신 `themeNotes`가 "이 테마에는 length 토큰이 없다"고 한 번 알려줍니다.
+
+`checkedTokens`와 `availableTokenCount`는 **서로 다른 것을 셉니다** — 앞은 이 TSX가 참조한 `$token` 수, 뒤는 `devup.json`이 정의한 토큰 수입니다. 비율이 아닙니다. `tokens`가 그 사실을 이름으로 다시 말해 줍니다.
+
+### `devup_stack_diff` — 휴리스틱이고, 그렇게 말한다
+
+레이어는 `db-entity`, `entity-route`, `route-openapi`, `openapi-client` 넷이며 생략하면 전부 실행합니다. 컴파일러가 아니라 텍스트/JSON 휴리스틱이므로 모든 발견은 `confidence`를 달고 나오고, 그 값은 `low` 또는 `medium`입니다 — **`high`는 없습니다.**
+
+`_`와 `-`의 차이는 **대조할 때만** 접습니다. Vespera가 `openapi.json`에 kebab-case를 쓰고 코드는 원문을 쓰기 때문입니다. 보고되는 드리프트는 **각 레이어가 실제로 쓴 철자 그대로** 싣고, 정규화로 일치시킨 건수는 `spellingNormalizedMatches`로 따로 공개합니다. 같은 라우트가 언더스코어판과 하이픈판으로 양쪽에 중복 신고되던 문제는 이 방식으로 사라집니다.
 
 ## 읽기 전용·개인정보 보호
 
