@@ -333,6 +333,7 @@ impl DevupServer {
             return Ok(apply_search_scope(
                 response,
                 &artifact.payload.snapshot,
+                artifact.capabilities.collection_scope,
                 scope,
             ));
         }
@@ -351,6 +352,7 @@ impl DevupServer {
             return Ok(apply_search_scope(
                 response,
                 &artifact.payload.snapshot,
+                artifact.capabilities.collection_scope,
                 scope,
             ));
         }
@@ -384,6 +386,7 @@ impl DevupServer {
                 Ok(apply_search_scope(
                     response,
                     &artifact.payload.snapshot,
+                    artifact.capabilities.collection_scope,
                     scope,
                 ))
             }
@@ -573,13 +576,11 @@ fn is_within(snapshot: &Snapshot, node_id: &str, ancestor_id: &str) -> bool {
 
 /// Cuts the ranked match list down to what the caller linked and says so.
 ///
-/// The collection itself stays file-wide - Figma is searched one page at a
-/// time and there is no narrower read to ask for - so `collectionScope` keeps
-/// reporting `file` honestly, and the narrowing is reported separately as the
-/// scope that was applied to the answer.
+/// Report the stored artifact capability for both fresh and cached reads.
 fn apply_search_scope(
     mut response: Value,
     snapshot: &Snapshot,
+    collection_scope: CollectionScope,
     scope: Option<&SearchScope>,
 ) -> Value {
     let Some(scope) = scope else {
@@ -598,7 +599,7 @@ fn apply_search_scope(
             response["scope"] = json!({
                 "kind": "file",
                 "nodeId": Value::Null,
-                "collectionScope": "file",
+                "collectionScope": collection_scope,
                 "scannedMatches": scanned,
                 "note": "The URL carried no node-id, so the whole file was searched. \
                          Put the node you care about in the URL to search only inside it.",
@@ -618,33 +619,29 @@ fn apply_search_scope(
     let mut scope_report = json!({
         "kind": "node",
         "nodeId": node_id,
-        "collectionScope": "file",
+        "collectionScope": collection_scope,
         "scannedMatches": scanned,
         "matchedInScope": found,
         "returned": inside.len(),
         "excludedOutOfScope": outside.len(),
         "candidatesTruncated": found > inside.len(),
         "note": "The URL carried a node-id, so only matches inside that node are \
-                 returned. Matches elsewhere in the file were excluded - exporting \
-                 one of those would build a screen the link never pointed at.",
+                 returned. Remove the node-id to search elsewhere in the file.",
     });
-    if inside.is_empty() && !outside.is_empty() {
-        // An empty answer next to a file that plainly contains the name reads
-        // as a broken tool. Say where the name did turn up, keep it out of
-        // `matches` so it cannot be mistaken for an in-scope answer, and carry
-        // the call that widens the search.
-        let mut elsewhere = outside;
-        elsewhere.truncate(scope.limit);
+    if inside.is_empty() {
         scope_report["nextAction"] = json!({
-            "reason": "Nothing inside the linked node matched. \
-                       The same query does match elsewhere in the file - \
-                       see outOfScopeMatches - so search the whole file to reach it.",
+            "reason": "Nothing inside the linked node matched. Search the whole file \
+                       with the node-id removed to look beyond this scope.",
             "example": {
                 "url": scope.file_url,
                 "note": "The same call with the node-id removed from the URL.",
             },
         });
-        response["outOfScopeMatches"] = Value::Array(elsewhere);
+        if !outside.is_empty() {
+            let mut elsewhere = outside;
+            elsewhere.truncate(scope.limit);
+            response["outOfScopeMatches"] = Value::Array(elsewhere);
+        }
     }
     response["count"] = json!(inside.len());
     response["matches"] = Value::Array(inside);
@@ -682,14 +679,15 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
         (true, false) => "The Figma projection this was read from is itself incomplete - the \
                           collection script reached its byte ceiling and left nodes out - so \
                           screens may be missing that no limit would bring back. Explore a \
-                          narrower anchor, or set includeTextPreview to false, which is what \
-                          spends that ceiling fastest."
+                          narrower anchor. Text previews use a separate budget and do not \
+                          change candidate count, IDs, or projection truncation."
             .to_owned(),
         (true, true) => format!(
             "Two cuts: limit {limit} returned {returned} of {found} candidates, and the Figma \
              projection was itself incomplete, so further screens may exist that no limit \
-             would bring back. Raise limit, and set includeTextPreview to false to spend less \
-             of the projection's byte ceiling on text."
+             would bring back. Raise limit to see collected candidates, or explore a narrower \
+             anchor for missing screens. Text previews use a separate budget and do not \
+             change candidate count, IDs, or projection truncation."
         ),
     };
     let mut truncation = json!({
@@ -812,24 +810,20 @@ impl DevupServer {
             limit: input.limit,
             file_url: file_scope_url(&target),
         };
-        // The collection stays file-wide even when the answer is scoped, and
-        // that is deliberate. Figma is searched one page at a time - the
-        // script that runs it takes a PAGE and nothing narrower - so a node
-        // scope has no narrower read to ask for, and setting the collection
-        // scope to `node` would only mislabel a read that still covered the
-        // file. What the node scope changes is the answer, and the response
-        // reports both: `collection`/`cache.capabilities` for what was read,
-        // `scope` for what was returned.
-        //
-        // Because the cut happens after ranking, the ranked list has to be
-        // built past the caller's `limit` or the cut lands before the scope
-        // filter ever sees the in-scope matches.
+        // Scope the upstream read itself to the linked subtree. Keep the ranked
+        // projection above the caller's limit so ancestry filtering happens
+        // before the response is cut.
+        let collection_scope = if scope.node_id.is_some() {
+            CollectionScope::Node
+        } else {
+            CollectionScope::File
+        };
         let projected_limit = if scope.node_id.is_some() {
             MATCH_CEILING
         } else {
             input.limit
         };
-        let mut request = CollectionRequest::new(target, CollectionScope::File);
+        let mut request = CollectionRequest::new(target, collection_scope);
         request.search = Some(SearchReadOptions {
             query: input.query.clone(),
             node_types: input.node_types.clone(),
@@ -857,7 +851,7 @@ impl DevupServer {
         description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export. \
                        `limit` is the number of candidates returned and nothing else - it never changes how much of the design is read, so raising it can only lengthen the answer. \
                        `truncation` reports the two cuts apart: `candidates` means limit cut the list and raising it returns the rest, `projection` means the collected snapshot was itself incomplete and no limit will bring those screens back. \
-                       `includeTextPreview` spends the projection's byte ceiling on text, so turning it off is what makes room for more candidates when `truncation.projection` is true.",
+                       `includeTextPreview` uses a separate budget; turning it on or off does not change candidate count, IDs, or `truncation.projection`.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_explore(

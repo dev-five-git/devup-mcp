@@ -90,6 +90,56 @@ fn page_catalog() -> Value {
 }
 
 fn page_projection(page_id: &str) -> Value {
+    if !matches!(page_id, "0:1" | "0:2") {
+        let nodes = match page_id {
+            "4279:7810" => vec![
+                node(
+                    "0:1",
+                    "PAGE",
+                    "Phase2 Hand-off",
+                    Value::Null,
+                    &["4279:7810"],
+                ),
+                node(
+                    "4279:7810",
+                    "SECTION",
+                    "Loading screen improvements",
+                    json!("0:1"),
+                    &["3831:10708", "3831:10723"],
+                ),
+                node("3831:10708", "FRAME", "Loading", json!("4279:7810"), &[]),
+                node("3831:10723", "FRAME", "Loading", json!("4279:7810"), &[]),
+            ],
+            "3831:10708" => vec![
+                node(
+                    "0:1",
+                    "PAGE",
+                    "Phase2 Hand-off",
+                    Value::Null,
+                    &["4279:7810"],
+                ),
+                node(
+                    "4279:7810",
+                    "SECTION",
+                    "Loading screen improvements",
+                    json!("0:1"),
+                    &["3831:10708"],
+                ),
+                node("3831:10708", "FRAME", "Loading", json!("4279:7810"), &[]),
+            ],
+            "1690:33290" => vec![
+                node("0:2", "PAGE", "Components", Value::Null, &["1690:33290"]),
+                node("1690:33290", "FRAME", "Loading", json!("0:2"), &[]),
+            ],
+            _ => panic!("unexpected search root: {page_id}"),
+        };
+        let root_id = if page_id == "1690:33290" {
+            "0:2"
+        } else {
+            "0:1"
+        };
+        return json!({"fileKey": "FileKey123", "version": null, "rootIds": [root_id], "nodes": nodes, "diagnostics": []});
+    }
     let nodes = if page_id == "0:1" {
         vec![
             node(
@@ -150,11 +200,28 @@ async fn search(arguments: Value) -> anyhow::Result<(Value, Arc<TwoPageFile>)> {
     let client = ().serve(client_transport).await?;
     let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
     let result = client
-        .call_tool(CallToolRequestParams::new("devup_figma_search").with_arguments(arguments))
+        .call_tool(
+            CallToolRequestParams::new("devup_figma_search").with_arguments(arguments.clone()),
+        )
         .await?;
+    let output = result.structured_content.unwrap();
+    let calls = upstream.calls.load(Ordering::SeqCst);
+    let cached = client
+        .call_tool(CallToolRequestParams::new("devup_figma_search").with_arguments(arguments))
+        .await?
+        .structured_content
+        .unwrap();
+    assert_eq!(cached["cache"]["cacheHit"], true);
+    assert_eq!(cached["scope"], output["scope"]);
+    assert_eq!(cached["matches"], output["matches"]);
+    assert_eq!(
+        cached["scope"]["collectionScope"],
+        cached["cache"]["capabilities"]["collectionScope"]
+    );
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), calls);
     client.cancel().await?;
     task.await??;
-    Ok((result.structured_content.unwrap(), upstream))
+    Ok((output, upstream))
 }
 
 fn ids(output: &Value, key: &str) -> Vec<String> {
@@ -173,7 +240,7 @@ fn ids(output: &Value, key: &str) -> Vec<String> {
 /// answer made entirely of frames from outside that Section.
 #[tokio::test]
 async fn a_node_id_in_the_url_scopes_the_search_to_that_subtree() -> anyhow::Result<()> {
-    let (output, _) = search(json!({
+    let (output, upstream) = search(json!({
         "url": "https://www.figma.com/design/FileKey123/Girok?node-id=4279-7810",
         "query": "Loading",
         "limit": 5
@@ -189,7 +256,11 @@ async fn a_node_id_in_the_url_scopes_the_search_to_that_subtree() -> anyhow::Res
     assert_eq!(output["count"], 3);
     assert_eq!(output["scope"]["kind"], "node");
     assert_eq!(output["scope"]["nodeId"], "4279:7810");
-    assert_eq!(output["scope"]["excludedOutOfScope"], 2);
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(output["scope"]["collectionScope"], "node");
+    assert_eq!(output["cache"]["capabilities"]["collectionScope"], "node");
+    assert_eq!(output["scope"]["matchedInScope"], 3);
+    assert_eq!(output["scope"]["excludedOutOfScope"], 0);
     Ok(())
 }
 
@@ -208,8 +279,8 @@ async fn a_small_limit_still_returns_in_scope_matches() -> anyhow::Result<()> {
     assert_eq!(ids(&output, "matches"), ["3831:10708"]);
     assert_eq!(output["count"], 1);
     assert_eq!(output["scope"]["candidatesTruncated"], true);
-    // The per-page projection is asked for its ceiling rather than the
-    // caller's `limit`, or the in-scope frames never reach the filter.
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+    // Collect up to the projection ceiling before applying the response limit.
     assert!(
         upstream
             .search_limits
@@ -225,7 +296,7 @@ async fn a_small_limit_still_returns_in_scope_matches() -> anyhow::Result<()> {
 /// taken from the link, never invented.
 #[tokio::test]
 async fn a_url_without_a_node_id_still_searches_the_whole_file() -> anyhow::Result<()> {
-    let (output, _) = search(json!({
+    let (output, upstream) = search(json!({
         "url": "https://www.figma.com/design/FileKey123/Girok",
         "query": "Loading",
         "limit": 5
@@ -244,39 +315,47 @@ async fn a_url_without_a_node_id_still_searches_the_whole_file() -> anyhow::Resu
     );
     assert_eq!(output["scope"]["kind"], "file");
     assert_eq!(output["scope"]["nodeId"], Value::Null);
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(output["scope"]["collectionScope"], "file");
+    assert_eq!(output["cache"]["capabilities"]["collectionScope"], "file");
     Ok(())
 }
 
-/// Nothing inside the linked node matches. The answer is empty rather than
-/// wrong, and it carries what was found elsewhere plus the call that would
-/// widen the search, so the caller is not left guessing whether the tool is
-/// broken.
+/// Direct FRAME reads exclude siblings and preserve an empty scoped answer
+/// without collecting matches elsewhere in the file.
 #[tokio::test]
-async fn nothing_in_scope_reports_the_out_of_scope_matches_separately() -> anyhow::Result<()> {
-    let (output, _) = search(json!({
+async fn frame_scope_does_not_collect_siblings_even_when_nothing_matches() -> anyhow::Result<()> {
+    let (output, upstream) = search(json!({
         "url": "https://www.figma.com/design/FileKey123/Girok?node-id=3831-10708",
         "query": "Loading",
+        "match": "exact",
         "limit": 5
     }))
     .await?;
 
     // The anchor itself is in scope; its siblings are not.
     assert_eq!(ids(&output, "matches"), ["3831:10708"]);
-    assert_eq!(output["scope"]["excludedOutOfScope"], 4);
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(output["scope"]["collectionScope"], "node");
+    assert_eq!(output["scope"]["excludedOutOfScope"], 0);
     assert_eq!(
         ids(&output, "outOfScopeMatches"),
         Vec::<String>::new(),
         "out-of-scope matches are only listed when the scoped answer is empty"
     );
 
-    let (empty, _) = search(json!({
+    let (empty, upstream) = search(json!({
         "url": "https://www.figma.com/design/FileKey123/Girok?node-id=1690-33290",
         "query": "Loading screen improvements",
         "limit": 5
     }))
     .await?;
     assert_eq!(empty["count"], 0);
-    assert_eq!(ids(&empty, "outOfScopeMatches"), ["4279:7810"]);
+    assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(empty["scope"]["collectionScope"], "node");
+    assert_eq!(empty["scope"]["matchedInScope"], 0);
+    assert_eq!(empty["scope"]["excludedOutOfScope"], 0);
+    assert!(ids(&empty, "outOfScopeMatches").is_empty());
     assert!(
         empty["scope"]["nextAction"]["example"]["url"]
             .as_str()
