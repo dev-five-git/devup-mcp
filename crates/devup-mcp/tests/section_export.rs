@@ -142,7 +142,14 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
         }),
     )
     .await?;
-    assert_eq!(selected["status"], "complete");
+    assert_eq!(selected["status"], "partial");
+    assert!(
+        selected["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     assert_eq!(
         selected["frames"]
             .as_array()

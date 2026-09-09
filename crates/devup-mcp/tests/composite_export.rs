@@ -273,8 +273,7 @@ async fn the_collected_design_is_reachable_only_in_debug() -> anyhow::Result<()>
 /// They are still sent whenever they disagree with a clean grade, and
 /// whenever the caller asks for diagnostics - which the test above covers.
 #[tokio::test]
-async fn a_clean_conversion_sends_the_code_and_the_grade_but_not_the_paperwork()
--> anyhow::Result<()> {
+async fn a_clean_capture_reports_its_projection_shortfall_by_default() -> anyhow::Result<()> {
     let upstream = Arc::new(FastFixtureUpstream::complete());
     let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream));
     let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
@@ -295,8 +294,15 @@ async fn a_clean_conversion_sends_the_code_and_the_grade_but_not_the_paperwork()
     )
     .await?;
 
-    assert_eq!(result["status"], "complete");
-    assert_eq!(result["quality"]["projection"], "exact");
+    assert_eq!(result["status"], "partial");
+    assert!(
+        result["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
+    assert_eq!(result["quality"]["projection"], "lossy");
     assert_eq!(result["quality"]["acquisition"], "complete");
     assert!(result["tsx"].as_str().unwrap().contains("$primary"));
     // `completenessReport` is keyed on the capture, which is clean here.
@@ -304,16 +310,11 @@ async fn a_clean_conversion_sends_the_code_and_the_grade_but_not_the_paperwork()
         result.get("completenessReport").is_none(),
         "a clean capture says nothing the grade has not already said"
     );
-    // `fidelity` is keyed on the report itself rather than on
-    // `quality.projection`, because the grade is computed from diagnostics
-    // alone: a coverage shortfall that raises none leaves it reading `exact`
-    // while an axis is short. This fixture is exactly that case, so the
-    // report is sent - and printing it is the point, since hiding it is what
-    // the first attempt at this did on a real screen.
+    // R1: a clean acquisition does not make unclassified layout loss exact.
     let fidelity = result
         .get("fidelity")
-        .expect("a report that disagrees with a clean grade must be sent");
-    assert_eq!(result["quality"]["projection"], "exact");
+        .expect("a projection shortfall must be explained");
+    assert_eq!(result["quality"]["projection"], "lossy");
     assert!(
         fidelity["variables"]["basisPoints"].as_u64() < Some(10_000)
             || fidelity["layout"]["basisPoints"].as_u64() < Some(10_000)
@@ -355,7 +356,14 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     )
     .await?;
 
-    assert_eq!(first["status"], "complete");
+    assert_eq!(first["status"], "partial");
+    assert!(
+        first["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     // The raw payload is the whole collection the snapshot came out of: the
     // same nodes, plus the variables the token names are read from, and
     // never the reference PNG, which has an output of its own.
@@ -366,18 +374,21 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert_eq!(first["cache"]["cacheHit"], false);
     assert!(first["cache"]["artifactId"].as_str().is_some());
     assert!(first["tsx"].as_str().unwrap().contains("$primary"));
-    assert_eq!(first["status"], "complete");
-    assert_eq!(first["quality"]["projection"], "exact");
+    assert_eq!(first["status"], "partial");
+    assert!(
+        first["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
+    assert_eq!(first["quality"]["projection"], "lossy");
     // This call asks for diagnostics, so the drill-down under `quality` is
     // exactly what it should get.
     assert!(first["fidelity"].is_object());
     assert!(first["completenessReport"].is_object());
-    // `status` says the run went well; `deliverable` says which value is the
-    // answer to implement from. A consumer reported relying on it, so it is
-    // sent whenever a tsx was actually produced.
-    assert_eq!(first["deliverable"]["kind"], "devup-ui-tsx");
-    assert_eq!(first["deliverable"]["isFinal"], true);
-    assert!(!first["deliverable"]["note"].as_str().unwrap().is_empty());
+    // The code is available for inspection but is not a final exact output.
+    assert!(first.get("deliverable").is_none());
     // These restate something already in the response whether diagnostics
     // were asked for or not: `imports` and `usedTokens` restate the tsx's own
     // import line and its `$token`s. Neither is sent any more.
@@ -568,7 +579,14 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
     )
     .await?;
 
-    assert_eq!(result["status"], "complete");
+    assert_eq!(result["status"], "partial");
+    assert!(
+        result["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|issue| issue["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
+    );
     assert_eq!(result["collection"]["figmaToolCalls"], 2);
     let exported = asset_by_id(&result["assetManifest"], "1:3:fills:0");
     assert_eq!(exported["status"], "exported");
