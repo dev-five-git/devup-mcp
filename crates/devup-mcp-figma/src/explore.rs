@@ -73,6 +73,41 @@ pub struct ExploreNode {
     pub page_child_index: Option<usize>,
 }
 
+impl ExploreNode {
+    /// Automatic Section screen selection. Explicit nonstandard cases are a
+    /// separate menu, never an exception to this predicate.
+    pub fn is_screen_candidate(&self) -> bool {
+        self.visible
+            && self.node_type == "FRAME"
+            && classify_explore_node(self) == ExploreKind::Screen
+    }
+}
+
+pub(crate) fn section_screen_nodes(snapshot: &Snapshot, section_id: &str) -> Vec<ExploreNode> {
+    let mut nodes = snapshot
+        .nodes
+        .values()
+        .filter_map(|node| ExploreNode::try_from(node).ok())
+        .filter(|node| {
+            node.is_screen_candidate() && is_descendant_of(snapshot, &node.node_id, section_id)
+        })
+        .collect::<Vec<_>>();
+    let ids = nodes
+        .iter()
+        .map(|node| node.node_id.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    nodes.retain(|node| {
+        !ancestor_ids(snapshot, &node.node_id, section_id)
+            .iter()
+            .any(|ancestor| ancestor != section_id && ids.contains(ancestor))
+    });
+    for node in &mut nodes {
+        enrich_node(snapshot, node);
+    }
+    nodes.sort_by(visual_order);
+    nodes
+}
+
 impl TryFrom<&RawNode> for ExploreNode {
     type Error = DevupError;
 
@@ -113,7 +148,8 @@ impl TryFrom<&RawNode> for ExploreNode {
                 )
             })?;
         let child_count = view
-            .value("childCount")
+            .value("directChildCount")
+            .or_else(|| view.value("childCount"))
             .and_then(|value| value.as_u64())
             .map(|value| value as usize)
             .unwrap_or_else(|| view.child_ids().count());
@@ -359,31 +395,8 @@ pub fn explore_snapshot(
         })?;
         let mut section_scope = ExploreNode::try_from(scope_node)?;
         enrich_node(snapshot, &mut section_scope);
-        let mut nodes = snapshot
-            .nodes
-            .values()
-            .filter(|node| node.id != anchor.node_id)
-            .filter(|node| node.id != section_scope_id)
-            .filter(|node| node.node_type == "FRAME")
-            .filter_map(|node| {
-                let mut node = ExploreNode::try_from(node).ok()?;
-                enrich_node(snapshot, &mut node);
-                (node.visible
-                    && node.kind == ExploreKind::Screen
-                    && is_descendant_of(snapshot, &node.node_id, &section_scope_id))
-                .then_some(node)
-            })
-            .collect::<Vec<_>>();
-        let screen_ids = nodes
-            .iter()
-            .map(|node| node.node_id.clone())
-            .collect::<std::collections::BTreeSet<_>>();
-        nodes.retain(|node| {
-            !ancestor_ids(snapshot, &node.node_id, &section_scope_id)
-                .iter()
-                .any(|ancestor| screen_ids.contains(ancestor))
-        });
-        nodes.sort_by(visual_order);
+        let mut nodes = section_screen_nodes(snapshot, &section_scope_id);
+        nodes.retain(|node| node.node_id != anchor.node_id);
         let candidate_count = nodes.len();
         nodes.truncate(options.limit);
         let candidates = nodes
