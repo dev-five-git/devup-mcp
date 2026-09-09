@@ -450,6 +450,12 @@ pub(super) fn push_style_props(
     if view.bool("visible") == Some(false) {
         string_prop(props, "display", "none");
     }
+    if non_rendering_asset_reason(snapshot, node).is_some() {
+        // Background paints and the variant tree also pass here. Do not
+        // leave a URL behind merely because the node is not an Image leaf.
+        string_prop(props, "visibility", "hidden");
+        return;
+    }
     if let Some(asset) = asset {
         let folder = if matches!(asset, AssetKind::Svg | AssetKind::SvgMask) {
             "icons"
@@ -612,6 +618,17 @@ pub(super) fn push_style_props(
         string_prop(props, "opacity", format_number(opacity));
     }
     push_blend_mode(&view, props);
+}
+
+pub(super) fn non_rendering_asset_reason(
+    snapshot: &Snapshot,
+    node: &RawNode,
+) -> Option<&'static str> {
+    let reason = devup_mcp_figma::asset_exclusion_reason(node)?;
+    (asset_kind(snapshot, node).is_some()
+        || fills(node)
+            .is_some_and(|paints| paints.iter().any(|paint| fill_type(paint) == Some("IMAGE"))))
+    .then_some(reason)
 }
 
 /// The plugin's `getObjectFitProps`: how the first visible image fill of a

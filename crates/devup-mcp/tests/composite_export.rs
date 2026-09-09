@@ -388,7 +388,13 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     assert!(first["fidelity"].is_object());
     assert!(first["completenessReport"].is_object());
     // The code is available for inspection but is not a final exact output.
-    assert!(first.get("deliverable").is_none());
+    assert_eq!(first["deliverable"]["isFinal"], false);
+    assert!(
+        !first["deliverable"]["availableOutputs"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     // These restate something already in the response whether diagnostics
     // were asked for or not: `imports` and `usedTokens` restate the tsx's own
     // import line and its `$token`s. Neither is sent any more.

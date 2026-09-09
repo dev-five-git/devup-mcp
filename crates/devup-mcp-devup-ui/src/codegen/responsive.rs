@@ -59,10 +59,11 @@ pub fn slot_of_width(width: u32) -> usize {
 }
 
 /// The props a disappearing value must be cleared for, from the plugin's
-/// `SPECIAL_PROPS_WITH_INITIAL`. Layout, spacing and position only: a colour
+/// `SPECIAL_PROPS_WITH_INITIAL`, plus visibility for suppressed assets. A colour
 /// that stops being set is left to inherit rather than reset.
-const CLEARED_WHEN_DROPPED: [&str; 41] = [
+const CLEARED_WHEN_DROPPED: [&str; 42] = [
     "display",
+    "visibility",
     "position",
     "pos",
     "transform",
@@ -164,7 +165,8 @@ pub enum Merged {
 /// props in [`CLEARED_WHEN_DROPPED`] are cleared, so a `bg` that stops being
 /// set still inherits. And exactly one `"initial"` is placed, at the first
 /// width that exists after the last value, which is why a prop that is set,
-/// dropped, then set again wider cannot be expressed.
+/// dropped, then set again wider cannot be expressed. Visibility deliberately
+/// differs: every drawn, unset width restores visible paint.
 pub fn merge_slots(prop: &str, widths: &[Drawn<'_>; SLOTS]) -> Merged {
     // One width is a screen, not a screen that changes. The reference hands
     // its props back untouched rather than wrapping each in a one-slot array.
@@ -182,6 +184,7 @@ pub fn merge_slots(prop: &str, widths: &[Drawn<'_>; SLOTS]) -> Merged {
         .iter()
         .map(|width| match width {
             Drawn::Set(value) => Some((*value).to_owned()),
+            Drawn::Unset if prop == "visibility" => Some("initial".to_owned()),
             Drawn::Absent | Drawn::Unset => None,
         })
         .collect();

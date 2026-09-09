@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Restore actionable partial Figma exports. The production story frame referenced a clipped asset because discovery and generation used different visibility policies; retain an invisible layout box without an unavailable asset reference. Explain withheld outputs in default projectionIssues and retain explicit deliverable finality and output availability. Uncovered layout now carries generated evidence, output attribution, per-output fidelity, and grouped review guidance rather than undifferentiated null values. Replay real WQUW-118/119/120 payloads and assert that all six story-batch TSX outputs exist and parse.",
+  "date": "2026-09-09T18:15:00+09:00"
+}

@@ -367,6 +367,24 @@ fn has_smart_animate_reaction(node: &RawNode) -> bool {
         })
 }
 
+/// Shared discovery/codegen policy for assets that cannot produce visible bytes.
+pub fn asset_exclusion_reason(node: &RawNode) -> Option<&'static str> {
+    let view = node.typed_view();
+    if view.bool("visible") == Some(false) {
+        Some("visible-false")
+    } else if view.number("opacity").is_some_and(|opacity| opacity <= 0.0) {
+        Some("zero-opacity")
+    } else if view.value("absoluteBoundingBox").is_some()
+        && view
+            .value("absoluteRenderBounds")
+            .is_none_or(Value::is_null)
+    {
+        Some("no-render-bounds")
+    } else {
+        None
+    }
+}
+
 fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
     let (asset_id, field, source_kind, image_hash) = match asset {
         AssetNode::Svg => (
@@ -409,14 +427,7 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
     // devup-ui landing page's mobile and tablet each carry one such icon,
     // pushed past the edge of a clipped panel, and they were the only two
     // exports of 215 that Figma turned down.
-    let view = node.typed_view();
-    let draws_nothing = view.value("absoluteBoundingBox").is_some()
-        && view
-            .value("absoluteRenderBounds")
-            .is_none_or(Value::is_null);
-    let hidden = view.bool("visible") == Some(false)
-        || view.number("opacity").is_some_and(|opacity| opacity <= 0.0)
-        || draws_nothing;
+    let hidden = asset_exclusion_reason(node).is_some();
     let (status, error_code) = if hidden {
         (
             AssetStatus::Failed,
