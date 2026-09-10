@@ -55,7 +55,7 @@ pub use resources::{
 pub use search::{SearchOptions, SearchResult, search_snapshot};
 pub use section::{
     BatchLimits, SectionBatch, SectionCandidate, SectionIndex, SectionSummary, build_section_index,
-    plan_batches,
+    plan_batches, screen_owners,
 };
 pub use snapshot::{
     ChildCountMismatch, CompletenessState, Diagnostic, DiagnosticSeverity, FidelityImpact,

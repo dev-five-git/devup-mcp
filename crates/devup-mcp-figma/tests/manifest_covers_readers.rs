@@ -17,6 +17,7 @@ const NOT_NODE_FIELDS: &[&str] = &[
     "parentType",
     "childrenIds",
     "styledTextSegments",
+    "nodeScreenIds", // Computed by section_index.js from visited ancestry, not a Figma property.
     // Envelope, pagination and probe records, not nodes.
     "breadcrumb",
     "childCount",

@@ -730,6 +730,34 @@ pub(crate) fn account_for_sizing(snapshot: &Snapshot, output: &mut CodegenOutput
         let Some(range) = entry.generated_range.as_ref() else {
             continue;
         };
+        for field in ["width", "height"] {
+            if !content_sizing_accounted(snapshot, output, id, field) {
+                continue;
+            }
+            entries.push(generated_entry(
+                range.start,
+                range.start + opening.len(),
+                id,
+                field,
+                None,
+                None,
+                "accounted-for-content-sizing",
+            ));
+            diagnostics.push(devup_mcp_figma::Diagnostic {
+                code: "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR".into(),
+                node_id: Some(id.into()), property: Some(field.into()),
+                message: "Source text auto-resize is represented by intentionally omitted fixed CSS sizing; pixel equivalence remains unmeasured.".into(),
+                severity: Some(devup_mcp_figma::DiagnosticSeverity::Info),
+                fidelity_impact: Some(FidelityImpact::None),
+                details: Some(json!({"classification":"text-auto-size", "resolution":"accounted-for-content-sizing",
+                    "originalValue":node.typed_view().value(field), "textAutoResize":node.typed_view().string("textAutoResize"),
+                    "appliedValue":{"state":"emitted", "generatedNodeId":id,"generatedSource":opening,"propertyMappingVerified":true},
+                    "reason":"The collected textAutoResize mode directs content sizing on this axis and the generated Text intentionally omits its fixed dimension.",
+                    "verification":{"state":"unverified","reasonCode":"font-metrics-not-measured",
+                        "reason":"Browser font metrics and pixel dimensions have not been measured; content-sizing semantics are accounted for, not pixel equivalence."}})),
+                ..Default::default()
+            });
+        }
         for field in ["layoutSizingVertical", "layoutGrow"] {
             if !layout_field_is_semantic(snapshot, node, field) {
                 continue;
@@ -795,4 +823,60 @@ pub(crate) fn account_for_sizing(snapshot: &Snapshot, output: &mut CodegenOutput
     }
     output.source_map.entries.extend(entries);
     output.diagnostics.extend(diagnostics);
+}
+
+/// Mirror the renderer's intentional text-size omission and recheck the actual
+/// element. This accounts for a sizing instruction, never its measured pixels.
+pub(super) fn content_sizing_accounted(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    id: &str,
+    field: &str,
+) -> bool {
+    let Some(node) = snapshot.nodes.get(id) else {
+        return false;
+    };
+    let view = node.typed_view();
+    let Some(tag) = node_opening(output, id) else {
+        return false;
+    };
+    let mode = view.string("textAutoResize");
+    node.node_type == "TEXT"
+        && tag
+            .trim_start()
+            .strip_prefix("<Text")
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace))
+        && matches!(field, "width" | "height")
+        && [
+            field,
+            "textAutoResize",
+            "layoutSizingHorizontal",
+            "layoutSizingVertical",
+            "characters",
+        ]
+        .iter()
+        .all(|f| !node.field_errors.contains_key(*f))
+        && view.string("layoutSizingHorizontal") == Some("FIXED")
+        && view.string("layoutSizingVertical") == Some("FIXED")
+        && view.string("characters").is_some()
+        && view.number(field).is_some_and(f64::is_finite)
+        && (mode == Some("WIDTH_AND_HEIGHT")
+            || (field == "height"
+                && mode == Some("HEIGHT")
+                && !node.field_errors.contains_key("width")
+                && view.number("width").is_some_and(|w| {
+                    prop(tag, "w").and_then(|v| v.strip_suffix("px")?.parse::<f64>().ok())
+                        == Some(w)
+                })))
+        && [
+            if field == "width" { "w" } else { "h" },
+            "boxSize",
+            "width",
+            "height",
+            "style",
+            "css",
+            "as",
+        ]
+        .iter()
+        .all(|name| find_prop(tag, &format!("{name}=")).is_none())
 }

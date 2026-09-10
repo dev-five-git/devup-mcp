@@ -348,9 +348,11 @@ pub(super) async fn apply_delivery(
         }
     }
     if let Some(deliverable) = result.get_mut("deliverable") {
-        deliverable["note"] = json!(
+        deliverable["note"] = json!(if deliverable["isFinal"] == true {
             "The final TSX deliverables are in resources. Read the linked resources to implement them."
-        );
+        } else {
+            "The available TSX outputs are in resources. Review projectionIssues and outputResults before using them; these outputs are not final."
+        });
     }
     result.insert(
         "resources".to_owned(),
@@ -1157,6 +1159,25 @@ pub(super) async fn complete_operation(
                 classify_target(&payload.snapshot, &payload.target)
             };
             result.insert("targetKind".to_owned(), json!(target_kind));
+            let selection_index = if target_kind == TargetKind::Section {
+                let mut index = match &payload_section_index {
+                    Some(index) => index.clone(),
+                    None => {
+                        devup_mcp_figma::build_section_index(&payload.snapshot, &payload.target)?
+                    }
+                };
+                for (id, owner) in devup_mcp_figma::screen_owners(
+                    &payload.snapshot,
+                    index.candidates.iter().map(|c| c.node_id.as_str()),
+                ) {
+                    if owner.is_some() || !index.node_screen_ids.contains_key(&id) {
+                        index.node_screen_ids.insert(id, owner);
+                    }
+                }
+                Some(index)
+            } else {
+                None
+            };
             let manifest_requested = outputs.iter().any(|output| output == "assetManifest");
             result.insert(
                 "assetSummary".to_owned(),
@@ -1349,17 +1370,14 @@ pub(super) async fn complete_operation(
                             false,
                         ));
                     }
-                    if let Some(node_id) = requested
+                    if requested
                         .iter()
-                        .find(|node_id| !by_id.contains_key(**node_id))
+                        .any(|node_id| !by_id.contains_key(*node_id))
                     {
-                        return Err(DevupError::new(
-                            ErrorCode::DevupFigmaNodeNotFound,
-                            format!(
-                                "Not a screen frame inside the Section, or it does not exist: {node_id}"
-                            ),
-                            false,
-                        ));
+                        selection_index
+                            .as_ref()
+                            .expect("Section index")
+                            .select(&frame_ids, false)?;
                     }
                     candidates
                         .iter()
@@ -1505,6 +1523,7 @@ pub(super) async fn complete_operation(
                                         d.code.as_str(),
                                         "DEVUP_CODEGEN_NON_RENDERING_ASSET"
                                             | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                                            | "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR"
                                     )
                             })
                             .collect::<Vec<_>>()
@@ -2147,6 +2166,7 @@ pub(super) async fn complete_operation(
                                     d.code.as_str(),
                                     "DEVUP_CODEGEN_NON_RENDERING_ASSET"
                                         | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                                        | "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR"
                                 )
                         })
                         .collect::<Vec<_>>()
@@ -2304,7 +2324,16 @@ pub(super) async fn complete_operation(
             } else {
                 BTreeMap::new()
             };
+            let owners = if let Some(index) = &selection_index {
+                index.node_screen_ids.clone()
+            } else {
+                devup_mcp_figma::screen_owners(
+                    &payload.snapshot,
+                    payload.snapshot.roots.iter().map(String::as_str),
+                )
+            };
             let mut value = Value::Object(std::mem::take(&mut result));
+            attach_diagnostic_screens(&mut value, &owners);
             rewrite_result_asset_references(&mut value, &replacements);
             result = value.as_object().expect("result object").clone();
             for (name, contents) in &mut pending_text_outputs {
@@ -2315,6 +2344,8 @@ pub(super) async fn complete_operation(
                 } else if name == "sourceMap" {
                     *contents =
                         serde_json::to_string_pretty(&result["sourceMap"]).unwrap_or_default();
+                } else if matches!(name.as_str(), "rawSnapshot" | "rawPayload") {
+                    *contents = serde_json::to_string_pretty(&result[name]).unwrap_or_default();
                 }
             }
             let mut planned_outputs = Vec::new();
@@ -2434,6 +2465,9 @@ pub(super) async fn complete_operation(
                 result.insert("assetManifest".to_owned(), manifest);
             }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
+            for value in result.values_mut() {
+                attach_diagnostic_screens(value, &owners);
+            }
             let projected_outputs = projected_outputs_from_result(&result)?;
             let mut projected_outputs = projected_outputs;
             projected_outputs.extend(asset_resource_outputs);
@@ -2497,11 +2531,167 @@ mod tests {
     }
 }
 
+/// Apply at the delivery boundary so diagnostics, evidence, and issues share
+/// the same ID contract, including resource-delivered diagnostic containers.
+fn attach_diagnostic_screens(value: &mut Value, owners: &BTreeMap<String, Option<String>>) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                attach_diagnostic_screens(item, owners);
+            }
+        }
+        Value::Object(object) => {
+            if object.get("code").and_then(Value::as_str).is_some()
+                && object.get("message").and_then(Value::as_str).is_some()
+            {
+                let owner = object
+                    .get("nodeId")
+                    .and_then(Value::as_str)
+                    .and_then(|id| owners.get(id))
+                    .and_then(|id| id.as_deref());
+                object.insert("screenId".into(), json!(owner));
+                if owner.is_none() {
+                    object.insert("screenIdReason".into(), json!("This diagnostic has no node in a known selectable screen; no screen ID was inferred."));
+                }
+            }
+            for child in object.values_mut() {
+                attach_diagnostic_screens(child, owners);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[cfg(test)]
 mod w1_regressions {
     use super::super::artifacts::ArtifactRequestKey;
     use super::*;
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
+
+    #[tokio::test]
+    async fn r10_content_sizing_uncertainty_survives_diagnostics_opt_out() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46129".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        for owner in [&result, &result["frames"][0]] {
+            let evidence: Vec<_> = owner["projectionEvidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|d| d["details"]["resolution"] == "accounted-for-content-sizing")
+                .collect();
+            assert_eq!(evidence.len(), 2);
+            for d in evidence {
+                assert_eq!(d["screenId"], "3997:46129");
+                assert_eq!(
+                    d["details"]["verification"]["reasonCode"],
+                    "font-metrics-not-measured"
+                );
+                assert_eq!(d["fidelityImpact"], "none");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r10_diagnostics_identify_exportable_screen() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46129".into()];
+            *include_diagnostics = true;
+        }
+        let result = project(data, op).await.unwrap();
+        for key in ["diagnostics", "projectionIssues", "placementContracts"] {
+            for d in result["frames"][0][key].as_array().unwrap() {
+                assert_eq!(d["screenId"], "3997:46129", "{d}");
+            }
+        }
+        for d in result["projectionIssues"].as_array().unwrap() {
+            assert_eq!(d["screenId"], "3997:46129", "{d}");
+        }
+    }
+
+    #[tokio::test]
+    async fn r10_resource_note_does_not_claim_nonfinal_tsx_is_final() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "componentTsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            delivery,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46582".into()];
+            *delivery = DeliveryMode::Resource;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert!(
+            !result["deliverable"]["note"]
+                .as_str()
+                .unwrap()
+                .contains("final TSX")
+        );
+    }
+
+    #[tokio::test]
+    async fn r10_descendant_selection_has_corrected_arguments() {
+        let mut data = section(2);
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["child"]));
+        data.snapshot.nodes.insert("child".into(), serde_json::from_value(json!({"id":"child","type":"TEXT","fields":{"parentId":"1:1","characters":"hello"}})).unwrap());
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["child".into()];
+        }
+        let error = project(data.clone(), op).await.unwrap_err();
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["frameIds"],
+            json!(["1:1"]),
+            "{error:?}"
+        );
+        assert_eq!(
+            error.details["selectionIssues"][0]["reason"],
+            "descendant-of-screen"
+        );
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["absent".into()];
+        }
+        let error = project(data, op).await.unwrap_err();
+        assert_eq!(
+            error.details["selectionIssues"][0]["reason"],
+            "not-found-in-section"
+        );
+        assert!(error.details["nextAction"].is_null());
+    }
 
     #[tokio::test]
     async fn r3_responsive_has_its_own_fidelity_result() {
@@ -2921,7 +3111,7 @@ mod w1_regressions {
                 include_str!("../../../../fixtures/r2/wquw-118-payload.json"),
                 vec!["3997:46242", "3997:46277", "3997:46129"],
                 vec!["tsx", "assetManifest"],
-                2,
+                0, // R10: both auto-size dimensions are accounted for, not lost.
             ),
             (
                 include_str!("../../../../fixtures/r2/wquw-120-payload.json"),
@@ -2968,6 +3158,17 @@ mod w1_regressions {
             } else {
                 "text-auto-size"
             };
+            if count == 0 {
+                assert_eq!(
+                    result["projectionEvidence"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|d| d["details"]["resolution"] == "accounted-for-content-sizing")
+                        .count(),
+                    2
+                );
+            }
             assert_eq!(
                 layout
                     .iter()
