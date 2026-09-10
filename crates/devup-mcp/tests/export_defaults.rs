@@ -8,6 +8,8 @@
 //! than the theme read out of Figma. The default was enlarging every
 //! response to answer a question nobody was asking.
 
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -90,6 +92,14 @@ async fn export(arguments: Value) -> anyhow::Result<Value> {
         .await?;
     client.cancel().await?;
     task.await??;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
     Ok(result.structured_content.unwrap())
 }
 
@@ -258,8 +268,8 @@ async fn p3_parameter_failures_do_not_spend_upstream_calls() -> anyhow::Result<(
                     .with_arguments(arguments.as_object().unwrap().clone()),
             )
             .await
-            .unwrap_err()
-            .to_string();
+            .map(common::tool_error)
+            .expect("structured failure");
         assert!(error.contains("-32602"), "{error}");
         assert_eq!(fixture.calls.load(Ordering::SeqCst), 0);
     }
@@ -269,8 +279,8 @@ async fn p3_parameter_failures_do_not_spend_upstream_calls() -> anyhow::Result<(
                 .with_arguments(json!({"artifactId":"missing"}).as_object().unwrap().clone()),
         )
         .await
-        .unwrap_err()
-        .to_string();
+        .map(common::tool_error)
+        .expect("structured failure");
     assert!(
         error.contains("-32603") && error.contains("The Figma artifact is missing or expired."),
         "{error}"

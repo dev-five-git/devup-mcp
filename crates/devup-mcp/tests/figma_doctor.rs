@@ -120,6 +120,14 @@ async fn call_named_tool(
         .await?;
     client.cancel().await?;
     task.await??;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
     Ok(result)
 }
 

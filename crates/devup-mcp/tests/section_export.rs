@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -64,6 +66,14 @@ async fn call(
     let result = client
         .call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(arguments))
         .await?;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
     Ok(result.structured_content.expect("structured output"))
 }
 
@@ -215,7 +225,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             ),
         )
         .await;
-    assert!(invalid.is_err());
+    common::tool_error(invalid?);
 
     client.cancel().await?;
     task.await??;

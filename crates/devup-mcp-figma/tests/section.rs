@@ -7,6 +7,59 @@ use devup_mcp_figma::{
 use serde_json::{Map, json};
 
 #[test]
+fn r11_section_queries_requested_ids_and_refreshes_unknown_cached_ownership() {
+    use devup_mcp_figma::{
+        BuiltinScript, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
+        ReadToolCall, SectionReadOptions,
+    };
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1").unwrap();
+    for cached in [false, true] {
+        let mut request = CollectionRequest::new(target.clone(), CollectionScope::Node);
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["uncollected-descendant".into()],
+            all_screens: false,
+        });
+        if cached {
+            request.cached_section_index =
+                Some(build_section_index(&fixture_snapshot(), &target).unwrap());
+        }
+        let mut collector = CollectorSession::new(request);
+        let CollectorStep::Call(call) = collector
+            .advance()
+            .expect("unknown cached IDs must be queried")
+        else {
+            panic!("expected index call")
+        };
+        let ReadToolCall::Snapshot {
+            script, root_ids, ..
+        } = call.call
+        else {
+            panic!("expected snapshot")
+        };
+        assert_eq!(script, BuiltinScript::SectionIndex);
+        assert_eq!(root_ids, Some(vec!["uncollected-descendant".into()]));
+    }
+}
+
+#[test]
+fn r11_large_section_script_behavior_runs_in_cargo_suite() {
+    let script =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/explore_script_behavior.mjs");
+    let result = std::process::Command::new("node")
+        .arg("--test")
+        .arg(&script)
+        .output()
+        .expect("Node is required to exercise production Figma scripts");
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
 fn r10_compact_index_corrects_descendant_selection_without_selecting_silently() {
     let target =
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1").unwrap();

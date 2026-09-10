@@ -340,11 +340,11 @@ impl CollectorSession {
                     .node_id
                     .clone()
                     .ok_or_else(|| invalid_call("Figma Section index requires a node ID."))?;
-                self.enqueue(
-                    ReadToolCall::section_index(&self.request.target.file_key, &node_id),
-                    Some(node_id),
-                    CallKind::SectionIndex,
-                );
+                let mut call = ReadToolCall::section_index(&self.request.target.file_key, &node_id);
+                if let ReadToolCall::Snapshot { root_ids, .. } = &mut call {
+                    *root_ids = self.request.section.as_ref().map(|s| s.frame_ids.clone());
+                }
+                self.enqueue(call, Some(node_id), CallKind::SectionIndex);
                 return self.advance();
             }
             if self.fast_theme_eligible() && !self.fast_attempted {
@@ -1155,6 +1155,17 @@ impl CollectorSession {
             .section
             .clone()
             .ok_or_else(|| invalid_call("cached Section index has no selection options."))?;
+        // Compact indexes only retain ownership for IDs queried during that
+        // request. A newly requested descendant needs a fresh index query.
+        if options.frame_ids.iter().any(|id| {
+            !index
+                .candidates
+                .iter()
+                .any(|candidate| candidate.node_id == *id)
+                && !index.node_screen_ids.contains_key(id)
+        }) {
+            return Ok(());
+        }
         let selected = index.select(&options.frame_ids, options.all_screens)?;
         let batches = plan_batches(&index, &selected, BatchLimits::default())?;
         self.source_version = index.source_version.clone();

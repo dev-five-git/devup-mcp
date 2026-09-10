@@ -145,7 +145,7 @@ async fn r7_local_binary_errors_all_carry_identity() -> anyhow::Result<()> {
         )
         .await?;
         let v = response(&mut stdout, id).await?;
-        let identity = if id == 3 {
+        let identity = if id == 3 || id == 5 {
             assert_eq!(v["result"]["isError"], true);
             &v["result"]["structuredContent"]["server"]
         } else {

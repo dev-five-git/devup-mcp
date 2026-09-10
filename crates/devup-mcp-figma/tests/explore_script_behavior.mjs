@@ -9,21 +9,89 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
 const sectionSource = await readFile(new URL("../src/scripts/section_index.js", import.meta.url), "utf8");
 
-async function executeSection(section) {
-  return new AsyncFunction("figma", sectionSource.replace('"__DEVUP_NODE_ID__"', JSON.stringify(section.id)))({
+async function executeSection(section, requestedIds = []) {
+  return new AsyncFunction("figma", sectionSource.replace('"__DEVUP_NODE_ID__"', JSON.stringify(section.id))
+    .replace('"__DEVUP_ROOT_IDS__"', JSON.stringify(requestedIds)))({
     fileKey: "fixture-file",
     getNodeByIdAsync: async () => section,
   });
 }
+
+function largeDeepSection() {
+  const nodes = [];
+  let nested = [];
+  for (let depth = 0; depth < 200; depth += 1) {
+    const leaves = Array.from({length: 90}, (_, i) => sceneNode({id: `I3997:${depth};65:${i}`, type: "VECTOR"}));
+    const group = sceneNode({id: `group-${depth}`, children: [...nested, ...leaves]});
+    nodes.push(group, ...leaves);
+    nested = [group];
+  }
+  const frame = sceneNode({id: "3997:46690", type: "FRAME", width: 360, height: 740, children: nested});
+  const section = sceneNode({id: "4279:7806", type: "SECTION", children: [frame]});
+  pageWith(section);
+  let parentReads = 0;
+  for (const node of nodes) {
+    const parent = node.parent;
+    Object.defineProperty(node, "parent", {get() {parentReads += 1; return parent;}});
+  }
+  return {section, parentReads: () => parentReads};
+}
+
+test("R11 large SECTION survives the measured 20480-byte upstream text ceiling", async () => {
+  const fixture = largeDeepSection();
+  const result = await executeSection(fixture.section);
+  const serialized = JSON.stringify(result);
+  const bytes = Buffer.byteLength(serialized);
+  const received = bytes > 20480
+    ? Buffer.from(serialized).subarray(0, 20480).toString() + "// truncated to 20kb"
+    : serialized;
+  assert.doesNotThrow(() => JSON.parse(received), `upstream cuts ${bytes} bytes`);
+  assert.ok(bytes <= 19 * 1024, `${bytes} bytes exceeds the safety margin`);
+  assert.equal(result.nodes.length, 2);
+  assert.equal(result.nodes[1].fields.subtreeNodeCount, 18201);
+});
+
+test("R11 deep SECTION does not read every descendant's plugin parent chain", async () => {
+  const fixture = largeDeepSection();
+  await executeSection(fixture.section);
+  assert.ok(fixture.parentReads() <= 18200, `parent getter reads: ${fixture.parentReads()}`);
+});
 
 test("R10 compact index connects descendant IDs to selectable screens", async () => {
   const child = sceneNode({id:"3997:46703", type:"VECTOR"});
   const frame = sceneNode({id:"3997:46690",type:"FRAME",width:360,height:740,children:[child]});
   const section = sceneNode({id:"4279:7806",type:"SECTION",children:[frame]});
   pageWith(section);
-  const result = await executeSection(section);
+  const result = await executeSection(section, ["3997:46703"]);
   assert.equal(result.nodes[0].fields.nodeScreenIds?.["3997:46703"], "3997:46690");
   assert.equal(result.nodes.length, 2);
+});
+
+test("R11 ownership payload includes only queried descendants, including deep IDs", async () => {
+  const {section} = largeDeepSection();
+  const result = await executeSection(section, ["I3997:0;65:0", "missing"]);
+  assert.deepEqual(result.nodes[0].fields.nodeScreenIds, {"I3997:0;65:0": "3997:46690"});
+});
+
+test("R11 oversized candidate metadata fails explicitly before upstream truncation", async () => {
+  const frame = sceneNode({id: "frame", type: "FRAME", name: "한".repeat(20000)});
+  const section = sceneNode({id: "section", type: "SECTION", children: [frame]});
+  pageWith(section);
+  await assert.rejects(executeSection(section), /DEVUP_SECTION_INDEX_TOO_LARGE/);
+});
+
+test("R11 previews yield space to the complete screen menu near the response ceiling", async () => {
+  const frames = Array.from({length: 40}, (_, i) => {
+    const text = sceneNode({id: `text-${i}`, type: "TEXT"});
+    text.characters = "화면 안내 문구 ".repeat(30);
+    return sceneNode({id: `3997:${46000+i}`, type: "FRAME", width: 360, height: 740, children: [text]});
+  });
+  const section = sceneNode({id: "section", type: "SECTION", children: frames});
+  pageWith(section);
+  const result = await executeSection(section);
+  assert.equal(result.nodes.length, 41);
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 19 * 1024);
+  assert.equal(result.nodes[0].fields.projectionTruncated, false);
 });
 
 test("Section list previews visible text without exporting descendants", async () => {
