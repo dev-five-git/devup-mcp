@@ -447,6 +447,20 @@ pub(super) fn push_layout_props(
         }
     }
 
+    // Cross-axis FILL must stretch even when the row centers other children.
+    // Percentage height cannot resolve against a HUG row's auto height.
+    if !absolute
+        && !embedded_root
+        && fill_h
+        && parent.is_some_and(|p| {
+            p.typed_view().string("layoutMode") == Some("HORIZONTAL")
+                && p.typed_view().string("layoutSizingVertical") == Some("HUG")
+        })
+    {
+        height = None;
+        string_prop(props, "alignSelf", "stretch");
+    }
+
     // Whether the height was said outright, which decides below whether the
     // node still needs to be told to take the space its parent leaves.
     let wrote_height = height.is_some();

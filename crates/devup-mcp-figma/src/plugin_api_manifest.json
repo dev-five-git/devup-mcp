@@ -5,7 +5,7 @@
   "effectStyleId", "effects", "fillStyleId", "fills", "fontName", "fontSize",
   "gridColumnAnchorIndex", "gridColumnCount", "gridColumnGap", "gridColumnSizes", "gridColumnSpan", "gridRowAnchorIndex",
   "gridRowCount", "gridRowGap", "gridRowSizes", "gridRowSpan", "gridStyleId", "height",
-  "inferredAutoLayout", "isAsset", "isMask", "itemSpacing", "layoutGrow", "layoutMode",
+  "inferredAutoLayout", "isAsset", "isMask", "itemSpacing", "layoutGrow", "layoutMode", "layoutWrap",
   "layoutPositioning", "layoutSizingHorizontal", "layoutSizingVertical", "letterSpacing", "lineHeight", "maxHeight",
   "maxLines", "maxWidth", "minHeight", "minWidth", "name", "opacity",
   "paddingBottom", "paddingLeft", "paddingRight", "paddingTop", "primaryAxisAlignItems", "reactions",
