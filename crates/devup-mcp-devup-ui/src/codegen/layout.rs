@@ -5,7 +5,7 @@ use super::component::{Prop, PropValue, RootLayout};
 
 /// A box in a parent's coordinates: left, top, width, height.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct Box4 {
+pub(crate) struct Box4 {
     pub x: f64,
     pub y: f64,
     pub w: f64,
@@ -28,7 +28,7 @@ fn box4(value: Option<&Value>) -> Option<Box4> {
 /// 1373x98 whose vector sits inside it exports as 952x104, and a group of
 /// 686x735 rotated four degrees exports as 759x585 with the rotation drawn
 /// into the paths. `None` where the snapshot does not carry the bounds.
-pub(super) fn export_box(snapshot: &Snapshot, node: &RawNode) -> Option<Box4> {
+pub(crate) fn export_box(snapshot: &Snapshot, node: &RawNode) -> Option<Box4> {
     let view = node.typed_view();
     let render = box4(view.value("absoluteRenderBounds"))?;
     let parent = view
@@ -70,7 +70,7 @@ pub(super) fn export_offset(node: &RawNode) -> Option<Box4> {
 /// The box the layout gives an asset that is not positioned: its bounding
 /// box, which is its own box unless it is rotated, when it is the box the
 /// rotation sweeps - the box Figma's own layout gives it.
-pub(super) fn layout_box(node: &RawNode) -> Option<Box4> {
+pub(crate) fn layout_box(node: &RawNode) -> Option<Box4> {
     box4(node.typed_view().value("absoluteBoundingBox"))
 }
 
@@ -152,14 +152,8 @@ pub(super) fn push_layout_props(
         // column, is `boxSize="100%"`, and a hidden 1920px frame in a 992px
         // one is `w="100%" h="667px"`.
         //
-        // One departure, on purpose. An asset folds its children away and is
-        // drawn at a size, and the plugin still says no height for it: the
-        // 465px puzzle icon comes out `w="465px"` alone, a mask with nothing
-        // to mask. Here it keeps its height — unless it is wider than its
-        // parent, where the pinned corpus wants `w="100%"` and no height, and
-        // `provenance` expects the same. Text keeps its own width and `100%`:
-        // the plugin says nothing for a positioned text and the corpus wants
-        // the size written.
+        // Preserve the existing placement policy here. Only child-folded mask
+        // HUG axes are repaired below; other unproven sizes remain diagnostics.
         let own_width = view.number("width");
         let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
         if export.is_some() {
@@ -251,17 +245,8 @@ pub(super) fn push_layout_props(
         // already add back up to the frame, and restating the size only says
         // it twice.
         //
-        // Both sides or neither, on purpose. An absolute asset wider than its
-        // parent gets w="100%" and no height above, and the pinned corpus
-        // wants exactly that — two goldens carry a full-width rotated
-        // background mask with no h, and restoring the height there breaks
-        // byte parity. The box has no height and draws by its mask alone;
-        // that is the reference's rule, and it is matched rather than fixed.
-        //
-        // This is a departure from the plugin, which says no size for a
-        // positioned frame with children and lets them size it. A 12px box
-        // holding a 2px dot at its centre then collapses to the dot, and the
-        // dot lands 5px off; the pinned size is a layout fact, and it is kept.
+        // Ordinary frames may derive size from their content or padding.
+        // Child-folded HUG masks receive a bounded size repair below.
         if fixed_w
             && fixed_h
             && width.is_none()
@@ -277,10 +262,8 @@ pub(super) fn push_layout_props(
         // 24px row of logo and menu, and centring them in 24 rather than 60
         // put them 18px high of where Figma draws them.
         //
-        // An asset is left out, as it is above: it has no children left to
-        // measure, and the two goldens carrying a full-width rotated mask
-        // want their height unsaid. So is a frame whose spare room became
-        // padding, which already adds back up to the pinned height.
+        // Child-folded HUG masks have a repair below. Other unsupported asset
+        // sizes are reported by fidelity; padding may already size frames.
         if fixed_h
             && height.is_none()
             && !is_asset
@@ -426,6 +409,30 @@ pub(super) fn push_layout_props(
         }
     }
 
+    // Only folding children into a CSS mask destroys HUG's intrinsic basis.
+    // FILL remains fluid; a vector's measured ratio supplies its lost HUG axis.
+    let mut restored_ratio = None;
+    if !embedded_root && let Some((w, h)) = folded_mask_dimensions(snapshot, node) {
+        let horizontal = view.string("layoutSizingHorizontal");
+        let vertical = view.string("layoutSizingVertical");
+        if horizontal == Some("FILL") && vertical == Some("HUG") {
+            width = Some("100%".into());
+            height = None;
+            restored_ratio = Some(format!("{w} / {h}"));
+        } else if horizontal == Some("HUG") && vertical == Some("FILL") {
+            width = None;
+            height = Some("100%".into());
+            restored_ratio = Some(format!("{w} / {h}"));
+        } else {
+            if horizontal == Some("HUG") {
+                width = Some(px(w));
+            }
+            if vertical == Some("HUG") {
+                height = Some(px(h));
+            }
+        }
+    }
+
     // Whether the height was said outright, which decides below whether the
     // node still needs to be told to take the space its parent leaves.
     let wrote_height = height.is_some();
@@ -447,7 +454,9 @@ pub(super) fn push_layout_props(
     // branch of `_getLayoutProps` never writes `aspectRatio` — so the ratio
     // is only for a node in flow, where it stands in for a side that is not
     // written. The about hero picture is `boxSize="100%"` with no ratio.
-    if !absolute
+    if let Some(ratio) = restored_ratio {
+        string_prop(props, "aspectRatio", ratio);
+    } else if !absolute
         && let Some(aspect) = view.value("targetAspectRatio").and_then(Value::as_object)
         && let (Some(x), Some(y)) = (
             aspect.get("x").and_then(Value::as_f64),
@@ -1484,4 +1493,27 @@ pub(super) fn format_number(value: f64) -> String {
     } else {
         format!("{rounded:.2}").trim_end_matches('0').to_owned()
     }
+}
+
+/// Dimensions whose child-based HUG sizing is destroyed by mask projection.
+/// Render bounds alone cannot establish layout size (effects may enlarge them).
+pub(crate) fn folded_mask_dimensions(snapshot: &Snapshot, node: &RawNode) -> Option<(f64, f64)> {
+    let view = node.typed_view();
+    if super::style::asset_kind(snapshot, node) != Some(super::style::AssetKind::SvgMask)
+        || view.child_ids().next().is_none()
+        // Rotated exports and pixel mask offsets need a different transform
+        // proof. Leave them unresolved instead of inventing responsive sizes.
+        || view.number("rotation").is_some_and(|rotation| rotation.abs() > 0.01)
+        || export_offset(node).is_some()
+        || !(view.string("layoutSizingHorizontal") == Some("HUG")
+            || view.string("layoutSizingVertical") == Some("HUG"))
+    {
+        return None;
+    }
+    let measured = |axis| {
+        view.number(axis)
+            .or_else(|| view.value("absoluteBoundingBox")?.get(axis)?.as_f64())
+            .filter(|v| v.is_finite() && *v > 0.0)
+    };
+    Some((measured("width")?, measured("height")?))
 }

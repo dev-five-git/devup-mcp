@@ -44,6 +44,12 @@ pub struct ProvenanceEntry {
 pub struct SourceMap {
     pub version: u32,
     pub entries: Vec<ProvenanceEntry>,
+    /// Trusted resource identities retained for in-process fidelity validation.
+    /// A deserialized map without this context cannot establish token identity.
+    #[serde(skip)]
+    pub variable_tokens: BTreeMap<String, String>,
+    #[serde(skip)]
+    pub style_tokens: BTreeMap<String, String>,
 }
 
 impl SourceMap {
@@ -51,6 +57,8 @@ impl SourceMap {
         Self {
             version: 1,
             entries: Vec::new(),
+            variable_tokens: BTreeMap::new(),
+            style_tokens: BTreeMap::new(),
         }
     }
 }
@@ -358,7 +366,19 @@ pub fn validate_fidelity(
                     && entry.resolution == "variable-token"
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
                         !source.contains(['<', '>', '\n'])
-                            && source.contains('$')
+                            && output
+                                .source_map
+                                .variable_tokens
+                                .get(variable_id)
+                                .is_some_and(|token| {
+                                    find_resource_id(
+                                        source,
+                                        &BTreeMap::from([(variable_id.clone(), token.clone())]),
+                                        '$',
+                                    )
+                                    .as_ref()
+                                        == Some(variable_id)
+                                })
                             && source.ends_with('"')
                     })
             })
@@ -372,8 +392,13 @@ pub fn validate_fidelity(
                 entry.node_id.as_deref() == Some(*node_id)
                     && entry.style_id.as_deref() == Some(*style_id)
                     && entry.resolution == "style-token"
-                    && entry_range(entry, &output.tsx)
-                        .is_some_and(|source| source.starts_with("typography=\""))
+                    && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        output
+                            .source_map
+                            .style_tokens
+                            .get(*style_id)
+                            .is_some_and(|token| source == format!("typography=\"{token}\""))
+                    })
             })
         })
         .count();
@@ -391,9 +416,7 @@ pub fn validate_fidelity(
                     && entry.asset_id.as_deref() == Some(asset_id.as_str())
                     && entry.resolution == "asset"
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
-                        source.starts_with("src=\"")
-                            || source.starts_with("maskImage=\"")
-                            || (source.starts_with("bg=\"") && source.contains("url("))
+                        asset_reference_matches(snapshot, output, entry, node_id, asset_id, source)
                     })
             })
         })
@@ -417,7 +440,7 @@ pub fn validate_fidelity(
         .flat_map(|node| node.typed_view().child_ids().collect::<Vec<_>>())
         .filter(|child_id| !snapshot.nodes.contains_key(*child_id))
         .collect::<BTreeSet<_>>();
-    let layout = semantic_nodes
+    let mut layout = semantic_nodes
         .iter()
         .filter(|node_id| !has_asset_ancestor(node_id, &parents, &asset_nodes))
         .flat_map(|node_id| {
@@ -434,6 +457,42 @@ pub fn validate_fidelity(
             })
         })
         .collect::<BTreeSet<_>>();
+    // A visible childless painted Box has no intrinsic content, even when it
+    // was not classified as an asset (for example an empty HUG frame).
+    for node_id in &semantic_nodes {
+        let Some(node) = snapshot.nodes.get(*node_id) else {
+            continue;
+        };
+        if devup_mcp_figma::asset_exclusion_reason(node).is_some() {
+            continue;
+        }
+        let empty_box = empty_layout_leaf(output, node_id);
+        if empty_box {
+            for axis in ["width", "height"] {
+                let view = node.typed_view();
+                let sizing = if axis == "width" {
+                    "layoutSizingHorizontal"
+                } else {
+                    "layoutSizingVertical"
+                };
+                if view
+                    .value("absoluteRenderBounds")
+                    .and_then(|b| b.get(axis))
+                    .and_then(serde_json::Value::as_f64)
+                    .is_some_and(|v| v > 0.0)
+                    || (view.string(sizing) == Some("HUG")
+                        && (view.number(axis).is_some_and(|v| v > 0.0)
+                            || view
+                                .value("absoluteBoundingBox")
+                                .and_then(|b| b.get(axis))
+                                .and_then(serde_json::Value::as_f64)
+                                .is_some_and(|v| v > 0.0)))
+                {
+                    layout.insert(((*node_id).to_owned(), axis.to_owned()));
+                }
+            }
+        }
+    }
     let (covered_layout, uncovered_layout) = {
         let mut covered = 0usize;
         // Which pairs were not represented, not just how many. A count alone
@@ -445,8 +504,10 @@ pub fn validate_fidelity(
             let represented = output.source_map.entries.iter().any(|entry| {
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
-                    && entry_range(entry, &output.tsx)
-                        .is_some_and(|source| layout_source_matches(property, source))
+                    && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        layout_source_matches(property, source)
+                            && dimension_value_matches(snapshot, output, node_id, property, source)
+                    })
             });
             if represented {
                 covered += 1;
@@ -520,6 +581,24 @@ fn layout_field_is_semantic(
     field: &str,
 ) -> bool {
     let view = node.typed_view();
+    // Asset internals may be baked into the export, but the CSS element's
+    // two axes are never internal. Check before HUG/canvas/padding exemptions.
+    if matches!(field, "width" | "height")
+        && projects_as_asset(snapshot, node)
+        && devup_mcp_figma::asset_exclusion_reason(node).is_none()
+    {
+        return view.number(field).is_some_and(|v| v > 0.0)
+            || view
+                .value("absoluteBoundingBox")
+                .and_then(|b| b.get(field))
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(|v| v > 0.0)
+            || view
+                .value("absoluteRenderBounds")
+                .and_then(|b| b.get(field))
+                .and_then(serde_json::Value::as_f64)
+                .is_some_and(|v| v > 0.0);
+    }
     let component_set_parent = view
         .string("parentId")
         .and_then(|parent_id| snapshot.nodes.get(parent_id))
@@ -570,28 +649,12 @@ fn layout_field_is_semantic(
                 .and_then(|parent_id| snapshot.nodes.get(parent_id)),
             canvas_parent,
         );
-    if field == "height" && placed_out_of_flow && view.child_ids().next().is_some() {
-        // An asset folds its children away and is drawn at a size, so
-        // `codegen::layout` restores both sides for it — unless it is wider
-        // than its parent. Then the width is written as 100% and the height
-        // is dropped, and the reference does the same: two goldens carry a
-        // full-width rotated background mask with no h, and the 465px puzzle
-        // icon on a 328px `about` mobile column comes out the same way. The
-        // rule below is the one in `codegen::layout` for the absolute branch,
-        // kept in step by hand.
-        let wider_than_parent = || {
-            let parent_width = view
-                .string("parentId")
-                .and_then(|parent_id| snapshot.nodes.get(parent_id))
-                .and_then(|parent| parent.typed_view().number("width"));
-            matches!(
-                (view.number("width"), parent_width),
-                (Some(width), Some(parent_width)) if width >= parent_width
-            )
-        };
-        if !projects_as_asset(snapshot, node) || wider_than_parent() {
-            return false;
-        }
+    if field == "height"
+        && placed_out_of_flow
+        && view.child_ids().next().is_some()
+        && !projects_as_asset(snapshot, node)
+    {
+        return false;
     }
     match field {
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
@@ -724,8 +787,48 @@ fn variable_sources(
     let mut output = BTreeSet::new();
     for node_id in semantic_nodes {
         if let Some(node) = snapshot.nodes.get(*node_id) {
-            for value in node.fields.values().chain(node.extra.values()) {
-                scan(node_id, value, &mut output);
+            let view = node.typed_view();
+            // A mixed text-level fill is not a paint when every character is
+            // covered by explicit segment fills. Retain all other bindings.
+            let overridden = node.node_type == "TEXT"
+                && view.value("fills").is_some_and(|v| !v.is_array())
+                && view
+                    .value("styledTextSegments")
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|segments| {
+                        !segments.is_empty()
+                            && segments.iter().all(|segment| {
+                                segment
+                                    .get("fills")
+                                    .and_then(serde_json::Value::as_array)
+                                    .is_some_and(|fills| !fills.is_empty())
+                            })
+                            && segments
+                                .iter()
+                                .filter_map(|segment| {
+                                    segment
+                                        .get("characters")
+                                        .and_then(serde_json::Value::as_str)
+                                })
+                                .collect::<String>()
+                                == view.string("characters").unwrap_or("")
+                    });
+            for (field, value) in node.fields.iter().chain(node.extra.iter()) {
+                if overridden && field == "fills" {
+                    continue;
+                }
+                if overridden
+                    && field == "boundVariables"
+                    && let Some(bindings) = value.as_object()
+                {
+                    for (name, binding) in bindings {
+                        if name != "fills" {
+                            scan(node_id, binding, &mut output);
+                        }
+                    }
+                } else {
+                    scan(node_id, value, &mut output);
+                }
             }
         }
     }
@@ -784,25 +887,263 @@ fn source_covers_text(source: &str, characters: &str) -> bool {
     if source == encode_jsx_text(characters) {
         return true;
     }
-    let fragments = characters
-        .split(['\r', '\n', '\u{2028}', '\u{2029}'])
-        .map(str::trim)
-        .filter(|fragment| !fragment.is_empty());
-    let mut cursor = 0;
-    for fragment in fragments {
-        let encoded = encode_jsx_text(fragment);
-        let Some(found) = source[cursor..].find(&encoded) else {
-            return false;
-        };
-        cursor += found + encoded.len();
+    if !characters.contains(['\r', '\n', '\u{2028}', '\u{2029}']) {
+        return false;
     }
-    cursor > 0 && cursor == source.len()
+    let normalized = characters
+        .replace("\r\n", "\n")
+        .replace(['\r', '\u{2028}', '\u{2029}'], "\n");
+    source
+        .split("<br />")
+        .map(str::trim)
+        .eq(normalized.split('\n').map(str::trim).map(encode_jsx_text))
 }
 
 /// The text as the converter writes it, so a match is against the one rule
 /// both sides follow rather than a copy of it kept here.
 fn encode_jsx_text(input: &str) -> String {
     crate::codegen::escape_jsx_text(input)
+}
+
+fn empty_layout_leaf(output: &CodegenOutput, node_id: &str) -> bool {
+    output.source_map.entries.iter().any(|entry| {
+        entry.node_id.as_deref() == Some(node_id)
+            && entry.property.is_none()
+            && entry_range(entry, &output.tsx).is_some_and(|source| {
+                let source = source.trim();
+                ["<Box", "<VStack", "<Flex", "<Center", "<Grid"]
+                    .iter()
+                    .any(|tag| source.starts_with(tag))
+                    && source.ends_with("/>")
+                    && !source[1..].contains('<')
+            })
+    })
+}
+
+fn asset_reference_matches(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    entry: &ProvenanceEntry,
+    node_id: &str,
+    asset_id: &str,
+    source: &str,
+) -> bool {
+    if !(source.starts_with("src=\"")
+        || source.starts_with("maskImage=\"")
+        || source.starts_with("bg=\""))
+    {
+        return false;
+    }
+    let Some(range) = entry.generated_range.as_ref() else {
+        return false;
+    };
+    let owner = output
+        .source_map
+        .entries
+        .iter()
+        .filter(|e| e.property.is_none() && e.resolution == "node")
+        .filter_map(|e| Some((e.node_id.as_deref()?, e.generated_range.as_ref()?)))
+        .filter(|(_, r)| r.start <= range.start && r.end >= range.end)
+        .min_by_key(|(_, r)| r.end - r.start)
+        .map(|(id, _)| id);
+    let Some(owner) = owner else {
+        return false;
+    };
+    if owner != node_id {
+        let parents = source_parents(snapshot);
+        if !snapshot
+            .nodes
+            .get(owner)
+            .is_some_and(|n| projects_as_asset(snapshot, n))
+            || !has_asset_ancestor(node_id, &parents, &BTreeSet::from([owner.to_owned()]))
+        {
+            return false;
+        }
+    }
+    [false, true].into_iter().any(|per_node| {
+        let path = crate::codegen::asset_path(snapshot, owner, per_node).or_else(|| {
+            let index = asset_id.rsplit_once(":fills:")?.1.parse().ok()?;
+            crate::codegen::image_fill_path(snapshot, owner, index, per_node)
+        });
+        path.is_some_and(|path| {
+            source == format!("src=\"{path}\"")
+                || source.contains(&format!("url('{path}')"))
+                || source.contains(&format!("url({path})"))
+        })
+    })
+}
+
+// A property name or a source-map range alone does not prove size preservation.
+fn node_opening<'a>(output: &'a CodegenOutput, node_id: &str) -> Option<&'a str> {
+    output.source_map.entries.iter().find_map(|entry| {
+        if entry.node_id.as_deref() != Some(node_id) || entry.property.is_some() {
+            return None;
+        }
+        let source = entry_range(entry, &output.tsx)?;
+        source.split_once('>').map(|(opening, _)| opening)
+    })
+}
+
+fn fill_axis_is_established(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    node_id: &str,
+    axis: &str,
+) -> bool {
+    fn established(
+        snapshot: &Snapshot,
+        output: &CodegenOutput,
+        node_id: &str,
+        axis: &str,
+        seen: &mut BTreeSet<String>,
+    ) -> bool {
+        if !seen.insert(node_id.into()) {
+            return false;
+        }
+        let Some(parent) = snapshot
+            .nodes
+            .values()
+            .find(|parent| parent.typed_view().child_ids().any(|id| id == node_id))
+        else {
+            // Normal block roots have a host width, but no implicit height.
+            return axis == "width";
+        };
+        let Some(opening) = node_opening(output, &parent.id) else {
+            return false;
+        };
+        let prop = if axis == "width" { "w" } else { "h" };
+        for prop in [prop, "boxSize"] {
+            let needle = format!("{prop}=\"");
+            if let Some(start) = find_prop(opening, &needle) {
+                let Some((value, _)) = opening[start + needle.len()..].split_once('"') else {
+                    return false;
+                };
+                if value == "100%" {
+                    return established(snapshot, output, &parent.id, axis, seen);
+                }
+                return value
+                    .strip_suffix("px")
+                    .and_then(|value| value.parse::<f64>().ok())
+                    .is_some_and(|value| value.is_finite() && value > 0.0);
+            }
+        }
+        // HUG/shrink-to-fit width and percentage children are a cycle, not an
+        // independent size anchor. Percentage height cannot use an auto parent.
+        axis == "width"
+            && parent.typed_view().string("layoutSizingHorizontal") != Some("HUG")
+            && !opening.contains("pos=\"absolute\"")
+            && !opening.contains("pos=\"fixed\"")
+            && !opening.contains("display=\"inline")
+            && !opening.contains("float=")
+            && established(snapshot, output, &parent.id, axis, seen)
+    }
+    established(snapshot, output, node_id, axis, &mut BTreeSet::new())
+}
+
+fn dimension_value_matches(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    node_id: &str,
+    axis: &str,
+    source: &str,
+) -> bool {
+    if !matches!(axis, "width" | "height") {
+        return true;
+    }
+    let Some(node) = snapshot.nodes.get(node_id) else {
+        return false;
+    };
+    let view = node.typed_view();
+    let sizing = if axis == "width" {
+        "layoutSizingHorizontal"
+    } else {
+        "layoutSizingVertical"
+    };
+    let strict_leaf = empty_layout_leaf(output, node_id)
+        && (view.string(sizing) == Some("HUG")
+            || view
+                .value("absoluteRenderBounds")
+                .is_some_and(|v| v.is_object()));
+    let requires_measured_size = projects_as_asset(snapshot, node) || strict_leaf;
+    let Some(value) = source
+        .split_once("=\"")
+        .and_then(|(_, v)| v.strip_suffix('"'))
+    else {
+        return !requires_measured_size;
+    };
+    if view.string(sizing) == Some("FILL") && requires_measured_size {
+        // A measured pixel width is not equivalent to filling the parent.
+        return value == "100%" && fill_axis_is_established(snapshot, output, node_id, axis);
+    }
+    if source.starts_with("aspectRatio=") && requires_measured_size {
+        let Some((w, h)) = crate::codegen::folded_mask_dimensions(snapshot, node) else {
+            return false;
+        };
+        let Some((x, y)) = value.split_once('/').and_then(|(x, y)| {
+            Some((x.trim().parse::<f64>().ok()?, y.trim().parse::<f64>().ok()?))
+        }) else {
+            return false;
+        };
+        let (opposite, opposite_sizing, prop) = if axis == "height" {
+            ("width", "layoutSizingHorizontal", "w")
+        } else {
+            ("height", "layoutSizingVertical", "h")
+        };
+        return view.string(sizing) == Some("HUG")
+            && view.string(opposite_sizing) == Some("FILL")
+            && x.is_finite()
+            && y.is_finite()
+            && x > 0.0
+            && y > 0.0
+            && (x / y - w / h).abs() < 1e-9
+            && node_opening(output, node_id).is_some_and(|opening| {
+                find_prop(opening, &format!("{prop}=\"100%\"")).is_some()
+                    && find_prop(opening, if axis == "height" { "h=" } else { "w=" }).is_none()
+                    && find_prop(opening, "boxSize=").is_none()
+            })
+            && fill_axis_is_established(snapshot, output, node_id, opposite);
+    }
+    if let Some(px) = value.strip_suffix("px") {
+        let Ok(actual) = px.parse::<f64>() else {
+            return false;
+        };
+        if !actual.is_finite() {
+            return false;
+        }
+        let view = node.typed_view();
+        if view.number(axis).is_some_and(|v| v > 0.0) && actual <= 0.0 {
+            return false;
+        }
+        if requires_measured_size {
+            let parent = snapshot
+                .nodes
+                .values()
+                .find(|candidate| candidate.typed_view().child_ids().any(|id| id == node_id));
+            let canvas = parent
+                .map(|p| p.node_type.as_str())
+                .or_else(|| view.string("parentType"))
+                .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"));
+            let absolute = view.string("layoutPositioning") == Some("ABSOLUTE")
+                || placed_by_a_free_layout(snapshot, node, parent, canvas);
+            let bounds = if projects_as_asset(snapshot, node) && absolute {
+                crate::codegen::export_box(snapshot, node)
+            } else if view.number("rotation").is_some_and(|r| r.abs() > 0.01) {
+                crate::codegen::layout_box(node)
+            } else {
+                None
+            };
+            let expected = bounds
+                .map(|b| if axis == "width" { b.w } else { b.h })
+                .or_else(|| view.number(axis))
+                .or_else(|| view.value("absoluteBoundingBox")?.get(axis)?.as_f64());
+            return expected
+                .is_some_and(|expected| actual > 0.0 && (actual - expected).abs() < 0.01);
+        }
+        return true;
+    }
+    // Percentages, expressions and a ratio without a proven opposing axis
+    // depend on a host. They cannot prove an exported leaf's measured size.
+    !requires_measured_size
 }
 
 fn layout_source_matches(property: &str, source: &str) -> bool {
@@ -817,7 +1158,7 @@ fn layout_source_matches(property: &str, source: &str) -> bool {
         }
         "layoutPositioning" => is_prop("pos"),
         "width" => is_prop("w") || is_prop("boxSize") || is_prop("aspectRatio"),
-        "height" => is_prop("h") || is_prop("boxSize"),
+        "height" => is_prop("h") || is_prop("boxSize") || is_prop("aspectRatio"),
         "itemSpacing" => is_prop("gap") || is_prop("m"),
         "paddingTop" => is_prop("p") || is_prop("py") || is_prop("pt"),
         "paddingRight" => is_prop("p") || is_prop("px") || is_prop("pr"),
@@ -1017,6 +1358,9 @@ pub(crate) fn finalize_tsx(
         }
 
         for (prop, property) in PROP_SOURCES {
+            if *prop == "aspectRatio" && node.typed_view().value("targetAspectRatio").is_none() {
+                continue;
+            }
             if selector_properties.contains(property) {
                 continue;
             }
@@ -1066,6 +1410,49 @@ pub(crate) fn finalize_tsx(
                 style_id,
                 resolution,
             ));
+        }
+
+        if crate::codegen::folded_mask_dimensions(snapshot, node).is_some() {
+            for (axis, sizing, prop) in [
+                ("width", "layoutSizingHorizontal", "w"),
+                ("height", "layoutSizingVertical", "h"),
+            ] {
+                if node.typed_view().string(sizing) != Some("HUG") {
+                    continue;
+                }
+                let derived_prop = if find_prop(opening, "aspectRatio=\"").is_some() {
+                    "aspectRatio"
+                } else {
+                    prop
+                };
+                let needle = format!("{derived_prop}=\"");
+                if let Some(start) = find_prop(opening, &needle)
+                    && let Some(end) = opening[start + needle.len()..].find('"')
+                {
+                    let end = start + needle.len() + end + 1;
+                    for field in [axis, "width", "height", sizing, "childrenIds"] {
+                        let mut entry = generated_entry(
+                            range.start + open_relative + start,
+                            range.start + open_relative + end,
+                            &node_id,
+                            field,
+                            None,
+                            None,
+                            "restored-hug-after-mask-child-folding",
+                        );
+                        if matches!(field, "width" | "height")
+                            && node.typed_view().number(field).is_none()
+                        {
+                            entry.resolution =
+                                "restored-hug-after-mask-child-folding-from-absoluteBoundingBox"
+                                    .into();
+                        }
+                        if !entries.contains(&entry) {
+                            entries.push(entry);
+                        }
+                    }
+                }
+            }
         }
 
         if let Some(asset) = assets_by_node
@@ -1122,6 +1509,8 @@ pub(crate) fn finalize_tsx(
         SourceMap {
             version: 1,
             entries,
+            variable_tokens: variable_tokens.clone(),
+            style_tokens: style_tokens.clone(),
         },
     )
 }
@@ -1154,8 +1543,15 @@ fn add_flattened_resource_entries(
         let needle = format!("${token}");
         let mut represented_by = Some(node_id.as_str());
         while let Some(candidate_id) = represented_by {
-            if let Some(range) = emitted_ranges.get(candidate_id) {
+            if let Some(range) = emitted_ranges.get(candidate_id)
+                && (candidate_id == node_id
+                    || snapshot
+                        .nodes
+                        .get(candidate_id)
+                        .is_some_and(|n| projects_as_asset(snapshot, n)))
+            {
                 let source = &tsx[range.start..range.end];
+                let source = &source[..source.find('>').map_or(source.len(), |end| end + 1)];
                 if let Some((start, end)) = token_prop_range(source, &needle) {
                     entries.push(generated_entry(
                         range.start + start,
@@ -1184,7 +1580,12 @@ fn add_flattened_resource_entries(
             }
             let mut represented_by = parents.get(node_id.as_str()).map(String::as_str);
             while let Some(candidate_id) = represented_by {
-                if let Some(range) = emitted_ranges.get(candidate_id) {
+                if let Some(range) = emitted_ranges.get(candidate_id)
+                    && snapshot
+                        .nodes
+                        .get(candidate_id)
+                        .is_some_and(|n| projects_as_asset(snapshot, n))
+                {
                     let source = &tsx[range.start..range.end];
                     if let Some((start, end)) = asset_range_in_node_source(source) {
                         entries.push(ProvenanceEntry {
@@ -1436,6 +1837,13 @@ fn add_text_entries(
     for (variable_id, token) in variable_tokens {
         let needle = format!("${token}");
         for start in match_indices(source, &needle) {
+            if source[start + needle.len()..]
+                .chars()
+                .next()
+                .is_some_and(is_token_character)
+            {
+                continue;
+            }
             let prop_start = source[..start]
                 .rfind(|character: char| character.is_whitespace() || character == '<')
                 .map_or(start, |offset| offset + 1);

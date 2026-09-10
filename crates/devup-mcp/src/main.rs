@@ -13,6 +13,13 @@ async fn main() -> anyhow::Result<()> {
         println!("{}", serde_json::to_string(&devup_mcp::self_check())?);
         return Ok(());
     }
+    if let devup_mcp::CliAction::MergeAssetBatches(paths) = &action {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&devup_mcp::asset_batches::merge_files(paths)?)?
+        );
+        return Ok(());
+    }
     let devup_mcp::CliAction::Serve(config) = action else {
         unreachable!("version action returned above")
     };

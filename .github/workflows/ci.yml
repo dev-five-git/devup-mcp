@@ -106,14 +106,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: rustfmt, clippy
+      # Run before rust-cache (which may itself invoke cargo metadata) and
+      # all builds: otherwise Cargo repairs a stale lock and hides the defect.
+      - name: Require an up-to-date committed Cargo.lock
+        shell: bash
+        run: cargo metadata --locked --format-version 1 > /dev/null
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-insta --version 1.48.0 --locked
       - run: cargo fmt --all -- --check
       - run: node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs
-      - run: cargo test -p devup-mcp --test stdio_smoke
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --locked -p devup-mcp --test stdio_smoke
+      - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - run: cargo insta test --workspace --all-features --check
-      - run: cargo build --workspace --release
+      - run: cargo build --locked --workspace --release
+      - name: Test automatic version and lockfile synchronization
+        if: matrix.os == 'ubuntu-latest'
+        run: python3 .github/scripts/test_release_lock.py
       # The bundle is only assembled on a release run, so without this the
       # first time anyone learns the manifest is malformed is after the tag
       # and the draft release already exist. Schema-check it on every pull
@@ -167,9 +175,40 @@ jobs:
           else
             echo "superseded=false" >> "$GITHUB_OUTPUT"
           fi
+      - uses: dtolnay/rust-toolchain@1.98.0
+        if: steps.freshness.outputs.superseded == 'false' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # The upstream action stages and commits immediately after its update,
+      # with --no-verify and no post-update extension point. Scope a Git adapter
+      # to this action only, running cargo update --workspace BEFORE the real
+      # version commit. A post-action commit could race PR auto-merge; a
+      # prepare-commit-msg hook runs after Git has already cached its tree.
+      # The adapter survives the action's reset/clean in RUNNER_TEMP, forwards
+      # every other command unchanged, and refuses a stale version-branch push.
+      - name: Prepare same-commit release lockfile synchronization
+        id: release_git
+        if: steps.freshness.outputs.superseded == 'false'
+        shell: bash
+        env:
+          ENABLE_SYNC: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+          echo "real_git=$(command -v git)" >> "$GITHUB_OUTPUT"
+          if [ "$ENABLE_SYNC" = "true" ]; then
+            adapter="$RUNNER_TEMP/devup-release-git"
+            mkdir -p "$adapter"
+            cp .github/scripts/release_git.py "$adapter/git"
+            chmod +x "$adapter/git"
+            echo "path=$adapter:$PATH" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=$PATH" >> "$GITHUB_OUTPUT"
+          fi
       - uses: changepacks/action@main
         id: changepacks
         if: steps.freshness.outputs.superseded == 'false'
+        env:
+          PATH: ${{ steps.release_git.outputs.path }}
+          DEVUP_RELEASE_REAL_GIT: ${{ steps.release_git.outputs.real_git }}
+          DEVUP_RELEASE_LOCK_SYNC: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           create_release: true
@@ -219,23 +258,15 @@ jobs:
           OS: ${{ matrix.os }}
           # Name the commit outright instead of letting build.rs infer it.
           #
-          # It infers by asking git for HEAD and whether the tree is dirty,
-          # and on a release build the tree always is: `changepacks update`
-          # moves the version in Cargo.toml and leaves Cargo.lock behind, so
-          # the first cargo invocation rewrites the lock and dirties the
-          # checkout. Every published binary then reported its build id as
-          # `<sha>-dirty`, which is precisely the state `--version` and
-          # `--self-check` exist to tell apart from a developer's working
-          # tree. Committing the lock fixed the instance; the next Update
-          # Versions pull request brings it straight back.
-          #
-          # CI knows exactly which commit it is building, so it says so.
+          # Explicit release identity remains deterministic. R5 synchronizes
+          # Cargo.lock in the version commit, preventing the old automatic
+          # Cargo rewrite that made released binaries report <sha>-dirty.
           DEVUP_MCP_BUILD_ID: ${{ github.sha }}
         run: |
           set -euo pipefail
           for target in $TARGETS; do
             rustup target add "$target"
-            cargo build --release --target "$target" -p devup-mcp
+            cargo build --locked --release --target "$target" -p devup-mcp
           done
           # Only the MCP server ships. devup-mcp-visual is a PNG comparator
           # the render harness builds from source with cargo; nothing
