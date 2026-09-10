@@ -185,6 +185,7 @@ pub(super) fn uncovered_layout_details(
                     "appliedValue":{"state":"emitted","generatedNodeId":id,"generatedSource":excerpt,
                         "sourceTruncated":source.chars().count()>800,"propertyMappingVerified":false},
                     "classification":classification,"appliedValueReason":reason,"nextAction":action,
+                    "verification":if auto_text {json!({"state":"unverified","reasonCode":"font-metrics-not-measured","reason":"Content sizing was emitted, but browser font metrics and measured dimensions have not been verified; this remains lossy, not exact."})} else {Value::Null},
                     "implicitCssVerification":crate::provenance::implicit_css_verification(snapshot, output, node_id, property)});
             }
         }

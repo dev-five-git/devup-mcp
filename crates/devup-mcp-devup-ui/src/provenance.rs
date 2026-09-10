@@ -460,6 +460,20 @@ pub fn validate_fidelity(
             })
         })
         .collect::<BTreeSet<_>>();
+    // Previously claimed implicit dimensions remain obligations when emitted CSS
+    // is revalidated. Replacing a Box by an unknown/replaced tag must not make
+    // its size disappear from coverage merely because it is no longer a Box.
+    for entry in &output.source_map.entries {
+        if matches!(
+            entry.resolution.as_str(),
+            "accounted-for-implicit-flex-stretch" | "accounted-for-implicit-flex-grow"
+        ) && let (Some(id), Some(field)) = (entry.node_id.as_deref(), entry.property.as_deref())
+            && matches!(field, "width" | "height")
+            && semantic_nodes.contains(id)
+        {
+            layout.insert((id.to_owned(), field.to_owned()));
+        }
+    }
     // A visible childless painted Box has no intrinsic content, even when it
     // was not classified as an asset (for example an empty HUG frame).
     for node_id in &semantic_nodes {
@@ -508,7 +522,11 @@ pub fn validate_fidelity(
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
-                        if entry.resolution == "accounted-for-implicit-flex-stretch" {
+                        if matches!(
+                            entry.resolution.as_str(),
+                            "accounted-for-implicit-flex-stretch"
+                                | "accounted-for-implicit-flex-grow"
+                        ) {
                             return implicit_css_verification(snapshot, output, node_id, property)
                                 ["state"]
                                 == "accounted-for";

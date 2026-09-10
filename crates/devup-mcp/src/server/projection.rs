@@ -259,6 +259,36 @@ pub(super) async fn apply_delivery(
     if outputs.is_empty() || choose_delivery_for_result(mode, result, &outputs)?.inline {
         return Ok(None);
     }
+    let debug_outputs: Vec<_> = [
+        "tsx",
+        "componentTsx",
+        "devupJson",
+        "rawSnapshot",
+        "rawPayload",
+        "sourceMap",
+    ]
+    .into_iter()
+    .filter(|field| {
+        result.get(*field).is_some()
+            || result["frames"]
+                .as_array()
+                .is_some_and(|frames| frames.iter().any(|f| f.get(*field).is_some()))
+    })
+    .collect();
+    if mode == DeliveryMode::Auto
+        && debug_outputs
+            .iter()
+            .any(|f| matches!(*f, "rawSnapshot" | "rawPayload" | "sourceMap"))
+    {
+        let frame_ids: Vec<_> = result["frames"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|f| f.get("nodeId").cloned())
+            .collect();
+        result["nextAction"] = json!({"how":"Debug outputs exceeded auto inline delivery. Read the linked resources, or reproject this artifact with delivery:inline. Inline has a 1 MiB total limit; request fewer frames/outputs if necessary.",
+            "example":{"tool":"devup_figma_export","arguments":{"artifactId":artifact.artifact_id,"frameIds":frame_ids,"outputs":debug_outputs,"debug":true,"delivery":"inline"}}});
+    }
     let projection_key = projection_key(&outputs);
     materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
     let reservation = artifact_store
@@ -931,7 +961,7 @@ fn generate_collected_component(
 }
 
 pub(super) async fn complete_operation(
-    operation: PendingOperation,
+    mut operation: PendingOperation,
     payload: &CollectedPayload,
     source_kind: &str,
     artifact: &ArtifactLookup,
@@ -944,6 +974,19 @@ pub(super) async fn complete_operation(
         payload.stats.clone()
     };
     let completeness_report = payload.completeness_report();
+    if source_kind == "artifact"
+        && let PendingOperation::Export {
+            frame_ids,
+            all_screens,
+            ..
+        } = &mut operation
+        && frame_ids.is_empty()
+        && !*all_screens
+        && let Some(saved) = &artifact.capabilities.section_selection
+    {
+        frame_ids.clone_from(&saved.frame_ids);
+        *all_screens = saved.all_screens;
+    }
     match operation {
         PendingOperation::Search {
             query,
@@ -3729,6 +3772,121 @@ mod w1_regressions {
         let result = project(data, operation(&["tsx"])).await.unwrap();
         assert_eq!(result["selection"]["truncated"], false);
         assert_eq!(result["selection"]["status"], "complete");
+    }
+
+    #[tokio::test]
+    async fn r7_real_wquw118_layout_contracts_are_preserved() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["3997:46277".into()];
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["frames"].as_array().unwrap().len(), 1);
+        let frame = &result["frames"][0];
+        assert_eq!(frame["nodeId"], "3997:46277");
+        let entries = frame["sourceMap"]["entries"].as_array().unwrap();
+        for (id, field, resolution) in [
+            ("3997:46293", "width", "accounted-for-implicit-flex-grow"),
+            ("3997:46295", "width", "accounted-for-implicit-flex-grow"),
+            (
+                "3997:46313",
+                "layoutSizingVertical",
+                "accounted-for-implicit-flex-stretch",
+            ),
+        ] {
+            assert!(
+                entries.iter().any(|e| e["nodeId"] == id
+                    && e["property"] == field
+                    && e["resolution"] == resolution),
+                "{id}"
+            );
+        }
+        assert!(
+            frame["tsx"]
+                .as_str()
+                .unwrap()
+                .contains("alignSelf=\"stretch\"")
+        );
+        for id in ["3997:46293", "3997:46295", "3997:46313"] {
+            assert!(
+                !result["projectionIssues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|i| i["nodeId"] == id && i["fidelityImpact"] == "lossy"),
+                "{result}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn r7_artifact_reuses_stored_selection() {
+        let data = section(2);
+        let store = ArtifactStore::default();
+        let mut request = CollectionRequest::new(data.target.clone(), CollectionScope::Node);
+        request.section = Some(devup_mcp_figma::SectionReadOptions {
+            frame_ids: vec!["1:2".into()],
+            all_screens: false,
+        });
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), data)
+            .await
+            .unwrap();
+        let result = complete_operation(
+            operation(&["tsx"]),
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+            &store,
+        )
+        .await
+        .unwrap();
+        assert_ne!(result["status"], "selection_required");
+        assert_eq!(result["frames"][0]["nodeId"], "1:2");
+        assert_eq!(result["frames"].as_array().unwrap().len(), 1);
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["1:1".into()];
+        }
+        let explicit = complete_operation(
+            op,
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+            &store,
+        )
+        .await
+        .unwrap();
+        assert_eq!(explicit["frames"][0]["nodeId"], "1:1");
+    }
+
+    #[tokio::test]
+    async fn r7_auto_debug_resource_has_inline_reprojection_guidance() {
+        let mut data = payload();
+        data.metadata = json!({"large":"x".repeat(300_000)});
+        let mut op = operation(&["tsx", "rawPayload", "sourceMap"]);
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Auto;
+        }
+        let result = project(data, op).await.unwrap();
+        assert!(result["resources"].is_array());
+        assert_eq!(
+            result["nextAction"]["example"]["arguments"]["delivery"],
+            "inline"
+        );
+        assert_eq!(result["nextAction"]["example"]["arguments"]["debug"], true);
+        assert!(
+            result["nextAction"]["how"]
+                .as_str()
+                .unwrap()
+                .contains("resource")
+        );
     }
 
     async fn project(

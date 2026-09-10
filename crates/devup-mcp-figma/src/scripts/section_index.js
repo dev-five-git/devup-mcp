@@ -1,6 +1,28 @@
 const section = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
 if (!section) throw new Error("DEVUP_NODE_NOT_FOUND");
-if (section.type !== "SECTION") throw new Error("DEVUP_SECTION_REQUIRED");
+if (section.type !== "SECTION") {
+  let ancestor = section.parent;
+  const seen = new Set();
+  while (ancestor && ancestor.type !== "SECTION" && !seen.has(ancestor.id)) {
+    seen.add(ancestor.id);
+    ancestor = ancestor.parent;
+  }
+  const sectionId = ancestor && ancestor.type === "SECTION" ? ancestor.id : null;
+  const url = sectionId && figma.fileKey
+    ? `https://www.figma.com/design/${figma.fileKey}?node-id=${sectionId.replace(/:/g, "-")}` : null;
+  throw new Error("DEVUP_SECTION_REQUIRED " + JSON.stringify({
+    pluginCode: "DEVUP_SECTION_REQUIRED", stage: "section-index",
+    nodeId: section.id, nodeType: section.type, sectionId,
+    nextAction: {
+      tool: "devup_figma_export",
+      how: sectionId ? `The url must point to a SECTION. This capture's SECTION is ${sectionId}; select frames with frameIds.`
+        : "The url must point to a SECTION. This node has no ancestor SECTION; choose the intended SECTION in Figma and copy its link.",
+      arguments: url ? (section.type === "FRAME" && section.parent === ancestor
+        ? {url, frameIds: [section.id]} : {url}) : null,
+      requiredArguments: url ? [] : ["url"]
+    }
+  }));
+}
 
 const MAX_CANDIDATES = 100;
 const MAX_TRAVERSED_NODES = 20000;

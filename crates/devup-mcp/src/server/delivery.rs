@@ -191,15 +191,14 @@ pub fn choose_delivery_for_result(
     }
 }
 
+pub(crate) fn server_identity() -> Value {
+    serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"buildId":crate::build_id(),
+        "commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s|!s.is_empty())})
+}
+
 pub fn tool_result(mut value: Value) -> CallToolResult {
     if let Some(object) = value.as_object_mut() {
-        object.insert(
-            "server".into(),
-            serde_json::json!({
-                "version": env!("CARGO_PKG_VERSION"), "buildId": crate::build_id(),
-                "commit": option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty())
-            }),
-        );
+        object.insert("server".into(), server_identity());
     }
     let links = value
         .get("resources")
