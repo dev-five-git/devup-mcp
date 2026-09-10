@@ -352,3 +352,114 @@ fn resolve_figma_direct_config_resolves_client_name_independently_of_credentials
         ClientCredentialSource::CliArg
     );
 }
+
+#[test]
+fn r5_merge_asset_batches_cli_combines_partial_responses() {
+    let dir = std::env::temp_dir().join(format!("devup-r5-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let paths: Vec<_> = (0..2).map(|i| dir.join(format!("{i}.json"))).collect();
+    for (i, path) in paths.iter().enumerate() {
+        let id = if i == 0 { "a" } else { "b" };
+        let other = if i == 0 { "b" } else { "a" };
+        let value = serde_json::json!({"structuredContent": {
+            "status":"partial", "source":{"fileKey":"file", "version":"1"},
+            "assetSummary":{"discovery":"complete", "discoveredCount":2, "collectedCount":1, "scopeRootIds":["root"], "unavailable":[{"assetId":other,"reason":"capture-not-in-artifact"}]},
+            "assetJob":{"assets":[{"assetId":id,"status":"exported","sha256":"a".repeat(64),"byteLength":12,"fileState":"written","outputPath":"/assets/a.svg"}]}
+        }});
+        std::fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+    }
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .arg("--merge-asset-batches")
+        .args(&paths)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let summary: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(summary["status"], "complete");
+    assert_eq!(summary["collectedCount"], 2);
+    assert_eq!(summary["failedCount"], 0);
+    assert_eq!(summary["unrequestedCount"], 0);
+    assert_eq!(summary["reportedWrittenCount"], 2);
+    for path in paths {
+        std::fs::remove_file(path).unwrap();
+    }
+    std::fs::remove_dir(dir).unwrap();
+}
+
+fn merge_batches(values: &[serde_json::Value]) -> std::process::Output {
+    let dir = std::env::temp_dir().join(format!(
+        "devup-r5-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let paths: Vec<_> = values
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            let path = dir.join(format!("{i}.json"));
+            std::fs::write(&path, serde_json::to_vec(v).unwrap()).unwrap();
+            path
+        })
+        .collect();
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .arg("--merge-asset-batches")
+        .args(&paths)
+        .output()
+        .unwrap();
+    for p in paths {
+        std::fs::remove_file(p).unwrap();
+    }
+    std::fs::remove_dir(dir).unwrap();
+    result
+}
+
+#[test]
+fn r5_batch_merge_does_not_hide_conflicts_failures_or_unknown_discovery() {
+    use serde_json::json;
+    let batch = |hash: &str| {
+        json!({"source":{"fileKey":"file","version":"1"},
+        "assetSummary":{"discovery":"incomplete", "unavailable":[{"assetId":"missing","reason":"capture-not-in-artifact"},{"assetId":"failed","reason":"export-failed"}]},
+        "assetManifest":{"assets":[{"assetId":"a","status":"exported","sha256":hash.repeat(64),"byteLength":12}]}})
+    };
+    let output = merge_batches(&[batch("a"), batch("b")]);
+    assert!(output.status.success());
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["status"], "partial");
+    assert_eq!(result["conflictCount"], 1);
+    assert_eq!(result["failedCount"], 1);
+    assert_eq!(result["unrequestedCount"], 1);
+    assert_eq!(result["collectedCount"], 0);
+    assert_eq!(result["discovery"], "incomplete");
+    let mut different = batch("a");
+    different["source"]["fileKey"] = json!("different");
+    assert!(!merge_batches(&[batch("a"), different]).status.success());
+    let mut different = batch("a");
+    different["source"]["version"] = json!("2");
+    assert!(!merge_batches(&[batch("a"), different]).status.success());
+}
+
+#[test]
+fn r5_batch_summary_without_asset_identities_cannot_claim_complete() {
+    let result = devup_mcp::asset_batches::merge(&[serde_json::json!({
+        "source":{"fileKey":"file","version":"1"},
+        "assetSummary":{"discovery":"complete","discoveredCount":16,"collectedCount":16,"manifestIncluded":false,"unavailable":[]}
+    })]).unwrap();
+    assert_eq!(result["status"], "partial");
+    assert_eq!(result["inventoryComplete"], false);
+}
+
+#[test]
+fn r5_batch_summary_without_discovery_counts_is_incomplete() {
+    let result = devup_mcp::asset_batches::merge(&[serde_json::json!({
+        "source":{"fileKey":"file","version":"1"},
+        "assetSummary":{"discovery":"complete","unavailable":[]}
+    })])
+    .unwrap();
+    assert_eq!(result["status"], "partial");
+    assert_eq!(result["inventoryComplete"], false);
+}

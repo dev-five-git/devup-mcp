@@ -374,11 +374,12 @@ fn asset_boundaries_exclude_internal_and_descendant_layout_fields() {
     assert!(output.tsx.contains("<Image"), "{}", output.tsx);
     assert_eq!(output.fidelity_report.layout.total, 3);
     assert_eq!(
-        output.fidelity_report.layout.covered, 3,
+        output.fidelity_report.layout.covered, 2,
         "tsx: {}\nuncovered: {:?}",
         output.tsx, output.fidelity_report.uncovered_layout
     );
-    assert!(output.fidelity_report.uncovered_layout.is_empty());
+    // A percentage width without established host dimensions is unproven.
+    assert_eq!(output.fidelity_report.uncovered_layout, ["asset#width"]);
 
     let mut missing_external_geometry = output.clone();
     missing_external_geometry
@@ -841,4 +842,79 @@ fn a_canvas_root_dimension_is_not_counted_as_an_unmet_layout_fact() {
         "canvas geometry must not be reported as unmet: {:?}",
         report.uncovered_layout
     );
+}
+
+#[test]
+fn r5_resource_identity_requires_the_expected_token_and_style() {
+    let snapshot = fidelity_snapshot("Hello");
+    let output = generate_component(&snapshot, "1:1", &fidelity_options()).unwrap();
+    let mut wrong = output.clone();
+    wrong.tsx = wrong.tsx.replace("$primary", "$invalid");
+    assert_eq!(
+        validate_fidelity(&snapshot, "1:1", &wrong)
+            .unwrap()
+            .variables
+            .covered,
+        0
+    );
+    let mut wrong = output;
+    wrong.tsx = wrong
+        .tsx
+        .replace("typography=\"body\"", "typography=\"nope\"");
+    assert_eq!(
+        validate_fidelity(&snapshot, "1:1", &wrong)
+            .unwrap()
+            .typography
+            .covered,
+        0
+    );
+}
+
+#[test]
+fn r5_extra_text_in_a_valid_mapping_is_not_exact() {
+    let snapshot = fidelity_snapshot("Hello");
+    let mut output = generate_component(&snapshot, "1:1", &fidelity_options()).unwrap();
+    let entry = output
+        .source_map
+        .entries
+        .iter_mut()
+        .find(|e| e.property.as_deref() == Some("characters"))
+        .unwrap();
+    let range = entry.generated_range.as_mut().unwrap();
+    // The byte immediately preceding the content is whitespace; extending the
+    // mapping must not silently treat arbitrary leading content as matching.
+    range.start -= 1;
+    output.tsx.replace_range(range.start..range.start + 1, "x");
+    assert_eq!(
+        validate_fidelity(&snapshot, "1:1", &output)
+            .unwrap()
+            .text
+            .covered,
+        0
+    );
+}
+
+#[test]
+fn r5_fully_overridden_mixed_fill_is_not_a_rendered_variable() {
+    let mut snapshot = fidelity_snapshot("Hello");
+    let text = snapshot.nodes.get_mut("1:2").unwrap();
+    text.fields
+        .insert("fills".into(), json!({"$unsupported":"symbol"}));
+    text.fields.insert(
+        "boundVariables".into(),
+        json!({"fills":[{"type":"VARIABLE_ALIAS","id":"stale"}]}),
+    );
+    let mut options = fidelity_options();
+    options
+        .variable_tokens
+        .insert("stale".into(), "oldColor".into());
+    let output = generate_component(&snapshot, "1:1", &options).unwrap();
+    assert_eq!(output.fidelity_report.variables.total, 1);
+    assert!(output.fidelity_report.variables.complete());
+    // Incomplete explicit segments cannot justify excluding the parent fill.
+    snapshot.nodes.get_mut("1:2").unwrap().fields["styledTextSegments"][0]["characters"] =
+        json!("Hell");
+    let output = generate_component(&snapshot, "1:1", &options).unwrap();
+    assert_eq!(output.fidelity_report.variables.total, 2);
+    assert!(!output.fidelity_report.variables.complete());
 }

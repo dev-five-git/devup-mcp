@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "PR #26 follow-up: preserve child-folded SVG mask HUG sizing with responsive FILL/aspectRatio evidence; reject unproven TSX sizes and mismatched token/style/asset/text coverage before exact/final; add cumulative asset batch summaries with separate unrequested, failed, conflict and inventory states.",
+  "date": "2026-09-10T12:00:00+09:00"
+}
