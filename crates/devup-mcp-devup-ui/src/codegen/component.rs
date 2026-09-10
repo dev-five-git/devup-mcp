@@ -1140,6 +1140,19 @@ fn finalize_codegen_output(
                 "originalValue": super::evidence::fallback_original(snapshot, node_id, &property),
                 "originalResourceId": diagnostic.resource_id,
                 "appliedValue": {"generatedSource": generated, "fallback": diagnostic.fallback,
+                    "heightPreservation": if property == "layoutPositioning" {
+                        snapshot.nodes.get(node_id).map(|node| {
+                            let view = node.typed_view();
+                            let expected = view.number("height").map(|h|format!("{}px",layout::format_number(h)));
+                            let preserved = expected.as_ref().is_some_and(|height|generated.iter().any(|source| {
+                                let tag = source.split('>').next().unwrap_or(source);
+                                tag.contains(&format!("h=\"{height}\"")) || tag.contains(&format!("boxSize=\"{height}\""))
+                            }));
+                            serde_json::json!({"sourceSizing":view.string("layoutSizingVertical"),"sourceHeight":view.number("height"),
+                                "state":if view.string("layoutSizingVertical") != Some("FIXED") {"not-fixed"} else if preserved {"preserved"} else {"unverified"},
+                                "basis":"Generated explicit height; derived padding alone is not a fixed-height guarantee."})
+                        })
+                    } else {None},
                     "derivedPadding": if property == "layoutPositioning" {
                         snapshot.nodes.get(node_id).and_then(|node|layout::derived_padding(snapshot,node))
                             .map(|[top,right,bottom,left]|serde_json::json!({"top":top,"right":right,"bottom":bottom,"left":left,
@@ -1151,6 +1164,7 @@ fn finalize_codegen_output(
         }
     }
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
+    output.source_map.describe_properties(&output.tsx);
     Ok(output)
 }
 

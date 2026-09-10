@@ -1,5049 +1,3049 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
+assertion_line: 178
 expression: output.source_map
 ---
 {
-  "version": 1,
+  "version": 2,
   "entries": [
     {
-      "generatedRange": {
-        "start": 127,
-        "end": 14453
-      },
-      "nodeId": "3879:35518",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 128,
-        "end": 134
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35518",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 128,
-        "end": 134
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35518",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 141,
-        "end": 162
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35518",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 169,
-        "end": 178
-      },
+      "generatedProperty": "h=\"740px\"",
       "nodeId": "3879:35518",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 185,
-        "end": 202
-      },
+      "generatedProperty": "overflow=\"hidden\"",
       "nodeId": "3879:35518",
       "property": "clipsContent",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 209,
-        "end": 223
-      },
+      "generatedProperty": "pos=\"relative\"",
       "nodeId": "3879:35518",
       "property": "layoutPositioning",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 230,
-        "end": 239
-      },
+      "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35518",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 250,
-        "end": 4315
-      },
-      "nodeId": "3879:35519",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 253,
-        "end": 259
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35519",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 253,
-        "end": 259
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35519",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 268,
-        "end": 287
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35519",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 296,
-        "end": 321
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35519",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 330,
-        "end": 340
-      },
+      "generatedProperty": "gap=\"30px\"",
       "nodeId": "3879:35519",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 349,
-        "end": 358
-      },
+      "generatedProperty": "pb=\"40px\"",
       "nodeId": "3879:35519",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 367,
-        "end": 376
-      },
+      "generatedProperty": "pt=\"50px\"",
       "nodeId": "3879:35519",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 385,
-        "end": 394
-      },
+      "generatedProperty": "px=\"16px\"",
       "nodeId": "3879:35519",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 385,
-        "end": 394
-      },
+      "generatedProperty": "px=\"16px\"",
       "nodeId": "3879:35519",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 407,
-        "end": 626
-      },
-      "nodeId": "3879:35520",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 412,
-        "end": 416
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35520",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 427,
-        "end": 440
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35520",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 427,
-        "end": 440
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35520",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 451,
-        "end": 469
-      },
+      "generatedProperty": "textAlign=\"center\"",
       "nodeId": "3879:35520",
       "property": "textAlignHorizontal",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 480,
-        "end": 495
-      },
+      "generatedProperty": "typography=\"h3\"",
       "nodeId": "3879:35520",
       "property": "styledTextSegments",
       "styleId": "S:b2c215baee1a675e5d0bbe9e39c21bf78a39eabc,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 480,
-        "end": 495
-      },
+      "generatedProperty": "typography=\"h3\"",
       "nodeId": "3879:35520",
       "property": "textStyleId",
       "styleId": "S:b2c215baee1a675e5d0bbe9e39c21bf78a39eabc,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 506,
-        "end": 514
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35520",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 525,
-        "end": 545
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35520",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 566,
-        "end": 610
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35520",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 631,
-        "end": 1877
-      },
-      "nodeId": "3879:35521",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 636,
-        "end": 642
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35521",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 636,
-        "end": 642
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35521",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 643,
-        "end": 652
-      },
+      "generatedProperty": "gap=\"8px\"",
       "nodeId": "3879:35521",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 653,
-        "end": 661
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35521",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 667,
-        "end": 1080
-      },
-      "nodeId": "3879:35522",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 674,
-        "end": 680
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35522",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 674,
-        "end": 680
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35522",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 681,
-        "end": 700
-      },
+      "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35522",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 701,
-        "end": 711
-      },
+      "generatedProperty": "gap=\"12px\"",
       "nodeId": "3879:35522",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 712,
-        "end": 720
-      },
+      "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 712,
-        "end": 720
-      },
+      "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 712,
-        "end": 720
-      },
+      "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 712,
-        "end": 720
-      },
+      "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 726,
-        "end": 855
-      },
-      "nodeId": "3879:35523",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 735,
-        "end": 739
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35523",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 740,
-        "end": 753
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35523",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 740,
-        "end": 753
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35523",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 754,
-        "end": 773
-      },
+      "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35523",
       "property": "styledTextSegments",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 754,
-        "end": 773
-      },
+      "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35523",
       "property": "textStyleId",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 774,
-        "end": 794
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35523",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 810,
-        "end": 835
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35523",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 860,
-        "end": 984
-      },
-      "nodeId": "3879:35524",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 869,
-        "end": 873
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35524",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 874,
-        "end": 890
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35524",
       "property": "fills",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 874,
-        "end": 890
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35524",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 891,
-        "end": 918
-      },
+      "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35524",
       "property": "styledTextSegments",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 891,
-        "end": 918
-      },
+      "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35524",
       "property": "textStyleId",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 919,
-        "end": 939
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35524",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 955,
-        "end": 964
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35524",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 989,
-        "end": 1060
-      },
-      "nodeId": "3879:35525",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 998,
-        "end": 1003
-      },
+      "generatedProperty": "Image",
       "nodeId": "3879:35525",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1004,
-        "end": 1019
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35525",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1020,
-        "end": 1034
-      },
+      "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35525",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1020,
-        "end": 1034
-      },
+      "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35525",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1035,
-        "end": 1057
-      },
+      "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "3879:35525",
       "property": "node",
       "assetId": "3879:35525:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 1085,
-        "end": 1859
-      },
-      "nodeId": "3879:35526",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1092,
-        "end": 1098
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35526",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1092,
-        "end": 1098
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35526",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1099,
-        "end": 1125
-      },
+      "generatedProperty": "border=\"solid 1px $border\"",
       "nodeId": "3879:35526",
       "property": "strokes",
       "variableId": "VariableID:1:1001",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1126,
-        "end": 1145
-      },
+      "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35526",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1146,
-        "end": 1162
-      },
+      "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35526",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1163,
-        "end": 1171
-      },
+      "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1163,
-        "end": 1171
-      },
+      "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1163,
-        "end": 1171
-      },
+      "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1163,
-        "end": 1171
-      },
+      "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1177,
-        "end": 1839
-      },
-      "nodeId": "3879:35527",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1186,
-        "end": 1190
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35527",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1186,
-        "end": 1190
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35527",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1191,
-        "end": 1210
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35527",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1211,
-        "end": 1221
-      },
+      "generatedProperty": "gap=\"12px\"",
       "nodeId": "3879:35527",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1227,
-        "end": 1352
-      },
-      "nodeId": "3879:35528",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1238,
-        "end": 1242
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35528",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1243,
-        "end": 1256
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35528",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1243,
-        "end": 1256
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35528",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1257,
-        "end": 1276
-      },
+      "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35528",
       "property": "styledTextSegments",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 1257,
-        "end": 1276
-      },
+      "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35528",
       "property": "textStyleId",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 1277,
-        "end": 1297
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35528",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1315,
-        "end": 1330
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35528",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1357,
-        "end": 1491
-      },
-      "nodeId": "3879:35529",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1368,
-        "end": 1372
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35529",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1373,
-        "end": 1389
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35529",
       "property": "fills",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1373,
-        "end": 1389
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35529",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1390,
-        "end": 1417
-      },
+      "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35529",
       "property": "styledTextSegments",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 1390,
-        "end": 1417
-      },
+      "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35529",
       "property": "textStyleId",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 1418,
-        "end": 1438
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35529",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1456,
-        "end": 1469
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35529",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1496,
-        "end": 1819
-      },
-      "nodeId": "3879:35530",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1507,
-        "end": 1510
-      },
+      "generatedProperty": "Box",
       "nodeId": "3879:35530",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1527,
-        "end": 1542
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35530",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1559,
-        "end": 1572
-      },
+      "generatedProperty": "bg=\"$caption\"",
       "nodeId": "3879:35530",
       "property": "fills",
       "variableId": "VariableID:1:1009",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1559,
-        "end": 1572
-      },
+      "generatedProperty": "bg=\"$caption\"",
       "nodeId": "3879:35531",
       "property": "fills",
       "variableId": "VariableID:1:1009",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1589,
-        "end": 1603
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "3879:35530",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1589,
-        "end": 1603
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "3879:35530",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1620,
-        "end": 1653
-      },
+      "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
       "nodeId": "3879:35530",
       "property": "node",
       "assetId": "3879:35530:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 1882,
-        "end": 3239
-      },
-      "nodeId": "3879:35532",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1887,
-        "end": 1893
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35532",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1887,
-        "end": 1893
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35532",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1894,
-        "end": 1904
-      },
+      "generatedProperty": "gap=\"12px\"",
       "nodeId": "3879:35532",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1905,
-        "end": 1913
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35532",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1919,
-        "end": 2996
-      },
-      "nodeId": "3879:35533",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 1926,
-        "end": 1932
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35533",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 1926,
-        "end": 1932
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35533",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 1945,
-        "end": 1966
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35533",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 1979,
-        "end": 2007
-      },
+      "generatedProperty": "border=\"dashed 2px $gray300\"",
       "nodeId": "3879:35533",
       "property": "strokes",
       "variableId": "VariableID:63:1981",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 2020,
-        "end": 2039
-      },
+      "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35533",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2052,
-        "end": 2068
-      },
+      "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35533",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2081,
-        "end": 2090
-      },
+      "generatedProperty": "gap=\"8px\"",
       "nodeId": "3879:35533",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2103,
-        "end": 2112
-      },
+      "generatedProperty": "h=\"185px\"",
       "nodeId": "3879:35533",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2125,
-        "end": 2134
-      },
+      "generatedProperty": "px=\"14px\"",
       "nodeId": "3879:35533",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2125,
-        "end": 2134
-      },
+      "generatedProperty": "px=\"14px\"",
       "nodeId": "3879:35533",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2147,
-        "end": 2156
-      },
+      "generatedProperty": "py=\"22px\"",
       "nodeId": "3879:35533",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2147,
-        "end": 2156
-      },
+      "generatedProperty": "py=\"22px\"",
       "nodeId": "3879:35533",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2173,
-        "end": 2470
-      },
-      "nodeId": "3879:35534",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 2182,
-        "end": 2185
-      },
+      "generatedProperty": "Box",
       "nodeId": "3879:35534",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 2200,
-        "end": 2215
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35534",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
+      "generatedProperty": "bg=\"$captionLight\"",
       "nodeId": "3879:35534",
       "property": "fills",
       "variableId": "VariableID:63:2093",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
+      "generatedProperty": "bg=\"$captionLight\"",
       "nodeId": "I3879:35534;20:3849",
       "property": "fills",
       "variableId": "VariableID:63:2093",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 2263,
-        "end": 2277
-      },
+      "generatedProperty": "boxSize=\"40px\"",
       "nodeId": "3879:35534",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2263,
-        "end": 2277
-      },
+      "generatedProperty": "boxSize=\"40px\"",
       "nodeId": "3879:35534",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2321,
-        "end": 2354
-      },
+      "generatedProperty": "maskImage=\"url(/icons/icons.svg)\"",
       "nodeId": "3879:35534",
       "property": "node",
       "assetId": "3879:35534:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 2475,
-        "end": 2976
-      },
-      "nodeId": "3879:35535",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 2484,
-        "end": 2488
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35535",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 2503,
-        "end": 2521
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35535",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 2503,
-        "end": 2521
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 2536,
-        "end": 2554
-      },
+      "generatedProperty": "textAlign=\"center\"",
       "nodeId": "3879:35535",
       "property": "textAlignHorizontal",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2569,
-        "end": 2589
-      },
+      "generatedProperty": "typography=\"caption\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "styleId": "S:0e215484a78b7be9bbbfa4c6ada772650e82023b,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 2569,
-        "end": 2589
-      },
+      "generatedProperty": "typography=\"caption\"",
       "nodeId": "3879:35535",
       "property": "textStyleId",
       "styleId": "S:0e215484a78b7be9bbbfa4c6ada772650e82023b,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 2604,
-        "end": 2612
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35535",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2627,
-        "end": 2647
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35535",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 2682,
-        "end": 2698
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 2699,
-        "end": 2727
-      },
+      "generatedProperty": "typography=\"captionSemibold\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "styleId": "S:0a76ff5553bb722fb68fd9b379ca5f85f913cadb,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 2745,
-        "end": 2753
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35535",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 2790,
-        "end": 2956
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35535",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3001,
-        "end": 3221
-      },
-      "nodeId": "3879:35536",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 3008,
-        "end": 3012
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35536",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3013,
-        "end": 3031
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35536",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3013,
-        "end": 3031
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3032,
-        "end": 3054
-      },
+      "generatedProperty": "typography=\"captionSm\"",
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
       "styleId": "S:ddba35e8431e5a8140cb2a918793e8682b58ba39,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 3032,
-        "end": 3054
-      },
+      "generatedProperty": "typography=\"captionSm\"",
       "nodeId": "3879:35536",
       "property": "textStyleId",
       "styleId": "S:ddba35e8431e5a8140cb2a918793e8682b58ba39,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 3055,
-        "end": 3075
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35536",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3089,
-        "end": 3203
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35536",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3244,
-        "end": 4299
-      },
-      "nodeId": "3879:35537",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 3249,
-        "end": 3255
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35537",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3249,
-        "end": 3255
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35537",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3266,
-        "end": 3282
-      },
+      "generatedProperty": "bg=\"$background\"",
       "nodeId": "3879:35537",
       "property": "fills",
       "variableId": "VariableID:1:999",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3293,
-        "end": 3312
-      },
+      "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35537",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3323,
-        "end": 3332
-      },
+      "generatedProperty": "gap=\"8px\"",
       "nodeId": "3879:35537",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3343,
-        "end": 3351
-      },
+      "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3343,
-        "end": 3351
-      },
+      "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3343,
-        "end": 3351
-      },
+      "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3343,
-        "end": 3351
-      },
+      "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3362,
-        "end": 3376
-      },
+      "generatedProperty": "pos=\"relative\"",
       "nodeId": "3879:35537",
       "property": "layoutPositioning",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3387,
-        "end": 3395
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35537",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3410,
-        "end": 3498
-      },
-      "nodeId": "3879:35538",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 3417,
-        "end": 3421
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35538",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3422,
-        "end": 3435
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35538",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3422,
-        "end": 3435
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3436,
-        "end": 3463
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 3436,
-        "end": 3463
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "3879:35538",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 3477,
-        "end": 3480
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35538",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3503,
-        "end": 3769
-      },
-      "nodeId": "3879:35539",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 3510,
-        "end": 3514
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35539",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3515,
-        "end": 3528
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35539",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3515,
-        "end": 3528
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35539",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 3529,
-        "end": 3548
-      },
+      "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35539",
       "property": "styledTextSegments",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 3529,
-        "end": 3548
-      },
+      "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35539",
       "property": "textStyleId",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 3549,
-        "end": 3569
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35539",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3583,
-        "end": 3751
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35539",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3774,
-        "end": 4281
-      },
-      "nodeId": "3879:35540",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 3781,
-        "end": 3785
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35540",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3781,
-        "end": 3785
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35540",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3798,
-        "end": 3817
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35540",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3830,
-        "end": 3851
-      },
+      "generatedProperty": "borderRadius=\"1000px\"",
       "nodeId": "3879:35540",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3864,
-        "end": 3872
-      },
+      "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3864,
-        "end": 3872
-      },
+      "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3864,
-        "end": 3872
-      },
+      "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3864,
-        "end": 3872
-      },
+      "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3885,
-        "end": 3899
-      },
+      "generatedProperty": "pos=\"absolute\"",
       "nodeId": "3879:35540",
       "property": "layoutPositioning",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3912,
-        "end": 3923
-      },
+      "generatedProperty": "right=\"8px\"",
       "nodeId": "3879:35540",
       "property": "x",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3936,
-        "end": 3945
-      },
+      "generatedProperty": "top=\"8px\"",
       "nodeId": "3879:35540",
       "property": "y",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 3962,
-        "end": 4263
-      },
-      "nodeId": "3879:35541",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 3971,
-        "end": 3974
-      },
+      "generatedProperty": "Box",
       "nodeId": "3879:35541",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 3989,
-        "end": 4004
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35541",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4019,
-        "end": 4029
-      },
+      "generatedProperty": "bg=\"$text\"",
       "nodeId": "3879:35541",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4019,
-        "end": 4029
-      },
+      "generatedProperty": "bg=\"$text\"",
       "nodeId": "3879:35542",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4044,
-        "end": 4058
-      },
+      "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35541",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4044,
-        "end": 4058
-      },
+      "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35541",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4073,
-        "end": 4106
-      },
+      "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
       "nodeId": "3879:35541",
       "property": "node",
       "assetId": "3879:35541:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 4320,
-        "end": 13615
-      },
-      "nodeId": "3879:35543",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4323,
-        "end": 4329
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35543",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4323,
-        "end": 4329
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35543",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4335,
-        "end": 5220
-      },
-      "nodeId": "3879:35544",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4340,
-        "end": 4346
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35544",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4340,
-        "end": 4346
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35544",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4352,
-        "end": 4975
-      },
-      "nodeId": "3879:35545",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4359,
-        "end": 4363
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35545",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4359,
-        "end": 4363
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35545",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4376,
-        "end": 4395
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35545",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4408,
-        "end": 4429
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35545",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4442,
-        "end": 4472
-      },
+      "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35545",
       "property": "primaryAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4485,
-        "end": 4494
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35545",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4485,
-        "end": 4494
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35545",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4507,
-        "end": 4516
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35545",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4507,
-        "end": 4516
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35545",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4529,
-        "end": 4538
-      },
+      "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35545",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4555,
-        "end": 4673
-      },
-      "nodeId": "I3879:35545;1690:32933",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4564,
-        "end": 4568
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35545;1690:32933",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4569,
-        "end": 4582
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4569,
-        "end": 4582
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4583,
-        "end": 4610
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 4583,
-        "end": 4610
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 4611,
-        "end": 4631
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35545;1690:32933",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4647,
-        "end": 4653
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35545;1690:32933",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4678,
-        "end": 4957
-      },
-      "nodeId": "I3879:35545;1690:32948",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4687,
-        "end": 4691
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35545;1690:32948",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4687,
-        "end": 4691
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35545;1690:32948",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4692,
-        "end": 4711
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35545;1690:32948",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4712,
-        "end": 4721
-      },
+      "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35545;1690:32948",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4727,
-        "end": 4800
-      },
-      "nodeId": "I3879:35545;1690:32934",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4738,
-        "end": 4743
-      },
+      "generatedProperty": "Image",
       "nodeId": "I3879:35545;1690:32934",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4744,
-        "end": 4759
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4760,
-        "end": 4774
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4760,
-        "end": 4774
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4775,
-        "end": 4797
-      },
+      "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "node",
       "assetId": "I3879:35545;1690:32934:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 4805,
-        "end": 4937
-      },
-      "nodeId": "I3879:35545;1690:32947",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4816,
-        "end": 4820
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35545;1690:32947",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4821,
-        "end": 4839
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4821,
-        "end": 4839
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 4840,
-        "end": 4870
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 4840,
-        "end": 4870
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 4871,
-        "end": 4891
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35545;1690:32947",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4909,
-        "end": 4915
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35545;1690:32947",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4980,
-        "end": 5202
-      },
-      "nodeId": "3879:35546",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 4987,
-        "end": 4993
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35546",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 4987,
-        "end": 4993
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35546",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 4994,
-        "end": 5019
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35546",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5020,
-        "end": 5029
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35546",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5020,
-        "end": 5029
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35546",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5030,
-        "end": 5039
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35546",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5030,
-        "end": 5039
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35546",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5045,
-        "end": 5182
-      },
-      "nodeId": "3879:35547",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5054,
-        "end": 5058
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35547",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5059,
-        "end": 5075
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35547",
       "property": "fills",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5059,
-        "end": 5075
-      },
+      "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35547",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5076,
-        "end": 5084
-      },
+      "generatedProperty": "flex=\"1\"",
       "nodeId": "3879:35547",
       "property": "layoutGrow",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5085,
-        "end": 5100
-      },
+      "generatedProperty": "typography=\"h5\"",
       "nodeId": "3879:35547",
       "property": "styledTextSegments",
       "styleId": "S:93f063a4fce3179ba5079044a05b56a3d9fa60f5,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5085,
-        "end": 5100
-      },
+      "generatedProperty": "typography=\"h5\"",
       "nodeId": "3879:35547",
       "property": "textStyleId",
       "styleId": "S:93f063a4fce3179ba5079044a05b56a3d9fa60f5,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5101,
-        "end": 5121
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35547",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5137,
-        "end": 5162
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35547",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5225,
-        "end": 6831
-      },
-      "nodeId": "3879:35548",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5230,
-        "end": 5236
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35548",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5230,
-        "end": 5236
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35548",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5242,
-        "end": 5866
-      },
-      "nodeId": "3879:35549",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5249,
-        "end": 5253
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35549",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5249,
-        "end": 5253
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35549",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5266,
-        "end": 5285
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35549",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5298,
-        "end": 5319
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35549",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5332,
-        "end": 5362
-      },
+      "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35549",
       "property": "primaryAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5375,
-        "end": 5384
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35549",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5375,
-        "end": 5384
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35549",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5397,
-        "end": 5406
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35549",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5397,
-        "end": 5406
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35549",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5419,
-        "end": 5428
-      },
+      "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35549",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5445,
-        "end": 5564
-      },
-      "nodeId": "I3879:35549;1690:32933",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5454,
-        "end": 5458
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35549;1690:32933",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5459,
-        "end": 5472
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5459,
-        "end": 5472
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5473,
-        "end": 5500
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5473,
-        "end": 5500
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5501,
-        "end": 5521
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35549;1690:32933",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5537,
-        "end": 5544
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35549;1690:32933",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5569,
-        "end": 5848
-      },
-      "nodeId": "I3879:35549;1690:32948",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5578,
-        "end": 5582
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35549;1690:32948",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5578,
-        "end": 5582
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35549;1690:32948",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5583,
-        "end": 5602
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35549;1690:32948",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5603,
-        "end": 5612
-      },
+      "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35549;1690:32948",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5618,
-        "end": 5691
-      },
-      "nodeId": "I3879:35549;1690:32934",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5629,
-        "end": 5634
-      },
+      "generatedProperty": "Image",
       "nodeId": "I3879:35549;1690:32934",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5635,
-        "end": 5650
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5651,
-        "end": 5665
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5651,
-        "end": 5665
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5666,
-        "end": 5688
-      },
+      "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "node",
       "assetId": "I3879:35549;1690:32934:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 5696,
-        "end": 5828
-      },
-      "nodeId": "I3879:35549;1690:32947",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5707,
-        "end": 5711
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35549;1690:32947",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5712,
-        "end": 5730
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5712,
-        "end": 5730
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5731,
-        "end": 5761
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5731,
-        "end": 5761
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5762,
-        "end": 5782
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35549;1690:32947",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5800,
-        "end": 5806
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35549;1690:32947",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5871,
-        "end": 6813
-      },
-      "nodeId": "3879:35550",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5878,
-        "end": 5884
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35550",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5878,
-        "end": 5884
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35550",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5885,
-        "end": 5910
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35550",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5911,
-        "end": 5927
-      },
+      "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35550",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5928,
-        "end": 5937
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35550",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5928,
-        "end": 5937
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35550",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5938,
-        "end": 5947
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35550",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5938,
-        "end": 5947
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35550",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 5953,
-        "end": 6793
-      },
-      "nodeId": "3879:35551",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 5962,
-        "end": 5966
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35551",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 5967,
-        "end": 5980
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35551",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5967,
-        "end": 5980
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35551",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 5981,
-        "end": 5998
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35551",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5981,
-        "end": 5998
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35551",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 5999,
-        "end": 6007
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35551",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6008,
-        "end": 6028
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35551",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6044,
-        "end": 6773
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35551",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 6836,
-        "end": 8922
-      },
-      "nodeId": "3879:35552",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 6841,
-        "end": 6847
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35552",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6841,
-        "end": 6847
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35552",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 6853,
-        "end": 7477
-      },
-      "nodeId": "3879:35553",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 6860,
-        "end": 6864
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35553",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6860,
-        "end": 6864
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35553",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 6877,
-        "end": 6896
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35553",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6909,
-        "end": 6930
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35553",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 6943,
-        "end": 6973
-      },
+      "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35553",
       "property": "primaryAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6986,
-        "end": 6995
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35553",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 6986,
-        "end": 6995
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35553",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7008,
-        "end": 7017
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35553",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7008,
-        "end": 7017
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35553",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7030,
-        "end": 7039
-      },
+      "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35553",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7056,
-        "end": 7175
-      },
-      "nodeId": "I3879:35553;1690:32933",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 7065,
-        "end": 7069
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35553;1690:32933",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7070,
-        "end": 7083
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7070,
-        "end": 7083
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7084,
-        "end": 7111
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 7084,
-        "end": 7111
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 7112,
-        "end": 7132
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35553;1690:32933",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7148,
-        "end": 7155
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35553;1690:32933",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7180,
-        "end": 7459
-      },
-      "nodeId": "I3879:35553;1690:32948",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 7189,
-        "end": 7193
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35553;1690:32948",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7189,
-        "end": 7193
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35553;1690:32948",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7194,
-        "end": 7213
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35553;1690:32948",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7214,
-        "end": 7223
-      },
+      "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35553;1690:32948",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7229,
-        "end": 7302
-      },
-      "nodeId": "I3879:35553;1690:32934",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 7240,
-        "end": 7245
-      },
+      "generatedProperty": "Image",
       "nodeId": "I3879:35553;1690:32934",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7246,
-        "end": 7261
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7262,
-        "end": 7276
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7262,
-        "end": 7276
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7277,
-        "end": 7299
-      },
+      "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "node",
       "assetId": "I3879:35553;1690:32934:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 7307,
-        "end": 7439
-      },
-      "nodeId": "I3879:35553;1690:32947",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 7318,
-        "end": 7322
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35553;1690:32947",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7323,
-        "end": 7341
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7323,
-        "end": 7341
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7342,
-        "end": 7372
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 7342,
-        "end": 7372
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 7373,
-        "end": 7393
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35553;1690:32947",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7411,
-        "end": 7417
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35553;1690:32947",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7482,
-        "end": 8904
-      },
-      "nodeId": "3879:35554",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 7489,
-        "end": 7495
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35554",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7489,
-        "end": 7495
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35554",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7496,
-        "end": 7521
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35554",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7522,
-        "end": 7538
-      },
+      "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35554",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7539,
-        "end": 7548
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35554",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7539,
-        "end": 7548
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35554",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7549,
-        "end": 7558
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35554",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7549,
-        "end": 7558
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35554",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7564,
-        "end": 8884
-      },
-      "nodeId": "3879:35555",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 7573,
-        "end": 7577
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35555",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 7578,
-        "end": 7591
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35555",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7578,
-        "end": 7591
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 7592,
-        "end": 7609
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 7592,
-        "end": 7609
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35555",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 7610,
-        "end": 7618
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35555",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7619,
-        "end": 7639
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 7655,
-        "end": 8138
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8159,
-        "end": 8180
-      },
+      "generatedProperty": "color=\"$primaryLight\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "variableId": "VariableID:98:3276",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 8181,
-        "end": 8206
-      },
+      "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 8224,
-        "end": 8235
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8272,
-        "end": 8691
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8712,
-        "end": 8733
-      },
+      "generatedProperty": "color=\"$primaryLight\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "variableId": "VariableID:98:3276",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 8734,
-        "end": 8759
-      },
+      "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 8777,
-        "end": 8788
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8825,
-        "end": 8864
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8927,
-        "end": 11175
-      },
-      "nodeId": "3879:35556",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 8932,
-        "end": 8938
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35556",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 8932,
-        "end": 8938
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35556",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8944,
-        "end": 9568
-      },
-      "nodeId": "3879:35557",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 8951,
-        "end": 8955
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35557",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 8951,
-        "end": 8955
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35557",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 8968,
-        "end": 8987
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35557",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9000,
-        "end": 9021
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35557",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9034,
-        "end": 9064
-      },
+      "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35557",
       "property": "primaryAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9077,
-        "end": 9086
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35557",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9077,
-        "end": 9086
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35557",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9099,
-        "end": 9108
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35557",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9099,
-        "end": 9108
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35557",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9121,
-        "end": 9130
-      },
+      "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35557",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9147,
-        "end": 9266
-      },
-      "nodeId": "I3879:35557;1690:32933",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9156,
-        "end": 9160
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35557;1690:32933",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9161,
-        "end": 9174
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9161,
-        "end": 9174
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9175,
-        "end": 9202
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 9175,
-        "end": 9202
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 9203,
-        "end": 9223
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35557;1690:32933",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9239,
-        "end": 9246
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35557;1690:32933",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9271,
-        "end": 9550
-      },
-      "nodeId": "I3879:35557;1690:32948",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9280,
-        "end": 9284
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35557;1690:32948",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9280,
-        "end": 9284
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35557;1690:32948",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9285,
-        "end": 9304
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35557;1690:32948",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9305,
-        "end": 9314
-      },
+      "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35557;1690:32948",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9320,
-        "end": 9393
-      },
-      "nodeId": "I3879:35557;1690:32934",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9331,
-        "end": 9336
-      },
+      "generatedProperty": "Image",
       "nodeId": "I3879:35557;1690:32934",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9337,
-        "end": 9352
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9353,
-        "end": 9367
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9353,
-        "end": 9367
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9368,
-        "end": 9390
-      },
+      "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "node",
       "assetId": "I3879:35557;1690:32934:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 9398,
-        "end": 9530
-      },
-      "nodeId": "I3879:35557;1690:32947",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9409,
-        "end": 9413
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35557;1690:32947",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9414,
-        "end": 9432
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9414,
-        "end": 9432
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9433,
-        "end": 9463
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 9433,
-        "end": 9463
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 9464,
-        "end": 9484
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35557;1690:32947",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9502,
-        "end": 9508
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35557;1690:32947",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9573,
-        "end": 11157
-      },
-      "nodeId": "3879:35558",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9580,
-        "end": 9586
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35558",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9580,
-        "end": 9586
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35558",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9587,
-        "end": 9612
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35558",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9613,
-        "end": 9629
-      },
+      "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35558",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9630,
-        "end": 9639
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35558",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9630,
-        "end": 9639
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35558",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9640,
-        "end": 9649
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35558",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9640,
-        "end": 9649
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35558",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9655,
-        "end": 11137
-      },
-      "nodeId": "3879:35559",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 9664,
-        "end": 9668
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35559",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 9669,
-        "end": 9682
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35559",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9669,
-        "end": 9682
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35559",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 9683,
-        "end": 9700
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35559",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 9683,
-        "end": 9700
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35559",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 9701,
-        "end": 9709
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35559",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9710,
-        "end": 9730
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35559",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 9746,
-        "end": 11117
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35559",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11180,
-        "end": 13599
-      },
-      "nodeId": "3879:35560",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11185,
-        "end": 11191
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35560",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11185,
-        "end": 11191
-      },
+      "generatedProperty": "VStack",
       "nodeId": "3879:35560",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11197,
-        "end": 11821
-      },
-      "nodeId": "3879:35561",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11204,
-        "end": 11208
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35561",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11204,
-        "end": 11208
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35561",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11221,
-        "end": 11240
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35561",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11253,
-        "end": 11274
-      },
+      "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35561",
       "property": "fills",
       "variableId": "VariableID:17:1548",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11287,
-        "end": 11317
-      },
+      "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35561",
       "property": "primaryAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11330,
-        "end": 11339
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35561",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11330,
-        "end": 11339
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35561",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11352,
-        "end": 11361
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35561",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11352,
-        "end": 11361
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35561",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11374,
-        "end": 11383
-      },
+      "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35561",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11400,
-        "end": 11519
-      },
-      "nodeId": "I3879:35561;1690:32933",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11409,
-        "end": 11413
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35561;1690:32933",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11414,
-        "end": 11427
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11414,
-        "end": 11427
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11428,
-        "end": 11455
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 11428,
-        "end": 11455
-      },
+      "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 11456,
-        "end": 11476
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35561;1690:32933",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11492,
-        "end": 11499
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35561;1690:32933",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11524,
-        "end": 11803
-      },
-      "nodeId": "I3879:35561;1690:32948",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11533,
-        "end": 11537
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35561;1690:32948",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11533,
-        "end": 11537
-      },
+      "generatedProperty": "Flex",
       "nodeId": "I3879:35561;1690:32948",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11538,
-        "end": 11557
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35561;1690:32948",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11558,
-        "end": 11567
-      },
+      "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35561;1690:32948",
       "property": "itemSpacing",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11573,
-        "end": 11646
-      },
-      "nodeId": "I3879:35561;1690:32934",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11584,
-        "end": 11589
-      },
+      "generatedProperty": "Image",
       "nodeId": "I3879:35561;1690:32934",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11590,
-        "end": 11605
-      },
+      "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "targetAspectRatio",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11606,
-        "end": 11620
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "height",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11606,
-        "end": 11620
-      },
+      "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11621,
-        "end": 11643
-      },
+      "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "node",
       "assetId": "I3879:35561;1690:32934:node",
       "resolution": "asset"
     },
     {
-      "generatedRange": {
-        "start": 11651,
-        "end": 11783
-      },
-      "nodeId": "I3879:35561;1690:32947",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11662,
-        "end": 11666
-      },
+      "generatedProperty": "Text",
       "nodeId": "I3879:35561;1690:32947",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11667,
-        "end": 11685
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11667,
-        "end": 11685
-      },
+      "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11686,
-        "end": 11716
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 11686,
-        "end": 11716
-      },
+      "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 11717,
-        "end": 11737
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35561;1690:32947",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11755,
-        "end": 11761
-      },
+      "generatedProperty": "children",
       "nodeId": "I3879:35561;1690:32947",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11826,
-        "end": 13581
-      },
-      "nodeId": "3879:35562",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11833,
-        "end": 11839
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35562",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11833,
-        "end": 11839
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35562",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11840,
-        "end": 11865
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35562",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11866,
-        "end": 11882
-      },
+      "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35562",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11883,
-        "end": 11892
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35562",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11883,
-        "end": 11892
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35562",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11893,
-        "end": 11902
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35562",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11893,
-        "end": 11902
-      },
+      "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35562",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11908,
-        "end": 13561
-      },
-      "nodeId": "3879:35563",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 11917,
-        "end": 11921
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35563",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 11922,
-        "end": 11935
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35563",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11922,
-        "end": 11935
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35563",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 11936,
-        "end": 11953
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35563",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 11936,
-        "end": 11953
-      },
+      "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35563",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 11954,
-        "end": 11962
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35563",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11963,
-        "end": 11983
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35563",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 11999,
-        "end": 13541
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35563",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 13620,
-        "end": 14439
-      },
-      "nodeId": "3879:35564",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 13623,
-        "end": 13627
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35564",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13623,
-        "end": 13627
-      },
+      "generatedProperty": "Flex",
       "nodeId": "3879:35564",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 13636,
-        "end": 13655
-      },
+      "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35564",
       "property": "counterAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13664,
-        "end": 13689
-      },
+      "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35564",
       "property": "fills",
       "variableId": "VariableID:1:1000",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 13698,
-        "end": 13727
-      },
+      "generatedProperty": "borderTop=\"solid 1px $border\"",
       "nodeId": "3879:35564",
       "property": "strokes",
       "variableId": "VariableID:1:1001",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 13736,
-        "end": 13748
-      },
+      "generatedProperty": "bottom=\"0px\"",
       "nodeId": "3879:35564",
       "property": "y",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13757,
-        "end": 13787
-      },
+      "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35564",
       "property": "primaryAxisAlignItems",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13796,
-        "end": 13806
-      },
+      "generatedProperty": "left=\"0px\"",
       "nodeId": "3879:35564",
       "property": "x",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13815,
-        "end": 13832
-      },
+      "generatedProperty": "overflow=\"hidden\"",
       "nodeId": "3879:35564",
       "property": "clipsContent",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13841,
-        "end": 13855
-      },
+      "generatedProperty": "pos=\"absolute\"",
       "nodeId": "3879:35564",
       "property": "layoutPositioning",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13864,
-        "end": 13873
-      },
+      "generatedProperty": "px=\"10px\"",
       "nodeId": "3879:35564",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13864,
-        "end": 13873
-      },
+      "generatedProperty": "px=\"10px\"",
       "nodeId": "3879:35564",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13882,
-        "end": 13890
-      },
+      "generatedProperty": "py=\"8px\"",
       "nodeId": "3879:35564",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13882,
-        "end": 13890
-      },
+      "generatedProperty": "py=\"8px\"",
       "nodeId": "3879:35564",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13899,
-        "end": 13907
-      },
+      "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35564",
       "property": "width",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13920,
-        "end": 14215
-      },
-      "nodeId": "3879:35565",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 13925,
-        "end": 13931
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35565",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 13925,
-        "end": 13931
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35565",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 13942,
-        "end": 13955
-      },
+      "generatedProperty": "bg=\"$innerBg\"",
       "nodeId": "3879:35565",
       "property": "fills",
       "variableId": "VariableID:68:6122",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 13966,
-        "end": 13996
-      },
+      "generatedProperty": "border=\"solid 1px $borderBold\"",
       "nodeId": "3879:35565",
       "property": "strokes",
       "variableId": "VariableID:320:9071",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 14007,
-        "end": 14026
-      },
+      "generatedProperty": "borderRadius=\"10px\"",
       "nodeId": "3879:35565",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14037,
-        "end": 14046
-      },
+      "generatedProperty": "px=\"19px\"",
       "nodeId": "3879:35565",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14037,
-        "end": 14046
-      },
+      "generatedProperty": "px=\"19px\"",
       "nodeId": "3879:35565",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14057,
-        "end": 14065
-      },
+      "generatedProperty": "py=\"9px\"",
       "nodeId": "3879:35565",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14057,
-        "end": 14065
-      },
+      "generatedProperty": "py=\"9px\"",
       "nodeId": "3879:35565",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14080,
-        "end": 14197
-      },
-      "nodeId": "3879:35566",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 14087,
-        "end": 14091
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35566",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 14092,
-        "end": 14105
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35566",
       "property": "fills",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 14092,
-        "end": 14105
-      },
+      "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 14106,
-        "end": 14131
-      },
+      "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 14106,
-        "end": 14131
-      },
+      "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35566",
       "property": "textStyleId",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 14132,
-        "end": 14152
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35566",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14166,
-        "end": 14179
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35566",
       "property": "characters",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 14220,
-        "end": 14425
-      },
-      "nodeId": "3879:35567",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 14225,
-        "end": 14231
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35567",
       "property": "layoutMode",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14225,
-        "end": 14231
-      },
+      "generatedProperty": "Center",
       "nodeId": "3879:35567",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 14232,
-        "end": 14245
-      },
+      "generatedProperty": "bg=\"$primary\"",
       "nodeId": "3879:35567",
       "property": "fills",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
     },
     {
-      "generatedRange": {
-        "start": 14246,
-        "end": 14265
-      },
+      "generatedProperty": "borderRadius=\"10px\"",
       "nodeId": "3879:35567",
       "property": "cornerRadius",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14266,
-        "end": 14275
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35567",
       "property": "paddingLeft",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14266,
-        "end": 14275
-      },
+      "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35567",
       "property": "paddingRight",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14276,
-        "end": 14285
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35567",
       "property": "paddingBottom",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14276,
-        "end": 14285
-      },
+      "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35567",
       "property": "paddingTop",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14291,
-        "end": 14407
-      },
-      "nodeId": "3879:35568",
-      "resolution": "node"
-    },
-    {
-      "generatedRange": {
-        "start": 14298,
-        "end": 14302
-      },
+      "generatedProperty": "Text",
       "nodeId": "3879:35568",
       "property": "type",
       "resolution": "exact"
     },
     {
-      "generatedRange": {
-        "start": 14303,
-        "end": 14315
-      },
+      "generatedProperty": "color=\"#FFF\"",
       "nodeId": "3879:35568",
       "property": "fills",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14316,
-        "end": 14341
-      },
+      "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35568",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 14316,
-        "end": 14341
-      },
+      "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35568",
       "property": "textStyleId",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
       "resolution": "style-token"
     },
     {
-      "generatedRange": {
-        "start": 14342,
-        "end": 14362
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35568",
       "property": "characters",
       "resolution": "raw-fallback"
     },
     {
-      "generatedRange": {
-        "start": 14376,
-        "end": 14389
-      },
+      "generatedProperty": "children",
       "nodeId": "3879:35568",
       "property": "characters",
       "resolution": "exact"

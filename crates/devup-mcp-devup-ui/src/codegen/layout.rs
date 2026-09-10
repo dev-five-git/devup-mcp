@@ -262,14 +262,11 @@ pub(super) fn push_layout_props(
         // 24px row of logo and menu, and centring them in 24 rather than 60
         // put them 18px high of where Figma draws them.
         //
-        // Child-folded HUG masks have a repair below. Other unsupported asset
-        // sizes are reported by fidelity; padding may already size frames.
-        if fixed_h
-            && height.is_none()
-            && !is_asset
-            && view.child_ids().next().is_some()
-            && derived_padding(snapshot, node).is_none()
-        {
+        // Child-folded HUG masks have a repair below. A FIXED container height
+        // is independent of the current child's HUG height and derived insets.
+        if fixed_h && height.is_none() && !is_asset && view.child_ids().next().is_some() {
+            // Derived insets describe the captured child geometry, not a height
+            // constraint. HUG content can change without changing this FIXED box.
             height = view.number("height").map(px);
         }
     } else if is_page_root {
@@ -694,8 +691,22 @@ pub(super) fn push_layout_props(
 
     push_auto_layout(snapshot, node, component, props);
     push_padding(snapshot, node, props);
-    if view.bool("clipsContent") == Some(true) {
-        string_prop(props, "overflow", "hidden");
+    match view.string("overflowDirection") {
+        Some("VERTICAL_SCROLLING") => {
+            string_prop(props, "overflowY", "auto");
+            if view.bool("clipsContent") == Some(true) {
+                string_prop(props, "overflowX", "hidden");
+            }
+        }
+        Some("HORIZONTAL_SCROLLING") => {
+            string_prop(props, "overflowX", "auto");
+            if view.bool("clipsContent") == Some(true) {
+                string_prop(props, "overflowY", "hidden");
+            }
+        }
+        Some("HORIZONTAL_AND_VERTICAL_SCROLLING") => string_prop(props, "overflow", "auto"),
+        _ if view.bool("clipsContent") == Some(true) => string_prop(props, "overflow", "hidden"),
+        _ => {}
     }
     // An absolutely positioned child needs a positioned ancestor to resolve
     // against — but a node folded into a single asset has no children left in

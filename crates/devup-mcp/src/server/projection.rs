@@ -135,11 +135,34 @@ fn rewrite_result_asset_references(value: &mut Value, paths: &BTreeMap<String, S
     match value {
         Value::Object(object) => {
             for (key, value) in object {
-                if matches!(key.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
-                    if let Value::String(code) = value {
-                        *code = rewrite_asset_references(&with_host_safe_asset_paths(code), paths);
+                if matches!(
+                    key.as_str(),
+                    "tsx"
+                        | "componentTsx"
+                        | "responsiveTsx"
+                        | "generatedProperty"
+                        | "generatedSource"
+                ) {
+                    match value {
+                        Value::String(code) => {
+                            *code =
+                                rewrite_asset_references(&with_host_safe_asset_paths(code), paths)
+                        }
+                        Value::Array(items) => {
+                            for item in items {
+                                if let Value::String(code) = item {
+                                    *code = rewrite_asset_references(
+                                        &with_host_safe_asset_paths(code),
+                                        paths,
+                                    );
+                                } else {
+                                    rewrite_result_asset_references(item, paths);
+                                }
+                            }
+                        }
+                        _ => rewrite_result_asset_references(value, paths),
                     }
-                } else if key == "frames" {
+                } else if !matches!(key.as_str(), "rawSnapshot" | "rawPayload" | "originalValue") {
                     rewrite_result_asset_references(value, paths);
                 }
             }
@@ -1288,6 +1311,7 @@ pub(super) async fn complete_operation(
             let mut section_tsx_projected = false;
             let mut selected_projection_roots = None;
             let mut tsx_source_map = None;
+            let mut generated_output_target = "devupJson";
             let mut devup_json_source_map = None;
             let mut projection_diagnostics = Vec::new();
             let mut fidelity_reports = Vec::new();
@@ -1423,12 +1447,13 @@ pub(super) async fn complete_operation(
                         frame["outputResults"][field] = output_result(&output);
                         frame_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
-                        frame[field] = json!(with_host_safe_asset_paths(&output.tsx));
+                        frame[field] = json!(output.tsx);
                         attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                         if outputs.iter().any(|output| output == "sourceMap") {
                             frame["sourceMap"] = json!({"version":output.source_map.version,
-                                "entries":output.source_map.entries,"source":{"fileKey":payload.target.file_key,
-                                "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version}});
+                                "entries":output.source_map.property_entries(),"source":{"fileKey":payload.target.file_key,
+                                "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
+                                "generatedOutput":field,"mappingKind":"node-field-property"}});
                         }
                     }
                     frame["placementContracts"] = json!(
@@ -1697,6 +1722,7 @@ pub(super) async fn complete_operation(
                     output_result(&output);
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
+                generated_output_target = "tsx";
                 tsx_source_map = Some(output.source_map.clone());
                 if output_paths.contains_key("tsx") {
                     pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
@@ -1736,6 +1762,7 @@ pub(super) async fn complete_operation(
                         projection_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
                         if tsx_source_map.is_none() {
+                            generated_output_target = "componentTsx";
                             tsx_source_map = Some(output.source_map.clone());
                         }
                         if output_paths.contains_key("componentTsx") {
@@ -1820,15 +1847,16 @@ pub(super) async fn complete_operation(
 
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
-                    "version": 1,
-                    "tsx": tsx_source_map.map(|source_map| source_map.entries).unwrap_or_default(),
+                    "version": 2,
+                    "tsx": tsx_source_map.map(|source_map| source_map.property_entries()).unwrap_or_default(),
                     "devupJson": devup_json_source_map
                         .map(|source_map| source_map.entries)
                         .unwrap_or_default(),
                     "source": {
                         "fileKey": payload.target.file_key,
                         "rootNodeId": payload.target.node_id,
-                        "sourceVersion": payload.source_version
+                        "sourceVersion": payload.source_version,
+                        "generatedOutput":generated_output_target,"mappingKind":"node-field-property"
                     }
                 });
                 if output_paths.contains_key("sourceMap") {
@@ -2237,37 +2265,27 @@ pub(super) async fn complete_operation(
             if let Some(report) = carrier.get("completenessReport") {
                 result.insert("completenessReport".to_owned(), report.clone());
             }
-            // The code and the bytes have to name an asset alike. Renaming
-            // here, once both are assembled, keeps the two in step while the
-            // code generator itself stays byte-for-byte the plugin's.
-            for output in ["tsx", "responsiveTsx", "componentTsx"] {
-                if let Some(Value::String(code)) = result.get_mut(output) {
-                    let safe = with_host_safe_asset_paths(code.as_str());
-                    if safe != *code {
-                        *code = safe;
-                    }
-                }
-                if let Some(code) = pending_text_outputs.get_mut(output) {
-                    let safe = with_host_safe_asset_paths(code.as_str());
-                    if safe != *code {
-                        *code = safe;
-                    }
-                }
-            }
-            if let Some(manifest) = &mut pending_asset_manifest {
-                let replacements = reconcile_asset_paths(
+            let replacements = if let Some(manifest) = &mut pending_asset_manifest {
+                reconcile_asset_paths(
                     manifest,
                     &mut asset_output_paths,
                     asset_public_root.as_deref(),
                     output_policy,
-                )?;
-                let mut value = Value::Object(std::mem::take(&mut result));
-                rewrite_result_asset_references(&mut value, &replacements);
-                result = value.as_object().expect("result object").clone();
-                for (name, code) in &mut pending_text_outputs {
-                    if matches!(name.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
-                        *code = rewrite_asset_references(code, &replacements);
+                )?
+            } else {
+                BTreeMap::new()
+            };
+            let mut value = Value::Object(std::mem::take(&mut result));
+            rewrite_result_asset_references(&mut value, &replacements);
+            result = value.as_object().expect("result object").clone();
+            for (name, contents) in &mut pending_text_outputs {
+                if matches!(name.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
+                    if let Some(code) = result.get(name).and_then(Value::as_str) {
+                        *contents = code.to_owned();
                     }
+                } else if name == "sourceMap" {
+                    *contents =
+                        serde_json::to_string_pretty(&result["sourceMap"]).unwrap_or_default();
                 }
             }
             let mut planned_outputs = Vec::new();
@@ -3886,6 +3904,98 @@ mod w1_regressions {
                 .as_str()
                 .unwrap()
                 .contains("resource")
+        );
+    }
+
+    #[test]
+    fn r8_nonsection_semantic_asset_mapping_uses_delivered_path() {
+        let mut result = json!({"tsx":"<Image src=\"/icons/grommet-icons:language.svg\" />", "sourceMap":{"tsx":[{"nodeId":"한글:1","property":"fills","generatedProperty":"src=\"/icons/grommet-icons:language.svg\"","resolution":"asset"}]}});
+        rewrite_result_asset_references(&mut result, &BTreeMap::new());
+        assert_eq!(
+            result["sourceMap"]["tsx"][0]["generatedProperty"],
+            "src=\"/icons/grommet-icons-language-d201f62b16f5.svg\""
+        );
+    }
+
+    #[tokio::test]
+    async fn r8_three_frame_nine_output_units_measure_local_projection() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-119-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec![
+                "3997:46315".into(),
+                "3997:46715".into(),
+                "3997:46333".into(),
+            ];
+        }
+        let began = std::time::Instant::now();
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["frames"].as_array().unwrap().len(), 3);
+        for frame in result["frames"].as_array().unwrap() {
+            assert!(frame["tsx"].is_string());
+            assert!(frame["sourceMap"].is_object());
+        }
+        eprintln!(
+            "R8 offline 3-frame/9-unit projection: {:?}; no upstream timing inferred",
+            began.elapsed()
+        );
+    }
+
+    #[tokio::test]
+    async fn r8_final_korean_semantic_map_follows_asset_path_rewrites() {
+        let mut data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r8/modal-snapshot.json"))
+                .unwrap();
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["3997:46582".into()];
+        }
+        let started = std::time::Instant::now();
+        let result = project(data, op).await.unwrap();
+        eprintln!(
+            "R8 modal projection: {:?}; executable: {:?}",
+            started.elapsed(),
+            std::env::current_exe().unwrap()
+        );
+        let frame = &result["frames"][0];
+        let tsx = frame["tsx"].as_str().unwrap();
+        assert!(tsx.contains("추가 체험"));
+        let entries = frame["sourceMap"]["entries"].as_array().unwrap();
+        for entry in entries {
+            assert!(
+                entry.get("generatedRange").is_none(),
+                "public offsets must not return: {entry}"
+            );
+            assert!(entry["nodeId"].is_string() && entry["property"].is_string());
+            let generated = entry["generatedProperty"]
+                .as_str()
+                .expect("mapped property required");
+            assert!(!generated.is_empty());
+            if !generated.starts_with("implicit:") && generated != "children" {
+                assert!(
+                    tsx.contains(generated),
+                    "mapping must name emitted property: {entry}"
+                );
+            }
+        }
+        let modal_type = entries
+            .iter()
+            .find(|e| e["nodeId"] == "3997:46621" && e["property"] == "type")
+            .unwrap();
+        assert_eq!(modal_type["generatedProperty"], "Box");
+        assert_eq!(modal_type["resolution"], "exact");
+        assert_eq!(frame["sourceMap"]["source"]["generatedOutput"], "tsx");
+        eprintln!(
+            "R8 sourceMap={} bytes, TSX={} bytes",
+            serde_json::to_vec(&frame["sourceMap"]).unwrap().len(),
+            tsx.len()
         );
     }
 

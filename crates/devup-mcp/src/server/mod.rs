@@ -321,7 +321,7 @@ impl DevupServer {
         request: CollectionRequest,
         refresh: bool,
     ) -> Result<Value, DevupError> {
-        if !request.asset_selections.is_empty() {
+        if matches!(operation, PendingOperation::Export { .. }) {
             return self.start_asset_job(operation, request, refresh).await;
         }
         self.start_operation_scoped(operation, request, refresh, None)
@@ -465,6 +465,7 @@ impl DevupServer {
     async fn call_waiting_out_a_spent_allowance(
         &self,
         call: ReadToolCall,
+        attempt_timeout: Option<std::time::Duration>,
     ) -> Result<UpstreamResult, DevupError> {
         const ATTEMPTS: u32 = 3;
         const LONGEST_WAIT: u64 = 90;
@@ -483,7 +484,18 @@ impl DevupServer {
             // Before the call, not after the refusal: a collection that paces
             // itself under the ceiling rarely has to be waited out at all.
             self.services.pacer.acquire().await;
-            let error = match self.services.upstream.call_read_tool(call.clone()).await {
+            // Rate-limit pacing is deliberate waiting, not a stalled upstream
+            // read. Bound each actual attempt without cancelling the retry policy.
+            let read = self.services.upstream.call_read_tool(call.clone());
+            let result = if let Some(timeout) = attempt_timeout {
+                tokio::time::timeout(timeout, read).await.unwrap_or_else(|_| Err(DevupError::with_details(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "Export job upstream read timed out; accepted reads are retained. Resume the job to retry the pending read.", true,
+                    json!({"stage":"upstream-read","timeoutSeconds":timeout.as_secs()}))))
+            } else {
+                read.await
+            };
+            let error = match result {
                 Ok(result) => {
                     // Only an answer is banked. A refusal arrives as a
                     // *successful* MCP call — `isError` in the body, or the
@@ -559,7 +571,8 @@ impl DevupServer {
                     let upstream_result = if let Some(job) = job {
                         job.call(self, planned.call).await
                     } else {
-                        self.call_waiting_out_a_spent_allowance(planned.call).await
+                        self.call_waiting_out_a_spent_allowance(planned.call, None)
+                            .await
                     };
                     match upstream_result {
                         // A Section target is not a failed call — the script
@@ -1020,7 +1033,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. Slow asset calls return assetJob with per-asset and per-stage progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 15–60 seconds per frame as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into batches. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations and unclassified layout loss, even without includeDiagnostics. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations and unclassified layout loss, even without includeDiagnostics. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
@@ -1029,7 +1042,7 @@ impl DevupServer {
                        `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
                        `assetManifest` lists the assets and their ids and writes nothing. To get files, call again with `assetRequests`, giving each entry an `outputPath` under an allowed write root - and make that call with the original `url` rather than `artifactId`, because an acquisition made without asset capture cannot serve asset requests. By default manifest `path` and TSX references remain placeholders. Opt in with `assetPublicRoot`, an existing absolute local directory served at URL /, together with assetRequests.outputPath in this call (saved output mappings are not part of artifacts): files below that root map to percent-encoded relative URLs in manifest and all TSX outputs. Identical exported bytes share one canonical path/outputPath; inspect the returned paths. assetNamesPerNode remains true by default; matching names alone never trigger deduplication. \
-                       Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again. Omitted frameIds/allScreens reuse the stored Section selection; explicit selection overrides it. Debug outputs can use resource delivery in auto mode: read the linked resources or follow nextAction to reproject inline. Even when reusing artifactId, sourceMap requires tsx, componentTsx or devupJson in outputs in the same call. Example: {\"artifactId\":\"<artifactId>\",\"outputs\":[\"tsx\",\"rawSnapshot\",\"sourceMap\"],\"debug\":true}",
+                       Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again. Omitted frameIds/allScreens reuse the stored Section selection; explicit selection overrides it. Debug outputs can use resource delivery in auto mode: read the linked resources or follow nextAction to reproject inline. sourceMap is a node/field/generatedProperty/resolution map without offsets; source.generatedOutput identifies the annotated output. Even when reusing artifactId, sourceMap requires tsx, componentTsx or devupJson in outputs in the same call. Example: {\"artifactId\":\"<artifactId>\",\"outputs\":[\"tsx\",\"rawSnapshot\",\"sourceMap\"],\"debug\":true}",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
@@ -1145,13 +1158,11 @@ impl DevupServer {
                     false,
                 )));
             }
-            let artifact = self.artifacts.get(artifact_id).await.ok_or_else(|| {
-                to_mcp_error(DevupError::new(
-                    ErrorCode::DevupFigmaHandoffExpired,
-                    "The Figma artifact is missing or expired.",
-                    true,
-                ))
-            })?;
+            let artifact = self
+                .artifacts
+                .get_for_export(artifact_id)
+                .await
+                .map_err(to_mcp_error)?;
             let (asset_selections, asset_output_paths) =
                 parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
             if artifact.capabilities.kind == ArtifactKind::SectionIndex
@@ -1490,16 +1501,36 @@ fn with_error_identity(mut error: ErrorData) -> ErrorData {
 /// decision can be made without parsing the message. `data` keeps carrying
 /// the exact `code` and `retryable`, unchanged.
 fn to_mcp_error(mut error: DevupError) -> ErrorData {
-    if error.code == ErrorCode::DevupFigmaHandoffExpired {
+    if error.code == ErrorCode::DevupFigmaHandoffExpired
+        && error.details.get("exportJob").is_none()
+        && error.details.get("assetJob").is_none()
+    {
         if !error.details.is_object() {
             error.details = json!({"upstreamDetails":error.details});
         }
         if error.details.get("stage").is_none() {
             error.details["stage"] = json!("artifact-lookup");
         }
+        if error.details.get("artifactState").is_none() {
+            error.details["artifactState"] = json!("unknown");
+        }
+        let recovery = error.details.get("recoveryArguments").cloned();
+        error.details["recoveryState"] = json!(if recovery.is_some() {
+            "available"
+        } else {
+            "unrecoverable"
+        });
+        if recovery.is_none() {
+            error.details["recoveryReason"] = json!(
+                "Original URL/selection cannot be recovered from this server. The ID may be unknown, evicted beyond metadata retention, or lost on restart; the cause cannot be determined."
+            );
+        }
         error.details["nextAction"] = json!({"tool":"devup_figma_export",
             "arguments":{"refresh":true},"requiredArguments":["url"],"omitArguments":["artifactId"],
             "how":"Use the original Figma SECTION URL and frameIds (or allScreens) with refresh:true to collect a new artifact. Then reuse the new cache.artifactId; do not send the expired artifactId with url or refresh."});
+        if let Some(arguments) = recovery {
+            error.details["nextAction"]["arguments"] = arguments;
+        }
     }
     let mcp_code = if validation::is_caller_mistake(&error) {
         McpErrorCode::INVALID_PARAMS
@@ -1549,7 +1580,7 @@ impl ServerHandler for DevupServer {
         .with_instructions(
             "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
              2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; a complete response marks it with deliverable.isFinal.\n\
-             2a. Ask for an output only when you will read it. Measured against the same screen, sourceMap is about 5x the size of the tsx it annotates, rawPayload about 7x, and rawSnapshot about 2x, so requesting them by default spends most of the response on bytes nothing reads. sourceMap is for tracing a generated line back to its Figma node; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
+             2a. Ask for an output only when you will read it. Measured on the Korean WQUW-120 modal, semantic sourceMap is about 5.4x TSX (48,832 versus 9,099 UTF-8 bytes; 12.6% smaller than its former offset map). Sizes vary by screen; earlier rawPayload/rawSnapshot measurements were about 7x/2x TSX, so requesting them by default spends most of the response on bytes nothing reads. sourceMap records nodeId, original property, generatedProperty and resolution, with no character/byte offsets. exact verifies that field-to-property mapping, not rendered pixel equivalence. Use generatedSource diagnostics for node code excerpts; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
              3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
              4. Do not hand-interpret a node tree to write devup-ui code. Do not infer layout from coordinates.\n\
              5. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
@@ -1666,5 +1697,36 @@ mod r7_error_tests {
                 .unwrap()
                 .contains(&json!("artifactId"))
         );
+    }
+}
+
+#[cfg(test)]
+mod r8_recovery_tests {
+    use super::*;
+    #[test]
+    fn r8_expired_artifact_returns_known_url_or_explicit_unrecoverable_state() {
+        for known in [true, false] {
+            let details = if known {
+                json!({"artifactState":"expired","recoveryArguments":{"url":"https://www.figma.com/design/test?node-id=1-2","frameIds":["2:1"],"refresh":true}})
+            } else {
+                json!({})
+            };
+            let e = to_mcp_error(DevupError::with_details(
+                ErrorCode::DevupFigmaHandoffExpired,
+                "expired",
+                true,
+                details,
+            ));
+            let d = &e.data.unwrap()["details"];
+            if known {
+                assert_eq!(
+                    d["nextAction"]["arguments"]["url"],
+                    "https://www.figma.com/design/test?node-id=1-2"
+                );
+            } else {
+                assert_eq!(d["artifactState"], "unknown");
+                assert_eq!(d["recoveryState"], "unrecoverable");
+            }
+        }
     }
 }

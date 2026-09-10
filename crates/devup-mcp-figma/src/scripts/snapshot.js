@@ -180,6 +180,7 @@ function snapshotNode(node) {
     if (node.parent.type === "SECTION") fields.parentName = node.parent.name;
   }
   fields.childrenIds = "children" in node ? node.children.map((child) => child.id) : [];
+  if (!("overflowDirection" in node) && ["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(node.type)) fields.overflowDirection = null;
 
   for (const name of propertyNames(node)) {
     if (skipped.has(name) || name.startsWith("_")) continue;

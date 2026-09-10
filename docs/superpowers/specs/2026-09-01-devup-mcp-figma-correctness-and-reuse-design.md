@@ -1,3 +1,7 @@
+# R8 contract update
+
+The public TSX sourceMap now exposes nodeId/property/generatedProperty/resolution, with no character or byte offsets. Renderer offsets described below are internal validator bookkeeping only; generatedSource diagnostics provide code excerpts. See README R8 provenance.
+
 # devup-mcp Figma 정확성·재사용 강화 설계
 
 ## 상태

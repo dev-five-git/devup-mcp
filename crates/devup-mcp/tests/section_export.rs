@@ -165,7 +165,7 @@ async fn section_requires_selection_then_exports_requested_or_all_screens_from_o
             .unwrap()
             .contains("First")
     );
-    assert_eq!(selected["frames"][0]["sourceMap"]["version"], 1);
+    assert_eq!(selected["frames"][0]["sourceMap"]["version"], 2);
     assert!(
         selected["frames"][0]["sourceMap"]["entries"]
             .as_array()
