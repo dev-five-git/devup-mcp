@@ -351,7 +351,7 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     // Default-valued fields are dropped; the tables must stay in sync with
     // `devup-mcp-devup-ui/tests/default_omission_golden.rs`.
     assert!(code.contains("const SCALAR_DEFAULTS = new Map(["));
-    assert!(code.contains(r#"const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight"]);"#));
+    assert!(code.contains(r#"const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight", "absoluteRenderBounds"]);"#));
     // Presence-sensitive fields must never appear in the omission table.
     for presence_sensitive in [
         "[\"opacity\"",

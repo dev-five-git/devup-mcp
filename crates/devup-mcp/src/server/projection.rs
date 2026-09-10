@@ -1496,6 +1496,19 @@ pub(super) async fn complete_operation(
                         std::slice::from_ref(&candidate.node.node_id),
                         manifest_requested,
                     );
+                    frame["projectionEvidence"] = json!(
+                        frame_diagnostics
+                            .iter()
+                            .filter(|d| {
+                                d.fidelity_impact() == devup_mcp_figma::FidelityImpact::None
+                                    && matches!(
+                                        d.code.as_str(),
+                                        "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+                                            | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                                    )
+                            })
+                            .collect::<Vec<_>>()
+                    );
                     frame_quality.assets = asset_collection_quality(&frame["assetSummary"]);
                     frame["quality"] = json!(frame_quality);
                     frame["status"] = json!(if failures.len() > before_failures {
@@ -2120,6 +2133,22 @@ pub(super) async fn complete_operation(
                     projection_diagnostics
                         .iter()
                         .filter(|d| d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None)
+                        .collect::<Vec<_>>()
+                ),
+            );
+            result.insert(
+                "projectionEvidence".into(),
+                json!(
+                    projection_diagnostics
+                        .iter()
+                        .filter(|d| {
+                            d.fidelity_impact() == devup_mcp_figma::FidelityImpact::None
+                                && matches!(
+                                    d.code.as_str(),
+                                    "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+                                        | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                                )
+                        })
                         .collect::<Vec<_>>()
                 ),
             );
@@ -2830,12 +2859,59 @@ mod w1_regressions {
         assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
         assert_eq!(
             frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
-            114 // R6: two vertical FILL fields and seven positive layoutGrow fields.
+            117 // R9: prior 114 + verified root width/height and explicit modal height.
         );
         assert_eq!(
             frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
             40
         );
+    }
+
+    #[tokio::test]
+    async fn r9_confirmed_evidence_survives_diagnostics_opt_out() {
+        let mut data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        data.snapshot
+            .nodes
+            .get_mut("3997:46621")
+            .unwrap()
+            .fields
+            .insert("visible".into(), json!(false));
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46582".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        for owner in [&result, &result["frames"][0]] {
+            let evidence = owner["projectionEvidence"]
+                .as_array()
+                .expect("confirmed evidence remains available without diagnostics");
+            let d = evidence
+                .iter()
+                .find(|d| {
+                    d["nodeId"] == "3997:46621" && d["code"] == "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+                })
+                .unwrap();
+            assert_eq!(d["fidelityImpact"], "none");
+            assert_eq!(d["details"]["verification"]["field"], "visible");
+            assert_eq!(d["details"]["verification"]["state"], "accounted-for");
+            assert_eq!(d["details"]["output"], "tsx");
+            assert!(
+                !owner["projectionIssues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|d| d["nodeId"] == "3997:46621")
+            );
+        }
     }
 
     #[tokio::test]

@@ -1,0 +1,3 @@
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp)
+    Checking devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.11s

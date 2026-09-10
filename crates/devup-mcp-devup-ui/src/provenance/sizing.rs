@@ -1,6 +1,205 @@
 use super::*;
 use serde_json::Value;
 
+pub(super) fn non_rendering_asset_accounted(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    id: &str,
+) -> bool {
+    snapshot.nodes.get(id).is_some_and(|node| {
+        !node.field_errors.contains_key("absoluteRenderBounds")
+            && node
+                .typed_view()
+                .value("absoluteRenderBounds")
+                .is_some_and(Value::is_null)
+            && node_opening(output, id).is_some_and(|tag| {
+                prop(tag, "visibility") == Some("hidden")
+                    && ["src", "bgImage", "maskImage"]
+                        .iter()
+                        .all(|name| prop(tag, name).is_none())
+            })
+    })
+}
+
+/// Verify emitted props against collected geometry, never against a resolution label.
+/// This is a bounded constraint proof, not a browser measurement.
+pub(crate) fn absolute_component_verification(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+    id: &str,
+) -> Value {
+    let Some(node) = snapshot.nodes.get(id) else {
+        return Value::Null;
+    };
+    let view = node.typed_view();
+    let tag = node_opening(output, id).unwrap_or("");
+    let owner = parent(snapshot, output, id);
+    let parent_tag = owner
+        .and_then(|p| node_opening(output, &p.id))
+        .unwrap_or("");
+    let no_parent_border = [
+        "border",
+        "borderWidth",
+        "borderLeft",
+        "borderRight",
+        "borderTop",
+        "borderBottom",
+        "borderLeftWidth",
+        "borderRightWidth",
+        "borderTopWidth",
+        "borderBottomWidth",
+    ]
+    .iter()
+    .all(|name| prop(parent_tag, name).is_none());
+    let dimension = |axis: &str, name: &str, sizing: &str| {
+        let original = view.number(axis);
+        let generated = prop(tag, name).or_else(|| prop(tag, "boxSize"));
+        let preserved = !node.field_errors.contains_key(axis)
+            && !node.field_errors.contains_key(sizing)
+            && view.string(sizing) == Some("FIXED")
+            && original
+                .zip(generated.and_then(|v| v.strip_suffix("px")?.parse::<f64>().ok()))
+                .is_some_and(|(a, b)| a.is_finite() && a == b);
+        let auto_layout = !node.field_errors.contains_key("layoutMode")
+            && flex_axis(tag).is_some_and(|mode| view.string("layoutMode") == Some(mode));
+        let intrinsic = auto_layout
+            && generated.is_none()
+            && view.string(sizing) == Some("HUG")
+            && !node.field_errors.contains_key(sizing)
+            && ["minW", "maxW", "minH", "maxH", "flex"]
+                .iter()
+                .all(|name| prop(tag, name).is_none());
+        // Only source-matching auto-layout containers have this percentage proof.
+        let percentage = auto_layout
+            && no_parent_border
+            && generated == Some("100%")
+            && view.string(sizing) == Some("FIXED")
+            && !node.field_errors.contains_key(axis)
+            && !node.field_errors.contains_key(sizing)
+            && ["minW", "maxW", "minH", "maxH"]
+                .iter()
+                .all(|name| prop(tag, name).is_none())
+            && owner.is_some_and(|p| {
+                let pv = p.typed_view();
+                !p.field_errors.contains_key(axis)
+                    && !p.field_errors.contains_key(sizing)
+                    && pv.string(sizing) == Some("FIXED")
+                    && original
+                        .zip(pv.number(axis))
+                        .is_some_and(|(a, b)| a.is_finite() && a == b)
+                    && original
+                        .zip(
+                            prop(parent_tag, name)
+                                .or_else(|| prop(parent_tag, "boxSize"))
+                                .and_then(|v| v.strip_suffix("px")?.parse::<f64>().ok()),
+                        )
+                        .is_some_and(|(a, b)| a == b)
+                    && [
+                        "minW", "maxW", "minH", "maxH", "p", "px", "py", "pl", "pr", "pt", "pb",
+                    ]
+                    .iter()
+                    .all(|name| prop(parent_tag, name).is_none())
+            });
+        json!({"state":if preserved {"preserved"} else if intrinsic || percentage {"verified"} else {"approximated"},"fidelityImpact":if preserved || intrinsic || percentage {"none"} else {"approximated"},
+            "sourceSizing":view.string(sizing),"sourceValue":original,"generatedValue":generated,
+            "reason":if preserved {"Explicit generated pixels equal the collected FIXED dimension."} else if intrinsic {"Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels."} else if percentage {"Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders."} else {"No verified explicit FIXED dimension; percentage, intrinsic or missing sizes need a separate sizing proof."},
+            "resolutionCondition":"Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."})
+    };
+    let common = prop(tag, "pos") == Some("absolute")
+        && owner.is_some_and(|p| p.node_type == "FRAME")
+        && matches!(
+            prop(parent_tag, "pos"),
+            Some("relative" | "absolute" | "fixed")
+        )
+        && [node].into_iter().chain(owner).all(|n| {
+            let v = n.typed_view();
+            !["x", "y", "width", "height", "rotation", "constraints"]
+                .iter()
+                .any(|f| n.field_errors.contains_key(*f))
+                && v.number("rotation").is_none_or(|r| r == 0.0)
+        })
+        && no_parent_border
+        && prop(parent_tag, "transform").is_none()
+        && ["m", "mx", "my", "ml", "mr", "mt", "mb", "inset"]
+            .iter()
+            .all(|p| prop(tag, p).is_none());
+    let horizontal = view
+        .value("constraints")
+        .and_then(|v| v.get("horizontal"))
+        .and_then(Value::as_str)
+        .or_else(|| view.value("constraints").is_none().then_some("MIN"));
+    let vertical = view
+        .value("constraints")
+        .and_then(|v| v.get("vertical"))
+        .and_then(Value::as_str)
+        .or_else(|| view.value("constraints").is_none().then_some("MIN"));
+    let expected_transform = match (horizontal, vertical) {
+        (Some("CENTER"), Some("CENTER")) => Some("translate(-50%, -50%)"),
+        (Some("CENTER"), _) => Some("translateX(-50%)"),
+        (_, Some("CENTER")) => Some("translateY(-50%)"),
+        _ => None,
+    };
+    let width = dimension("width", "w", "layoutSizingHorizontal");
+    let height = dimension("height", "h", "layoutSizingVertical");
+    let axis = |constraint: Option<&str>,
+                coordinate: &str,
+                size: &str,
+                css: &str,
+                opposite: &str| {
+        let offset = view.number(coordinate);
+        let own_size = view.number(size);
+        let parent_size = owner.and_then(|p| p.typed_view().number(size));
+        let (css, opposite) = if constraint == Some("MAX") {
+            (opposite, css)
+        } else {
+            (css, opposite)
+        };
+        let generated = prop(tag, css);
+        let verified = common
+            && prop(tag, opposite).is_none()
+            && prop(tag, "transform") == expected_transform
+            && match constraint {
+                Some("CENTER") => {
+                    generated == Some("50%")
+                        && offset
+                            .zip(own_size)
+                            .zip(parent_size)
+                            .is_some_and(|((x, w), p)| {
+                                x.is_finite()
+                                    && w.is_finite()
+                                    && p.is_finite()
+                                    && (x + w / 2.0 - p / 2.0).abs() < 1e-6
+                            })
+                }
+                Some("MIN") => offset
+                    .zip(generated.and_then(|v| v.strip_suffix("px")?.parse::<f64>().ok()))
+                    .is_some_and(|(a, b)| a.is_finite() && a == b),
+                Some("MAX") => {
+                    (if size == "width" { &width } else { &height })["fidelityImpact"] == "none"
+                        && offset
+                            .zip(own_size)
+                            .zip(parent_size)
+                            .zip(generated.and_then(|v| v.strip_suffix("px")?.parse::<f64>().ok()))
+                            .is_some_and(|(((x, w), p), margin)| {
+                                x.is_finite()
+                                    && w.is_finite()
+                                    && p.is_finite()
+                                    && (p - x - w - margin).abs() < 1e-6
+                            })
+                }
+                _ => false,
+            };
+        json!({"state":if verified {"verified"} else {"approximated"},"fidelityImpact":if verified {"none"} else {"approximated"},
+            "constraint":constraint,"constraintDeclared":view.value("constraints").is_some(),"sourceOffset":offset,"sourceSize":own_size,"parentSize":parent_size,
+            "generatedProperty":css,"generatedValue":generated,"transform":prop(tag,"transform"),
+            "reason":if verified {"Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified."} else {"Constraint, geometry, read errors, containing block or emitted props do not satisfy the bounded CENTER/MIN/MAX proof; STRETCH/SCALE and MAX with unverified sizing require separate proofs."},
+            "resolutionCondition":"Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."})
+    };
+    json!({"height":height,"width":width,
+        "horizontal":axis(horizontal,"x","width","left","right"),"vertical":axis(vertical,"y","height","top","bottom"),
+        "containingBlock":{"parentId":owner.map(|p|&p.id),"generatedParent":parent_tag,"generatedChild":tag}})
+}
+
 fn prop<'a>(opening: &'a str, name: &str) -> Option<&'a str> {
     let needle = format!("{name}=\"");
     let start = find_prop(opening, &needle)? + needle.len();

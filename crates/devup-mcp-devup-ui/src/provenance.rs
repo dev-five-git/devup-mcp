@@ -9,6 +9,7 @@ use crate::codegen::{
 };
 
 mod sizing;
+pub(crate) use sizing::absolute_component_verification;
 pub(crate) use sizing::{account_for_sizing, implicit_css_verification};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
@@ -253,6 +254,8 @@ pub(crate) fn build_projection_trace(
         let projection =
             if node_id == root_id && node.is_some_and(|node| node.node_type == "SECTION") {
                 Some((ProjectionDisposition::Flattened, "section-root", None))
+            } else if node.is_some_and(|node| node.typed_view().bool("visible") == Some(false)) {
+                Some((ProjectionDisposition::Ignored, "hidden", None))
             } else if let Some(range) = range.filter(|range| range.start < range.end) {
                 Some((
                     ProjectionDisposition::Emitted,
@@ -470,6 +473,9 @@ pub fn validate_fidelity(
     let covered_assets = assets
         .iter()
         .filter(|(node_id, asset_id)| {
+            if sizing::non_rendering_asset_accounted(snapshot, output, node_id) {
+                return true;
+            }
             output.source_map.entries.iter().any(|entry| {
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.asset_id.as_deref() == Some(asset_id.as_str())
@@ -516,13 +522,15 @@ pub fn validate_fidelity(
             })
         })
         .collect::<BTreeSet<_>>();
-    // Previously claimed implicit dimensions remain obligations when emitted CSS
+    // Previously claimed implicit or explicit dimensions remain obligations when emitted CSS
     // is revalidated. Replacing a Box by an unknown/replaced tag must not make
     // its size disappear from coverage merely because it is no longer a Box.
     for entry in &output.source_map.entries {
         if matches!(
             entry.resolution.as_str(),
-            "accounted-for-implicit-flex-stretch" | "accounted-for-implicit-flex-grow"
+            "accounted-for-implicit-flex-stretch"
+                | "accounted-for-implicit-flex-grow"
+                | "verified-explicit-dimension"
         ) && let (Some(id), Some(field)) = (entry.node_id.as_deref(), entry.property.as_deref())
             && matches!(field, "width" | "height")
             && semantic_nodes.contains(id)
@@ -578,6 +586,21 @@ pub fn validate_fidelity(
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        if entry.resolution == "verified-explicit-dimension" {
+                            return layout_source_matches(property, source)
+                                && dimension_value_matches(
+                                    snapshot, output, node_id, property, source,
+                                )
+                                && snapshot.nodes.get(node_id).is_some_and(|node| {
+                                    !node.field_errors.contains_key(property)
+                                        && source
+                                            .split_once("=\"")
+                                            .and_then(|(_, v)| v.strip_suffix("px\""))
+                                            .and_then(|v| v.parse::<f64>().ok())
+                                            .zip(node.typed_view().number(property))
+                                            .is_some_and(|(a, b)| b.is_finite() && a == b)
+                                });
+                        }
                         if matches!(
                             entry.resolution.as_str(),
                             "accounted-for-implicit-flex-stretch"
@@ -606,7 +629,32 @@ pub fn validate_fidelity(
     };
     let mut impacts = FidelityImpactCounts::default();
     for diagnostic in &output.diagnostics {
-        match diagnostic.fidelity_impact() {
+        let mut impact = diagnostic.fidelity_impact();
+        if impact == FidelityImpact::None && diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_VERIFIED" {
+            let components = absolute_component_verification(
+                snapshot,
+                output,
+                diagnostic.node_id.as_deref().unwrap_or(root_id),
+            );
+            if ["height", "width", "horizontal", "vertical"]
+                .iter()
+                .any(|name| components[*name]["fidelityImpact"] != "none")
+            {
+                impact = FidelityImpact::Approximated;
+            }
+        }
+        if impact == FidelityImpact::None && diagnostic.code == "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+        {
+            let id = diagnostic.node_id.as_deref().unwrap_or(root_id);
+            let hidden = snapshot.nodes.get(id).is_some_and(|node| {
+                !node.field_errors.contains_key("visible")
+                    && node.typed_view().bool("visible") == Some(false)
+            });
+            if !hidden && !sizing::non_rendering_asset_accounted(snapshot, output, id) {
+                impact = FidelityImpact::Approximated;
+            }
+        }
+        match impact {
             FidelityImpact::None => impacts.none += 1,
             FidelityImpact::Approximated => impacts.approximated += 1,
             FidelityImpact::Lossy => impacts.lossy += 1,
@@ -1503,6 +1551,18 @@ pub(crate) fn finalize_tsx(
                 "variable-token"
             } else if style_id.is_some() {
                 "style-token"
+            } else if matches!(*property, "width" | "height")
+                && !node.field_errors.contains_key(*property)
+                && matches!(*prop, "w" | "h" | "boxSize")
+                && value
+                    .strip_suffix("px")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .zip(node.typed_view().number(property))
+                    .is_some_and(|(generated, original)| {
+                        original.is_finite() && original == generated
+                    })
+            {
+                "verified-explicit-dimension"
             } else {
                 "raw-fallback"
             };

@@ -1,0 +1,32 @@
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.13.4
+   Compiling rmcp v3.2.0
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-figma)
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 32.76s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-879ea00139ecb6a4.exe)
+
+running 1 test
+
+thread 'r9_absolute_verification_is_rechecked_after_generated_css_changes' (115768) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:313:5:
+assertion `left == right` failed: stale verified diagnostic cannot certify changed CSS
+  left: 48
+ right: 49
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_absolute_verification_is_rechecked_after_generated_css_changes ... FAILED
+
+failures:
+
+failures:
+    r9_absolute_verification_is_rechecked_after_generated_css_changes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r9_precision`

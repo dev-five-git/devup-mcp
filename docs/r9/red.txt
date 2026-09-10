@@ -1,0 +1,71 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-9c8903ce79b728f2.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-9c8903ce79b728f2.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.61s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-9c8903ce79b728f2.exe)
+
+running 8 tests
+
+thread 'r9_source_map_documents_optional_identifiers_and_resolutions' (197512) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:50:129:
+missing variableId
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_source_map_documents_optional_identifiers_and_resolutions ... FAILED
+
+thread 'r9_captured_non_rendering_asset_and_read_error_are_distinguished' (192980) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:84:9:
+assertion `left == right` failed
+  left: Some(Approximated)
+ right: Some(None)
+
+thread 'r9_non_rendering_requires_explicit_evidence' (201296) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:16:9:
+assertion `left == right` failed
+  left: Some(Approximated)
+ right: Some(None)
+test r9_non_rendering_requires_explicit_evidence ... FAILED
+test r9_captured_non_rendering_asset_and_read_error_are_distinguished ... FAILED
+
+thread 'r9_verified_absolute_components_clear_only_their_own_impact' (185564) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:99:5:
+assertion `left == right` failed
+  left: Some(Approximated)
+ right: Some(None)
+
+thread 'r9_hidden_node_records_accounted_for_evidence' (189848) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:72:131:
+called `Option::unwrap()` on a `None` value
+test r9_verified_absolute_components_clear_only_their_own_impact ... FAILED
+test r9_hidden_node_records_accounted_for_evidence ... FAILED
+
+thread 'r9_center_offset_and_field_errors_are_not_verified' (202288) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:62:9:
+assertion `left == right` failed
+  left: Null
+ right: "approximated"
+
+thread 'r9_preserved_height_has_verified_resolution' (185380) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:44:5:
+assertion `left == right` failed
+  left: "raw-fallback"
+ right: "verified-explicit-dimension"
+test r9_center_offset_and_field_errors_are_not_verified ... FAILED
+test r9_preserved_height_has_verified_resolution ... FAILED
+
+thread 'r9_absolute_reports_verified_axes_and_remaining_width' (191076) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:31:9:
+assertion `left == right` failed
+  left: Null
+ right: "preserved"
+test r9_absolute_reports_verified_axes_and_remaining_width ... FAILED
+
+failures:
+
+failures:
+    r9_absolute_reports_verified_axes_and_remaining_width
+    r9_captured_non_rendering_asset_and_read_error_are_distinguished
+    r9_center_offset_and_field_errors_are_not_verified
+    r9_hidden_node_records_accounted_for_evidence
+    r9_non_rendering_requires_explicit_evidence
+    r9_preserved_height_has_verified_resolution
+    r9_source_map_documents_optional_identifiers_and_resolutions
+    r9_verified_absolute_components_clear_only_their_own_impact
+
+test result: FAILED. 0 passed; 8 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r9_precision`
