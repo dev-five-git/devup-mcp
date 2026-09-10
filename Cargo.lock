@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "devup-mcp"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "devup-mcp-devup-ui"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "devup-mcp-figma",
  "insta",
@@ -724,7 +724,7 @@ dependencies = [
 
 [[package]]
 name = "devup-mcp-figma"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -749,7 +749,7 @@ dependencies = [
 
 [[package]]
 name = "devup-mcp-visual"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "anyhow",
  "image",
