@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -203,9 +205,18 @@ async fn call_result(
     arguments: Value,
 ) -> anyhow::Result<CallToolResult> {
     let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
-    Ok(client
+    let result = client
         .call_tool(CallToolRequestParams::new(name.to_owned()).with_arguments(arguments))
-        .await?)
+        .await?;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
+    Ok(result)
 }
 
 /// The design in raw form is behind a door marked debug.
@@ -552,7 +563,9 @@ async fn artifact_reuse_rejects_file_theme_beyond_captured_scope() -> anyhow::Re
         )
         .await;
 
-    let error = incompatible.expect_err("node artifact must not impersonate file theme capture");
+    let error = incompatible
+        .map(common::tool_error)
+        .expect("tool result must report failure");
     assert!(
         error.to_string().contains("DEVUP_FIGMA_HANDOFF_INVALID"),
         "unexpected capability error: {error}"
@@ -860,7 +873,9 @@ async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::R
                 ),
             )
             .await;
-        let error = reused.expect_err("asset capture reuse requires the exact format and scale");
+        let error = reused
+            .map(common::tool_error)
+            .expect("tool result must report failure");
         assert!(
             error.to_string().contains("DEVUP_FIGMA_HANDOFF_INVALID"),
             "unexpected capture mismatch error: {error}"
@@ -900,7 +915,9 @@ async fn strict_export_rejects_partial_payload_before_projection() -> anyhow::Re
         )
         .await;
 
-    let error = result.expect_err("strict partial export must fail");
+    let error = result
+        .map(common::tool_error)
+        .expect("tool result must report failure");
     assert!(
         error.to_string().contains("partial"),
         "unexpected strict error: {error}"
@@ -949,7 +966,9 @@ async fn strict_tsx_export_rejects_lossy_projection() -> anyhow::Result<()> {
         )
         .await;
 
-    let error = result.expect_err("strict lossy export must fail");
+    let error = result
+        .map(common::tool_error)
+        .expect("tool result must report failure");
     assert!(
         error.to_string().contains("lossy"),
         "unexpected strict error: {error}"
@@ -1272,7 +1291,7 @@ async fn r3_oversized_assets_rejected_before_upstream() -> anyhow::Result<()> {
     let result=client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({
         "url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],"assetRequests":assets
     }).as_object().unwrap().clone())).await;
-    assert!(result.is_err(), "oversized batch must be rejected");
+    common::tool_error(result?);
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
     client.cancel().await?;
     task.await??;

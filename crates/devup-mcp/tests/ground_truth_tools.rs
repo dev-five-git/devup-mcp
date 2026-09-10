@@ -10,6 +10,8 @@
 //! simulate real collection flows) — they exist only because `DevupServer`
 //! requires a `Services` value to construct.
 
+mod common;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -488,6 +490,6 @@ async fn stack_diff_rejects_unknown_layer_names() -> anyhow::Result<()> {
         json!({ "projectRoot": fixture_project_root(), "layers": ["not-a-real-layer"] }),
     )
     .await;
-    assert!(result.is_err());
+    common::tool_error(result?);
     Ok(())
 }

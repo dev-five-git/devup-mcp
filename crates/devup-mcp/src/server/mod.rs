@@ -1546,6 +1546,28 @@ fn to_mcp_error(mut error: DevupError) -> ErrorData {
     )
 }
 
+fn structured_tool_error(error: ErrorData) -> rmcp::model::CallToolResult {
+    let mut data = error.data.unwrap_or_else(|| json!({}));
+    if !data.is_object() {
+        data = json!({"details":data});
+    }
+    data.as_object_mut().unwrap().remove("server");
+    if data.get("code").is_none() {
+        data["code"] = json!("DEVUP_INVALID_INPUT");
+    }
+    if data.get("retryable").is_none() {
+        data["retryable"] = json!(false);
+    }
+    if data.get("details").is_none() {
+        data["details"] = json!({});
+    }
+    data["message"] = json!(error.message);
+    data["rpcCode"] = json!(error.code);
+    let mut result = tool_result(json!({"error":data}));
+    result.is_error = Some(true);
+    result
+}
+
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for DevupServer {
     async fn call_tool(
@@ -1554,17 +1576,29 @@ impl ServerHandler for DevupServer {
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, ErrorData> {
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        let mut response = self
-            .tool_router
-            .call(call)
-            .await
-            .map_err(with_error_identity)?;
+        let mut response = match self.tool_router.call(call).await {
+            Ok(response) => response,
+            Err(error) if error.data.as_ref().and_then(|d| d.get("code")).is_some() => {
+                return Ok(structured_tool_error(error).into());
+            }
+            Err(error) => return Err(with_error_identity(error)),
+        };
         if let rmcp::model::CallToolResponse::Complete(result) = &mut response
             && result.is_error == Some(true)
         {
-            let enriched = tool_result(json!({"error":{"content":result.content}}));
-            result.content = enriched.content;
-            result.structured_content = enriched.structured_content;
+            // Router argument decoding failures arrive as content-only tool
+            // errors. Give them the same error envelope as execution errors.
+            if result
+                .structured_content
+                .as_ref()
+                .and_then(|v| v.get("error"))
+                .is_none()
+            {
+                *result = structured_tool_error(ErrorData::invalid_params(
+                    "Invalid tool arguments.",
+                    Some(json!({"details":{"content":result.content}})),
+                ));
+            }
         }
         Ok(response)
     }

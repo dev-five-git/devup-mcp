@@ -125,6 +125,9 @@ function subtreeEstimate(root) {
 }
 
 const queue = "children" in section ? [...section.children] : [];
+// Cache edges during the existing traversal; ownership must not cross the
+// plugin bridge once per ancestor of every descendant.
+const traversalParents = new Map(queue.map(node => [node.id, section.id]));
 const candidateNodes = [];
 let traversalCount = 0;
 for (let index = 0; index < queue.length && traversalCount < MAX_TRAVERSED_NODES; index += 1) {
@@ -143,7 +146,11 @@ for (let index = 0; index < queue.length && traversalCount < MAX_TRAVERSED_NODES
     }
     if (!nestedInScreen) candidateNodes.push({ node, box });
   }
-  if ("children" in node) queue.push(...node.children);
+  if ("children" in node) {
+    const children = node.children;
+    for (const child of children) traversalParents.set(child.id, node.id);
+    queue.push(...children);
+  }
 }
 // Screen shape is a guess for finding screens on a page that has no grouping.
 // A Section is grouping, already explicit, and the guess applied there answers
@@ -171,17 +178,16 @@ candidateNodes.sort((left, right) =>
 const projectionTruncated = queue.length > traversalCount || candidateNodes.length > MAX_CANDIDATES;
 const selected = candidateNodes.slice(0, MAX_CANDIDATES);
 const selectedIds = new Set(selected.map(({ node }) => node.id));
-// Keep ID ownership while the tree is available. Geometry/text for descendants
-// still stays out of this compact response. Only visited nodes are claimed.
+// Only selection queries need ownership in this response. Export diagnostics
+// use the collected snapshot's parentId/childrenIds on the server instead.
+const requestedIds = new Set("__DEVUP_ROOT_IDS__");
 const nodeScreenIds = {};
-for (const node of queue.slice(0, traversalCount)) {
-  let owner = node;
-  const seen = new Set();
-  while (owner && owner.id !== section.id && !selectedIds.has(owner.id) && !seen.has(owner.id)) {
-    seen.add(owner.id);
-    owner = owner.parent;
-  }
-  nodeScreenIds[node.id] = owner && selectedIds.has(owner.id) ? owner.id : null;
+const owners = new Map([[section.id, null]]);
+for (let index = 0; index < traversalCount; index += 1) {
+  const id = queue[index].id;
+  const owner = selectedIds.has(id) ? id : owners.get(traversalParents.get(id)) ?? null;
+  owners.set(id, owner);
+  if (requestedIds.has(id)) nodeScreenIds[id] = owner;
 }
 // Link to the nearest retained ancestor: intermediate layout groups are not
 // included in this compact projection, but container/screen ancestry survives.
@@ -237,10 +243,26 @@ const candidates = selected.map(({ node, box }) => {
   };
 });
 
-return {
+const result = {
   fileKey: figma.fileKey || "",
   version: null,
   rootIds: [section.id],
   nodes: [sectionNode, ...candidates],
   diagnostics: [],
 };
+// The measured upstream ceiling is 20,480 UTF-8 bytes. Never hand it JSON
+// that it will silently cut; preserve the complete candidate list or refuse.
+let responseBytes = utf8ByteLength(JSON.stringify(result));
+// Previews are optional menu hints. Yield their space before refusing a
+// complete menu; never drop a selectable screen merely to fit the transport.
+for (let index = candidates.length - 1; index >= 0 && responseBytes > 19 * 1024; index -= 1) {
+  candidates[index].fields.textPreview = "";
+  responseBytes = utf8ByteLength(JSON.stringify(result));
+}
+if (responseBytes > 19 * 1024) {
+  throw new Error("DEVUP_SECTION_INDEX_TOO_LARGE " + JSON.stringify({
+    pluginCode: "DEVUP_SECTION_INDEX_TOO_LARGE", stage: "section-index",
+    responseBytes, maxResponseBytes: 19 * 1024,
+  }));
+}
+return result;

@@ -4,6 +4,46 @@ use devup_mcp_figma::{
 };
 use serde_json::json;
 
+#[test]
+fn r11_snapshot_extraction_reports_safe_failure_location_and_schema() {
+    let cases = [
+        (
+            json!({"content":[{"type":"text","text":"{\"fileKey\":\"SECRET\",\"nodes\":[// truncated to 20kb"}]}),
+            "truncated-text",
+            "$.content[0].text",
+        ),
+        (
+            json!({"content":[{"type":"text","text":"{\"fileKey\":\"SECRET\",\"nodes\":["}]}),
+            "invalid-json",
+            "$.content[0].text",
+        ),
+        (
+            json!({"structuredContent":{"fileKey":"SECRET","nodes":{}}}),
+            "schema-mismatch",
+            "$.structuredContent",
+        ),
+        (
+            json!({"isError":true,"content":[{"type":"text","text":"SECRET plugin exception"}]}),
+            "upstream-error",
+            "$",
+        ),
+        (
+            json!({"content":[{"type":"image","data":"SECRET","mimeType":"image/png"}]}),
+            "missing-snapshot",
+            "$",
+        ),
+    ];
+    for (raw, category, path) in cases {
+        let error = snapshot_chunk_from_result(&UpstreamResult { raw }).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupSnapshotUnsupported);
+        assert_eq!(error.details["category"], category);
+        assert_eq!(error.details["path"], path);
+        assert_eq!(error.details["upstreamType"], "object");
+        assert!(error.details["expectedSchema"].is_object());
+        assert!(!error.details.to_string().contains("SECRET"));
+    }
+}
+
 fn chunk(version: &str, node: serde_json::Value) -> SnapshotChunk {
     serde_json::from_value(json!({
         "fileKey": "file-key",

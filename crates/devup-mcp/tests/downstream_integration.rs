@@ -169,6 +169,14 @@ async fn call_tool_with_services(
         .await?;
     client.cancel().await?;
     task.await??;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
     Ok(result.structured_content.expect("structured tool output"))
 }
 

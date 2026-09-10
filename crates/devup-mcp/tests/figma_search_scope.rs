@@ -7,6 +7,8 @@
 //! taken from that answer export the wrong screen. These lock the linked node
 //! as the search scope.
 
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -422,7 +424,7 @@ async fn an_out_of_range_limit_is_refused_before_collecting() -> anyhow::Result<
         )
         .await;
 
-    assert!(refused.is_err());
+    common::tool_error(refused?);
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
     client.cancel().await?;
     task.await??;

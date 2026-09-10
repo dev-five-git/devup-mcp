@@ -496,12 +496,125 @@ pub fn merge_chunks(chunks: Vec<SnapshotChunk>) -> Result<Snapshot, DevupError> 
 
 pub fn snapshot_chunk_from_result(result: &UpstreamResult) -> Result<SnapshotChunk, DevupError> {
     find_snapshot(&result.raw).ok_or_else(|| {
-        DevupError::new(
+        DevupError::with_details(
             ErrorCode::DevupSnapshotUnsupported,
             "snapshot data not found in the Figma MCP response.",
             false,
+            snapshot_failure_details(&result.raw),
         )
     })
+}
+
+/// Structural evidence only: never copy design text, keys, URLs, or parser
+/// messages (serde's messages can contain the rejected source value).
+fn snapshot_failure_details(raw: &Value) -> Value {
+    fn kind(value: &Value) -> &'static str {
+        match value {
+            Value::Null => "null",
+            Value::Bool(_) => "boolean",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Array(_) => "array",
+            Value::Object(_) => "object",
+        }
+    }
+    fn inspect(
+        value: &Value,
+        path: &str,
+        depth: usize,
+        remaining: &mut usize,
+        finding: &mut (u8, Value),
+    ) {
+        if depth > 16 || *remaining == 0 {
+            return;
+        }
+        *remaining -= 1;
+        let mut record = |rank, category, extra: Value| {
+            if rank > finding.0 {
+                *finding = (
+                    rank,
+                    serde_json::json!({"category":category,"path":path,"observed":extra}),
+                );
+            }
+        };
+        match value {
+            Value::Object(object) => {
+                if object.get("isError").and_then(Value::as_bool) == Some(true) {
+                    record(5, "upstream-error", serde_json::json!({"isError":true}));
+                } else if object.contains_key("fileKey") || object.contains_key("nodes") {
+                    record(
+                        2,
+                        "schema-mismatch",
+                        serde_json::json!({
+                            "fileKeyType":kind(&value["fileKey"]), "nodesType":kind(&value["nodes"]),
+                            "nodeCount":value["nodes"].as_array().map(Vec::len),
+                        }),
+                    );
+                }
+                for (key, child) in object {
+                    let key = match key.as_str() {
+                        "content" | "structuredContent" | "text" | "result" | "data"
+                        | "snapshot" => key.as_str(),
+                        _ => "*",
+                    };
+                    inspect(
+                        child,
+                        &format!("{path}.{key}"),
+                        depth + 1,
+                        remaining,
+                        finding,
+                    );
+                }
+            }
+            Value::Array(values) => {
+                for (index, child) in values.iter().enumerate().take(*remaining) {
+                    inspect(
+                        child,
+                        &format!("{path}[{index}]"),
+                        depth + 1,
+                        remaining,
+                        finding,
+                    );
+                }
+            }
+            Value::String(text) => match serde_json::from_str::<Value>(text) {
+                Ok(parsed) => inspect(&parsed, path, depth + 1, remaining, finding),
+                Err(error) => {
+                    if text.ends_with("// truncated to 20kb") {
+                        record(
+                            4,
+                            "truncated-text",
+                            serde_json::json!({"textBytes":text.len(),"truncationMarker":true}),
+                        );
+                    } else if path.ends_with(".text") || text.trim_start().starts_with(['{', '[']) {
+                        record(
+                            3,
+                            "invalid-json",
+                            serde_json::json!({"textBytes":text.len(),"line":error.line(),"column":error.column()}),
+                        );
+                    }
+                }
+            },
+            _ => {}
+        }
+    }
+    let mut remaining = 256;
+    let mut finding = (
+        0,
+        serde_json::json!({"category":"missing-snapshot","path":"$"}),
+    );
+    inspect(raw, "$", 0, &mut remaining, &mut finding);
+    let mut details = finding.1;
+    details["stage"] = serde_json::json!("snapshot-extraction");
+    details["upstreamType"] = serde_json::json!(kind(raw));
+    details["hasStructuredContent"] = serde_json::json!(raw.get("structuredContent").is_some());
+    details["contentCount"] = serde_json::json!(raw["content"].as_array().map(Vec::len));
+    details["inspectionLimited"] = serde_json::json!(remaining == 0);
+    details["expectedSchema"] = serde_json::json!({
+        "fileKey":"non-empty string", "nodes":"non-empty array of {id:string,type:string,fields?:object,extra?:object,fieldErrors?:object}",
+        "envelopes":["direct object","nested object","JSON text in content or structuredContent"]
+    });
+    details
 }
 
 fn find_snapshot(value: &Value) -> Option<SnapshotChunk> {
