@@ -19,6 +19,7 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(90);
 const JOB_LIFETIME: Duration = Duration::from_secs(30 * 60);
 const RESULT_RETENTION: Duration = Duration::from_secs(5 * 60);
 const MAX_JOBS: usize = 8;
+const MAX_COMPLETED_JOBS: usize = 16;
 
 #[derive(Clone, Default)]
 pub(super) struct AssetJobs(Arc<Mutex<BTreeMap<String, Arc<AssetJob>>>>);
@@ -28,6 +29,7 @@ pub(super) struct AssetJob {
     key: String,
     started: Instant,
     paths: BTreeMap<String, String>,
+    budget: Value,
     state: Mutex<JobState>,
     resume: Notify,
 }
@@ -69,13 +71,36 @@ impl AssetJobs {
         {
             return Ok((job.clone(), false));
         }
-        if jobs.len() >= MAX_JOBS {
+        let active = jobs
+            .values()
+            .filter(|job| job.state.lock().unwrap().result.is_none())
+            .count();
+        if active >= MAX_JOBS {
             return Err(DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
-                "Asset job capacity reached. Poll/resume existing jobs or wait for completed results to expire.",
+                "Export job capacity reached. Poll/resume existing active jobs before starting more work.",
                 true,
                 json!({"maxAssetJobs":MAX_JOBS,"jobIds":jobs.keys().collect::<Vec<_>>()}),
             ));
+        }
+        // Completed replies are a separate bounded cache, not active capacity.
+        while jobs.len().saturating_sub(active) >= MAX_COMPLETED_JOBS {
+            let oldest = jobs
+                .iter()
+                .filter_map(|(id, job)| {
+                    job.state
+                        .lock()
+                        .unwrap()
+                        .finished
+                        .map(|at| (id.clone(), at))
+                })
+                .min_by_key(|(_, at)| *at)
+                .map(|(id, _)| id);
+            if let Some(id) = oldest {
+                jobs.remove(&id);
+            } else {
+                break;
+            }
         }
         let PendingOperation::Export {
             asset_output_paths, ..
@@ -89,6 +114,22 @@ impl AssetJobs {
             key,
             started: Instant::now(),
             paths: asset_output_paths.clone(),
+            budget: match operation {
+                PendingOperation::Export {
+                    frame_ids,
+                    outputs,
+                    all_screens,
+                    ..
+                } => {
+                    let frames = (!all_screens).then_some(frame_ids.len().max(1));
+                    let units = frames.map(|frames| frames * outputs.len());
+                    json!({"frameIds":frame_ids,"allScreens":all_screens,"frameCount":frames,"frameOutputUnits":units,
+                        "planningSecondsPerUnit":[5,20],"planningSeconds":units.map(|units|[units*5,units*20]),
+                        "isGuarantee":false,"initialReplyBudgetSeconds":1,
+                        "note":"Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."})
+                }
+                _ => unreachable!(),
+            },
             resume: Notify::new(),
             state: Mutex::new(JobState {
                 state: "running",
@@ -113,7 +154,7 @@ impl AssetJobs {
         self.0.lock().unwrap().get(id).filter(|job| {
             job.started.elapsed() < JOB_LIFETIME && job.state.lock().unwrap().finished.is_none_or(|at| at.elapsed() < RESULT_RETENTION)
         }).cloned().ok_or_else(|| DevupError::new(ErrorCode::DevupFigmaHandoffExpired,
-            "Asset job is missing or expired. Jobs survive client timeouts, not server restarts; pending jobs retain checkpoints for 30 minutes and completed results for 5 minutes.", false))
+            "Export job is missing or expired. Jobs survive client timeouts, not server restarts; pending jobs retain checkpoints for 30 minutes and completed results for 5 minutes.", false))
     }
 }
 
@@ -136,6 +177,7 @@ impl AssetJob {
             }
         }
         state.stage = "projection-and-write";
+        state.calls.push(json!({"stage":"projection-and-write","state":"running","startedMs":self.started.elapsed().as_millis() as u64}));
     }
 
     pub(super) fn progress(&self, collector: &CollectorSession) {
@@ -156,9 +198,16 @@ impl AssetJob {
                 "chunk-read",
                 json!({"nodeId":options.node_id,"field":options.field,"offset":options.offset,"byteLength":options.byte_length}),
             ),
-            ReadToolCall::Snapshot { script, .. } => {
-                ("snapshot", json!({"script":format!("{script:?}")}))
-            }
+            ReadToolCall::Snapshot {
+                script,
+                node_id,
+                root_ids,
+                snapshot,
+                ..
+            } => (
+                "snapshot",
+                json!({"script":format!("{script:?}"),"nodeId":node_id,"rootIds":root_ids,"pagination":snapshot}),
+            ),
             _ => ("acquisition", json!({"kind":"resource-or-metadata"})),
         };
         loop {
@@ -171,23 +220,15 @@ impl AssetJob {
                 }
                 state.calls.push(json!({"stage":stage,"detail":detail,"state":"running","startedMs":self.started.elapsed().as_millis() as u64}));
             }
-            let result = match tokio::time::timeout(
-                CALL_TIMEOUT,
-                server.call_waiting_out_a_spent_allowance(call.clone()),
-            )
-            .await
+            let result = match server
+                .call_waiting_out_a_spent_allowance(call.clone(), Some(CALL_TIMEOUT))
+                .await
             {
-                Ok(Ok(result)) => match super::operation::upstream_error(&result.raw) {
+                Ok(result) => match super::operation::upstream_error(&result.raw) {
                     Some(error) if error.retryable => Err(error),
                     _ => Ok(result),
                 },
-                Ok(Err(error)) => Err(error),
-                Err(_) => Err(DevupError::with_details(
-                    ErrorCode::DevupFigmaDirectUnavailable,
-                    "Asset job read timed out; accepted reads and asset bytes are retained. Resume this job to retry only the pending read.",
-                    true,
-                    json!({"timeoutSeconds":CALL_TIMEOUT.as_secs(),"stage":stage,"call":detail}),
-                )),
+                Err(error) => Err(error),
             };
             let paused = result.as_ref().err().is_some_and(|e| e.retryable);
             {
@@ -256,6 +297,17 @@ impl AssetJob {
                 asset["fileState"] = json!(if written { "written" } else { "not-written" });
             }
         }
+        if let Some(call) = state
+            .calls
+            .last_mut()
+            .filter(|c| c["stage"] == "projection-and-write")
+        {
+            call["elapsedMs"] = json!(
+                (self.started.elapsed().as_millis() as u64)
+                    .saturating_sub(call["startedMs"].as_u64().unwrap_or(0))
+            );
+            call["state"] = json!(if result.is_ok() { "complete" } else { "failed" });
+        }
         state.state = if result.is_ok() { "complete" } else { "failed" };
         state.stage = "finished";
         state.error = result.as_ref().err().cloned();
@@ -284,11 +336,24 @@ impl AssetJob {
                 asset
             })
             .collect();
-        let job = json!({"jobId":self.id,"state":state.state,"stage":state.stage,"assets":assets,
+        let job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
             "completedCalls":state.completed_calls,"calls":state.calls,"elapsedMs":self.started.elapsed().as_millis() as u64,
             "lastError":state.error,"checkpointScope":"server-process","retentionSeconds":JOB_LIFETIME.as_secs(),
             "resultRetentionSeconds":RESULT_RETENTION.as_secs(),"callTimeoutSeconds":CALL_TIMEOUT.as_secs(),
             "nextAction":{"tool":"devup_figma_export","arguments":{"jobId":self.id,"jobAction":if state.state=="paused" {"resume"} else {"status"}}}});
+        // Preserve the existing error contract for code-only upstream refusals,
+        // while returning the retained job ID needed to resume the pending read.
+        if state.state == "paused"
+            && state.assets.is_empty()
+            && let Some(error) = &state.error
+        {
+            let mut error = error.clone();
+            if !error.details.is_object() {
+                error.details = json!({});
+            }
+            error.details["exportJob"] = job;
+            return Err(error);
+        }
         let mut value = match &state.result {
             Some(Ok(result)) => result.clone(),
             Some(Err(error)) => {
@@ -296,11 +361,13 @@ impl AssetJob {
                 if !error.details.is_object() {
                     error.details = json!({});
                 }
+                error.details["exportJob"] = job.clone();
                 error.details["assetJob"] = job;
                 return Err(error);
             }
             None => json!({"status":if state.state=="paused" {"paused"} else {"in_progress"}}),
         };
+        value["exportJob"] = job.clone();
         value["assetJob"] = job;
         Ok(value)
     }
@@ -343,7 +410,7 @@ impl DevupServer {
                 .unwrap_or_else(|_| {
                     Err(DevupError::new(
                         ErrorCode::DevupFigmaHandoffExpired,
-                        "Asset job checkpoint expired after 30 minutes.",
+                        "Export job checkpoint expired after 30 minutes.",
                         false,
                     ))
                 });
@@ -373,6 +440,7 @@ mod tests {
         let job = AssetJob {
             id: "test".into(),
             key: "test".into(),
+            budget: json!({}),
             started: Instant::now(),
             resume: Notify::new(),
             paths: BTreeMap::from([

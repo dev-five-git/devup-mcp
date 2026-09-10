@@ -343,7 +343,7 @@ devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
 
 `strict: true`는 모든 요청 축이 exact/complete가 아니면 quality와 `completenessReport`를 담은 오류로 거절합니다.
 
-모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 생성된 mapping 수가 아니라 수집한 source snapshot에서 독립적으로 계산한 node/text segment/variable/style/asset/layout 기대 집합을 분모로 사용하고, 각 항목이 최종 TSX byte range에서 `emitted | flattened | ignored` 중 정확히 하나로 추적되었는지와 축별 coverage·typed impact count를 담습니다. component set, non-default variant selector와 inline instance도 최종 변환 후 source identity별 provenance를 다시 만들며, 반복된 동일 text segment는 하나의 mapping을 재사용하지 않고 occurrence별로 소비하고 multiline·중첩 text와 asset identity를 검증합니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, source-derived trace coverage, lossy/failed impact를 함께 검사합니다.
+모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 생성된 mapping 수가 아니라 수집한 source snapshot에서 독립적으로 계산한 node/text segment/variable/style/asset/layout 기대 집합을 분모로 사용하고, 내부 validator가 각 항목을 `emitted | flattened | ignored` 중 정확히 하나로 검증했는지와 축별 coverage·typed impact count를 담습니다. component set, non-default variant selector와 inline instance도 최종 변환 후 source identity별 provenance를 다시 만들며, 반복된 동일 text segment는 하나의 mapping을 재사용하지 않고 occurrence별로 소비하고 multiline·중첩 text와 asset identity를 검증합니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, source-derived trace coverage, lossy/failed impact를 함께 검사합니다.
 
 브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다. renderer pinning, 기본 0.5% threshold, diff PNG와 개인정보 취급 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
@@ -375,7 +375,7 @@ node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계�
 
 캡처·테마·에셋·빌드 산출물은 커밋하지 않습니다(`harness/render/.gitignore`). 이 하네스가 찾아낸 결함은 테마 스코프, 컨테이너가 칠하는 그림의 매니페스트 누락, 잘린 fill의 crop 행렬, 파일시스템이 못 받는 레이어 이름, 폭마다 크기가 다른 사진의 파일 공유, 투명도 0 노드의 export 거부, 그리고 positioned child 너머로 CSS가 못 미치는 높이입니다.
 
-Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 권장 1–3개, 최대 6개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
+Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 `nodeId`·원본 `property`·`generatedProperty`·`resolution`으로 필드→생성 속성을 설명하는 sidecar입니다. TSX 문자/바이트 오프셋은 제공하지 않습니다. 생성 코드 발췌는 진단의 `generatedSource`를 확인합니다. devup.json은 JSON pointer를 사용합니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 권장 1–3개, 최대 6개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
 자산 6개 초과 요청은 인증·수집·파일 쓰기 전에 거절하며 `recommendedBatchSize`, `maxAssetCount`, `recommendedAssetRequests`, `remainingAssetRequests`로 분할을 안내합니다. 느린 자산 호출은 1초 대기 후 `assetJob.jobId`, 단계별 호출 기록, 자산별 수집/파일 상태를 먼저 반환합니다. `{"jobId":"..."}`로 조회하고, `paused`이면 `{"jobId":"...","jobAction":"resume"}`로 미완료 호출만 재개합니다. 동일 인자를 다시 보내면 유실된 최초 응답의 작업을 찾습니다. 클라이언트 타임아웃은 작업을 취소하지 않습니다. 체크포인트는 **같은 서버 프로세스에서 최대 30분**, 완료 결과는 5분 보존하며 서버 재시작 후에는 복구되지 않습니다. 개별 upstream 호출은 90초에 일시정지합니다. 자산 `exported`는 검증된 바이트 수집이며, `fileState=written`은 실제 파일 바이트까지 확인한 결과입니다. 상세 계약은 [R3 자산 작업과 근거](docs/r3-asset-jobs-and-evidence.md)를 참조하세요.
 
@@ -609,3 +609,14 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 `quality.assets`는 자산 바이트 수집 품질이며 manifest 생성 성공을 뜻하지 않습니다. `assetSummary.description`과 `excludedCount`가 미수집·부분 수집·숨김 제외를 설명합니다. 바이트 수집을 요청하지 않았다면 `not-collected` 요약과 `quality.assets: not-requested`가 함께 올 수 있습니다.
 
 배치 응답의 `recommendedBatchSize`는 최대 3, `maxFrameCount`는 6, `maxFrameOutputUnits`는 12입니다. 자세한 정의는 [R1 응답 계약](docs/r1-result-contract.md)을 참고하세요.
+
+
+### R8 provenance, scrolling and acquisition
+
+`sourceMap.version=2`는 공개 오프셋을 제거한 계약입니다. `exact`는 원본 필드에 대응하는 생성 속성/태그/텍스트 매핑을 검증했다는 뜻입니다. 줄 위치, 브라우저 픽셀 일치, 반응형 동등성 또는 화면 전체 완성도를 보증하지 않습니다. `generatedProperty`는 `h="740px"`, `flex="1"`, `aspectRatio="320 / 48"`처럼 출력에 있는 속성을 담습니다. `characters`는 `children`, 암묵적 cross-axis stretch는 `implicit:align-self:stretch`로 표시합니다. grow는 실제 `flex` 속성과 `accounted-for-implicit-flex-grow`를 함께 읽습니다. 기존 sizing 검증과 진단은 유지됩니다. 내부 renderer/validator의 위치 정보는 공개 sourceMap에 직렬화하지 않습니다.
+
+`overflowDirection`은 캡처 manifest에 포함됩니다. `NONE`은 명시적 비스크롤, JSON `null`은 수집 시 원본 속성이 없음, 키 부재는 이전 수집기의 미수집, `fieldErrors.overflowDirection`은 읽기 실패입니다. 세로/가로/양방향 스크롤은 각각 `overflowY="auto"`/`overflowX="auto"`/`overflow="auto"`로 생성합니다. `clipsContent=true`는 스크롤을 취소하지 않으며, 한 축 스크롤에서는 다른 축을 clip합니다. ABSOLUTE FIXED 높이는 파생 padding이 있어도 명시적 높이로 보존합니다. FILL/HUG를 px로 고정하지 않습니다.
+
+일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 호환 별칭). `jobId`로 상태를 조회하고 paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
+
+artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.

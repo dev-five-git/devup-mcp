@@ -311,6 +311,7 @@ struct StoreState {
     in_flight: BTreeMap<String, watch::Receiver<Option<AcquisitionResult>>>,
     in_flight_keys: BTreeMap<String, ArtifactRequestKey>,
     total_bytes: usize,
+    recovery: BTreeMap<String, serde_json::Value>,
     access_sequence: u64,
 }
 
@@ -629,6 +630,24 @@ impl ArtifactStore {
         state.total_bytes = total_bytes;
         touch_entry(&mut state, artifact_id, now, CacheReuseKind::Exact)
             .ok_or_else(resource_expired)
+    }
+
+    pub async fn get_for_export(&self, artifact_id: &str) -> Result<ArtifactLookup, DevupError> {
+        let now = self.clock.now_epoch_seconds();
+        let mut state = self.state.lock().await;
+        self.prune_expired(&mut state, now);
+        touch_entry(&mut state, artifact_id, now, CacheReuseKind::Exact).ok_or_else(|| {
+            DevupError::with_details(
+                ErrorCode::DevupFigmaHandoffExpired,
+                "The Figma artifact is missing or expired.",
+                true,
+                state
+                    .recovery
+                    .get(artifact_id)
+                    .cloned()
+                    .unwrap_or_else(|| json!({"artifactState":"unknown"})),
+            )
+        })
     }
 
     pub async fn get(&self, artifact_id: &str) -> Option<ArtifactLookup> {
@@ -1089,6 +1108,9 @@ impl ArtifactStore {
             .collect::<Vec<_>>();
         for id in ids {
             remove_entry(state, &id);
+            if let Some(recovery) = state.recovery.get_mut(&id) {
+                recovery["artifactState"] = json!("expired");
+            }
         }
     }
 }
@@ -1135,6 +1157,33 @@ fn touch_entry(
 
 fn remove_entry(state: &mut StoreState, artifact_id: &str) {
     if let Some(entry) = state.entries.remove(artifact_id) {
+        // Bounded tombstones retain no payload, credentials or original private URL label.
+        // Canonical URL and the last selection are enough to reacquire the same capture.
+        let key = &entry.request_key;
+        let mut url = if let Some(branch) = &key.branch_key {
+            format!("https://www.figma.com/branch/{}/{branch}", key.file_key)
+        } else {
+            format!("https://www.figma.com/design/{}", key.file_key)
+        };
+        if let Some(node) = &key.node_id {
+            url.push_str(&format!("?node-id={}", node.replace(':', "-")));
+        }
+        let mut args = json!({"url":url,"refresh":true});
+        if let Some(selection) = &entry.capabilities.section_selection {
+            args["frameIds"] = json!(selection.frame_ids);
+            args["allScreens"] = json!(selection.all_screens);
+        }
+        if state.recovery.len() >= 64 {
+            let oldest = state
+                .recovery
+                .iter()
+                .min_by_key(|(_, v)| v["createdAt"].as_u64().unwrap_or(0))
+                .map(|(id, _)| id.clone());
+            if let Some(id) = oldest {
+                state.recovery.remove(&id);
+            }
+        }
+        state.recovery.insert(artifact_id.into(), json!({"artifactState":"evicted","recoveryArguments":args,"createdAt":entry.created_at}));
         state.total_bytes = state.total_bytes.saturating_sub(entry.size_bytes);
         if state.key_index.get(&entry.key_digest) == Some(&artifact_id.to_owned()) {
             state.key_index.remove(&entry.key_digest);
@@ -1485,6 +1534,38 @@ pub(crate) mod w3_tests {
     }
 
     #[tokio::test]
+    async fn r8_expired_branch_url_preserves_target_and_selection() {
+        let clock = Arc::new(Clock::default());
+        let store = ArtifactStore::with_clock(
+            clock.clone(),
+            ArtifactLimits {
+                ttl: Duration::from_secs(1),
+                ..Default::default()
+            },
+        );
+        let mut request = request();
+        request.target.branch_key = Some("Branch123".into());
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["2:2".into()],
+            all_screens: false,
+        });
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), payload())
+            .await
+            .unwrap();
+        clock.0.store(1, Ordering::SeqCst);
+        let error = store
+            .get_for_export(&artifact.artifact_id)
+            .await
+            .unwrap_err();
+        let arguments = &error.details["recoveryArguments"];
+        let recovered =
+            devup_mcp_figma::FigmaTarget::parse(arguments["url"].as_str().unwrap()).unwrap();
+        assert_eq!(recovered, request.target);
+        assert_eq!(arguments["frameIds"], json!(["2:2"]));
+    }
+
+    #[tokio::test]
     async fn w3_expired_key_is_reacquired_at_ttl_boundary() {
         let clock = Arc::new(Clock::default());
         let store = ArtifactStore::with_clock(
@@ -1498,6 +1579,20 @@ pub(crate) mod w3_tests {
         let first = store.insert(key.clone(), payload()).await.unwrap();
         clock.0.store(10, Ordering::SeqCst);
         assert!(store.lookup(&key).await.is_none());
+        let expired = store.get_for_export(&first.artifact_id).await.unwrap_err();
+        assert_eq!(expired.details["artifactState"], "expired");
+        assert!(
+            expired.details["recoveryArguments"]["url"]
+                .as_str()
+                .unwrap()
+                .contains("figma.com/design/")
+        );
+        let unknown = ArtifactStore::default()
+            .get_for_export(&first.artifact_id)
+            .await
+            .unwrap_err();
+        assert_eq!(unknown.details["artifactState"], "unknown");
+        assert!(unknown.details.get("recoveryArguments").is_none());
         let second = store
             .get_or_acquire(key, false, || async { Ok(payload()) })
             .await

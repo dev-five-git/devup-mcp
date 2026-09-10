@@ -281,10 +281,14 @@ function snapshotNode(node) {
   for (const name of manifest) {
     let value;
     try {
-      if (!(name in node)) continue;
+      if (!(name in node)) {
+        if (name === "overflowDirection" && ["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(node.type)) fields[name] = null; // Read attempted; absent in source.
+        continue;
+      }
       value = node[name];
       if (typeof value === "function") continue;
       const serialized = serialize(value);
+      if (name === "overflowDirection" && value == null) { fields[name] = null; continue; }
       if (!isOmittableDefault(serialized, name)) fields[name] = serialized;
     } catch (error) {
       fieldErrors[name] = String(error && error.message ? error.message : error);

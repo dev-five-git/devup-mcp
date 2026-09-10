@@ -25,8 +25,11 @@ pub struct GeneratedRange {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvenanceEntry {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Internal renderer/validator bookkeeping; never a consumer-facing offset.
+    #[serde(skip)]
     pub generated_range: Option<GeneratedRange>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_property: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub json_pointer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -46,6 +49,7 @@ pub struct ProvenanceEntry {
 #[serde(rename_all = "camelCase")]
 pub struct SourceMap {
     pub version: u32,
+    #[serde(serialize_with = "serialize_property_entries")]
     pub entries: Vec<ProvenanceEntry>,
     /// Trusted resource identities retained for in-process fidelity validation.
     /// A deserialized map without this context cannot establish token identity.
@@ -55,10 +59,62 @@ pub struct SourceMap {
     pub style_tokens: BTreeMap<String, String>,
 }
 
+fn serialize_property_entries<S: serde::Serializer>(
+    entries: &[ProvenanceEntry],
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    entries
+        .iter()
+        .filter(|e| e.property.is_some() || e.json_pointer.is_some())
+        .collect::<Vec<_>>()
+        .serialize(serializer)
+}
+
 impl SourceMap {
+    pub fn property_entries(&self) -> Vec<ProvenanceEntry> {
+        self.entries
+            .iter()
+            .filter(|e| e.property.is_some() || e.json_pointer.is_some())
+            .cloned()
+            .collect()
+    }
+
+    /// Freeze field-to-generated-property facts while the renderer's private
+    /// positions still refer to its own code. Delivery rewrites the property
+    /// strings together with TSX; no positions cross the public boundary.
+    pub(crate) fn describe_properties(&mut self, tsx: &str) {
+        for entry in &mut self.entries {
+            let Some(property) = entry.property.as_deref() else {
+                continue;
+            };
+            let source = entry
+                .generated_range
+                .as_ref()
+                .and_then(|r| tsx.get(r.start..r.end));
+            entry.generated_property = match (entry.resolution.as_str(), property, source) {
+                ("accounted-for-implicit-flex-stretch", _, Some(_)) => {
+                    Some("implicit:align-self:stretch".into())
+                }
+                ("accounted-for-implicit-flex-grow", _, Some(source)) => {
+                    source.find("flex=\"").and_then(|at| {
+                        source[at + 6..]
+                            .find('"')
+                            .map(|end| source[at..at + 7 + end].to_owned())
+                    })
+                }
+                (_, "characters", Some(_)) => Some("children".into()),
+                (_, _, Some(source)) if !source.trim().is_empty() => Some(source.trim().into()),
+                _ => None,
+            };
+            if entry.generated_property.is_none() && entry.resolution == "exact" {
+                entry.resolution = "unverified-property-mapping".into();
+            }
+        }
+    }
+
     pub fn empty() -> Self {
         Self {
-            version: 1,
+            version: 2,
             entries: Vec::new(),
             variable_tokens: BTreeMap::new(),
             style_tokens: BTreeMap::new(),
@@ -1328,6 +1384,7 @@ pub(crate) fn finalize_tsx(
             continue;
         };
         entries.push(ProvenanceEntry {
+            generated_property: None,
             generated_range: Some(range.clone()),
             json_pointer: None,
             node_id: Some(node_id.clone()),
@@ -1401,6 +1458,11 @@ pub(crate) fn finalize_tsx(
         }
 
         for (prop, property) in PROP_SOURCES {
+            if *property == "overflowDirection"
+                && node.typed_view().string("overflowDirection").is_none()
+            {
+                continue;
+            }
             if *prop == "aspectRatio" && node.typed_view().value("targetAspectRatio").is_none() {
                 continue;
             }
@@ -1504,6 +1566,7 @@ pub(crate) fn finalize_tsx(
             && let Some((start, end)) = asset_prop_range(opening)
         {
             entries.push(ProvenanceEntry {
+                generated_property: None,
                 generated_range: Some(GeneratedRange {
                     start: range.start + open_relative + start,
                     end: range.start + open_relative + end,
@@ -1550,7 +1613,7 @@ pub(crate) fn finalize_tsx(
     (
         tsx,
         SourceMap {
-            version: 1,
+            version: 2,
             entries,
             variable_tokens: variable_tokens.clone(),
             style_tokens: style_tokens.clone(),
@@ -1632,6 +1695,7 @@ fn add_flattened_resource_entries(
                     let source = &tsx[range.start..range.end];
                     if let Some((start, end)) = asset_range_in_node_source(source) {
                         entries.push(ProvenanceEntry {
+                            generated_property: None,
                             generated_range: Some(GeneratedRange {
                                 start: range.start + start,
                                 end: range.start + end,
@@ -1810,6 +1874,9 @@ const PROP_SOURCES: &[(&str, &str)] = &[
     ("minW", "minWidth"),
     ("opacity", "opacity"),
     ("overflow", "clipsContent"),
+    ("overflow", "overflowDirection"),
+    ("overflowX", "overflowDirection"),
+    ("overflowY", "overflowDirection"),
     ("p", "paddingTop"),
     ("p", "paddingRight"),
     ("p", "paddingBottom"),
@@ -2036,6 +2103,7 @@ fn generated_entry(
     resolution: &str,
 ) -> ProvenanceEntry {
     ProvenanceEntry {
+        generated_property: None,
         generated_range: Some(GeneratedRange { start, end }),
         json_pointer: None,
         node_id: Some(node_id.to_owned()),

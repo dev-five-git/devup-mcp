@@ -406,7 +406,7 @@ async fn one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call() 
     }
     assert!(first["devupJson"].as_str().unwrap().contains("\"primary\""));
     assert_eq!(first["rawSnapshot"]["roots"], json!(["1:2"]));
-    assert_eq!(first["sourceMap"]["version"], 1);
+    assert_eq!(first["sourceMap"]["version"], 2);
     // Both pictures the generated code points at: the child drawn from its
     // own image fill, and the root's second fill, which the code paints as a
     // background. A container is a layout box rather than an asset, but the
@@ -1497,6 +1497,89 @@ async fn r3_distinct_resource_jobs_keep_both_manifests_readable() -> anyhow::Res
         let bytes = read_resource_bytes(&client, uri).await?;
         let manifest: Value = serde_json::from_slice(&bytes)?;
         assert_eq!(asset_by_id(&manifest, "1:3:fills:0")["status"], "exported");
+    }
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[derive(Debug)]
+struct R8SlowSnapshot;
+#[async_trait]
+impl FigmaUpstream for R8SlowSnapshot {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".into()])
+    }
+    async fn call_read_tool(&self, _: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        Ok(fast_envelope_result(false, false))
+    }
+}
+#[tokio::test]
+async fn r8_code_only_slow_capture_returns_pollable_job_before_client_deadline()
+-> anyhow::Result<()> {
+    let server = DevupServer::with_output_roots(
+        Services::new(Arc::new(ConnectedAuth), Arc::new(R8SlowSnapshot)),
+        vec![std::env::temp_dir()],
+    )?;
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let began = std::time::Instant::now();
+    let response=call(&client,"devup_figma_export",json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true,"delivery":"inline"})).await?;
+    assert!(
+        began.elapsed() < std::time::Duration::from_secs(2),
+        "client blocked for {:?}",
+        began.elapsed()
+    );
+    let id = response["exportJob"]["jobId"]
+        .as_str()
+        .expect("code-only collection needs a resumable job");
+    assert!(response["exportJob"]["calls"][0]["detail"]["nodeId"].is_string());
+    let mut result = response.clone();
+    for _ in 0..8 {
+        result = call(&client, "devup_figma_export", json!({"jobId":id})).await?;
+        if result["exportJob"]["state"] == "complete" {
+            break;
+        }
+    }
+    assert_eq!(result["exportJob"]["state"], "complete");
+    assert!(result["tsx"].is_string());
+    assert!(
+        result["exportJob"]["calls"][0]["elapsedMs"]
+            .as_u64()
+            .unwrap()
+            >= 2900
+    );
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
+#[tokio::test]
+async fn r8_completed_exports_do_not_exhaust_active_job_capacity() -> anyhow::Result<()> {
+    let server = DevupServer::with_output_roots(
+        Services::new(
+            Arc::new(ConnectedAuth),
+            Arc::new(FastFixtureUpstream::complete()),
+        ),
+        vec![std::env::temp_dir()],
+    )?;
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    for index in 0..10 {
+        let result=call(&client,"devup_figma_export",json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["tsx"],"componentName":format!("Screen{index}"),"delivery":"inline"})).await?;
+        assert!(
+            result["tsx"].is_string(),
+            "completed export {index} must not consume active capacity: {result}"
+        );
     }
     client.cancel().await?;
     task.await??;
