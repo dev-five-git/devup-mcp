@@ -336,11 +336,34 @@ impl AssetJob {
                 asset
             })
             .collect();
+        let terminal = state.finished.is_some()
+            || state.stage == "finished"
+            || matches!(state.state, "failed" | "complete" | "finished");
+        let next_action = if terminal {
+            state
+                .error
+                .as_ref()
+                .and_then(|e| e.details.get("nextAction"))
+                .cloned()
+                .or_else(|| {
+                    state
+                        .result
+                        .as_ref()
+                        .and_then(|r| r.as_ref().ok())
+                        .and_then(|v| v.get("nextAction"))
+                        .cloned()
+                })
+                .filter(|v| v["arguments"]["jobId"].is_null())
+                .unwrap_or(Value::Null)
+        } else {
+            json!({"tool":"devup_figma_export","arguments":{"jobId":self.id,"jobAction":if state.state=="paused" {"resume"} else {"status"}}})
+        };
         let job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
             "completedCalls":state.completed_calls,"calls":state.calls,"elapsedMs":self.started.elapsed().as_millis() as u64,
             "lastError":state.error,"checkpointScope":"server-process","retentionSeconds":JOB_LIFETIME.as_secs(),
             "resultRetentionSeconds":RESULT_RETENTION.as_secs(),"callTimeoutSeconds":CALL_TIMEOUT.as_secs(),
-            "nextAction":{"tool":"devup_figma_export","arguments":{"jobId":self.id,"jobAction":if state.state=="paused" {"resume"} else {"status"}}}});
+            "nextActionReason":if terminal && next_action.is_null() { Some("This job has finished; status polling repeats the retained result. No corrective action is available.") } else { None },
+            "nextAction":next_action});
         // Preserve the existing error contract for code-only upstream refusals,
         // while returning the retained job ID needed to resume the pending read.
         if state.state == "paused"
@@ -424,6 +447,53 @@ impl DevupServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn r10_terminal_jobs_never_offer_repeated_status_as_next_action() {
+        for correction in [false, true] {
+            let job = AssetJob {
+                id: "r10".into(),
+                key: "r10".into(),
+                budget: json!({}),
+                started: Instant::now(),
+                resume: Notify::new(),
+                paths: BTreeMap::new(),
+                state: Mutex::new(JobState {
+                    state: "running",
+                    stage: "snapshot",
+                    calls: vec![],
+                    completed_calls: 0,
+                    error: None,
+                    result: None,
+                    finished: None,
+                    assets: vec![],
+                }),
+            };
+            assert_eq!(
+                job.response().unwrap()["exportJob"]["nextAction"]["arguments"]["jobAction"],
+                "status"
+            );
+            let next = if correction {
+                json!({"tool":"devup_figma_export","arguments":{"url":"https://www.figma.com/design/test?node-id=1-1","frameIds":["2:1"]}})
+            } else {
+                Value::Null
+            };
+            job.finish(Err(DevupError::with_details(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "test",
+                false,
+                json!({"nextAction":next}),
+            )));
+            let error = job.response().unwrap_err();
+            assert_eq!(error.details["exportJob"]["nextAction"], next);
+            assert_eq!(error.details["assetJob"]["nextAction"], next);
+            if !correction {
+                assert!(error.details["exportJob"]["nextActionReason"].is_string());
+            }
+            job.finish(Ok(json!({"status":"complete"})));
+            assert!(job.response().unwrap()["exportJob"]["nextAction"].is_null());
+        }
+    }
 
     #[test]
     fn r3_shared_path_reports_only_matching_bytes_as_written() {

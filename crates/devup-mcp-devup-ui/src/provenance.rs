@@ -93,6 +93,9 @@ impl SourceMap {
                 .as_ref()
                 .and_then(|r| tsx.get(r.start..r.end));
             entry.generated_property = match (entry.resolution.as_str(), property, source) {
+                ("accounted-for-content-sizing", _, Some(_)) => {
+                    Some("implicit:text-content-sizing".into())
+                }
                 ("accounted-for-implicit-flex-stretch", _, Some(_)) => {
                     Some("implicit:align-self:stretch".into())
                 }
@@ -530,6 +533,7 @@ pub fn validate_fidelity(
             entry.resolution.as_str(),
             "accounted-for-implicit-flex-stretch"
                 | "accounted-for-implicit-flex-grow"
+                | "accounted-for-content-sizing"
                 | "verified-explicit-dimension"
         ) && let (Some(id), Some(field)) = (entry.node_id.as_deref(), entry.property.as_deref())
             && matches!(field, "width" | "height")
@@ -586,6 +590,11 @@ pub fn validate_fidelity(
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        if entry.resolution == "accounted-for-content-sizing" {
+                            return sizing::content_sizing_accounted(
+                                snapshot, output, node_id, property,
+                            );
+                        }
                         if entry.resolution == "verified-explicit-dimension" {
                             return layout_source_matches(property, source)
                                 && dimension_value_matches(

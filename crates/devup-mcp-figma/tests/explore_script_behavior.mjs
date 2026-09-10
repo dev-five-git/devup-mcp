@@ -16,6 +16,16 @@ async function executeSection(section) {
   });
 }
 
+test("R10 compact index connects descendant IDs to selectable screens", async () => {
+  const child = sceneNode({id:"3997:46703", type:"VECTOR"});
+  const frame = sceneNode({id:"3997:46690",type:"FRAME",width:360,height:740,children:[child]});
+  const section = sceneNode({id:"4279:7806",type:"SECTION",children:[frame]});
+  pageWith(section);
+  const result = await executeSection(section);
+  assert.equal(result.nodes[0].fields.nodeScreenIds?.["3997:46703"], "3997:46690");
+  assert.equal(result.nodes.length, 2);
+});
+
 test("Section list previews visible text without exporting descendants", async () => {
   const hidden = sceneNode({ id: "hidden", type: "TEXT" });
   hidden.characters = "hidden draft";

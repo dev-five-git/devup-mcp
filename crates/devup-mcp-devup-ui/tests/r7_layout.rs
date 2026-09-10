@@ -185,7 +185,10 @@ fn r7_auto_text_explicitly_reports_unverified_font_metrics() {
         detail["verification"]["reasonCode"],
         "font-metrics-not-measured"
     );
-    assert_eq!(d.fidelity_impact(), devup_mcp_figma::FidelityImpact::Lossy);
+    // R10: the content-size instruction is preserved; font pixels remain unverified.
+    assert_eq!(d.fidelity_impact(), devup_mcp_figma::FidelityImpact::None);
+    assert_eq!(detail["resolution"], "accounted-for-content-sizing");
+    assert_eq!(d.code, "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR");
 }
 #[test]
 fn r7_main_axis_unproven_constraints_remain_lossy() {

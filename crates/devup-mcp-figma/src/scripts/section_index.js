@@ -171,6 +171,18 @@ candidateNodes.sort((left, right) =>
 const projectionTruncated = queue.length > traversalCount || candidateNodes.length > MAX_CANDIDATES;
 const selected = candidateNodes.slice(0, MAX_CANDIDATES);
 const selectedIds = new Set(selected.map(({ node }) => node.id));
+// Keep ID ownership while the tree is available. Geometry/text for descendants
+// still stays out of this compact response. Only visited nodes are claimed.
+const nodeScreenIds = {};
+for (const node of queue.slice(0, traversalCount)) {
+  let owner = node;
+  const seen = new Set();
+  while (owner && owner.id !== section.id && !selectedIds.has(owner.id) && !seen.has(owner.id)) {
+    seen.add(owner.id);
+    owner = owner.parent;
+  }
+  nodeScreenIds[node.id] = owner && selectedIds.has(owner.id) ? owner.id : null;
+}
 // Link to the nearest retained ancestor: intermediate layout groups are not
 // included in this compact projection, but container/screen ancestry survives.
 const parentIds = new Map(selected.map(({ node }) => {
@@ -196,6 +208,7 @@ const sectionNode = {
     absoluteBoundingBox: sectionBox,
     visible: section.visible !== false,
     projectionTruncated,
+    nodeScreenIds,
   },
   extra: {},
   fieldErrors: {},
