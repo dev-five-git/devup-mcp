@@ -1,5 +1,6 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
+assertion_line: 177
 expression: json!(output.diagnostics)
 ---
 [
@@ -38,6 +39,693 @@ expression: json!(output.diagnostics)
       "classification": "placement-contract",
       "nextAction": "Insert in normal flow using the emitted root props. External parent placement is outside this capture.",
       "evidenceLimit": "This is a generated CSS placement contract, not a measured browser or responsive equivalence result."
+    }
+  },
+  {
+    "code": "DEVUP_CODEGEN_ABSOLUTE_VERIFIED",
+    "message": "Absolute dimensions and constraint props verified against collected geometry.",
+    "nodeId": "3879:35540",
+    "fidelityImpact": "none",
+    "property": "layoutPositioning",
+    "details": {
+      "originalValue": {
+        "nodeId": "3879:35540",
+        "nodeType": "FRAME",
+        "parentId": "3879:35537",
+        "x": 280,
+        "y": 8,
+        "width": 40,
+        "height": 40,
+        "rotation": 0,
+        "relativeTransform": null,
+        "absoluteTransform": null,
+        "absoluteBoundingBox": null,
+        "absoluteRenderBounds": null,
+        "constraints": {
+          "horizontal": "MAX",
+          "vertical": "MIN"
+        },
+        "layoutPositioning": "ABSOLUTE",
+        "layoutMode": "HORIZONTAL",
+        "layoutSizingHorizontal": "HUG",
+        "layoutSizingVertical": "HUG",
+        "layoutAlign": null,
+        "layoutGrow": null,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 6,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "ABSOLUTE",
+          "paddingBottom": 10,
+          "paddingLeft": 10,
+          "paddingRight": 10,
+          "paddingTop": 10,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "AUTO"
+        },
+        "paddingTop": 10,
+        "paddingRight": 10,
+        "paddingBottom": 10,
+        "paddingLeft": 10,
+        "itemSpacing": 6,
+        "primaryAxisAlignItems": "MIN",
+        "counterAxisAlignItems": "CENTER",
+        "minWidth": null,
+        "maxWidth": null,
+        "minHeight": null,
+        "maxHeight": null,
+        "clipsContent": false,
+        "isMask": false,
+        "maskType": null,
+        "visible": true,
+        "opacity": 1,
+        "effects": [],
+        "fills": [],
+        "missingFields": [
+          "absoluteBoundingBox"
+        ],
+        "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping.",
+        "parent": {
+          "nodeId": "3879:35537",
+          "nodeType": "FRAME",
+          "parentId": "3879:35519",
+          "x": 16,
+          "y": 573,
+          "width": 328,
+          "height": 144,
+          "rotation": 0,
+          "relativeTransform": null,
+          "absoluteTransform": null,
+          "absoluteBoundingBox": null,
+          "absoluteRenderBounds": null,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "layoutPositioning": "AUTO",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "HUG",
+          "layoutAlign": null,
+          "layoutGrow": null,
+          "inferredAutoLayout": {
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSizingMode": "FIXED",
+            "itemSpacing": 8,
+            "layoutAlign": "STRETCH",
+            "layoutGrow": 0,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "paddingBottom": 16,
+            "paddingLeft": 16,
+            "paddingRight": 16,
+            "paddingTop": 16,
+            "primaryAxisAlignItems": "MIN",
+            "primaryAxisSizingMode": "AUTO"
+          },
+          "paddingTop": 16,
+          "paddingRight": 16,
+          "paddingBottom": 16,
+          "paddingLeft": 16,
+          "itemSpacing": 8,
+          "primaryAxisAlignItems": "MIN",
+          "counterAxisAlignItems": "MIN",
+          "minWidth": null,
+          "maxWidth": null,
+          "minHeight": null,
+          "maxHeight": null,
+          "clipsContent": false,
+          "isMask": false,
+          "maskType": null,
+          "visible": true,
+          "opacity": 1,
+          "effects": [],
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "boundVariables": {
+                "color": {
+                  "id": "VariableID:1:999",
+                  "type": "VARIABLE_ALIAS"
+                }
+              },
+              "color": {
+                "b": 0.9244915843009948,
+                "g": 0.9529501795768738,
+                "r": 0.9695512056350708
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "missingFields": [
+            "absoluteBoundingBox"
+          ],
+          "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+        },
+        "parentMissingReason": null,
+        "parentRelativeBounds": {
+          "x": 280.0,
+          "y": 8.0,
+          "width": 40.0,
+          "height": 40.0,
+          "basis": "collected x/y in the parent coordinate system"
+        },
+        "children": [
+          {
+            "nodeId": "3879:35541",
+            "nodeType": "FRAME",
+            "parentId": "3879:35540",
+            "x": 30,
+            "y": 10,
+            "width": 20,
+            "height": 20,
+            "rotation": -180,
+            "relativeTransform": null,
+            "absoluteTransform": null,
+            "absoluteBoundingBox": null,
+            "absoluteRenderBounds": null,
+            "constraints": {
+              "horizontal": "MIN",
+              "vertical": "MIN"
+            },
+            "layoutPositioning": "AUTO",
+            "layoutMode": "NONE",
+            "layoutSizingHorizontal": "FIXED",
+            "layoutSizingVertical": "FIXED",
+            "layoutAlign": null,
+            "layoutGrow": null,
+            "inferredAutoLayout": null,
+            "paddingTop": 0,
+            "paddingRight": 0,
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "itemSpacing": 0,
+            "primaryAxisAlignItems": "MIN",
+            "counterAxisAlignItems": "MIN",
+            "minWidth": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "maxHeight": null,
+            "clipsContent": false,
+            "isMask": false,
+            "maskType": null,
+            "visible": true,
+            "opacity": 1,
+            "effects": [],
+            "fills": [],
+            "missingFields": [
+              "absoluteBoundingBox"
+            ],
+            "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+          }
+        ],
+        "childCount": 1,
+        "childrenTruncated": false
+      },
+      "originalResourceId": null,
+      "appliedValue": {
+        "generatedSource": [
+          "      <Flex\n            alignItems=\"center\"\n            borderRadius=\"1000px\"\n            p=\"10px\"\n            pos=\"absolute\"\n            right=\"8px\"\n            top=\"8px\"\n          >\n            <Box\n              aspectRatio=\"1\"\n              bg=\"$text\"\n              boxSize=\"20px\"\n              maskImage=\"url(/icons/Icons.svg)\"\n              maskPos=\"center\"\n              maskRepeat=\"no-repeat\"\n              maskSize=\"contain\"\n              transform=\"rotate(180deg)\"\n            />\n          </Flex>"
+        ],
+        "fallback": null,
+        "heightPreservation": {
+          "sourceSizing": "HUG",
+          "sourceHeight": 40.0,
+          "state": "not-fixed",
+          "basis": "Generated explicit height; derived padding alone is not a fixed-height guarantee."
+        },
+        "derivedPadding": null
+      },
+      "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
+      "stage": "projection",
+      "components": {
+        "height": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "sourceSizing": "HUG",
+          "sourceValue": 40.0,
+          "generatedValue": null,
+          "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+        },
+        "width": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "sourceSizing": "HUG",
+          "sourceValue": 40.0,
+          "generatedValue": null,
+          "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+        },
+        "horizontal": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "constraint": "MAX",
+          "constraintDeclared": true,
+          "sourceOffset": 280.0,
+          "sourceSize": 40.0,
+          "parentSize": 328.0,
+          "generatedProperty": "right",
+          "generatedValue": "8px",
+          "transform": null,
+          "reason": "Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified.",
+          "resolutionCondition": "Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."
+        },
+        "vertical": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "constraint": "MIN",
+          "constraintDeclared": true,
+          "sourceOffset": 8.0,
+          "sourceSize": 40.0,
+          "parentSize": 144.0,
+          "generatedProperty": "top",
+          "generatedValue": "8px",
+          "transform": null,
+          "reason": "Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified.",
+          "resolutionCondition": "Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."
+        },
+        "containingBlock": {
+          "parentId": "3879:35537",
+          "generatedParent": "    <VStack\n          bg=\"$background\"\n          borderRadius=\"12px\"\n          gap=\"8px\"\n          p=\"16px\"\n          pos=\"relative\"\n          w=\"100%\"\n        ",
+          "generatedChild": "      <Flex\n            alignItems=\"center\"\n            borderRadius=\"1000px\"\n            p=\"10px\"\n            pos=\"absolute\"\n            right=\"8px\"\n            top=\"8px\"\n          "
+        }
+      },
+      "resolutionConditions": [],
+      "classification": "verified-absolute-components"
+    }
+  },
+  {
+    "code": "DEVUP_CODEGEN_ABSOLUTE_VERIFIED",
+    "message": "Absolute dimensions and constraint props verified against collected geometry.",
+    "nodeId": "3879:35564",
+    "fidelityImpact": "none",
+    "property": "layoutPositioning",
+    "details": {
+      "originalValue": {
+        "nodeId": "3879:35564",
+        "nodeType": "FRAME",
+        "parentId": "3879:35518",
+        "x": 0,
+        "y": 673,
+        "width": 360,
+        "height": 67,
+        "rotation": 0,
+        "relativeTransform": null,
+        "absoluteTransform": null,
+        "absoluteBoundingBox": null,
+        "absoluteRenderBounds": null,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MAX"
+        },
+        "layoutPositioning": "ABSOLUTE",
+        "layoutMode": "HORIZONTAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "HUG",
+        "layoutAlign": null,
+        "layoutGrow": null,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "CENTER",
+          "counterAxisSizingMode": "AUTO",
+          "itemSpacing": 4,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "HORIZONTAL",
+          "layoutPositioning": "ABSOLUTE",
+          "paddingBottom": 8,
+          "paddingLeft": 10,
+          "paddingRight": 10,
+          "paddingTop": 8,
+          "primaryAxisAlignItems": "SPACE_BETWEEN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "paddingTop": 8,
+        "paddingRight": 10,
+        "paddingBottom": 8,
+        "paddingLeft": 10,
+        "itemSpacing": 4,
+        "primaryAxisAlignItems": "SPACE_BETWEEN",
+        "counterAxisAlignItems": "CENTER",
+        "minWidth": null,
+        "maxWidth": null,
+        "minHeight": null,
+        "maxHeight": null,
+        "clipsContent": true,
+        "isMask": false,
+        "maskType": null,
+        "visible": true,
+        "opacity": 1,
+        "effects": [],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:1:1000",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "missingFields": [
+          "absoluteBoundingBox"
+        ],
+        "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping.",
+        "parent": {
+          "nodeId": "3879:35518",
+          "nodeType": "FRAME",
+          "parentId": "3686:1678",
+          "x": 8946,
+          "y": 10200,
+          "width": 360,
+          "height": 740,
+          "rotation": 0,
+          "relativeTransform": null,
+          "absoluteTransform": null,
+          "absoluteBoundingBox": null,
+          "absoluteRenderBounds": null,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "layoutPositioning": "AUTO",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "layoutAlign": null,
+          "layoutGrow": null,
+          "inferredAutoLayout": {
+            "counterAxisAlignItems": "MIN",
+            "counterAxisSizingMode": "FIXED",
+            "itemSpacing": 0,
+            "layoutAlign": "INHERIT",
+            "layoutGrow": 0,
+            "layoutMode": "VERTICAL",
+            "layoutPositioning": "AUTO",
+            "paddingBottom": 0,
+            "paddingLeft": 0,
+            "paddingRight": 0,
+            "paddingTop": 0,
+            "primaryAxisAlignItems": "MIN",
+            "primaryAxisSizingMode": "FIXED"
+          },
+          "paddingTop": 0,
+          "paddingRight": 0,
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "itemSpacing": 0,
+          "primaryAxisAlignItems": "MIN",
+          "counterAxisAlignItems": "MIN",
+          "minWidth": null,
+          "maxWidth": null,
+          "minHeight": null,
+          "maxHeight": null,
+          "clipsContent": true,
+          "isMask": false,
+          "maskType": null,
+          "visible": true,
+          "opacity": 1,
+          "effects": [],
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "boundVariables": {
+                "color": {
+                  "id": "VariableID:17:1548",
+                  "type": "VARIABLE_ALIAS"
+                }
+              },
+              "color": {
+                "b": 0.9586742520332336,
+                "g": 0.96465665102005,
+                "r": 0.9695513844490052
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "missingFields": [
+            "absoluteBoundingBox"
+          ],
+          "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+        },
+        "parentMissingReason": null,
+        "parentRelativeBounds": {
+          "x": 0.0,
+          "y": 673.0,
+          "width": 360.0,
+          "height": 67.0,
+          "basis": "collected x/y in the parent coordinate system"
+        },
+        "children": [
+          {
+            "nodeId": "3879:35565",
+            "nodeType": "FRAME",
+            "parentId": "3879:35564",
+            "x": 10,
+            "y": 8,
+            "width": 106,
+            "height": 51,
+            "rotation": 0,
+            "relativeTransform": null,
+            "absoluteTransform": null,
+            "absoluteBoundingBox": null,
+            "absoluteRenderBounds": null,
+            "constraints": {
+              "horizontal": "MIN",
+              "vertical": "MIN"
+            },
+            "layoutPositioning": "AUTO",
+            "layoutMode": "HORIZONTAL",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "layoutAlign": null,
+            "layoutGrow": null,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "AUTO",
+              "itemSpacing": 10,
+              "layoutAlign": "INHERIT",
+              "layoutGrow": 0,
+              "layoutMode": "HORIZONTAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 10,
+              "paddingLeft": 20,
+              "paddingRight": 20,
+              "paddingTop": 10,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "AUTO"
+            },
+            "paddingTop": 10,
+            "paddingRight": 20,
+            "paddingBottom": 10,
+            "paddingLeft": 20,
+            "itemSpacing": 10,
+            "primaryAxisAlignItems": "CENTER",
+            "counterAxisAlignItems": "CENTER",
+            "minWidth": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "maxHeight": null,
+            "clipsContent": false,
+            "isMask": false,
+            "maskType": null,
+            "visible": true,
+            "opacity": 1,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:68:6122",
+                    "type": "VARIABLE_ALIAS"
+                  }
+                },
+                "color": {
+                  "b": 1,
+                  "g": 1,
+                  "r": 1
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "missingFields": [
+              "absoluteBoundingBox"
+            ],
+            "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+          },
+          {
+            "nodeId": "3879:35567",
+            "nodeType": "FRAME",
+            "parentId": "3879:35564",
+            "x": 244,
+            "y": 8,
+            "width": 106,
+            "height": 51,
+            "rotation": 0,
+            "relativeTransform": null,
+            "absoluteTransform": null,
+            "absoluteBoundingBox": null,
+            "absoluteRenderBounds": null,
+            "constraints": {
+              "horizontal": "MIN",
+              "vertical": "MIN"
+            },
+            "layoutPositioning": "AUTO",
+            "layoutMode": "HORIZONTAL",
+            "layoutSizingHorizontal": "HUG",
+            "layoutSizingVertical": "HUG",
+            "layoutAlign": null,
+            "layoutGrow": null,
+            "inferredAutoLayout": {
+              "counterAxisAlignItems": "CENTER",
+              "counterAxisSizingMode": "AUTO",
+              "itemSpacing": 10,
+              "layoutAlign": "INHERIT",
+              "layoutGrow": 0,
+              "layoutMode": "HORIZONTAL",
+              "layoutPositioning": "AUTO",
+              "paddingBottom": 10,
+              "paddingLeft": 20,
+              "paddingRight": 20,
+              "paddingTop": 10,
+              "primaryAxisAlignItems": "CENTER",
+              "primaryAxisSizingMode": "AUTO"
+            },
+            "paddingTop": 10,
+            "paddingRight": 20,
+            "paddingBottom": 10,
+            "paddingLeft": 20,
+            "itemSpacing": 10,
+            "primaryAxisAlignItems": "CENTER",
+            "counterAxisAlignItems": "CENTER",
+            "minWidth": null,
+            "maxWidth": null,
+            "minHeight": null,
+            "maxHeight": null,
+            "clipsContent": false,
+            "isMask": false,
+            "maskType": null,
+            "visible": true,
+            "opacity": 1,
+            "effects": [],
+            "fills": [
+              {
+                "blendMode": "NORMAL",
+                "boundVariables": {
+                  "color": {
+                    "id": "VariableID:1:995",
+                    "type": "VARIABLE_ALIAS"
+                  }
+                },
+                "color": {
+                  "b": 0.1764705926179886,
+                  "g": 0.1764705926179886,
+                  "r": 0.4588235318660736
+                },
+                "opacity": 1,
+                "type": "SOLID",
+                "visible": true
+              }
+            ],
+            "missingFields": [
+              "absoluteBoundingBox"
+            ],
+            "missingValueReason": "Null means absent or null in the collected source; it is not a zero, default constraint, or verified mapping."
+          }
+        ],
+        "childCount": 2,
+        "childrenTruncated": false
+      },
+      "originalResourceId": null,
+      "appliedValue": {
+        "generatedSource": [
+          "  <Flex\n        alignItems=\"center\"\n        bg=\"$containerBackground\"\n        borderTop=\"solid 1px $border\"\n        bottom=\"0px\"\n        justifyContent=\"space-between\"\n        left=\"0px\"\n        overflow=\"hidden\"\n        pos=\"absolute\"\n        px=\"10px\"\n        py=\"8px\"\n        w=\"100%\"\n      >\n        <Center\n          bg=\"$innerBg\"\n          border=\"solid 1px $borderBold\"\n          borderRadius=\"10px\"\n          px=\"19px\"\n          py=\"9px\"\n        >\n          <Text color=\"$text\" typography=\"bodySemibold\" wordBreak=\"keep-all\">\n            편집 설정\n          </Text>\n        </Center>\n        <Center bg=\"$primary\" borderRadius=\"10px\" px=\"20px\" py=\"10px\">\n          <Text color=\"#FFF\" typography=\"bodySemibold\" wordBreak=\"keep-all\">\n            검토 완료\n          </Text>\n        </Center>\n      </Flex>"
+        ],
+        "fallback": null,
+        "heightPreservation": {
+          "sourceSizing": "HUG",
+          "sourceHeight": 67.0,
+          "state": "not-fixed",
+          "basis": "Generated explicit height; derived padding alone is not a fixed-height guarantee."
+        },
+        "derivedPadding": null
+      },
+      "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
+      "stage": "projection",
+      "components": {
+        "height": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "sourceSizing": "HUG",
+          "sourceValue": 67.0,
+          "generatedValue": null,
+          "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+        },
+        "width": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "sourceSizing": "FIXED",
+          "sourceValue": 360.0,
+          "generatedValue": "100%",
+          "reason": "Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+        },
+        "horizontal": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "constraint": "MIN",
+          "constraintDeclared": true,
+          "sourceOffset": 0.0,
+          "sourceSize": 360.0,
+          "parentSize": 360.0,
+          "generatedProperty": "left",
+          "generatedValue": "0px",
+          "transform": null,
+          "reason": "Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified.",
+          "resolutionCondition": "Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."
+        },
+        "vertical": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "constraint": "MAX",
+          "constraintDeclared": true,
+          "sourceOffset": 673.0,
+          "sourceSize": 67.0,
+          "parentSize": 740.0,
+          "generatedProperty": "bottom",
+          "generatedValue": "0px",
+          "transform": null,
+          "reason": "Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified.",
+          "resolutionCondition": "Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."
+        },
+        "containingBlock": {
+          "parentId": "3879:35518",
+          "generatedParent": "<VStack\n      bg=\"$backgroundLight\"\n      h=\"740px\"\n      overflow=\"hidden\"\n      pos=\"relative\"\n      w=\"360px\"\n    ",
+          "generatedChild": "  <Flex\n        alignItems=\"center\"\n        bg=\"$containerBackground\"\n        borderTop=\"solid 1px $border\"\n        bottom=\"0px\"\n        justifyContent=\"space-between\"\n        left=\"0px\"\n        overflow=\"hidden\"\n        pos=\"absolute\"\n        px=\"10px\"\n        py=\"8px\"\n        w=\"100%\"\n      "
+        }
+      },
+      "resolutionConditions": [],
+      "classification": "verified-absolute-components"
     }
   }
 ]

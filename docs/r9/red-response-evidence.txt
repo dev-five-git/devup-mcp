@@ -1,0 +1,35 @@
+    Blocking waiting for file lock on build directory
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\devup_mcp-bbcce4741168dc25.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\devup_mcp-bbcce4741168dc25.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 49.90s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-bbcce4741168dc25.exe)
+
+running 1 test
+
+thread 'server::projection::w1_regressions::r9_confirmed_evidence_survives_diagnostics_opt_out' (192700) panicked at crates\devup-mcp\src\server\projection.rs:2852:67:
+confirmed evidence remains available without diagnostics
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test server::projection::w1_regressions::r9_confirmed_evidence_survives_diagnostics_opt_out ... FAILED
+
+failures:
+
+failures:
+    server::projection::w1_regressions::r9_confirmed_evidence_survives_diagnostics_opt_out
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 165 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p devup-mcp --lib`

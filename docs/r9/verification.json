@@ -1,0 +1,27 @@
+{
+  "workspace": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r9-approximation-precision",
+  "cargoTargetDirSet": false,
+  "commands": {
+    "test": "cargo test --workspace -j 2 --no-fail-fast",
+    "clippy": "cargo clippy --workspace --all-targets -j 2 -- -D warnings",
+    "fmt": "cargo fmt --all -- --check"
+  },
+  "exitCodes": {
+    "test": 0,
+    "clippy": 0,
+    "fmt": 0
+  },
+  "tests": {
+    "passed": 757,
+    "failed": 0,
+    "ignored": 2
+  },
+  "testExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r9-approximation-precision\\target\\debug\\deps\\r9_precision-2e064b5dabb56ef1.exe",
+  "testExecutableSha256": "c7e17e257fa0bb40d4294f47b2005b0720de5b18f59ffea5a2cfa131eec47d52",
+  "testList": "r9_absolute_reports_verified_axes_and_remaining_width: test\nr9_absolute_verification_is_rechecked_after_generated_css_changes: test\nr9_captured_non_rendering_asset_and_read_error_are_distinguished: test\nr9_center_offset_and_field_errors_are_not_verified: test\nr9_center_relation_does_not_certify_mutated_parent_width: test\nr9_hidden_absolute_root_has_no_placement_fidelity_loss: test\nr9_hidden_node_records_accounted_for_evidence: test\nr9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides: test\nr9_legacy_exact_still_reports_and_rechecks_constraints: test\nr9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence: test\nr9_non_rendering_requires_explicit_evidence: test\nr9_parent_side_border_requires_containing_block_proof: test\nr9_preserved_height_has_verified_resolution: test\nr9_source_map_documents_optional_identifiers_and_resolutions: test\nr9_verified_absolute_components_clear_only_their_own_impact: test\nr9_verified_pixels_do_not_override_fill_asset_sizing: test\n\n16 tests, 0 benchmarks\n",
+  "directTestRun": "\nrunning 1 test\ntest r9_absolute_reports_verified_axes_and_remaining_width ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.14s\n\n",
+  "serverExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r9-approximation-precision\\target\\debug\\devup-mcp.exe",
+  "serverExecutableSha256": "070ab6d53798e3a05ded3756adab50a8c75404cb7a61e91029033e4a60d55b14",
+  "serverVersion": "devup-mcp 0.4.4 (54c6a12c48af-dirty)",
+  "installedDevupMcpToolsUsed": false
+}

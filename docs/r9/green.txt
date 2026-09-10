@@ -1,0 +1,40 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_render_bounds_capture-38e7d5c620535575.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_render_bounds_capture-38e7d5c620535575.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "r9_render_bounds_capture") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.53s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-879ea00139ecb6a4.exe)
+
+running 16 tests
+test r9_source_map_documents_optional_identifiers_and_resolutions ... ok
+test r9_verified_pixels_do_not_override_fill_asset_sizing ... ok
+test r9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence ... ok
+test r9_non_rendering_requires_explicit_evidence ... ok
+test r9_captured_non_rendering_asset_and_read_error_are_distinguished ... ok
+test r9_hidden_absolute_root_has_no_placement_fidelity_loss ... ok
+test r9_hidden_node_records_accounted_for_evidence ... ok
+test r9_verified_absolute_components_clear_only_their_own_impact ... ok
+test r9_preserved_height_has_verified_resolution ... ok
+test r9_absolute_verification_is_rechecked_after_generated_css_changes ... ok
+test r9_parent_side_border_requires_containing_block_proof ... ok
+test r9_center_relation_does_not_certify_mutated_parent_width ... ok
+test r9_legacy_exact_still_reports_and_rechecks_constraints ... ok
+test r9_center_offset_and_field_errors_are_not_verified ... ok
+test r9_absolute_reports_verified_axes_and_remaining_width ... ok
+test r9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests\r9_render_bounds_capture.rs (target\debug\deps\r9_render_bounds_capture-38e7d5c620535575.exe)
+
+running 1 test
+test r9_capture_preserves_explicit_null_without_inventing_missing_bounds ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s

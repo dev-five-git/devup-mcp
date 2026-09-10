@@ -624,7 +624,15 @@ pub(super) fn non_rendering_asset_reason(
     snapshot: &Snapshot,
     node: &RawNode,
 ) -> Option<&'static str> {
-    let reason = devup_mcp_figma::asset_exclusion_reason(node)?;
+    let reason = if node
+        .typed_view()
+        .value("absoluteRenderBounds")
+        .is_some_and(Value::is_null)
+    {
+        "no-render-bounds"
+    } else {
+        devup_mcp_figma::asset_exclusion_reason(node)?
+    };
     (asset_kind(snapshot, node).is_some()
         || fills(node)
             .is_some_and(|paints| paints.iter().any(|paint| fill_type(paint) == Some("IMAGE"))))

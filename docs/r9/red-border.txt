@@ -1,0 +1,25 @@
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.48s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-879ea00139ecb6a4.exe)
+
+running 1 test
+
+thread 'r9_parent_side_border_requires_containing_block_proof' (201416) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:396:5:
+assertion `left == right` failed
+  left: String("verified")
+ right: "approximated"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_parent_side_border_requires_containing_block_proof ... FAILED
+
+failures:
+
+failures:
+    r9_parent_side_border_requires_containing_block_proof
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r9_precision`

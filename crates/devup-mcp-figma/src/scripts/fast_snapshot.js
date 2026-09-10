@@ -134,7 +134,7 @@ const STYLE_ID_FIELDS = new Set([
 // `codegen/layout.rs` compares `view.value("maxWidth") != Some(&Value::Null)`,
 // so for these two a present-null and an absent key take opposite branches.
 // Their null must survive.
-const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight"]);
+const NULL_SENSITIVE_FIELDS = new Set(["maxWidth", "maxHeight", "absoluteRenderBounds"]);
 
 // Deliberately absent from this table, each because the converter branches on
 // the field's *presence* rather than its value: `opacity` (hover-variant

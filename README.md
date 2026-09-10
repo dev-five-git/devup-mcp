@@ -620,3 +620,33 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 호환 별칭). `jobId`로 상태를 조회하고 paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
 
 artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
+
+
+### R9 sourceMap 필드와 resolution
+
+TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
+
+| resolution | 의미와 검증 범위 |
+| --- | --- |
+| `exact` | 원본 필드와 생성 태그·텍스트의 의미 매핑. 화면 전체의 픽셀/반응형 동등성 보증은 아님. |
+| `raw-fallback` | 변수/스타일 토큰 대신 원본 값에서 생성한 속성 매핑. 값이 부정확하다는 뜻이 아니며 별도 수치/레이아웃 증명이 없는 일반 경로. |
+| `verified-explicit-dimension` | 읽기 오류 없는 원본 width/height 수치와 생성 w/h/boxSize의 px 값이 정확히 같음을 확인. 반응형 배치까지 검증한 것은 아님. |
+| `verified-layout-sizing` | 원본 FIXED/FILL/layoutGrow 의도와 생성 h/boxSize/flex 관계를 sizing 검증기로 확인. |
+| `accounted-for-implicit-flex-stretch` | 실제 생성 부모의 cross-axis stretch와 크기 기준으로 생략된 크기를 설명. |
+| `accounted-for-implicit-flex-grow` | 실제 생성 부모의 main-axis flex-grow와 남은 공간으로 크기를 설명. |
+| `restored-hug-after-mask-child-folding` | 접힌 mask 자식의 원본 크기와 독립적인 크기 기준으로 HUG/aspectRatio 복원. `-from-absoluteBoundingBox` 접미사는 bounding box에서 크기를 얻은 경우. |
+| `variable-token` / `style-token` | 원본 변수/스타일 ID와 생성 토큰 참조의 매핑. |
+| `asset` | 원본 자산 ID와 생성 자산 속성의 매핑. 바이너리 수집 성공 여부는 assetSummary에서 별도 확인. |
+| `variant-selector` | 원본 variant 선택을 생성 selector 속성과 연결. |
+| `unverified-property-mapping` | 원본에 대응하는 생성 속성을 확인하지 못함. 추가 검증 필요. |
+| `variable` / `alias` / `style` | devup.json의 직접 변수 값 / 해석된 변수 alias / 스타일에서 나온 테마 값과 JSON pointer. |
+
+`node`는 내부 노드 범위용이며 공개 v2 property entries에는 포함되지 않습니다.
+
+ABSOLUTE 진단의 `components`는 height/width/horizontal/vertical별 state·fidelityImpact·원본 값·생성 값·검증 이유를 제공합니다. `resolutionConditions`에는 남은 근사 항목의 해소 조건만 들어갑니다. CENTER는 원본 중심 오프셋, left/top 50%, translate 및 실제 생성 부모 좌표 기준까지 확인해야 검증됩니다. MIN은 원본 오프셋과 생성 px를 비교합니다. MAX는 크기 검증을 전제로 parentSize-offset-size와 right/bottom 여백을 비교합니다. 제약 필드 전체가 없는 이전 캡처는 `constraintDeclared=false`로 표시하며 생성된 로컬 오프셋만 비교하고 반응형 제약을 추정하지 않습니다. 증명되지 않은 MAX/STRETCH/SCALE, 누락 geometry 또는 필드 오류는 근사로 남습니다. 명시적 FIXED 높이 보존은 percentage 너비의 동등성을 증명하지 않습니다.
+
+비렌더 진단은 오류 없이 읽은 `visible=false` 또는 명시적 `absoluteRenderBounds=null`을 `accounted-for-non-rendering` / `fidelityImpact=none`으로 기록합니다. `verification`의 field·fieldPresent·value·readError가 근거입니다. 필드 부재나 읽기 실패는 `unverified-non-rendering` / `approximated`로 유지하며 재수집 조건을 안내합니다.
+
+HUG 검증은 원본과 일치하는 생성 auto-layout에서 크기 override 없이 intrinsic sizing 의도를 표현했는지 확인합니다. FIXED percentage 크기는 일치하는 auto-layout과 명시적으로 같은 크기인 FIXED 부모, 테두리·padding·min/max override 부재가 확인된 제한된 경우만 검증합니다. CENTER 검증은 원본의 중심 오프셋 0과 생성 CSS의 중심 관계를 뜻합니다. 부모가 커질 때 원래 x를 고정한다는 뜻이 아니며, 부모의 명시적 px 값이 바뀌면 부모 자신의 dimension coverage 재검증이 실패합니다. 검증된 명시적 크기 매핑은 canvas/derived-padding의 일반 생략 규칙으로 재검증 의무를 면제하지 않습니다.
+
+`projectionEvidence`는 확인된 비렌더와 검증 완료 ABSOLUTE 항목의 근거를 담으며, `includeDiagnostics=false`여도 최상위 및 프레임 응답에 제공합니다. 미해결 근사는 `projectionIssues`에 남으므로 두 배열을 구분해 읽습니다.

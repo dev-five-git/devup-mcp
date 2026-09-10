@@ -1,0 +1,97 @@
+{
+  "fileKey": "85CgSws3o5XsLv7aAwWJyS",
+  "roots": [
+    "3997:46703"
+  ],
+  "nodes": {
+    "3997:46703": {
+      "id": "3997:46703",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "3997:46702",
+        "absoluteBoundingBox": {
+          "height": 24,
+          "width": 24,
+          "x": 19389,
+          "y": 13799.5
+        },
+        "bottomLeftRadius": 2000,
+        "bottomRightRadius": 2000,
+        "clipsContent": true,
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "cornerRadius": 2000,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "2baf52be4451a2d40806dd9c98f89cd7dab7665e",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "height": 24,
+        "isAsset": true,
+        "itemSpacing": 0,
+        "layoutGrow": 0,
+        "layoutMode": "NONE",
+        "layoutWrap": "NO_WRAP",
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "maxHeight": null,
+        "maxWidth": null,
+        "name": "Frame 26086021",
+        "opacity": 1,
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "paddingRight": 0,
+        "paddingTop": 0,
+        "strokeBottomWeight": 1,
+        "strokeLeftWeight": 1,
+        "strokeRightWeight": 1,
+        "strokeTopWeight": 1,
+        "strokeWeight": 1,
+        "targetAspectRatio": {
+          "x": 80,
+          "y": 80
+        },
+        "topLeftRadius": 2000,
+        "topRightRadius": 2000,
+        "visible": true,
+        "width": 24,
+        "x": 100,
+        "y": 0
+      },
+      "extra": {},
+      "fieldErrors": {}
+    }
+  },
+  "diagnostics": []
+}

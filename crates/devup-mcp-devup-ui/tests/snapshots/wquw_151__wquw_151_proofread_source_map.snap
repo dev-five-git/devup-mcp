@@ -29,7 +29,7 @@ expression: output.source_map
       "generatedProperty": "h=\"740px\"",
       "nodeId": "3879:35518",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "overflow=\"hidden\"",
@@ -47,7 +47,7 @@ expression: output.source_map
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35518",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "VStack",
@@ -342,13 +342,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35525",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35525",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
@@ -558,13 +558,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "3879:35530",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "3879:35530",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
@@ -645,7 +645,7 @@ expression: output.source_map
       "generatedProperty": "h=\"185px\"",
       "nodeId": "3879:35533",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "px=\"14px\"",
@@ -701,13 +701,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"40px\"",
       "nodeId": "3879:35534",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"40px\"",
       "nodeId": "3879:35534",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "maskImage=\"url(/icons/icons.svg)\"",
@@ -1089,13 +1089,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35541",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35541",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
@@ -1187,7 +1187,7 @@ expression: output.source_map
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35545",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "Text",
@@ -1275,13 +1275,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
@@ -1502,7 +1502,7 @@ expression: output.source_map
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35549",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "Text",
@@ -1590,13 +1590,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
@@ -1823,7 +1823,7 @@ expression: output.source_map
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35553",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "Text",
@@ -1911,13 +1911,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
@@ -2196,7 +2196,7 @@ expression: output.source_map
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35557",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "Text",
@@ -2284,13 +2284,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
@@ -2517,7 +2517,7 @@ expression: output.source_map
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35561",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "Text",
@@ -2605,13 +2605,13 @@ expression: output.source_map
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "height",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "verified-explicit-dimension"
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",

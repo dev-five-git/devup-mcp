@@ -1,0 +1,65 @@
+   Compiling smallvec v1.16.0
+   Compiling windows-sys v0.61.2
+   Compiling parking_lot_core v0.9.12
+   Compiling parking_lot v0.12.5
+   Compiling num-traits v0.2.19
+   Compiling icu_normalizer v2.3.0
+   Compiling idna_adapter v1.2.2
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.1
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling tokio v1.53.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling serde_json v1.0.151
+   Compiling hyper v1.11.1
+   Compiling hyper-util v0.1.20
+   Compiling tower v0.5.3
+   Compiling aho-corasick v1.1.5
+   Compiling tokio-rustls v0.26.4
+   Compiling chrono v0.4.45
+   Compiling regex-automata v0.4.18
+   Compiling hyper-rustls v0.27.9
+   Compiling tower-http v0.6.11
+   Compiling tokio-util v0.7.19
+   Compiling regex v1.13.1
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling schemars v1.2.2
+   Compiling moxcms v0.8.1
+   Compiling windows-native-keyring-store v1.1.0
+   Compiling reqwest v0.13.4
+   Compiling oauth2 v5.0.0
+   Compiling tokio-stream v0.1.19
+   Compiling rmcp v3.2.0
+   Compiling image v0.25.10
+   Compiling axum v0.8.9
+   Compiling keyring v4.2.0
+   Compiling webbrowser v1.2.4
+   Compiling tempfile v3.27.0
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-figma)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_render_bounds_capture-2f496ad1afc88721.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_render_bounds_capture-2f496ad1afc88721.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "r9_render_bounds_capture") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 46.87s
+     Running tests\r9_render_bounds_capture.rs (target\debug\deps\r9_render_bounds_capture-2f496ad1afc88721.exe)
+
+running 1 test
+
+thread 'r9_capture_preserves_explicit_null_without_inventing_missing_bounds' (195384) panicked at crates\devup-mcp-figma\tests\r9_render_bounds_capture.rs:19:27:
+assertion `left == right` failed
+  left: None
+ right: Some(Null)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_capture_preserves_explicit_null_without_inventing_missing_bounds ... FAILED
+
+failures:
+
+failures:
+    r9_capture_preserves_explicit_null_without_inventing_missing_bounds
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p devup-mcp-figma --test r9_render_bounds_capture`
