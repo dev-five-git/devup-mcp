@@ -1041,7 +1041,7 @@ pub(super) async fn complete_operation(
                 return Err(unavailable_output(
                     payload,
                     "sourceMap",
-                    "A source map needs a generated output. Include tsx, componentTsx or devupJson in outputs.",
+                    r#"A source map needs a generated output. Even when reusing artifactId, include tsx, componentTsx or devupJson in outputs in the same call. Example: {"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#,
                 ));
             }
             let mut result = Map::new();
@@ -2769,7 +2769,7 @@ mod w1_regressions {
         assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
         assert_eq!(
             frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
-            105
+            114 // R6: two vertical FILL fields and seven positive layoutGrow fields.
         );
         assert_eq!(
             frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
@@ -2852,16 +2852,26 @@ mod w1_regressions {
                 if issue["details"]["classification"] == "component-reference" {
                     assert_eq!(issue["details"]["output"], "componentTsx");
                     assert_eq!(issue["details"]["classification"], "component-reference");
+                } else if issue["property"] == "layoutSizingVertical" {
+                    // R6 exposes a real percentage-height dependency that R2 did not count.
+                    assert_eq!(issue["nodeId"], "3997:46313");
+                    assert_eq!(issue["details"]["output"], "tsx");
+                    assert_eq!(issue["fidelityImpact"], "lossy");
+                    assert_eq!(issue["details"]["originalValue"], "FILL");
+                    assert_eq!(
+                        issue["details"]["implicitCssVerification"]["state"],
+                        "not-accounted-for"
+                    );
                 } else if matches!(
                     issue["details"]["classification"].as_str(),
                     Some("asset-projection" | "property-unmapped")
                 ) {
                     // R5 additionally discloses unproven asset percentage axes.
                     assert_eq!(issue["details"]["output"], "tsx");
-                    assert!(matches!(
-                        issue["property"].as_str(),
-                        Some("width" | "height")
-                    ));
+                    assert!(
+                        matches!(issue["property"].as_str(), Some("width" | "height")),
+                        "{issue}"
+                    );
                 } else {
                     assert_eq!(issue["details"]["output"], "tsx");
                     assert_eq!(issue["details"]["classification"], "text-auto-size");
@@ -4023,6 +4033,45 @@ mod w1_regressions {
             .unwrap_err();
         assert_eq!(error.code, ErrorCode::DevupInvalidInput);
         assert!(error.message.contains("tsx"));
+    }
+
+    #[tokio::test]
+    async fn r6_source_map_error_explains_artifact_outputs() {
+        let error = project(payload(), operation(&["rawSnapshot", "sourceMap"]))
+            .await
+            .unwrap_err();
+        assert!(
+            error.message.contains("artifactId") && error.message.contains("same call"),
+            "{}",
+            error.message
+        );
+        assert!(error.message.contains(r#"{"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#));
+    }
+
+    #[tokio::test]
+    async fn r6_completion_vertical_loss_is_scoped_to_tsx() {
+        let mut data = payload();
+        data.snapshot = serde_json::from_str(include_str!(
+            "../../../devup-mcp-devup-ui/tests/fixtures/r6-completion.json"
+        ))
+        .unwrap();
+        data.target.node_id = Some("3997:46333".into());
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export { root_layout, .. } = &mut op {
+            *root_layout = devup_mcp_devup_ui::codegen::RootLayout::Embedded;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert!(
+            result["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["nodeId"] == "3997:46333"
+                    && d["property"] == "layoutSizingVertical"
+                    && d["fidelityImpact"] == "lossy"
+                    && d["details"]["output"] == "tsx")
+        );
     }
 
     fn responsive_payload() -> CollectedPayload {

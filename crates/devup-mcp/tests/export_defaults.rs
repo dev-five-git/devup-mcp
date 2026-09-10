@@ -298,3 +298,26 @@ async fn p3_schema_exposes_opt_in_and_cost_and_section_contract() -> anyhow::Res
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn r6_export_response_identifies_responding_build() -> anyhow::Result<()> {
+    let output =
+        export(json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"}))
+            .await?;
+    assert_eq!(output["server"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(output["server"]["buildId"], devup_mcp::build_id());
+    assert_eq!(
+        output["server"]["commit"],
+        option_env!("DEVUP_MCP_GIT_COMMIT")
+            .filter(|s| !s.is_empty())
+            .map(serde_json::Value::from)
+            .unwrap_or(serde_json::Value::Null)
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn r6_source_map_description_explains_cached_reprojection() -> anyhow::Result<()> {
+    let (_, description) = export_tool_schema().await?;
+    assert!(description.contains("same call") && description.contains(r#"{"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#),"{description}");
+    Ok(())
+}

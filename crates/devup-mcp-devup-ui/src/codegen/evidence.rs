@@ -44,7 +44,8 @@ pub(super) fn placement_contract(
     let tag = source.split_once('>')?.0;
     let absolute = tag.contains("pos=\"absolute\"");
     let positioned = super::layout::holds_positioned_children(snapshot, node);
-    if parent.is_some() && !absolute && !positioned {
+    let vertical_fill = super::layout::vertical_fill_container(snapshot, node);
+    if parent.is_some() && !absolute && !positioned && !vertical_fill {
         return None;
     }
     let relative = tag.contains("pos=\"relative\"");
@@ -52,6 +53,15 @@ pub(super) fn placement_contract(
     let mut requirements = Vec::new();
     if absolute {
         requirements.push("Provide a positioned host matching the original parent dimensions and coordinate origin; the parent is not included in this component. Review the emitted offsets before insertion.".to_owned());
+    }
+    if vertical_fill
+        && (embedded
+            || !view.number("height").is_some_and(|h| {
+                tag.contains(&format!("h=\"{}\"", super::layout::px(h)))
+                    || tag.contains(&format!("boxSize=\"{}\"", super::layout::px(h)))
+            }))
+    {
+        requirements.push("Provide a definite height on this generated root matching its captured FIXED height so its emitted vertical FILL child can grow into the remaining space. A host height alone is insufficient unless the root also receives that height; preserve the child's emitted flex growth and following action order.".into());
     }
     if positioned {
         for (axis, sizing, prop) in [
@@ -174,7 +184,8 @@ pub(super) fn uncovered_layout_details(
                     "originalValueReason":if original.is_none() { Some("The collected node has no value for this property.") } else { None },
                     "appliedValue":{"state":"emitted","generatedNodeId":id,"generatedSource":excerpt,
                         "sourceTruncated":source.chars().count()>800,"propertyMappingVerified":false},
-                    "classification":classification,"appliedValueReason":reason,"nextAction":action});
+                    "classification":classification,"appliedValueReason":reason,"nextAction":action,
+                    "implicitCssVerification":crate::provenance::implicit_css_verification(snapshot, output, node_id, property)});
             }
         }
         owner = node

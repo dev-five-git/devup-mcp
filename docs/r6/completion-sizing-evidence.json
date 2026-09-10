@@ -1,0 +1,166 @@
+{
+  "sourceMap": [
+    {
+      "generatedRange": {
+        "start": 140,
+        "end": 149
+      },
+      "nodeId": "3997:46333",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 225,
+        "end": 233
+      },
+      "nodeId": "3997:46334",
+      "property": "layoutGrow",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 1021,
+        "end": 1028
+      },
+      "nodeId": "3997:46347",
+      "property": "height",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedRange": {
+        "start": 140,
+        "end": 149
+      },
+      "nodeId": "3997:46333",
+      "property": "layoutSizingVertical",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedRange": {
+        "start": 225,
+        "end": 233
+      },
+      "nodeId": "3997:46334",
+      "property": "layoutSizingVertical",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedRange": {
+        "start": 225,
+        "end": 233
+      },
+      "nodeId": "3997:46334",
+      "property": "layoutGrow",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedRange": {
+        "start": 999,
+        "end": 1030
+      },
+      "nodeId": "3997:46347",
+      "property": "width",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    }
+  ],
+  "fidelity": {
+    "syntaxValid": true,
+    "nodes": {
+      "total": 21,
+      "covered": 21,
+      "basisPoints": 10000
+    },
+    "text": {
+      "total": 5,
+      "covered": 5,
+      "basisPoints": 10000
+    },
+    "variables": {
+      "total": 10,
+      "covered": 10,
+      "basisPoints": 10000
+    },
+    "typography": {
+      "total": 5,
+      "covered": 5,
+      "basisPoints": 10000
+    },
+    "assets": {
+      "total": 1,
+      "covered": 1,
+      "basisPoints": 10000
+    },
+    "layout": {
+      "total": 29,
+      "covered": 29,
+      "basisPoints": 10000
+    },
+    "impacts": {
+      "none": 2,
+      "approximated": 0,
+      "lossy": 0,
+      "failed": 0
+    }
+  },
+  "sizingDiagnostics": [
+    {
+      "code": "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR",
+      "message": "Verified implicit flex stretch accounts for this FILL dimension.",
+      "nodeId": "3997:46347",
+      "fidelityImpact": "none",
+      "property": "width",
+      "details": {
+        "classification": "accounted-for",
+        "originalValue": 320,
+        "implicitCssVerification": {
+          "state": "accounted-for",
+          "parentId": "3997:46334",
+          "parentLayoutMode": "VERTICAL",
+          "childSizing": "FILL",
+          "generatedParent": "  <VStack\n        bg=\"$containerBackground\"\n        flex=\"1\"\n        gap=\"24px\"\n        px=\"20px\"\n        py=\"30px\"\n      ",
+          "generatedChild": "    <Box bg=\"$border\" h=\"1px\" /",
+          "cssBehavior": "flex cross-axis align-items: stretch (or align-self: stretch)",
+          "reason": "The emitted immediate flex parent stretches this in-flow FILL child across an established cross axis; no explicit size, margin or min/max constraint overrides stretch."
+        }
+      }
+    },
+    {
+      "code": "DEVUP_CODEGEN_PLACEMENT_CONTRACT",
+      "message": "Root placement contract: inspect the coordinate basis and host requirements before inserting this TSX.",
+      "nodeId": "3997:46333",
+      "severity": "info",
+      "fidelityImpact": "none",
+      "property": "placement",
+      "details": {
+        "rootLayout": "standalone",
+        "parentId": "4279:7806",
+        "parentCollected": false,
+        "parentIncludedInOutput": false,
+        "parentMissingReason": "The root is at the capture boundary; its parent geometry was not collected.",
+        "containingBlock": "normal-flow-host",
+        "coordinateBasis": "The root is inserted in normal document flow; source canvas x/y are not its placement in the application. Positioned children resolve against the generated root when it establishes a containing block.",
+        "sourceSize": {
+          "width": 360.0,
+          "height": 740.0,
+          "horizontal": "FIXED",
+          "vertical": "FIXED"
+        },
+        "sourcePosition": {
+          "x": 8730.0,
+          "y": 378.0,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          }
+        },
+        "sourceParentSize": null,
+        "generatedRoot": "<VStack bg=\"$containerBackground\" h=\"740px\" overflow=\"hidden\">",
+        "hostRequirements": [],
+        "classification": "placement-contract",
+        "nextAction": "Insert in normal flow using the emitted root props. External parent placement is outside this capture.",
+        "evidenceLimit": "This is a generated CSS placement contract, not a measured browser or responsive equivalence result."
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "workspace": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r6-vertical-sizing-diagnostics",
+  "target": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r6-vertical-sizing-diagnostics\\target",
+  "cargoTargetDirOverride": null,
+  "baseline": {
+    "passed": 689,
+    "failed": 0,
+    "ignored": 2
+  },
+  "tests": {
+    "command": "cargo test --workspace -j 2 --no-fail-fast",
+    "exitCode": 0,
+    "passed": 706,
+    "failed": 0,
+    "ignored": 2
+  },
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets -j 2 -- -D warnings",
+    "exitCode": 0
+  },
+  "fmt": {
+    "command": "cargo fmt --all -- --check",
+    "exitCode": 0
+  },
+  "cli": {
+    "path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r6-vertical-sizing-diagnostics\\target\\debug\\devup-mcp.exe",
+    "version": "devup-mcp 0.4.3 (4af948ae9b69-dirty)",
+    "sha256": "dbf3b1f1c15f7f883d64265d99dc59ecaa9cc58f55feba44f65e6a5d1d974ed7"
+  },
+  "regressionExecutable": {
+    "path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r6-vertical-sizing-diagnostics\\target\\debug\\deps\\r6_vertical_sizing-b5dd7af2d6f4ea09.exe",
+    "sha256": "60cba30b43bfb9db47bc7d8fc1a27e1dbdfeed5856ad36685278d805ed31c484",
+    "listedTests": [
+      "r6_centered_parent_does_not_explain_divider_width: test",
+      "r6_completion_fixed_root_fill_body_and_bottom_action: test",
+      "r6_divider_width_is_verified_implicit_stretch: test",
+      "r6_embedded_vertical_relation_requires_host_height: test",
+      "r6_fractional_fixed_height_keeps_its_verified_sizing_mapping: test",
+      "r6_horizontal_body_does_not_sum_side_by_side_child_heights: test",
+      "r6_hug_and_fill_roots_are_not_pinned_to_captured_height: test",
+      "r6_lost_vertical_semantics_cannot_pass_fidelity: test",
+      "r6_nested_vertical_fill_uses_the_ancestor_height_basis: test",
+      "r6_overflowing_fill_body_can_shrink_without_displacing_bottom_action: test",
+      "r6_replay_records_existing_frames_without_hiding_new_losses: test",
+      "r6_stretch_proof_is_rechecked_after_generated_parent_changes: test",
+      "r6_unknown_parent_css_is_not_claimed_as_verified: test",
+      "",
+      "13 tests, 0 benchmarks"
+    ]
+  },
+  "initialRed": {
+    "passed": 0,
+    "failed": 8
+  },
+  "additionalRed": [
+    "nested vertical FILL basis",
+    "overflowing FILL automatic minimum",
+    "fractional fixed height formatting",
+    "horizontal body overflow scope"
+  ],
+  "goldenChanges": 5
+}

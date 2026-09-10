@@ -387,6 +387,20 @@ pub(super) fn push_layout_props(
         }
     }
 
+    // A FIXED column is also the height basis for in-flow FILL children.
+    // This relationship does not depend on positioned descendants (R6).
+    if !embedded_root && vertical_fill_container(snapshot, node) {
+        height = view.number("height").map(px);
+    }
+    let vertical_fill = !absolute
+        && !embedded_root
+        && fill_h
+        && parent.is_some_and(|p| p.typed_view().string("layoutMode") == Some("VERTICAL"));
+    if vertical_fill {
+        // Main-axis FILL means remaining space, not 100% of the whole parent.
+        height = None;
+    }
+
     if component == "Text" && fixed_w && fixed_h {
         match view.string("textAutoResize") {
             Some("WIDTH_AND_HEIGHT") => {
@@ -565,28 +579,14 @@ pub(super) fn push_layout_props(
             string_prop(props, "minW", "0");
         }
     }
-    // The same along the other axis, for the one node CSS cannot size on its
-    // own. A node set to fill its parent's main axis is stretched by Figma to
-    // the space left over; said nothing about, CSS lets it hug its content
-    // instead. That usually agrees - a column of in-flow children adds up to
-    // the height Figma gave it - but a positioned child adds nothing to the
-    // height of what holds it, so hugging can never reach it. The about
-    // page's hero column is 440 tall in a 520 tall section and came out 155,
-    // the height of its text alone; the section then centred that, pushing it
-    // 143px down and dropping the picture hung off it over the heading it is
-    // meant to sit above.
-    let holds_a_positioned_child = view.child_ids().any(|child_id| {
-        snapshot
-            .nodes
-            .get(child_id)
-            .is_some_and(|child| child.typed_view().string("layoutPositioning") == Some("ABSOLUTE"))
-    });
-    if fill_h
-        && !wrote_height
-        && holds_a_positioned_child
-        && parent.is_some_and(|parent| parent.typed_view().string("layoutMode") == Some("VERTICAL"))
-    {
+    // Main-axis FILL consumes remaining space, whether its own children are
+    // positioned or in flow. This keeps the completion screen's body ahead of
+    // the following bottom action without copying any canvas coordinates.
+    if vertical_fill {
         string_prop(props, "flex", "1");
+        if vertical_fill_needs_minimum_reset(snapshot, node) {
+            string_prop(props, "minH", "0");
+        }
     }
     // A child Figma never shrinks, in a line that does not fit. Figma keeps a
     // fixed size and lets the row spill past its parent, which clips it; CSS
@@ -723,6 +723,45 @@ pub(super) fn push_layout_props(
             string_prop(props, "transformOrigin", "top left");
         }
     }
+}
+
+pub(crate) fn vertical_fill_container(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    view.string("layoutMode") == Some("VERTICAL")
+        && view.string("layoutSizingVertical") == Some("FIXED")
+        && view
+            .child_ids()
+            .filter_map(|id| snapshot.nodes.get(id))
+            .any(|child| {
+                let child = child.typed_view();
+                child.bool("visible") != Some(false)
+                    && child.string("layoutPositioning") != Some("ABSOLUTE")
+                    && child.string("layoutSizingVertical") == Some("FILL")
+            })
+}
+
+/// CSS's automatic flex minimum must not enlarge a captured FILL allocation.
+/// Preserve explicit source minimums; only reset the implicit content minimum
+/// when collected in-flow content demonstrably overflows the allocated height.
+pub(crate) fn vertical_fill_needs_minimum_reset(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    if view.number("minHeight").is_some() {
+        return false;
+    }
+    (view.string("layoutMode") == Some("VERTICAL")
+        && line_overflows(snapshot, node, "height", "paddingTop", "paddingBottom"))
+        || inner_extent(node, "height", "paddingTop", "paddingBottom").is_some_and(|room| {
+            view.child_ids()
+                .filter_map(|id| snapshot.nodes.get(id))
+                .any(|child| {
+                    let child = child.typed_view();
+                    child.bool("visible") != Some(false)
+                        && child.string("layoutPositioning") != Some("ABSOLUTE")
+                        && child
+                            .number("height")
+                            .is_some_and(|height| height > room + 0.5)
+                })
+        })
 }
 
 /// Only children that can survive projection need a containing block.
@@ -1480,7 +1519,7 @@ pub(super) fn string_prop(props: &mut Vec<Prop>, name: &str, value: impl Into<St
     }
 }
 
-pub(super) fn px(value: f64) -> String {
+pub(crate) fn px(value: f64) -> String {
     format!("{}px", format_number(value))
 }
 

@@ -15,7 +15,13 @@ export function Wquw151Frame387935503() {
       overflow="hidden"
       w="360px"
     >
-      <Center flexDir="column" gap="40px" py="80px" w="100%">
+      <Center
+        flex="1"
+        flexDir="column"
+        gap="40px"
+        py="80px"
+        w="100%"
+      >
         <Box
           aspectRatio="1.9"
           bg="#752E2E"

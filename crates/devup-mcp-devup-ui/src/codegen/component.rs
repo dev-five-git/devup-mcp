@@ -1044,6 +1044,7 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
+    crate::provenance::account_for_sizing(snapshot, &mut output);
     validate_tsx(&output.tsx)?;
     if let Some(contract) = super::evidence::placement_contract(snapshot, &output, options, root_id)
     {

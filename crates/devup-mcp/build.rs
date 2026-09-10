@@ -5,6 +5,14 @@ mod build_identity;
 use build_identity::{git_identity, safe};
 
 fn main() {
+    let commit = Command::new("git")
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    println!("cargo:rustc-env=DEVUP_MCP_GIT_COMMIT={}", commit.trim());
     println!("cargo:rerun-if-env-changed=DEVUP_MCP_BUILD_ID");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=build_identity.rs");

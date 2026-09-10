@@ -8,6 +8,9 @@ use crate::codegen::{
     AssetKind, CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout,
 };
 
+mod sizing;
+pub(crate) use sizing::{account_for_sizing, implicit_css_verification};
+
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
 const CLOSE: char = '\u{e001}';
@@ -505,6 +508,16 @@ pub fn validate_fidelity(
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        if entry.resolution == "accounted-for-implicit-flex-stretch" {
+                            return implicit_css_verification(snapshot, output, node_id, property)
+                                ["state"]
+                                == "accounted-for";
+                        }
+                        if matches!(property.as_str(), "layoutSizingVertical" | "layoutGrow") {
+                            return sizing::sizing_mapping_matches(
+                                snapshot, output, node_id, property, source,
+                            );
+                        }
                         layout_source_matches(property, source)
                             && dimension_value_matches(snapshot, output, node_id, property, source)
                     })
@@ -657,6 +670,11 @@ fn layout_field_is_semantic(
         return false;
     }
     match field {
+        "layoutSizingVertical" => {
+            view.string(field) == Some("FILL")
+                || crate::codegen::vertical_fill_container(snapshot, node)
+        }
+        "layoutGrow" => view.number(field).is_some_and(|v| v > 0.0),
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
         "layoutPositioning" => view.string(field) == Some("ABSOLUTE"),
         "width" => {
@@ -1027,6 +1045,11 @@ fn fill_axis_is_established(
                     .is_some_and(|value| value.is_finite() && value > 0.0);
             }
         }
+        // A definite flex main size also provides the basis for nested FILL.
+        // Follow the emitted flex chain; a HUG ancestor still ends this proof.
+        if axis == "height" && sizing::has_vertical_flex_basis(snapshot, output, &parent.id) {
+            return established(snapshot, output, &parent.id, axis, seen);
+        }
         // HUG/shrink-to-fit width and percentage children are a cycle, not an
         // independent size anchor. Percentage height cannot use an auto parent.
         axis == "width"
@@ -1246,6 +1269,8 @@ fn typography_sources<'a>(
 }
 
 const LAYOUT_FIELDS: &[&str] = &[
+    "layoutSizingVertical",
+    "layoutGrow",
     "layoutMode",
     "layoutPositioning",
     "width",
