@@ -920,36 +920,6 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 1559,
-        "end": 1572
-      },
-      "nodeId": "I3879:35525;17:2032",
-      "property": "strokes",
-      "variableId": "VariableID:1:1009",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 1559,
-        "end": 1572
-      },
-      "nodeId": "I3879:35525;17:2034",
-      "property": "strokes",
-      "variableId": "VariableID:1:1009",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 1559,
-        "end": 1572
-      },
-      "nodeId": "I3879:35525;17:2036",
-      "property": "strokes",
-      "variableId": "VariableID:1:1009",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
         "start": 1589,
         "end": 1603
       },
@@ -1186,156 +1156,6 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2032",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2034",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35545;1690:32934;17:2036",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2032",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2034",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35549;1690:32934;17:2036",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2032",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2034",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35553;1690:32934;17:2036",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2032",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2034",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35557;1690:32934;17:2036",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2032",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2034",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2230,
-        "end": 2248
-      },
-      "nodeId": "I3879:35561;1690:32934;17:2036",
-      "property": "strokes",
-      "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
         "start": 2263,
         "end": 2277
       },
@@ -1397,16 +1217,6 @@ expression: output.source_map
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 2503,
-        "end": 2521
-      },
-      "nodeId": "3879:35535",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
@@ -1529,16 +1339,6 @@ expression: output.source_map
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 3013,
-        "end": 3031
-      },
-      "nodeId": "3879:35536",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
@@ -2372,16 +2172,6 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 4821,
-        "end": 4839
-      },
-      "nodeId": "I3879:35545;1690:32947",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
         "start": 4840,
         "end": 4870
       },
@@ -2907,16 +2697,6 @@ expression: output.source_map
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 5712,
-        "end": 5730
-      },
-      "nodeId": "I3879:35549;1690:32947",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
@@ -3459,16 +3239,6 @@ expression: output.source_map
     },
     {
       "generatedRange": {
-        "start": 7323,
-        "end": 7341
-      },
-      "nodeId": "I3879:35553;1690:32947",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
         "start": 7342,
         "end": 7372
       },
@@ -3677,16 +3447,6 @@ expression: output.source_map
       },
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
-      "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 8159,
-        "end": 8180
-      },
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
       "variableId": "VariableID:98:3276",
       "resolution": "variable-token"
     },
@@ -3717,16 +3477,6 @@ expression: output.source_map
       "nodeId": "3879:35555",
       "property": "characters",
       "resolution": "exact"
-    },
-    {
-      "generatedRange": {
-        "start": 8712,
-        "end": 8733
-      },
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
     },
     {
       "generatedRange": {
@@ -4099,16 +3849,6 @@ expression: output.source_map
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 9414,
-        "end": 9432
-      },
-      "nodeId": "I3879:35557;1690:32947",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {
@@ -4647,16 +4387,6 @@ expression: output.source_map
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedRange": {
-        "start": 11667,
-        "end": 11685
-      },
-      "nodeId": "I3879:35561;1690:32947",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:1:998",
       "resolution": "variable-token"
     },
     {

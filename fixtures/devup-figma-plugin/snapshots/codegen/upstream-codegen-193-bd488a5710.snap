@@ -7,10 +7,12 @@ expression: actual
   return (
     <Box
       bg="$caption"
+      h="34.03px"
       maskImage="url(/icons/recommend.svg)"
       maskPos="center"
       maskRepeat="no-repeat"
       maskSize="contain"
+      w="19.61px"
     />
   )
 }"

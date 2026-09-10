@@ -600,6 +600,7 @@ pub fn generate_devup_json(
         source_map: SourceMap {
             version: 1,
             entries: source_entries,
+            ..SourceMap::empty()
         },
     })
 }

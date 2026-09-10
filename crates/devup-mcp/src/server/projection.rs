@@ -742,7 +742,7 @@ fn asset_summary(
             "Assets were discovered but no binary bytes were collected; unavailable explains unrequested captures, hidden exclusions, or export failures."
         }
         "partial" => {
-            "Only some deliverable asset bytes were collected, or discovery is incomplete."
+            "Only some deliverable asset bytes were collected, or discovery is incomplete. capture-not-in-artifact means not collected in this batch, not an export failure. Merge saved batch responses with devup-mcp --merge-asset-batches batch1.json batch2.json."
         }
         "collected" => "All discovered non-hidden deliverable assets have collected binary bytes.",
         _ => unreachable!(),
@@ -751,7 +751,8 @@ fn asset_summary(
         "discovery":if incomplete { "incomplete" } else { "complete" },
         "discoveryReason":if index_only { Some("index-only") } else if incomplete { Some("snapshot-incomplete") } else { None },
         "discoveredCount":assets.len(),"collectedCount":collected,
-        "manifestIncluded":manifest_requested,"unavailable":unavailable})
+        "manifestIncluded":manifest_requested,"unavailable":unavailable,
+        "batchMerge":{"command":"devup-mcp --merge-asset-batches batch1.json batch2.json","input":"Saved complete export responses, MCP response envelopes, or poll records containing response","scope":"union-of-supplied-batches"}})
 }
 
 /// Binary collection quality, independent of whether a manifest was delivered.
@@ -1387,6 +1388,12 @@ pub(super) async fn complete_operation(
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version}});
                         }
                     }
+                    frame["placementContracts"] = json!(
+                        frame_diagnostics
+                            .iter()
+                            .filter(|d| d.code == "DEVUP_CODEGEN_PLACEMENT_CONTRACT")
+                            .collect::<Vec<_>>()
+                    );
                     frame["projectionIssues"] = json!(
                             frame_diagnostics
                                 .iter()
@@ -2028,6 +2035,15 @@ pub(super) async fn complete_operation(
                 }
             }
             result.insert(
+                "placementContracts".into(),
+                json!(
+                    projection_diagnostics
+                        .iter()
+                        .filter(|d| d.code == "DEVUP_CODEGEN_PLACEMENT_CONTRACT")
+                        .collect::<Vec<_>>()
+                ),
+            );
+            result.insert(
                 "projectionIssues".into(),
                 json!(
                     projection_diagnostics
@@ -2660,6 +2676,108 @@ mod w1_regressions {
     }
 
     #[tokio::test]
+    async fn r5_wquw119_missing_mask_size_is_output_scoped_and_not_final() {
+        let mut data = payload();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/wquw-119-snapshot.json"))
+                .unwrap();
+        data.target.node_id = Some("3997:46315".into());
+        data.target.file_key = data.snapshot.file_key.clone();
+        let node = data.snapshot.nodes.get_mut("3997:46317").unwrap();
+        node.fields.remove("height");
+        node.fields.remove("absoluteBoundingBox");
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export {
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_ne!(result["quality"]["projection"], "exact");
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert!(
+            result["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| issue["nodeId"] == "3997:46317"
+                    && issue["property"] == "height"
+                    && issue["details"]["output"] == "tsx"),
+            "{result}"
+        );
+    }
+
+    #[tokio::test]
+    async fn r4_direct_export_discloses_capture_boundary_without_diagnostics() {
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *include_diagnostics = false;
+        }
+        let result = project(payload(), op).await.unwrap();
+        let contract = &result["placementContracts"][0]["details"];
+        assert_eq!(contract["output"], "tsx");
+        assert_eq!(contract["parentCollected"], false);
+        assert!(contract["parentMissingReason"].is_string());
+        assert_eq!(contract["containingBlock"], "normal-flow-host");
+        assert!(contract["coordinateBasis"].is_string());
+    }
+
+    #[tokio::test]
+    async fn r4_export_exposes_placement_contract_without_diagnostics() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "componentTsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46582".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        let frame = &result["frames"][0];
+        for field in ["tsx", "componentTsx"] {
+            let source = frame[field].as_str().unwrap();
+            let tag = source
+                .split("return (")
+                .nth(1)
+                .unwrap()
+                .split('>')
+                .next()
+                .unwrap();
+            for prop in ["pos=\"relative\"", "w=\"360px\"", "h=\"740px\""] {
+                assert!(tag.contains(prop), "{tag}");
+            }
+            let contract = frame["placementContracts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|d| d["details"]["output"] == field)
+                .unwrap();
+            assert_eq!(contract["details"]["containingBlock"], "generated-root");
+        }
+        assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
+            105
+        );
+        assert_eq!(
+            frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
+            40
+        );
+    }
+
+    #[tokio::test]
     async fn r2_production_layout_evidence_is_actionable_per_output() {
         for (raw, ids, fields, count) in [
             (
@@ -2708,7 +2826,18 @@ mod w1_regressions {
                 .iter()
                 .filter(|i| i["code"] == "DEVUP_CODEGEN_LAYOUT_UNCOVERED")
                 .collect();
-            assert_eq!(layout.len(), count);
+            let original_class = if count == 40 {
+                "component-reference"
+            } else {
+                "text-auto-size"
+            };
+            assert_eq!(
+                layout
+                    .iter()
+                    .filter(|i| i["details"]["classification"] == original_class)
+                    .count(),
+                count
+            );
             for issue in layout {
                 assert_eq!(
                     issue["details"]["appliedValue"]["state"], "emitted",
@@ -2720,9 +2849,19 @@ mod w1_regressions {
                         .is_some_and(|s| !s.is_empty())
                 );
                 assert!(issue["details"]["nextAction"].is_string());
-                if count == 40 {
+                if issue["details"]["classification"] == "component-reference" {
                     assert_eq!(issue["details"]["output"], "componentTsx");
                     assert_eq!(issue["details"]["classification"], "component-reference");
+                } else if matches!(
+                    issue["details"]["classification"].as_str(),
+                    Some("asset-projection" | "property-unmapped")
+                ) {
+                    // R5 additionally discloses unproven asset percentage axes.
+                    assert_eq!(issue["details"]["output"], "tsx");
+                    assert!(matches!(
+                        issue["property"].as_str(),
+                        Some("width" | "height")
+                    ));
                 } else {
                     assert_eq!(issue["details"]["output"], "tsx");
                     assert_eq!(issue["details"]["classification"], "text-auto-size");

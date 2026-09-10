@@ -1,3 +1,4 @@
+pub mod asset_batches;
 pub mod server;
 
 use std::{ffi::OsString, path::PathBuf};
@@ -103,6 +104,7 @@ fn env_figma_client_credentials() -> (Option<String>, Option<String>, Option<Str
 pub enum CliAction {
     Version,
     SelfCheck,
+    MergeAssetBatches(Vec<PathBuf>),
     Serve(ServerConfig),
 }
 
@@ -144,6 +146,14 @@ where
             }
             Some("--self-check") if no_other_options_yet && arguments.peek().is_none() => {
                 return Ok(CliAction::SelfCheck);
+            }
+            Some("--merge-asset-batches") if no_other_options_yet => {
+                let paths: Vec<_> = arguments.map(PathBuf::from).collect();
+                anyhow::ensure!(
+                    !paths.is_empty(),
+                    "--merge-asset-batches requires JSON response paths"
+                );
+                return Ok(CliAction::MergeAssetBatches(paths));
             }
             Some("--allow-write-root") => {
                 let root = arguments.next().ok_or_else(|| {

@@ -5,7 +5,16 @@ expression: actual
 
 "export function UnderConstruction() {
   return (
-    <Center bg="$background" overflow="hidden" px="40px" py="120px">
+    <Center
+      bg="$background"
+      h="1080px"
+      overflow="hidden"
+      pos="relative"
+      px="40px"
+      py="120px"
+      w="1920px"
+      zIndex="0"
+    >
       <Box
         bg="#C8A46B"
         left="-196.23px"
@@ -18,6 +27,7 @@ expression: actual
         transform="rotate(11.24deg)"
         transformOrigin="top left"
         w="100%"
+        zIndex="-1"
       />
       <VStack alignItems="center" gap="120px">
         <VStack alignItems="center" gap="60px">

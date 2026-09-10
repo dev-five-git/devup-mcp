@@ -20,3 +20,7 @@ cargo test -p devup-mcp-devup-ui --test compat_fixtures
 ```
 
 `manifest.json`은 원본 54개 test file, 978 pass/0 fail, 268 snapshot이라는 upstream 기준 실행 정보와 536개 case/snapshot 파일의 LF-normalized SHA-256을 보존합니다. `ledger.json`은 이 upstream 결과의 inventory/coverage 분류이며 그 자체가 Rust 실행 결과를 뜻하지 않습니다.
+
+## R4 배치 계약 변경
+
+`upstream-codegen-191`, `251`–`254`의 골든은 absolute 자식의 기준 요소를 생성 코드가 소유하도록 갱신했습니다. PAGE/SECTION 루트에 relative와 FIXED 축의 크기를 보존하고, 앞에 그린 absolute 배경에는 루트 stacking context 안의 z-index를 적용합니다. 원본 case JSON은 유지했고 변경한 5개 snapshot의 LF-normalized checksum만 동기화했습니다. 이는 생성 코드 배치 계약의 의도적인 변경이며 신규 브라우저 픽셀 측정 결과를 뜻하지 않습니다.

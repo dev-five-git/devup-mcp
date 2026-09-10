@@ -5,7 +5,7 @@ use super::component::{Prop, PropValue, RootLayout};
 
 /// A box in a parent's coordinates: left, top, width, height.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct Box4 {
+pub(crate) struct Box4 {
     pub x: f64,
     pub y: f64,
     pub w: f64,
@@ -28,7 +28,7 @@ fn box4(value: Option<&Value>) -> Option<Box4> {
 /// 1373x98 whose vector sits inside it exports as 952x104, and a group of
 /// 686x735 rotated four degrees exports as 759x585 with the rotation drawn
 /// into the paths. `None` where the snapshot does not carry the bounds.
-pub(super) fn export_box(snapshot: &Snapshot, node: &RawNode) -> Option<Box4> {
+pub(crate) fn export_box(snapshot: &Snapshot, node: &RawNode) -> Option<Box4> {
     let view = node.typed_view();
     let render = box4(view.value("absoluteRenderBounds"))?;
     let parent = view
@@ -70,7 +70,7 @@ pub(super) fn export_offset(node: &RawNode) -> Option<Box4> {
 /// The box the layout gives an asset that is not positioned: its bounding
 /// box, which is its own box unless it is rotated, when it is the box the
 /// rotation sweeps - the box Figma's own layout gives it.
-pub(super) fn layout_box(node: &RawNode) -> Option<Box4> {
+pub(crate) fn layout_box(node: &RawNode) -> Option<Box4> {
     box4(node.typed_view().value("absoluteBoundingBox"))
 }
 
@@ -106,6 +106,7 @@ pub(super) fn push_layout_props(
     let absolute = view.string("layoutPositioning") == Some("ABSOLUTE")
         || placed_by_a_free_layout(snapshot, node, parent, is_page_root);
     let embedded_root = is_render_root && root_layout == RootLayout::Embedded;
+    let containing_block = holds_positioned_children(snapshot, node);
     let mut width = None;
     let mut height = None;
 
@@ -130,11 +131,9 @@ pub(super) fn push_layout_props(
         // where Figma has it: above the parent's own background, under the
         // content.
         //
-        // Only under a parent that opens that context. A page root is not
-        // told `relative` and opens none, and `-1` under it would fall
-        // behind the root's own background instead of resting on it.
+        // Only under a parent that opens that context, including page roots.
         if let Some(parent) = parent
-            && !is_page_root_node(snapshot, parent)
+            && holds_positioned_children(snapshot, parent)
             && sits_behind_in_flow_siblings(snapshot, parent, &node.id)
         {
             string_prop(props, "zIndex", "-1");
@@ -153,14 +152,8 @@ pub(super) fn push_layout_props(
         // column, is `boxSize="100%"`, and a hidden 1920px frame in a 992px
         // one is `w="100%" h="667px"`.
         //
-        // One departure, on purpose. An asset folds its children away and is
-        // drawn at a size, and the plugin still says no height for it: the
-        // 465px puzzle icon comes out `w="465px"` alone, a mask with nothing
-        // to mask. Here it keeps its height — unless it is wider than its
-        // parent, where the pinned corpus wants `w="100%"` and no height, and
-        // `provenance` expects the same. Text keeps its own width and `100%`:
-        // the plugin says nothing for a positioned text and the corpus wants
-        // the size written.
+        // Preserve the existing placement policy here. Only child-folded mask
+        // HUG axes are repaired below; other unproven sizes remain diagnostics.
         let own_width = view.number("width");
         let parent_width = parent.and_then(|parent| parent.typed_view().number("width"));
         if export.is_some() {
@@ -252,17 +245,8 @@ pub(super) fn push_layout_props(
         // already add back up to the frame, and restating the size only says
         // it twice.
         //
-        // Both sides or neither, on purpose. An absolute asset wider than its
-        // parent gets w="100%" and no height above, and the pinned corpus
-        // wants exactly that — two goldens carry a full-width rotated
-        // background mask with no h, and restoring the height there breaks
-        // byte parity. The box has no height and draws by its mask alone;
-        // that is the reference's rule, and it is matched rather than fixed.
-        //
-        // This is a departure from the plugin, which says no size for a
-        // positioned frame with children and lets them size it. A 12px box
-        // holding a 2px dot at its centre then collapses to the dot, and the
-        // dot lands 5px off; the pinned size is a layout fact, and it is kept.
+        // Ordinary frames may derive size from their content or padding.
+        // Child-folded HUG masks receive a bounded size repair below.
         if fixed_w
             && fixed_h
             && width.is_none()
@@ -278,10 +262,8 @@ pub(super) fn push_layout_props(
         // 24px row of logo and menu, and centring them in 24 rather than 60
         // put them 18px high of where Figma draws them.
         //
-        // An asset is left out, as it is above: it has no children left to
-        // measure, and the two goldens carrying a full-width rotated mask
-        // want their height unsaid. So is a frame whose spare room became
-        // padding, which already adds back up to the pinned height.
+        // Child-folded HUG masks have a repair below. Other unsupported asset
+        // sizes are reported by fidelity; padding may already size frames.
         if fixed_h
             && height.is_none()
             && !is_asset
@@ -393,6 +375,18 @@ pub(super) fn push_layout_props(
         }
     }
 
+    // A canvas with positioned children is their coordinate system, not just
+    // a responsive page measurement. Preserve each FIXED axis even on a page
+    // or section root. Embedded mode explicitly delegates dimensions to host.
+    if containing_block && !embedded_root {
+        if fixed_w {
+            width = view.number("width").map(px);
+        }
+        if fixed_h {
+            height = view.number("height").map(px);
+        }
+    }
+
     if component == "Text" && fixed_w && fixed_h {
         match view.string("textAutoResize") {
             Some("WIDTH_AND_HEIGHT") => {
@@ -412,6 +406,30 @@ pub(super) fn push_layout_props(
                 height = view.number("height").map(px).or(height);
             }
             _ => {}
+        }
+    }
+
+    // Only folding children into a CSS mask destroys HUG's intrinsic basis.
+    // FILL remains fluid; a vector's measured ratio supplies its lost HUG axis.
+    let mut restored_ratio = None;
+    if !embedded_root && let Some((w, h)) = folded_mask_dimensions(snapshot, node) {
+        let horizontal = view.string("layoutSizingHorizontal");
+        let vertical = view.string("layoutSizingVertical");
+        if horizontal == Some("FILL") && vertical == Some("HUG") {
+            width = Some("100%".into());
+            height = None;
+            restored_ratio = Some(format!("{w} / {h}"));
+        } else if horizontal == Some("HUG") && vertical == Some("FILL") {
+            width = None;
+            height = Some("100%".into());
+            restored_ratio = Some(format!("{w} / {h}"));
+        } else {
+            if horizontal == Some("HUG") {
+                width = Some(px(w));
+            }
+            if vertical == Some("HUG") {
+                height = Some(px(h));
+            }
         }
     }
 
@@ -436,7 +454,9 @@ pub(super) fn push_layout_props(
     // branch of `_getLayoutProps` never writes `aspectRatio` — so the ratio
     // is only for a node in flow, where it stands in for a side that is not
     // written. The about hero picture is `boxSize="100%"` with no ratio.
-    if !absolute
+    if let Some(ratio) = restored_ratio {
+        string_prop(props, "aspectRatio", ratio);
+    } else if !absolute
         && let Some(aspect) = view.value("targetAspectRatio").and_then(Value::as_object)
         && let (Some(x), Some(y)) = (
             aspect.get("x").and_then(Value::as_f64),
@@ -671,27 +691,19 @@ pub(super) fn push_layout_props(
     // A node that is itself positioned is already that ancestor, and saying
     // `relative` over its `absolute` would put it back in flow: the join-us
     // group of circles, pinned at -277,-187, took 1,102px of the page.
-    if !embedded_root
-        && !is_page_root
-        && !absolute
-        && super::style::asset_kind(snapshot, node).is_none()
-        && view.child_ids().any(|child| {
-            snapshot.nodes.get(child).is_some_and(|child| {
-                child.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
-                    || placed_by_a_free_layout(snapshot, child, Some(node), false)
-            })
-        })
-    {
+    if containing_block && (!absolute || embedded_root) {
         string_prop(props, "pos", "relative");
-        // A child sent behind its siblings with `zIndex="-1"` would fall
-        // behind this node's own background too, unless this node is the
-        // stacking context it is placed in. `zIndex="0"` makes it one.
-        if view
+    }
+    // Position (relative or absolute) establishes a containing block, but
+    // needs an explicit z-index to contain negative-z children above its own
+    // background. Keep an existing z-index that places this entire subtree.
+    if containing_block
+        && !props.iter().any(|(name, _)| name == "zIndex")
+        && view
             .child_ids()
             .any(|child| sits_behind_in_flow_siblings(snapshot, node, child))
-        {
-            string_prop(props, "zIndex", "0");
-        }
+    {
+        string_prop(props, "zIndex", "0");
     }
     // An export is drawn with its rotation in it, so an asset whose bounds
     // the snapshot carries is not rotated again; without the bounds it is
@@ -711,6 +723,19 @@ pub(super) fn push_layout_props(
             string_prop(props, "transformOrigin", "top left");
         }
     }
+}
+
+/// Only children that can survive projection need a containing block.
+pub(super) fn holds_positioned_children(snapshot: &Snapshot, node: &RawNode) -> bool {
+    super::style::asset_kind(snapshot, node).is_none()
+        && node.typed_view().child_ids().any(|id| {
+            snapshot.nodes.get(id).is_some_and(|child| {
+                let view = child.typed_view();
+                view.bool("visible") != Some(false)
+                    && (view.string("layoutPositioning") == Some("ABSOLUTE")
+                        || placed_by_a_free_layout(snapshot, child, Some(node), false))
+            })
+        })
 }
 
 pub(super) fn absolute_layout_is_exact(snapshot: &Snapshot, node: &RawNode) -> bool {
@@ -1250,34 +1275,6 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     }
 }
 
-/// Whether a node in flow is nonetheless placed by its parent, because the
-/// parent lays nothing out.
-///
-/// A frame with no auto layout puts each child where the designer left it,
-/// and the plugin's `canBeAbsolute` writes every such child at its
-/// constraints — `pos="absolute"` with the edges it is pinned to — and gives
-/// the frame `pos="relative"` to hold them. Here that was only done for a
-/// child marked absolute, so the notice banner's title and its two logos, three
-/// children of a free frame, were stacked in flow with no position at all.
-///
-/// Two cases are kept out. A frame whose single child's inset can be measured
-/// is written with that inset as padding and the child in flow, which puts it
-/// in the same place and lets it size the frame; and a frame whose single
-/// child is centred is written as a `Center` with the child in flow, see
-/// `centres_its_only_child`.
-/// Whether a node is a screen's root on the canvas: its parent is a page, a
-/// section or a component set, read from the parent when it was collected
-/// and from the node's own record of it when it was not. The same reading
-/// `push_layout_props` makes for the node it is laying out.
-fn is_page_root_node(snapshot: &Snapshot, node: &RawNode) -> bool {
-    let view = node.typed_view();
-    view.string("parentId")
-        .and_then(|parent_id| snapshot.nodes.get(parent_id))
-        .map(|parent| parent.typed_view().node_type())
-        .or_else(|| view.string("parentType"))
-        .is_some_and(|kind| matches!(kind, "SECTION" | "PAGE" | "COMPONENT_SET"))
-}
-
 /// Whether `child_id` is a positioned child of `parent` that Figma draws
 /// under everything else in it: nothing in flow comes before it, and
 /// something in flow comes after. CSS paints a positioned element after every
@@ -1317,6 +1314,21 @@ fn sits_behind_in_flow_siblings(snapshot: &Snapshot, parent: &RawNode, child_id:
     !earlier_in_flow && later_in_flow
 }
 
+/// Whether a node in flow is nonetheless placed by its parent, because the
+/// parent lays nothing out.
+///
+/// A frame with no auto layout puts each child where the designer left it,
+/// and the plugin's `canBeAbsolute` writes every such child at its
+/// constraints — `pos="absolute"` with the edges it is pinned to — and gives
+/// the frame `pos="relative"` to hold them. Here that was only done for a
+/// child marked absolute, so the notice banner's title and its two logos, three
+/// children of a free frame, were stacked in flow with no position at all.
+///
+/// Two cases are kept out. A frame whose single child's inset can be measured
+/// is written with that inset as padding and the child in flow, which puts it
+/// in the same place and lets it size the frame; and a frame whose single
+/// child is centred is written as a `Center` with the child in flow, see
+/// `centres_its_only_child`.
 pub(crate) fn placed_by_a_free_layout(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -1481,4 +1493,27 @@ pub(super) fn format_number(value: f64) -> String {
     } else {
         format!("{rounded:.2}").trim_end_matches('0').to_owned()
     }
+}
+
+/// Dimensions whose child-based HUG sizing is destroyed by mask projection.
+/// Render bounds alone cannot establish layout size (effects may enlarge them).
+pub(crate) fn folded_mask_dimensions(snapshot: &Snapshot, node: &RawNode) -> Option<(f64, f64)> {
+    let view = node.typed_view();
+    if super::style::asset_kind(snapshot, node) != Some(super::style::AssetKind::SvgMask)
+        || view.child_ids().next().is_none()
+        // Rotated exports and pixel mask offsets need a different transform
+        // proof. Leave them unresolved instead of inventing responsive sizes.
+        || view.number("rotation").is_some_and(|rotation| rotation.abs() > 0.01)
+        || export_offset(node).is_some()
+        || !(view.string("layoutSizingHorizontal") == Some("HUG")
+            || view.string("layoutSizingVertical") == Some("HUG"))
+    {
+        return None;
+    }
+    let measured = |axis| {
+        view.number(axis)
+            .or_else(|| view.value("absoluteBoundingBox")?.get(axis)?.as_f64())
+            .filter(|v| v.is_finite() && *v > 0.0)
+    };
+    Some((measured("width")?, measured("height")?))
 }
