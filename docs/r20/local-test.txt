@@ -1,0 +1,5 @@
+
+running 1 test
+test r14_asset_boundary_rounding_and_inherited_constraints_are_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.01s
