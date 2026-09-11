@@ -1,0 +1,21 @@
+{
+  "binary_modified_utc": "2026-09-11T14:38:59.2654173Z",
+  "binary_sha256": "05BF40657F6686CE557F9E0D558EC63DB9D06799C1BD6BC0E922FBB984B8152D",
+  "exact_runs": [
+    {
+      "exit_code": 0,
+      "output": "\nrunning 1 test\ntest server::output::tests::reports_canonical_paths_from_a_noncanonical_root_before_and_after_write ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 195 filtered out; finished in 0.00s\n",
+      "test": "server::output::tests::reports_canonical_paths_from_a_noncanonical_root_before_and_after_write"
+    },
+    {
+      "exit_code": 0,
+      "output": "\nrunning 1 test\ntest server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 195 filtered out; finished in 0.01s\n",
+      "test": "server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys"
+    }
+  ],
+  "source_sha256": "BAA27725D76B7EF1620AD74C5B3E52CF3444FE07CABAA786E77C9B1EB4E5B313",
+  "cargo_target_dir": null,
+  "target_directory": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\fix-macos-path-assertion\\target",
+  "binary": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\fix-macos-path-assertion\\target\\debug\\deps\\devup_mcp-bbcce4741168dc25.exe",
+  "workspace_root": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\fix-macos-path-assertion"
+}
