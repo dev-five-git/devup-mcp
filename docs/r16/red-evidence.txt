@@ -1,0 +1,191 @@
+R16 RED evidence
+Workspace: C:/Users/owjs3/orca/workspaces/devup-mcp/r16-resolution-labels
+Base: a4a42628efd029650b3182ccbef60363a8ebfdfb
+The first three runs used executables freshly produced by cargo test --workspace -j 2 r16 --no-fail-fast. Each was executed before its corresponding implementation. All 16 new tests failed on missing explanation fields.
+
+--- server-red.log ---
+
+running 3 tests
+
+thread 'server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause' (96500) panicked at crates\devup-mcp\src\server\projection.rs:5156:9:
+assertion `left == right` failed
+  left: Null
+ right: Array []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause ... FAILED
+
+thread 'server::projection::w1_regressions::r16_verdict_scope_identifies_remaining_asset_axes_without_diagnostics' (83896) panicked at crates\devup-mcp\src\server\projection.rs:5115:13:
+assertion `left == right` failed
+  left: Null
+ right: "partial"
+test server::projection::w1_regressions::r16_verdict_scope_identifies_remaining_asset_axes_without_diagnostics ... FAILED
+
+thread 'server::projection::w1_regressions::r16_complete_scope_and_mapping_semantics_survive_resource_delivery' (123476) panicked at crates\devup-mcp\src\server\projection.rs:5140:13:
+assertion `left == right` failed
+  left: Null
+ right: Array []
+test server::projection::w1_regressions::r16_complete_scope_and_mapping_semantics_survive_resource_delivery ... FAILED
+
+failures:
+
+failures:
+    server::projection::w1_regressions::r16_complete_scope_and_mapping_semantics_survive_resource_delivery
+    server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause
+    server::projection::w1_regressions::r16_verdict_scope_identifies_remaining_asset_axes_without_diagnostics
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 186 filtered out; finished in 0.98s
+
+
+--- source-map-red.log ---
+
+running 3 tests
+
+thread 'r16_embedded_width_reports_unknown_parent_without_promoting_it' (123332) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:326:5:
+assertion `left == right` failed
+  left: Null
+ right: "parent-width-unknown"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'r16_resolution_explains_raw_mapping_and_verified_width_as_separate_axes' (118400) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:302:5:
+assertion `left == right` failed
+  left: Null
+ right: "mapping-method"
+test r16_embedded_width_reports_unknown_parent_without_promoting_it ... FAILED
+test r16_resolution_explains_raw_mapping_and_verified_width_as_separate_axes ... FAILED
+
+thread 'r16_verified_width_has_no_blocker_and_preserves_width_evidence_alias' (3968) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:311:5:
+assertion failed: d["components"]["width"].get("blockedBy").is_some()
+test r16_verified_width_has_no_blocker_and_preserves_width_evidence_alias ... FAILED
+
+failures:
+
+failures:
+    r16_embedded_width_reports_unknown_parent_without_promoting_it
+    r16_resolution_explains_raw_mapping_and_verified_width_as_separate_axes
+    r16_verified_width_has_no_blocker_and_preserves_width_evidence_alias
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.37s
+
+
+--- blockers-red.log ---
+
+running 10 tests
+
+thread 'provenance::sizing::r16_tests::r16_asset_blockers_follow_the_selected_boundary_proof' (119504) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:1019:13:
+assertion `left == right` failed
+  left: Null
+ right: "read-error"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test provenance::sizing::r16_tests::r16_asset_blockers_follow_the_selected_boundary_proof ... FAILED
+
+thread 'provenance::sizing::r16_tests::r16_child_width_read_error' (69500) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "read-error"
+test provenance::sizing::r16_tests::r16_child_width_read_error ... FAILED
+
+thread 'provenance::sizing::r16_tests::r16_child_width_non_fixed_sizing' (106132) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "non-fixed-sizing"
+test provenance::sizing::r16_tests::r16_child_width_non_fixed_sizing ... FAILED
+
+thread 'provenance::sizing::r16_tests::r16_width_conflicting_dimension_props' (116628) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "conflicting-dimension-props"
+
+thread 'provenance::sizing::r16_tests::r16_width_containing_block' (77276) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "containing-block-unproven"
+
+thread 'provenance::sizing::r16_tests::r16_width_non_fixed_sizing' (13928) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "non-fixed-sizing"
+
+thread 'provenance::sizing::r16_tests::r16_parent_width_unknown' (79544) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "parent-width-unknown"
+test provenance::sizing::r16_tests::r16_width_conflicting_dimension_props ... FAILED
+test provenance::sizing::r16_tests::r16_width_containing_block ... FAILED
+test provenance::sizing::r16_tests::r16_width_non_fixed_sizing ... FAILED
+test provenance::sizing::r16_tests::r16_parent_width_unknown ... FAILED
+
+thread 'provenance::sizing::r16_tests::r16_width_read_error' (106032) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "read-error"
+
+thread 'provenance::sizing::r16_tests::r16_parent_width_unequal' (96516) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "parent-width-unequal"
+test provenance::sizing::r16_tests::r16_width_read_error ... FAILED
+
+thread 'provenance::sizing::r16_tests::r16_width_parent_padding' (123888) panicked at crates\devup-mcp-devup-ui\src\provenance\sizing.rs:995:9:
+assertion `left == right` failed
+  left: Null
+ right: "parent-padding-or-border"
+test provenance::sizing::r16_tests::r16_parent_width_unequal ... FAILED
+test provenance::sizing::r16_tests::r16_width_parent_padding ... FAILED
+
+failures:
+
+failures:
+    provenance::sizing::r16_tests::r16_asset_blockers_follow_the_selected_boundary_proof
+    provenance::sizing::r16_tests::r16_child_width_non_fixed_sizing
+    provenance::sizing::r16_tests::r16_child_width_read_error
+    provenance::sizing::r16_tests::r16_parent_width_unequal
+    provenance::sizing::r16_tests::r16_parent_width_unknown
+    provenance::sizing::r16_tests::r16_width_conflicting_dimension_props
+    provenance::sizing::r16_tests::r16_width_containing_block
+    provenance::sizing::r16_tests::r16_width_non_fixed_sizing
+    provenance::sizing::r16_tests::r16_width_parent_padding
+    provenance::sizing::r16_tests::r16_width_read_error
+
+test result: FAILED. 0 passed; 10 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.44s
+
+
+--- frame-scope-red.log ---
+running 1 test
+test server::projection::w1_regressions::r16_frame_scope_retains_scoped_output_failures ... FAILED
+
+failures:
+
+---- server::projection::w1_regressions::r16_frame_scope_retains_scoped_output_failures stdout ----
+
+thread 'server::projection::w1_regressions::r16_frame_scope_retains_scoped_output_failures' (67868) panicked at crates\devup-mcp\src\server\projection.rs:5226:9:
+assertion failed: causes.iter().any(|c|
+        c["domain"] == "requested-output" && c["nodeId"] == "1:2" &&
+            c["output"] == "tsx")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    server::projection::w1_regressions::r16_frame_scope_retains_scoped_output_failures
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 189 filtered out; finished in 0.02s
+
+
+--- reference-scope-red.log ---
+running 1 test
+test server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause ... FAILED
+
+failures:
+
+---- server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause stdout ----
+
+thread 'server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause' (59340) panicked at crates\devup-mcp\src\server\projection.rs:5202:9:
+assertion `left == right` failed
+  left: Null
+ right: "response"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 189 filtered out; finished in 0.01s

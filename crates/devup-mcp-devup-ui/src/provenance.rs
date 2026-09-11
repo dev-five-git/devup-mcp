@@ -10,7 +10,9 @@ use crate::codegen::{
 
 mod absolute_bounds;
 pub mod attributes;
+mod resolution;
 mod sizing;
+pub use resolution::resolution_semantics;
 pub(crate) use sizing::absolute_component_verification;
 pub(crate) use sizing::{account_for_sizing, implicit_css_verification};
 
@@ -48,11 +50,10 @@ pub struct ProvenanceEntry {
     pub resolution: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceMap {
     pub version: u32,
-    #[serde(serialize_with = "serialize_property_entries")]
     pub entries: Vec<ProvenanceEntry>,
     /// Trusted resource identities retained for in-process fidelity validation.
     /// A deserialized map without this context cannot establish token identity.
@@ -62,15 +63,15 @@ pub struct SourceMap {
     pub style_tokens: BTreeMap<String, String>,
 }
 
-fn serialize_property_entries<S: serde::Serializer>(
-    entries: &[ProvenanceEntry],
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    entries
-        .iter()
-        .filter(|e| e.property.is_some() || e.json_pointer.is_some())
-        .collect::<Vec<_>>()
-        .serialize(serializer)
+impl Serialize for SourceMap {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut map = serializer.serialize_struct("SourceMap", 3)?;
+        map.serialize_field("version", &self.version)?;
+        map.serialize_field("entries", &self.property_entries())?;
+        map.serialize_field("resolutionSemantics", &resolution_semantics())?;
+        map.end()
+    }
 }
 
 impl SourceMap {

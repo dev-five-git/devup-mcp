@@ -1,0 +1,37 @@
+{
+  "rust": {
+    "command": "cargo test --workspace -j 2 --no-fail-fast",
+    "exitCode": 0,
+    "passed": 829,
+    "failed": 0,
+    "ignored": 2
+  },
+  "javascript": {
+    "command": "node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs",
+    "exitCode": 0,
+    "passed": 12,
+    "failed": 0
+  },
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets -j 2 -- -D warnings",
+    "exitCode": 0,
+    "warnings": 0,
+    "errors": 0
+  },
+  "fmt": {
+    "command": "cargo fmt --all -- --check",
+    "exitCode": 0,
+    "diagnostics": 0
+  },
+  "directR16Tests": {
+    "passed": 18,
+    "failed": 0
+  },
+  "logHashes": {
+    "full-final.log": "37b862b51ee219d08735541423fd1ee40f5e3b2b66e907f52a0236171fbb363a",
+    "clippy.log": "6e6592df6592c6d57a07c4d1e7f2630866ae24ae2c1f31f4f4d7108148e6e15b",
+    "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "js.log": "623ad318af4b59880d8cd2d6379f794e29463f2d93841d5c55da0babaf41498f",
+    "inline-green.log": "3358063ae76d5fb791005fbc22bd84f36087851d833510ae164f805acccdede9"
+  }
+}

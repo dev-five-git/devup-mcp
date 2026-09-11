@@ -290,3 +290,68 @@ fn r14_far_edge_boundary_proof_rejects_parent_size_read_errors() {
     // Rounding a reported number does not establish that its input is reliable.
     assert_eq!(d["components"]["height"]["boundary"]["state"], "verified");
 }
+
+#[test]
+fn r16_resolution_explains_raw_mapping_and_verified_width_as_separate_axes() {
+    let o = generate(&modal(), "3997:46582");
+    let map = serde_json::to_value(&o.source_map).unwrap();
+    let entry = map["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["nodeId"] == "3997:46621" && e["property"] == "width")
+        .unwrap();
+    assert_eq!(entry["resolution"], "raw-fallback");
+    assert_eq!(
+        details(&o, "3997:46621")["components"]["width"]["state"],
+        "verified"
+    );
+    assert_eq!(map["resolutionSemantics"]["axis"], "mapping-method");
+    assert_eq!(
+        map["resolutionSemantics"]["verificationAxis"],
+        "diagnostics.details.components.*.state"
+    );
+    assert!(
+        map["resolutionSemantics"]["values"]["raw-fallback"]
+            .as_str()
+            .unwrap()
+            .contains("verified")
+    );
+}
+
+#[test]
+fn r16_verified_width_has_no_blocker_and_preserves_width_evidence_alias() {
+    let o = generate(&modal(), "3997:46582");
+    let d = details(&o, "3997:46621");
+    assert!(d["components"]["width"].get("blockedBy").is_some());
+    assert_eq!(d["components"]["width"]["blockedBy"], Value::Null);
+    assert_eq!(
+        d["components"]["width"],
+        d["appliedValue"]["widthPreservation"]
+    );
+}
+
+#[test]
+fn r16_embedded_width_reports_unknown_parent_without_promoting_it() {
+    let s = modal();
+    let o = generate_component(
+        &s,
+        "3997:46582",
+        &CodegenOptions {
+            inline_instances: true,
+            root_layout: devup_mcp_devup_ui::codegen::RootLayout::Embedded,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let d = details(&o, "3997:46621");
+    assert_eq!(d["components"]["width"]["state"], "approximated");
+    assert_eq!(
+        d["components"]["width"]["blockedBy"],
+        "parent-width-unknown"
+    );
+    assert_eq!(
+        d["components"]["width"],
+        d["appliedValue"]["widthPreservation"]
+    );
+}

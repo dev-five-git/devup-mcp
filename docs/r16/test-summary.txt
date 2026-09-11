@@ -1,0 +1,196 @@
+COMMAND: cargo test --workspace -j 2 --no-fail-fast
+EXIT: 0
+TOTAL: 829 passed / 0 failed / 2 ignored
+FULL LOG SHA256: 37b862b51ee219d08735541423fd1ee40f5e3b2b66e907f52a0236171fbb363a
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 45s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-bbcce4741168dc25.exe)
+test result: ok. 191 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.34s
+     Running unittests src\main.rs (target\debug\deps\devup_mcp-7f5300a590dcf287.exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\artifact_cache.rs (target\debug\deps\artifact_cache-788e307af666f384.exe)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\call_cache_resume.rs (target\debug\deps\call_cache_resume-3c1e472db5d84a27.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\cli.rs (target\debug\deps\cli-eade5d7a1dcd6118.exe)
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+     Running tests\composite_export.rs (target\debug\deps\composite_export-5eca1b2253e1959d.exe)
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.06s
+     Running tests\downstream_integration.rs (target\debug\deps\downstream_integration-608c4206817ef447.exe)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+     Running tests\export_defaults.rs (target\debug\deps\export_defaults-d45c7bc16acea0af.exe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests\figma_doctor.rs (target\debug\deps\figma_doctor-551d8ad285817ab6.exe)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\figma_explore.rs (target\debug\deps\figma_explore-b0b51cde49bc4300.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\figma_explore_limit.rs (target\debug\deps\figma_explore_limit-264f482a205f5ed4.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+     Running tests\figma_search_scope.rs (target\debug\deps\figma_search_scope-efccdf244403850a.exe)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests\ground_truth_tools.rs (target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.exe)
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests\live_figma_contract.rs (target\debug\deps\live_figma_contract-1ba250b007c7edf5.exe)
+test result: ok. 2 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\module_boundaries.rs (target\debug\deps\module_boundaries-e3184ee740c94c15.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\output_policy.rs (target\debug\deps\output_policy-e8b9d5ffff431238.exe)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\rate_limit_patience.rs (target\debug\deps\rate_limit_patience-dfb631caf8cef915.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+     Running tests\resource_delivery.rs (target\debug\deps\resource_delivery-05b4b68759062677.exe)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+     Running tests\responsive_export.rs (target\debug\deps\responsive_export-03825463658223cc.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+     Running tests\section_export.rs (target\debug\deps\section_export-e14d306f6740329e.exe)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+     Running tests\source_orchestration.rs (target\debug\deps\source_orchestration-762522615b5e1df5.exe)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+     Running tests\stdio_schema_compat_smoke.rs (target\debug\deps\stdio_schema_compat_smoke-4ee0ba62c72f7745.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+     Running tests\stdio_smoke.rs (target\debug\deps\stdio_smoke-412f70aa9f059b9b.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests\stdio_tools.rs (target\debug\deps\stdio_tools-b01a8494a0f1b0ca.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\ui_validate_response.rs (target\debug\deps\ui_validate_response-f15d0b498565df16.exe)
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+     Running tests\upstream_error_surfacing.rs (target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.exe)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exe)
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+     Running tests\asset_boundaries.rs (target\debug\deps\asset_boundaries-b270807a4ac54331.exe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\asset_manifest_covers_the_code.rs (target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\boolean_logos.rs (target\debug\deps\boolean_logos-4e46b7d45f65debd.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\button_answer.rs (target\debug\deps\button_answer-56d01032a4a14dbd.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests\codegen.rs (target\debug\deps\codegen-0efd2bf5d70ab180.exe)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\color_like_props.rs (target\debug\deps\color_like_props-4dafedac17e4d7bf.exe)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\compat_fixtures.rs (target\debug\deps\compat_fixtures-21def48330d1fa72.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s
+     Running tests\compat_manifest.rs (target\debug\deps\compat_manifest-d83068f8b9bdf329.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+     Running tests\component_projection.rs (target\debug\deps\component_projection-54f7a1dc961fe760.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\default_omission_golden.rs (target\debug\deps\default_omission_golden-7590ebc5cb067221.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.17s
+     Running tests\effect_fidelity_golden.rs (target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.exe)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\folded_asset_size.rs (target\debug\deps\folded_asset_size-1339586b786847af.exe)
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+     Running tests\free_placement_anchor.rs (target\debug\deps\free_placement_anchor-45b74df558c1804e.exe)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\keyframes_screen.rs (target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\local_screens.rs (target\debug\deps\local_screens-cdd2cfb235a0446c.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\manifest_trim_golden.rs (target\debug\deps\manifest_trim_golden-75c757cd9490090e.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\paint_opacity_golden.rs (target\debug\deps\paint_opacity_golden-0f672159de8e5494.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\pinned_size_restatement.rs (target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\placement_contract.rs (target\debug\deps\placement_contract-f143c434b440ea71.exe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\plugin_compat.rs (target\debug\deps\plugin_compat-243b9629f047092d.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\polymorphic_props.rs (target\debug\deps\polymorphic_props-c0535895235e7084.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\provenance.rs (target\debug\deps\provenance-2a3d190ad6b1ca3c.exe)
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\r10_content_sizing.rs (target\debug\deps\r10_content_sizing-5290240f0a4162fa.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\r13_provenance.rs (target\debug\deps\r13_provenance-f87a5fd4cbac7da4.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+     Running tests\r14_absolute_evidence.rs (target\debug\deps\r14_absolute_evidence-c1015fcbf04dfd7d.exe)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s
+     Running tests\r15_evidence_wording.rs (target\debug\deps\r15_evidence_wording-c5bd757ca1248a50.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\r6_vertical_sizing.rs (target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.exe)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.35s
+     Running tests\r7_layout.rs (target\debug\deps\r7_layout-ff7b26681661430c.exe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\r8_absolute_scroll.rs (target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-2e064b5dabb56ef1.exe)
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.88s
+     Running tests\responsive_alignment.rs (target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\responsive_merge.rs (target\debug\deps\responsive_merge-43791a550fe185d3.exe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\responsive_screen.rs (target\debug\deps\responsive_screen-f026dabb56576c93.exe)
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\root_canvas_width.rs (target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\single_frame_answers.rs (target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\testcase_expectations.rs (target\debug\deps\testcase_expectations-dd5e444031946e07.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\theme.rs (target\debug\deps\theme-0034585f72092e65.exe)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\unresolved_token_binding.rs (target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\validation.rs (target\debug\deps\validation-9f019b47fd152678.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\variant_nesting.rs (target\debug\deps\variant_nesting-ba9d01fe927cef4d.exe)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\variant_typography.rs (target\debug\deps\variant_typography-320b5fc42fe0b67b.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\wquw_151.rs (target\debug\deps\wquw_151-3f3ae59690bc4cbe.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+     Running tests\wquw_151_frames.rs (target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.exe)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.73s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exe)
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+     Running tests\assets.rs (target\debug\deps\assets-f58217e4c6535a42.exe)
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\collector.rs (target\debug\deps\collector-eabe9905ef75d9d2.exe)
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\envelope.rs (target\debug\deps\envelope-58a3630fe689d926.exe)
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\explore.rs (target\debug\deps\explore-b0d6d0556a705200.exe)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\figma_url.rs (target\debug\deps\figma_url-b7f3ee0b5430c2a4.exe)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\large_values.rs (target\debug\deps\large_values-351de2fb071d0c56.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\manifest_covers_readers.rs (target\debug\deps\manifest_covers_readers-52e7c9bc3238c03f.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests\oauth_flow.rs (target\debug\deps\oauth_flow-5a235cb446d7f8ad.exe)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests\payload_contract.rs (target\debug\deps\payload_contract-4b383732c331c5f5.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\r7_section_error.rs (target\debug\deps\r7_section_error-14ba6a0786a27049.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+     Running tests\r8_scroll_capture.rs (target\debug\deps\r8_scroll_capture-d75fc84572470c8a.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+     Running tests\r9_render_bounds_capture.rs (target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.exe)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+     Running tests\section.rs (target\debug\deps\section-a7e6afaa26260d8c.exe)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+     Running tests\snapshot.rs (target\debug\deps\snapshot-d85f713f8faa3fcc.exe)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\upstream_contract.rs (target\debug\deps\upstream_contract-3dacc8452487277d.exe)
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\upstream_failures.rs (target\debug\deps\upstream_failures-231c7799fbe78864.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\used_resources.rs (target\debug\deps\used_resources-b7c4985caa12d4fb.exe)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_visual-6a90e5c77ca57b4c.exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src\main.rs (target\debug\deps\devup_mcp_visual-df32b603e03c68d4.exe)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests\compare.rs (target\debug\deps\compare-a2272504b72dd270.exe)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+   Doc-tests devup_mcp
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests devup_mcp_devup_ui
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests devup_mcp_figma
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   Doc-tests devup_mcp_visual
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

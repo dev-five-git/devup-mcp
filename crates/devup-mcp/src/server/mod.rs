@@ -16,6 +16,7 @@ mod stack_diff;
 mod tools;
 mod validation;
 mod validation_guidance;
+mod verdict_scope;
 
 use std::sync::Arc;
 

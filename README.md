@@ -629,8 +629,9 @@ TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resol
 | resolution | 의미와 검증 범위 |
 | --- | --- |
 | `exact` | 원본 필드와 생성 태그·텍스트의 의미 매핑. 화면 전체의 픽셀/반응형 동등성 보증은 아님. |
-| `raw-fallback` | 변수/스타일 토큰 대신 원본 값에서 생성한 속성 매핑. 값이 부정확하다는 뜻이 아니며 별도 수치/레이아웃 증명이 없는 일반 경로. |
+| `raw-fallback` | 토큰 또는 전용 매핑 라벨이 없는 일반 원본 값·생성 정책 매핑 경로. raw 값의 무변환 복사나 낮은 신뢰도를 뜻하지 않으며, 별도 ABSOLUTE component가 `verified`여도 이 라벨은 유지됩니다. |
 | `verified-explicit-dimension` | 읽기 오류 없는 원본 width/height 수치와 생성 w/h/boxSize의 px 값이 정확히 같음을 확인. 반응형 배치까지 검증한 것은 아님. |
+| `accounted-for-content-sizing` | textAutoResize에 따른 고정 크기 생략의 의미 매핑. 폰트 메트릭과 브라우저 픽셀은 미측정. |
 | `verified-layout-sizing` | 원본 FIXED/FILL/layoutGrow 의도와 생성 h/boxSize/flex 관계를 sizing 검증기로 확인. |
 | `accounted-for-implicit-flex-stretch` | 실제 생성 부모의 cross-axis stretch와 크기 기준으로 생략된 크기를 설명. |
 | `accounted-for-implicit-flex-grow` | 실제 생성 부모의 main-axis flex-grow와 남은 공간으로 크기를 설명. |
@@ -642,6 +643,12 @@ TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resol
 | `variable` / `alias` / `style` | devup.json의 직접 변수 값 / 해석된 변수 alias / 스타일에서 나온 테마 값과 JSON pointer. |
 
 `node`는 내부 노드 범위용이며 공개 v2 property entries에는 포함되지 않습니다.
+
+R16의 `sourceMap.resolutionSemantics`는 이 라벨 사전과 `axis="mapping-method"`를 응답에 포함합니다. Section frame은 `dictionary="/resolutionSemantics"`로 상위 응답의 공통 사전을 참조하며, 이 사전은 resource delivery에도 남습니다. `diagnostics.details.components.*.state`는 별도의 제한된 검증 축입니다. 같은 screen/output 안에서 nodeId와 원본 property(width/height/x/y → width/height/horizontal/vertical)로 연결합니다. 예를 들어 `w="100%"`의 매핑은 `raw-fallback`이지만, 확정된 동일 FIXED 부모 폭에서 해석한 값이 원본 폭과 같으면 ABSOLUTE width는 `verified`일 수 있습니다. 이 두 라벨 모두 화면 전체의 픽셀·반응형 등가성 측정은 아닙니다.
+
+R16은 실패한 치수 증명의 `blockedBy`를 추가합니다. 부모 폭 불명(`parent-width-unknown`), 부모 폭 불일치(`parent-width-unequal`), 읽기 오류(`read-error`), 비FIXED sizing(`non-fixed-sizing`), dimension 충돌(`conflicting-dimension-props`)을 구분합니다. 성공 시 null이며 widthPreservation에도 같은 값이 들어갑니다. 첫 차단 이유만 보고하므로 나머지 조건의 통과나 다른 실패 분기의 실행을 뜻하지 않습니다. 자산은 부모 percentage 증명 대신 실제 선택된 render-boundary 증명의 실패 이유를 보고합니다.
+
+최종 응답과 각 frame의 `verdictScope`는 status/projection을 그대로 표시하고 `statusCauses`와 `projectionCauses`로 원인을 요약합니다. projection 원인은 nodeId/screenId/output/code/property와 미해결 component를 가리키므로, width/height가 verified여도 horizontal/vertical이 approximated인 화면의 전체 판정을 바로 설명합니다. `diagnosticIndex`는 같은 객체의 projectionIssues 인덱스입니다. includeDiagnostics=false 및 resource delivery에도 요약이 유지됩니다. 자세한 범위는 [R16 응답 계약](docs/r16/response-contract.md)을 참고합니다.
 
 ABSOLUTE 진단의 `components`는 height/width/horizontal/vertical별 state·fidelityImpact·원본 값·생성 값·검증 이유를 제공합니다. `resolutionConditions`에는 남은 근사 항목의 해소 조건만 들어갑니다. CENTER는 원본 중심 오프셋, left/top 50%, translate 및 실제 생성 부모 좌표 기준까지 확인해야 검증됩니다. MIN은 원본 오프셋과 생성 px를 비교합니다. MAX는 크기 검증을 전제로 parentSize-offset-size와 right/bottom 여백을 비교합니다. 제약 필드 전체가 없는 이전 캡처는 `constraintDeclared=false`로 표시하며 생성된 로컬 오프셋만 비교하고 반응형 제약을 추정하지 않습니다. 증명되지 않은 MAX/STRETCH/SCALE, 누락 geometry 또는 필드 오류는 근사로 남습니다. 명시적 FIXED 높이 보존은 percentage 너비의 동등성을 증명하지 않습니다.
 
