@@ -42,42 +42,68 @@ fn r9_non_rendering_requires_explicit_evidence() {
 
 #[test]
 fn r9_absolute_reports_verified_axes_and_remaining_width() {
-    for constraint in ["CENTER", "SCALE", "STRETCH", "MAX"] {
-        let mut s = modal();
-        s.nodes.get_mut("3997:46621").unwrap().fields.insert(
-            "constraints".into(),
-            json!({"horizontal":constraint,"vertical":"MIN"}),
-        );
-        let o = generate_component(
-            &s,
-            "3997:46582",
-            &CodegenOptions {
-                inline_instances: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        let d = o
-            .diagnostics
-            .iter()
-            .find(|d| {
-                d.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
-                    && d.node_id.as_deref() == Some("3997:46621")
-            })
+    // R14 proves the equal parent width; retain an unequal-width control for
+    // every original constraint and all original height/vertical assertions.
+    for width in [360, 400] {
+        for constraint in ["CENTER", "SCALE", "STRETCH", "MAX"] {
+            let mut s = modal();
+            s.nodes
+                .get_mut("3997:46621")
+                .unwrap()
+                .fields
+                .insert("width".into(), json!(width));
+            s.nodes
+                .get_mut("3997:46621")
+                .unwrap()
+                .fields
+                .insert("x".into(), json!((360 - width) / 2));
+            s.nodes.get_mut("3997:46621").unwrap().fields.insert(
+                "constraints".into(),
+                json!({"horizontal":constraint,"vertical":"MIN"}),
+            );
+            let o = generate_component(
+                &s,
+                "3997:46582",
+                &CodegenOptions {
+                    inline_instances: true,
+                    ..Default::default()
+                },
+            )
             .unwrap();
-        let details = d.details.as_ref().unwrap();
-        assert_eq!(details["components"]["height"]["state"], "preserved");
-        assert_eq!(
-            details["components"]["horizontal"]["state"],
-            if constraint == "CENTER" {
-                "verified"
-            } else {
-                "approximated"
-            }
-        );
-        assert_eq!(details["components"]["vertical"]["state"], "verified");
-        assert_eq!(details["components"]["width"]["state"], "approximated");
-        assert!(details["resolutionConditions"].is_array());
+            let d = o
+                .diagnostics
+                .iter()
+                .find(|d| {
+                    d.code
+                        == if width == 360 && matches!(constraint, "CENTER" | "MAX") {
+                            "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                        } else {
+                            "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
+                        }
+                        && d.node_id.as_deref() == Some("3997:46621")
+                })
+                .unwrap();
+            let details = d.details.as_ref().unwrap();
+            assert_eq!(details["components"]["height"]["state"], "preserved");
+            assert_eq!(
+                details["components"]["horizontal"]["state"],
+                if constraint == "CENTER" || (constraint == "MAX" && width == 360) {
+                    "verified"
+                } else {
+                    "approximated"
+                }
+            );
+            assert_eq!(details["components"]["vertical"]["state"], "verified");
+            assert_eq!(
+                details["components"]["width"]["state"],
+                if width == 360 {
+                    "verified"
+                } else {
+                    "approximated"
+                }
+            );
+            assert!(details["resolutionConditions"].is_array());
+        }
     }
 }
 

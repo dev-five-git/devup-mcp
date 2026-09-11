@@ -26,7 +26,12 @@ fn r8_absolute_fixed_height_survives_derived_padding() {
             .diagnostics
             .iter()
             .find(|d| {
-                d.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
+                d.code
+                    == if sizing == "FIXED" {
+                        "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                    } else {
+                        "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
+                    }
                     && d.node_id.as_deref() == Some("3997:46621")
             })
             .unwrap();

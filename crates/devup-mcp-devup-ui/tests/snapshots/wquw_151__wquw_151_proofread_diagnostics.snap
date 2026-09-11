@@ -259,7 +259,27 @@ expression: json!(output.diagnostics)
           "state": "not-fixed",
           "basis": "Generated explicit height; derived padding alone is not a fixed-height guarantee."
         },
-        "derivedPadding": null
+        "derivedPadding": null,
+        "widthPreservation": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "sourceSizing": "HUG",
+          "sourceValue": 40.0,
+          "generatedValue": null,
+          "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+          "sourceFields": [
+            "width",
+            "layoutSizingHorizontal",
+            "layoutPositioning",
+            "parentId",
+            "parent.width",
+            "parent.layoutSizingHorizontal"
+          ],
+          "parentGeneratedValue": "100%",
+          "resolvedPixels": null,
+          "calculation": "No explicit width on a matching HUG auto-layout container; intrinsic sizing intent is verified without resolving pixels."
+        }
       },
       "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
       "stage": "projection",
@@ -280,7 +300,18 @@ expression: json!(output.diagnostics)
           "sourceValue": 40.0,
           "generatedValue": null,
           "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
-          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+          "sourceFields": [
+            "width",
+            "layoutSizingHorizontal",
+            "layoutPositioning",
+            "parentId",
+            "parent.width",
+            "parent.layoutSizingHorizontal"
+          ],
+          "parentGeneratedValue": "100%",
+          "resolvedPixels": null,
+          "calculation": "No explicit width on a matching HUG auto-layout container; intrinsic sizing intent is verified without resolving pixels."
         },
         "horizontal": {
           "state": "verified",
@@ -315,6 +346,15 @@ expression: json!(output.diagnostics)
           "generatedParent": "    <VStack\n          bg=\"$background\"\n          borderRadius=\"12px\"\n          gap=\"8px\"\n          p=\"16px\"\n          pos=\"relative\"\n          w=\"100%\"\n        ",
           "generatedChild": "      <Flex\n            alignItems=\"center\"\n            borderRadius=\"1000px\"\n            p=\"10px\"\n            pos=\"absolute\"\n            right=\"8px\"\n            top=\"8px\"\n          "
         }
+      },
+      "componentSummary": {
+        "verified": [
+          "height",
+          "width",
+          "horizontal",
+          "vertical"
+        ],
+        "unresolved": []
       },
       "resolutionConditions": [],
       "classification": "verified-absolute-components"
@@ -667,7 +707,27 @@ expression: json!(output.diagnostics)
           "state": "not-fixed",
           "basis": "Generated explicit height; derived padding alone is not a fixed-height guarantee."
         },
-        "derivedPadding": null
+        "derivedPadding": null,
+        "widthPreservation": {
+          "state": "verified",
+          "fidelityImpact": "none",
+          "sourceSizing": "FIXED",
+          "sourceValue": 360.0,
+          "generatedValue": "100%",
+          "reason": "Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+          "sourceFields": [
+            "width",
+            "layoutSizingHorizontal",
+            "layoutPositioning",
+            "parentId",
+            "parent.width",
+            "parent.layoutSizingHorizontal"
+          ],
+          "parentGeneratedValue": "360px",
+          "resolvedPixels": 360.0,
+          "calculation": "For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation."
+        }
       },
       "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
       "stage": "projection",
@@ -687,8 +747,19 @@ expression: json!(output.diagnostics)
           "sourceSizing": "FIXED",
           "sourceValue": 360.0,
           "generatedValue": "100%",
-          "reason": "Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders.",
-          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+          "reason": "Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides.",
+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+          "sourceFields": [
+            "width",
+            "layoutSizingHorizontal",
+            "layoutPositioning",
+            "parentId",
+            "parent.width",
+            "parent.layoutSizingHorizontal"
+          ],
+          "parentGeneratedValue": "360px",
+          "resolvedPixels": 360.0,
+          "calculation": "For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation."
         },
         "horizontal": {
           "state": "verified",
@@ -723,6 +794,15 @@ expression: json!(output.diagnostics)
           "generatedParent": "<VStack\n      bg=\"$backgroundLight\"\n      h=\"740px\"\n      overflow=\"hidden\"\n      pos=\"relative\"\n      w=\"360px\"\n    ",
           "generatedChild": "  <Flex\n        alignItems=\"center\"\n        bg=\"$containerBackground\"\n        borderTop=\"solid 1px $border\"\n        bottom=\"0px\"\n        justifyContent=\"space-between\"\n        left=\"0px\"\n        overflow=\"hidden\"\n        pos=\"absolute\"\n        px=\"10px\"\n        py=\"8px\"\n        w=\"100%\"\n      "
         }
+      },
+      "componentSummary": {
+        "verified": [
+          "height",
+          "width",
+          "horizontal",
+          "vertical"
+        ],
+        "unresolved": []
       },
       "resolutionConditions": [],
       "classification": "verified-absolute-components"
