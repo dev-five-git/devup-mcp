@@ -622,7 +622,10 @@ pub fn validate_fidelity(
                                 ["state"]
                                 == "accounted-for";
                         }
-                        if matches!(property.as_str(), "layoutSizingVertical" | "layoutGrow") {
+                        if matches!(
+                            property.as_str(),
+                            "layoutSizingHorizontal" | "layoutSizingVertical" | "layoutGrow"
+                        ) {
                             return sizing::sizing_mapping_matches(
                                 snapshot, output, node_id, property, source,
                             );
@@ -804,6 +807,7 @@ fn layout_field_is_semantic(
         return false;
     }
     match field {
+        "layoutSizingHorizontal" => view.string(field) == Some("FILL"),
         "layoutSizingVertical" => {
             view.string(field) == Some("FILL")
                 || crate::codegen::vertical_fill_container(snapshot, node)
@@ -1403,6 +1407,7 @@ fn typography_sources<'a>(
 }
 
 const LAYOUT_FIELDS: &[&str] = &[
+    "layoutSizingHorizontal",
     "layoutSizingVertical",
     "layoutGrow",
     "layoutMode",

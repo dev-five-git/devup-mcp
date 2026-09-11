@@ -217,7 +217,7 @@ async fn doctor_action_reflects_connected_status_without_changing_the_status_act
     .unwrap();
     assert_eq!(
         status,
-        json!({ "status": "connected", "server": {"version":env!("CARGO_PKG_VERSION"),"buildId":devup_mcp::build_id(),"commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty())} })
+        json!({ "status": "connected", "server": {"version":env!("CARGO_PKG_VERSION"),"buildId":devup_mcp::build_id(),"commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty()),"displayVersion":format!("{}+{}",env!("CARGO_PKG_VERSION"),devup_mcp::build_id()),"identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary."} })
     );
     Ok(())
 }
@@ -335,7 +335,7 @@ async fn configure_action_persists_credentials_and_never_echoes_the_secret() -> 
     let output = result.structured_content.unwrap();
     assert_eq!(
         output,
-        json!({ "status": "configured", "server": {"version":env!("CARGO_PKG_VERSION"),"buildId":devup_mcp::build_id(),"commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty())} })
+        json!({ "status": "configured", "server": {"version":env!("CARGO_PKG_VERSION"),"buildId":devup_mcp::build_id(),"commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty()),"displayVersion":format!("{}+{}",env!("CARGO_PKG_VERSION"),devup_mcp::build_id()),"identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary."} })
     );
     let raw = output.to_string();
     assert!(!raw.contains("preregistered-secret"));

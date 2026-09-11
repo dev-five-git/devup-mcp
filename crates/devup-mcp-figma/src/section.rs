@@ -20,6 +20,8 @@ pub struct SectionCandidate {
     pub node_type: String,
     #[serde(default)]
     pub text_preview: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_preview_state: Option<String>,
     pub visible: bool,
     pub bounds: ExploreBounds,
     pub parent_id: Option<String>,
@@ -40,6 +42,7 @@ impl SectionCandidate {
             bounds: self.bounds,
             child_count: self.direct_child_count,
             text_preview: self.text_preview.clone(),
+            text_preview_state: self.text_preview_state.clone(),
             parent_id: self.parent_id.clone(),
             kind: crate::ExploreKind::Unknown,
             visible: self.visible,
@@ -313,6 +316,7 @@ pub fn build_section_index(
                 name: node.name,
                 node_type: node.node_type,
                 text_preview: node.text_preview,
+                text_preview_state: node.text_preview_state,
                 visible: node.visible,
                 bounds: node.bounds,
                 parent_id: node.parent_id,

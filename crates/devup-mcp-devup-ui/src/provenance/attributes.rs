@@ -197,8 +197,9 @@ pub fn uncovered_attributes(source: &str, contract: &[Value]) -> Vec<Value> {
             "message":"The final TSX cannot be parsed; attribute provenance cannot be verified."}),
         ];
     }
-    generated_attributes(source)
-        .into_iter()
+    let attributes = generated_attributes(source);
+    let mut missing: Vec<Value> = attributes
+        .iter()
         .filter(|attr| {
             !contract.iter().any(|e| {
                 e["verified"] == true
@@ -211,5 +212,25 @@ pub fn uncovered_attributes(source: &str, contract: &[Value]) -> Vec<Value> {
             json!({"elementIndex":attr.element,"tag":attr.tag,"property":attr.name,
         "generatedProperty":attr.source})
         })
-        .collect()
+        .collect();
+    // The inverse transport check catches deletion: enumerating only surviving
+    // attributes would make an omitted FILL property invisible again.
+    for entry in contract {
+        let property = entry["generatedProperty"].as_str().unwrap_or("");
+        let name = if property.starts_with("{...") {
+            "..."
+        } else {
+            property.split('=').next().unwrap_or("").trim()
+        };
+        if !attributes.iter().any(|attr| {
+            entry["elementIndex"] == attr.element && entry["tag"] == attr.tag && attr.name == name
+        }) {
+            missing.push(
+                json!({"elementIndex":entry["elementIndex"],"tag":entry["tag"],
+                "nodeId":entry["nodeId"],"property":name,"generatedProperty":property,
+                "reason":"expected-attribute-absent","propertyMappingVerified":false}),
+            );
+        }
+    }
+    missing
 }

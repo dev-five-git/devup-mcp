@@ -70,6 +70,8 @@ pub struct Violation {
     pub rule: &'static str,
     pub severity: Severity,
     pub byte_range: [usize; 2],
+    #[serde(flatten)]
+    pub context: serde_json::Map<String, serde_json::Value>,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
@@ -148,6 +150,7 @@ pub fn validate_devup_ui_tsx(
         violations.push(Violation {
             rule: "invalid-syntax",
             severity: Severity::Error,
+            context: Default::default(),
             byte_range: [start, end],
             message: format!("TSX failed TypeScript+JSX syntax validation: {diagnostic}"),
             suggestion: None,
@@ -165,6 +168,32 @@ pub fn validate_devup_ui_tsx(
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
     let checked_tokens = visitor.checked_tokens;
+    for violation in &mut violations {
+        let [start, end] = violation.byte_range;
+        let prefix = tsx.get(..start).unwrap_or("");
+        violation.context.insert(
+            "line".into(),
+            serde_json::json!(prefix.bytes().filter(|b| *b == b'\n').count() + 1),
+        );
+        violation.context.insert(
+            "column".into(),
+            serde_json::json!(prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1),
+        );
+        violation.context.insert(
+            "positionEncoding".into(),
+            serde_json::json!("1-based Unicode scalar columns; byteRange uses UTF-8 bytes"),
+        );
+        violation.context.insert(
+            "snippet".into(),
+            serde_json::json!(
+                tsx.get(start..end)
+                    .unwrap_or("")
+                    .chars()
+                    .take(120)
+                    .collect::<String>()
+            ),
+        );
+    }
 
     let ok = violations.iter().all(|violation| {
         violation.severity != Severity::Error
@@ -223,6 +252,7 @@ impl<'t> TsxVisitor<'t> {
                 self.violations.push(Violation {
                     rule: "unknown-token",
                     severity: Severity::Error,
+                    context: Default::default(),
                     byte_range: [span.start as usize, span.end as usize],
                     message: format!("${token} is not defined in devup.json."),
                     suggestion: if suggestions.is_empty() {
@@ -285,6 +315,7 @@ impl<'t> TsxVisitor<'t> {
             self.violations.push(Violation {
                 rule,
                 severity: Severity::Info,
+                context: Default::default(),
                 byte_range: [span.start as usize, span.end as usize],
                 message: format!("{prop_name} uses hardcoded {kind} {text}; {context}."),
                 suggestion: None,
@@ -296,14 +327,20 @@ impl<'t> TsxVisitor<'t> {
             .map(|name| format!("${name}"))
             .collect::<Vec<_>>()
             .join(", ");
+        let token_matches: Vec<_> = tokens.iter().map(|name| {
+            let map = if rule == "hardcoded-color" { &self.theme.unwrap().colors } else { &self.theme.unwrap().length };
+            let matching_modes: Vec<_> = map.iter().filter(|(_, values)| values.get(name).and_then(|v| v.as_str()).is_some_and(|v| if rule == "hardcoded-color" { v.trim().eq_ignore_ascii_case(text.trim()) } else { v == text })).map(|(mode,_)|mode.clone()).collect();
+            serde_json::json!({"token":format!("${name}"),"matchingModes":matching_modes,"allModesMatch":!map.is_empty() && matching_modes.len() == map.len()})
+        }).collect();
         self.violations.push(Violation {
             rule,
             severity: Severity::Warning,
+            context: serde_json::Map::from_iter([("tokenMatches".into(), serde_json::json!(token_matches))]),
             byte_range: [span.start as usize, span.end as usize],
             message: format!(
-                "{prop_name} uses hardcoded {kind} {text}, which this project's devup.json already defines as {named}. Use the token so a theme change reaches this value."
+                "{prop_name} uses hardcoded {kind} {text}, which this project's devup.json already defines as {named}. Check the matching modes before replacement; a partial-mode match may change this value in another mode."
             ),
-            suggestion: Some(format!("matching tokens: {named}")),
+            suggestion: Some(format!("matching tokens: {named}. Check tokenMatches.matchingModes and allModesMatch before replacing; a partial-mode match can change colors in other modes.")),
         });
     }
 
@@ -325,6 +362,7 @@ impl<'t> TsxVisitor<'t> {
         self.violations.push(Violation {
             rule: "unknown-prop",
             severity: Severity::Error,
+            context: Default::default(),
             byte_range: [span.start as usize, span.end as usize],
             message: format!(
                 "{prop_name} is not a prop recognized by {}.",
@@ -356,16 +394,17 @@ impl<'t> TsxVisitor<'t> {
                 continue;
             };
             let key = property_key_name(&property.key).unwrap_or_else(|| "?".to_owned());
-            if !is_static_expression(&property.value) {
+            if !is_static_expression(&property.value, call_name == "css") {
                 self.violations.push(Violation {
                     rule: "runtime-value",
                     severity: Severity::Error,
-                    byte_range: [
+                    context: Default::default(),
+            byte_range: [
                         property.value.span().start as usize,
                         property.value.span().end as usize,
                     ],
                     message: format!(
-                        "{call_name}({{ {key}: ... }}) accepts only statically analyzable literal values. Variables or expressions break zero-runtime extraction."
+                        "{call_name}({{ {key}: ... }}) accepts only statically analyzable literal values. css() can extract finite conditional branches as static classes; globalCss()/keyframes() do not select runtime classes. Value branches must be static, not arbitrary runtime values."
                     ),
                     suggestion: None,
                 });
@@ -454,9 +493,17 @@ fn property_key_name(key: &PropertyKey) -> Option<String> {
 /// ESLint rule: string/number/boolean/null literals, unary-negated numeric
 /// literals, and arrays/objects composed entirely of such, are allowed.
 /// Identifiers, member/call expressions, template literals with
-/// substitutions, and any other runtime-dependent expression are not.
-fn is_static_expression(expression: &Expression) -> bool {
-    match expression {
+/// substitutions, and arbitrary runtime value leaves are not. css() alone can
+/// select among recursively static conditional branches; the condition is kept
+/// in generated class selection (devup-ui extractor::extract_style_from_expression).
+fn is_static_expression(expression: &Expression, conditional_classes: bool) -> bool {
+    match expression.get_inner_expression() {
+        Expression::Identifier(id) if conditional_classes && id.name == "undefined" => true,
+        Expression::ConditionalExpression(conditional) => {
+            conditional_classes
+                && is_static_expression(&conditional.consequent, true)
+                && is_static_expression(&conditional.alternate, true)
+        }
         Expression::StringLiteral(_)
         | Expression::NumericLiteral(_)
         | Expression::BooleanLiteral(_)
@@ -466,15 +513,18 @@ fn is_static_expression(expression: &Expression) -> bool {
             matches!(
                 unary.operator,
                 UnaryOperator::UnaryNegation | UnaryOperator::UnaryPlus
-            ) && is_static_expression(&unary.argument)
+            ) && is_static_expression(&unary.argument, conditional_classes)
         }
         Expression::ArrayExpression(array) => array.elements.iter().all(|element| {
-            element.as_expression().is_some_and(is_static_expression) || element.is_elision()
+            element
+                .as_expression()
+                .is_some_and(|e| is_static_expression(e, conditional_classes))
+                || element.is_elision()
         }),
         Expression::ObjectExpression(object) => {
             object.properties.iter().all(|property| match property {
                 ObjectPropertyKind::ObjectProperty(property) => {
-                    is_static_expression(&property.value)
+                    is_static_expression(&property.value, conditional_classes)
                 }
                 ObjectPropertyKind::SpreadProperty(_) => false,
             })

@@ -135,11 +135,31 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
     assert!(output.fidelity_report.variables.complete());
     assert!(output.fidelity_report.typography.complete());
     assert!(output.fidelity_report.assets.complete());
-    assert!(output.fidelity_report.layout.complete());
-    assert_eq!(output.fidelity_report.impacts.lossy, 0);
+    // R17 reveals the previously unexamined source FILL on this Text.
+    assert_eq!(
+        output.fidelity_report.uncovered_layout,
+        vec!["3879:35547#layoutSizingHorizontal"]
+    );
+    assert_eq!(
+        output.fidelity_report.layout.total - output.fidelity_report.layout.covered,
+        1
+    );
+    assert_eq!(output.fidelity_report.impacts.lossy, 1);
     assert_eq!(output.fidelity_report.impacts.failed, 0);
     assert_eq!(output.fidelity_report.impacts.approximated, 0);
-    assert!(output.fidelity_report.strict_compatible());
+    assert!(!output.fidelity_report.strict_compatible());
+    let fill_issue = output
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.property.as_deref() == Some("layoutSizingHorizontal")
+                && d.node_id.as_deref() == Some("3879:35547")
+        })
+        .unwrap();
+    assert_eq!(
+        fill_issue.details.as_ref().unwrap()["implicitCssVerification"]["reasonCode"],
+        "gap-mismatch"
+    );
     assert!(!output.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
             && matches!(

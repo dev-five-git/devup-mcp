@@ -444,6 +444,23 @@ pub(super) fn push_layout_props(
         }
     }
 
+    // Horizontal FILL is independent of the other axis. Parent alignment
+    // can disable implicit stretch; preserve the fluid allocation explicitly.
+    if !absolute
+        && !embedded_root
+        && fill_w
+        && width.is_none()
+        && parent.is_some_and(|p| p.typed_view().string("layoutMode") == Some("VERTICAL"))
+        && parent.is_some_and(|p| {
+            matches!(
+                p.typed_view().string("counterAxisAlignItems"),
+                Some("CENTER" | "MAX" | "BASELINE")
+            )
+        })
+    {
+        width = Some("100%".into());
+    }
+
     // Cross-axis FILL must stretch even when the row centers other children.
     // Percentage height cannot resolve against a HUG row's auto height.
     if !absolute

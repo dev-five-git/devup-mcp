@@ -170,19 +170,28 @@ fn r6_centered_parent_does_not_explain_divider_width() {
         .unwrap()
         .fields
         .insert("counterAxisAlignItems".into(), json!("CENTER"));
-    let o = generate(&s);
-    let d = o
-        .diagnostics
+    let mut o = generate(&s);
+    // R17 now repairs this source case explicitly. Keep the R6 negative proof:
+    // remove only the repair and ensure centered CSS cannot claim implicit stretch.
+    let opening = tag(&o, "3997:46347");
+    assert!(opening.contains("w=\"100%\""));
+    let node = o
+        .source_map
+        .entries
         .iter()
-        .find(|d| {
-            d.node_id.as_deref() == Some("3997:46347") && d.property.as_deref() == Some("width")
-        })
+        .find(|e| e.node_id.as_deref() == Some("3997:46347") && e.property.is_none())
         .unwrap();
-    assert_eq!(d.fidelity_impact(), devup_mcp_figma::FidelityImpact::Lossy);
-    assert_eq!(
-        d.details.as_ref().unwrap()["implicitCssVerification"]["state"],
-        "not-accounted-for"
+    let start = node.generated_range.as_ref().unwrap().start + opening.find("w=\"100%\"").unwrap();
+    o.tsx
+        .replace_range(start..start + "w=\"100%\"".len(), "        ");
+    let report = validate_fidelity(&s, "3997:46333", &o).unwrap();
+    assert!(report.uncovered_layout.contains(&"3997:46347#width".into()));
+    assert!(
+        report
+            .uncovered_layout
+            .contains(&"3997:46347#layoutSizingHorizontal".into())
     );
+    assert!(report.layout.covered < report.layout.total);
 }
 
 #[test]

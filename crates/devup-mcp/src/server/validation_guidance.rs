@@ -18,7 +18,7 @@ pub(super) fn guidance(
         arguments["tsx"] = json!(tsx);
         return json!({
             "recoveryState":"available",
-            "recoveryReason":"Every blocking warning has one exact matching theme token; the corrected source passes validation with the original strictness.",
+            "recoveryReason":"Every blocking warning has one exact matching theme token in every mode; the corrected source passes validation with the original strictness.",
             "nextActionReason":"Validate the corrected source, then apply its token replacements to your file.",
             "nextAction":{"tool":"devup_ui_validate","arguments":arguments}
         });
@@ -34,7 +34,7 @@ pub(super) fn guidance(
             _ => "inspect the blocking source finding and its suggestion",
         }).collect();
     json!({
-        "recoveryState":"unrecoverable",
+        "recoveryState":"manual-fix-required",
         "recoveryReason":format!("Automatic source correction is unavailable. {}. This does not mean the source is unfixable or that the tool failed to execute.", reasons.into_iter().collect::<Vec<_>>().join("; ")),
         "nextAction":null,
         "nextActionReason":"Edit the source using the blocking violations' byteRange, rule and suggestion, then validate again with the same projectRoot and strict setting. Repeating unchanged arguments cannot resolve these findings."
@@ -81,6 +81,21 @@ fn corrected_tsx(
         let [token] = matches.as_slice() else {
             return None;
         };
+        // Validation success alone cannot prove that a theme switch preserves
+        // a literal. Only a unique token matching every mode is auto-correctable.
+        if !finding
+            .context
+            .get("tokenMatches")
+            .and_then(Value::as_array)
+            .is_some_and(|entries| {
+                entries
+                    .iter()
+                    .any(|e| e["token"] == format!("${token}") && e["allModesMatch"] == true)
+            })
+        {
+            return None;
+        }
+
         edits.push((
             start,
             end,
