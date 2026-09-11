@@ -1,0 +1,61 @@
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\crates\devup-mcp)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp-bbcce4741168dc25.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp-bbcce4741168dc25.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.47s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-bbcce4741168dc25.exe)
+
+running 1 test
+test server::projection::w1_regressions::r13_strict_codegen_mapping_gap_keeps_property_diagnostics ... FAILED
+
+failures:
+
+---- server::projection::w1_regressions::r13_strict_codegen_mapping_gap_keeps_property_diagnostics stdout ----
+
+thread 'server::projection::w1_regressions::r13_strict_codegen_mapping_gap_keeps_property_diagnostics' (41848) panicked at crates\devup-mcp\src\server\projection.rs:3055:9:
+assertion failed: error.details["projectionIssues"].as_array().is_some_and(|issues|
+        issues.iter().any(|d|
+                d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED" &&
+                            d["nodeId"] == "1:1" && d["property"] == "fontSize" &&
+                    d["fidelityImpact"] == "none"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    server::projection::w1_regressions::r13_strict_codegen_mapping_gap_keeps_property_diagnostics
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 185 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p devup-mcp --lib`
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_visual-6a90e5c77ca57b4c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: 1 target failed:
+    `-p devup-mcp --lib`

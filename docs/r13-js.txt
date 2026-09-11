@@ -1,0 +1,20 @@
+✔ R11 large SECTION survives the measured 20480-byte upstream text ceiling (33.4274ms)
+✔ R11 deep SECTION does not read every descendant's plugin parent chain (30.6725ms)
+✔ R10 compact index connects descendant IDs to selectable screens (0.7522ms)
+✔ R11 ownership payload includes only queried descendants, including deep IDs (35.7712ms)
+✔ R11 oversized candidate metadata fails explicitly before upstream truncation (2.4769ms)
+✔ R11 previews yield space to the complete screen menu near the response ceiling (7.6437ms)
+✔ Section list previews visible text without exporting descendants (0.3871ms)
+✔ Section preview text has per-candidate and aggregate limits (0.856ms)
+✔ a screen below two wrappers retains its complete SECTION parent chain (1.1942ms)
+✔ a nested heading explores the same ten screens as its enclosing SECTION (1.317ms)
+✔ a large SECTION without screens visits at most projectionLimit times eight nodes (2.7923ms)
+✔ oversized required nodes collapse to a bounded required-only projection (1.4153ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 199.5316

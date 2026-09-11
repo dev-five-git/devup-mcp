@@ -1,0 +1,22 @@
+devup-mcp 0.4.4 (a66fc287d0b4-dirty)
+{"status":"ok","version":"0.4.4","buildId":"a66fc287d0b4-dirty","binary":"ok","credentialBackend":"ok","serverConfig":"ok"}
+server::projection::w1_regressions::r13_asset_derivations_survive_map_and_diagnostics_opt_out: test
+server::projection::w1_regressions::r13_delivery_gate_detects_future_postprocessor_even_without_public_map: test
+server::projection::w1_regressions::r13_empty_responsive_still_reports_unverified_merge_stage: test
+server::projection::w1_regressions::r13_explicit_resource_offers_single_screen_single_output_reprojection: test
+server::projection::w1_regressions::r13_final_frame_contract_covers_both_outputs_after_filename_rewrite: test
+server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys: test
+server::projection::w1_regressions::r13_mapping_gap_is_not_exact_or_value_loss: test
+server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream: test
+server::projection::w1_regressions::r13_responsive_mapping_gap_is_explicit_and_strict_rejects: test
+server::projection::w1_regressions::r13_review_malformed_postprocess_cannot_pass_an_empty_ast: test
+server::projection::w1_regressions::r13_review_reference_resource_has_binary_size_guidance: test
+server::projection::w1_regressions::r13_review_responsive_resource_preserves_selection_in_next_action: test
+server::projection::w1_regressions::r13_strict_codegen_mapping_gap_keeps_property_diagnostics: test
+
+13 tests, 0 benchmarks
+r13_contract_rejects_new_attributes_changed_values_and_wrong_element: test
+r13_every_final_attribute_has_property_mapping_or_projection_evidence: test
+r13_parser_covers_expressions_spreads_and_boolean_props_without_reading_comments: test
+
+3 tests, 0 benchmarks

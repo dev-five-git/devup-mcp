@@ -1,0 +1,39 @@
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\crates\devup-mcp)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp-bbcce4741168dc25.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp-bbcce4741168dc25.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.60s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-bbcce4741168dc25.exe)
+
+running 1 test
+test server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream ... FAILED
+
+failures:
+
+---- server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream stdout ----
+
+thread 'server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream' (54672) panicked at crates\devup-mcp\src\server\projection.rs:2933:9:
+assertion `left == right` failed
+  left: String("import { Box } from \"@devup-ui/react\";\n\nexport function AuditScreen() {\n  return (\n    <Box />\n  );\n}\n")
+ right: String("import { Box } from \"@devup-ui/react\";\n\nexport function AuditScreen1() {\n  return (\n    <Box />\n  );\n}\n")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 183 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p devup-mcp --lib`

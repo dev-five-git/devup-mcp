@@ -1,0 +1,33 @@
+
+running 4 tests
+
+thread 'server::projection::w1_regressions::r13_mapping_gap_is_not_exact_or_value_loss' (56776) panicked at crates\devup-mcp\src\server\projection.rs:2596:9:
+assertion `left == right` failed
+  left: String("exact")
+ right: "mapping-incomplete"
+test server::projection::w1_regressions::r13_mapping_gap_is_not_exact_or_value_loss ... FAILED
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys' (54844) panicked at crates\devup-mcp\src\server\projection.rs:2634:74:
+called `Option::unwrap()` on a `None` value
+test server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys ... FAILED
+
+thread 'server::projection::w1_regressions::r13_explicit_resource_offers_single_screen_single_output_reprojection' (89344) panicked at crates\devup-mcp\src\server\projection.rs:2652:9:
+assertion `left == right` failed
+  left: Null
+ right: "devup_figma_export"
+test server::projection::w1_regressions::r13_explicit_resource_offers_single_screen_single_output_reprojection ... FAILED
+
+thread 'server::projection::w1_regressions::r13_asset_derivations_survive_map_and_diagnostics_opt_out' (46456) panicked at crates\devup-mcp\src\server\projection.rs:2613:34:
+Missing asset evidence: boxShadow
+test server::projection::w1_regressions::r13_asset_derivations_survive_map_and_diagnostics_opt_out ... FAILED
+
+failures:
+
+failures:
+    server::projection::w1_regressions::r13_asset_derivations_survive_map_and_diagnostics_opt_out
+    server::projection::w1_regressions::r13_explicit_resource_offers_single_screen_single_output_reprojection
+    server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys
+    server::projection::w1_regressions::r13_mapping_gap_is_not_exact_or_value_loss
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 173 filtered out; finished in 0.06s

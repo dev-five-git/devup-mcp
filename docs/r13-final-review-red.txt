@@ -1,0 +1,78 @@
+   Compiling windows-sys v0.61.2
+   Compiling aho-corasick v1.1.5
+   Compiling regex-automata v0.4.18
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling tokio v1.53.1
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling regex v1.13.1
+   Compiling windows-native-keyring-store v1.1.0
+   Compiling hyper v1.11.1
+   Compiling hyper-util v0.1.20
+   Compiling tower v0.5.3
+   Compiling tokio-rustls v0.26.4
+   Compiling tower-http v0.6.11
+   Compiling hyper-rustls v0.27.9
+   Compiling tokio-util v0.7.19
+   Compiling tokio-stream v0.1.19
+   Compiling reqwest v0.13.4
+   Compiling axum v0.8.9
+   Compiling rmcp v3.2.0
+   Compiling keyring v4.2.0
+   Compiling cap-primitives v4.0.3
+   Compiling matchers v0.2.0
+   Compiling nu-ansi-term v0.50.3
+   Compiling tracing-subscriber v0.3.23
+   Compiling cap-std v4.0.3
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\crates\devup-mcp-figma)
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\crates\devup-mcp-devup-ui)
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\crates\devup-mcp)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp-e7c3ff09bf3cef75.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r13-postprocess-provenance\target\debug\deps\devup_mcp-e7c3ff09bf3cef75.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 08s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-e7c3ff09bf3cef75.exe)
+
+running 12 tests
+test server::projection::w1_regressions::r13_mapping_gap_is_not_exact_or_value_loss ... ok
+test server::projection::w1_regressions::r13_review_malformed_postprocess_cannot_pass_an_empty_ast ... ok
+test server::projection::w1_regressions::r13_delivery_gate_detects_future_postprocessor_even_without_public_map ... FAILED
+test server::projection::w1_regressions::r13_empty_responsive_still_reports_unverified_merge_stage ... FAILED
+test server::projection::w1_regressions::r13_review_responsive_resource_preserves_selection_in_next_action ... ok
+test server::projection::w1_regressions::r13_explicit_resource_offers_single_screen_single_output_reprojection ... ok
+test server::projection::w1_regressions::r13_responsive_mapping_gap_is_explicit_and_strict_rejects ... ok
+test server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys ... ok
+test server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream ... ok
+test server::projection::w1_regressions::r13_review_reference_resource_has_binary_size_guidance ... ok
+test server::projection::w1_regressions::r13_asset_derivations_survive_map_and_diagnostics_opt_out ... ok
+test server::projection::w1_regressions::r13_final_frame_contract_covers_both_outputs_after_filename_rewrite ... ok
+
+failures:
+
+---- server::projection::w1_regressions::r13_delivery_gate_detects_future_postprocessor_even_without_public_map stdout ----
+
+thread 'server::projection::w1_regressions::r13_delivery_gate_detects_future_postprocessor_even_without_public_map' (38792) panicked at crates\devup-mcp\src\server\projection.rs:3019:9:
+assertion `left == right` failed
+  left: Number(4)
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- server::projection::w1_regressions::r13_empty_responsive_still_reports_unverified_merge_stage stdout ----
+
+thread 'server::projection::w1_regressions::r13_empty_responsive_still_reports_unverified_merge_stage' (89208) panicked at crates\devup-mcp\src\server\projection.rs:3048:9:
+assertion `left == right` failed
+  left: Bool(true)
+ right: false
+
+
+failures:
+    server::projection::w1_regressions::r13_delivery_gate_detects_future_postprocessor_even_without_public_map
+    server::projection::w1_regressions::r13_empty_responsive_still_reports_unverified_merge_stage
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 173 filtered out; finished in 0.38s
+
+error: test failed, to rerun pass `-p devup-mcp --lib`
+error: 1 target failed:
+    `-p devup-mcp --lib`

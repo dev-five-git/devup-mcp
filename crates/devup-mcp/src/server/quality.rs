@@ -17,6 +17,7 @@ pub enum AcquisitionQuality {
 #[serde(rename_all = "kebab-case")]
 pub enum ProjectionQuality {
     Exact,
+    MappingIncomplete,
     Approximated,
     Lossy,
     Failed,
@@ -125,6 +126,13 @@ pub fn projection_quality(requested: bool, diagnostics: &[Diagnostic]) -> Projec
         .max()
         .unwrap_or_default()
     {
+        FidelityImpact::None
+            if diagnostics
+                .iter()
+                .any(|d| d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED") =>
+        {
+            ProjectionQuality::MappingIncomplete
+        }
         FidelityImpact::None => ProjectionQuality::Exact,
         FidelityImpact::Approximated => ProjectionQuality::Approximated,
         FidelityImpact::Lossy => ProjectionQuality::Lossy,

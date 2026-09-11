@@ -3,6 +3,8 @@ mod compat;
 mod component;
 mod evidence;
 mod layout;
+mod property_derivations;
+pub(crate) use property_derivations::property_derivations;
 pub mod responsive;
 mod style;
 mod text;
