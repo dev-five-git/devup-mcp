@@ -95,6 +95,35 @@ pub(super) fn annotate(
             && ["minW", "maxW", "minH", "maxH", "boxSizing"]
                 .iter()
                 .all(|p| prop(tag, p).is_none());
+        // This selected-boundary proof supersedes the generic dimension proof,
+        // including its blocker. Never leave a percentage blocker on a verified asset.
+        component["blockedBy"] = json!(if verified {
+            None
+        } else if [
+            axis,
+            sizing,
+            "absoluteRenderBounds",
+            "absoluteBoundingBox",
+            "parentId",
+            "layoutPositioning"
+        ]
+        .iter()
+        .any(|f| node.field_errors.contains_key(*f))
+            || owner.is_some_and(|p| p.field_errors.contains_key("absoluteBoundingBox"))
+        {
+            Some("read-error")
+        } else if view.string(sizing) != Some("FIXED") {
+            Some("non-fixed-sizing")
+        } else if ["minW", "maxW", "minH", "maxH", "boxSizing"]
+            .iter()
+            .any(|p| prop(tag, p).is_some())
+        {
+            Some("conflicting-dimension-props")
+        } else if !boundary_ok {
+            Some("export-boundary-unproven")
+        } else {
+            Some("rounded-dimension-mismatch")
+        });
         component["rounding"] = round;
         component["state"] = json!(if verified { "verified" } else { "approximated" });
         component["fidelityImpact"] = json!(if verified { "none" } else { "approximated" });

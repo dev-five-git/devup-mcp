@@ -112,10 +112,81 @@ pub(crate) fn absolute_component_verification(
                     .iter()
                     .all(|name| prop(parent_tag, name).is_none())
             });
+        // Explain failure without changing any of the acceptance predicates above.
+        // Report the first blocker, not an assertion that other checks passed.
+        let child_override = ["minW", "maxW", "minH", "maxH"]
+            .iter()
+            .any(|p| prop(tag, p).is_some());
+        let parent_override = ["minW", "maxW", "minH", "maxH"]
+            .iter()
+            .any(|p| prop(parent_tag, p).is_some());
+        let parent_pixels = prop(parent_tag, name)
+            .or_else(|| prop(parent_tag, "boxSize"))
+            .and_then(|v| v.strip_suffix("px")?.parse::<f64>().ok())
+            .filter(|v| v.is_finite());
+        let parent_source = owner
+            .and_then(|p| p.typed_view().number(axis))
+            .filter(|v| v.is_finite());
+        let blocked_by = if preserved || intrinsic || percentage {
+            None
+        } else if [axis, sizing]
+            .iter()
+            .any(|f| node.field_errors.contains_key(*f))
+            || (generated == Some("100%")
+                && owner.is_some_and(|p| {
+                    [axis, sizing]
+                        .iter()
+                        .any(|f| p.field_errors.contains_key(*f))
+                }))
+            || (!auto_layout
+                && ["layoutMode", "layoutPositioning"]
+                    .iter()
+                    .any(|f| node.field_errors.contains_key(*f)))
+        {
+            Some("read-error")
+        } else if view.string(sizing) == Some("HUG") && generated.is_none() {
+            Some(if child_override || prop(tag, "flex").is_some() {
+                "conflicting-dimension-props"
+            } else {
+                "intrinsic-layout-unproven"
+            })
+        } else if view.string(sizing) != Some("FIXED")
+            || (generated == Some("100%")
+                && owner.is_some_and(|p| p.typed_view().string(sizing) != Some("FIXED")))
+        {
+            Some("non-fixed-sizing")
+        } else if original.is_none_or(|v| !v.is_finite()) {
+            Some("source-dimension-unknown")
+        } else if generated != Some("100%") {
+            Some("generated-dimension-unproven")
+        } else if child_override || parent_override {
+            Some("conflicting-dimension-props")
+        } else if parent_pixels.is_none() || parent_source.is_none() {
+            Some(if axis == "width" {
+                "parent-width-unknown"
+            } else {
+                "parent-height-unknown"
+            })
+        } else if original != parent_pixels || original != parent_source {
+            Some(if axis == "width" {
+                "parent-width-unequal"
+            } else {
+                "parent-height-unequal"
+            })
+        } else if !no_parent_border
+            || ["p", "px", "py", "pl", "pr", "pt", "pb"]
+                .iter()
+                .any(|p| prop(parent_tag, p).is_some())
+        {
+            Some("parent-padding-or-border")
+        } else {
+            Some("containing-block-unproven")
+        };
         let mut evidence = json!({"state":if preserved {"preserved"} else if intrinsic || percentage {"verified"} else {"approximated"},"fidelityImpact":if preserved || intrinsic || percentage {"none"} else {"approximated"},
             "sourceSizing":view.string(sizing),"sourceValue":original,"generatedValue":generated,
             "reason":if preserved {"Explicit generated pixels equal the collected FIXED dimension."} else if intrinsic {"Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels."} else if percentage && absolute_width {"Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides."} else if percentage {"Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders."} else {"No verified explicit FIXED dimension; percentage, intrinsic or missing sizes need a separate sizing proof."},
             "resolutionCondition":"Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."});
+        evidence["blockedBy"] = json!(blocked_by);
         if axis == "width" {
             evidence["sourceFields"] = json!([
                 "width",
@@ -964,5 +1035,140 @@ mod r14_tests {
             absolute_component_verification(&s, &o, "3997:46621")["width"]["state"],
             "approximated"
         );
+    }
+}
+
+#[cfg(test)]
+mod r16_tests {
+    use super::*;
+    use crate::codegen::{CodegenOptions, generate_component};
+
+    fn width_case(case: &str, expected: &str) {
+        let mut s: Snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r8/modal-snapshot.json"))
+                .unwrap();
+        let mut o = generate_component(
+            &s,
+            "3997:46582",
+            &CodegenOptions {
+                inline_instances: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        match case {
+            "unknown" => o.tsx = o.tsx.replacen("w=\"360px\"", "w=\"100% \"", 1),
+            "unequal" => o.tsx = o.tsx.replacen("w=\"360px\"", "w=\"359px\"", 1),
+            "read" => {
+                s.nodes
+                    .get_mut("3997:46582")
+                    .unwrap()
+                    .field_errors
+                    .insert("width".into(), "unavailable".into());
+            }
+            "child-read" => {
+                s.nodes
+                    .get_mut("3997:46621")
+                    .unwrap()
+                    .field_errors
+                    .insert("width".into(), "unavailable".into());
+            }
+            "child-sizing" => {
+                s.nodes
+                    .get_mut("3997:46621")
+                    .unwrap()
+                    .fields
+                    .insert("layoutSizingHorizontal".into(), json!("FILL"));
+            }
+            "sizing" => {
+                s.nodes
+                    .get_mut("3997:46582")
+                    .unwrap()
+                    .fields
+                    .insert("layoutSizingHorizontal".into(), json!("FILL"));
+            }
+            // Equal byte length keeps private provenance ranges valid.
+            "conflict" => {
+                o.tsx = o
+                    .tsx
+                    .replacen("overflow=\"hidden\"", "minW=\"360px\"     ", 1)
+            }
+            "padding" => {
+                o.tsx = o
+                    .tsx
+                    .replacen("overflow=\"hidden\"", "p=\"1px\"          ", 1)
+            }
+            "containing" => o.tsx = o.tsx.replacen("pos=\"relative\"", "pos=\"static  \"", 1),
+            _ => panic!("unknown case"),
+        }
+        let c = absolute_component_verification(&s, &o, "3997:46621");
+        assert_eq!(c["width"]["state"], "approximated");
+        assert_eq!(c["width"]["resolvedPixels"], Value::Null);
+        assert_eq!(c["width"]["blockedBy"], expected);
+    }
+    #[test]
+    fn r16_parent_width_unknown() {
+        width_case("unknown", "parent-width-unknown");
+    }
+    #[test]
+    fn r16_parent_width_unequal() {
+        width_case("unequal", "parent-width-unequal");
+    }
+    #[test]
+    fn r16_width_read_error() {
+        width_case("read", "read-error");
+    }
+    #[test]
+    fn r16_child_width_read_error() {
+        width_case("child-read", "read-error");
+    }
+    #[test]
+    fn r16_child_width_non_fixed_sizing() {
+        width_case("child-sizing", "non-fixed-sizing");
+    }
+    #[test]
+    fn r16_width_non_fixed_sizing() {
+        width_case("sizing", "non-fixed-sizing");
+    }
+    #[test]
+    fn r16_width_conflicting_dimension_props() {
+        width_case("conflict", "conflicting-dimension-props");
+    }
+    #[test]
+    fn r16_width_parent_padding() {
+        width_case("padding", "parent-padding-or-border");
+    }
+    #[test]
+    fn r16_width_containing_block() {
+        width_case("containing", "containing-block-unproven");
+    }
+
+    #[test]
+    fn r16_asset_blockers_follow_the_selected_boundary_proof() {
+        for (field, expected) in [
+            ("absoluteRenderBounds", "read-error"),
+            ("layoutSizingHorizontal", "non-fixed-sizing"),
+        ] {
+            let mut s: Snapshot =
+                serde_json::from_str(include_str!("../../../../fixtures/r14/asset-snapshot.json"))
+                    .unwrap();
+            let o = generate_component(&s, "3997:46667", &CodegenOptions::default()).unwrap();
+            if field == "absoluteRenderBounds" {
+                s.nodes
+                    .get_mut("3997:46668")
+                    .unwrap()
+                    .field_errors
+                    .insert(field.into(), "unavailable".into());
+            } else {
+                s.nodes
+                    .get_mut("3997:46668")
+                    .unwrap()
+                    .fields
+                    .insert(field.into(), json!("FILL"));
+            }
+            let c = absolute_component_verification(&s, &o, "3997:46668");
+            assert_eq!(c["width"]["state"], "approximated");
+            assert_eq!(c["width"]["blockedBy"], expected);
+        }
     }
 }

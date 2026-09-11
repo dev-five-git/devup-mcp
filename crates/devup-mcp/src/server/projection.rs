@@ -1536,6 +1536,7 @@ pub(super) async fn complete_operation(
                         attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                         if outputs.iter().any(|output| output == "sourceMap") {
                             frame["sourceMap"] = json!({"version":output.source_map.version,
+                                "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
                                 "entries":output.source_map.property_entries(),"source":{"fileKey":payload.target.file_key,
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
                                 "generatedOutput":field,"mappingKind":"node-field-property"}});
@@ -1971,6 +1972,7 @@ pub(super) async fn complete_operation(
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
                     "version": 2,
+                    "resolutionSemantics":devup_mcp_devup_ui::provenance::resolution_semantics(),
                     "tsx": tsx_source_map.map(|source_map| source_map.property_entries()).unwrap_or_default(),
                     "devupJson": devup_json_source_map
                         .map(|source_map| source_map.entries)
@@ -2383,6 +2385,9 @@ pub(super) async fn complete_operation(
                         &frame_failures,
                         Some(&id),
                     );
+                    if !frame_failures.is_empty() {
+                        frame["failures"] = json!(frame_failures);
+                    }
                 }
             }
             attach_review_and_deliverable(
@@ -2428,10 +2433,41 @@ pub(super) async fn complete_operation(
                     payload.snapshot.roots.iter().map(String::as_str),
                 )
             };
+            // Share definitions only for labels present in these outputs. The
+            // full label catalog remains documented and standalone maps carry it.
+            if let Some(frames) = result.get("frames").and_then(Value::as_array)
+                && frames.iter().any(|frame| frame.get("sourceMap").is_some())
+            {
+                let labels = frames
+                    .iter()
+                    .flat_map(|f| {
+                        f["outputResults"]
+                            .as_object()
+                            .into_iter()
+                            .flat_map(|o| o.values())
+                    })
+                    .flat_map(|o| o["_sourceMap"].as_array().into_iter().flatten())
+                    .filter_map(|e| e["resolution"].as_str())
+                    .collect::<std::collections::BTreeSet<_>>();
+                let mut semantics = devup_mcp_devup_ui::provenance::resolution_semantics();
+                semantics
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("verificationAxis");
+                semantics["relation"] = json!(
+                    "Same node/property/screen/output: ABSOLUTE components.*.state is independent."
+                );
+                semantics["values"]
+                    .as_object_mut()
+                    .unwrap()
+                    .retain(|label, _| labels.contains(label.as_str()));
+                result.insert("resolutionSemantics".into(), semantics);
+            }
             let mut value = Value::Object(std::mem::take(&mut result));
             attach_diagnostic_screens(&mut value, &owners);
             rewrite_result_asset_references(&mut value, &replacements);
             audit_delivered_properties(&mut value);
+            super::verdict_scope::attach(&mut value);
             if strict && value["mappingComplete"] == false {
                 return Err(DevupError::with_details(
                     ErrorCode::DevupSnapshotUnsupported,
@@ -5096,6 +5132,204 @@ mod w1_regressions {
             serde_json::to_vec(&frame["sourceMap"]).unwrap().len(),
             tsx.len()
         );
+    }
+
+    #[tokio::test]
+    async fn r16_verdict_scope_identifies_remaining_asset_axes_without_diagnostics() {
+        let mut data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r14/asset-snapshot.json"))
+                .unwrap();
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46667".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["status"], "partial");
+        assert_eq!(result["quality"]["projection"], "approximated");
+        for owner in [&result, &result["frames"][0]] {
+            let scope = &owner["verdictScope"];
+            assert_eq!(scope["status"], "partial");
+            assert_eq!(scope["projection"], "approximated");
+            let causes: Vec<_> = scope["projectionCauses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|c| {
+                    c["nodeId"] == "3997:46668" && c["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
+                })
+                .collect();
+            assert_eq!(causes.len(), 2);
+            assert_eq!(causes[0]["component"], "horizontal");
+            assert_eq!(causes[1]["component"], "vertical");
+            for cause in causes {
+                assert_eq!(cause["screenId"], "3997:46667");
+                assert_eq!(cause["state"], "approximated");
+                assert!(cause["reason"].as_str().is_some_and(|s| !s.is_empty()));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r16_complete_scope_and_mapping_semantics_survive_resource_delivery() {
+        for delivery_mode in [DeliveryMode::Inline, DeliveryMode::Resource] {
+            let data: CollectedPayload = serde_json::from_str(include_str!(
+                "../../../../fixtures/r2/wquw-118-payload.json"
+            ))
+            .unwrap();
+            let mut op = operation(&["tsx", "sourceMap"]);
+            if let PendingOperation::Export {
+                frame_ids,
+                delivery,
+                ..
+            } = &mut op
+            {
+                *frame_ids = vec!["3997:46129".into()];
+                *delivery = delivery_mode;
+            }
+            let result = project(data, op).await.unwrap();
+            assert_eq!(result["status"], "complete");
+            assert_eq!(result["verdictScope"]["projectionCauses"], json!([]));
+            assert_eq!(result["verdictScope"]["statusCauses"], json!([]));
+            assert_eq!(result["verdictScope"]["projection"], "exact");
+            assert_eq!(result["resolutionSemantics"]["axis"], "mapping-method");
+            assert!(
+                result["resolutionSemantics"]["values"]["raw-fallback"]
+                    .as_str()
+                    .unwrap()
+                    .contains("verified")
+            );
+            if result.get("resources").is_none() {
+                assert_eq!(
+                    result["frames"][0]["sourceMap"]["resolutionSemantics"]["axis"],
+                    "mapping-method"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r16_non_projection_partial_has_its_own_status_cause() {
+        let mut data = payload();
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .field_errors
+            .insert("name".into(), "unavailable".into());
+        let result = project(data, operation(&["rawSnapshot"])).await.unwrap();
+        assert_eq!(result["status"], "partial");
+        assert_eq!(result["quality"]["projection"], "not-requested");
+        assert_eq!(result["verdictScope"]["projectionCauses"], json!([]));
+        assert!(
+            result["verdictScope"]["statusCauses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["domain"] == "acquisition" && c["state"] == "partial")
+        );
+        let acquisition = result["verdictScope"]["statusCauses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["domain"] == "acquisition")
+            .unwrap();
+        assert_eq!(acquisition["evidenceScope"], "response");
+    }
+
+    #[tokio::test]
+    async fn r16_frame_scope_retains_scoped_output_failures() {
+        let mut data = section(2);
+        // Unlike the deliberately underspecified generic Section fixture,
+        // this successful sibling has a complete fixed-dimension proof.
+        data.snapshot.nodes.get_mut("1:1").unwrap().fields.extend(
+            serde_json::from_value::<BTreeMap<String, Value>>(json!({
+                "layoutSizingHorizontal":"FIXED", "layoutSizingVertical":"FIXED"
+            }))
+            .unwrap(),
+        );
+        data.snapshot.nodes.remove("1:2");
+        data.snapshot.roots = vec!["1:1".into()];
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+        }
+        let result = project(data, op).await.unwrap();
+        let good = &result["frames"][0];
+        let failed = &result["frames"][1];
+        assert_eq!(good["verdictScope"]["statusCauses"], json!([]));
+        let causes = failed["verdictScope"]["statusCauses"].as_array().unwrap();
+        assert!(causes.iter().any(|c| c["domain"] == "requested-output"
+            && c["nodeId"] == "1:2"
+            && c["output"] == "tsx"));
+        for cause in causes.iter().filter(|c| c["domain"] == "requested-output") {
+            let i = cause["failureIndex"].as_u64().unwrap() as usize;
+            assert_eq!(failed["failures"][i]["errorCode"], cause["code"]);
+        }
+    }
+
+    #[tokio::test]
+    async fn r16_resource_scope_retains_every_projection_issue() {
+        for asset_case in [false, true] {
+            let mut data: CollectedPayload = serde_json::from_str(include_str!(
+                "../../../../fixtures/r2/wquw-119-payload.json"
+            ))
+            .unwrap();
+            let selected = if asset_case {
+                data.snapshot = serde_json::from_str(include_str!(
+                    "../../../../fixtures/r14/asset-snapshot.json"
+                ))
+                .unwrap();
+                vec!["3997:46667".into()]
+            } else {
+                vec![
+                    "3997:46315".into(),
+                    "3997:46715".into(),
+                    "3997:46333".into(),
+                ]
+            };
+            let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
+            if let PendingOperation::Export {
+                frame_ids,
+                delivery,
+                ..
+            } = &mut op
+            {
+                *frame_ids = selected;
+                *delivery = DeliveryMode::Resource;
+            }
+            let result = project(data, op).await.unwrap();
+            assert_eq!(result["resolutionSemantics"]["axis"], "mapping-method");
+            if asset_case {
+                assert!(!result["projectionIssues"].as_array().unwrap().is_empty());
+            }
+            for owner in std::iter::once(&result).chain(result["frames"].as_array().unwrap()) {
+                let causes = owner["verdictScope"]["projectionCauses"]
+                    .as_array()
+                    .unwrap();
+                let issues = owner["projectionIssues"].as_array().unwrap();
+                for (i, issue) in issues.iter().enumerate() {
+                    assert!(causes.iter().any(|c| c["diagnosticIndex"] == i
+                        && c["nodeId"] == issue["nodeId"]
+                        && c["code"] == issue["code"]));
+                }
+                eprintln!(
+                    "R16 metadata node={} scopeBytes={} issues={}",
+                    owner["nodeId"],
+                    serde_json::to_vec(&owner["verdictScope"]).unwrap().len(),
+                    issues.len()
+                );
+            }
+        }
     }
 
     async fn project(
