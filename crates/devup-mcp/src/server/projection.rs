@@ -3308,6 +3308,7 @@ mod w1_regressions {
         let dir = std::env::temp_dir().join(format!("r13-paths-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let target = dir.join("frame.tsx");
+        let expected = crate::test_paths::canonical(&dir).join("frame.tsx");
         let mut op = operation(&["tsx", "sourceMap"]);
         if let PendingOperation::Export {
             frame_ids,
@@ -3343,7 +3344,7 @@ mod w1_regressions {
         );
         assert_eq!(
             result["outputPaths"]["frame:1:1:tsx"],
-            target.to_string_lossy().as_ref()
+            expected.to_string_lossy().as_ref()
         );
         assert!(!dir.join("ignored.tsx").exists());
         std::fs::remove_file(target).unwrap();
@@ -4621,7 +4622,7 @@ mod w1_regressions {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&directory).unwrap();
-        let root = dunce::canonicalize(&directory).unwrap();
+        let root = crate::test_paths::canonical(&directory);
         let first_path = root.join("icons/BI icon.png");
         let second_path = root.join("icons/other.png");
         let tsx_path = root.join("Screen.tsx");

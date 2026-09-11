@@ -1,10 +1,14 @@
 use std::{
     fs::{self, File, FileTimes},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use devup_mcp::server::output::{OutputPolicy, OutputTransaction};
+
+#[path = "support/paths.rs"]
+mod paths;
+use paths::canonical;
 
 /// Deliberately returns the spelling `std::env::temp_dir()` gives, symlinks and
 /// all. On macOS that is under `/var/folders`, which resolves to
@@ -18,12 +22,6 @@ fn unique_temp_dir(label: &str) -> anyhow::Result<PathBuf> {
     ));
     fs::create_dir_all(&path)?;
     Ok(path)
-}
-
-/// Where the policy will actually report files, which is the canonical location
-/// rather than the configured spelling. Assertions compare against this.
-fn canonical(path: &Path) -> PathBuf {
-    dunce::canonicalize(path).expect("canonicalize an existing temp directory")
 }
 
 #[test]
