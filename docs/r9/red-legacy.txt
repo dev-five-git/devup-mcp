@@ -1,0 +1,24 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.93s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-879ea00139ecb6a4.exe)
+
+running 1 test
+
+thread 'r9_legacy_exact_still_reports_and_rechecks_constraints' (202012) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:381:140:
+legacy exact must not bypass component evidence
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_legacy_exact_still_reports_and_rechecks_constraints ... FAILED
+
+failures:
+
+failures:
+    r9_legacy_exact_still_reports_and_rechecks_constraints
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r9_precision`

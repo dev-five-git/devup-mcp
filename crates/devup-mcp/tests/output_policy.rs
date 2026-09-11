@@ -1,10 +1,14 @@
 use std::{
     fs::{self, File, FileTimes},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use devup_mcp::server::output::{OutputPolicy, OutputTransaction};
+
+#[path = "support/paths.rs"]
+mod paths;
+use paths::canonical;
 
 /// Deliberately returns the spelling `std::env::temp_dir()` gives, symlinks and
 /// all. On macOS that is under `/var/folders`, which resolves to
@@ -18,12 +22,6 @@ fn unique_temp_dir(label: &str) -> anyhow::Result<PathBuf> {
     ));
     fs::create_dir_all(&path)?;
     Ok(path)
-}
-
-/// Where the policy will actually report files, which is the canonical location
-/// rather than the configured spelling. Assertions compare against this.
-fn canonical(path: &Path) -> PathBuf {
-    dunce::canonicalize(path).expect("canonicalize an existing temp directory")
 }
 
 #[test]
@@ -65,6 +63,106 @@ fn resolves_only_files_inside_preopened_roots() -> anyhow::Result<()> {
     drop(policy);
     fs::remove_dir_all(root)?;
     fs::remove_dir_all(outside)?;
+    Ok(())
+}
+
+#[test]
+fn accepts_parent_components_in_a_configured_alias_resolving_inside_the_root() -> anyhow::Result<()>
+{
+    let sandbox = unique_temp_dir("parent-alias")?;
+    fs::create_dir(sandbox.join("detour"))?;
+    let root = sandbox.join("allowed");
+    fs::create_dir(&root)?;
+    let alias = sandbox.join("detour").join("..").join("allowed");
+    let canonical_root = canonical(&root);
+    assert_eq!(canonical(&alias), canonical_root);
+    let requested = alias.join("nested").join("Component.tsx");
+    // Force the configured-prefix branch on every OS, independently of
+    // whether the system temp directory is reached through a symlink.
+    assert!(!requested.starts_with(&canonical_root));
+    let policy = OutputPolicy::from_roots(vec![alias])?;
+    let expected = canonical_root.join("nested").join("Component.tsx");
+    assert!(!expected.exists());
+    let target = policy.resolve(requested.to_str().unwrap())?;
+    assert_eq!(target.display_path(), expected);
+    let mut transaction = OutputTransaction::new();
+    transaction.stage("tsx", target, b"inside root")?;
+    assert_eq!(transaction.commit()?["tsx"], expected.to_string_lossy());
+    assert_eq!(fs::read(&expected)?, b"inside root");
+    assert_eq!(
+        policy.resolve(requested.to_str().unwrap())?.display_path(),
+        expected
+    );
+    drop(policy);
+    fs::remove_dir_all(sandbox)?;
+    Ok(())
+}
+
+#[test]
+fn rejects_parent_components_remaining_after_the_root_prefix() -> anyhow::Result<()> {
+    let sandbox = unique_temp_dir("parent-suffix")?;
+    // A canonical base makes the overlapping-prefix case deterministic even
+    // on macOS: the canonical prefix matches before the configured alias.
+    let root = canonical(&sandbox);
+    fs::create_dir(root.join("child"))?;
+    let alias = root.join("child").join("..");
+    let requested = alias.join("Component.tsx");
+    assert_eq!(canonical(&alias), root);
+    assert!(requested.starts_with(&root));
+    let policy = OutputPolicy::from_roots(vec![alias])?;
+    // Even a suffix that would return inside the root remains forbidden;
+    // only parent components consumed as part of a configured prefix pass.
+    for invalid in [requested, PathBuf::from("child/../Component.tsx")] {
+        assert!(
+            policy.resolve(invalid.to_str().unwrap()).is_err(),
+            "accepted parent component in suffix: {}",
+            invalid.display()
+        );
+    }
+    drop(policy);
+    fs::remove_dir_all(sandbox)?;
+    Ok(())
+}
+
+#[test]
+fn rejects_escapes_from_canonical_and_configured_parent_aliases() -> anyhow::Result<()> {
+    let sandbox = unique_temp_dir("parent-escape")?;
+    fs::create_dir(sandbox.join("detour"))?;
+    let root = sandbox.join("allowed");
+    fs::create_dir(&root)?;
+    fs::create_dir(root.join("child"))?;
+    let canonical_root = canonical(&root);
+    let outside = sandbox.join("escape.tsx");
+    fs::write(&outside, b"outside sentinel")?;
+    // Cover both overlapping and non-overlapping configured/canonical
+    // prefixes, including the original raw temp-directory spelling.
+    for alias in [
+        root.join("child").join(".."),
+        canonical_root.join("child").join(".."),
+        sandbox.join("detour").join("..").join("allowed"),
+    ] {
+        let policy = OutputPolicy::from_roots(vec![alias.clone()])?;
+        for invalid in [
+            PathBuf::from("../escape.tsx"),
+            PathBuf::from("child/../../escape.tsx"),
+            canonical_root.join("..").join("escape.tsx"),
+            alias.join("..").join("escape.tsx"),
+            alias.join("child").join("..").join("..").join("escape.tsx"),
+            outside.clone(),
+            canonical(&sandbox)
+                .join("allowed-sibling")
+                .join("escape.tsx"),
+        ] {
+            assert!(
+                policy.resolve(invalid.to_str().unwrap()).is_err(),
+                "accepted escape from {}: {}",
+                alias.display(),
+                invalid.display()
+            );
+        }
+    }
+    assert_eq!(fs::read(outside)?, b"outside sentinel");
+    fs::remove_dir_all(sandbox)?;
     Ok(())
 }
 

@@ -1,0 +1,635 @@
+{
+  "executable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r8-sourcemap-truth\\target\\debug\\devup-mcp.exe",
+  "server": {
+    "version": "0.4.4",
+    "buildId": "b34b69e19ddf-dirty",
+    "commit": "b34b69e19ddf"
+  },
+  "argsSource": "WQUW-119 r7-review-failure.json (read only)",
+  "firstReplySeconds": 1.0163039999897592,
+  "observationSeconds": 200.0164779999759,
+  "observationStoppedByVerifier": true,
+  "exportJob": {
+    "jobId": "asset-e678dc279db554a5",
+    "budget": {
+      "frameIds": [
+        "3997:46761",
+        "3997:46799",
+        "3997:46845"
+      ],
+      "allScreens": false,
+      "frameCount": 3,
+      "frameOutputUnits": 9,
+      "planningSecondsPerUnit": [
+        5,
+        20
+      ],
+      "planningSeconds": [
+        45,
+        180
+      ],
+      "isGuarantee": false,
+      "initialReplyBudgetSeconds": 1,
+      "note": "Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."
+    },
+    "state": "running",
+    "stage": "snapshot",
+    "assets": [],
+    "completedCalls": 32,
+    "calls": [
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "SectionIndex",
+          "nodeId": "4279:7806",
+          "rootIds": null,
+          "pagination": null
+        },
+        "state": "received",
+        "startedMs": 2,
+        "elapsedMs": 1373
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": null
+        },
+        "state": "received",
+        "startedMs": 1379,
+        "elapsedMs": 1397
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": null
+        },
+        "state": "received",
+        "startedMs": 2779,
+        "elapsedMs": 461
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": null
+        },
+        "state": "received",
+        "startedMs": 3244,
+        "elapsedMs": 520
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 9,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 3766,
+        "elapsedMs": 771
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 10,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 4541,
+        "elapsedMs": 514
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 10,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 5057,
+        "elapsedMs": 606
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 17,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 5666,
+        "elapsedMs": 445
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 17,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 6115,
+        "elapsedMs": 64382
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 17,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 70499,
+        "elapsedMs": 554
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 26,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 71056,
+        "elapsedMs": 564
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 25,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 71623,
+        "elapsedMs": 495
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 25,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 72122,
+        "elapsedMs": 2943
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 32,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 75068,
+        "elapsedMs": 515
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 34,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 75585,
+        "elapsedMs": 514
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 34,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 76103,
+        "elapsedMs": 490
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 39,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 76595,
+        "elapsedMs": 52764
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 41,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 129362,
+        "elapsedMs": 2283
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 41,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 131647,
+        "elapsedMs": 686
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 43,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 132335,
+        "elapsedMs": 561
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 44,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 132899,
+        "elapsedMs": 522
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 44,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 133424,
+        "elapsedMs": 2270
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 47,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 135697,
+        "elapsedMs": 548
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 47,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 136247,
+        "elapsedMs": 433
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 47,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 136683,
+        "elapsedMs": 53958
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 58,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 190644,
+        "elapsedMs": 534
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 51,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 191180,
+        "elapsedMs": 1590
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 51,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 192774,
+        "elapsedMs": 540
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 82,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 193317,
+        "elapsedMs": 610
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 60,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 193930,
+        "elapsedMs": 2527
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46845"
+          ],
+          "pagination": {
+            "offset": 60,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 196461,
+        "elapsedMs": 575
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46761"
+          ],
+          "pagination": {
+            "offset": 103,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "received",
+        "startedMs": 197039,
+        "elapsedMs": 504
+      },
+      {
+        "stage": "snapshot",
+        "detail": {
+          "script": "MultiRootSnapshotEnvelope",
+          "nodeId": "4279:7806",
+          "rootIds": [
+            "3997:46799"
+          ],
+          "pagination": {
+            "offset": 68,
+            "maxPayloadBytes": 15000,
+            "maxFieldBytes": 4096
+          }
+        },
+        "state": "running",
+        "startedMs": 197546
+      }
+    ],
+    "elapsedMs": 200013,
+    "lastError": null,
+    "checkpointScope": "server-process",
+    "retentionSeconds": 1800,
+    "resultRetentionSeconds": 300,
+    "callTimeoutSeconds": 90,
+    "nextAction": {
+      "tool": "devup_figma_export",
+      "arguments": {
+        "jobId": "asset-e678dc279db554a5",
+        "jobAction": "status"
+      }
+    }
+  },
+  "notes": [
+    "Call elapsed includes local pacing, retries and upstream acquisition; it is not pure Figma execution time.",
+    "Historical 300-second call has no per-stage timings. This run does not establish its exact cause.",
+    "The verifier stopped its own process after a bounded 200-second observation; no completion is claimed."
+  ]
+}

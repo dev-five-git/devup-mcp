@@ -1,0 +1,1285 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling cfg-if v1.0.4
+   Compiling serde_core v1.0.229
+   Compiling syn v3.0.4
+   Compiling serde v1.0.229
+   Compiling syn v2.0.119
+   Compiling serde_derive v1.0.229
+   Compiling memchr v2.8.3
+   Compiling itoa v1.0.18
+   Compiling windows-link v0.2.1
+   Compiling windows-sys v0.61.2
+   Compiling smallvec v1.16.0
+   Compiling zmij v1.0.23
+   Compiling allocator-api2 v0.2.21
+   Compiling hashbrown v0.17.1
+   Compiling synstructure v0.13.2
+   Compiling pin-project-lite v0.2.17
+   Compiling zerofrom-derive v0.1.7
+   Compiling bitflags v2.13.1
+   Compiling zerofrom v0.1.8
+   Compiling yoke-derive v0.8.2
+   Compiling getrandom v0.4.3
+   Compiling autocfg v1.5.1
+   Compiling stable_deref_trait v1.2.1
+   Compiling log v0.4.34
+   Compiling futures-core v0.3.34
+   Compiling bytes v1.12.1
+   Compiling num-traits v0.2.19
+   Compiling yoke v0.8.3
+   Compiling percent-encoding v2.3.2
+   Compiling once_cell v1.21.4
+   Compiling zerovec-derive v0.11.6
+   Compiling jobserver v0.1.35
+   Compiling zerovec v0.11.8
+   Compiling displaydoc v0.2.7
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.11
+   Compiling parking_lot_core v0.9.12
+   Compiling cc v1.4.4
+   Compiling scopeguard v1.2.0
+   Compiling futures-sink v0.3.34
+   Compiling lock_api v0.4.14
+   Compiling cmake v0.1.58
+   Compiling fs_extra v1.3.0
+   Compiling dunce v1.0.5
+   Compiling parking_lot v0.12.5
+   Compiling aws-lc-sys v0.45.0
+   Compiling futures-channel v0.3.34
+   Compiling tinystr v0.8.4
+   Compiling http v1.5.0
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling tokio-macros v2.7.2
+   Compiling writeable v0.6.4
+   Compiling litemap v0.8.3
+   Compiling typenum v1.20.1
+   Compiling equivalent v1.0.2
+   Compiling serde_json v1.0.151
+   Compiling indexmap v2.14.1
+   Compiling icu_locale_core v2.3.0
+   Compiling tokio v1.53.1
+   Compiling zerotrie v0.2.5
+   Compiling potential_utf v0.1.6
+   Compiling tracing-core v0.1.36
+   Compiling futures-macro v0.3.34
+   Compiling zeroize v1.9.0
+   Compiling simd-adler32 v0.3.10
+   Compiling icu_properties_data v2.3.0
+   Compiling utf8_iter v1.0.4
+   Compiling icu_normalizer_data v2.3.0
+   Compiling futures-io v0.3.34
+   Compiling slab v0.4.12
+   Compiling futures-task v0.3.34
+   Compiling futures-util v0.3.34
+   Compiling icu_collections v2.3.0
+   Compiling icu_provider v2.3.1
+   Compiling http-body v1.1.0
+   Compiling tracing-attributes v0.1.31
+   Compiling aws-lc-rs v1.18.1
+   Compiling adler2 v2.0.1
+   Compiling crc32fast v1.5.1
+   Compiling tracing v0.1.44
+   Compiling libc v0.2.189
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling icu_normalizer v2.3.0
+   Compiling icu_properties v2.3.0
+   Compiling miniz_oxide v0.9.1
+   Compiling form_urlencoded v1.2.2
+   Compiling aho-corasick v1.1.5
+   Compiling tower-service v0.3.3
+   Compiling httparse v1.10.1
+   Compiling regex-syntax v0.8.11
+   Compiling regex-automata v0.4.18
+   Compiling flate2 v1.1.10
+   Compiling idna_adapter v1.2.2
+   Compiling miniz_oxide v0.8.9
+   Compiling fdeflate v0.3.7
+   Compiling rustls-pki-types v1.15.1
+   Compiling rustls v0.23.43
+   Compiling pxfm v0.1.30
+   Compiling zerocopy v0.8.56
+   Compiling try-lock v0.2.5
+   Compiling ipnet v2.12.1
+   Compiling untrusted v0.9.0
+   Compiling rand_core v0.10.1
+   Compiling want v0.3.1
+   Compiling moxcms v0.8.1
+   Compiling png v0.18.1
+   Compiling idna v1.1.0
+   Compiling sync_wrapper v1.0.2
+   Compiling base64 v0.22.1
+   Compiling httpdate v1.0.3
+   Compiling atomic-waker v1.1.2
+   Compiling byteorder-lite v0.1.0
+   Compiling tower-layer v0.3.3
+   Compiling bytemuck v1.25.2
+   Compiling subtle v2.6.1
+   Compiling image v0.25.10
+   Compiling hyper v1.11.1
+   Compiling url v2.5.8
+   Compiling http-body-util v0.1.5
+   Compiling getrandom v0.2.17
+   Compiling strsim v0.11.1
+   Compiling ident_case v1.0.1
+   Compiling darling_core v0.24.1
+   Compiling rand_core v0.6.4
+   Compiling ppv-lite86 v0.2.21
+   Compiling hyper-util v0.1.20
+   Compiling tower v0.5.3
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling hybrid-array v0.4.14
+   Compiling ryu v1.0.23
+   Compiling ref-cast v1.0.27
+   Compiling thiserror v1.0.69
+   Compiling serde_urlencoded v0.7.1
+   Compiling digest v0.10.7
+   Compiling rand_chacha v0.3.1
+   Compiling darling_macro v0.24.1
+   Compiling chrono v0.4.45
+   Compiling serde_path_to_error v0.1.20
+   Compiling thiserror-impl v1.0.69
+   Compiling ref-cast-impl v1.0.27
+   Compiling serde_derive_internals v0.30.0
+   Compiling cpufeatures v0.2.17
+   Compiling thiserror v2.0.20
+   Compiling cpufeatures v0.3.1
+   Compiling sha2 v0.10.9
+   Compiling schemars_derive v1.2.2
+   Compiling darling v0.24.1
+   Compiling rand v0.8.8
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling tower-http v0.6.11
+   Compiling regex v1.13.1
+   Compiling futures-executor v0.3.34
+   Compiling tokio-util v0.7.19
+   Compiling keyring-core v1.0.0
+   Compiling thiserror-impl v2.0.20
+   Compiling byteorder v1.5.0
+   Compiling rmcp v3.2.0
+   Compiling const-oid v0.10.2
+   Compiling tinyvec_macros v0.1.1
+   Compiling dyn-clone v1.0.20
+   Compiling mime v0.3.17
+   Compiling axum-core v0.5.6
+   Compiling schemars v1.2.2
+   Compiling tinyvec v1.12.0
+   Compiling digest v0.11.3
+   Compiling windows-native-keyring-store v1.1.0
+   Compiling futures v0.3.34
+   Compiling oauth2 v5.0.0
+   Compiling rmcp-macros v3.2.0
+   Compiling chacha20 v0.10.2
+   Compiling sse-stream v0.2.5
+   Compiling uuid v1.26.0
+   Compiling tokio-stream v0.1.19
+   Compiling async-trait v0.1.92
+   Compiling pastey v0.2.3
+   Compiling base64 v0.23.1
+   Compiling matchit v0.8.4
+   Compiling axum v0.8.9
+   Compiling rand v0.10.2
+   Compiling keyring v4.2.0
+   Compiling sha2 v0.11.0
+   Compiling unicode-normalization v0.1.25
+   Compiling webbrowser v1.2.4
+   Compiling quick-xml v0.42.0
+   Compiling siphasher v1.0.3
+   Compiling phf_shared v0.14.0
+   Compiling rustversion v1.0.23
+   Compiling castaway v0.2.4
+   Compiling oxc_data_structures v0.148.0
+   Compiling static_assertions v1.1.0
+   Compiling rustc-hash v2.1.3
+   Compiling oxc_allocator v0.148.0
+   Compiling compact_str v0.10.0
+   Compiling phf v0.14.0
+   Compiling fastrand v2.5.0
+   Compiling oxc_estree v0.148.0
+   Compiling oxc_str v0.148.0
+   Compiling phf_generator v0.14.0
+   Compiling oxc_ast_macros v0.148.0
+   Compiling oxc_span v0.148.0
+   Compiling phf_macros v0.14.0
+   Compiling unicode-linebreak v0.1.5
+   Compiling smawk v0.3.3
+   Compiling dragonbox_ecma v0.1.12
+   Compiling unicode-width v0.2.2
+   Compiling cow-utils v0.1.3
+   Compiling textwrap v0.16.2
+   Compiling nonmax v0.5.5
+   Compiling unicode-id-start v1.4.0
+   Compiling bytecount v0.6.9
+   Compiling unicode-segmentation v1.13.3
+   Compiling oxc_diagnostics v0.148.0
+   Compiling oxc_index v5.0.0
+   Compiling oxc_syntax v0.148.0
+   Compiling oxc_regular_expression v0.148.0
+   Compiling oxc_ast v0.148.0
+   Compiling rustls-webpki v0.103.15
+   Compiling num-integer v0.1.47
+   Compiling num-bigint v0.5.1
+   Compiling tokio-rustls v0.26.4
+   Compiling hyper-rustls v0.27.9
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling reqwest v0.13.4
+   Compiling oxc_ecmascript v0.148.0
+   Compiling seq-macro v0.3.6
+   Compiling oxc_parser v0.148.0
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp-figma)
+   Compiling oxc_ast_visit v0.148.0
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp-devup-ui)
+   Compiling tempfile v3.27.0
+   Compiling anyhow v1.0.104
+   Compiling winapi-util v0.1.11
+   Compiling same-file v1.0.6
+   Compiling bstr v1.13.1
+   Compiling encode_unicode v1.0.0
+   Compiling console v0.16.4
+   Compiling globset v0.4.20
+   Compiling walkdir v2.5.0
+   Compiling similar v2.7.0
+   Compiling yansi v1.0.1
+   Compiling diff v0.1.13
+   Compiling pretty_assertions v1.4.1
+   Compiling insta v1.48.0
+   Compiling windows_x86_64_msvc v0.52.6
+   Compiling windows_x86_64_msvc v0.53.1
+   Compiling windows-targets v0.52.6
+   Compiling io-lifetimes v3.0.1
+   Compiling io-lifetimes v2.0.4
+   Compiling windows-targets v0.53.5
+   Compiling windows-sys v0.59.0
+   Compiling io-extras v0.19.0
+   Compiling windows-sys v0.60.2
+   Compiling cap-primitives v4.0.3
+   Compiling fs-set-times v0.20.3
+   Compiling winx v0.36.4
+   Compiling lazy_static v1.5.0
+   Compiling maybe-owned v0.3.4
+   Compiling cap-std v4.0.3
+   Compiling ambient-authority v0.0.2
+   Compiling sharded-slab v0.1.7
+   Compiling matchers v0.2.0
+   Compiling tracing-log v0.2.0
+   Compiling nu-ansi-term v0.50.3
+   Compiling thread_local v1.1.10
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp)
+   Compiling tracing-subscriber v0.3.23
+   Compiling devup-mcp-visual v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp-visual)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp-bbcce4741168dc25.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp-bbcce4741168dc25.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\ui_validate_response-f15d0b498565df16.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\ui_validate_response-f15d0b498565df16.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "ui_validate_response") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (bin "devup-mcp") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\composite_export-5eca1b2253e1959d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\composite_export-5eca1b2253e1959d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "composite_export") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\downstream_integration-608c4206817ef447.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\downstream_integration-608c4206817ef447.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "downstream_integration") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\output_policy-e8b9d5ffff431238.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\output_policy-e8b9d5ffff431238.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "output_policy") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_search_scope-efccdf244403850a.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_search_scope-efccdf244403850a.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_search_scope") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\stdio_tools-b01a8494a0f1b0ca.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\stdio_tools-b01a8494a0f1b0ca.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "stdio_tools") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\artifact_cache-788e307af666f384.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\artifact_cache-788e307af666f384.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "artifact_cache") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\resource_delivery-05b4b68759062677.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\resource_delivery-05b4b68759062677.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "resource_delivery") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\stdio_smoke-412f70aa9f059b9b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\stdio_smoke-412f70aa9f059b9b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "stdio_smoke") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\cli-eade5d7a1dcd6118.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\cli-eade5d7a1dcd6118.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "cli") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "upstream_error_surfacing") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\section_export-e14d306f6740329e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\section_export-e14d306f6740329e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "section_export") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_doctor-551d8ad285817ab6.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_doctor-551d8ad285817ab6.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_doctor") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "ground_truth_tools") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\rate_limit_patience-dfb631caf8cef915.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\rate_limit_patience-dfb631caf8cef915.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "rate_limit_patience") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\live_figma_contract-1ba250b007c7edf5.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\live_figma_contract-1ba250b007c7edf5.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "live_figma_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\export_defaults-d45c7bc16acea0af.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\export_defaults-d45c7bc16acea0af.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "export_defaults") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_explore_limit-264f482a205f5ed4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_explore_limit-264f482a205f5ed4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_explore_limit") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\source_orchestration-762522615b5e1df5.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\source_orchestration-762522615b5e1df5.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "source_orchestration") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\call_cache_resume-3c1e472db5d84a27.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\call_cache_resume-3c1e472db5d84a27.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "call_cache_resume") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_explore-b0b51cde49bc4300.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_explore-b0b51cde49bc4300.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_explore") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\asset_boundaries-b270807a4ac54331.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\asset_boundaries-b270807a4ac54331.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "asset_boundaries") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_export-03825463658223cc.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_export-03825463658223cc.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "responsive_export") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r7_layout-ff7b26681661430c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r7_layout-ff7b26681661430c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r7_layout") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\variant_nesting-ba9d01fe927cef4d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\variant_nesting-ba9d01fe927cef4d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "variant_nesting") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\default_omission_golden-7590ebc5cb067221.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\default_omission_golden-7590ebc5cb067221.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "asset_manifest_covers_the_code") generated 1 warning
+warning: `devup-mcp-devup-ui` (test "default_omission_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "responsive_alignment") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\component_projection-54f7a1dc961fe760.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\component_projection-54f7a1dc961fe760.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "component_projection") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\validation-9f019b47fd152678.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\validation-9f019b47fd152678.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "validation") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\placement_contract-f143c434b440ea71.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\placement_contract-f143c434b440ea71.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "placement_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "effect_fidelity_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\boolean_logos-4e46b7d45f65debd.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\boolean_logos-4e46b7d45f65debd.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "boolean_logos") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\button_answer-56d01032a4a14dbd.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\button_answer-56d01032a4a14dbd.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "button_answer") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\variant_typography-320b5fc42fe0b67b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\variant_typography-320b5fc42fe0b67b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "variant_typography") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\folded_asset_size-1339586b786847af.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\folded_asset_size-1339586b786847af.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "folded_asset_size") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\compat_fixtures-21def48330d1fa72.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\compat_fixtures-21def48330d1fa72.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "compat_fixtures") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r6_vertical_sizing") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r8_absolute_scroll") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r10_content_sizing-5290240f0a4162fa.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r10_content_sizing-5290240f0a4162fa.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r10_content_sizing") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "unresolved_token_binding") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\codegen-0efd2bf5d70ab180.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\codegen-0efd2bf5d70ab180.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "codegen") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\compat_manifest-d83068f8b9bdf329.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\compat_manifest-d83068f8b9bdf329.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+warning: `devup-mcp-devup-ui` (test "compat_manifest") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\polymorphic_props-c0535895235e7084.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\polymorphic_props-c0535895235e7084.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\paint_opacity_golden-0f672159de8e5494.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\paint_opacity_golden-0f672159de8e5494.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "polymorphic_props") generated 1 warning
+warning: `devup-mcp-devup-ui` (test "paint_opacity_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\testcase_expectations-dd5e444031946e07.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\testcase_expectations-dd5e444031946e07.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "testcase_expectations") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "wquw_151_frames") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\plugin_compat-243b9629f047092d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\plugin_compat-243b9629f047092d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "plugin_compat") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "pinned_size_restatement") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_merge-43791a550fe185d3.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_merge-43791a550fe185d3.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "responsive_merge") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\manifest_trim_golden-75c757cd9490090e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\manifest_trim_golden-75c757cd9490090e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "manifest_trim_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\color_like_props-4dafedac17e4d7bf.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\color_like_props-4dafedac17e4d7bf.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "color_like_props") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\provenance-2a3d190ad6b1ca3c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\provenance-2a3d190ad6b1ca3c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "provenance") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r9_precision-2e064b5dabb56ef1.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r9_precision-2e064b5dabb56ef1.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\wquw_151-3f3ae59690bc4cbe.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\wquw_151-3f3ae59690bc4cbe.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "wquw_151") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "single_frame_answers") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "keyframes_screen") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_screen-f026dabb56576c93.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\responsive_screen-f026dabb56576c93.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "responsive_screen") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\free_placement_anchor-45b74df558c1804e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\free_placement_anchor-45b74df558c1804e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "free_placement_anchor") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\local_screens-cdd2cfb235a0446c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\local_screens-cdd2cfb235a0446c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "local_screens") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\theme-0034585f72092e65.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\theme-0034585f72092e65.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "theme") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r8_scroll_capture-d75fc84572470c8a.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r8_scroll_capture-d75fc84572470c8a.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "r8_scroll_capture") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "root_canvas_width") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\payload_contract-4b383732c331c5f5.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\payload_contract-4b383732c331c5f5.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "payload_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\collector-eabe9905ef75d9d2.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\collector-eabe9905ef75d9d2.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "collector") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "r9_render_bounds_capture") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\upstream_failures-231c7799fbe78864.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\upstream_failures-231c7799fbe78864.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "upstream_failures") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\explore-b0d6d0556a705200.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\explore-b0d6d0556a705200.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "explore") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\snapshot-d85f713f8faa3fcc.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\snapshot-d85f713f8faa3fcc.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "snapshot") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\envelope-58a3630fe689d926.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\envelope-58a3630fe689d926.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "envelope") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\used_resources-b7c4985caa12d4fb.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\used_resources-b7c4985caa12d4fb.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "used_resources") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\oauth_flow-5a235cb446d7f8ad.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\oauth_flow-5a235cb446d7f8ad.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "oauth_flow") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\large_values-351de2fb071d0c56.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\large_values-351de2fb071d0c56.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "large_values") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\section-a7e6afaa26260d8c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\section-a7e6afaa26260d8c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "section") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_url-b7f3ee0b5430c2a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\figma_url-b7f3ee0b5430c2a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "figma_url") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\upstream_contract-3dacc8452487277d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\upstream_contract-3dacc8452487277d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "upstream_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\assets-f58217e4c6535a42.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\assets-f58217e4c6535a42.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "assets") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6m 54s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-bbcce4741168dc25.exe)
+
+running 1 test
+test server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection ... FAILED
+
+failures:
+
+---- server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection stdout ----
+
+thread 'server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection' (83444) panicked at crates\devup-mcp\src\server\projection.rs:4199:9:
+assertion `left == right` failed
+  left: Null
+ right: "available"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 171 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p devup-mcp --lib`
+     Running unittests src\main.rs (target\debug\deps\devup_mcp-7f5300a590dcf287.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\artifact_cache.rs (target\debug\deps\artifact_cache-788e307af666f384.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests\call_cache_resume.rs (target\debug\deps\call_cache_resume-3c1e472db5d84a27.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\cli.rs (target\debug\deps\cli-eade5d7a1dcd6118.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests\composite_export.rs (target\debug\deps\composite_export-5eca1b2253e1959d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.00s
+
+     Running tests\downstream_integration.rs (target\debug\deps\downstream_integration-608c4206817ef447.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests\export_defaults.rs (target\debug\deps\export_defaults-d45c7bc16acea0af.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests\figma_doctor.rs (target\debug\deps\figma_doctor-551d8ad285817ab6.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+     Running tests\figma_explore.rs (target\debug\deps\figma_explore-b0b51cde49bc4300.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\figma_explore_limit.rs (target\debug\deps\figma_explore_limit-264f482a205f5ed4.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\figma_search_scope.rs (target\debug\deps\figma_search_scope-efccdf244403850a.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests\ground_truth_tools.rs (target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+     Running tests\live_figma_contract.rs (target\debug\deps\live_figma_contract-1ba250b007c7edf5.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\module_boundaries.rs (target\debug\deps\module_boundaries-e3184ee740c94c15.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\output_policy.rs (target\debug\deps\output_policy-e8b9d5ffff431238.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests\rate_limit_patience.rs (target\debug\deps\rate_limit_patience-dfb631caf8cef915.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\resource_delivery.rs (target\debug\deps\resource_delivery-05b4b68759062677.exe)
+
+running 1 test
+test r12_inline_size_errors_report_measured_output_and_wire_sizes ... FAILED
+
+failures:
+
+---- r12_inline_size_errors_report_measured_output_and_wire_sizes stdout ----
+
+thread 'r12_inline_size_errors_report_measured_output_and_wire_sizes' (70012) panicked at crates\devup-mcp\tests\resource_delivery.rs:32:9:
+assertion `left == right` failed
+  left: Null
+ right: 1048576
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    r12_inline_size_errors_report_measured_output_and_wire_sizes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p devup-mcp --test resource_delivery`
+     Running tests\responsive_export.rs (target\debug\deps\responsive_export-03825463658223cc.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\section_export.rs (target\debug\deps\section_export-e14d306f6740329e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests\source_orchestration.rs (target\debug\deps\source_orchestration-762522615b5e1df5.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests\stdio_schema_compat_smoke.rs (target\debug\deps\stdio_schema_compat_smoke-4ee0ba62c72f7745.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\stdio_smoke.rs (target\debug\deps\stdio_smoke-412f70aa9f059b9b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\stdio_tools.rs (target\debug\deps\stdio_tools-b01a8494a0f1b0ca.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\ui_validate_response.rs (target\debug\deps\ui_validate_response-f15d0b498565df16.exe)
+
+running 2 tests
+test r12_unique_exact_token_warning_supplies_callable_corrected_arguments ... FAILED
+test r12_failed_validation_explains_why_source_cannot_be_corrected_automatically ... FAILED
+
+failures:
+
+---- r12_unique_exact_token_warning_supplies_callable_corrected_arguments stdout ----
+
+thread 'r12_unique_exact_token_warning_supplies_callable_corrected_arguments' (90464) panicked at crates\devup-mcp\tests\ui_validate_response.rs:95:5:
+assertion `left == right` failed
+  left: Null
+ right: "available"
+
+---- r12_failed_validation_explains_why_source_cannot_be_corrected_automatically stdout ----
+
+thread 'r12_failed_validation_explains_why_source_cannot_be_corrected_automatically' (90908) panicked at crates\devup-mcp\tests\ui_validate_response.rs:83:9:
+assertion `left == right` failed
+  left: Null
+ right: "unrecoverable"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    r12_failed_validation_explains_why_source_cannot_be_corrected_automatically
+    r12_unique_exact_token_warning_supplies_callable_corrected_arguments
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p devup-mcp --test ui_validate_response`
+     Running tests\upstream_error_surfacing.rs (target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+
+     Running tests\asset_boundaries.rs (target\debug\deps\asset_boundaries-b270807a4ac54331.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests\asset_manifest_covers_the_code.rs (target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\boolean_logos.rs (target\debug\deps\boolean_logos-4e46b7d45f65debd.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\button_answer.rs (target\debug\deps\button_answer-56d01032a4a14dbd.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\codegen.rs (target\debug\deps\codegen-0efd2bf5d70ab180.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests\color_like_props.rs (target\debug\deps\color_like_props-4dafedac17e4d7bf.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests\compat_fixtures.rs (target\debug\deps\compat_fixtures-21def48330d1fa72.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\compat_manifest.rs (target\debug\deps\compat_manifest-d83068f8b9bdf329.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\component_projection.rs (target\debug\deps\component_projection-54f7a1dc961fe760.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\default_omission_golden.rs (target\debug\deps\default_omission_golden-7590ebc5cb067221.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\effect_fidelity_golden.rs (target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests\folded_asset_size.rs (target\debug\deps\folded_asset_size-1339586b786847af.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.00s
+
+     Running tests\free_placement_anchor.rs (target\debug\deps\free_placement_anchor-45b74df558c1804e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests\keyframes_screen.rs (target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\local_screens.rs (target\debug\deps\local_screens-cdd2cfb235a0446c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\manifest_trim_golden.rs (target\debug\deps\manifest_trim_golden-75c757cd9490090e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\paint_opacity_golden.rs (target\debug\deps\paint_opacity_golden-0f672159de8e5494.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\pinned_size_restatement.rs (target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\placement_contract.rs (target\debug\deps\placement_contract-f143c434b440ea71.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests\plugin_compat.rs (target\debug\deps\plugin_compat-243b9629f047092d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\polymorphic_props.rs (target\debug\deps\polymorphic_props-c0535895235e7084.exe)
+
+running 2 tests
+test r12_intrinsic_as_accepts_the_rendered_elements_attributes ... FAILED
+test r12_as_does_not_disable_unknown_prop_or_leak_to_other_elements ... ok
+
+failures:
+
+---- r12_intrinsic_as_accepts_the_rendered_elements_attributes stdout ----
+
+thread 'r12_intrinsic_as_accepts_the_rendered_elements_attributes' (85504) panicked at crates\devup-mcp-devup-ui\tests\polymorphic_props.rs:15:9:
+<Text as="input" maxLength={50} placeholder="받는 분 이름" type="text" />: [Violation { rule: "unknown-prop", severity: Error, byte_range: [17, 26], message: "maxLength is not a prop recognized by Text.", suggestion: None }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    r12_intrinsic_as_accepts_the_rendered_elements_attributes
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test polymorphic_props`
+     Running tests\provenance.rs (target\debug\deps\provenance-2a3d190ad6b1ca3c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.00s
+
+     Running tests\r10_content_sizing.rs (target\debug\deps\r10_content_sizing-5290240f0a4162fa.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\r6_vertical_sizing.rs (target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+     Running tests\r7_layout.rs (target\debug\deps\r7_layout-ff7b26681661430c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests\r8_absolute_scroll.rs (target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-2e064b5dabb56ef1.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests\responsive_alignment.rs (target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\responsive_merge.rs (target\debug\deps\responsive_merge-43791a550fe185d3.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests\responsive_screen.rs (target\debug\deps\responsive_screen-f026dabb56576c93.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests\root_canvas_width.rs (target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\single_frame_answers.rs (target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running tests\testcase_expectations.rs (target\debug\deps\testcase_expectations-dd5e444031946e07.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\theme.rs (target\debug\deps\theme-0034585f72092e65.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests\unresolved_token_binding.rs (target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\validation.rs (target\debug\deps\validation-9f019b47fd152678.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\variant_nesting.rs (target\debug\deps\variant_nesting-ba9d01fe927cef4d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+     Running tests\variant_typography.rs (target\debug\deps\variant_typography-320b5fc42fe0b67b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\wquw_151.rs (target\debug\deps\wquw_151-3f3ae59690bc4cbe.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\wquw_151_frames.rs (target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.00s
+
+     Running tests\assets.rs (target\debug\deps\assets-f58217e4c6535a42.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+
+     Running tests\collector.rs (target\debug\deps\collector-eabe9905ef75d9d2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 0.00s
+
+     Running tests\envelope.rs (target\debug\deps\envelope-58a3630fe689d926.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests\explore.rs (target\debug\deps\explore-b0d6d0556a705200.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+     Running tests\figma_url.rs (target\debug\deps\figma_url-b7f3ee0b5430c2a4.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests\large_values.rs (target\debug\deps\large_values-351de2fb071d0c56.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\manifest_covers_readers.rs (target\debug\deps\manifest_covers_readers-52e7c9bc3238c03f.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\oauth_flow.rs (target\debug\deps\oauth_flow-5a235cb446d7f8ad.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+     Running tests\payload_contract.rs (target\debug\deps\payload_contract-4b383732c331c5f5.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\r7_section_error.rs (target\debug\deps\r7_section_error-14ba6a0786a27049.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests\r8_scroll_capture.rs (target\debug\deps\r8_scroll_capture-d75fc84572470c8a.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\r9_render_bounds_capture.rs (target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\section.rs (target\debug\deps\section-a7e6afaa26260d8c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests\snapshot.rs (target\debug\deps\snapshot-d85f713f8faa3fcc.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests\upstream_contract.rs (target\debug\deps\upstream_contract-3dacc8452487277d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests\upstream_failures.rs (target\debug\deps\upstream_failures-231c7799fbe78864.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests\used_resources.rs (target\debug\deps\used_resources-b7c4985caa12d4fb.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_visual-6a90e5c77ca57b4c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\devup_mcp_visual-df32b603e03c68d4.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\compare.rs (target\debug\deps\compare-a2272504b72dd270.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+error: 4 targets failed:
+    `-p devup-mcp --lib`
+    `-p devup-mcp --test resource_delivery`
+    `-p devup-mcp --test ui_validate_response`
+    `-p devup-mcp-devup-ui --test polymorphic_props`

@@ -1,0 +1,170 @@
+{
+  "fileKey": "r14-observation",
+  "diagnostics": [],
+  "roots": [
+    "3997:46667"
+  ],
+  "nodes": {
+    "3997:46667": {
+      "id": "3997:46667",
+      "type": "FRAME",
+      "fields": {
+        "parentId": "4279:7806",
+        "x": 4934,
+        "y": 1934,
+        "width": 360,
+        "height": 460,
+        "absoluteBoundingBox": {
+          "height": 460,
+          "width": 360,
+          "x": 19263,
+          "y": 16557
+        },
+        "absoluteRenderBounds": {
+          "height": 460,
+          "width": 360,
+          "x": 19263,
+          "y": 16557
+        },
+        "constraints": {
+          "horizontal": "MIN",
+          "vertical": "MIN"
+        },
+        "layoutPositioning": "AUTO",
+        "layoutMode": "VERTICAL",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 0,
+        "inferredAutoLayout": {
+          "counterAxisAlignItems": "MIN",
+          "counterAxisSizingMode": "FIXED",
+          "itemSpacing": 24,
+          "layoutAlign": "INHERIT",
+          "layoutGrow": 0,
+          "layoutMode": "VERTICAL",
+          "layoutPositioning": "AUTO",
+          "paddingBottom": 24,
+          "paddingLeft": 20,
+          "paddingRight": 20,
+          "paddingTop": 24,
+          "primaryAxisAlignItems": "MIN",
+          "primaryAxisSizingMode": "FIXED"
+        },
+        "paddingTop": 24,
+        "paddingRight": 20,
+        "paddingBottom": 24,
+        "paddingLeft": 20,
+        "itemSpacing": 24,
+        "clipsContent": true,
+        "visible": true,
+        "opacity": 1,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:1:1000",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "childrenIds": [
+          "3997:46668"
+        ]
+      }
+    },
+    "3997:46668": {
+      "id": "3997:46668",
+      "type": "GROUP",
+      "fields": {
+        "parentId": "3997:46667",
+        "x": -19,
+        "y": 314,
+        "width": 433.8122863769531,
+        "height": 117.6744155883789,
+        "absoluteBoundingBox": {
+          "height": 117.6744155883789,
+          "width": 433.8122863769531,
+          "x": 19244,
+          "y": 16871
+        },
+        "absoluteRenderBounds": {
+          "height": 117.6744155883789,
+          "width": 360,
+          "x": 19263,
+          "y": 16871
+        },
+        "layoutPositioning": "ABSOLUTE",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 0,
+        "visible": true,
+        "opacity": 1,
+        "childrenIds": [
+          "3997:46669"
+        ]
+      }
+    },
+    "3997:46669": {
+      "id": "3997:46669",
+      "type": "VECTOR",
+      "fields": {
+        "parentId": "3997:46668",
+        "x": -19,
+        "y": 314,
+        "width": 433.8122863769531,
+        "height": 117.6744155883789,
+        "absoluteBoundingBox": {
+          "height": 117.6744155883789,
+          "width": 433.8122863769531,
+          "x": 19244,
+          "y": 16871
+        },
+        "absoluteRenderBounds": {
+          "height": 117.673828125,
+          "width": 360,
+          "x": 19263,
+          "y": 16871
+        },
+        "constraints": {
+          "horizontal": "SCALE",
+          "vertical": "MAX"
+        },
+        "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED",
+        "layoutSizingVertical": "FIXED",
+        "layoutGrow": 0,
+        "visible": true,
+        "opacity": 1,
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:278:3649",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.8907090425491333,
+              "g": 0.9080576300621032,
+              "r": 0.9278846383094788
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          }
+        ]
+      }
+    }
+  }
+}

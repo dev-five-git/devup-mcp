@@ -166,9 +166,63 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
             details,
         ));
     }
-    Some(DevupError::new(
+    if message.contains("DEVUP_FIGMA_HANDOFF_EXPIRED") {
+        return Some(DevupError::with_details(
+            ErrorCode::DevupFigmaHandoffExpired,
+            message,
+            true,
+            json!({"stage":"plugin-execution","pluginCode":"DEVUP_FIGMA_HANDOFF_EXPIRED"}),
+        ));
+    }
+    let mut details = json!({"stage":"plugin-execution","pluginCode":null,
+        "nextAction":{"how":"Inspect the original upstream message and retry the original URL after correcting the reported plugin error."}});
+    if message.contains("DEVUP_SECTION_REQUIRED") {
+        details = json!({"pluginCode":"DEVUP_SECTION_REQUIRED","stage":"section-index","sectionId":null,
+            "nextAction":{"tool":"devup_figma_export","requiredArguments":["url"],
+                "how":"The url must point to a SECTION, while frameIds selects frames inside it. Open the requested frame's containing SECTION in Figma and copy its link. This legacy response did not include its ancestor SECTION ID."}});
+        if let Some(start) = message.find('{')
+            && let Some(Ok(structured)) = serde_json::Deserializer::from_str(&message[start..])
+                .into_iter::<Value>()
+                .next()
+            && structured["pluginCode"] == "DEVUP_SECTION_REQUIRED"
+            && structured.is_object()
+        {
+            details = structured;
+        }
+    }
+    Some(DevupError::with_details(
         ErrorCode::DevupSnapshotUnsupported,
         message,
         false,
+        details,
     ))
+}
+
+#[cfg(test)]
+mod r7_tests {
+    use super::*;
+    #[test]
+    fn r7_plugin_section_error_preserves_structured_recovery() {
+        let detail = json!({"pluginCode":"DEVUP_SECTION_REQUIRED","stage":"section-index","nodeId":"3997:46333","nodeType":"FRAME","sectionId":"4279:7806","nextAction":{"tool":"devup_figma_export","arguments":{"url":"https://www.figma.com/design/test?node-id=4279-7806","frameIds":["3997:46333"]}}});
+        let value = json!({"isError":true,"content":[{"type":"text","text":format!("Error: DEVUP_SECTION_REQUIRED {}\n at <anonymous> (PLUGIN_17_SOURCE:3:48)",detail)}]});
+        let error = upstream_error(&value).unwrap();
+        assert_eq!(error.details["sectionId"], "4279:7806");
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["frameIds"],
+            json!(["3997:46333"])
+        );
+    }
+    #[test]
+    fn r7_legacy_section_error_has_action_without_invented_ancestor() {
+        let value = json!({"isError":true,"content":[{"type":"text","text":"Error: DEVUP_SECTION_REQUIRED\n at <anonymous> (PLUGIN_17_SOURCE:3:48)"}]});
+        let error = upstream_error(&value).unwrap();
+        assert_eq!(error.details["pluginCode"], "DEVUP_SECTION_REQUIRED");
+        assert!(error.details["sectionId"].is_null());
+        assert!(
+            error.details["nextAction"]["how"]
+                .as_str()
+                .unwrap()
+                .contains("SECTION")
+        );
+    }
 }

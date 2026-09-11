@@ -1,5 +1,6 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
+assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -392,6 +393,7 @@ export function Wquw151Frame387935569() {
       <Box
         backdropFilter="blur(8px)"
         bg="#000000B2"
+        h="740px"
         left="50%"
         overflow="hidden"
         pos="absolute"

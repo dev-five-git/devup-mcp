@@ -7,6 +7,94 @@ use devup_mcp_figma::{
 use serde_json::{Map, json};
 
 #[test]
+fn r11_section_queries_requested_ids_and_refreshes_unknown_cached_ownership() {
+    use devup_mcp_figma::{
+        BuiltinScript, CollectionRequest, CollectionScope, CollectorSession, CollectorStep,
+        ReadToolCall, SectionReadOptions,
+    };
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1").unwrap();
+    for cached in [false, true] {
+        let mut request = CollectionRequest::new(target.clone(), CollectionScope::Node);
+        request.section = Some(SectionReadOptions {
+            frame_ids: vec!["uncollected-descendant".into()],
+            all_screens: false,
+        });
+        if cached {
+            request.cached_section_index =
+                Some(build_section_index(&fixture_snapshot(), &target).unwrap());
+        }
+        let mut collector = CollectorSession::new(request);
+        let CollectorStep::Call(call) = collector
+            .advance()
+            .expect("unknown cached IDs must be queried")
+        else {
+            panic!("expected index call")
+        };
+        let ReadToolCall::Snapshot {
+            script, root_ids, ..
+        } = call.call
+        else {
+            panic!("expected snapshot")
+        };
+        assert_eq!(script, BuiltinScript::SectionIndex);
+        assert_eq!(root_ids, Some(vec!["uncollected-descendant".into()]));
+    }
+}
+
+#[test]
+fn r11_large_section_script_behavior_runs_in_cargo_suite() {
+    let script =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/explore_script_behavior.mjs");
+    let result = std::process::Command::new("node")
+        .arg("--test")
+        .arg(&script)
+        .output()
+        .expect("Node is required to exercise production Figma scripts");
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
+
+#[test]
+fn r10_compact_index_corrects_descendant_selection_without_selecting_silently() {
+    let target =
+        FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=10-1").unwrap();
+    let mut snapshot = fixture_snapshot();
+    snapshot
+        .nodes
+        .get_mut("10:1")
+        .unwrap()
+        .fields
+        .insert("nodeScreenIds".into(), json!({"3997:46703":"10:3"}));
+    let index = build_section_index(&snapshot, &target).unwrap();
+    let error = index
+        .select(&["3997:46703".into(), "10:2".into()], false)
+        .unwrap_err();
+    assert_eq!(
+        error.details["selectionIssues"][0]["reason"],
+        "descendant-of-screen"
+    );
+    assert_eq!(
+        error.details["nextAction"]["arguments"]["frameIds"],
+        json!(["10:3", "10:2"])
+    );
+    let corrected: Vec<String> =
+        serde_json::from_value(error.details["nextAction"]["arguments"]["frameIds"].clone())
+            .unwrap();
+    assert_eq!(index.select(&corrected, false).unwrap().len(), 2);
+    let error = index.select(&["absent".into()], false).unwrap_err();
+    assert_eq!(
+        error.details["selectionIssues"][0]["reason"],
+        "not-found-in-section"
+    );
+    assert!(error.details["nextAction"].is_null());
+}
+
+#[test]
 fn p1_no_automatic_screens_explains_explicit_selection() {
     let index = packing_index(&[1]);
     let error = index.select(&[], true).unwrap_err();
@@ -257,6 +345,7 @@ fn packing_index(weights: &[usize]) -> SectionIndex {
         height: 100.0,
     };
     SectionIndex {
+        node_screen_ids: BTreeMap::new(),
         file_key: "FileKey123".to_owned(),
         source_version: Some("v1".to_owned()),
         section: SectionSummary {
@@ -272,6 +361,7 @@ fn packing_index(weights: &[usize]) -> SectionIndex {
                 name: format!("Root {index}"),
                 node_type: "FRAME".to_owned(),
                 text_preview: String::new(),
+                text_preview_state: None,
                 visible: true,
                 bounds: ExploreBounds {
                     y: index as f64 * 120.0,

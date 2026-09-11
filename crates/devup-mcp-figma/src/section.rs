@@ -20,6 +20,8 @@ pub struct SectionCandidate {
     pub node_type: String,
     #[serde(default)]
     pub text_preview: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_preview_state: Option<String>,
     pub visible: bool,
     pub bounds: ExploreBounds,
     pub parent_id: Option<String>,
@@ -40,6 +42,7 @@ impl SectionCandidate {
             bounds: self.bounds,
             child_count: self.direct_child_count,
             text_preview: self.text_preview.clone(),
+            text_preview_state: self.text_preview_state.clone(),
             parent_id: self.parent_id.clone(),
             kind: crate::ExploreKind::Unknown,
             visible: self.visible,
@@ -58,6 +61,9 @@ pub struct SectionIndex {
     pub section: SectionSummary,
     pub candidates: Vec<SectionCandidate>,
     pub truncated: bool,
+    /// Ownership only; descendant geometry is not part of the compact index.
+    #[serde(default)]
+    pub node_screen_ids: BTreeMap<String, Option<String>>,
 }
 
 impl SectionIndex {
@@ -95,11 +101,59 @@ impl SectionIndex {
             .iter()
             .map(|candidate| candidate.node_id.as_str())
             .collect::<BTreeSet<_>>();
-        if let Some(foreign) = requested.difference(&candidates).next() {
-            return Err(DevupError::new(
+        if requested.difference(&candidates).next().is_some() {
+            let mut corrected = Vec::new();
+            let mut issues = Vec::new();
+            let mut correctable = true;
+            for id in frame_ids {
+                let owner = if candidates.contains(id.as_str()) {
+                    Some(id.as_str())
+                } else {
+                    self.node_screen_ids
+                        .get(id)
+                        .and_then(|s| s.as_deref())
+                        .filter(|s| candidates.contains(s))
+                };
+                if !candidates.contains(id.as_str()) {
+                    let reason = if owner.is_some() {
+                        "descendant-of-screen"
+                    } else if self.node_screen_ids.contains_key(id) || id == &self.section.node_id {
+                        "no-selectable-screen"
+                    } else if self.truncated {
+                        "not-found-in-truncated-index"
+                    } else {
+                        "not-found-in-section"
+                    };
+                    issues.push(serde_json::json!({"nodeId":id,"screenId":owner,"reason":reason}));
+                }
+                if let Some(owner) = owner {
+                    if !corrected.iter().any(|id| id == owner) {
+                        corrected.push(owner.to_owned());
+                    }
+                } else {
+                    correctable = false;
+                }
+            }
+            let base = self
+                .candidates
+                .first()
+                .map(|c| {
+                    c.canonical_url
+                        .split('?')
+                        .next()
+                        .unwrap_or(&c.canonical_url)
+                        .to_owned()
+                })
+                .unwrap_or_else(|| format!("https://www.figma.com/design/{}", self.file_key));
+            let next = correctable.then(|| serde_json::json!({"tool":"devup_figma_export",
+                "arguments":{"url":format!("{base}?node-id={}", self.section.node_id.replace(':', "-")),"frameIds":corrected},
+                "how":"The requested node IDs are descendants, not screen IDs. Retry with the containing screens listed here; no selection was changed or exported."}));
+            return Err(DevupError::with_details(
                 ErrorCode::DevupFigmaNodeNotFound,
-                format!("Not a screen frame inside the Section, or it does not exist: {foreign}"),
+                "Some frameIds are not selectable screens. selectionIssues distinguishes descendants from IDs absent in this Section index.",
                 false,
+                serde_json::json!({"sectionId":self.section.node_id,"selectionIssues":issues,"nextAction":next,
+                    "nextActionReason":if correctable { "Use the corrected screen selection." } else { "At least one ID has no known selectable screen; inspect selectionIssues and choose an existing screen. A truncated index cannot prove absence." }}),
             ));
         }
         let selected = self
@@ -262,6 +316,7 @@ pub fn build_section_index(
                 name: node.name,
                 node_type: node.node_type,
                 text_preview: node.text_preview,
+                text_preview_state: node.text_preview_state,
                 visible: node.visible,
                 bounds: node.bounds,
                 parent_id: node.parent_id,
@@ -274,6 +329,23 @@ pub fn build_section_index(
         })
         .collect::<Result<Vec<_>, DevupError>>()?;
 
+    let mut node_screen_ids =
+        screen_owners(snapshot, candidates.iter().map(|c| c.node_id.as_str()));
+    if let Some(owners) = section
+        .typed_view()
+        .value("nodeScreenIds")
+        .and_then(serde_json::Value::as_object)
+    {
+        for (id, owner) in owners {
+            node_screen_ids.insert(
+                id.clone(),
+                owner
+                    .as_str()
+                    .filter(|s| candidates.iter().any(|c| c.node_id == *s))
+                    .map(str::to_owned),
+            );
+        }
+    }
     Ok(SectionIndex {
         file_key: snapshot.file_key.clone(),
         source_version: snapshot.version.clone(),
@@ -283,11 +355,51 @@ pub fn build_section_index(
             bounds: section_node.bounds,
         },
         candidates,
+        node_screen_ids,
         truncated: snapshot
             .nodes
             .values()
             .any(|node| node.typed_view().bool("projectionTruncated") == Some(true)),
     })
+}
+
+/// Nearest selectable ancestor, using parent IDs or collected child edges.
+/// Cycles and uncollected ancestry never fabricate an owner.
+pub fn screen_owners<'a>(
+    snapshot: &Snapshot,
+    screen_ids: impl IntoIterator<Item = &'a str>,
+) -> BTreeMap<String, Option<String>> {
+    let roots: BTreeSet<_> = screen_ids.into_iter().collect();
+    let mut parents = BTreeMap::new();
+    for node in snapshot.nodes.values() {
+        for child in node.typed_view().child_ids() {
+            parents.insert(child, node.id.as_str());
+        }
+    }
+    snapshot
+        .nodes
+        .keys()
+        .map(|id| {
+            let mut current = Some(id.as_str());
+            let mut seen = BTreeSet::new();
+            let mut owner = None;
+            while let Some(at) = current {
+                if !seen.insert(at) {
+                    break;
+                }
+                if roots.contains(at) {
+                    owner = Some(at.to_owned());
+                    break;
+                }
+                current = snapshot
+                    .nodes
+                    .get(at)
+                    .and_then(|n| n.typed_view().string("parentId"))
+                    .or_else(|| parents.get(at).copied());
+            }
+            (id.clone(), owner)
+        })
+        .collect()
 }
 
 pub fn plan_batches(

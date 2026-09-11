@@ -8,11 +8,18 @@ expression: actual
     <VStack
       alignItems="center"
       bg="#FFF"
+      h="760px"
       overflow="hidden"
       px="30px"
       py="80px"
     >
-      <Center flexDir="column" gap="50px" maxW="1280px" w="100%">
+      <Center
+        flex="1"
+        flexDir="column"
+        gap="50px"
+        maxW="1280px"
+        w="100%"
+      >
         <Text
           color="#000"
           fontFamily="Inter"
@@ -23,7 +30,13 @@ expression: actual
         >
           Hello World!
         </Text>
-        <Image boxSize="100%" maxH="400px" maxW="1024px" src="/images/image.png" />
+        <Image
+          flex="1"
+          maxH="400px"
+          maxW="1024px"
+          src="/images/image.png"
+          w="100%"
+        />
       </Center>
     </VStack>
   )

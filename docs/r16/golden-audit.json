@@ -1,0 +1,64 @@
+{
+  "base": "a4a42628efd029650b3182ccbef60363a8ebfdfb",
+  "changedGoldens": [
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151__wquw_151_proofread_diagnostics.snap",
+      "reason": "Six blockedBy:null fields expose successful dimension proofs; removing only blockedBy yields the original JSON."
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151__wquw_151_proofread_source_map.snap",
+      "reason": "Adds resolutionSemantics; removing only that dictionary yields the original entries/version."
+    }
+  ],
+  "unchangedTsxGoldens": [
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151__wquw_151_proofread_devup_ui.snap",
+      "sha256": "70c494654a6b0bc409abacf0e62bb3c2817ec77230d7d7917929ccab3da6730f"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151__wquw_151_proofread_devup_ui_embedded.snap",
+      "sha256": "f461510afcf6f86aba7c1080fbfabe55d49555385ffa8fb1363134a6e69410c7"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35503.snap",
+      "sha256": "7bd0ff9133e2876b36a3b9db3f381e5759fe251ef891d4ef013dbc6d5069d0a4"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35518.snap",
+      "sha256": "9e705afe8e0c66e650492fe5d3d06bf5418b2bc54d9034ddcdc96dc571fbe8a6"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35569.snap",
+      "sha256": "f305fc4e855e326d6a691cb88010698e823875c0e2d21864ee752d548bb21f6f"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35652.snap",
+      "sha256": "016fb0f2789f3ebb4c1996f9a7d2da60c13914d9628165382493d4087745f212"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35729.snap",
+      "sha256": "47b6829964ba3c045560fbe61972d049b7d7cd5a040ef8918d090a4f6eaab670"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35887.snap",
+      "sha256": "d72b1f9352204be38e7a9b1ea14b412344c5522462e3b95f2b5d9637a1f3d0b3"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_35973.snap",
+      "sha256": "5ba79524b2527a6173aa512e41489ee365f9e219e7255b5a687d526016022e78"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_36059.snap",
+      "sha256": "8816da299e6796e203f8c17c90e063612be5e78726732c467d4dcc73227c4e5c"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_36108.snap",
+      "sha256": "635394ca6fa77841cf31d28ab1b958e80893f05873431997ba964571d2a75e3b"
+    },
+    {
+      "path": "crates/devup-mcp-devup-ui/tests/snapshots/wquw_151_frames__wquw_151_frame_3879_36144.snap",
+      "sha256": "8cdf8fc63a202f07c5ce958bb03da2242312cd1f42f39cc7985d1329db97b214"
+    }
+  ],
+  "comparison": "Snapshot contents compared after CRLF-to-LF normalization; snapshot assertions independently verify generated TSX."
+}

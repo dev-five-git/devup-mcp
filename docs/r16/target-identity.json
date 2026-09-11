@@ -1,0 +1,43 @@
+{
+  "workspace": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r16-resolution-labels",
+  "cargoWorkspaceRoot": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r16-resolution-labels",
+  "cargoTargetDirectory": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r16-resolution-labels\\target",
+  "CARGO_TARGET_DIR": null,
+  "baseCommit": "a4a42628efd029650b3182ccbef60363a8ebfdfb",
+  "verification": "Fresh full workspace test run followed by direct execution of the same three workspace-target test binaries; all 18 R16 tests passed. No installed devup-mcp MCP tools invoked.",
+  "executables": [
+    {
+      "executable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r16-resolution-labels\\target\\debug\\deps\\devup_mcp-bbcce4741168dc25.exe",
+      "sha256": "00788d02e0a2a07e28c537988accfe6f92f621b2fc9e43c747b9e63afbbb6fee",
+      "arguments": [
+        "r16",
+        "--nocapture"
+      ],
+      "exitCode": 0,
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "executable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r16-resolution-labels\\target\\debug\\deps\\devup_mcp_devup_ui-e9fabd8ef7812fe4.exe",
+      "sha256": "4ac064c29e628e8182fff37a3a35f7354d637acbe5e58fe5c98975265282a07d",
+      "arguments": [
+        "r16",
+        "--nocapture"
+      ],
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0
+    },
+    {
+      "executable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r16-resolution-labels\\target\\debug\\deps\\r14_absolute_evidence-c1015fcbf04dfd7d.exe",
+      "sha256": "faac552f347cc6e681e3d906d5fff2b06fd111a6fc705f7e61e38b03fecfe32f",
+      "arguments": [
+        "r16",
+        "--nocapture"
+      ],
+      "exitCode": 0,
+      "passed": 3,
+      "failed": 0
+    }
+  ]
+}

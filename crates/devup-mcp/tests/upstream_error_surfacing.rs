@@ -37,6 +37,53 @@ impl DevupAuth for ConnectedAuth {
 #[derive(Debug)]
 struct RateLimitedUpstream;
 
+#[derive(Debug)]
+struct TruncatedSectionUpstream;
+
+#[async_trait]
+impl FigmaUpstream for TruncatedSectionUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".into()])
+    }
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        Ok(UpstreamResult {
+            raw: json!({"content":[{"type":"text","text":"{\"fileKey\":\"SECRET\",\"nodes\":[// truncated to 20kb"}]}),
+        })
+    }
+}
+
+#[tokio::test]
+async fn r11_tool_failure_has_identical_content_and_structured_error() -> anyhow::Result<()> {
+    let server = DevupServer::new(Services::new(
+        Arc::new(ConnectedAuth),
+        Arc::new(TruncatedSectionUpstream),
+    ));
+    let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let response = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(
+        json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=10-1","frameIds":["10:2"],"outputs":["tsx"]}).as_object().unwrap().clone()
+    )).await.expect("tool execution failures are structured tool results");
+    assert_eq!(response.is_error, Some(true));
+    let wire = serde_json::to_value(&response)?;
+    let value = response.structured_content.expect("structured error");
+    assert_eq!(
+        serde_json::from_str::<Value>(wire["content"][0]["text"].as_str().unwrap())?,
+        value
+    );
+    assert_eq!(value["error"]["code"], "DEVUP_SNAPSHOT_UNSUPPORTED");
+    assert_eq!(value["error"]["retryable"], false);
+    assert_eq!(value["error"]["details"]["category"], "truncated-text");
+    assert!(value["server"].is_object());
+    assert!(!value.to_string().contains("SECRET"));
+    client.cancel().await?;
+    task.abort();
+    Ok(())
+}
+
 #[async_trait]
 impl FigmaUpstream for RateLimitedUpstream {
     async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
@@ -146,7 +193,11 @@ async fn reported_failure(upstream: Arc<dyn FigmaUpstream>) -> anyhow::Result<St
     let reported = client
         .call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(arguments))
         .await
-        .expect_err("this collection cannot succeed")
+        .expect("tool error response");
+    assert_eq!(reported.is_error, Some(true));
+    let reported = reported
+        .structured_content
+        .expect("structured error")
         .to_string();
 
     client.cancel().await?;
@@ -207,7 +258,11 @@ async fn a_stated_retry_after_is_reported_instead_of_a_guess() -> anyhow::Result
     let reported = client
         .call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(arguments))
         .await
-        .expect_err("a refused collection must fail")
+        .expect("tool error response");
+    assert_eq!(reported.is_error, Some(true));
+    let reported = reported
+        .structured_content
+        .expect("structured error")
         .to_string();
 
     assert!(
@@ -249,8 +304,12 @@ async fn a_rate_limited_upstream_reports_its_own_reason_not_a_parse_failure() ->
     let error = client
         .call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(arguments))
         .await
-        .expect_err("a refused collection must fail");
-    let reported = error.to_string();
+        .expect("tool error response");
+    assert_eq!(error.is_error, Some(true));
+    let reported = error
+        .structured_content
+        .expect("structured error")
+        .to_string();
 
     assert!(
         reported.contains("tool call limit"),

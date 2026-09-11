@@ -13,7 +13,9 @@ pub(super) fn scope_output(output: &mut CodegenOutput, field: &str) {
 
 pub(super) fn output_result(output: &CodegenOutput) -> Value {
     let quality = super::quality::projection_quality(true, &output.diagnostics);
-    json!({"state":"produced","projection":quality,"fidelity":output.fidelity_report})
+    json!({"state":"produced","projection":quality,"fidelity":output.fidelity_report,
+        "_propertyContract":devup_mcp_devup_ui::provenance::attributes::attribute_contract(output),
+        "_sourceMap":output.source_map.property_entries()})
 }
 
 pub(super) fn failure_issue(failure: &Value) -> Diagnostic {
@@ -68,7 +70,7 @@ pub(super) fn attach_review_and_deliverable(
             .unwrap_or("approximation");
         let priority = match class {
             "withheld-output" => 1,
-            "unclassified" | "property-unmapped" => 2,
+            "unclassified" | "property-unmapped" | "mapping-incomplete" => 2,
             "component-reference" => 3,
             _ => 4,
         };

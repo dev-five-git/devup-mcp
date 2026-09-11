@@ -135,11 +135,34 @@ fn rewrite_result_asset_references(value: &mut Value, paths: &BTreeMap<String, S
     match value {
         Value::Object(object) => {
             for (key, value) in object {
-                if matches!(key.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
-                    if let Value::String(code) = value {
-                        *code = rewrite_asset_references(&with_host_safe_asset_paths(code), paths);
+                if matches!(
+                    key.as_str(),
+                    "tsx"
+                        | "componentTsx"
+                        | "responsiveTsx"
+                        | "generatedProperty"
+                        | "generatedSource"
+                ) {
+                    match value {
+                        Value::String(code) => {
+                            *code =
+                                rewrite_asset_references(&with_host_safe_asset_paths(code), paths)
+                        }
+                        Value::Array(items) => {
+                            for item in items {
+                                if let Value::String(code) = item {
+                                    *code = rewrite_asset_references(
+                                        &with_host_safe_asset_paths(code),
+                                        paths,
+                                    );
+                                } else {
+                                    rewrite_result_asset_references(item, paths);
+                                }
+                            }
+                        }
+                        _ => rewrite_result_asset_references(value, paths),
                     }
-                } else if key == "frames" {
+                } else if !matches!(key.as_str(), "rawSnapshot" | "rawPayload" | "originalValue") {
                     rewrite_result_asset_references(value, paths);
                 }
             }
@@ -255,9 +278,90 @@ pub(super) async fn apply_delivery(
     artifact_store: &ArtifactStore,
     artifact: &ArtifactLookup,
     mut outputs: Vec<ProjectedOutput>,
+    reprojection_arguments: Option<&Value>,
 ) -> Result<Option<DeliveryAttachment>, DevupError> {
     if outputs.is_empty() || choose_delivery_for_result(mode, result, &outputs)?.inline {
         return Ok(None);
+    }
+    let frames = result["frames"].as_array();
+    let selected_frame = frames.and_then(|frames| {
+        frames.iter().enumerate().find(|(_, frame)| {
+            ["tsx", "componentTsx"]
+                .iter()
+                .any(|field| frame.get(*field).is_some_and(Value::is_string))
+        })
+    });
+    let frame = selected_frame.map(|(_, frame)| frame);
+    let selected = [
+        "tsx",
+        "componentTsx",
+        "devupJson",
+        "rawSnapshot",
+        "rawPayload",
+        "responsiveTsx",
+        "assetManifest",
+        "referencePng",
+    ]
+    .into_iter()
+    .find_map(|field| {
+        frame
+            .and_then(|f| f.get(field))
+            .or_else(|| result.get(field))
+            .map(|body| (field, body))
+    });
+    if let Some((field, body)) = selected {
+        let binary = field == "referencePng";
+        let bytes = if binary {
+            outputs
+                .iter()
+                .find(|o| o.name == "reference.png")
+                .map_or(0, |o| o.bytes.len())
+        } else {
+            body.as_str()
+                .map_or_else(|| serde_json::to_vec(body).unwrap().len(), str::len)
+        };
+        let escaped_bytes = if binary {
+            bytes.div_ceil(3) * 4
+        } else {
+            serde_json::to_vec(body).unwrap().len()
+        };
+        let coupled = reprojection_arguments
+            .is_some_and(|a| a["assetRequests"].as_array().is_some_and(|a| !a.is_empty()));
+        let mut args = reprojection_arguments.cloned().unwrap_or_else(|| json!({}));
+        if !coupled {
+            args["artifactId"] = json!(artifact.artifact_id);
+            args["outputs"] = json!([field]);
+            if let Some(frame) = frame {
+                args["frameIds"] = json!([frame["nodeId"]]);
+                args["allScreens"] = json!(false);
+                if frames.is_some_and(|frames| frames.len() > 1)
+                    && let Some(name) = args["componentName"].as_str()
+                {
+                    args["componentName"] =
+                        json!(format!("{name}{}", selected_frame.unwrap().0 + 1));
+                }
+            }
+            args["debug"] = json!(true);
+            args["delivery"] = json!(
+                if escaped_bytes * 2 > super::delivery::MAX_INLINE_TOTAL_BYTES {
+                    "resource"
+                } else {
+                    "inline"
+                }
+            );
+            args.as_object_mut().unwrap().remove("outputPaths");
+            args.as_object_mut().unwrap().remove("assetRequests");
+        }
+        let example = json!({"tool":"devup_figma_export","arguments":args});
+        result["nextAction"] = json!({"tool":"devup_figma_export","arguments":args,"example":example,
+            "how":if coupled { "Read the linked resources. Preserve coupled asset requests and paths in this resource reprojection; splitting them can change generated URLs." }
+                else if field == "responsiveTsx" { "Read the linked resource or reproject this responsive output with the same breakpoint selection. A responsive merge requires multiple source screens." }
+                else { "Read the linked resources, or compare the same artifact using this single-screen, single-output reprojection. No new Figma acquisition is required. Inline errors retain R12 resource recovery arguments." },
+            "sizeEstimate":{"outputBytes":bytes,"minimumWireBytes":escaped_bytes * 2,
+                "limitBytes":super::delivery::MAX_INLINE_TOTAL_BYTES,"isMeasuredReprojection":false,
+                "inlineFit":if escaped_bytes * 2 > super::delivery::MAX_INLINE_TOTAL_BYTES {"exceeds-limit"} else {"unknown"},
+                "binary":binary,
+                "basis":"Existing output UTF-8/binary bytes; minimumWireBytes doubles its JSON encoding (base64 for PNG). This lower bound excludes metadata/diagnostics. The new projection's full MCP response has not been measured and can still exceed the limit."}});
     }
     let projection_key = projection_key(&outputs);
     materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
@@ -295,9 +399,11 @@ pub(super) async fn apply_delivery(
         }
     }
     if let Some(deliverable) = result.get_mut("deliverable") {
-        deliverable["note"] = json!(
+        deliverable["note"] = json!(if deliverable["isFinal"] == true {
             "The final TSX deliverables are in resources. Read the linked resources to implement them."
-        );
+        } else {
+            "The available TSX outputs are in resources. Review projectionIssues and outputResults before using them; these outputs are not final."
+        });
     }
     result.insert(
         "resources".to_owned(),
@@ -931,7 +1037,7 @@ fn generate_collected_component(
 }
 
 pub(super) async fn complete_operation(
-    operation: PendingOperation,
+    mut operation: PendingOperation,
     payload: &CollectedPayload,
     source_kind: &str,
     artifact: &ArtifactLookup,
@@ -944,6 +1050,19 @@ pub(super) async fn complete_operation(
         payload.stats.clone()
     };
     let completeness_report = payload.completeness_report();
+    if source_kind == "artifact"
+        && let PendingOperation::Export {
+            frame_ids,
+            all_screens,
+            ..
+        } = &mut operation
+        && frame_ids.is_empty()
+        && !*all_screens
+        && let Some(saved) = &artifact.capabilities.section_selection
+    {
+        frame_ids.clone_from(&saved.frame_ids);
+        *all_screens = saved.all_screens;
+    }
     match operation {
         PendingOperation::Search {
             query,
@@ -1041,8 +1160,24 @@ pub(super) async fn complete_operation(
                 return Err(unavailable_output(
                     payload,
                     "sourceMap",
-                    "A source map needs a generated output. Include tsx, componentTsx or devupJson in outputs.",
+                    r#"A source map needs a generated output. Even when reusing artifactId, include tsx, componentTsx or devupJson in outputs in the same call. Example: {"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#,
                 ));
+            }
+            // Capture the accepted projection before fields are consumed by
+            // codegen/file staging. Resource retry reuses this acquisition.
+            let mut recovery_arguments = json!({
+                "artifactId":artifact.artifact_id,"outputs":outputs,
+                "componentName":component_name,"includeDiagnostics":include_diagnostics,
+                "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
+                "assetNamesPerNode":asset_names_per_node,"scope":scope,"strict":strict,
+                "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
+                "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
+                "delivery":"resource",
+                "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,
+                    "outputPath":asset_output_paths.get(&a.asset_id)})).collect::<Vec<_>>()
+            });
+            if let Some(root) = &asset_public_root {
+                recovery_arguments["assetPublicRoot"] = json!(root);
             }
             let mut result = Map::new();
             // Not restated by quality: this grades how far token resolution
@@ -1091,6 +1226,25 @@ pub(super) async fn complete_operation(
                 classify_target(&payload.snapshot, &payload.target)
             };
             result.insert("targetKind".to_owned(), json!(target_kind));
+            let selection_index = if target_kind == TargetKind::Section {
+                let mut index = match &payload_section_index {
+                    Some(index) => index.clone(),
+                    None => {
+                        devup_mcp_figma::build_section_index(&payload.snapshot, &payload.target)?
+                    }
+                };
+                for (id, owner) in devup_mcp_figma::screen_owners(
+                    &payload.snapshot,
+                    index.candidates.iter().map(|c| c.node_id.as_str()),
+                ) {
+                    if owner.is_some() || !index.node_screen_ids.contains_key(&id) {
+                        index.node_screen_ids.insert(id, owner);
+                    }
+                }
+                Some(index)
+            } else {
+                None
+            };
             let manifest_requested = outputs.iter().any(|output| output == "assetManifest");
             result.insert(
                 "assetSummary".to_owned(),
@@ -1187,7 +1341,7 @@ pub(super) async fn complete_operation(
                     "nextAction".to_owned(),
                     json!({
                         "why": "This is a Section candidate list. Screen artifacts have not been exported yet.",
-                        "how": "Review selection.candidates using name, nodeType and textPreview. Use allScreens:true for these automatic screen candidates in a complete list. Nonstandard cases and notes are in selection.explicitCandidates; select them with frameIds or their canonicalUrl.",
+                        "how": "Review selection.candidates using name, nodeType, textPreview and textPreviewState. Run the bounded batches below in order, retaining each response before continuing. Select nonstandard cases and notes from selection.explicitCandidates with frameIds or their canonicalUrl. Use the per-candidate nextAction to inspect text when preview is unavailable.",
                         "doNot": "Do not try to collect the whole Section at once."
                     }),
                 );
@@ -1238,6 +1392,46 @@ pub(super) async fn complete_operation(
                         }
                     });
                 }
+                let output_count = outputs
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    .max(1);
+                let png = outputs.iter().any(|s| s == "referencePng");
+                let batch_size = if png {
+                    1
+                } else {
+                    (12 / output_count).clamp(1, 6)
+                };
+                let template = result["nextAction"]["example"]["arguments"].clone();
+                let batches: Vec<_> = screens
+                    .chunks(batch_size)
+                    .map(|batch| {
+                        let mut args = template.clone();
+                        if png {
+                            args["url"] = json!(batch[0].canonical_url);
+                        } else {
+                            args["frameIds"] =
+                                json!(batch.iter().map(|c| &c.node.node_id).collect::<Vec<_>>());
+                        }
+                        json!({"tool":"devup_figma_export","arguments":args})
+                    })
+                    .collect();
+                result.get_mut("nextAction").unwrap()["maxFramesPerCall"] = json!(batch_size);
+                result.get_mut("nextAction").unwrap()["batches"] = json!(batches);
+                for category in ["candidates", "explicitCandidates"] {
+                    if let Some(list) =
+                        result.get_mut("selection").unwrap()[category].as_array_mut()
+                    {
+                        for candidate in list {
+                            if candidate.get("textPreviewState").is_none() {
+                                candidate["textPreviewState"] = json!("unknown-in-cached-snapshot");
+                            }
+                            candidate["nextAction"] = json!({"tool":"devup_figma_export","arguments":{
+                                "url":candidate["canonicalUrl"],"outputs":["tsx"],"scope":"node","delivery":"resource"}});
+                        }
+                    }
+                }
                 return Ok(Value::Object(result));
             }
 
@@ -1245,6 +1439,7 @@ pub(super) async fn complete_operation(
             let mut section_tsx_projected = false;
             let mut selected_projection_roots = None;
             let mut tsx_source_map = None;
+            let mut generated_output_target = "devupJson";
             let mut devup_json_source_map = None;
             let mut projection_diagnostics = Vec::new();
             let mut fidelity_reports = Vec::new();
@@ -1282,17 +1477,14 @@ pub(super) async fn complete_operation(
                             false,
                         ));
                     }
-                    if let Some(node_id) = requested
+                    if requested
                         .iter()
-                        .find(|node_id| !by_id.contains_key(**node_id))
+                        .any(|node_id| !by_id.contains_key(*node_id))
                     {
-                        return Err(DevupError::new(
-                            ErrorCode::DevupFigmaNodeNotFound,
-                            format!(
-                                "Not a screen frame inside the Section, or it does not exist: {node_id}"
-                            ),
-                            false,
-                        ));
+                        selection_index
+                            .as_ref()
+                            .expect("Section index")
+                            .select(&frame_ids, false)?;
                     }
                     candidates
                         .iter()
@@ -1380,12 +1572,14 @@ pub(super) async fn complete_operation(
                         frame["outputResults"][field] = output_result(&output);
                         frame_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
-                        frame[field] = json!(with_host_safe_asset_paths(&output.tsx));
+                        frame[field] = json!(output.tsx);
                         attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                         if outputs.iter().any(|output| output == "sourceMap") {
                             frame["sourceMap"] = json!({"version":output.source_map.version,
-                                "entries":output.source_map.entries,"source":{"fileKey":payload.target.file_key,
-                                "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version}});
+                                "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
+                                "entries":output.source_map.property_entries(),"source":{"fileKey":payload.target.file_key,
+                                "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
+                                "generatedOutput":field,"mappingKind":"node-field-property"}});
                         }
                     }
                     frame["placementContracts"] = json!(
@@ -1395,12 +1589,13 @@ pub(super) async fn complete_operation(
                             .collect::<Vec<_>>()
                     );
                     frame["projectionIssues"] = json!(
-                            frame_diagnostics
-                                .iter()
-                                .filter(|d| d.fidelity_impact()
-                                    != devup_mcp_figma::FidelityImpact::None)
-                                .collect::<Vec<_>>()
-                        );
+                        frame_diagnostics
+                            .iter()
+                            .filter(|d| d.fidelity_impact()
+                                != devup_mcp_figma::FidelityImpact::None
+                                || d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED")
+                            .collect::<Vec<_>>()
+                    );
                     projection_diagnostics.extend(frame_diagnostics.iter().cloned());
                     let mut frame_quality = OutputQuality {
                         acquisition: acquisition_quality(&completeness_report, false),
@@ -1428,6 +1623,21 @@ pub(super) async fn complete_operation(
                         std::slice::from_ref(&candidate.node.node_id),
                         manifest_requested,
                     );
+                    frame["projectionEvidence"] = json!(
+                        frame_diagnostics
+                            .iter()
+                            .filter(|d| {
+                                d.fidelity_impact() == devup_mcp_figma::FidelityImpact::None
+                                    && matches!(
+                                        d.code.as_str(),
+                                        "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+                                            | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                                            | "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR"
+                                            | "DEVUP_CODEGEN_PROPERTY_EVIDENCE"
+                                    )
+                            })
+                            .collect::<Vec<_>>()
+                    );
                     frame_quality.assets = asset_collection_quality(&frame["assetSummary"]);
                     frame["quality"] = json!(frame_quality);
                     frame["status"] = json!(if failures.len() > before_failures {
@@ -1442,7 +1652,12 @@ pub(super) async fn complete_operation(
                         include_diagnostics,
                     );
                     if include_diagnostics {
-                        frame["diagnostics"] = json!(frame_diagnostics);
+                        frame["diagnostics"] = json!(
+                            frame_diagnostics
+                                .iter()
+                                .filter(|d| d.code != "DEVUP_CODEGEN_PROPERTY_EVIDENCE")
+                                .collect::<Vec<_>>()
+                        );
                     }
                     frames.push(frame);
                 }
@@ -1543,11 +1758,10 @@ pub(super) async fn complete_operation(
                     scope_output(&mut source_output, "responsiveTsx");
                     breakpoint_fidelity
                         .push(json!({"rootId":root_id,"fidelity":source_output.fidelity_report}));
-                    for mut issue in source_output
-                        .diagnostics
-                        .into_iter()
-                        .filter(|d| d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None)
-                    {
+                    for mut issue in source_output.diagnostics.into_iter().filter(|d| {
+                        d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None
+                            || d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                    }) {
                         if let Some(details) = issue.details.as_mut().and_then(Value::as_object_mut)
                         {
                             details.insert(
@@ -1654,13 +1868,23 @@ pub(super) async fn complete_operation(
                     output_result(&output);
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
+                generated_output_target = "tsx";
                 tsx_source_map = Some(output.source_map.clone());
                 if output_paths.contains_key("tsx") {
                     pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
                 }
                 result.insert("tsx".to_owned(), json!(output.tsx));
                 if include_diagnostics {
-                    result.insert("diagnostics".to_owned(), json!(&output.diagnostics));
+                    result.insert(
+                        "diagnostics".to_owned(),
+                        json!(
+                            output
+                                .diagnostics
+                                .iter()
+                                .filter(|d| d.code != "DEVUP_CODEGEN_PROPERTY_EVIDENCE")
+                                .collect::<Vec<_>>()
+                        ),
+                    );
                 }
             }
 
@@ -1693,6 +1917,7 @@ pub(super) async fn complete_operation(
                         projection_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
                         if tsx_source_map.is_none() {
+                            generated_output_target = "componentTsx";
                             tsx_source_map = Some(output.source_map.clone());
                         }
                         if output_paths.contains_key("componentTsx") {
@@ -1727,7 +1952,16 @@ pub(super) async fn complete_operation(
                     json!(output.unresolved_variables),
                 );
                 if include_diagnostics && !result.contains_key("diagnostics") {
-                    result.insert("diagnostics".to_owned(), json!(output.diagnostics));
+                    result.insert(
+                        "diagnostics".to_owned(),
+                        json!(
+                            output
+                                .diagnostics
+                                .iter()
+                                .filter(|d| d.code != "DEVUP_CODEGEN_PROPERTY_EVIDENCE")
+                                .collect::<Vec<_>>()
+                        ),
+                    );
                 }
             }
 
@@ -1777,15 +2011,17 @@ pub(super) async fn complete_operation(
 
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
-                    "version": 1,
-                    "tsx": tsx_source_map.map(|source_map| source_map.entries).unwrap_or_default(),
+                    "version": 2,
+                    "resolutionSemantics":devup_mcp_devup_ui::provenance::resolution_semantics(),
+                    "tsx": tsx_source_map.map(|source_map| source_map.property_entries()).unwrap_or_default(),
                     "devupJson": devup_json_source_map
                         .map(|source_map| source_map.entries)
                         .unwrap_or_default(),
                     "source": {
                         "fileKey": payload.target.file_key,
                         "rootNodeId": payload.target.node_id,
-                        "sourceVersion": payload.source_version
+                        "sourceVersion": payload.source_version,
+                        "generatedOutput":generated_output_target,"mappingKind":"node-field-property"
                     }
                 });
                 if output_paths.contains_key("sourceMap") {
@@ -2048,7 +2284,28 @@ pub(super) async fn complete_operation(
                 json!(
                     projection_diagnostics
                         .iter()
-                        .filter(|d| d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None)
+                        .filter(
+                            |d| d.fidelity_impact() != devup_mcp_figma::FidelityImpact::None
+                                || d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                        )
+                        .collect::<Vec<_>>()
+                ),
+            );
+            result.insert(
+                "projectionEvidence".into(),
+                json!(
+                    projection_diagnostics
+                        .iter()
+                        .filter(|d| {
+                            d.fidelity_impact() == devup_mcp_figma::FidelityImpact::None
+                                && matches!(
+                                    d.code.as_str(),
+                                    "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+                                        | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                                        | "DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR"
+                                        | "DEVUP_CODEGEN_PROPERTY_EVIDENCE"
+                                )
+                        })
                         .collect::<Vec<_>>()
                 ),
             );
@@ -2142,7 +2399,8 @@ pub(super) async fn complete_operation(
                         "quality": quality,
                         "fidelity": fidelity_reports,
                         "failures": failures,
-                        "completenessReport": completeness_report
+                        "completenessReport": completeness_report,
+                        "projectionIssues": result.get("projectionIssues")
                     }),
                 ));
             }
@@ -2167,6 +2425,9 @@ pub(super) async fn complete_operation(
                         &frame_failures,
                         Some(&id),
                     );
+                    if !frame_failures.is_empty() {
+                        frame["failures"] = json!(frame_failures);
+                    }
                 }
             }
             attach_review_and_deliverable(
@@ -2194,40 +2455,123 @@ pub(super) async fn complete_operation(
             if let Some(report) = carrier.get("completenessReport") {
                 result.insert("completenessReport".to_owned(), report.clone());
             }
-            // The code and the bytes have to name an asset alike. Renaming
-            // here, once both are assembled, keeps the two in step while the
-            // code generator itself stays byte-for-byte the plugin's.
-            for output in ["tsx", "responsiveTsx", "componentTsx"] {
-                if let Some(Value::String(code)) = result.get_mut(output) {
-                    let safe = with_host_safe_asset_paths(code.as_str());
-                    if safe != *code {
-                        *code = safe;
-                    }
-                }
-                if let Some(code) = pending_text_outputs.get_mut(output) {
-                    let safe = with_host_safe_asset_paths(code.as_str());
-                    if safe != *code {
-                        *code = safe;
-                    }
-                }
-            }
-            if let Some(manifest) = &mut pending_asset_manifest {
-                let replacements = reconcile_asset_paths(
+            let replacements = if let Some(manifest) = &mut pending_asset_manifest {
+                reconcile_asset_paths(
                     manifest,
                     &mut asset_output_paths,
                     asset_public_root.as_deref(),
                     output_policy,
-                )?;
-                let mut value = Value::Object(std::mem::take(&mut result));
-                rewrite_result_asset_references(&mut value, &replacements);
-                result = value.as_object().expect("result object").clone();
-                for (name, code) in &mut pending_text_outputs {
-                    if matches!(name.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
-                        *code = rewrite_asset_references(code, &replacements);
+                )?
+            } else {
+                BTreeMap::new()
+            };
+            let owners = if let Some(index) = &selection_index {
+                index.node_screen_ids.clone()
+            } else {
+                devup_mcp_figma::screen_owners(
+                    &payload.snapshot,
+                    payload.snapshot.roots.iter().map(String::as_str),
+                )
+            };
+            // Share definitions only for labels present in these outputs. The
+            // full label catalog remains documented and standalone maps carry it.
+            if let Some(frames) = result.get("frames").and_then(Value::as_array)
+                && frames.iter().any(|frame| frame.get("sourceMap").is_some())
+            {
+                let labels = frames
+                    .iter()
+                    .flat_map(|f| {
+                        f["outputResults"]
+                            .as_object()
+                            .into_iter()
+                            .flat_map(|o| o.values())
+                    })
+                    .flat_map(|o| o["_sourceMap"].as_array().into_iter().flatten())
+                    .filter_map(|e| e["resolution"].as_str())
+                    .collect::<std::collections::BTreeSet<_>>();
+                let mut semantics = devup_mcp_devup_ui::provenance::resolution_semantics();
+                semantics
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("verificationAxis");
+                semantics["relation"] = json!(
+                    "Same node/property/screen/output: ABSOLUTE components.*.state is independent."
+                );
+                semantics["values"]
+                    .as_object_mut()
+                    .unwrap()
+                    .retain(|label, _| labels.contains(label.as_str()));
+                result.insert("resolutionSemantics".into(), semantics);
+            }
+            let mut value = Value::Object(std::mem::take(&mut result));
+            attach_diagnostic_screens(&mut value, &owners);
+            rewrite_result_asset_references(&mut value, &replacements);
+            audit_delivered_properties(&mut value);
+            super::verdict_scope::attach(&mut value);
+            if strict && value["mappingComplete"] == false {
+                return Err(DevupError::with_details(
+                    ErrorCode::DevupSnapshotUnsupported,
+                    "strict export requires complete generated-property provenance.",
+                    false,
+                    json!({"quality":value["quality"],"projectionIssues":value["projectionIssues"]}),
+                ));
+            }
+            result = value.as_object().expect("result object").clone();
+            for (name, contents) in &mut pending_text_outputs {
+                if matches!(name.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
+                    if let Some(code) = result.get(name).and_then(Value::as_str) {
+                        *contents = code.to_owned();
                     }
+                } else if name == "sourceMap" {
+                    *contents =
+                        serde_json::to_string_pretty(&result["sourceMap"]).unwrap_or_default();
+                } else if matches!(name.as_str(), "rawSnapshot" | "rawPayload") {
+                    *contents = serde_json::to_string_pretty(&result[name]).unwrap_or_default();
                 }
             }
             let mut planned_outputs = Vec::new();
+            let mut supported_keys = Vec::new();
+            for field in [
+                "tsx",
+                "componentTsx",
+                "responsiveTsx",
+                "devupJson",
+                "rawSnapshot",
+                "rawPayload",
+                "sourceMap",
+                "referencePng",
+            ] {
+                if result.contains_key(field) {
+                    supported_keys.push(field.to_owned());
+                }
+            }
+            if let Some(frames) = result.get("frames").and_then(Value::as_array) {
+                for frame in frames {
+                    for field in ["tsx", "componentTsx", "sourceMap"] {
+                        let Some(contents) = frame.get(field) else {
+                            continue;
+                        };
+                        let key = format!("frame:{}:{field}", frame["nodeId"].as_str().unwrap());
+                        supported_keys.push(key.clone());
+                        if let Some(path) = output_paths.get(&key) {
+                            let bytes = if let Some(code) = contents.as_str() {
+                                code.as_bytes().to_vec()
+                            } else {
+                                serde_json::to_vec_pretty(contents).unwrap()
+                            };
+                            planned_outputs.push((key, output_policy.resolve(path)?, bytes));
+                        }
+                    }
+                }
+            }
+            let path_diagnostics: Vec<_> = output_paths.keys().filter(|key| !supported_keys.contains(key)).map(|key| {
+                json!({"code":"DEVUP_OUTPUT_PATH_UNSUPPORTED","key":key,"written":false,
+                    "message":"This key has no writable output in this projection. Use a supportedKeys entry; frame outputs require frame:<nodeId>:<output>."})
+            }).collect();
+            result.insert("outputPathResults".into(), json!({"supportedKeys":supported_keys,
+                "frameKeyFormat":"frame:<nodeId>:<tsx|componentTsx|sourceMap>",
+                "diagnostics":path_diagnostics,
+                "note":"outputPaths reports committed writes only. Unsupported or unavailable keys do not write files; assetRequests use their own outputPath."}));
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {
                     planned_outputs.push((
@@ -2286,19 +2630,22 @@ pub(super) async fn complete_operation(
             let mut shared_names: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for (name, target, bytes) in planned_outputs {
                 let path = target.display_path().to_string_lossy().into_owned();
-                written_paths.insert(name.clone(), json!(path.clone()));
                 let fingerprint = sha256_hex(&bytes);
                 match staged_content.get(&path) {
-                    Some(staged) if *staged == fingerprint => continue,
+                    Some(staged) if *staged == fingerprint => {
+                        written_paths.insert(name, json!(path));
+                        continue;
+                    }
                     Some(_) => {
                         let asset = name.strip_prefix("asset:").unwrap_or(&name).to_owned();
                         shared_names.entry(path).or_default().push(asset);
                         continue;
                     }
                     None => {
-                        staged_content.insert(path, fingerprint);
+                        staged_content.insert(path.clone(), fingerprint);
                     }
                 }
+                written_paths.insert(name.clone(), json!(path));
                 transaction.stage(name, target, &bytes)?;
             }
             if manifest_requested && let Some(mut manifest) = pending_asset_manifest {
@@ -2344,6 +2691,9 @@ pub(super) async fn complete_operation(
                 result.insert("assetManifest".to_owned(), manifest);
             }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
+            for value in result.values_mut() {
+                attach_diagnostic_screens(value, &owners);
+            }
             let projected_outputs = projected_outputs_from_result(&result)?;
             let mut projected_outputs = projected_outputs;
             projected_outputs.extend(asset_resource_outputs);
@@ -2354,8 +2704,10 @@ pub(super) async fn complete_operation(
                 artifact_store,
                 artifact,
                 projected_outputs,
+                Some(&recovery_arguments),
             )
-            .await?;
+            .await
+            .map_err(|error| super::delivery::with_inline_recovery(error, recovery_arguments))?;
             if let Err(error) = transaction.commit() {
                 rollback_delivery(artifact_store, artifact, attachment).await;
                 return Err(error);
@@ -2368,6 +2720,129 @@ pub(super) async fn complete_operation(
             "An internal collect operation cannot be completed from an MCP artifact.",
             false,
         )),
+    }
+}
+
+/// Last code boundary: run after all TSX/map/evidence rewrites and before any
+/// file or resource is materialized. New postprocessors cannot silently add or
+/// change a property without updating its verified derivation contract.
+fn audit_delivered_properties(value: &mut Value) {
+    let mut complete = true;
+    let mut maps = Map::new();
+    let mut frame_issues = Vec::new();
+    for field in ["tsx", "componentTsx", "responsiveTsx"] {
+        if !value.get(field).is_some_and(Value::is_string) {
+            continue;
+        }
+        if let Some(map) = value["outputResults"][field]
+            .as_object_mut()
+            .and_then(|o| o.remove("_sourceMap"))
+        {
+            maps.insert(field.into(), map);
+        }
+        let contract = value["outputResults"][field]
+            .as_object_mut()
+            .and_then(|o| o.remove("_propertyContract"))
+            .and_then(|v| v.as_array().cloned())
+            .unwrap_or_default();
+        let Some(code) = value[field].as_str() else {
+            continue;
+        };
+        let mut missing =
+            devup_mcp_devup_ui::provenance::attributes::uncovered_attributes(code, &contract);
+        let layout = &value["outputResults"][field]["fidelity"]["layout"];
+        if layout["total"]
+            .as_u64()
+            .zip(layout["covered"].as_u64())
+            .is_some_and(|(total, covered)| covered < total)
+        {
+            missing.push(json!({"reason":"unmapped-source-layout-fields",
+                "sourceFields":value["outputResults"][field]["fidelity"]["uncoveredLayout"],
+                "propertyMappingVerified":false,
+                "message":"Source layout obligations lack verified emitted mappings, even if every generated attribute has provenance."}));
+        }
+        if field == "responsiveTsx"
+            && value["outputResults"][field]["fidelity"]["mergedMappingVerified"] == false
+        {
+            missing.push(json!({"reason":"unverified-responsive-merge",
+                "propertyMappingVerified":false,
+                "message":"The responsive merge has no verified final provenance contract, including for an attribute-free module."}));
+        }
+        value["outputResults"][field]["mappingComplete"] = json!(missing.is_empty());
+        if missing.is_empty() {
+            continue;
+        }
+        complete = false;
+        let issue = json!({"code":"DEVUP_CODEGEN_PROPERTY_UNMAPPED",
+            "message":"The final bidirectional contract has uncovered generated attributes or source layout obligations. Existing value-loss classifications remain unchanged.",
+            "nodeId":value["nodeId"].as_str().or(value["source"]["nodeId"].as_str()),"severity":"warning","fidelityImpact":"none",
+            "details":{"stage":"delivery-property-audit","output":field,"classification":"mapping-incomplete",
+                "unmappedProperties":missing,"propertyMappingVerified":false,
+                "nextAction":"Add sourceMap or projectionEvidence derivations for these final attributes. Breakpoint-source maps do not establish merged responsive mappings.",
+                "evidenceLimit":"No value loss or browser composition measurement is inferred from missing provenance."}});
+        if !value["projectionIssues"].is_array() {
+            value["projectionIssues"] = json!([]);
+        }
+        value["projectionIssues"]
+            .as_array_mut()
+            .unwrap()
+            .push(issue);
+        if value["outputResults"][field]["projection"] == "exact" {
+            value["outputResults"][field]["projection"] = json!("mapping-incomplete");
+        }
+        value["outputResults"][field]["mappingComplete"] = json!(false);
+    }
+    if maps.len() > 1 && value.get("sourceMap").is_some() {
+        value["sourceMap"]["byOutput"] = Value::Object(maps);
+    }
+    if let Some(frames) = value.get_mut("frames").and_then(Value::as_array_mut) {
+        for frame in frames {
+            audit_delivered_properties(frame);
+            complete &= frame["mappingComplete"] != false;
+            frame_issues.extend(
+                frame["projectionIssues"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|d| d["details"]["stage"] == "delivery-property-audit")
+                    .cloned(),
+            );
+        }
+    }
+    if !frame_issues.is_empty() {
+        if !value["projectionIssues"].is_array() {
+            value["projectionIssues"] = json!([]);
+        }
+        value["projectionIssues"]
+            .as_array_mut()
+            .unwrap()
+            .extend(frame_issues);
+    }
+    value["mappingComplete"] = json!(complete);
+    if !complete {
+        if value["quality"]["projection"] == "exact" {
+            value["quality"]["projection"] = json!("mapping-incomplete");
+        }
+        if value["status"] == "complete" {
+            value["status"] = json!("partial");
+        }
+        if let Some(deliverable) = value.get_mut("deliverable") {
+            deliverable["isFinal"] = json!(false);
+            deliverable["note"] = json!(
+                "Generated values remain available; review missing provenance in projectionIssues before accepting the output."
+            );
+        }
+        let failures = value["failures"].as_array().cloned().unwrap_or_default();
+        let node_id = value["nodeId"]
+            .as_str()
+            .or(value["source"]["nodeId"].as_str())
+            .map(str::to_owned);
+        attach_review_and_deliverable(
+            value.as_object_mut().unwrap(),
+            &["tsx".into(), "componentTsx".into(), "responsiveTsx".into()],
+            &failures,
+            node_id.as_deref(),
+        );
     }
 }
 
@@ -2407,11 +2882,622 @@ mod tests {
     }
 }
 
+/// Apply at the delivery boundary so diagnostics, evidence, and issues share
+/// the same ID contract, including resource-delivered diagnostic containers.
+fn attach_diagnostic_screens(value: &mut Value, owners: &BTreeMap<String, Option<String>>) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                attach_diagnostic_screens(item, owners);
+            }
+        }
+        Value::Object(object) => {
+            if object.get("code").and_then(Value::as_str).is_some()
+                && object.get("message").and_then(Value::as_str).is_some()
+            {
+                let owner = object
+                    .get("nodeId")
+                    .and_then(Value::as_str)
+                    .and_then(|id| owners.get(id))
+                    .and_then(|id| id.as_deref());
+                object.insert("screenId".into(), json!(owner));
+                if owner.is_none() {
+                    object.insert("screenIdReason".into(), json!("This diagnostic has no node in a known selectable screen; no screen ID was inferred."));
+                }
+            }
+            for child in object.values_mut() {
+                attach_diagnostic_screens(child, owners);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[cfg(test)]
 mod w1_regressions {
     use super::super::artifacts::ArtifactRequestKey;
     use super::*;
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
+
+    #[test]
+    fn r13_mapping_gap_is_not_exact_or_value_loss() {
+        let d = Diagnostic {
+            code: "DEVUP_CODEGEN_PROPERTY_UNMAPPED".into(),
+            fidelity_impact: Some(devup_mcp_figma::FidelityImpact::None),
+            ..Default::default()
+        };
+        let quality = serde_json::to_value(projection_quality(true, &[d])).unwrap();
+        assert_eq!(quality, "mapping-incomplete");
+    }
+
+    #[test]
+    fn r17_source_layout_gap_cannot_be_overwritten_by_complete_attribute_audit() {
+        let mut result = json!({"tsx":"<Box/>","quality":{"projection":"lossy"},"status":"partial",
+            "outputResults":{"tsx":{"projection":"lossy","fidelity":{"layout":{"total":1,"covered":0},"uncoveredLayout":["child#layoutSizingHorizontal"]},"_propertyContract":[]}},"projectionIssues":[]});
+        audit_delivered_properties(&mut result);
+        assert_eq!(result["mappingComplete"], false);
+        assert_eq!(result["outputResults"]["tsx"]["mappingComplete"], false);
+        assert_eq!(result["quality"]["projection"], "lossy");
+    }
+
+    #[test]
+    fn r13_review_malformed_postprocess_cannot_pass_an_empty_ast() {
+        let mut result = json!({"tsx":"export const X = <Box", "quality":{"projection":"exact"},"status":"complete",
+            "outputResults":{"tsx":{"projection":"exact","_propertyContract":[]}},"projectionIssues":[]});
+        audit_delivered_properties(&mut result);
+        assert_eq!(result["mappingComplete"], false);
+        assert_ne!(result["quality"]["projection"], "exact");
+    }
+
+    #[tokio::test]
+    async fn r13_review_responsive_resource_preserves_selection_in_next_action() {
+        let mut op = operation(&["responsiveTsx"]);
+        if let PendingOperation::Export {
+            all_screens,
+            delivery,
+            ..
+        } = &mut op
+        {
+            *all_screens = true;
+            *delivery = DeliveryMode::Resource;
+        }
+        let result = project(responsive_payload(), op).await.unwrap();
+        assert_eq!(
+            result["nextAction"]["arguments"]["outputs"],
+            json!(["responsiveTsx"])
+        );
+        assert_eq!(result["nextAction"]["arguments"]["allScreens"], true);
+    }
+
+    #[tokio::test]
+    async fn r13_review_reference_resource_has_binary_size_guidance() {
+        let store = ArtifactStore::default();
+        let data = payload();
+        let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+            data.target.clone(),
+            CollectionScope::Node,
+        ));
+        let artifact = store.insert(key, data).await.unwrap();
+        let mut result = json!({"referencePng":{"byteLength":900000,"mimeType":"image/png"}});
+        let outputs = vec![ProjectedOutput::binary(
+            "reference.png",
+            "image/png",
+            vec![0; 900000],
+        )];
+        let args = json!({"artifactId":artifact.artifact_id,"outputs":["referencePng"],"delivery":"resource"});
+        let attachment = apply_delivery(
+            &mut result,
+            DeliveryMode::Resource,
+            &store,
+            &artifact,
+            outputs,
+            Some(&args),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result["nextAction"]["arguments"]["outputs"],
+            json!(["referencePng"])
+        );
+        assert_eq!(result["nextAction"]["sizeEstimate"]["outputBytes"], 900000);
+        assert!(
+            result["nextAction"]["sizeEstimate"]["minimumWireBytes"]
+                .as_u64()
+                .unwrap()
+                >= 2400000
+        );
+        assert_eq!(result["nextAction"]["arguments"]["delivery"], "resource");
+        commit_delivery(attachment);
+    }
+
+    #[tokio::test]
+    async fn r13_resource_next_action_executes_same_named_frame_without_upstream() {
+        use super::super::{DevupAuth, DevupServer, Services};
+        use devup_mcp_figma::{AuthStatus, FigmaUpstream, ReadToolCall, UpstreamResult};
+        use std::sync::Arc;
+        struct Offline;
+        #[async_trait::async_trait]
+        impl DevupAuth for Offline {
+            async fn status(&self) -> Result<AuthStatus, DevupError> {
+                panic!("unexpected authentication")
+            }
+            async fn login(&self) -> Result<AuthStatus, DevupError> {
+                panic!("unexpected login")
+            }
+            async fn logout(&self) -> Result<AuthStatus, DevupError> {
+                panic!("unexpected logout")
+            }
+        }
+        #[async_trait::async_trait]
+        impl FigmaUpstream for Offline {
+            async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+                panic!("unexpected upstream discovery")
+            }
+            async fn call_read_tool(&self, _: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+                panic!("unexpected upstream read")
+            }
+        }
+        let store = ArtifactStore::default();
+        let mut data = section(2);
+        data.metadata["selectedRootIds"] = json!(["1:1", "1:2"]);
+        let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+            data.target.clone(),
+            CollectionScope::Node,
+        ));
+        let artifact = store.insert(key, data).await.unwrap();
+        let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            component_name,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+            *component_name = Some("AuditScreen".into());
+        }
+        let baseline = complete_operation(
+            op.clone(),
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &policy,
+            &store,
+        )
+        .await
+        .unwrap();
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Resource;
+        }
+        let resource = complete_operation(
+            op,
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &policy,
+            &store,
+        )
+        .await
+        .unwrap();
+        let mut server = DevupServer::new(Services::new(Arc::new(Offline), Arc::new(Offline)));
+        server.artifacts = store;
+        let result = server
+            .devup_figma_export(rmcp::handler::server::wrapper::Parameters(
+                serde_json::from_value(resource["nextAction"]["arguments"].clone()).unwrap(),
+            ))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(result["cache"]["artifactId"], artifact.artifact_id);
+        assert_eq!(result["frames"].as_array().unwrap().len(), 1);
+        assert_eq!(result["frames"][0]["tsx"], baseline["frames"][0]["tsx"]);
+    }
+
+    #[test]
+    fn r13_delivery_gate_detects_future_postprocessor_even_without_public_map() {
+        let mut data = payload();
+        for field in ["layoutSizingHorizontal", "layoutSizingVertical"] {
+            data.snapshot
+                .nodes
+                .get_mut("1:1")
+                .unwrap()
+                .fields
+                .insert(field.into(), json!("FIXED"));
+        }
+        let output = generate_component(&data.snapshot, "1:1", &CodegenOptions::default()).unwrap();
+        assert_eq!(output_result(&output)["projection"], "exact");
+        let mut result = json!({"tsx":output.tsx,"quality":{"projection":"exact"},"status":"complete",
+            "deliverable":{"isFinal":true},"outputResults":{"tsx":output_result(&output)},"projectionIssues":[]});
+        result["tsx"] = json!(output.tsx.replacen(
+            "<Box",
+            "<Box futurePostprocess=\"retained\"",
+            1
+        ));
+        audit_delivered_properties(&mut result);
+        assert_eq!(result["quality"]["projection"], "mapping-incomplete");
+        assert_eq!(
+            result["outputResults"]["tsx"]["projection"],
+            "mapping-incomplete"
+        );
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert_eq!(result["projectionReview"]["groups"][0]["priority"], 2);
+        assert!(
+            result["tsx"]
+                .as_str()
+                .unwrap()
+                .contains("futurePostprocess=\"retained\"")
+        );
+        assert!(
+            result["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                    && d["fidelityImpact"] == "none")
+        );
+        assert!(
+            result["outputResults"]["tsx"]
+                .get("_propertyContract")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn r13_strict_codegen_mapping_gap_keeps_property_diagnostics() {
+        let mut data = payload();
+        let node = data.snapshot.nodes.get_mut("1:1").unwrap();
+        node.node_type = "TEXT".into();
+        node.fields.extend(serde_json::from_value::<std::collections::BTreeMap<String, Value>>(json!({
+            "characters":"ab", "textTruncation":"DISABLED",
+            "styledTextSegments":[{"characters":"a","fontSize":16},{"characters":"b","fontSize":20}]
+        })).unwrap());
+        let output = generate_component(&data.snapshot, "1:1", &CodegenOptions::default()).unwrap();
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "DEVUP_CODEGEN_PROPERTY_UNMAPPED")
+        );
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { strict, .. } = &mut op {
+            *strict = true;
+        }
+        let error = project(data, op).await.unwrap_err();
+        assert!(
+            error.details["projectionIssues"]
+                .as_array()
+                .is_some_and(|issues| issues.iter().any(|d| d["code"]
+                    == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                    && d["nodeId"] == "1:1"
+                    && d["property"] == "fontSize"
+                    && d["fidelityImpact"] == "none"))
+        );
+    }
+
+    #[tokio::test]
+    async fn r13_empty_responsive_still_reports_unverified_merge_stage() {
+        let mut op = operation(&["responsiveTsx"]);
+        if let PendingOperation::Export { all_screens, .. } = &mut op {
+            *all_screens = true;
+        }
+        let result = project(responsive_payload(), op).await.unwrap();
+        assert_eq!(result["mappingComplete"], false);
+        assert!(
+            result["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["details"]["unmappedProperties"]
+                    .as_array()
+                    .is_some_and(|props| props
+                        .iter()
+                        .any(|p| p["reason"] == "unverified-responsive-merge")))
+        );
+    }
+
+    #[tokio::test]
+    async fn r13_responsive_mapping_gap_is_explicit_and_strict_rejects() {
+        let mut op = operation(&["responsiveTsx"]);
+        if let PendingOperation::Export { all_screens, .. } = &mut op {
+            *all_screens = true;
+        }
+        let mut data = responsive_payload();
+        for node in data.snapshot.nodes.values_mut() {
+            node.fields.insert(
+                "fills".into(),
+                json!([{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]),
+            );
+        }
+        let result = project(data.clone(), op.clone()).await.unwrap();
+        assert!(result["responsiveTsx"].is_string());
+        assert_eq!(result["mappingComplete"], false);
+        assert_ne!(
+            result["outputResults"]["responsiveTsx"]["projection"],
+            "exact"
+        );
+        assert!(
+            result["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
+                    && d["details"]["output"] == "responsiveTsx"
+                    && d["fidelityImpact"] == "none")
+        );
+        if let PendingOperation::Export { strict, .. } = &mut op {
+            *strict = true;
+        }
+        assert!(project(data, op).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn r13_final_frame_contract_covers_both_outputs_after_filename_rewrite() {
+        let mut data = payload();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r13/f13-1-snapshot.json"))
+                .unwrap();
+        data.target.node_id = Some("3997:46715".into());
+        let mut op = operation(&["tsx", "componentTsx", "sourceMap"]);
+        if let PendingOperation::Export {
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        for field in ["tsx", "componentTsx"] {
+            let code = result[field].as_str().unwrap();
+            let entries = result["sourceMap"]["byOutput"][field].as_array().unwrap();
+            for attr in devup_mcp_devup_ui::provenance::attributes::generated_attributes(code) {
+                assert!(
+                    entries
+                        .iter()
+                        .any(|e| e["generatedProperty"] == attr.source)
+                        || result["projectionEvidence"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|d| d["details"]["output"] == field
+                                && d["details"]["generatedProperty"] == attr.source),
+                    "{field}: {}",
+                    attr.source
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r13_asset_derivations_survive_map_and_diagnostics_opt_out() {
+        let mut data = payload();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r13/f13-1-snapshot.json"))
+                .unwrap();
+        data.target.node_id = Some("3997:46715".into());
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        assert!(result.get("sourceMap").is_none());
+        for prop in ["boxShadow", "objectFit", "objectPos"] {
+            let evidence = result["projectionEvidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|d| d["nodeId"] == "3997:46741" && d["property"] == prop)
+                .unwrap_or_else(|| panic!("Missing asset evidence: {prop}"));
+            assert_eq!(evidence["fidelityImpact"], "none");
+            assert_eq!(evidence["details"]["output"], "tsx");
+            assert!(
+                evidence["details"]["sourceFields"]
+                    .as_array()
+                    .is_some_and(|fields| !fields.is_empty())
+            );
+            assert!(evidence["details"]["calculation"].is_string());
+        }
+    }
+
+    #[tokio::test]
+    async fn r13_frame_output_paths_report_unsupported_and_write_supported_keys() {
+        let dir = std::env::temp_dir().join(format!("r13-paths-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("frame.tsx");
+        let expected = crate::test_paths::canonical(&dir).join("frame.tsx");
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            output_paths,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["1:1".into()];
+            output_paths.insert(
+                "tsx".into(),
+                dir.join("ignored.tsx").to_string_lossy().into(),
+            );
+            output_paths.insert("frame:1:1:tsx".into(), target.to_string_lossy().into());
+            output_paths.insert("typo".into(), dir.join("typo").to_string_lossy().into());
+        }
+        let result = project(section(2), op).await.unwrap();
+        assert_eq!(
+            result["outputPathResults"]["diagnostics"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(
+            result["outputPathResults"]["supportedKeys"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("frame:1:1:tsx"))
+        );
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            result["frames"][0]["tsx"].as_str().unwrap()
+        );
+        assert_eq!(
+            result["outputPaths"]["frame:1:1:tsx"],
+            expected.to_string_lossy().as_ref()
+        );
+        assert!(!dir.join("ignored.tsx").exists());
+        std::fs::remove_file(target).unwrap();
+        std::fs::remove_dir(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn r13_explicit_resource_offers_single_screen_single_output_reprojection() {
+        let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            delivery,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+            *delivery = DeliveryMode::Resource;
+        }
+        let result = project(section(2), op).await.unwrap();
+        let action = &result["nextAction"];
+        assert_eq!(action["tool"], "devup_figma_export");
+        assert!(action["arguments"]["artifactId"].is_string());
+        assert_eq!(action["arguments"]["frameIds"], json!(["1:1"]));
+        assert_eq!(action["arguments"]["outputs"], json!(["tsx"]));
+        assert_eq!(action["arguments"]["delivery"], "inline");
+        assert!(action["sizeEstimate"]["outputBytes"].as_u64().unwrap() > 0);
+        assert_eq!(action["sizeEstimate"]["isMeasuredReprojection"], false);
+    }
+
+    #[tokio::test]
+    async fn r10_content_sizing_uncertainty_survives_diagnostics_opt_out() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46129".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        for owner in [&result, &result["frames"][0]] {
+            let evidence: Vec<_> = owner["projectionEvidence"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|d| d["details"]["resolution"] == "accounted-for-content-sizing")
+                .collect();
+            assert_eq!(evidence.len(), 2);
+            for d in evidence {
+                assert_eq!(d["screenId"], "3997:46129");
+                assert_eq!(
+                    d["details"]["verification"]["reasonCode"],
+                    "font-metrics-not-measured"
+                );
+                assert_eq!(d["fidelityImpact"], "none");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r10_diagnostics_identify_exportable_screen() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46129".into()];
+            *include_diagnostics = true;
+        }
+        let result = project(data, op).await.unwrap();
+        for key in ["diagnostics", "projectionIssues", "placementContracts"] {
+            for d in result["frames"][0][key].as_array().unwrap() {
+                assert_eq!(d["screenId"], "3997:46129", "{d}");
+            }
+        }
+        for d in result["projectionIssues"].as_array().unwrap() {
+            assert_eq!(d["screenId"], "3997:46129", "{d}");
+        }
+    }
+
+    #[tokio::test]
+    async fn r10_resource_note_does_not_claim_nonfinal_tsx_is_final() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "componentTsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            delivery,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46582".into()];
+            *delivery = DeliveryMode::Resource;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert!(
+            !result["deliverable"]["note"]
+                .as_str()
+                .unwrap()
+                .contains("final TSX")
+        );
+    }
+
+    #[tokio::test]
+    async fn r10_descendant_selection_has_corrected_arguments() {
+        let mut data = section(2);
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["child"]));
+        data.snapshot.nodes.insert("child".into(), serde_json::from_value(json!({"id":"child","type":"TEXT","fields":{"parentId":"1:1","characters":"hello"}})).unwrap());
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["child".into()];
+        }
+        let error = project(data.clone(), op).await.unwrap_err();
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["frameIds"],
+            json!(["1:1"]),
+            "{error:?}"
+        );
+        assert_eq!(
+            error.details["selectionIssues"][0]["reason"],
+            "descendant-of-screen"
+        );
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["absent".into()];
+        }
+        let error = project(data, op).await.unwrap_err();
+        assert_eq!(
+            error.details["selectionIssues"][0]["reason"],
+            "not-found-in-section"
+        );
+        assert!(error.details["nextAction"].is_null());
+    }
 
     #[tokio::test]
     async fn r3_responsive_has_its_own_fidelity_result() {
@@ -2769,12 +3855,59 @@ mod w1_regressions {
         assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
         assert_eq!(
             frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
-            105
+            134 // R17: prior 117 + 17 verified horizontal FILL obligations.
         );
         assert_eq!(
             frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
             40
         );
+    }
+
+    #[tokio::test]
+    async fn r9_confirmed_evidence_survives_diagnostics_opt_out() {
+        let mut data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        data.snapshot
+            .nodes
+            .get_mut("3997:46621")
+            .unwrap()
+            .fields
+            .insert("visible".into(), json!(false));
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46582".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        for owner in [&result, &result["frames"][0]] {
+            let evidence = owner["projectionEvidence"]
+                .as_array()
+                .expect("confirmed evidence remains available without diagnostics");
+            let d = evidence
+                .iter()
+                .find(|d| {
+                    d["nodeId"] == "3997:46621" && d["code"] == "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+                })
+                .unwrap();
+            assert_eq!(d["fidelityImpact"], "none");
+            assert_eq!(d["details"]["verification"]["field"], "visible");
+            assert_eq!(d["details"]["verification"]["state"], "accounted-for");
+            assert_eq!(d["details"]["output"], "tsx");
+            assert!(
+                !owner["projectionIssues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|d| d["nodeId"] == "3997:46621")
+            );
+        }
     }
 
     #[tokio::test]
@@ -2784,7 +3917,7 @@ mod w1_regressions {
                 include_str!("../../../../fixtures/r2/wquw-118-payload.json"),
                 vec!["3997:46242", "3997:46277", "3997:46129"],
                 vec!["tsx", "assetManifest"],
-                2,
+                0, // R10: both auto-size dimensions are accounted for, not lost.
             ),
             (
                 include_str!("../../../../fixtures/r2/wquw-120-payload.json"),
@@ -2808,7 +3941,13 @@ mod w1_regressions {
             let issues = result["projectionIssues"].as_array().unwrap();
             for issue in issues
                 .iter()
-                .filter(|i| i["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
+                .chain(result["projectionEvidence"].as_array().unwrap())
+                .filter(|i| {
+                    matches!(
+                        i["code"].as_str(),
+                        Some("DEVUP_CODEGEN_ABSOLUTE_FALLBACK" | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED")
+                    )
+                })
             {
                 let original = &issue["details"]["originalValue"];
                 assert_eq!(original["x"], 0);
@@ -2831,12 +3970,23 @@ mod w1_regressions {
             } else {
                 "text-auto-size"
             };
+            if count == 0 {
+                assert_eq!(
+                    result["projectionEvidence"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|d| d["details"]["resolution"] == "accounted-for-content-sizing")
+                        .count(),
+                    2
+                );
+            }
             assert_eq!(
                 layout
                     .iter()
                     .filter(|i| i["details"]["classification"] == original_class)
                     .count(),
-                count
+                if count == 40 { 39 } else { count } // R17 fluid width now proves one previously missing mapping.
             );
             for issue in layout {
                 assert_eq!(
@@ -2852,16 +4002,35 @@ mod w1_regressions {
                 if issue["details"]["classification"] == "component-reference" {
                     assert_eq!(issue["details"]["output"], "componentTsx");
                     assert_eq!(issue["details"]["classification"], "component-reference");
+                } else if issue["property"] == "layoutSizingHorizontal" {
+                    // R17 checks source FILL even when no width property was emitted.
+                    assert_eq!(issue["details"]["originalValue"], "FILL");
+                    assert_eq!(issue["fidelityImpact"], "lossy");
+                    assert_eq!(
+                        issue["details"]["implicitCssVerification"]["state"],
+                        "not-accounted-for"
+                    );
+                    assert!(issue["details"]["implicitCssVerification"]["reasonCode"].is_string());
+                } else if issue["property"] == "layoutSizingVertical" {
+                    // R6 exposes a real percentage-height dependency that R2 did not count.
+                    assert_eq!(issue["nodeId"], "3997:46313");
+                    assert_eq!(issue["details"]["output"], "tsx");
+                    assert_eq!(issue["fidelityImpact"], "lossy");
+                    assert_eq!(issue["details"]["originalValue"], "FILL");
+                    assert_eq!(
+                        issue["details"]["implicitCssVerification"]["state"],
+                        "not-accounted-for"
+                    );
                 } else if matches!(
                     issue["details"]["classification"].as_str(),
                     Some("asset-projection" | "property-unmapped")
                 ) {
                     // R5 additionally discloses unproven asset percentage axes.
                     assert_eq!(issue["details"]["output"], "tsx");
-                    assert!(matches!(
-                        issue["property"].as_str(),
-                        Some("width" | "height")
-                    ));
+                    assert!(
+                        matches!(issue["property"].as_str(), Some("width" | "height")),
+                        "{issue}"
+                    );
                 } else {
                     assert_eq!(issue["details"]["output"], "tsx");
                     assert_eq!(issue["details"]["classification"], "text-auto-size");
@@ -2875,7 +4044,33 @@ mod w1_regressions {
             }
             if count == 40 {
                 let frame = &result["frames"][0];
-                assert_eq!(frame["outputResults"]["tsx"]["projection"], "approximated");
+                // R14 proves the modal's width in its definite containing
+                // block. Component-reference loss in componentTsx is separate.
+                assert_eq!(frame["outputResults"]["tsx"]["projection"], "lossy");
+                assert_eq!(frame["outputResults"]["tsx"]["mappingComplete"], false);
+                assert!(
+                    frame["projectionIssues"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|i| i["property"] == "layoutSizingHorizontal"
+                            && i["fidelityImpact"] == "lossy")
+                );
+                let modal = frame["projectionEvidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|d| {
+                        d["nodeId"] == "3997:46621"
+                            && d["code"] == "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                            && d["details"]["output"] == "tsx"
+                    })
+                    .unwrap();
+                assert_eq!(
+                    modal["details"]["components"]["width"]["generatedValue"],
+                    "100%"
+                );
+                assert_eq!(modal["details"]["components"]["width"]["state"], "verified");
                 assert_eq!(
                     frame["outputResults"]["componentTsx"]["projection"],
                     "lossy"
@@ -3427,7 +4622,7 @@ mod w1_regressions {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&directory).unwrap();
-        let root = dunce::canonicalize(&directory).unwrap();
+        let root = crate::test_paths::canonical(&directory);
         let first_path = root.join("icons/BI icon.png");
         let second_path = root.join("icons/other.png");
         let tsx_path = root.join("Screen.tsx");
@@ -3689,6 +4884,60 @@ mod w1_regressions {
     }
 
     #[tokio::test]
+    async fn r17_large_section_provides_bounded_continuation_batches() {
+        let result = project(
+            section_without_index(23, false),
+            operation(&["tsx", "sourceMap", "rawSnapshot"]),
+        )
+        .await
+        .unwrap();
+        let next = &result["nextAction"];
+        assert_eq!(next["maxFramesPerCall"], 4);
+        let batches = next["batches"].as_array().expect("bounded batch examples");
+        assert_eq!(batches.len(), 6);
+        assert_eq!(
+            batches
+                .iter()
+                .map(|b| b["arguments"]["frameIds"].as_array().unwrap().len())
+                .sum::<usize>(),
+            23
+        );
+        for batch in batches {
+            assert!(batch["arguments"]["frameIds"].as_array().unwrap().len() <= 4);
+        }
+        assert!(
+            !next["how"]
+                .as_str()
+                .unwrap()
+                .contains("Use allScreens:true")
+        );
+    }
+
+    #[tokio::test]
+    async fn r17_section_png_batches_use_single_direct_frame_urls() {
+        let result = project(
+            section_without_index(23, false),
+            operation(&["tsx", "referencePng"]),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["nextAction"]["maxFramesPerCall"], 1);
+        let batches = result["nextAction"]["batches"].as_array().unwrap();
+        assert_eq!(batches.len(), 23);
+        let mut urls = std::collections::BTreeSet::new();
+        for batch in batches {
+            let args = &batch["arguments"];
+            assert!(args.get("artifactId").is_none());
+            assert!(args.get("frameIds").is_none());
+            assert_eq!(args["scope"], "node");
+            assert_eq!(args["outputs"], json!(["tsx", "referencePng"]));
+            let url = args["url"].as_str().unwrap();
+            assert!(url.contains("node-id="));
+            assert!(urls.insert(url));
+        }
+    }
+
+    #[tokio::test]
     async fn w1_selection_exactly_100_candidates_is_complete() {
         let result = project(section_without_index(100, false), operation(&["tsx"]))
             .await
@@ -3719,6 +4968,597 @@ mod w1_regressions {
         let result = project(data, operation(&["tsx"])).await.unwrap();
         assert_eq!(result["selection"]["truncated"], false);
         assert_eq!(result["selection"]["status"], "complete");
+    }
+
+    #[tokio::test]
+    async fn r7_real_wquw118_layout_contracts_are_preserved() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["3997:46277".into()];
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["frames"].as_array().unwrap().len(), 1);
+        let frame = &result["frames"][0];
+        assert_eq!(frame["nodeId"], "3997:46277");
+        let entries = frame["sourceMap"]["entries"].as_array().unwrap();
+        for (id, field, resolution) in [
+            ("3997:46293", "width", "accounted-for-implicit-flex-grow"),
+            ("3997:46295", "width", "accounted-for-implicit-flex-grow"),
+            (
+                "3997:46313",
+                "layoutSizingVertical",
+                "accounted-for-implicit-flex-stretch",
+            ),
+        ] {
+            assert!(
+                entries.iter().any(|e| e["nodeId"] == id
+                    && e["property"] == field
+                    && e["resolution"] == resolution),
+                "{id}"
+            );
+        }
+        assert!(
+            frame["tsx"]
+                .as_str()
+                .unwrap()
+                .contains("alignSelf=\"stretch\"")
+        );
+        for id in ["3997:46293", "3997:46295", "3997:46313"] {
+            assert!(
+                !result["projectionIssues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|i| i["nodeId"] == id && i["fidelityImpact"] == "lossy"),
+                "{result}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn r7_artifact_reuses_stored_selection() {
+        let data = section(2);
+        let store = ArtifactStore::default();
+        let mut request = CollectionRequest::new(data.target.clone(), CollectionScope::Node);
+        request.section = Some(devup_mcp_figma::SectionReadOptions {
+            frame_ids: vec!["1:2".into()],
+            all_screens: false,
+        });
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), data)
+            .await
+            .unwrap();
+        let result = complete_operation(
+            operation(&["tsx"]),
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+            &store,
+        )
+        .await
+        .unwrap();
+        assert_ne!(result["status"], "selection_required");
+        assert_eq!(result["frames"][0]["nodeId"], "1:2");
+        assert_eq!(result["frames"].as_array().unwrap().len(), 1);
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["1:1".into()];
+        }
+        let explicit = complete_operation(
+            op,
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+            &store,
+        )
+        .await
+        .unwrap();
+        assert_eq!(explicit["frames"][0]["nodeId"], "1:1");
+    }
+
+    #[tokio::test]
+    async fn r7_auto_debug_resource_has_inline_reprojection_guidance() {
+        let mut data = payload();
+        data.metadata = json!({"large":"x".repeat(300_000)});
+        let mut op = operation(&["tsx", "rawPayload", "sourceMap"]);
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Auto;
+        }
+        let result = project(data, op).await.unwrap();
+        assert!(result["resources"].is_array());
+        assert_eq!(
+            result["nextAction"]["example"]["arguments"]["delivery"],
+            "inline"
+        );
+        assert_eq!(result["nextAction"]["example"]["arguments"]["debug"], true);
+        assert!(
+            result["nextAction"]["how"]
+                .as_str()
+                .unwrap()
+                .contains("resource")
+        );
+    }
+
+    #[tokio::test]
+    async fn r12_oversized_export_retains_artifact_and_callable_resource_projection() {
+        use super::super::{DevupAuth, DevupServer, Services};
+        use devup_mcp_figma::{AuthStatus, FigmaUpstream, ReadToolCall, UpstreamResult};
+        use std::sync::Arc;
+        struct Offline;
+        #[async_trait::async_trait]
+        impl DevupAuth for Offline {
+            async fn status(&self) -> Result<AuthStatus, DevupError> {
+                panic!("cached projection must not authenticate")
+            }
+            async fn login(&self) -> Result<AuthStatus, DevupError> {
+                panic!("cached projection must not login")
+            }
+            async fn logout(&self) -> Result<AuthStatus, DevupError> {
+                panic!("cached projection must not logout")
+            }
+        }
+        #[async_trait::async_trait]
+        impl FigmaUpstream for Offline {
+            async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+                panic!("cached projection must not list upstream tools")
+            }
+            async fn call_read_tool(&self, _: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+                panic!("cached projection must not call Figma")
+            }
+        }
+        let mut data = payload();
+        data.metadata = json!({"large":"x".repeat(600_000)});
+        let store = ArtifactStore::default();
+        let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+            data.target.clone(),
+            CollectionScope::Node,
+        ));
+        let artifact = store.insert(key, data).await.unwrap();
+        let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+        let outputs = ["tsx", "rawPayload", "sourceMap", "assetManifest"];
+        let error = complete_operation(
+            operation(&outputs),
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &policy,
+            &store,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
+        let envelope =
+            super::super::structured_tool_error(super::super::to_mcp_error(error.clone()));
+        let wire = serde_json::to_value(&envelope).unwrap();
+        assert_eq!(wire["isError"], true);
+        assert_eq!(
+            serde_json::from_str::<Value>(wire["content"][0]["text"].as_str().unwrap()).unwrap(),
+            wire["structuredContent"]
+        );
+        assert_eq!(wire["structuredContent"]["error"]["details"], error.details);
+        let details = &error.details;
+        assert_eq!(details["recoveryState"], "available");
+        assert_eq!(details["nextAction"]["tool"], "devup_figma_export");
+        let args = &details["nextAction"]["arguments"];
+        assert_eq!(args["artifactId"], artifact.artifact_id);
+        assert_eq!(args["delivery"], "resource");
+        assert_eq!(args["outputs"], json!(outputs));
+        assert_eq!(args["debug"], true);
+        assert!(details["serializedResponseBytes"].as_u64().unwrap() > 1_048_576);
+        assert!(store.get(&artifact.artifact_id).await.is_some());
+        let mut calls = vec![args.clone()];
+        for next in details["splitRequests"].as_array().unwrap() {
+            assert_eq!(next["tool"], "devup_figma_export");
+            calls.push(next["arguments"].clone());
+        }
+        assert!(calls.len() > 1);
+        let mut server = DevupServer::new(Services::new(Arc::new(Offline), Arc::new(Offline)));
+        server.artifacts = store.clone();
+        for args in calls {
+            // Deserialize and execute the complete callable arguments through
+            // the actual tool handler, including its validation contract.
+            let result = server
+                .devup_figma_export(rmcp::handler::server::wrapper::Parameters(
+                    serde_json::from_value(args).unwrap(),
+                ))
+                .await
+                .unwrap()
+                .structured_content
+                .unwrap();
+            assert!(result["resources"].is_array());
+            assert_eq!(result["cache"]["artifactId"], artifact.artifact_id);
+        }
+    }
+
+    #[test]
+    fn r8_nonsection_semantic_asset_mapping_uses_delivered_path() {
+        let mut result = json!({"tsx":"<Image src=\"/icons/grommet-icons:language.svg\" />", "sourceMap":{"tsx":[{"nodeId":"한글:1","property":"fills","generatedProperty":"src=\"/icons/grommet-icons:language.svg\"","resolution":"asset"}]}});
+        rewrite_result_asset_references(&mut result, &BTreeMap::new());
+        assert_eq!(
+            result["sourceMap"]["tsx"][0]["generatedProperty"],
+            "src=\"/icons/grommet-icons-language-d201f62b16f5.svg\""
+        );
+    }
+
+    #[tokio::test]
+    async fn r8_three_frame_nine_output_units_measure_local_projection() {
+        let data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-119-payload.json"
+        ))
+        .unwrap();
+        let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec![
+                "3997:46315".into(),
+                "3997:46715".into(),
+                "3997:46333".into(),
+            ];
+        }
+        let began = std::time::Instant::now();
+        let store = ArtifactStore::default();
+        let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+            data.target.clone(),
+            CollectionScope::Node,
+        ));
+        let artifact = store.insert(key, data).await.unwrap();
+        let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+        // R17 source FILL issues exceed the unchanged inline limit. Exercise the
+        // retained-artifact recovery and read every output, rather than hiding loss.
+        let error = complete_operation(
+            op.clone(),
+            &artifact.payload,
+            "fixture",
+            &artifact,
+            &policy,
+            &store,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
+        assert_eq!(error.details["recoveryState"], "available");
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["artifactId"],
+            artifact.artifact_id
+        );
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["delivery"],
+            "resource"
+        );
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Resource;
+        }
+        let mut result =
+            complete_operation(op, &artifact.payload, "fixture", &artifact, &policy, &store)
+                .await
+                .unwrap();
+        let mut outputs = BTreeMap::new();
+        for manifest in store.output_manifests().await {
+            let mut bytes = Vec::new();
+            for index in 0..manifest.chunk_count {
+                bytes.extend(
+                    store
+                        .read_output_chunk(&artifact.artifact_id, &manifest.output_id, index)
+                        .await
+                        .unwrap(),
+                );
+            }
+            assert_eq!(bytes.len(), manifest.raw_bytes);
+            outputs.insert(manifest.name, String::from_utf8(bytes).unwrap());
+        }
+        assert_eq!(outputs.len(), 7); // shared snapshot plus 3 TSX/sourceMap pairs
+        assert_eq!(
+            serde_json::from_str::<Value>(&outputs["raw-snapshot.json"]).unwrap(),
+            serde_json::to_value(&artifact.payload.snapshot).unwrap()
+        );
+        for index in 0..3 {
+            let tsx = &outputs[&format!("frame-{}.tsx", index + 1)];
+            assert!(tsx.contains("export function"));
+            result["frames"][index]["tsx"] = json!(tsx);
+            result["frames"][index]["sourceMap"] =
+                serde_json::from_str(&outputs[&format!("frame-{}.source-map.json", index + 1)])
+                    .unwrap();
+        }
+        assert_eq!(result["frames"].as_array().unwrap().len(), 3);
+        for frame in result["frames"].as_array().unwrap() {
+            assert!(frame["tsx"].is_string());
+            assert!(frame["sourceMap"].is_object());
+        }
+        eprintln!(
+            "R8 offline 3-frame/9-unit projection: {:?}; no upstream timing inferred",
+            began.elapsed()
+        );
+    }
+
+    #[tokio::test]
+    async fn r8_final_korean_semantic_map_follows_asset_path_rewrites() {
+        let mut data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-120-payload.json"
+        ))
+        .unwrap();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r8/modal-snapshot.json"))
+                .unwrap();
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["3997:46582".into()];
+        }
+        let started = std::time::Instant::now();
+        let result = project(data, op).await.unwrap();
+        eprintln!(
+            "R8 modal projection: {:?}; executable: {:?}",
+            started.elapsed(),
+            std::env::current_exe().unwrap()
+        );
+        let frame = &result["frames"][0];
+        let tsx = frame["tsx"].as_str().unwrap();
+        assert!(tsx.contains("추가 체험"));
+        let entries = frame["sourceMap"]["entries"].as_array().unwrap();
+        for entry in entries {
+            assert!(
+                entry.get("generatedRange").is_none(),
+                "public offsets must not return: {entry}"
+            );
+            assert!(entry["nodeId"].is_string() && entry["property"].is_string());
+            let generated = entry["generatedProperty"]
+                .as_str()
+                .expect("mapped property required");
+            assert!(!generated.is_empty());
+            if !generated.starts_with("implicit:") && generated != "children" {
+                assert!(
+                    tsx.contains(generated),
+                    "mapping must name emitted property: {entry}"
+                );
+            }
+        }
+        let modal_type = entries
+            .iter()
+            .find(|e| e["nodeId"] == "3997:46621" && e["property"] == "type")
+            .unwrap();
+        assert_eq!(modal_type["generatedProperty"], "Box");
+        assert_eq!(modal_type["resolution"], "exact");
+        assert_eq!(frame["sourceMap"]["source"]["generatedOutput"], "tsx");
+        eprintln!(
+            "R8 sourceMap={} bytes, TSX={} bytes",
+            serde_json::to_vec(&frame["sourceMap"]).unwrap().len(),
+            tsx.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn r16_verdict_scope_identifies_remaining_asset_axes_without_diagnostics() {
+        let mut data: CollectedPayload = serde_json::from_str(include_str!(
+            "../../../../fixtures/r2/wquw-118-payload.json"
+        ))
+        .unwrap();
+        data.snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r14/asset-snapshot.json"))
+                .unwrap();
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export {
+            frame_ids,
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *frame_ids = vec!["3997:46667".into()];
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["status"], "partial");
+        assert_eq!(result["quality"]["projection"], "approximated");
+        for owner in [&result, &result["frames"][0]] {
+            let scope = &owner["verdictScope"];
+            assert_eq!(scope["status"], "partial");
+            assert_eq!(scope["projection"], "approximated");
+            let causes: Vec<_> = scope["projectionCauses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|c| {
+                    c["nodeId"] == "3997:46668" && c["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"
+                })
+                .collect();
+            assert_eq!(causes.len(), 2);
+            assert_eq!(causes[0]["component"], "horizontal");
+            assert_eq!(causes[1]["component"], "vertical");
+            for cause in causes {
+                assert_eq!(cause["screenId"], "3997:46667");
+                assert_eq!(cause["state"], "approximated");
+                assert!(cause["reason"].as_str().is_some_and(|s| !s.is_empty()));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r16_complete_scope_and_mapping_semantics_survive_resource_delivery() {
+        for (delivery_mode, real_fill) in [
+            (DeliveryMode::Inline, false),
+            (DeliveryMode::Resource, false),
+            (DeliveryMode::Inline, true),
+            (DeliveryMode::Resource, true),
+        ] {
+            let data: CollectedPayload = if real_fill {
+                serde_json::from_str(include_str!(
+                    "../../../../fixtures/r2/wquw-118-payload.json"
+                ))
+                .unwrap()
+            } else {
+                let mut data = section(1);
+                data.snapshot.nodes.get_mut("1:1").unwrap().fields.extend(
+                    serde_json::from_value::<BTreeMap<String, Value>>(json!({"layoutSizingHorizontal":"FIXED", "layoutSizingVertical":"FIXED", "fills":[{"type":"SOLID","color":{"r":0.2,"g":0.4,"b":0.6}}]})).unwrap()
+                );
+                data
+            };
+            let mut op = operation(&["tsx", "sourceMap"]);
+            if let PendingOperation::Export {
+                frame_ids,
+                delivery,
+                ..
+            } = &mut op
+            {
+                *frame_ids = vec![if real_fill { "3997:46129" } else { "1:1" }.into()];
+                *delivery = delivery_mode;
+            }
+            let result = project(data, op).await.unwrap();
+            if real_fill {
+                assert_eq!(result["status"], "partial");
+                assert_eq!(result["verdictScope"]["projection"], "lossy");
+                let fill_issues: Vec<_> = result["projectionIssues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|d| d["property"] == "layoutSizingHorizontal")
+                    .collect();
+                assert_eq!(fill_issues.len(), 18);
+                for issue in fill_issues {
+                    assert_eq!(issue["fidelityImpact"], "lossy");
+                    assert_eq!(issue["details"]["originalValue"], "FILL");
+                }
+                assert_eq!(
+                    result["frames"][0]["outputResults"]["tsx"]["mappingComplete"],
+                    false
+                );
+            } else {
+                assert_eq!(result["status"], "complete");
+                assert_eq!(result["verdictScope"]["projectionCauses"], json!([]));
+                assert_eq!(result["verdictScope"]["statusCauses"], json!([]));
+                assert_eq!(result["verdictScope"]["projection"], "exact");
+            }
+            assert_eq!(result["resolutionSemantics"]["axis"], "mapping-method");
+            assert!(
+                result["resolutionSemantics"]["values"]["raw-fallback"]
+                    .as_str()
+                    .unwrap()
+                    .contains("verified")
+            );
+            if result.get("resources").is_none() {
+                assert_eq!(
+                    result["frames"][0]["sourceMap"]["resolutionSemantics"]["axis"],
+                    "mapping-method"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn r16_non_projection_partial_has_its_own_status_cause() {
+        let mut data = payload();
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .field_errors
+            .insert("name".into(), "unavailable".into());
+        let result = project(data, operation(&["rawSnapshot"])).await.unwrap();
+        assert_eq!(result["status"], "partial");
+        assert_eq!(result["quality"]["projection"], "not-requested");
+        assert_eq!(result["verdictScope"]["projectionCauses"], json!([]));
+        assert!(
+            result["verdictScope"]["statusCauses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["domain"] == "acquisition" && c["state"] == "partial")
+        );
+        let acquisition = result["verdictScope"]["statusCauses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["domain"] == "acquisition")
+            .unwrap();
+        assert_eq!(acquisition["evidenceScope"], "response");
+    }
+
+    #[tokio::test]
+    async fn r16_frame_scope_retains_scoped_output_failures() {
+        let mut data = section(2);
+        // Unlike the deliberately underspecified generic Section fixture,
+        // this successful sibling has a complete fixed-dimension proof.
+        data.snapshot.nodes.get_mut("1:1").unwrap().fields.extend(
+            serde_json::from_value::<BTreeMap<String, Value>>(json!({
+                "layoutSizingHorizontal":"FIXED", "layoutSizingVertical":"FIXED"
+            }))
+            .unwrap(),
+        );
+        data.snapshot.nodes.remove("1:2");
+        data.snapshot.roots = vec!["1:1".into()];
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            *frame_ids = vec!["1:1".into(), "1:2".into()];
+        }
+        let result = project(data, op).await.unwrap();
+        let good = &result["frames"][0];
+        let failed = &result["frames"][1];
+        assert_eq!(good["verdictScope"]["statusCauses"], json!([]));
+        let causes = failed["verdictScope"]["statusCauses"].as_array().unwrap();
+        assert!(causes.iter().any(|c| c["domain"] == "requested-output"
+            && c["nodeId"] == "1:2"
+            && c["output"] == "tsx"));
+        for cause in causes.iter().filter(|c| c["domain"] == "requested-output") {
+            let i = cause["failureIndex"].as_u64().unwrap() as usize;
+            assert_eq!(failed["failures"][i]["errorCode"], cause["code"]);
+        }
+    }
+
+    #[tokio::test]
+    async fn r16_resource_scope_retains_every_projection_issue() {
+        for asset_case in [false, true] {
+            let mut data: CollectedPayload = serde_json::from_str(include_str!(
+                "../../../../fixtures/r2/wquw-119-payload.json"
+            ))
+            .unwrap();
+            let selected = if asset_case {
+                data.snapshot = serde_json::from_str(include_str!(
+                    "../../../../fixtures/r14/asset-snapshot.json"
+                ))
+                .unwrap();
+                vec!["3997:46667".into()]
+            } else {
+                vec![
+                    "3997:46315".into(),
+                    "3997:46715".into(),
+                    "3997:46333".into(),
+                ]
+            };
+            let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
+            if let PendingOperation::Export {
+                frame_ids,
+                delivery,
+                ..
+            } = &mut op
+            {
+                *frame_ids = selected;
+                *delivery = DeliveryMode::Resource;
+            }
+            let result = project(data, op).await.unwrap();
+            assert_eq!(result["resolutionSemantics"]["axis"], "mapping-method");
+            if asset_case {
+                assert!(!result["projectionIssues"].as_array().unwrap().is_empty());
+            }
+            for owner in std::iter::once(&result).chain(result["frames"].as_array().unwrap()) {
+                let causes = owner["verdictScope"]["projectionCauses"]
+                    .as_array()
+                    .unwrap();
+                let issues = owner["projectionIssues"].as_array().unwrap();
+                for (i, issue) in issues.iter().enumerate() {
+                    assert!(causes.iter().any(|c| c["diagnosticIndex"] == i
+                        && c["nodeId"] == issue["nodeId"]
+                        && c["code"] == issue["code"]));
+                }
+                eprintln!(
+                    "R16 metadata node={} scopeBytes={} issues={}",
+                    owner["nodeId"],
+                    serde_json::to_vec(&owner["verdictScope"]).unwrap().len(),
+                    issues.len()
+                );
+            }
+        }
     }
 
     async fn project(
@@ -3866,6 +5706,7 @@ mod w1_regressions {
             &store,
             &artifact,
             outputs,
+            None,
         )
         .await
         .unwrap();
@@ -4023,6 +5864,45 @@ mod w1_regressions {
             .unwrap_err();
         assert_eq!(error.code, ErrorCode::DevupInvalidInput);
         assert!(error.message.contains("tsx"));
+    }
+
+    #[tokio::test]
+    async fn r6_source_map_error_explains_artifact_outputs() {
+        let error = project(payload(), operation(&["rawSnapshot", "sourceMap"]))
+            .await
+            .unwrap_err();
+        assert!(
+            error.message.contains("artifactId") && error.message.contains("same call"),
+            "{}",
+            error.message
+        );
+        assert!(error.message.contains(r#"{"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#));
+    }
+
+    #[tokio::test]
+    async fn r6_completion_vertical_loss_is_scoped_to_tsx() {
+        let mut data = payload();
+        data.snapshot = serde_json::from_str(include_str!(
+            "../../../devup-mcp-devup-ui/tests/fixtures/r6-completion.json"
+        ))
+        .unwrap();
+        data.target.node_id = Some("3997:46333".into());
+        let mut op = operation(&["tsx", "sourceMap"]);
+        if let PendingOperation::Export { root_layout, .. } = &mut op {
+            *root_layout = devup_mcp_devup_ui::codegen::RootLayout::Embedded;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["deliverable"]["isFinal"], false);
+        assert!(
+            result["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["nodeId"] == "3997:46333"
+                    && d["property"] == "layoutSizingVertical"
+                    && d["fidelityImpact"] == "lossy"
+                    && d["details"]["output"] == "tsx")
+        );
     }
 
     fn responsive_payload() -> CollectedPayload {

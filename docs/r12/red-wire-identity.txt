@@ -1,0 +1,35 @@
+    Blocking waiting for file lock on build directory
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\devup_mcp.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (bin "devup-mcp") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\resource_delivery-05b4b68759062677.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\resource_delivery-05b4b68759062677.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "resource_delivery") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.47s
+     Running tests\resource_delivery.rs (target\debug\deps\resource_delivery-05b4b68759062677.exe)
+
+running 1 test
+test r12_inline_size_errors_report_measured_output_and_wire_sizes ... FAILED
+
+failures:
+
+---- r12_inline_size_errors_report_measured_output_and_wire_sizes stdout ----
+
+thread 'r12_inline_size_errors_report_measured_output_and_wire_sizes' (72276) panicked at crates\devup-mcp\tests\resource_delivery.rs:42:9:
+assertion `left == right` failed: wire measurement must include the server identity attached at the tool boundary
+  left: 1200124
+ right: 1200306
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    r12_inline_size_errors_report_measured_output_and_wire_sizes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p devup-mcp --test resource_delivery`

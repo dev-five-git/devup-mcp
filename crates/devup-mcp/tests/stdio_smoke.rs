@@ -99,3 +99,67 @@ async fn fresh_binary_initializes_lists_tools_and_reports_auth_status() -> anyho
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn r7_local_binary_errors_all_carry_identity() -> anyhow::Result<()> {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()?;
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = BufReader::new(child.stdout.take().unwrap());
+    send(&mut stdin,json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"r7-own-target","version":"1"}}})).await?;
+    response(&mut stdout, 1).await?;
+    send(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    )
+    .await?;
+    for (id, method, params) in [
+        (
+            2,
+            "tools/call",
+            json!({"name":"nonexistent","arguments":{}}),
+        ),
+        (
+            3,
+            "tools/call",
+            json!({"name":"devup_figma_export","arguments":{"outputs":123}}),
+        ),
+        (
+            4,
+            "resources/read",
+            json!({"uri":"devup://artifact/missing/outputs/missing"}),
+        ),
+        (
+            5,
+            "tools/call",
+            json!({"name":"devup_figma_export","arguments":{"artifactId":"missing"}}),
+        ),
+    ] {
+        send(
+            &mut stdin,
+            json!({"jsonrpc":"2.0","id":id,"method":method,"params":params}),
+        )
+        .await?;
+        let v = response(&mut stdout, id).await?;
+        let identity = if id == 3 || id == 5 {
+            assert_eq!(v["result"]["isError"], true);
+            &v["result"]["structuredContent"]["server"]
+        } else {
+            assert!(v["error"].is_object());
+            &v["error"]["data"]["server"]
+        };
+        assert_eq!(identity["buildId"], devup_mcp::build_id(), "{v}");
+        assert_eq!(identity["version"], env!("CARGO_PKG_VERSION"));
+    }
+    drop(stdin);
+    assert!(
+        timeout(Duration::from_secs(10), child.wait())
+            .await??
+            .success()
+    );
+    Ok(())
+}

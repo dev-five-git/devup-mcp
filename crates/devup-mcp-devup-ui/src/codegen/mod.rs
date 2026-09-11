@@ -3,6 +3,8 @@ mod compat;
 mod component;
 mod evidence;
 mod layout;
+mod property_derivations;
+pub(crate) use property_derivations::property_derivations;
 pub mod responsive;
 mod style;
 mod text;
@@ -19,7 +21,8 @@ pub use component::{
     normalize_component_name, render_component_registration_snapshot, render_component_source,
 };
 pub(crate) use layout::{
-    derived_padding, export_box, folded_mask_dimensions, layout_box, placed_by_a_free_layout,
+    derived_padding, export_box, folded_mask_dimensions, layout_box, placed_by_a_free_layout, px,
+    vertical_fill_container, vertical_fill_needs_minimum_reset,
 };
 pub(crate) use style::{AssetKind, asset_kind};
 pub use style::{asset_path, image_fill_path};

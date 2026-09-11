@@ -90,11 +90,30 @@ async fn export(upstream: Arc<dyn FigmaUpstream>) -> anyhow::Result<CallToolResu
     .as_object()
     .cloned()
     .unwrap();
-    let result = client
+    let mut result = client
         .call_tool(
             CallToolRequestParams::new("devup_figma_export".to_owned()).with_arguments(arguments),
         )
         .await?;
+    // Export now returns progress before a long retry sequence finishes.
+    // Poll to the same terminal outcome; retry-count assertions remain unchanged.
+    for _ in 0..500 {
+        let Some(id) = result
+            .structured_content
+            .as_ref()
+            .filter(|v| v["exportJob"]["state"] == "running")
+            .and_then(|v| v["exportJob"]["jobId"].as_str())
+            .map(str::to_owned)
+        else {
+            break;
+        };
+        result = client
+            .call_tool(
+                CallToolRequestParams::new("devup_figma_export")
+                    .with_arguments(json!({"jobId":id}).as_object().unwrap().clone()),
+            )
+            .await?;
+    }
     client.cancel().await?;
     task.await??;
     Ok(result)

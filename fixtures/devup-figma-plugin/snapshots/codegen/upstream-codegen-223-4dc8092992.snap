@@ -20,11 +20,12 @@ expression: actual
         fontWeight="700"
         letterSpacing="-1px"
         lineHeight="1.5"
+        w="100%"
         wordBreak="keep-all"
       >
         간편 로그인 연동
       </Text>
-      <VStack>
+      <VStack w="100%">
         <Flex
           alignItems="center"
           borderRadius="10px"
@@ -125,8 +126,8 @@ expression: actual
           </Center>
         </Flex>
       </VStack>
-      <Box bg="$border" h="1px" />
-      <VStack>
+      <Box bg="$border" h="1px" w="100%" />
+      <VStack w="100%">
         <Flex
           alignItems="center"
           borderRadius="10px"

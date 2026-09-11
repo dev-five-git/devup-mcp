@@ -1044,6 +1044,7 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
+    crate::provenance::account_for_sizing(snapshot, &mut output);
     validate_tsx(&output.tsx)?;
     if let Some(contract) = super::evidence::placement_contract(snapshot, &output, options, root_id)
     {
@@ -1076,17 +1077,12 @@ fn finalize_codegen_output(
         else {
             continue;
         };
-        output.diagnostics.push(Diagnostic {
-            code: "DEVUP_CODEGEN_NON_RENDERING_ASSET".into(),
-            node_id: Some(node.id.clone()), property: Some("assetReference".into()),
-            message: "Non-rendering asset paint omitted while retaining layout without an asset reference.".into(),
-            fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
-            details: Some(serde_json::json!({"originalValue":{"visible":node.typed_view().value("visible"),"opacity":node.typed_view().value("opacity"),"absoluteRenderBounds":node.typed_view().value("absoluteRenderBounds")},
-                "appliedValue":{"state":"layout-only","generatedNodeId":node.id,"generatedSource":source.chars().take(800).collect::<String>(),"sourceTruncated":source.chars().count()>800},
-                "reason":reason,"classification":"non-rendering-asset",
-                "nextAction":"Review the invisible layout element; correct visibility or clipping in Figma if this paint should be visible."})),
-            ..Diagnostic::default()
-        });
+        output.diagnostics.push(non_rendering_diagnostic(
+            node,
+            reason,
+            source,
+            "layout-only",
+        ));
     }
     output
         .diagnostics
@@ -1108,6 +1104,38 @@ fn finalize_codegen_output(
                 property: Some(property.into()),
                 fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
                 details: Some(super::evidence::uncovered_layout_details(snapshot, &output, options, node_id, property)),
+                ..Diagnostic::default()
+            });
+        }
+    }
+    let absolute_components = output
+        .source_map
+        .entries
+        .iter()
+        .filter(|e| e.property.is_none())
+        .filter_map(|e| e.node_id.as_deref())
+        .filter(|id| {
+            snapshot.nodes.get(*id).is_some_and(|n| {
+                n.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
+                    && n.typed_view().bool("visible") != Some(false)
+            })
+        })
+        .map(|id| {
+            (
+                id.to_owned(),
+                crate::provenance::absolute_component_verification(snapshot, &output, id),
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    // Every emitted ABSOLUTE node receives the same generated-property audit.
+    for id in absolute_components.keys() {
+        if !output.diagnostics.iter().any(|d| {
+            d.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK" && d.node_id.as_deref() == Some(id)
+        }) {
+            output.diagnostics.push(Diagnostic {
+                code: "DEVUP_CODEGEN_ABSOLUTE_FALLBACK".into(),
+                node_id: Some(id.clone()),
+                fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
                 ..Diagnostic::default()
             });
         }
@@ -1139,6 +1167,19 @@ fn finalize_codegen_output(
                 "originalValue": super::evidence::fallback_original(snapshot, node_id, &property),
                 "originalResourceId": diagnostic.resource_id,
                 "appliedValue": {"generatedSource": generated, "fallback": diagnostic.fallback,
+                    "heightPreservation": if property == "layoutPositioning" {
+                        snapshot.nodes.get(node_id).map(|node| {
+                            let view = node.typed_view();
+                            let expected = view.number("height").map(|h|format!("{}px",layout::format_number(h)));
+                            let preserved = expected.as_ref().is_some_and(|height|generated.iter().any(|source| {
+                                let tag = source.split('>').next().unwrap_or(source);
+                                tag.contains(&format!("h=\"{height}\"")) || tag.contains(&format!("boxSize=\"{height}\""))
+                            }));
+                            serde_json::json!({"sourceSizing":view.string("layoutSizingVertical"),"sourceHeight":view.number("height"),
+                                "state":if view.string("layoutSizingVertical") != Some("FIXED") {"not-fixed"} else if preserved {"preserved"} else {"unverified"},
+                                "basis":"Generated explicit height; derived padding alone is not a fixed-height guarantee."})
+                        })
+                    } else {None},
                     "derivedPadding": if property == "layoutPositioning" {
                         snapshot.nodes.get(node_id).and_then(|node|layout::derived_padding(snapshot,node))
                             .map(|[top,right,bottom,left]|serde_json::json!({"top":top,"right":right,"bottom":bottom,"left":left,
@@ -1147,8 +1188,39 @@ fn finalize_codegen_output(
                 "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
                 "stage": "projection"
             }));
+            if property == "layoutPositioning"
+                && let Some(components) = absolute_components.get(node_id)
+            {
+                let unresolved = ["height","width","horizontal","vertical"].into_iter()
+                    .filter(|name|components[*name]["fidelityImpact"] != "none")
+                    .map(|name|serde_json::json!({"component":name,"condition":components[name]["resolutionCondition"]}))
+                    .collect::<Vec<_>>();
+                let verified = unresolved.is_empty();
+                diagnostic.message = if verified {"Absolute dimensions and constraint props verified against collected geometry."} else {"Absolute conversion is partially verified; components identify preserved values and remaining approximations."}.into();
+                if verified {
+                    diagnostic.code = "DEVUP_CODEGEN_ABSOLUTE_VERIFIED".into();
+                    diagnostic.fidelity_impact = Some(devup_mcp_figma::FidelityImpact::None);
+                }
+                let details = diagnostic.details.as_mut().unwrap();
+                details["components"] = components.clone();
+                details["appliedValue"]["widthPreservation"] = components["width"].clone();
+                details["componentSummary"] = serde_json::json!({
+                    "verified": (["height", "width", "horizontal", "vertical"].into_iter()
+                        .filter(|name| components[*name]["fidelityImpact"] == "none").collect::<Vec<_>>()),
+                    "unresolved": (["height", "width", "horizontal", "vertical"].into_iter()
+                        .filter(|name| components[*name]["fidelityImpact"] != "none").collect::<Vec<_>>())
+                });
+                details["resolutionConditions"] = serde_json::json!(unresolved);
+                details["classification"] = serde_json::json!(if verified {
+                    "verified-absolute-components"
+                } else {
+                    "partially-verified-absolute-components"
+                });
+            }
         }
     }
+    output.source_map.describe_properties(&output.tsx);
+    crate::provenance::attributes::audit_properties(snapshot, &mut output, options, root_id);
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     Ok(output)
 }
@@ -1205,6 +1277,10 @@ fn unresolved_token_bindings(
             continue;
         };
         let view = node.typed_view();
+        if view.bool("visible") == Some(false) && !node.field_errors.contains_key("visible") {
+            // No paint or typography token is required by an omitted subtree.
+            continue;
+        }
         pending.extend(view.child_ids().map(str::to_owned));
 
         let mut lost = Vec::new();
@@ -1308,6 +1384,12 @@ fn render_node(
     // Hidden snapshot subtrees have no deliverable assets. Do not emit their
     // image/background/mask references, even under display:none.
     if view.bool("visible") == Some(false) {
+        context.diagnostics.push(non_rendering_diagnostic(
+            node,
+            "visible-false",
+            "",
+            "omitted",
+        ));
         visiting.remove(&node.id);
         return Ok(mark_node(
             &node.id,
@@ -1415,7 +1497,7 @@ fn render_node(
     }
     let asset = style::asset_kind(snapshot, node);
     if asset.is_some()
-        && let Some(reason) = devup_mcp_figma::asset_exclusion_reason(node)
+        && let Some(reason) = style::non_rendering_asset_reason(snapshot, node)
     {
         // A transparent/clipped asset still occupies layout space. Keep the
         // asset sizing policy, but emit no external paint or descendant asset.
@@ -1437,21 +1519,12 @@ fn render_node(
             format!("{indent}<Box{opening} />")
         };
         context.imports.insert("Box".into());
-        context.diagnostics.push(Diagnostic {
-            code: "DEVUP_CODEGEN_NON_RENDERING_ASSET".into(),
-            node_id: Some(node.id.clone()),
-            property: Some("assetReference".into()),
-            message: "Non-rendering asset replaced by an invisible layout box without an asset reference.".into(),
-            fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Approximated),
-            details: Some(serde_json::json!({
-                "originalValue": {"visible":view.value("visible"),"opacity":view.value("opacity"),
-                    "absoluteBoundingBox":view.value("absoluteBoundingBox"),"absoluteRenderBounds":view.value("absoluteRenderBounds")},
-                "appliedValue": {"generatedSource":rendered,"state":"layout-only"},
-                "reason":reason,"classification":"non-rendering-asset",
-                "nextAction":"Review the retained layout box; no asset bytes are needed. If the asset should be visible, correct its visibility or clipping in Figma and export again."
-            })),
-            ..Diagnostic::default()
-        });
+        context.diagnostics.push(non_rendering_diagnostic(
+            node,
+            reason,
+            &rendered,
+            "layout-only",
+        ));
         visiting.remove(&node.id);
         return Ok(mark_node(&node.id, rendered));
     }
@@ -1614,6 +1687,18 @@ fn render_node(
     let children_result = if asset.is_some() {
         Ok(Vec::new())
     } else {
+        for child in view
+            .child_ids()
+            .filter_map(|id| snapshot.nodes.get(id))
+            .filter(|child| child.typed_view().bool("visible") == Some(false))
+        {
+            context.diagnostics.push(non_rendering_diagnostic(
+                child,
+                "visible-false",
+                "",
+                "omitted",
+            ));
+        }
         view.child_ids()
             .filter_map(|id| snapshot.nodes.get(id))
             .filter(|child| child.typed_view().bool("visible") != Some(false))
@@ -1675,6 +1760,35 @@ fn render_node(
     };
     visiting.remove(&node.id);
     Ok(mark_node(&node.id, rendered))
+}
+
+fn non_rendering_diagnostic(node: &RawNode, reason: &str, source: &str, state: &str) -> Diagnostic {
+    let view = node.typed_view();
+    let field = if view.bool("visible") == Some(false) {
+        "visible"
+    } else {
+        "absoluteRenderBounds"
+    };
+    let confirmed = !node.field_errors.contains_key(field)
+        && if field == "visible" {
+            view.bool(field) == Some(false)
+        } else {
+            view.value(field).is_some_and(serde_json::Value::is_null)
+        };
+    Diagnostic {
+        code: "DEVUP_CODEGEN_NON_RENDERING_ASSET".into(),
+        node_id: Some(node.id.clone()), property: Some("assetReference".into()),
+        message: if confirmed { "Confirmed non-rendering node accounted for without an asset reference." } else { "Asset paint was omitted, but non-rendering could not be confirmed from collected fields." }.into(),
+        fidelity_impact: Some(if confirmed { devup_mcp_figma::FidelityImpact::None } else { devup_mcp_figma::FidelityImpact::Approximated }),
+        details: Some(serde_json::json!({
+            "originalValue":{"visible":view.value("visible"),"opacity":view.value("opacity"),"absoluteBoundingBox":view.value("absoluteBoundingBox"),"absoluteRenderBounds":view.value("absoluteRenderBounds")},
+            "appliedValue":{"state":state,"generatedSource":source.chars().take(800).collect::<String>(),"sourceTruncated":source.chars().count()>800},
+            "classification":if confirmed {"accounted-for-non-rendering"} else {"unverified-non-rendering"},"reason":reason,
+            "verification":{"state":if confirmed {"accounted-for"} else {"unverified"},"field":field,"fieldPresent":view.value(field).is_some(),"value":view.value(field),"readError":node.field_errors.get(field)},
+            "nextAction":if confirmed {"No asset bytes are required for this confirmed non-rendering node. Correct visibility or clipping in Figma if it should render."} else {"Recapture visible and absoluteRenderBounds without field errors; an absent field is not evidence of non-rendering."}
+        })),
+        ..Diagnostic::default()
+    }
 }
 
 /// A style name without a leading group that is only a number.

@@ -24,6 +24,37 @@ use rmcp::model::ResourceContents;
 use serde_json::json;
 
 #[test]
+fn r12_inline_size_errors_report_measured_output_and_wire_sizes() {
+    for count in [600_000, MAX_INLINE_TOTAL_BYTES + 1] {
+        let outputs = [ProjectedOutput::text(
+            "tsx",
+            "text/typescript",
+            vec![b'x'; count],
+        )];
+        let result = json!({"tsx":"x".repeat(count)});
+        let error =
+            choose_delivery_for_result(DeliveryMode::Inline, &result, &outputs).unwrap_err();
+        assert_eq!(error.details["limitBytes"], MAX_INLINE_TOTAL_BYTES);
+        assert_eq!(error.details["outputBytes"], count);
+        assert_eq!(error.details["outputs"][0]["name"], "tsx");
+        assert_eq!(error.details["outputs"][0]["bytes"], count);
+        let wire = error.details["serializedResponseBytes"].as_u64().unwrap();
+        assert_eq!(
+            wire as usize,
+            serde_json::to_vec(&devup_mcp::server::delivery::tool_result(result))
+                .unwrap()
+                .len(),
+            "wire measurement must include the server identity attached at the tool boundary"
+        );
+        assert!(wire > MAX_INLINE_TOTAL_BYTES as u64);
+        assert_eq!(
+            error.details["exceededByBytes"],
+            wire - MAX_INLINE_TOTAL_BYTES as u64
+        );
+    }
+}
+
+#[test]
 fn delivery_boundaries_are_deterministic_and_strict() {
     let exactly = ProjectedOutput::text(
         "tsx",

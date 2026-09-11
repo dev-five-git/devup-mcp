@@ -1,0 +1,47 @@
+{
+  "binary": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\devup-mcp.exe",
+  "inputBytes": 90859,
+  "isError": false,
+  "ok": false,
+  "okReason": "error-violations",
+  "violationCounts": {
+    "error": 3,
+    "warning": 16,
+    "info": 396
+  },
+  "server": {
+    "version": "0.4.4",
+    "buildId": "1b61eb616042-dirty",
+    "commit": "1b61eb616042"
+  },
+  "errors": [
+    {
+      "rule": "unknown-prop",
+      "severity": "error",
+      "byteRange": [
+        59371,
+        59380
+      ],
+      "message": "maxLength is not a prop recognized by Text."
+    },
+    {
+      "rule": "unknown-prop",
+      "severity": "error",
+      "byteRange": [
+        61944,
+        61953
+      ],
+      "message": "maxLength is not a prop recognized by Text."
+    },
+    {
+      "rule": "unknown-prop",
+      "severity": "error",
+      "byteRange": [
+        81513,
+        81522
+      ],
+      "message": "maxLength is not a prop recognized by Text."
+    }
+  ],
+  "contentMatchesStructured": true
+}

@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -286,7 +288,7 @@ async fn explore_rejects_missing_node_and_out_of_range_limit() -> anyhow::Result
             ),
         )
         .await;
-    assert!(missing_node.is_err());
+    common::tool_error(missing_node?);
     let invalid_limit = client
         .call_tool(
             CallToolRequestParams::new("devup_figma_explore").with_arguments(
@@ -300,7 +302,7 @@ async fn explore_rejects_missing_node_and_out_of_range_limit() -> anyhow::Result
             ),
         )
         .await;
-    assert!(invalid_limit.is_err());
+    common::tool_error(invalid_limit?);
 
     client.cancel().await?;
     task.await??;

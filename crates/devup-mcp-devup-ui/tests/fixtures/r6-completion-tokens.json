@@ -1,0 +1,17 @@
+{
+  "variableTokens": {
+    "VariableID:1:1000": "containerBackground",
+    "VariableID:1:995": "primary",
+    "VariableID:1:1008": "title",
+    "VariableID:17:1554": "textLight",
+    "VariableID:1:1001": "border",
+    "VariableID:1:998": "text"
+  },
+  "textStyleTokens": {
+    "S:6646d53069fc8c24eed906edaf8aee78d1a1127a,": "h4",
+    "S:0e215484a78b7be9bbbfa4c6ada772650e82023b,": "caption",
+    "S:c43949a7dcc7bb888aa8c0dee5547d93c83d0c49,": "bodyTitle",
+    "S:dbab53f60e8c4def3ceca64d8adce1a57158e692,": "bodySm",
+    "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,": "bodySemibold"
+  }
+}

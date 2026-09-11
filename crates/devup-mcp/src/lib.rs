@@ -1,6 +1,10 @@
 pub mod asset_batches;
 pub mod server;
 
+#[cfg(test)]
+#[path = "../tests/support/paths.rs"]
+mod test_paths;
+
 use std::{ffi::OsString, path::PathBuf};
 
 use serde::Serialize;

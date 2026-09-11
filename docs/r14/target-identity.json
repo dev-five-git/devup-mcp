@@ -1,0 +1,39 @@
+{
+  "workspaceRoot": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r14-absolute-width-asset-bounds",
+  "targetDirectory": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r14-absolute-width-asset-bounds\\target",
+  "cargoTargetDirEnvironmentPresent": false,
+  "testExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r14-absolute-width-asset-bounds\\target\\debug\\deps\\r14_absolute_evidence-c1015fcbf04dfd7d.exe",
+  "testExecutableSha256": "19eaa88dfe595519d11ed896df7f25766e8fd990d682757e6e17f61a52ba80ab",
+  "listedTests": [
+    "r14_asset_boundary_read_error_cannot_be_verified: test",
+    "r14_asset_boundary_rounding_and_inherited_constraints_are_separate: test",
+    "r14_asset_fill_is_not_a_verified_fixed_export_dimension: test",
+    "r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof: test",
+    "r14_far_edge_boundary_proof_rejects_parent_size_read_errors: test",
+    "r14_fixed_width_percentage_proves_equal_containing_block_without_changing_css: test",
+    "r14_null_and_absent_constraints_report_actual_fallback_without_promoting_it: test",
+    "r14_percentage_rejects_mismatch_unknown_parent_and_read_errors: test",
+    "r14_percentage_relation_is_independent_of_the_observed_360px_width: test",
+    "",
+    "9 tests, 0 benchmarks"
+  ],
+  "executedR14Tests": [
+    "test provenance::sizing::r14_tests::r14_rounding_rejects_a_centipixel_change_in_generated_height ... ok",
+    "test provenance::sizing::r14_tests::r14_percentage_rechecks_actual_parent_pixels ... ok",
+    "test r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof ... ok",
+    "test r14_asset_boundary_read_error_cannot_be_verified ... ok",
+    "test r14_asset_fill_is_not_a_verified_fixed_export_dimension ... ok",
+    "test r14_asset_boundary_rounding_and_inherited_constraints_are_separate ... ok",
+    "test r14_far_edge_boundary_proof_rejects_parent_size_read_errors ... ok",
+    "test r14_null_and_absent_constraints_report_actual_fallback_without_promoting_it ... ok",
+    "test r14_percentage_relation_is_independent_of_the_observed_360px_width ... ok",
+    "test r14_fixed_width_percentage_proves_equal_containing_block_without_changing_css ... ok",
+    "test r14_percentage_rejects_mismatch_unknown_parent_and_read_errors ... ok"
+  ],
+  "sourceSha256": {
+    "crates\\devup-mcp-devup-ui\\src\\provenance\\sizing.rs": "67d832425dd5dfb0bf21c6d8030b6128bef74104de53aad9adc178ff0d169a4c",
+    "crates\\devup-mcp-devup-ui\\src\\provenance\\absolute_bounds.rs": "c465cc081cc3e7ea4e7137906641f1ea51483508ad9b53585aea782861899e0a",
+    "crates\\devup-mcp-devup-ui\\src\\codegen\\component.rs": "0530834b4825b7424af38f88369f57f774494120f84ea0160a2072fea02e55ab",
+    "crates\\devup-mcp-devup-ui\\tests\\r14_absolute_evidence.rs": "a84a293735aa50154d36846cb5377b2bcd5bddc3c274977c7cc69635250908a0"
+  }
+}

@@ -8,6 +8,8 @@
 //! than the theme read out of Figma. The default was enlarging every
 //! response to answer a question nobody was asking.
 
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -90,6 +92,14 @@ async fn export(arguments: Value) -> anyhow::Result<Value> {
         .await?;
     client.cancel().await?;
     task.await??;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
     Ok(result.structured_content.unwrap())
 }
 
@@ -258,8 +268,8 @@ async fn p3_parameter_failures_do_not_spend_upstream_calls() -> anyhow::Result<(
                     .with_arguments(arguments.as_object().unwrap().clone()),
             )
             .await
-            .unwrap_err()
-            .to_string();
+            .map(common::tool_error)
+            .expect("structured failure");
         assert!(error.contains("-32602"), "{error}");
         assert_eq!(fixture.calls.load(Ordering::SeqCst), 0);
     }
@@ -269,8 +279,8 @@ async fn p3_parameter_failures_do_not_spend_upstream_calls() -> anyhow::Result<(
                 .with_arguments(json!({"artifactId":"missing"}).as_object().unwrap().clone()),
         )
         .await
-        .unwrap_err()
-        .to_string();
+        .map(common::tool_error)
+        .expect("structured failure");
     assert!(
         error.contains("-32603") && error.contains("The Figma artifact is missing or expired."),
         "{error}"
@@ -296,5 +306,28 @@ async fn p3_schema_exposes_opt_in_and_cost_and_section_contract() -> anyhow::Res
     ] {
         assert!(description.contains(hint), "Missing {hint}");
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn r6_export_response_identifies_responding_build() -> anyhow::Result<()> {
+    let output =
+        export(json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2"}))
+            .await?;
+    assert_eq!(output["server"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(output["server"]["buildId"], devup_mcp::build_id());
+    assert_eq!(
+        output["server"]["commit"],
+        option_env!("DEVUP_MCP_GIT_COMMIT")
+            .filter(|s| !s.is_empty())
+            .map(serde_json::Value::from)
+            .unwrap_or(serde_json::Value::Null)
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn r6_source_map_description_explains_cached_reprojection() -> anyhow::Result<()> {
+    let (_, description) = export_tool_schema().await?;
+    assert!(description.contains("same call") && description.contains(r#"{"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#),"{description}");
     Ok(())
 }

@@ -1,0 +1,44 @@
+
+COMMAND: C:\Users\owjs3\orca\workspaces\devup-mcp\r16-resolution-labels\target\debug\deps\devup_mcp-bbcce4741168dc25.exe r16 --nocapture
+
+running 5 tests
+test server::projection::w1_regressions::r16_non_projection_partial_has_its_own_status_cause ... ok
+test server::projection::w1_regressions::r16_frame_scope_retains_scoped_output_failures ... ok
+test server::projection::w1_regressions::r16_verdict_scope_identifies_remaining_asset_axes_without_diagnostics ... ok
+test server::projection::w1_regressions::r16_resource_scope_retains_every_projection_issue ... ok
+test server::projection::w1_regressions::r16_complete_scope_and_mapping_semantics_survive_resource_delivery ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 186 filtered out; finished in 1.90s
+
+R16 metadata node=null scopeBytes=82 issues=0
+R16 metadata node="3997:46315" scopeBytes=82 issues=0
+R16 metadata node="3997:46715" scopeBytes=82 issues=0
+R16 metadata node="3997:46333" scopeBytes=82 issues=0
+R16 metadata node=null scopeBytes=1918 issues=2
+R16 metadata node="3997:46667" scopeBytes=1918 issues=2
+
+COMMAND: C:\Users\owjs3\orca\workspaces\devup-mcp\r16-resolution-labels\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exe r16 --nocapture
+
+running 10 tests
+test provenance::sizing::r16_tests::r16_asset_blockers_follow_the_selected_boundary_proof ... ok
+test provenance::sizing::r16_tests::r16_width_conflicting_dimension_props ... ok
+test provenance::sizing::r16_tests::r16_child_width_read_error ... ok
+test provenance::sizing::r16_tests::r16_width_containing_block ... ok
+test provenance::sizing::r16_tests::r16_parent_width_unknown ... ok
+test provenance::sizing::r16_tests::r16_child_width_non_fixed_sizing ... ok
+test provenance::sizing::r16_tests::r16_width_parent_padding ... ok
+test provenance::sizing::r16_tests::r16_width_read_error ... ok
+test provenance::sizing::r16_tests::r16_parent_width_unequal ... ok
+test provenance::sizing::r16_tests::r16_width_non_fixed_sizing ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 0.44s
+
+
+COMMAND: C:\Users\owjs3\orca\workspaces\devup-mcp\r16-resolution-labels\target\debug\deps\r14_absolute_evidence-c1015fcbf04dfd7d.exe r16 --nocapture
+
+running 3 tests
+test r16_embedded_width_reports_unknown_parent_without_promoting_it ... ok
+test r16_resolution_explains_raw_mapping_and_verified_width_as_separate_axes ... ok
+test r16_verified_width_has_no_blocker_and_preserves_width_evidence_alias ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.35s

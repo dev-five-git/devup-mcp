@@ -1,0 +1,43 @@
+
+running 9 tests
+
+thread 'r14_asset_boundary_rounding_and_inherited_constraints_are_separate' (97708) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:165:9:
+assertion `left == right` failed
+  left: String("MIN")
+ right: "SCALE"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'r14_far_edge_boundary_proof_rejects_parent_size_read_errors' (75388) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:269:5:
+assertion `left == right` failed
+  left: String("verified")
+ right: "unverified"
+
+thread 'r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof' (109892) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:258:9:
+assertion `left == right` failed
+  left: String("approximated")
+ right: "preserved"
+test r14_asset_boundary_read_error_cannot_be_verified ... ok
+test r14_asset_fill_is_not_a_verified_fixed_export_dimension ... ok
+test r14_far_edge_boundary_proof_rejects_parent_size_read_errors ... FAILED
+test r14_asset_boundary_rounding_and_inherited_constraints_are_separate ... FAILED
+test r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof ... FAILED
+test r14_null_and_absent_constraints_report_actual_fallback_without_promoting_it ... ok
+
+thread 'r14_percentage_relation_is_independent_of_the_observed_360px_width' (102556) panicked at crates\devup-mcp-devup-ui\tests\r14_absolute_evidence.rs:71:9:
+assertion `left == right` failed
+  left: String("280px")
+ right: "100%"
+test r14_percentage_relation_is_independent_of_the_observed_360px_width ... FAILED
+test r14_fixed_width_percentage_proves_equal_containing_block_without_changing_css ... ok
+test r14_percentage_rejects_mismatch_unknown_parent_and_read_errors ... ok
+
+failures:
+
+failures:
+    r14_asset_boundary_rounding_and_inherited_constraints_are_separate
+    r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof
+    r14_far_edge_boundary_proof_rejects_parent_size_read_errors
+    r14_percentage_relation_is_independent_of_the_observed_360px_width
+
+test result: FAILED. 5 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.01s
+

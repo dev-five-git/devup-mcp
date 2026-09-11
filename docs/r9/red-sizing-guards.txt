@@ -1,0 +1,26 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-879ea00139ecb6a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.03s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-879ea00139ecb6a4.exe)
+
+running 1 test
+
+thread 'r9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides' (195316) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:409:9:
+assertion `left == right` failed: layoutMode
+  left: String("verified")
+ right: "approximated"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides ... FAILED
+
+failures:
+
+failures:
+    r9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.14s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r9_precision`

@@ -29,7 +29,13 @@ expression: actual
         >
           Hello World!
         </Text>
-        <Image boxSize="100%" maxH="400px" maxW="800px" src="/images/image.png" />
+        <Image
+          flex="1"
+          maxH="400px"
+          maxW="800px"
+          src="/images/image.png"
+          w="100%"
+        />
       </Center>
     </VStack>
   )

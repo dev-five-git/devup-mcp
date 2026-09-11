@@ -68,9 +68,115 @@ async fn validate(arguments: Value) -> anyhow::Result<Value> {
     let result = client
         .call_tool(CallToolRequestParams::new("devup_ui_validate").with_arguments(arguments))
         .await?;
+    let content = serde_json::to_value(&result.content[0])?;
+    assert_eq!(
+        serde_json::from_str::<Value>(content["text"].as_str().unwrap())?,
+        result.structured_content.clone().unwrap()
+    );
     client.cancel().await?;
     task.await??;
     Ok(result.structured_content.unwrap())
+}
+
+#[tokio::test]
+async fn r12_failed_validation_explains_why_source_cannot_be_corrected_automatically()
+-> anyhow::Result<()> {
+    for tsx in [
+        r#"<Text maxLength={50} />"#,
+        r#"<Box bg="$missing" />"#,
+        "<Box bg=",
+        "css({width: dynamic})",
+    ] {
+        let output = validate(json!({"tsx":tsx,"projectRoot":fixture_project_root()})).await?;
+        assert_eq!(output["ok"], false);
+        assert_eq!(output["recoveryState"], "manual-fix-required");
+        assert!(output["nextAction"].is_null());
+        assert!(
+            output["recoveryReason"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty())
+        );
+        assert!(
+            output["nextActionReason"]
+                .as_str()
+                .is_some_and(|s| s.contains("source"))
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn r12_unique_exact_token_warning_supplies_callable_corrected_arguments() -> anyhow::Result<()>
+{
+    // The original fixture's primaryColor differs in dark mode. R17 forbids
+    // auto-correcting that partial match; exercise R12's safe correction with
+    // an otherwise identical fixture that matches in every mode.
+    let root =
+        std::env::temp_dir().join(format!("devup-r17-safe-correction-{}", std::process::id()));
+    std::fs::create_dir_all(&root)?;
+    let mut theme: Value = serde_json::from_str(&std::fs::read_to_string(
+        std::path::Path::new(&fixture_project_root()).join("devup.json"),
+    )?)?;
+    theme["theme"]["colors"]["dark"]["primaryColor"] = json!("#3366ff");
+    std::fs::write(root.join("devup.json"), serde_json::to_vec(&theme)?)?;
+    let output = validate(json!({"tsx":r##"<><Text>한글</Text><Box bg="#3366ff" p="16px" /></>"##,"strict":true,"projectRoot":root.to_string_lossy()})).await?;
+    assert_eq!(output["ok"], false);
+    assert_eq!(output["recoveryState"], "available");
+    assert_eq!(output["nextAction"]["tool"], "devup_ui_validate");
+    let arguments = output["nextAction"]["arguments"].clone();
+    assert_eq!(arguments["strict"], true);
+    assert_eq!(arguments["projectRoot"], root.to_string_lossy().as_ref());
+    assert_eq!(
+        arguments["tsx"],
+        r##"<><Text>한글</Text><Box bg="$primaryColor" p="$md" /></>"##
+    );
+    assert_eq!(validate(arguments).await?["ok"], true);
+    std::fs::remove_file(root.join("devup.json"))?;
+    std::fs::remove_dir(root)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn r12_strict_warning_with_error_requires_source_edit_not_partial_retry() -> anyhow::Result<()>
+{
+    let output = validate(json!({"tsx":r##"<Box bg="#3366ff" notARealProp="x" />"##,"strict":true,"projectRoot":fixture_project_root()})).await?;
+    assert_eq!(output["okReason"], "error-violations");
+    assert_eq!(output["recoveryState"], "manual-fix-required");
+    assert!(output["nextAction"].is_null());
+    assert!(output["recoveryReason"].is_string());
+    Ok(())
+}
+
+#[tokio::test]
+async fn r12_ambiguous_exact_tokens_require_a_source_decision() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!(
+        "devup-r12-ambiguous-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root)?;
+    std::fs::write(
+        root.join("devup.json"),
+        r##"{"theme":{"colors":{"default":{"primary":"#3366ff","accent":"#3366ff"}}}}"##,
+    )?;
+    let result = validate(json!({"tsx":r##"<Box bg="#3366ff" />"##,"strict":true,"projectRoot":root.to_string_lossy()})).await;
+    std::fs::remove_file(root.join("devup.json"))?;
+    std::fs::remove_dir(&root)?;
+    let output = result?;
+    assert_eq!(output["ok"], false);
+    assert_eq!(output["okReason"], "strict-warnings");
+    assert_eq!(output["strict"], true);
+    assert_eq!(output["recoveryState"], "manual-fix-required");
+    assert!(output["nextAction"].is_null());
+    assert!(
+        output["recoveryReason"]
+            .as_str()
+            .unwrap()
+            .contains("matching theme tokens")
+    );
+    Ok(())
 }
 
 /// `ok: true` next to a non-empty `violations` is correct output, and the
@@ -353,5 +459,84 @@ async fn empty_length_category_is_summarized_once_in_the_response() -> anyhow::R
                 .contains("defines no length")
         );
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn r17_build_identity_and_manual_source_recovery() -> anyhow::Result<()> {
+    let out = validate(json!({"tsx":"<Text maxLength={50}/>","projectRoot":fixture_project_root(),"sourceName":"Modal.tsx"})).await?;
+    assert_eq!(out["recoveryState"], "manual-fix-required");
+    assert_eq!(out["violations"][0]["sourceName"], "Modal.tsx");
+    assert!(
+        out["server"]["displayVersion"]
+            .as_str()
+            .unwrap_or("")
+            .contains('+')
+    );
+    assert!(
+        out["server"]["identityGuidance"]
+            .as_str()
+            .unwrap_or("")
+            .contains("commit")
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn r17_reference_png_recovery_has_frame_url() -> anyhow::Result<()> {
+    let server = DevupServer::new(Services::new(Arc::new(Auth), Arc::new(NoFigma)));
+    let (st, ct) = tokio::io::duplex(256 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(st).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(ct).await?;
+    let result = client.call_tool(CallToolRequestParams::new("devup_figma_export").with_arguments(json!({"url":"https://www.figma.com/design/Fixture/Test?node-id=1-1","frameIds":["2:3"],"outputs":["referencePng"]}).as_object().unwrap().clone())).await?;
+    let out = result.structured_content.unwrap();
+    let text = out.to_string();
+    assert!(text.contains("node-id=2-3"), "{out}");
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+#[tokio::test]
+async fn r17_readable_deployment_identity() -> anyhow::Result<()> {
+    let out = validate(json!({"tsx":"<Box/>"})).await?;
+    assert!(
+        out["server"]["displayVersion"]
+            .as_str()
+            .unwrap_or("")
+            .contains('+')
+    );
+    assert!(
+        out["server"]["identityGuidance"]
+            .as_str()
+            .unwrap_or("")
+            .contains("commit")
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn r17_source_name_reaches_diagnostics() -> anyhow::Result<()> {
+    let out = validate(json!({"tsx":"<Text maxLength={50}/>","sourceName":"Modal.tsx"})).await?;
+    assert_eq!(out["violations"][0]["sourceName"], "Modal.tsx");
+    Ok(())
+}
+#[tokio::test]
+async fn r17_partial_mode_match_never_auto_replaces_literal() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-r17-mode-{}", std::process::id()));
+    std::fs::create_dir_all(&root)?;
+    std::fs::write(
+        root.join("devup.json"),
+        r##"{"theme":{"colors":{"light":{"base":"#FFF"},"dark":{"base":"#000"}}}}"##,
+    )?;
+    let result = validate(
+        json!({"tsx":r##"<Box bg="#FFF"/>"##,"strict":true,"projectRoot":root.to_string_lossy()}),
+    )
+    .await;
+    std::fs::remove_file(root.join("devup.json"))?;
+    std::fs::remove_dir(root)?;
+    let out = result?;
+    assert!(out["nextAction"].is_null(), "{out}");
     Ok(())
 }

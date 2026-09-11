@@ -8,6 +8,14 @@ use crate::codegen::{
     AssetKind, CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout,
 };
 
+mod absolute_bounds;
+pub mod attributes;
+mod resolution;
+mod sizing;
+pub use resolution::resolution_semantics;
+pub(crate) use sizing::absolute_component_verification;
+pub(crate) use sizing::{account_for_sizing, implicit_css_verification};
+
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
 const END: &str = "\u{e000}DEVUP_PROVENANCE_END:";
 const CLOSE: char = '\u{e001}';
@@ -22,8 +30,11 @@ pub struct GeneratedRange {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvenanceEntry {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Internal renderer/validator bookkeeping; never a consumer-facing offset.
+    #[serde(skip)]
     pub generated_range: Option<GeneratedRange>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_property: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub json_pointer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -39,7 +50,7 @@ pub struct ProvenanceEntry {
     pub resolution: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceMap {
     pub version: u32,
@@ -52,10 +63,65 @@ pub struct SourceMap {
     pub style_tokens: BTreeMap<String, String>,
 }
 
+impl Serialize for SourceMap {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut map = serializer.serialize_struct("SourceMap", 3)?;
+        map.serialize_field("version", &self.version)?;
+        map.serialize_field("entries", &self.property_entries())?;
+        map.serialize_field("resolutionSemantics", &resolution_semantics())?;
+        map.end()
+    }
+}
+
 impl SourceMap {
+    pub fn property_entries(&self) -> Vec<ProvenanceEntry> {
+        self.entries
+            .iter()
+            .filter(|e| e.property.is_some() || e.json_pointer.is_some())
+            .cloned()
+            .collect()
+    }
+
+    /// Freeze field-to-generated-property facts while the renderer's private
+    /// positions still refer to its own code. Delivery rewrites the property
+    /// strings together with TSX; no positions cross the public boundary.
+    pub(crate) fn describe_properties(&mut self, tsx: &str) {
+        for entry in &mut self.entries {
+            let Some(property) = entry.property.as_deref() else {
+                continue;
+            };
+            let source = entry
+                .generated_range
+                .as_ref()
+                .and_then(|r| tsx.get(r.start..r.end));
+            entry.generated_property = match (entry.resolution.as_str(), property, source) {
+                ("accounted-for-content-sizing", _, Some(_)) => {
+                    Some("implicit:text-content-sizing".into())
+                }
+                ("accounted-for-implicit-flex-stretch", _, Some(_)) => {
+                    Some("implicit:align-self:stretch".into())
+                }
+                ("accounted-for-implicit-flex-grow", _, Some(source)) => {
+                    source.find("flex=\"").and_then(|at| {
+                        source[at + 6..]
+                            .find('"')
+                            .map(|end| source[at..at + 7 + end].to_owned())
+                    })
+                }
+                (_, "characters", Some(_)) => Some("children".into()),
+                (_, _, Some(source)) if !source.trim().is_empty() => Some(source.trim().into()),
+                _ => None,
+            };
+            if entry.generated_property.is_none() && entry.resolution == "exact" {
+                entry.resolution = "unverified-property-mapping".into();
+            }
+        }
+    }
+
     pub fn empty() -> Self {
         Self {
-            version: 1,
+            version: 2,
             entries: Vec::new(),
             variable_tokens: BTreeMap::new(),
             style_tokens: BTreeMap::new(),
@@ -194,6 +260,8 @@ pub(crate) fn build_projection_trace(
         let projection =
             if node_id == root_id && node.is_some_and(|node| node.node_type == "SECTION") {
                 Some((ProjectionDisposition::Flattened, "section-root", None))
+            } else if node.is_some_and(|node| node.typed_view().bool("visible") == Some(false)) {
+                Some((ProjectionDisposition::Ignored, "hidden", None))
             } else if let Some(range) = range.filter(|range| range.start < range.end) {
                 Some((
                     ProjectionDisposition::Emitted,
@@ -411,6 +479,9 @@ pub fn validate_fidelity(
     let covered_assets = assets
         .iter()
         .filter(|(node_id, asset_id)| {
+            if sizing::non_rendering_asset_accounted(snapshot, output, node_id) {
+                return true;
+            }
             output.source_map.entries.iter().any(|entry| {
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.asset_id.as_deref() == Some(asset_id.as_str())
@@ -457,6 +528,23 @@ pub fn validate_fidelity(
             })
         })
         .collect::<BTreeSet<_>>();
+    // Previously claimed implicit or explicit dimensions remain obligations when emitted CSS
+    // is revalidated. Replacing a Box by an unknown/replaced tag must not make
+    // its size disappear from coverage merely because it is no longer a Box.
+    for entry in &output.source_map.entries {
+        if matches!(
+            entry.resolution.as_str(),
+            "accounted-for-implicit-flex-stretch"
+                | "accounted-for-implicit-flex-grow"
+                | "accounted-for-content-sizing"
+                | "verified-explicit-dimension"
+        ) && let (Some(id), Some(field)) = (entry.node_id.as_deref(), entry.property.as_deref())
+            && matches!(field, "width" | "height")
+            && semantic_nodes.contains(id)
+        {
+            layout.insert((id.to_owned(), field.to_owned()));
+        }
+    }
     // A visible childless painted Box has no intrinsic content, even when it
     // was not classified as an asset (for example an empty HUG frame).
     for node_id in &semantic_nodes {
@@ -505,6 +593,43 @@ pub fn validate_fidelity(
                 entry.node_id.as_deref() == Some(node_id.as_str())
                     && entry.property.as_deref() == Some(property.as_str())
                     && entry_range(entry, &output.tsx).is_some_and(|source| {
+                        if entry.resolution == "accounted-for-content-sizing" {
+                            return sizing::content_sizing_accounted(
+                                snapshot, output, node_id, property,
+                            );
+                        }
+                        if entry.resolution == "verified-explicit-dimension" {
+                            return layout_source_matches(property, source)
+                                && dimension_value_matches(
+                                    snapshot, output, node_id, property, source,
+                                )
+                                && snapshot.nodes.get(node_id).is_some_and(|node| {
+                                    !node.field_errors.contains_key(property)
+                                        && source
+                                            .split_once("=\"")
+                                            .and_then(|(_, v)| v.strip_suffix("px\""))
+                                            .and_then(|v| v.parse::<f64>().ok())
+                                            .zip(node.typed_view().number(property))
+                                            .is_some_and(|(a, b)| b.is_finite() && a == b)
+                                });
+                        }
+                        if matches!(
+                            entry.resolution.as_str(),
+                            "accounted-for-implicit-flex-stretch"
+                                | "accounted-for-implicit-flex-grow"
+                        ) {
+                            return implicit_css_verification(snapshot, output, node_id, property)
+                                ["state"]
+                                == "accounted-for";
+                        }
+                        if matches!(
+                            property.as_str(),
+                            "layoutSizingHorizontal" | "layoutSizingVertical" | "layoutGrow"
+                        ) {
+                            return sizing::sizing_mapping_matches(
+                                snapshot, output, node_id, property, source,
+                            );
+                        }
                         layout_source_matches(property, source)
                             && dimension_value_matches(snapshot, output, node_id, property, source)
                     })
@@ -519,7 +644,32 @@ pub fn validate_fidelity(
     };
     let mut impacts = FidelityImpactCounts::default();
     for diagnostic in &output.diagnostics {
-        match diagnostic.fidelity_impact() {
+        let mut impact = diagnostic.fidelity_impact();
+        if impact == FidelityImpact::None && diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_VERIFIED" {
+            let components = absolute_component_verification(
+                snapshot,
+                output,
+                diagnostic.node_id.as_deref().unwrap_or(root_id),
+            );
+            if ["height", "width", "horizontal", "vertical"]
+                .iter()
+                .any(|name| components[*name]["fidelityImpact"] != "none")
+            {
+                impact = FidelityImpact::Approximated;
+            }
+        }
+        if impact == FidelityImpact::None && diagnostic.code == "DEVUP_CODEGEN_NON_RENDERING_ASSET"
+        {
+            let id = diagnostic.node_id.as_deref().unwrap_or(root_id);
+            let hidden = snapshot.nodes.get(id).is_some_and(|node| {
+                !node.field_errors.contains_key("visible")
+                    && node.typed_view().bool("visible") == Some(false)
+            });
+            if !hidden && !sizing::non_rendering_asset_accounted(snapshot, output, id) {
+                impact = FidelityImpact::Approximated;
+            }
+        }
+        match impact {
             FidelityImpact::None => impacts.none += 1,
             FidelityImpact::Approximated => impacts.approximated += 1,
             FidelityImpact::Lossy => impacts.lossy += 1,
@@ -657,6 +807,12 @@ fn layout_field_is_semantic(
         return false;
     }
     match field {
+        "layoutSizingHorizontal" => view.string(field) == Some("FILL"),
+        "layoutSizingVertical" => {
+            view.string(field) == Some("FILL")
+                || crate::codegen::vertical_fill_container(snapshot, node)
+        }
+        "layoutGrow" => view.number(field).is_some_and(|v| v > 0.0),
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
         "layoutPositioning" => view.string(field) == Some("ABSOLUTE"),
         "width" => {
@@ -1027,6 +1183,11 @@ fn fill_axis_is_established(
                     .is_some_and(|value| value.is_finite() && value > 0.0);
             }
         }
+        // A definite flex main size also provides the basis for nested FILL.
+        // Follow the emitted flex chain; a HUG ancestor still ends this proof.
+        if axis == "height" && sizing::has_vertical_flex_basis(snapshot, output, &parent.id) {
+            return established(snapshot, output, &parent.id, axis, seen);
+        }
         // HUG/shrink-to-fit width and percentage children are a cycle, not an
         // independent size anchor. Percentage height cannot use an auto parent.
         axis == "width"
@@ -1246,6 +1407,9 @@ fn typography_sources<'a>(
 }
 
 const LAYOUT_FIELDS: &[&str] = &[
+    "layoutSizingHorizontal",
+    "layoutSizingVertical",
+    "layoutGrow",
     "layoutMode",
     "layoutPositioning",
     "width",
@@ -1285,6 +1449,7 @@ pub(crate) fn finalize_tsx(
             continue;
         };
         entries.push(ProvenanceEntry {
+            generated_property: None,
             generated_range: Some(range.clone()),
             json_pointer: None,
             node_id: Some(node_id.clone()),
@@ -1358,6 +1523,11 @@ pub(crate) fn finalize_tsx(
         }
 
         for (prop, property) in PROP_SOURCES {
+            if *property == "overflowDirection"
+                && node.typed_view().string("overflowDirection").is_none()
+            {
+                continue;
+            }
             if *prop == "aspectRatio" && node.typed_view().value("targetAspectRatio").is_none() {
                 continue;
             }
@@ -1398,6 +1568,18 @@ pub(crate) fn finalize_tsx(
                 "variable-token"
             } else if style_id.is_some() {
                 "style-token"
+            } else if matches!(*property, "width" | "height")
+                && !node.field_errors.contains_key(*property)
+                && matches!(*prop, "w" | "h" | "boxSize")
+                && value
+                    .strip_suffix("px")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .zip(node.typed_view().number(property))
+                    .is_some_and(|(generated, original)| {
+                        original.is_finite() && original == generated
+                    })
+            {
+                "verified-explicit-dimension"
             } else {
                 "raw-fallback"
             };
@@ -1461,6 +1643,7 @@ pub(crate) fn finalize_tsx(
             && let Some((start, end)) = asset_prop_range(opening)
         {
             entries.push(ProvenanceEntry {
+                generated_property: None,
                 generated_range: Some(GeneratedRange {
                     start: range.start + open_relative + start,
                     end: range.start + open_relative + end,
@@ -1507,7 +1690,7 @@ pub(crate) fn finalize_tsx(
     (
         tsx,
         SourceMap {
-            version: 1,
+            version: 2,
             entries,
             variable_tokens: variable_tokens.clone(),
             style_tokens: style_tokens.clone(),
@@ -1589,6 +1772,7 @@ fn add_flattened_resource_entries(
                     let source = &tsx[range.start..range.end];
                     if let Some((start, end)) = asset_range_in_node_source(source) {
                         entries.push(ProvenanceEntry {
+                            generated_property: None,
                             generated_range: Some(GeneratedRange {
                                 start: range.start + start,
                                 end: range.start + end,
@@ -1767,6 +1951,9 @@ const PROP_SOURCES: &[(&str, &str)] = &[
     ("minW", "minWidth"),
     ("opacity", "opacity"),
     ("overflow", "clipsContent"),
+    ("overflow", "overflowDirection"),
+    ("overflowX", "overflowDirection"),
+    ("overflowY", "overflowDirection"),
     ("p", "paddingTop"),
     ("p", "paddingRight"),
     ("p", "paddingBottom"),
@@ -1993,6 +2180,7 @@ fn generated_entry(
     resolution: &str,
 ) -> ProvenanceEntry {
     ProvenanceEntry {
+        generated_property: None,
         generated_range: Some(GeneratedRange { start, end }),
         json_pointer: None,
         node_id: Some(node_id.to_owned()),

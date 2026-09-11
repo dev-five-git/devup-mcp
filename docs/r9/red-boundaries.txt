@@ -1,0 +1,45 @@
+    Blocking waiting for file lock on build directory
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-9c8903ce79b728f2.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r9-approximation-precision\target\debug\deps\r9_precision-9c8903ce79b728f2.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 12s
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-9c8903ce79b728f2.exe)
+
+running 11 tests
+test r9_source_map_documents_optional_identifiers_and_resolutions ... ok
+
+thread 'r9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence' (202444) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:292:5:
+assertion failed: o.fidelity_report.assets.complete()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence ... FAILED
+test r9_non_rendering_requires_explicit_evidence ... ok
+test r9_captured_non_rendering_asset_and_read_error_are_distinguished ... ok
+
+thread 'r9_hidden_absolute_root_has_no_placement_fidelity_loss' (203868) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:282:109:
+called `Result::unwrap()` on an `Err` value: DevupError { code: DevupCodegenFailed, message: "Projection trace did not account for each source node exactly once.", retryable: false, details: Object {"missingNodeIds": Array [String("3997:46624")], "duplicateNodeIds": Array [], "unexpectedNodeIds": Array [], "invalidRangeNodeIds": Array []} }
+test r9_hidden_absolute_root_has_no_placement_fidelity_loss ... FAILED
+test r9_hidden_node_records_accounted_for_evidence ... ok
+
+thread 'r9_absolute_verification_is_rechecked_after_generated_css_changes' (203660) panicked at crates\devup-mcp-devup-ui\tests\r9_precision.rs:308:5:
+assertion `left == right` failed
+  left: 48
+ right: 0
+test r9_verified_absolute_components_clear_only_their_own_impact ... ok
+test r9_absolute_verification_is_rechecked_after_generated_css_changes ... FAILED
+test r9_preserved_height_has_verified_resolution ... ok
+test r9_center_offset_and_field_errors_are_not_verified ... ok
+test r9_absolute_reports_verified_axes_and_remaining_width ... ok
+
+failures:
+
+failures:
+    r9_absolute_verification_is_rechecked_after_generated_css_changes
+    r9_hidden_absolute_root_has_no_placement_fidelity_loss
+    r9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence
+
+test result: FAILED. 8 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r9_precision`

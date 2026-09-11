@@ -1,6 +1,28 @@
 const section = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
 if (!section) throw new Error("DEVUP_NODE_NOT_FOUND");
-if (section.type !== "SECTION") throw new Error("DEVUP_SECTION_REQUIRED");
+if (section.type !== "SECTION") {
+  let ancestor = section.parent;
+  const seen = new Set();
+  while (ancestor && ancestor.type !== "SECTION" && !seen.has(ancestor.id)) {
+    seen.add(ancestor.id);
+    ancestor = ancestor.parent;
+  }
+  const sectionId = ancestor && ancestor.type === "SECTION" ? ancestor.id : null;
+  const url = sectionId && figma.fileKey
+    ? `https://www.figma.com/design/${figma.fileKey}?node-id=${sectionId.replace(/:/g, "-")}` : null;
+  throw new Error("DEVUP_SECTION_REQUIRED " + JSON.stringify({
+    pluginCode: "DEVUP_SECTION_REQUIRED", stage: "section-index",
+    nodeId: section.id, nodeType: section.type, sectionId,
+    nextAction: {
+      tool: "devup_figma_export",
+      how: sectionId ? `The url must point to a SECTION. This capture's SECTION is ${sectionId}; select frames with frameIds.`
+        : "The url must point to a SECTION. This node has no ancestor SECTION; choose the intended SECTION in Figma and copy its link.",
+      arguments: url ? (section.type === "FRAME" && section.parent === ancestor
+        ? {url, frameIds: [section.id]} : {url}) : null,
+      requiredArguments: url ? [] : ["url"]
+    }
+  }));
+}
 
 const MAX_CANDIDATES = 100;
 const MAX_TRAVERSED_NODES = 20000;
@@ -15,6 +37,8 @@ function textPreview(root) {
   let preview = "";
   let characters = 0;
   let bytes = 0;
+  let scanTruncated = false;
+  if (remainingPreviewBytes === 0) return { text: "", state: "budget-exhausted" };
   for (let index = 0; index < queue.length; index += 1) {
     const node = queue[index];
     if (node.visible === false) continue;
@@ -24,19 +48,21 @@ function textPreview(root) {
         const size = utf8ByteLength(character);
         if (characters >= MAX_PREVIEW_CHARACTERS || bytes + size > remainingPreviewBytes) {
           remainingPreviewBytes -= bytes;
-          return preview.trimEnd();
+          return { text: preview.trimEnd(), state: size > remainingPreviewBytes ? "budget-exhausted" : "truncated" };
         }
         preview += character;
         characters += 1;
         bytes += size;
       }
     }
-    if ("children" in node && queue.length < MAX_PREVIEW_NODES) {
-      queue.push(...node.children.slice(0, MAX_PREVIEW_NODES - queue.length));
+    if ("children" in node) {
+      const room = Math.max(0, MAX_PREVIEW_NODES - queue.length);
+      if (node.children.length > room) scanTruncated = true;
+      queue.push(...node.children.slice(0, room));
     }
   }
   remainingPreviewBytes -= bytes;
-  return preview;
+  return { text: preview, state: scanTruncated ? "truncated" : (preview ? "available" : "no-text") };
 }
 
 function bounds(node) {
@@ -103,6 +129,9 @@ function subtreeEstimate(root) {
 }
 
 const queue = "children" in section ? [...section.children] : [];
+// Cache edges during the existing traversal; ownership must not cross the
+// plugin bridge once per ancestor of every descendant.
+const traversalParents = new Map(queue.map(node => [node.id, section.id]));
 const candidateNodes = [];
 let traversalCount = 0;
 for (let index = 0; index < queue.length && traversalCount < MAX_TRAVERSED_NODES; index += 1) {
@@ -121,7 +150,11 @@ for (let index = 0; index < queue.length && traversalCount < MAX_TRAVERSED_NODES
     }
     if (!nestedInScreen) candidateNodes.push({ node, box });
   }
-  if ("children" in node) queue.push(...node.children);
+  if ("children" in node) {
+    const children = node.children;
+    for (const child of children) traversalParents.set(child.id, node.id);
+    queue.push(...children);
+  }
 }
 // Screen shape is a guess for finding screens on a page that has no grouping.
 // A Section is grouping, already explicit, and the guess applied there answers
@@ -149,6 +182,17 @@ candidateNodes.sort((left, right) =>
 const projectionTruncated = queue.length > traversalCount || candidateNodes.length > MAX_CANDIDATES;
 const selected = candidateNodes.slice(0, MAX_CANDIDATES);
 const selectedIds = new Set(selected.map(({ node }) => node.id));
+// Only selection queries need ownership in this response. Export diagnostics
+// use the collected snapshot's parentId/childrenIds on the server instead.
+const requestedIds = new Set("__DEVUP_ROOT_IDS__");
+const nodeScreenIds = {};
+const owners = new Map([[section.id, null]]);
+for (let index = 0; index < traversalCount; index += 1) {
+  const id = queue[index].id;
+  const owner = selectedIds.has(id) ? id : owners.get(traversalParents.get(id)) ?? null;
+  owners.set(id, owner);
+  if (requestedIds.has(id)) nodeScreenIds[id] = owner;
+}
 // Link to the nearest retained ancestor: intermediate layout groups are not
 // included in this compact projection, but container/screen ancestry survives.
 const parentIds = new Map(selected.map(({ node }) => {
@@ -174,12 +218,14 @@ const sectionNode = {
     absoluteBoundingBox: sectionBox,
     visible: section.visible !== false,
     projectionTruncated,
+    nodeScreenIds,
   },
   extra: {},
   fieldErrors: {},
 };
 const candidates = selected.map(({ node, box }) => {
   const estimate = subtreeEstimate(node);
+  const preview = textPreview(node);
   return {
     id: node.id,
     type: node.type,
@@ -191,7 +237,8 @@ const candidates = selected.map(({ node, box }) => {
       visible: node.visible !== false,
       breadcrumb: breadcrumb(node),
       directChildCount: "children" in node ? node.children.length : 0,
-      textPreview: textPreview(node),
+      textPreview: preview.text,
+      textPreviewState: preview.state,
       subtreeNodeCount: estimate.subtreeNodeCount,
       estimatedSerializedBytes: estimate.estimatedSerializedBytes,
       selectionReasons: [isScreen(node, box) ? "screen-like" : "explicit-selection-only", "inside-section"],
@@ -202,10 +249,27 @@ const candidates = selected.map(({ node, box }) => {
   };
 });
 
-return {
+const result = {
   fileKey: figma.fileKey || "",
   version: null,
   rootIds: [section.id],
   nodes: [sectionNode, ...candidates],
   diagnostics: [],
 };
+// The measured upstream ceiling is 20,480 UTF-8 bytes. Never hand it JSON
+// that it will silently cut; preserve the complete candidate list or refuse.
+let responseBytes = utf8ByteLength(JSON.stringify(result));
+// Previews are optional menu hints. Yield their space before refusing a
+// complete menu; never drop a selectable screen merely to fit the transport.
+for (let index = candidates.length - 1; index >= 0 && responseBytes > 19 * 1024; index -= 1) {
+  candidates[index].fields.textPreview = "";
+  candidates[index].fields.textPreviewState = "budget-exhausted";
+  responseBytes = utf8ByteLength(JSON.stringify(result));
+}
+if (responseBytes > 19 * 1024) {
+  throw new Error("DEVUP_SECTION_INDEX_TOO_LARGE " + JSON.stringify({
+    pluginCode: "DEVUP_SECTION_INDEX_TOO_LARGE", stage: "section-index",
+    responseBytes, maxResponseBytes: 19 * 1024,
+  }));
+}
+return result;

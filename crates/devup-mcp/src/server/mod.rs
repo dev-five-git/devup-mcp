@@ -15,6 +15,8 @@ mod result_contract;
 mod stack_diff;
 mod tools;
 mod validation;
+mod validation_guidance;
+mod verdict_scope;
 
 use std::sync::Arc;
 
@@ -321,7 +323,7 @@ impl DevupServer {
         request: CollectionRequest,
         refresh: bool,
     ) -> Result<Value, DevupError> {
-        if !request.asset_selections.is_empty() {
+        if matches!(operation, PendingOperation::Export { .. }) {
             return self.start_asset_job(operation, request, refresh).await;
         }
         self.start_operation_scoped(operation, request, refresh, None)
@@ -465,6 +467,7 @@ impl DevupServer {
     async fn call_waiting_out_a_spent_allowance(
         &self,
         call: ReadToolCall,
+        attempt_timeout: Option<std::time::Duration>,
     ) -> Result<UpstreamResult, DevupError> {
         const ATTEMPTS: u32 = 3;
         const LONGEST_WAIT: u64 = 90;
@@ -483,7 +486,18 @@ impl DevupServer {
             // Before the call, not after the refusal: a collection that paces
             // itself under the ceiling rarely has to be waited out at all.
             self.services.pacer.acquire().await;
-            let error = match self.services.upstream.call_read_tool(call.clone()).await {
+            // Rate-limit pacing is deliberate waiting, not a stalled upstream
+            // read. Bound each actual attempt without cancelling the retry policy.
+            let read = self.services.upstream.call_read_tool(call.clone());
+            let result = if let Some(timeout) = attempt_timeout {
+                tokio::time::timeout(timeout, read).await.unwrap_or_else(|_| Err(DevupError::with_details(
+                    ErrorCode::DevupFigmaDirectUnavailable,
+                    "Export job upstream read timed out; accepted reads are retained. Resume the job to retry the pending read.", true,
+                    json!({"stage":"upstream-read","timeoutSeconds":timeout.as_secs()}))))
+            } else {
+                read.await
+            };
+            let error = match result {
                 Ok(result) => {
                     // Only an answer is banked. A refusal arrives as a
                     // *successful* MCP call — `isError` in the body, or the
@@ -559,7 +573,8 @@ impl DevupServer {
                     let upstream_result = if let Some(job) = job {
                         job.call(self, planned.call).await
                     } else {
-                        self.call_waiting_out_a_spent_allowance(planned.call).await
+                        self.call_waiting_out_a_spent_allowance(planned.call, None)
+                            .await
                     };
                     match upstream_result {
                         // A Section target is not a failed call — the script
@@ -585,7 +600,19 @@ impl DevupServer {
                         // Report what upstream said instead of letting the
                         // collector misread the response as missing data.
                         Ok(result) => match operation::upstream_error(&result.raw) {
-                            Some(error) => {
+                            Some(mut error) => {
+                                if !error.details.is_object() {
+                                    error.details = json!({"upstreamDetails":error.details});
+                                }
+                                error.details["fileKey"] = json!(target.file_key);
+                                if error.details.get("nodeId").is_none() {
+                                    error.details["nodeId"] = json!(planned.expected_node_id);
+                                }
+                                error.details["stage"] = json!(if section_index_call {
+                                    "section-index"
+                                } else {
+                                    "plugin-execution"
+                                });
                                 if !collector.reject(&call_id, &error)? {
                                     return Err(error);
                                 }
@@ -1008,7 +1035,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. Slow asset calls return assetJob with per-asset and per-stage progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 15–60 seconds per frame as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into batches. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations and unclassified layout loss, even without includeDiagnostics. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
@@ -1017,7 +1044,7 @@ impl DevupServer {
                        `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
                        `assetManifest` lists the assets and their ids and writes nothing. To get files, call again with `assetRequests`, giving each entry an `outputPath` under an allowed write root - and make that call with the original `url` rather than `artifactId`, because an acquisition made without asset capture cannot serve asset requests. By default manifest `path` and TSX references remain placeholders. Opt in with `assetPublicRoot`, an existing absolute local directory served at URL /, together with assetRequests.outputPath in this call (saved output mappings are not part of artifacts): files below that root map to percent-encoded relative URLs in manifest and all TSX outputs. Identical exported bytes share one canonical path/outputPath; inspect the returned paths. assetNamesPerNode remains true by default; matching names alone never trigger deduplication. \
-                       Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again.",
+                       Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again. Omitted frameIds/allScreens reuse the stored Section selection; explicit selection overrides it. Debug outputs can use resource delivery in auto mode: read the linked resources or follow nextAction to reproject inline. sourceMap is a node/field/generatedProperty/resolution map without offsets; source.generatedOutput identifies the annotated output. Even when reusing artifactId, sourceMap requires tsx, componentTsx or devupJson in outputs in the same call. Example: {\"artifactId\":\"<artifactId>\",\"outputs\":[\"tsx\",\"rawSnapshot\",\"sourceMap\"],\"debug\":true}",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_export(
@@ -1112,10 +1139,43 @@ impl DevupServer {
         }
         let reference_png_requested = input.outputs.iter().any(|output| output == "referencePng");
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
-            return Err(to_mcp_error(DevupError::new(
+            let target = if let Some(url) = &input.url {
+                FigmaTarget::parse(url).ok()
+            } else if let Some(id) = &input.artifact_id {
+                self.artifacts
+                    .get(id)
+                    .await
+                    .map(|a| a.payload.target.clone())
+            } else {
+                None
+            };
+            let url = target
+                .as_ref()
+                .zip(input.frame_ids.first())
+                .map(|(target, id)| {
+                    format!(
+                        "{}?node-id={}",
+                        file_scope_url(target),
+                        id.replace(':', "-")
+                    )
+                });
+            let mut arguments = json!(input);
+            for key in ["artifactId", "frameIds", "allScreens", "url"] {
+                arguments.as_object_mut().unwrap().remove(key);
+            }
+            arguments["scope"] = json!("node");
+            if let Some(url) = &url {
+                arguments["url"] = json!(url);
+            }
+            return Err(to_mcp_error(DevupError::with_details(
                 ErrorCode::DevupSnapshotUnsupported,
                 "referencePng can only be collected for a single Figma link target.",
                 false,
+                json!({"recoveryState":if url.is_some() {"available"} else {"manual-fix-required"},
+                    "nextAction":{"tool":"devup_figma_export","arguments":arguments,
+                        "requiredArguments":if url.is_some() {Vec::<&str>::new()} else {vec!["url"]},
+                        "omitArguments":["artifactId","frameIds","allScreens"],
+                        "how":"Request each frame by its direct canonicalUrl with outputs including referencePng and scope=node. For multiple selected frames, repeat once per direct frame URL. If the cached file URL is unavailable, copy the frame link from Figma."}}),
             )));
         }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
@@ -1133,13 +1193,11 @@ impl DevupServer {
                     false,
                 )));
             }
-            let artifact = self.artifacts.get(artifact_id).await.ok_or_else(|| {
-                to_mcp_error(DevupError::new(
-                    ErrorCode::DevupFigmaHandoffExpired,
-                    "The Figma artifact is missing or expired.",
-                    true,
-                ))
-            })?;
+            let artifact = self
+                .artifacts
+                .get_for_export(artifact_id)
+                .await
+                .map_err(to_mcp_error)?;
             let (asset_selections, asset_output_paths) =
                 parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
             if artifact.capabilities.kind == ArtifactKind::SectionIndex
@@ -1293,7 +1351,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses",
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_project_context(
@@ -1362,7 +1420,7 @@ impl DevupServer {
             (_, _, 1.., _) => "info-only",
             _ => "clean",
         };
-        Ok(tool_result(json!({
+        let mut result = json!({
             "ok": report.ok,
             "okReason": ok_reason,
             "strict": input.strict,
@@ -1378,7 +1436,21 @@ impl DevupServer {
             },
             "themeAvailable": theme_lookup.theme.is_some(),
             "themeGuardrail": theme_lookup.guardrail,
-        })))
+        });
+        if let Some(name) = &input.source_name {
+            for finding in result["violations"].as_array_mut().unwrap() {
+                finding["sourceName"] = json!(name);
+            }
+        }
+        if !report.ok {
+            result.as_object_mut().unwrap().extend(
+                validation_guidance::guidance(&input, &report, theme_lookup.theme.as_ref())
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            );
+        }
+        Ok(tool_result(result))
     }
 
     #[tool(
@@ -1409,6 +1481,7 @@ fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidat
             bounds: candidate.bounds,
             child_count: candidate.direct_child_count,
             text_preview: candidate.text_preview.clone(),
+            text_preview_state: candidate.text_preview_state.clone(),
             parent_id: candidate.parent_id.clone(),
             kind: ExploreKind::Screen,
             visible: candidate.visible,
@@ -1459,6 +1532,16 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
     }
 }
 
+fn with_error_identity(mut error: ErrorData) -> ErrorData {
+    let mut data = error.data.take().unwrap_or_else(|| json!({}));
+    if !data.is_object() {
+        data = json!({"details":data});
+    }
+    data["server"] = delivery::server_identity();
+    error.data = Some(data);
+    error
+}
+
 /// Maps a [`DevupError`] onto the JSON-RPC error the caller actually sees.
 ///
 /// The protocol code is not decoration here: the caller is usually an agent
@@ -1467,7 +1550,38 @@ fn parse_scope(scope: &str) -> Result<ThemeScope, DevupError> {
 /// thing about both. A mistake in the call itself is INVALID_PARAMS, so that
 /// decision can be made without parsing the message. `data` keeps carrying
 /// the exact `code` and `retryable`, unchanged.
-fn to_mcp_error(error: DevupError) -> ErrorData {
+fn to_mcp_error(mut error: DevupError) -> ErrorData {
+    if error.code == ErrorCode::DevupFigmaHandoffExpired
+        && error.details.get("exportJob").is_none()
+        && error.details.get("assetJob").is_none()
+    {
+        if !error.details.is_object() {
+            error.details = json!({"upstreamDetails":error.details});
+        }
+        if error.details.get("stage").is_none() {
+            error.details["stage"] = json!("artifact-lookup");
+        }
+        if error.details.get("artifactState").is_none() {
+            error.details["artifactState"] = json!("unknown");
+        }
+        let recovery = error.details.get("recoveryArguments").cloned();
+        error.details["recoveryState"] = json!(if recovery.is_some() {
+            "available"
+        } else {
+            "unrecoverable"
+        });
+        if recovery.is_none() {
+            error.details["recoveryReason"] = json!(
+                "Original URL/selection cannot be recovered from this server. The ID may be unknown, evicted beyond metadata retention, or lost on restart; the cause cannot be determined."
+            );
+        }
+        error.details["nextAction"] = json!({"tool":"devup_figma_export",
+            "arguments":{"refresh":true},"requiredArguments":["url"],"omitArguments":["artifactId"],
+            "how":"Use the original Figma SECTION URL and frameIds (or allScreens) with refresh:true to collect a new artifact. Then reuse the new cache.artifactId; do not send the expired artifactId with url or refresh."});
+        if let Some(arguments) = recovery {
+            error.details["nextAction"]["arguments"] = arguments;
+        }
+    }
     let mcp_code = if validation::is_caller_mistake(&error) {
         McpErrorCode::INVALID_PARAMS
     } else {
@@ -1476,12 +1590,69 @@ fn to_mcp_error(error: DevupError) -> ErrorData {
     ErrorData::new(
         mcp_code,
         error.message,
-        Some(json!({ "code": error.code, "retryable": error.retryable, "details": error.details })),
+        Some(
+            json!({ "code": error.code, "retryable": error.retryable, "details": error.details, "server":delivery::server_identity() }),
+        ),
     )
+}
+
+fn structured_tool_error(error: ErrorData) -> rmcp::model::CallToolResult {
+    let mut data = error.data.unwrap_or_else(|| json!({}));
+    if !data.is_object() {
+        data = json!({"details":data});
+    }
+    data.as_object_mut().unwrap().remove("server");
+    if data.get("code").is_none() {
+        data["code"] = json!("DEVUP_INVALID_INPUT");
+    }
+    if data.get("retryable").is_none() {
+        data["retryable"] = json!(false);
+    }
+    if data.get("details").is_none() {
+        data["details"] = json!({});
+    }
+    data["message"] = json!(error.message);
+    data["rpcCode"] = json!(error.code);
+    let mut result = tool_result(json!({"error":data}));
+    result.is_error = Some(true);
+    result
 }
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for DevupServer {
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::CallToolResponse, ErrorData> {
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        let mut response = match self.tool_router.call(call).await {
+            Ok(response) => response,
+            Err(error) if error.data.as_ref().and_then(|d| d.get("code")).is_some() => {
+                return Ok(structured_tool_error(error).into());
+            }
+            Err(error) => return Err(with_error_identity(error)),
+        };
+        if let rmcp::model::CallToolResponse::Complete(result) = &mut response
+            && result.is_error == Some(true)
+        {
+            // Router argument decoding failures arrive as content-only tool
+            // errors. Give them the same error envelope as execution errors.
+            if result
+                .structured_content
+                .as_ref()
+                .and_then(|v| v.get("error"))
+                .is_none()
+            {
+                *result = structured_tool_error(ErrorData::invalid_params(
+                    "Invalid tool arguments.",
+                    Some(json!({"details":{"content":result.content}})),
+                ));
+            }
+        }
+        Ok(response)
+    }
+
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(
             ServerCapabilities::builder()
@@ -1491,14 +1662,15 @@ impl ServerHandler for DevupServer {
         )
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
         .with_instructions(
-            "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
+            "Build identity: identify deployments by server.commit/buildId, not version alone; server.displayVersion combines version and buildId. Reconnect the MCP server if the expected build differs.\n\
+             1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
              2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; a complete response marks it with deliverable.isFinal.\n\
-             2a. Ask for an output only when you will read it. Measured against the same screen, sourceMap is about 5x the size of the tsx it annotates, rawPayload about 7x, and rawSnapshot about 2x, so requesting them by default spends most of the response on bytes nothing reads. sourceMap is for tracing a generated line back to its Figma node; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
+             2a. Ask for an output only when you will read it. Measured on the Korean WQUW-120 modal, semantic sourceMap is about 5.4x TSX (48,832 versus 9,099 UTF-8 bytes; 12.6% smaller than its former offset map). Sizes vary by screen; earlier rawPayload/rawSnapshot measurements were about 7x/2x TSX, so requesting them by default spends most of the response on bytes nothing reads. sourceMap records nodeId, original property, generatedProperty and resolution, plus optional variableId (variable token), styleId (style token), assetId (asset reference), with no character/byte offsets. raw-fallback means a raw-value mapping, not necessarily an inaccurate value; verified-explicit-dimension checks emitted pixels equal the source dimension, while verified-layout-sizing checks sizing intent against emitted CSS. exact verifies that field-to-property mapping, not rendered pixel equivalence. Use generatedSource diagnostics for node code excerpts; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
              3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
              4. Do not hand-interpret a node tree to write devup-ui code. Do not infer layout from coordinates.\n\
              5. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
              6. Do not guess UI values such as color, spacing, radius, or typography. If you could not obtain them, stop and report.\n\
-             7. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with per-screen export via frameIds or allScreens.\n\
+             7. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with bounded per-screen frameIds batches in nextAction; allScreens is valid only when the complete list fits the advertised frame/output budget.\n\
              8. The generated component name comes from the Figma layer name and is a starting point, not a contract. Rename it to fit the codebase, and rename a name that is meaningless or not a valid identifier.\n\
              10. An asset path in the output, such as a maskImage or Image src, is a placeholder built from the layer name. Rename the file to fit the project. If the asset varies per usage, lift it into a prop instead of hardcoding it.\n\
              11. A fixed asset such as an icon must actually be exported, never referenced by a path that does not exist yet. Read assetManifest for the asset IDs, then call devup_figma_export again with assetRequests, giving each entry an outputPath under an allowed write root, and make the path in the code match the path you wrote.\n\
@@ -1537,7 +1709,9 @@ impl ServerHandler for DevupServer {
         resources::read_output_resource(&self.artifacts, &request.uri)
             .await
             .map(Into::into)
-            .map_err(|_| ErrorData::resource_not_found("resource not found", None))
+            .map_err(|_| {
+                with_error_identity(ErrorData::resource_not_found("resource not found", None))
+            })
     }
 }
 
@@ -1561,5 +1735,83 @@ mod p3_error_tests {
         let policy = OutputPolicy::from_roots(vec![std::env::current_dir().unwrap()]).unwrap();
         let error = policy.resolve("../outside.svg").err().unwrap();
         assert_eq!(to_mcp_error(error).code, McpErrorCode::INVALID_PARAMS);
+    }
+}
+
+#[cfg(test)]
+mod r7_error_tests {
+    use super::*;
+    #[test]
+    fn r7_errors_have_the_same_build_identity_as_success() {
+        let success = serde_json::to_value(tool_result(json!({"status":"complete"}))).unwrap();
+        let success: Value =
+            serde_json::from_str(success["content"][0]["text"].as_str().unwrap()).unwrap();
+        for code in [
+            ErrorCode::DevupInvalidInput,
+            ErrorCode::DevupSnapshotUnsupported,
+            ErrorCode::DevupFigmaHandoffExpired,
+        ] {
+            let error = to_mcp_error(DevupError::new(code, "failure", false));
+            assert_eq!(error.data.as_ref().unwrap()["server"], success["server"]);
+        }
+    }
+    #[test]
+    fn r7_plugin_expiry_has_recovery_and_keeps_its_stage() {
+        let raw = json!({"isError":true,"content":[{"type":"text","text":"DEVUP_FIGMA_HANDOFF_EXPIRED"}]});
+        let error = to_mcp_error(operation::upstream_error(&raw).unwrap());
+        let data = error.data.unwrap();
+        assert_eq!(data["code"], "DEVUP_FIGMA_HANDOFF_EXPIRED");
+        assert_eq!(data["details"]["stage"], "plugin-execution");
+        assert_eq!(data["details"]["nextAction"]["arguments"]["refresh"], true);
+    }
+
+    #[test]
+    fn r7_expired_artifact_explains_refresh_arguments() {
+        let error = to_mcp_error(DevupError::new(
+            ErrorCode::DevupFigmaHandoffExpired,
+            "expired",
+            true,
+        ));
+        let d = &error.data.as_ref().unwrap()["details"];
+        assert_eq!(d["stage"], "artifact-lookup");
+        assert_eq!(d["nextAction"]["tool"], "devup_figma_export");
+        assert_eq!(d["nextAction"]["arguments"]["refresh"], true);
+        assert!(
+            d["nextAction"]["omitArguments"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("artifactId"))
+        );
+    }
+}
+
+#[cfg(test)]
+mod r8_recovery_tests {
+    use super::*;
+    #[test]
+    fn r8_expired_artifact_returns_known_url_or_explicit_unrecoverable_state() {
+        for known in [true, false] {
+            let details = if known {
+                json!({"artifactState":"expired","recoveryArguments":{"url":"https://www.figma.com/design/test?node-id=1-2","frameIds":["2:1"],"refresh":true}})
+            } else {
+                json!({})
+            };
+            let e = to_mcp_error(DevupError::with_details(
+                ErrorCode::DevupFigmaHandoffExpired,
+                "expired",
+                true,
+                details,
+            ));
+            let d = &e.data.unwrap()["details"];
+            if known {
+                assert_eq!(
+                    d["nextAction"]["arguments"]["url"],
+                    "https://www.figma.com/design/test?node-id=1-2"
+                );
+            } else {
+                assert_eq!(d["artifactState"], "unknown");
+                assert_eq!(d["recoveryState"], "unrecoverable");
+            }
+        }
     }
 }

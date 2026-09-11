@@ -1,0 +1,23 @@
+
+running 2 tests
+
+thread 'r12_unique_exact_token_warning_supplies_callable_corrected_arguments' (88068) panicked at crates\devup-mcp\tests\ui_validate_response.rs:95:5:
+assertion `left == right` failed
+  left: Null
+ right: "available"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'r12_failed_validation_explains_why_source_cannot_be_corrected_automatically' (79588) panicked at crates\devup-mcp\tests\ui_validate_response.rs:83:9:
+assertion `left == right` failed
+  left: Null
+ right: "unrecoverable"
+test r12_unique_exact_token_warning_supplies_callable_corrected_arguments ... FAILED
+test r12_failed_validation_explains_why_source_cannot_be_corrected_automatically ... FAILED
+
+failures:
+
+failures:
+    r12_failed_validation_explains_why_source_cannot_be_corrected_automatically
+    r12_unique_exact_token_warning_supplies_callable_corrected_arguments
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.01s

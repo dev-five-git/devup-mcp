@@ -1,0 +1,53 @@
+   Compiling windows-sys v0.61.2
+   Compiling log v0.4.34
+   Compiling dunce v1.0.5
+   Compiling aws-lc-sys v0.45.0
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling tokio v1.53.1
+   Compiling tracing-core v0.1.36
+   Compiling tracing v0.1.44
+   Compiling hyper v1.11.1
+   Compiling regex-automata v0.4.18
+   Compiling hyper-util v0.1.20
+   Compiling tower v0.5.3
+   Compiling tower-http v0.6.11
+   Compiling regex v1.13.1
+   Compiling tokio-util v0.7.19
+   Compiling keyring-core v1.0.0
+   Compiling windows-native-keyring-store v1.1.0
+   Compiling axum-core v0.5.6
+   Compiling tokio-stream v0.1.19
+   Compiling winapi-util v0.1.11
+   Compiling axum v0.8.9
+   Compiling same-file v1.0.6
+   Compiling keyring v4.2.0
+   Compiling webbrowser v1.2.4
+   Compiling tempfile v3.27.0
+   Compiling console v0.16.4
+   Compiling globset v0.4.20
+   Compiling walkdir v2.5.0
+   Compiling insta v1.48.0
+   Compiling aws-lc-rs v1.18.1
+   Compiling rustls v0.23.43
+   Compiling rustls-webpki v0.103.15
+   Compiling tokio-rustls v0.26.4
+   Compiling hyper-rustls v0.27.9
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling reqwest v0.13.4
+   Compiling rmcp v3.2.0
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp-figma)
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\polymorphic_props-9ec2f18a15058fda.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r12-validator-size-guidance\target\debug\deps\polymorphic_props-9ec2f18a15058fda.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "polymorphic_props") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 30s
+     Running tests\polymorphic_props.rs (target\debug\deps\polymorphic_props-9ec2f18a15058fda.exe)
+
+running 2 tests
+test r12_intrinsic_as_accepts_the_rendered_elements_attributes ... ok
+test r12_as_does_not_disable_unknown_prop_or_leak_to_other_elements ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

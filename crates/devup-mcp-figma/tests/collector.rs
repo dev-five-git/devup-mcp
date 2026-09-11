@@ -2067,6 +2067,7 @@ fn section_index_with_node_counts(node_counts: &[usize]) -> SectionIndex {
         height: 1000.0,
     };
     SectionIndex {
+        node_screen_ids: std::collections::BTreeMap::new(),
         file_key: "FileKey123".to_owned(),
         source_version: Some("v1".to_owned()),
         section: SectionSummary {
@@ -2082,6 +2083,7 @@ fn section_index_with_node_counts(node_counts: &[usize]) -> SectionIndex {
                 name: format!("Root {index}"),
                 node_type: "FRAME".to_owned(),
                 text_preview: String::new(),
+                text_preview_state: None,
                 visible: true,
                 bounds: ExploreBounds {
                     y: index as f64 * 200.0,

@@ -343,7 +343,7 @@ devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
 
 `strict: true`는 모든 요청 축이 exact/complete가 아니면 quality와 `completenessReport`를 담은 오류로 거절합니다.
 
-모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 생성된 mapping 수가 아니라 수집한 source snapshot에서 독립적으로 계산한 node/text segment/variable/style/asset/layout 기대 집합을 분모로 사용하고, 각 항목이 최종 TSX byte range에서 `emitted | flattened | ignored` 중 정확히 하나로 추적되었는지와 축별 coverage·typed impact count를 담습니다. component set, non-default variant selector와 inline instance도 최종 변환 후 source identity별 provenance를 다시 만들며, 반복된 동일 text segment는 하나의 mapping을 재사용하지 않고 occurrence별로 소비하고 multiline·중첩 text와 asset identity를 검증합니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, source-derived trace coverage, lossy/failed impact를 함께 검사합니다.
+모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 생성된 mapping 수가 아니라 수집한 source snapshot에서 독립적으로 계산한 node/text segment/variable/style/asset/layout 기대 집합을 분모로 사용하고, 내부 validator가 각 항목을 `emitted | flattened | ignored` 중 정확히 하나로 검증했는지와 축별 coverage·typed impact count를 담습니다. component set, non-default variant selector와 inline instance도 최종 변환 후 source identity별 provenance를 다시 만들며, 반복된 동일 text segment는 하나의 mapping을 재사용하지 않고 occurrence별로 소비하고 multiline·중첩 text와 asset identity를 검증합니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, source-derived trace coverage, lossy/failed impact를 함께 검사합니다.
 
 브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다. renderer pinning, 기본 0.5% threshold, diff PNG와 개인정보 취급 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
@@ -375,7 +375,7 @@ node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계�
 
 캡처·테마·에셋·빌드 산출물은 커밋하지 않습니다(`harness/render/.gitignore`). 이 하네스가 찾아낸 결함은 테마 스코프, 컨테이너가 칠하는 그림의 매니페스트 누락, 잘린 fill의 crop 행렬, 파일시스템이 못 받는 레이어 이름, 폭마다 크기가 다른 사진의 파일 공유, 투명도 0 노드의 export 거부, 그리고 positioned child 너머로 CSS가 못 미치는 높이입니다.
 
-Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 생성 TSX/devup.json의 output 위치를 Figma node, variable, style, asset ID에 연결하는 sidecar입니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 권장 1–3개, 최대 6개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
+Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 `nodeId`·원본 `property`·`generatedProperty`·`resolution`으로 필드→생성 속성을 설명하는 sidecar입니다. TSX 문자/바이트 오프셋은 제공하지 않습니다. 생성 코드 발췌는 진단의 `generatedSource`를 확인합니다. devup.json은 JSON pointer를 사용합니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 권장 1–3개, 최대 6개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
 자산 6개 초과 요청은 인증·수집·파일 쓰기 전에 거절하며 `recommendedBatchSize`, `maxAssetCount`, `recommendedAssetRequests`, `remainingAssetRequests`로 분할을 안내합니다. 느린 자산 호출은 1초 대기 후 `assetJob.jobId`, 단계별 호출 기록, 자산별 수집/파일 상태를 먼저 반환합니다. `{"jobId":"..."}`로 조회하고, `paused`이면 `{"jobId":"...","jobAction":"resume"}`로 미완료 호출만 재개합니다. 동일 인자를 다시 보내면 유실된 최초 응답의 작업을 찾습니다. 클라이언트 타임아웃은 작업을 취소하지 않습니다. 체크포인트는 **같은 서버 프로세스에서 최대 30분**, 완료 결과는 5분 보존하며 서버 재시작 후에는 복구되지 않습니다. 개별 upstream 호출은 90초에 일시정지합니다. 자산 `exported`는 검증된 바이트 수집이며, `fileState=written`은 실제 파일 바이트까지 확인한 결과입니다. 상세 계약은 [R3 자산 작업과 근거](docs/r3-asset-jobs-and-evidence.md)를 참조하세요.
 
@@ -609,3 +609,65 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 `quality.assets`는 자산 바이트 수집 품질이며 manifest 생성 성공을 뜻하지 않습니다. `assetSummary.description`과 `excludedCount`가 미수집·부분 수집·숨김 제외를 설명합니다. 바이트 수집을 요청하지 않았다면 `not-collected` 요약과 `quality.assets: not-requested`가 함께 올 수 있습니다.
 
 배치 응답의 `recommendedBatchSize`는 최대 3, `maxFrameCount`는 6, `maxFrameOutputUnits`는 12입니다. 자세한 정의는 [R1 응답 계약](docs/r1-result-contract.md)을 참고하세요.
+
+
+### R8 provenance, scrolling and acquisition
+
+`sourceMap.version=2`는 공개 오프셋을 제거한 계약입니다. `exact`는 원본 필드에 대응하는 생성 속성/태그/텍스트 매핑을 검증했다는 뜻입니다. 줄 위치, 브라우저 픽셀 일치, 반응형 동등성 또는 화면 전체 완성도를 보증하지 않습니다. `generatedProperty`는 `h="740px"`, `flex="1"`, `aspectRatio="320 / 48"`처럼 출력에 있는 속성을 담습니다. `characters`는 `children`, 암묵적 cross-axis stretch는 `implicit:align-self:stretch`로 표시합니다. grow는 실제 `flex` 속성과 `accounted-for-implicit-flex-grow`를 함께 읽습니다. 기존 sizing 검증과 진단은 유지됩니다. 내부 renderer/validator의 위치 정보는 공개 sourceMap에 직렬화하지 않습니다.
+
+`overflowDirection`은 캡처 manifest에 포함됩니다. `NONE`은 명시적 비스크롤, JSON `null`은 수집 시 원본 속성이 없음, 키 부재는 이전 수집기의 미수집, `fieldErrors.overflowDirection`은 읽기 실패입니다. 세로/가로/양방향 스크롤은 각각 `overflowY="auto"`/`overflowX="auto"`/`overflow="auto"`로 생성합니다. `clipsContent=true`는 스크롤을 취소하지 않으며, 한 축 스크롤에서는 다른 축을 clip합니다. ABSOLUTE FIXED 높이는 파생 padding이 있어도 명시적 높이로 보존합니다. FILL/HUG를 px로 고정하지 않습니다.
+
+일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 호환 별칭). `jobId`로 상태를 조회하고 paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
+
+artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
+
+
+### R9 sourceMap 필드와 resolution
+
+TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
+
+| resolution | 의미와 검증 범위 |
+| --- | --- |
+| `exact` | 원본 필드와 생성 태그·텍스트의 의미 매핑. 화면 전체의 픽셀/반응형 동등성 보증은 아님. |
+| `raw-fallback` | 토큰 또는 전용 매핑 라벨이 없는 일반 원본 값·생성 정책 매핑 경로. raw 값의 무변환 복사나 낮은 신뢰도를 뜻하지 않으며, 별도 ABSOLUTE component가 `verified`여도 이 라벨은 유지됩니다. |
+| `verified-explicit-dimension` | 읽기 오류 없는 원본 width/height 수치와 생성 w/h/boxSize의 px 값이 정확히 같음을 확인. 반응형 배치까지 검증한 것은 아님. |
+| `accounted-for-content-sizing` | textAutoResize에 따른 고정 크기 생략의 의미 매핑. 폰트 메트릭과 브라우저 픽셀은 미측정. |
+| `verified-layout-sizing` | 원본 FIXED/FILL/layoutGrow 의도와 생성 h/boxSize/flex 관계를 sizing 검증기로 확인. |
+| `accounted-for-implicit-flex-stretch` | 실제 생성 부모의 cross-axis stretch와 크기 기준으로 생략된 크기를 설명. |
+| `accounted-for-implicit-flex-grow` | 실제 생성 부모의 main-axis flex-grow와 남은 공간으로 크기를 설명. |
+| `restored-hug-after-mask-child-folding` | 접힌 mask 자식의 원본 크기와 독립적인 크기 기준으로 HUG/aspectRatio 복원. `-from-absoluteBoundingBox` 접미사는 bounding box에서 크기를 얻은 경우. |
+| `variable-token` / `style-token` | 원본 변수/스타일 ID와 생성 토큰 참조의 매핑. |
+| `asset` | 원본 자산 ID와 생성 자산 속성의 매핑. 바이너리 수집 성공 여부는 assetSummary에서 별도 확인. |
+| `variant-selector` | 원본 variant 선택을 생성 selector 속성과 연결. |
+| `unverified-property-mapping` | 원본에 대응하는 생성 속성을 확인하지 못함. 추가 검증 필요. |
+| `variable` / `alias` / `style` | devup.json의 직접 변수 값 / 해석된 변수 alias / 스타일에서 나온 테마 값과 JSON pointer. |
+
+`node`는 내부 노드 범위용이며 공개 v2 property entries에는 포함되지 않습니다.
+
+R16의 `sourceMap.resolutionSemantics`는 이 라벨 사전과 `axis="mapping-method"`를 응답에 포함합니다. Section frame은 `dictionary="/resolutionSemantics"`로 상위 응답의 공통 사전을 참조하며, 이 사전은 resource delivery에도 남습니다. `diagnostics.details.components.*.state`는 별도의 제한된 검증 축입니다. 같은 screen/output 안에서 nodeId와 원본 property(width/height/x/y → width/height/horizontal/vertical)로 연결합니다. 예를 들어 `w="100%"`의 매핑은 `raw-fallback`이지만, 확정된 동일 FIXED 부모 폭에서 해석한 값이 원본 폭과 같으면 ABSOLUTE width는 `verified`일 수 있습니다. 이 두 라벨 모두 화면 전체의 픽셀·반응형 등가성 측정은 아닙니다.
+
+R16은 실패한 치수 증명의 `blockedBy`를 추가합니다. 부모 폭 불명(`parent-width-unknown`), 부모 폭 불일치(`parent-width-unequal`), 읽기 오류(`read-error`), 비FIXED sizing(`non-fixed-sizing`), dimension 충돌(`conflicting-dimension-props`)을 구분합니다. 성공 시 null이며 widthPreservation에도 같은 값이 들어갑니다. 첫 차단 이유만 보고하므로 나머지 조건의 통과나 다른 실패 분기의 실행을 뜻하지 않습니다. 자산은 부모 percentage 증명 대신 실제 선택된 render-boundary 증명의 실패 이유를 보고합니다.
+
+최종 응답과 각 frame의 `verdictScope`는 status/projection을 그대로 표시하고 `statusCauses`와 `projectionCauses`로 원인을 요약합니다. projection 원인은 nodeId/screenId/output/code/property와 미해결 component를 가리키므로, width/height가 verified여도 horizontal/vertical이 approximated인 화면의 전체 판정을 바로 설명합니다. `diagnosticIndex`는 같은 객체의 projectionIssues 인덱스입니다. includeDiagnostics=false 및 resource delivery에도 요약이 유지됩니다. 자세한 범위는 [R16 응답 계약](docs/r16/response-contract.md)을 참고합니다.
+
+ABSOLUTE 진단의 `components`는 height/width/horizontal/vertical별 state·fidelityImpact·원본 값·생성 값·검증 이유를 제공합니다. `resolutionConditions`에는 남은 근사 항목의 해소 조건만 들어갑니다. CENTER는 원본 중심 오프셋, left/top 50%, translate 및 실제 생성 부모 좌표 기준까지 확인해야 검증됩니다. MIN은 원본 오프셋과 생성 px를 비교합니다. MAX는 크기 검증을 전제로 parentSize-offset-size와 right/bottom 여백을 비교합니다. 제약 필드 전체가 없는 이전 캡처는 `constraintDeclared=false`로 표시하며 생성된 로컬 오프셋만 비교하고 반응형 제약을 추정하지 않습니다. 증명되지 않은 MAX/STRETCH/SCALE, 누락 geometry 또는 필드 오류는 근사로 남습니다. 명시적 FIXED 높이 보존은 percentage 너비의 동등성을 증명하지 않습니다.
+
+R14는 ABSOLUTE 자식의 FIXED 폭과 생성된 직계 containing block의 확정 px 폭이 같은 경우 `w="100%"`의 대응을 검증합니다. 특정 폭에 한정하지 않으며, 생성 코드는 바꾸지 않습니다. 현재 증명 범위는 읽기 오류가 없는 동일 크기의 FIXED 부모, 명시적 positioning, 부모 padding/border 및 크기 override가 없는 경우입니다. 부모 폭이 유동적이거나 값이 다르면 근사로 남습니다. `appliedValue.widthPreservation`에 `components.width`와 같은 근거, 부모 생성 폭, `resolvedPixels`, `sourceFields`, 계산식이 들어갑니다. `componentSummary.verified/unresolved`는 네 항목 중 검증된 것과 남은 것을 나눕니다.
+
+ABSOLUTE 자산의 `components`는 `boundary`(선택한 export 경계·원본 bounding box와의 차이·sourceFields·계산식), `rounding`(입력·생성값·오차), `constraintInterpretation`(직접 제약·첫 자식 상속·기본값)을 분리합니다. 반올림은 `round(value*100)/100`와 생성값의 일치 및 최대 `0.005px` 오차를 확인하며 부동소수점 비교 여유는 `1e-12px`입니다. 경계 차이를 반올림 오차로 흡수하지 않습니다. 자산 치수의 verified는 수집된 render bounds 투영의 검증이며 원본 layout box와의 동일성이나 SVG/CSS 합성 측정은 아닙니다. GROUP의 null/누락 제약을 첫 자식에서 가져오거나 MIN으로 기본 처리한 경우 그 정책을 `assumed`로 표시합니다. 위치 계산과 반올림이 맞아도 GROUP의 배치 의도와 같다는 증명이 없으면 해당 위치 축은 `approximated`로 유지합니다.
+
+비렌더 진단은 오류 없이 읽은 `visible=false` 또는 명시적 `absoluteRenderBounds=null`을 `accounted-for-non-rendering` / `fidelityImpact=none`으로 기록합니다. `verification`의 field·fieldPresent·value·readError가 근거입니다. 필드 부재나 읽기 실패는 `unverified-non-rendering` / `approximated`로 유지하며 재수집 조건을 안내합니다.
+
+HUG 검증은 원본과 일치하는 생성 auto-layout에서 크기 override 없이 intrinsic sizing 의도를 표현했는지 확인합니다. FIXED percentage 크기는 일치하는 auto-layout과 명시적으로 같은 크기인 FIXED 부모, 테두리·padding·min/max override 부재가 확인된 제한된 경우만 검증합니다. CENTER 검증은 원본의 중심 오프셋 0과 생성 CSS의 중심 관계를 뜻합니다. 부모가 커질 때 원래 x를 고정한다는 뜻이 아니며, 부모의 명시적 px 값이 바뀌면 부모 자신의 dimension coverage 재검증이 실패합니다. 검증된 명시적 크기 매핑은 canvas/derived-padding의 일반 생략 규칙으로 재검증 의무를 면제하지 않습니다.
+
+`projectionEvidence`는 확인된 비렌더와 검증 완료 ABSOLUTE 항목의 근거를 담으며, `includeDiagnostics=false`여도 최상위 및 프레임 응답에 제공합니다. 미해결 근사는 `projectionIssues`에 남으므로 두 배열을 구분해 읽습니다.
+
+### R13 생성 속성 provenance와 출력 전달
+
+최종 TSX의 모든 JSX 속성(표현식·boolean·spread 포함)을 파서로 검사합니다. 기존 `sourceMap`에 없는 속성은 생성 단계의 원본 필드와 계산으로 대조하며, 확인된 항목은 `DEVUP_CODEGEN_PROPERTY_EVIDENCE`로 `projectionEvidence`에 남깁니다. `sourceFields`, `originalValue`, `calculation`, `stage`, `generatedProperty`, `elementIndex`, `assetId` 및 `details.output`을 함께 읽습니다. 자산 경계 보정은 render bounds와 bounding box의 차이, 효과는 원본 `effects`를 근거로 남깁니다. 이 근거는 생성 계산의 대응이며 SVG/CSS 효과의 브라우저 합성 실측이 아닙니다.
+
+설명할 수 없는 속성은 `DEVUP_CODEGEN_PROPERTY_UNMAPPED`, `mappingComplete=false`로 항상 보고합니다. 값은 유지되므로 이 진단의 `fidelityImpact`는 `none`입니다. 다른 손실·근사가 없는 경우 `quality.projection=mapping-incomplete`가 되며 `exact`와 최종 완료 판정을 허용하지 않습니다. 기존 lossy·approximated 판정은 유지합니다. 반응형 병합은 개별 breakpoint source mapping만으로 병합 속성을 증명할 수 없으므로 같은 진단을 제공합니다. `strict`는 매핑 누락도 거절합니다. `tsx`와 `componentTsx`를 함께 요청한 경우 `sourceMap.byOutput`이 출력별 map을 구분하며 기존 단일 map 필드는 호환성을 위해 유지합니다.
+
+`outputPaths`의 프레임 출력 키는 `frame:<nodeId>:<output>`입니다. 예: `{"frame:3997:46715:tsx":"C:/allowed/Screen.tsx","frame:3997:46715:sourceMap":"C:/allowed/Screen.map.json"}`. `outputPathResults.supportedKeys`는 이번 투영에서 실제 쓸 수 있는 키를 열거합니다. 프레임 응답에 일반 `tsx`/`sourceMap` 키를 쓰거나 미지원·미생성 출력 키를 쓰면 `outputPathResults.diagnostics`에 명시하며 조용히 무시하지 않습니다. 최상위 단일 출력은 기존 일반 키를 사용합니다. `outputPaths` 응답은 성공적으로 커밋한 파일만 나타냅니다. 자산 binary는 계속 `assetRequests[].outputPath`를 사용합니다.
+
+명시적 `resource`와 자동 resource 전환 모두 `nextAction.tool/arguments`로 동일 artifact의 작은 본문 대조 예시를 제공합니다. 일반 화면은 단일 frame·단일 출력이며 파일을 다시 쓰지 않습니다. `sizeEstimate.outputBytes`는 기존 선택 출력의 UTF-8 바이트 수(PNG는 binary 바이트 수)이고 `minimumWireBytes`는 메타데이터를 제외한 JSON 중복 전송 하한입니다. 재투영 응답의 전체 크기는 실측하지 않았으므로 한도 미만의 경우에도 `inlineFit=unknown`입니다. 확실히 한도를 넘는 경우 resource를 안내하며, inline 크기 초과 시 기존 R12 교정 인자를 유지합니다. 자산 요청·출력 경로가 코드 URL을 결정하는 경우에는 원래 결합된 resource 인자를 유지하여 잘못된 본문 대조를 방지합니다.

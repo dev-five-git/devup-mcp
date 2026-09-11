@@ -92,17 +92,17 @@ fn fidelity_options() -> CodegenOptions {
 }
 
 #[test]
-fn tsx_byte_ranges_trace_components_text_props_and_resources() {
+fn semantic_map_traces_components_text_props_and_resources() {
     let snapshot = fidelity_snapshot("Hello provenance");
     let output = generate_component(&snapshot, "1:1", &fidelity_options()).unwrap();
 
     assert!(!output.tsx.contains("DEVUP_PROVENANCE"));
     assert!(!output.tsx.contains("1:1"));
-    for entry in &output.source_map.entries {
-        let range = entry.generated_range.as_ref().expect("tsx range");
-        assert!(range.start < range.end && range.end <= output.tsx.len());
-        assert!(output.tsx.is_char_boundary(range.start));
-        assert!(output.tsx.is_char_boundary(range.end));
+    let public = serde_json::to_value(&output.source_map).unwrap();
+    for entry in public["entries"].as_array().unwrap() {
+        assert!(entry.get("generatedRange").is_none());
+        assert!(entry["generatedProperty"].is_string());
+        assert!(entry["property"].is_string());
     }
     let find = |node_id: &str, property: &str| {
         output
@@ -116,22 +116,29 @@ fn tsx_byte_ranges_trace_components_text_props_and_resources() {
             .expect("provenance entry")
     };
     let component = find("1:1", "type");
-    assert_eq!(slice(&output.tsx, component), "VStack");
+    assert_eq!(mapped_property(&output.tsx, component), "VStack");
     let fill = find("1:1", "fills");
-    assert_eq!(slice(&output.tsx, fill), "bg=\"$primary\"");
+    assert_eq!(mapped_property(&output.tsx, fill), "bg=\"$primary\"");
     assert_eq!(fill.variable_id.as_deref(), Some("v"));
     assert_eq!(fill.resolution, "variable-token");
     let width = find("1:1", "width");
     assert!(matches!(
-        slice(&output.tsx, width),
+        mapped_property(&output.tsx, width),
         "boxSize=\"100%\"" | "w=\"320px\""
     ));
     let overflow = find("1:1", "clipsContent");
-    assert_eq!(slice(&output.tsx, overflow), "overflow=\"hidden\"");
+    assert_eq!(
+        mapped_property(&output.tsx, overflow),
+        "overflow=\"hidden\""
+    );
     let text = find("1:2", "characters");
-    assert_eq!(slice(&output.tsx, text), "Hello provenance");
+    assert_eq!(mapped_property(&output.tsx, text), "children");
+    assert!(output.tsx.contains("Hello provenance"));
     let typography = find("1:2", "textStyleId");
-    assert_eq!(slice(&output.tsx, typography), "typography=\"body\"");
+    assert_eq!(
+        mapped_property(&output.tsx, typography),
+        "typography=\"body\""
+    );
     assert_eq!(typography.style_id.as_deref(), Some("s"));
     assert_eq!(typography.resolution, "style-token");
 
@@ -458,7 +465,7 @@ fn component_set_provenance_offsets_reference_the_wrapped_final_tsx() {
             entry.node_id.as_deref() == Some("default") && entry.property.as_deref() == Some("type")
         })
         .expect("final component type provenance");
-    assert_eq!(slice(&output.tsx, component_type), "Box");
+    assert_eq!(mapped_property(&output.tsx, component_type), "Box");
     assert!(!output.projection_trace.entries.is_empty());
     assert!(output.fidelity_report.nodes.total > 0);
 }
@@ -502,7 +509,7 @@ fn inline_instance_provenance_offsets_reference_sorted_and_prefixed_final_tsx() 
             entry.node_id.as_deref() == Some("default") && entry.property.as_deref() == Some("type")
         })
         .expect("final inline component type provenance");
-    assert_eq!(slice(&output.tsx, component_type), "Box");
+    assert_eq!(mapped_property(&output.tsx, component_type), "Box");
     assert!(output.tsx.starts_with("{/* <Card size=\"small\" /> */}"));
     assert!(!output.projection_trace.entries.is_empty());
     assert!(output.fidelity_report.nodes.total > 0);
@@ -528,7 +535,7 @@ fn variant_component_set_rebuilds_nonempty_provenance_over_final_tsx() {
                 && entry.property.as_deref() == Some("opacity")
         })
         .expect("non-default variant selector provenance");
-    assert!(slice(&output.tsx, hover_opacity).contains("opacity"));
+    assert!(mapped_property(&output.tsx, hover_opacity).contains("opacity"));
     assert!(
         output.fidelity_report.layout.complete(),
         "layout fidelity: {:?}; source map: {:#?}",
@@ -537,10 +544,17 @@ fn variant_component_set_rebuilds_nonempty_provenance_over_final_tsx() {
     );
     assert!(output.fidelity_report.strict_compatible());
     for entry in &output.source_map.entries {
-        let range = entry.generated_range.as_ref().expect("final TSX range");
-        assert!(range.start < range.end && range.end <= output.tsx.len());
-        assert!(output.tsx.is_char_boundary(range.start));
-        assert!(output.tsx.is_char_boundary(range.end));
+        if entry.property.is_some() {
+            let property = entry
+                .generated_property
+                .as_deref()
+                .expect("semantic generated property");
+            assert!(
+                property == "children"
+                    || property.starts_with("implicit:")
+                    || output.tsx.contains(property)
+            );
+        }
     }
 }
 
@@ -801,9 +815,14 @@ fn devup_json_pointers_trace_variable_alias_and_style_sources() {
     );
 }
 
-fn slice<'a>(tsx: &'a str, entry: &devup_mcp_devup_ui::provenance::ProvenanceEntry) -> &'a str {
-    let range = entry.generated_range.as_ref().unwrap();
-    &tsx[range.start..range.end]
+fn mapped_property<'a>(
+    _tsx: &str,
+    entry: &'a devup_mcp_devup_ui::provenance::ProvenanceEntry,
+) -> &'a str {
+    entry
+        .generated_property
+        .as_deref()
+        .expect("generated property")
 }
 
 #[test]

@@ -1,0 +1,20 @@
+{
+  "binary": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\devup-mcp.exe",
+  "inputBytes": 90859,
+  "inputSha256": "47b3ed2ec2407f438d655c51989fbccdeadaf48bb7f55bced9aa82390a730cfa",
+  "isError": false,
+  "ok": true,
+  "okReason": "warnings-and-info",
+  "violationCounts": {
+    "error": 0,
+    "warning": 16,
+    "info": 396
+  },
+  "server": {
+    "version": "0.4.4",
+    "buildId": "1b61eb616042-dirty",
+    "commit": "1b61eb616042"
+  },
+  "errors": [],
+  "contentMatchesStructured": true
+}

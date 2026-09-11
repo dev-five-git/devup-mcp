@@ -629,6 +629,36 @@ mod tests {
     }
 
     #[test]
+    fn reports_canonical_paths_from_a_noncanonical_root_before_and_after_write()
+    -> anyhow::Result<()> {
+        let root = unique_root()?;
+        fs::create_dir(root.join("child"))?;
+        let alias = root.join("child").join("..");
+        let canonical = crate::test_paths::canonical(&root);
+        assert_ne!(alias, canonical);
+        assert_eq!(crate::test_paths::canonical(&alias), canonical);
+
+        let expected = canonical.join("nested").join("Component.tsx");
+        assert!(!expected.exists());
+        let policy = OutputPolicy::from_roots(vec![alias.clone()])?;
+        // Alias parent components and traversal rejection are covered
+        // separately in tests/output_policy.rs with explicit prefix fixtures.
+        let absolute = policy.resolve(expected.to_str().unwrap())?;
+        let relative = policy.resolve("nested/Component.tsx")?;
+        assert_eq!(absolute.display_path(), expected);
+        assert_eq!(relative.display_path(), expected);
+        let mut transaction = OutputTransaction::new();
+        transaction.stage("tsx", absolute, b"canonical output")?;
+        let written = transaction.commit()?;
+        assert_eq!(written["tsx"], expected.to_string_lossy());
+        assert_eq!(fs::read(&expected)?, b"canonical output");
+        drop(relative);
+        drop(policy);
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
     fn restores_every_original_after_a_runtime_commit_failure() -> anyhow::Result<()> {
         let root = unique_root()?;
         fs::write(root.join("first.txt"), b"old-first")?;

@@ -1,0 +1,38 @@
+R7 local verification
+Workspace: C:\Users\owjs3\orca\workspaces\devup-mcp\r7-main-axis-error-identity
+Target: C:\Users\owjs3\orca\workspaces\devup-mcp\r7-main-axis-error-identity\target
+CARGO_TARGET_DIR: unset
+Command: cargo test --workspace -j 2 --no-fail-fast
+Exit: 0
+Totals: 727 passed / 0 failed / 2 ignored (baseline 706 / 0 / 2; 21 additional regressions)
+Command: cargo clippy --workspace --all-targets -j 2 -- -D warnings
+Exit: 0; warnings: 0
+Command: cargo fmt --all -- --check
+Exit: 0
+Golden snapshot changes: 0
+Binary: C:\Users\owjs3\orca\workspaces\devup-mcp\r7-main-axis-error-identity\target\debug\devup-mcp.exe
+SHA256: 63b197a51b459ece37f9d07333ff297b758cba0b677c82c95c560afa2ddd9b76
+Version: devup-mcp 0.4.4 (ffea11d12c3f-dirty)
+
+Executed R7 tests:
+test server::operation::r7_tests::r7_legacy_section_error_has_action_without_invented_ancestor ... ok
+test server::operation::r7_tests::r7_plugin_section_error_preserves_structured_recovery ... ok
+test server::projection::w1_regressions::r7_artifact_reuses_stored_selection ... ok
+test server::r7_error_tests::r7_errors_have_the_same_build_identity_as_success ... ok
+test server::r7_error_tests::r7_plugin_expiry_has_recovery_and_keeps_its_stage ... ok
+test server::r7_error_tests::r7_expired_artifact_explains_refresh_arguments ... ok
+test server::projection::w1_regressions::r7_auto_debug_resource_has_inline_reprojection_guidance ... ok
+test server::projection::w1_regressions::r7_real_wquw118_layout_contracts_are_preserved ... ok
+test r7_local_binary_errors_all_carry_identity ... ok
+test r7_cross_axis_fill_overrides_center_without_percentage_height ... ok
+test r7_cross_axis_constraints_are_not_hidden_by_stretch ... ok
+test r7_main_axis_changed_gap_stays_lossy_with_reason ... ok
+test r7_auto_text_explicitly_reports_unverified_font_metrics ... ok
+test r7_fixed_sibling_with_flex_cannot_be_subtracted_as_fixed_width ... ok
+test r7_replaced_element_minimum_is_not_assumed_zero ... ok
+test r7_forged_main_axis_resolution_is_rechecked ... ok
+test r7_main_axis_fill_accounts_for_remaining_width ... ok
+test r7_mixed_horizontal_strokes_are_not_ignored ... ok
+test r7_main_axis_unproven_constraints_remain_lossy ... ok
+test r7_section_recovery_does_not_select_a_nested_text_node ... ok
+test r7_section_script_reports_actual_ancestor_and_correction ... ok

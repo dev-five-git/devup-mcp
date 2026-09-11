@@ -138,11 +138,36 @@ async fn call_named_tool(
     });
     let client = ().serve(client_transport).await?;
     let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
-    let result = client
+    let mut result = client
         .call_tool(CallToolRequestParams::new(tool.to_owned()).with_arguments(arguments))
         .await?;
+    for _ in 0..500 {
+        let Some(id) = result
+            .structured_content
+            .as_ref()
+            .filter(|v| v["exportJob"]["state"] == "running")
+            .and_then(|v| v["exportJob"]["jobId"].as_str())
+            .map(str::to_owned)
+        else {
+            break;
+        };
+        result = client
+            .call_tool(
+                CallToolRequestParams::new("devup_figma_export")
+                    .with_arguments(json!({"jobId":id}).as_object().unwrap().clone()),
+            )
+            .await?;
+    }
     client.cancel().await?;
     task.await??;
+    anyhow::ensure!(
+        result.is_error != Some(true),
+        "{}",
+        result
+            .structured_content
+            .as_ref()
+            .expect("structured error")
+    );
     Ok(result)
 }
 
