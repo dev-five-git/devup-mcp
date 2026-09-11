@@ -1,5 +1,11 @@
 # macOS CI path assertion correction
 
+Follow-up correction: the claim below that every request containing `..` must
+fail was too broad. Run 34612686276 exposed a configured-versus-canonical prefix
+selection difference. See [the platform guard investigation](path-guard-platform.md)
+for the B verdict, corrected test coverage, and current verification. The results
+below describe the earlier commit, not the follow-up.
+
 PR #28, run [34608989645](https://github.com/dev-five-git/devup-mcp/actions/runs/34608989645).
 Base: `c77de5d5696b88d2bcb05078bf295f12be52dde4` (`integration/r6`).
 

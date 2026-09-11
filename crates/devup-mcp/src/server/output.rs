@@ -641,10 +641,8 @@ mod tests {
         let expected = canonical.join("nested").join("Component.tsx");
         assert!(!expected.exists());
         let policy = OutputPolicy::from_roots(vec![alias.clone()])?;
-        // A request containing `..` is still forbidden, even though the
-        // configured root itself is canonicalized when the policy opens it.
-        let requested = alias.join("nested").join("Component.tsx");
-        assert!(policy.resolve(requested.to_str().unwrap()).is_err());
+        // Alias parent components and traversal rejection are covered
+        // separately in tests/output_policy.rs with explicit prefix fixtures.
         let absolute = policy.resolve(expected.to_str().unwrap())?;
         let relative = policy.resolve("nested/Component.tsx")?;
         assert_eq!(absolute.display_path(), expected);
