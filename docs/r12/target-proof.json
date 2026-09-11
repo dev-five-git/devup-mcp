@@ -1,0 +1,37 @@
+{
+  "workspace": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance",
+  "target": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target",
+  "cargoTargetDirOverride": false,
+  "binary": {
+    "Algorithm": "SHA256",
+    "Hash": "A71CF796B6C47457CEC894D91AE192F5952E7EA23971A13DE2FCE1846495B46D",
+    "Path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\devup-mcp.exe"
+  },
+  "testExecutables": [
+    {
+      "Algorithm": "SHA256",
+      "Hash": "41C7B9B66DD180381A931D9A212E2E5C96BCE1D2C6FB136664B59E3AA8AC82AC",
+      "Path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\deps\\devup_mcp-bbcce4741168dc25.exe"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "7369E1B7F409A7AFCF48E9BFDE8A3082DEABEBBF530604624565C19BAAB2674A",
+      "Path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\deps\\polymorphic_props-9ec2f18a15058fda.exe"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "CF3C908222A74DB043F1826DDA889A31810FCEEC0C89FCE8C1F54119CFACD6A0",
+      "Path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\deps\\polymorphic_props-c0535895235e7084.exe"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "C1B808A7B7C7D22B98C079354A15B60A7D070F1CAB899E3B0EAD133AE1650CFC",
+      "Path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\deps\\resource_delivery-05b4b68759062677.exe"
+    },
+    {
+      "Algorithm": "SHA256",
+      "Hash": "5AE43F3E92D32DEA1A2D39BF7BF517944B4A91B3274D5AE82E420530A079CFCE",
+      "Path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r12-validator-size-guidance\\target\\debug\\deps\\ui_validate_response-f15d0b498565df16.exe"
+    }
+  ]
+}

@@ -1112,6 +1112,22 @@ pub(super) async fn complete_operation(
                     r#"A source map needs a generated output. Even when reusing artifactId, include tsx, componentTsx or devupJson in outputs in the same call. Example: {"artifactId":"<artifactId>","outputs":["tsx","rawSnapshot","sourceMap"],"debug":true}"#,
                 ));
             }
+            // Capture the accepted projection before fields are consumed by
+            // codegen/file staging. Resource retry reuses this acquisition.
+            let mut recovery_arguments = json!({
+                "artifactId":artifact.artifact_id,"outputs":outputs,
+                "componentName":component_name,"includeDiagnostics":include_diagnostics,
+                "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
+                "assetNamesPerNode":asset_names_per_node,"scope":scope,"strict":strict,
+                "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
+                "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
+                "delivery":"resource",
+                "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,
+                    "outputPath":asset_output_paths.get(&a.asset_id)})).collect::<Vec<_>>()
+            });
+            if let Some(root) = &asset_public_root {
+                recovery_arguments["assetPublicRoot"] = json!(root);
+            }
             let mut result = Map::new();
             // Not restated by quality: this grades how far token resolution
             // reached - whether external library variables were covered - where
@@ -2479,7 +2495,8 @@ pub(super) async fn complete_operation(
                 artifact,
                 projected_outputs,
             )
-            .await?;
+            .await
+            .map_err(|error| super::delivery::with_inline_recovery(error, recovery_arguments))?;
             if let Err(error) = transaction.commit() {
                 rollback_delivery(artifact_store, artifact, attachment).await;
                 return Err(error);
@@ -4182,6 +4199,97 @@ mod w1_regressions {
                 .unwrap()
                 .contains("resource")
         );
+    }
+
+    #[tokio::test]
+    async fn r12_oversized_export_retains_artifact_and_callable_resource_projection() {
+        use super::super::{DevupAuth, DevupServer, Services};
+        use devup_mcp_figma::{AuthStatus, FigmaUpstream, ReadToolCall, UpstreamResult};
+        use std::sync::Arc;
+        struct Offline;
+        #[async_trait::async_trait]
+        impl DevupAuth for Offline {
+            async fn status(&self) -> Result<AuthStatus, DevupError> {
+                panic!("cached projection must not authenticate")
+            }
+            async fn login(&self) -> Result<AuthStatus, DevupError> {
+                panic!("cached projection must not login")
+            }
+            async fn logout(&self) -> Result<AuthStatus, DevupError> {
+                panic!("cached projection must not logout")
+            }
+        }
+        #[async_trait::async_trait]
+        impl FigmaUpstream for Offline {
+            async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+                panic!("cached projection must not list upstream tools")
+            }
+            async fn call_read_tool(&self, _: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+                panic!("cached projection must not call Figma")
+            }
+        }
+        let mut data = payload();
+        data.metadata = json!({"large":"x".repeat(600_000)});
+        let store = ArtifactStore::default();
+        let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+            data.target.clone(),
+            CollectionScope::Node,
+        ));
+        let artifact = store.insert(key, data).await.unwrap();
+        let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+        let outputs = ["tsx", "rawPayload", "sourceMap", "assetManifest"];
+        let error = complete_operation(
+            operation(&outputs),
+            &artifact.payload,
+            "artifact",
+            &artifact,
+            &policy,
+            &store,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
+        let envelope =
+            super::super::structured_tool_error(super::super::to_mcp_error(error.clone()));
+        let wire = serde_json::to_value(&envelope).unwrap();
+        assert_eq!(wire["isError"], true);
+        assert_eq!(
+            serde_json::from_str::<Value>(wire["content"][0]["text"].as_str().unwrap()).unwrap(),
+            wire["structuredContent"]
+        );
+        assert_eq!(wire["structuredContent"]["error"]["details"], error.details);
+        let details = &error.details;
+        assert_eq!(details["recoveryState"], "available");
+        assert_eq!(details["nextAction"]["tool"], "devup_figma_export");
+        let args = &details["nextAction"]["arguments"];
+        assert_eq!(args["artifactId"], artifact.artifact_id);
+        assert_eq!(args["delivery"], "resource");
+        assert_eq!(args["outputs"], json!(outputs));
+        assert_eq!(args["debug"], true);
+        assert!(details["serializedResponseBytes"].as_u64().unwrap() > 1_048_576);
+        assert!(store.get(&artifact.artifact_id).await.is_some());
+        let mut calls = vec![args.clone()];
+        for next in details["splitRequests"].as_array().unwrap() {
+            assert_eq!(next["tool"], "devup_figma_export");
+            calls.push(next["arguments"].clone());
+        }
+        assert!(calls.len() > 1);
+        let mut server = DevupServer::new(Services::new(Arc::new(Offline), Arc::new(Offline)));
+        server.artifacts = store.clone();
+        for args in calls {
+            // Deserialize and execute the complete callable arguments through
+            // the actual tool handler, including its validation contract.
+            let result = server
+                .devup_figma_export(rmcp::handler::server::wrapper::Parameters(
+                    serde_json::from_value(args).unwrap(),
+                ))
+                .await
+                .unwrap()
+                .structured_content
+                .unwrap();
+            assert!(result["resources"].is_array());
+            assert_eq!(result["cache"]["artifactId"], artifact.artifact_id);
+        }
     }
 
     #[test]

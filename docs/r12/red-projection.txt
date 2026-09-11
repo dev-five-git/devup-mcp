@@ -1,0 +1,16 @@
+
+running 1 test
+
+thread 'server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection' (87628) panicked at crates\devup-mcp\src\server\projection.rs:4199:9:
+assertion `left == right` failed
+  left: Null
+ right: "available"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection ... FAILED
+
+failures:
+
+failures:
+    server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 171 filtered out; finished in 0.09s

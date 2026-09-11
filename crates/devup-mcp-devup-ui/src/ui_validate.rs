@@ -36,9 +36,9 @@ use std::collections::BTreeSet;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, JSXAttribute, JSXAttributeName, JSXAttributeValue,
-    JSXElementName, JSXOpeningElement, ObjectExpression, ObjectPropertyKind, PropertyKey,
-    UnaryOperator,
+    Argument, CallExpression, Expression, JSXAttribute, JSXAttributeItem, JSXAttributeName,
+    JSXAttributeValue, JSXElementName, JSXOpeningElement, ObjectExpression, ObjectPropertyKind,
+    PropertyKey, UnaryOperator,
 };
 use oxc_ast_visit::{Visit, walk};
 use oxc_parser::Parser;
@@ -160,6 +160,7 @@ pub fn validate_devup_ui_tsx(
         checked_tokens: 0,
         violations: Vec::new(),
         element_stack: Vec::new(),
+        render_element_stack: Vec::new(),
     };
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
@@ -199,6 +200,7 @@ struct TsxVisitor<'t> {
     checked_tokens: usize,
     violations: Vec<Violation>,
     element_stack: Vec<Option<String>>,
+    render_element_stack: Vec<Option<String>>,
 }
 
 impl<'t> TsxVisitor<'t> {
@@ -312,6 +314,14 @@ impl<'t> TsxVisitor<'t> {
         if is_known_style_prop(prop_name) || is_known_non_style_prop(prop_name) {
             return;
         }
+        if self
+            .render_element_stack
+            .last()
+            .and_then(|tag| tag.as_deref())
+            .is_some_and(|tag| crate::html_props::is_html_prop(tag, prop_name))
+        {
+            return;
+        }
         self.violations.push(Violation {
             rule: "unknown-prop",
             severity: Severity::Error,
@@ -367,8 +377,43 @@ impl<'t> TsxVisitor<'t> {
 impl<'a, 't> Visit<'a> for TsxVisitor<'t> {
     fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
         let tag_name = jsx_element_name(&element.name);
+        // Resolve before visiting attributes so maxLength before as works too.
+        // A later spread/dynamic as can override a literal; do not assume its tag.
+        let mut rendered = match tag_name.as_deref() {
+            Some("Text") => Some("span".to_owned()),
+            Some("Image") => Some("img".to_owned()),
+            Some("Box" | "Flex" | "Center" | "Grid") => Some("div".to_owned()),
+            _ => None,
+        };
+        for attribute in &element.attributes {
+            match attribute {
+                JSXAttributeItem::SpreadAttribute(_) => rendered = None,
+                JSXAttributeItem::Attribute(attribute) => {
+                    if matches!(&attribute.name, JSXAttributeName::Identifier(name) if name.name == "as")
+                    {
+                        rendered = match &attribute.value {
+                            Some(JSXAttributeValue::StringLiteral(value)) => {
+                                Some(value.value.to_string())
+                            }
+                            Some(JSXAttributeValue::ExpressionContainer(container)) => container
+                                .expression
+                                .as_expression()
+                                .and_then(|expression| match expression.get_inner_expression() {
+                                    Expression::StringLiteral(value) => {
+                                        Some(value.value.to_string())
+                                    }
+                                    _ => None,
+                                }),
+                            _ => None,
+                        };
+                    }
+                }
+            }
+        }
         self.element_stack.push(tag_name);
+        self.render_element_stack.push(rendered);
         walk::walk_jsx_opening_element(self, element);
+        self.render_element_stack.pop();
         self.element_stack.pop();
     }
 
