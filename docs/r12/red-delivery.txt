@@ -1,0 +1,16 @@
+
+running 1 test
+
+thread 'r12_inline_size_errors_report_measured_output_and_wire_sizes' (85440) panicked at crates\devup-mcp\tests\resource_delivery.rs:32:9:
+assertion `left == right` failed
+  left: Null
+ right: 1048576
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r12_inline_size_errors_report_measured_output_and_wire_sizes ... FAILED
+
+failures:
+
+failures:
+    r12_inline_size_errors_report_measured_output_and_wire_sizes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.05s

@@ -15,6 +15,7 @@ mod result_contract;
 mod stack_diff;
 mod tools;
 mod validation;
+mod validation_guidance;
 
 use std::sync::Arc;
 
@@ -1385,7 +1386,7 @@ impl DevupServer {
             (_, _, 1.., _) => "info-only",
             _ => "clean",
         };
-        Ok(tool_result(json!({
+        let mut result = json!({
             "ok": report.ok,
             "okReason": ok_reason,
             "strict": input.strict,
@@ -1401,7 +1402,16 @@ impl DevupServer {
             },
             "themeAvailable": theme_lookup.theme.is_some(),
             "themeGuardrail": theme_lookup.guardrail,
-        })))
+        });
+        if !report.ok {
+            result.as_object_mut().unwrap().extend(
+                validation_guidance::guidance(&input, &report, theme_lookup.theme.as_ref())
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            );
+        }
+        Ok(tool_result(result))
     }
 
     #[tool(
