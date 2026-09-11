@@ -1,0 +1,1790 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-devup-ui)
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\provenance-2a3d190ad6b1ca3c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\provenance-2a3d190ad6b1ca3c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "provenance") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\component_projection-54f7a1dc961fe760.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\component_projection-54f7a1dc961fe760.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "component_projection") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\live_figma_contract-1ba250b007c7edf5.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\live_figma_contract-1ba250b007c7edf5.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "live_figma_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_search_scope-efccdf244403850a.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_search_scope-efccdf244403850a.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_search_scope") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "ground_truth_tools") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\ui_validate_response-f15d0b498565df16.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\ui_validate_response-f15d0b498565df16.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "ui_validate_response") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\artifact_cache-788e307af666f384.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\artifact_cache-788e307af666f384.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "artifact_cache") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_explore-b0b51cde49bc4300.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_explore-b0b51cde49bc4300.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_explore") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_export-03825463658223cc.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_export-03825463658223cc.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\source_orchestration-762522615b5e1df5.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\source_orchestration-762522615b5e1df5.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "responsive_export") generated 1 warning
+warning: `devup-mcp` (test "source_orchestration") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\resource_delivery-05b4b68759062677.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\resource_delivery-05b4b68759062677.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "resource_delivery") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\rate_limit_patience-dfb631caf8cef915.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\rate_limit_patience-dfb631caf8cef915.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "rate_limit_patience") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (bin "devup-mcp") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\export_defaults-d45c7bc16acea0af.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\export_defaults-d45c7bc16acea0af.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "export_defaults") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\stdio_smoke-412f70aa9f059b9b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\stdio_smoke-412f70aa9f059b9b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "stdio_smoke") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "upstream_error_surfacing") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\call_cache_resume-3c1e472db5d84a27.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\call_cache_resume-3c1e472db5d84a27.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "call_cache_resume") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_explore_limit-264f482a205f5ed4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_explore_limit-264f482a205f5ed4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_explore_limit") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\output_policy-e8b9d5ffff431238.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\output_policy-e8b9d5ffff431238.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "output_policy") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\cli-eade5d7a1dcd6118.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\cli-eade5d7a1dcd6118.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "cli") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\composite_export-5eca1b2253e1959d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\composite_export-5eca1b2253e1959d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "composite_export") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\section_export-e14d306f6740329e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\section_export-e14d306f6740329e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "section_export") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_doctor-551d8ad285817ab6.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_doctor-551d8ad285817ab6.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "figma_doctor") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\downstream_integration-608c4206817ef447.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\downstream_integration-608c4206817ef447.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "downstream_integration") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\testcase_expectations-dd5e444031946e07.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\testcase_expectations-dd5e444031946e07.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "testcase_expectations") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\stdio_tools-b01a8494a0f1b0ca.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\stdio_tools-b01a8494a0f1b0ca.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (test "stdio_tools") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\theme-0034585f72092e65.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\theme-0034585f72092e65.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "theme") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\wquw_151-3f3ae59690bc4cbe.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\wquw_151-3f3ae59690bc4cbe.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "wquw_151") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "responsive_alignment") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\compat_manifest-d83068f8b9bdf329.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\compat_manifest-d83068f8b9bdf329.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "compat_manifest") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\folded_asset_size-1339586b786847af.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\folded_asset_size-1339586b786847af.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "folded_asset_size") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r7_layout-ff7b26681661430c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r7_layout-ff7b26681661430c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r7_layout") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "effect_fidelity_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r14_absolute_evidence-c1015fcbf04dfd7d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r14_absolute_evidence-c1015fcbf04dfd7d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r14_absolute_evidence") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r10_content_sizing-5290240f0a4162fa.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r10_content_sizing-5290240f0a4162fa.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r10_content_sizing") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "wquw_151_frames") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\color_like_props-4dafedac17e4d7bf.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\color_like_props-4dafedac17e4d7bf.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "color_like_props") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\validation-9f019b47fd152678.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\validation-9f019b47fd152678.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "validation") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r6_vertical_sizing") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_merge-43791a550fe185d3.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_merge-43791a550fe185d3.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "responsive_merge") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\free_placement_anchor-45b74df558c1804e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\free_placement_anchor-45b74df558c1804e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "free_placement_anchor") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\button_answer-56d01032a4a14dbd.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\button_answer-56d01032a4a14dbd.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "button_answer") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\boolean_logos-4e46b7d45f65debd.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\boolean_logos-4e46b7d45f65debd.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "boolean_logos") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r9_precision-2e064b5dabb56ef1.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r9_precision-2e064b5dabb56ef1.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\default_omission_golden-7590ebc5cb067221.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\default_omission_golden-7590ebc5cb067221.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "default_omission_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "unresolved_token_binding") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\compat_fixtures-21def48330d1fa72.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\compat_fixtures-21def48330d1fa72.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "compat_fixtures") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\polymorphic_props-c0535895235e7084.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\polymorphic_props-c0535895235e7084.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "polymorphic_props") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\placement_contract-f143c434b440ea71.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\placement_contract-f143c434b440ea71.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "placement_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "pinned_size_restatement") generated 1 warning
+warning: `devup-mcp-devup-ui` (test "single_frame_answers") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_screen-f026dabb56576c93.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\responsive_screen-f026dabb56576c93.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "responsive_screen") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "keyframes_screen") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\paint_opacity_golden-0f672159de8e5494.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\paint_opacity_golden-0f672159de8e5494.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "paint_opacity_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\variant_nesting-ba9d01fe927cef4d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\variant_nesting-ba9d01fe927cef4d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "variant_nesting") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\variant_typography-320b5fc42fe0b67b.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\variant_typography-320b5fc42fe0b67b.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "variant_typography") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp-bbcce4741168dc25.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp-bbcce4741168dc25.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\plugin_compat-243b9629f047092d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\plugin_compat-243b9629f047092d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "plugin_compat") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\asset_boundaries-b270807a4ac54331.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\asset_boundaries-b270807a4ac54331.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "asset_boundaries") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r13_provenance-f87a5fd4cbac7da4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r13_provenance-f87a5fd4cbac7da4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r13_provenance") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r8_absolute_scroll") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\codegen-0efd2bf5d70ab180.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\codegen-0efd2bf5d70ab180.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "codegen") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\local_screens-cdd2cfb235a0446c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\local_screens-cdd2cfb235a0446c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "local_screens") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\manifest_trim_golden-75c757cd9490090e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\manifest_trim_golden-75c757cd9490090e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "manifest_trim_golden") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "asset_manifest_covers_the_code") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\section-a7e6afaa26260d8c.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\section-a7e6afaa26260d8c.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "section") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\upstream_contract-3dacc8452487277d.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\upstream_contract-3dacc8452487277d.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "upstream_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\upstream_failures-231c7799fbe78864.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\upstream_failures-231c7799fbe78864.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "upstream_failures") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\oauth_flow-5a235cb446d7f8ad.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\oauth_flow-5a235cb446d7f8ad.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "oauth_flow") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r8_scroll_capture-d75fc84572470c8a.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r8_scroll_capture-d75fc84572470c8a.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "r8_scroll_capture") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\collector-eabe9905ef75d9d2.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\collector-eabe9905ef75d9d2.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "collector") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\assets-f58217e4c6535a42.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\assets-f58217e4c6535a42.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "assets") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\explore-b0d6d0556a705200.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\explore-b0d6d0556a705200.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "explore") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\envelope-58a3630fe689d926.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\envelope-58a3630fe689d926.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "envelope") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_url-b7f3ee0b5430c2a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\figma_url-b7f3ee0b5430c2a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "figma_url") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\snapshot-d85f713f8faa3fcc.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\snapshot-d85f713f8faa3fcc.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "snapshot") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\large_values-351de2fb071d0c56.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\large_values-351de2fb071d0c56.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "large_values") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\used_resources-b7c4985caa12d4fb.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\used_resources-b7c4985caa12d4fb.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "used_resources") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "r9_render_bounds_capture") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\payload_contract-4b383732c331c5f5.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\payload_contract-4b383732c331c5f5.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-figma` (test "payload_contract") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "root_canvas_width") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 43s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-bbcce4741168dc25.exe)
+
+running 186 tests
+test server::artifacts::w3_tests::w3_missing_asset_capture_has_actionable_details ... ok
+test server::artifacts::w3_tests::w3_asset_capture_validation_reports_only_missing_exact_variants ... ok
+test server::call_cache::tests::the_cache_is_off_until_a_directory_is_named ... ok
+test server::operation::r7_tests::r7_legacy_section_error_has_action_without_invented_ancestor ... ok
+test server::artifacts::w3_tests::w3_unselected_section_index_remembers_its_first_selection ... ok
+test server::artifacts::w3_tests::w3_selection_is_available_after_artifact_id_lookup ... ok
+test server::diagnostics::tests::a_pre_registered_client_without_a_token_is_still_told_to_log_in ... ok
+test server::artifacts::w3_tests::w3_last_selection_survives_lookup_without_changing_acquisition_key ... ok
+test server::diagnostics::tests::a_dynamically_registered_session_does_not_claim_a_stored_client_credential ... ok
+test server::diagnostics::tests::the_measured_client_setup_constraints_survive_the_reason_rewrite ... ok
+test server::artifacts::w3_tests::w3_every_field_of_a_request_key_reaches_its_digest ... ok
+test server::p3_error_tests::p3_expired_artifact_is_state_failure_with_original_message ... ok
+test server::diagnostics::tests::client_setup_leads_with_codex_and_demotes_the_other_hosts ... ok
+test server::diagnostics::tests::doctor_report_surfaces_credential_source_token_state_and_callback_port ... ok
+test server::artifacts::w3_tests::w3_invalid_or_oversized_selection_does_not_replace_previous_selection ... ok
+test server::operation::r7_tests::r7_plugin_section_error_preserves_structured_recovery ... ok
+test server::diagnostics::tests::doctor_report_reflects_measured_auth_status_without_changing_status_shape ... ok
+test server::pacing::tests::a_burst_under_the_ceiling_is_not_slowed ... ok
+test server::diagnostics::tests::doctor_report_only_mentions_secret_as_a_field_name_never_a_value ... ok
+test server::diagnostics::tests::doctor_report_surfaces_the_registration_client_name_and_whether_it_is_default ... ok
+test server::diagnostics::tests::a_disagreement_between_availability_and_token_state_is_reported_as_one ... ok
+test server::asset_jobs::tests::r10_terminal_jobs_never_offer_repeated_status_as_next_action ... ok
+test server::artifacts::w3_tests::r8_expired_branch_url_preserves_target_and_selection ... ok
+test server::artifacts::w3_tests::w3_expired_key_is_reacquired_at_ttl_boundary ... ok
+test server::pacing::tests::a_raised_ceiling_lets_more_through_before_waiting ... ok
+test server::pacing::tests::a_refusal_makes_the_next_call_wait_out_a_whole_window ... ok
+test server::pacing::tests::a_collection_larger_than_the_allowance_is_spread_rather_than_refused ... ok
+test server::pacing::tests::a_window_poisoned_by_another_thread_still_paces ... ok
+test server::pacing::tests::the_call_past_the_ceiling_waits_for_a_slot ... ok
+test server::pacing::tests::the_default_stays_under_the_ceiling_it_paces_against ... ok
+test server::pacing::tests::the_pacer_recovers_its_full_rate_after_standing_down ... ok
+test server::p3_error_tests::p3_output_root_violation_is_invalid_params ... ok
+test server::project_root::tests::not_found_response_always_has_stop_and_report_action ... ok
+test server::projection::tests::a_layer_name_no_file_system_takes_is_renamed_wherever_the_code_points_at_it ... ok
+test server::projection::tests::the_written_path_is_renamed_the_same_way_the_code_is ... ok
+test server::projection::w1_regressions::p1_asset_comparison_preserves_literal_text_and_unknown_paths ... ok
+test server::projection::w1_regressions::p1_comparison_scopes_partial_frames_to_their_generated_outputs ... ok
+test server::projection::w1_regressions::p1_layered_backgrounds_compare_every_asset_reference ... ok
+test server::projection::w1_regressions::p1_incomplete_asset_discovery_never_claims_no_assets ... ok
+test server::projection::w1_regressions::p1_selection_does_not_claim_to_include_an_unproduced_manifest ... ok
+test server::asset_jobs::tests::r3_shared_path_reports_only_matching_bytes_as_written ... ok
+test server::call_cache::tests::a_different_call_is_kept_apart ... ok
+test server::projection::w1_regressions::p1_collected_assets_are_distinct_from_delivered_manifest ... ok
+test server::call_cache::tests::a_kept_call_is_replayed ... ok
+test server::project_context::tests::invalid_scope_is_rejected ... ok
+test server::projection::w1_regressions::p3_rewrites_all_code_variants_without_cascading_or_prefix_changes ... ok
+test server::project_root::tests::returns_none_when_no_marker_exists_up_to_a_bare_temp_dir ... ok
+test server::projection::w1_regressions::p3_identical_bytes_share_manifest_paths ... ok
+test server::projection::w1_regressions::p1_identical_hints_and_asset_summary_survive_resource_delivery ... ok
+test server::call_cache::tests::a_stale_call_is_not_replayed ... ok
+test server::projection::w1_regressions::p1_asset_summary_distinguishes_none_uncollected_and_hidden ... ok
+test server::project_context::tests::theme_scope_reports_not_found_guardrail_without_devup_json ... ok
+test server::projection::w1_regressions::p1_frames_report_generated_asset_only_equivalence ... ok
+test server::projection::w1_regressions::p1_selection_separates_explicit_cases_from_automatic_screens ... ok
+test server::projection::w1_regressions::p3_selection_call_preserves_export_options ... ok
+test server::projection::w1_regressions::p3_identical_assets_share_one_binary_resource ... ok
+test server::projection::w1_regressions::p3_selection_reference_png_followup_targets_single_url ... ok
+test server::projection::w1_regressions::r13_delivery_gate_detects_future_postprocessor_even_without_public_map ... ok
+test server::projection::w1_regressions::p3_same_name_different_bytes_keep_distinct_paths_and_default_names ... ok
+test server::projection::w1_regressions::p3_unverified_equal_hashes_do_not_merge_different_bytes ... ok
+test server::project_context::tests::api_scope_extracts_endpoints_and_required_fields ... ok
+test server::project_context::tests::all_scope_combines_every_axis ... ok
+test server::projection::w1_regressions::r13_mapping_gap_is_not_exact_or_value_loss ... ok
+test server::projection::w1_regressions::r10_descendant_selection_has_corrected_arguments ... ok
+test server::output::tests::reports_and_retains_a_backup_when_rollback_restoration_fails ... ok
+test server::projection::w1_regressions::r13_review_malformed_postprocess_cannot_pass_an_empty_ast ... ok
+test server::project_context::tests::missing_project_root_reports_guardrail ... ok
+test server::project_root::tests::finds_root_by_walking_up_to_a_marker ... ok
+test server::projection::w1_regressions::r13_empty_responsive_still_reports_unverified_merge_stage ... ok
+test server::project_context::tests::theme_scope_reads_real_devup_json_tokens ... ok
+test server::projection::w1_regressions::p3_tsx_only_reprojection_preserves_deduplicated_references ... ok
+test server::projection::w1_regressions::r13_explicit_resource_offers_single_screen_single_output_reprojection ... ok
+test server::projection::w1_regressions::r13_review_responsive_resource_preserves_selection_in_next_action ... ok
+test server::projection::w1_regressions::r13_strict_codegen_mapping_gap_keeps_property_diagnostics ... ok
+test server::projection::w1_regressions::r1_captured_asset_overrides_hidden_discovery_prediction ... ok
+test server::projection::w1_regressions::r13_responsive_mapping_gap_is_explicit_and_strict_rejects ... ok
+test server::projection::w1_regressions::r1_required_excluded_asset_withholds_code_and_finality ... ok
+test server::projection::w1_regressions::r1_approximation_is_explained_without_diagnostics ... ok
+test server::project_context::tests::db_scope_extracts_columns_and_enum_values ... ok
+test server::project_root::tests::find_files_named_skips_node_modules ... ok
+test server::projection::w1_regressions::r1_shared_visible_asset_path_is_not_excluded ... ok
+test server::projection::w1_regressions::p3_default_paths_are_not_rewritten_to_requested_files ... ok
+test server::projection::w1_regressions::r1_responsive_only_reports_source_approximation ... ok
+test server::projection::w1_regressions::r1_uncovered_layout_cannot_be_exact ... ok
+test server::delivery::r12_tests::r12_asset_mapping_recovery_keeps_coupled_outputs_together ... ok
+test server::projection::w1_regressions::r2_component_layout_has_generated_evidence_and_output_scope ... ok
+test server::projection::w1_regressions::r1_hidden_asset_paths_absent_from_all_six_frames ... ok
+test server::project_context::tests::a_theme_that_exists_only_in_a_nested_checkout_says_so ... ok
+test server::projection::w1_regressions::r13_resource_next_action_executes_same_named_frame_without_upstream ... ok
+test server::projection::w1_regressions::r4_direct_export_discloses_capture_boundary_without_diagnostics ... ok
+test server::projection::w1_regressions::r2_withheld_output_has_issue_and_explicit_deliverable ... ok
+test server::projection::w1_regressions::r3_responsive_has_its_own_fidelity_result ... ok
+test server::projection::w1_regressions::r8_nonsection_semantic_asset_mapping_uses_delivered_path ... ok
+test server::projection::w1_regressions::r6_source_map_error_explains_artifact_outputs ... ok
+test server::projection::w1_regressions::p3_canonical_reference_is_independent_of_requested_duplicate_file ... ok
+test server::project_context::tests::one_theme_needs_no_authority_note_and_several_do ... ok
+test server::projection::w1_regressions::w1_ascii_slugs_do_not_merge_distinct_variant_assets ... ok
+test server::projection::w1_regressions::r13_frame_output_paths_report_unsupported_and_write_supported_keys ... ok
+test server::projection::w1_regressions::w1_asset_paths_are_ascii_bounded_and_windows_safe ... ok
+test server::projection::w1_regressions::r2_responsive_hidden_instance_and_visible_desktop ... ok
+test server::output::tests::restores_every_original_after_a_runtime_commit_failure ... ok
+test server::projection::w1_regressions::w1_captured_main_component_id_is_reported_when_missing ... ok
+test server::projection::w1_regressions::w1_asset_failure_is_partial_and_strict_refuses_it ... ok
+test server::projection::w1_regressions::w1_all_screens_uses_explore_classification ... ok
+test server::projection::w1_regressions::w1_discovered_hidden_assets_are_warnings_not_failed_deliverables ... ok
+test server::projection::w1_regressions::w1_fixture_asset_paths_are_normalized_without_changing_other_code ... ok
+test server::projection::w1_regressions::r7_artifact_reuses_stored_selection ... ok
+test server::project_context::tests::theme_for_validation_never_picks_a_stale_branch_over_the_real_one ... ok
+test server::projection::w1_regressions::w1_empty_all_screens_is_actionable ... ok
+test server::projection::w1_regressions::w1_index_accepts_component_projection_selection ... ok
+test server::projection::w1_regressions::w1_index_unavailable_output_explains_collection_step ... ok
+test server::projection::w1_regressions::w1_component_tsx_projects_selected_frames_without_section_root ... ok
+test server::projection::w1_regressions::w1_hidden_asset_is_warning_and_requested_failure_is_partial ... ok
+test server::projection::w1_regressions::r13_review_reference_resource_has_binary_size_guidance ... ok
+test server::projection::w1_regressions::w1_missing_collected_outputs_explain_how_to_recollect ... ok
+test server::projection::w1_regressions::w1_large_section_has_actionable_batch_refusal ... ok
+test server::projection::w1_regressions::w1_resource_delivery_moves_all_code_and_updates_note ... ok
+test server::projection::w1_regressions::w1_frame_failure_preserves_other_frames_and_context ... ok
+test server::project_root::tests::scans_skip_all_worktree_container_names ... ok
+test server::project_context::tests::theme_scope_skips_devup_json_inside_a_nested_worktree ... ok
+test server::projection::w1_regressions::w1_responsive_slot_collision_is_actionable ... ok
+test server::projection::w1_regressions::w1_missing_master_is_partial_with_component_id ... ok
+test server::projection::w1_regressions::w1_responsive_does_not_merge_unselected_frames ... ok
+test server::projection::w1_regressions::w1_partial_frames_provide_retry_arguments ... ok
+test server::projection::w1_regressions::w1_slash_in_layer_name_matches_manifest_and_code ... ok
+test server::projection::w1_regressions::w1_manifest_preserves_layer_name_and_section_paths_match ... ok
+test server::quality::tests::projection_quality_uses_structured_fidelity_impact ... ok
+test server::projection::w1_regressions::w1_optional_responsive_collision_keeps_requested_tsx ... ok
+test server::quality::tests::unknown_codegen_diagnostics_fail_closed_but_collector_warnings_do_not ... ok
+test server::projection::w1_regressions::w1_source_map_without_generator_is_actionable ... ok
+test server::r7_error_tests::r7_errors_have_the_same_build_identity_as_success ... ok
+test server::r7_error_tests::r7_plugin_expiry_has_recovery_and_keeps_its_stage ... ok
+test server::r7_error_tests::r7_expired_artifact_explains_refresh_arguments ... ok
+test server::r8_recovery_tests::r8_expired_artifact_returns_known_url_or_explicit_unrecoverable_state ... ok
+test server::resources::w3_tests::w3_invalid_missing_and_expired_resources_are_distinct ... ok
+test server::stack_diff::tests::a_relation_accessor_is_not_a_column_and_r_hash_is_not_part_of_the_name ... ok
+test server::project_context::tests::api_and_db_scopes_skip_nested_worktrees_too ... ok
+test server::projection::w1_regressions::w1_responsive_success_has_code_resource_and_no_empty_frames ... ok
+test server::projection::w1_regressions::p3_public_mapping_and_dedup_rewrite_inline_and_written_tsx ... ok
+test server::projection::w1_regressions::w1_responsive_text_loss_is_partial_and_strict_rejects ... ok
+test server::stack_diff::tests::extracts_devup_api_client_calls ... ok
+test server::stack_diff::tests::extracts_model_struct_fields_ignoring_derive_attributes ... ok
+test server::stack_diff::tests::extracts_vespera_route_attributes_and_matches_path ... ok
+test server::project_root::tests::diagnostic_scan_keeps_depth_limits_and_prunes_build_output ... ok
+test server::projection::w1_regressions::w1_unavailable_responsive_output_is_actionable_even_with_tsx_and_strict ... ok
+test server::projection::w1_regressions::w1_selection_exactly_100_candidates_is_complete ... ok
+test server::projection::w1_regressions::w1_selection_over_100_candidates_is_partial ... ok
+test server::stack_diff::tests::invalid_layer_name_is_rejected ... ok
+test server::projection::w1_regressions::w1_selection_separates_projection_and_candidate_truncation ... ok
+test server::stack_diff::tests::missing_project_root_reports_guardrail ... ok
+test server::projection::w1_regressions::r6_completion_vertical_loss_is_scoped_to_tsx ... ok
+test server::stack_diff::tests::route_url_prefix_matches_vespera_file_structure_convention ... ok
+test server::resources::w3_tests::w3_manifest_links_reconstruct_text_and_binary_without_uri_assembly ... ok
+test server::validation::p3_tests::p3_budget_counts_frames_times_distinct_outputs ... ok
+test server::validation::p3_tests::p3_error_variants_are_audited_at_the_mcp_boundary ... ok
+test server::validation::p3_tests::p3_public_mapping_rejects_outside_root_and_encodes_url_segments ... ok
+test server::validation::p3_tests::r3_asset_budget_splits_sixteen_requests_without_losing_paths ... ok
+test server::stack_diff::tests::all_layers_report_nested_only_inputs_without_using_them ... ok
+test server::stack_diff::tests::db_entity_layer_flags_missing_entity_field ... ok
+test server::stack_diff::tests::db_entity_layer_does_not_call_a_relation_a_missing_column ... ok
+test server::stack_diff::tests::openapi_client_layer_flags_unknown_operation_id ... ok
+test server::stack_diff::tests::openapi_client_layer_matches_a_camel_case_parameter_to_the_kebab_case_spec ... ok
+test server::projection::w1_regressions::r5_wquw119_missing_mask_size_is_output_scoped_and_not_final ... ok
+test server::project_root::tests::w5_scans_skip_worktrees_and_nested_git_roots ... ok
+test server::stack_diff::tests::route_openapi_layer_flags_route_missing_from_spec ... ok
+test server::project_context::tests::nested_only_theme_reports_each_checkout_kind_without_parsing_it ... ok
+test server::stack_diff::tests::route_openapi_layer_reports_no_drift_when_only_the_spelling_differs ... ok
+test server::stack_diff::tests::route_openapi_layer_says_how_many_routes_only_matched_on_spelling ... ok
+test server::stack_diff::tests::route_openapi_layer_still_reports_a_route_the_spec_really_lacks ... ok
+test server::projection::w1_regressions::r7_auto_debug_resource_has_inline_reprojection_guidance ... ok
+test server::stack_diff::tests::entity_route_layer_ignores_a_models_directory_with_no_vespertide_models ... ok
+test server::stack_diff::tests::stack_diff_skips_openapi_specs_inside_a_nested_worktree ... ok
+test server::projection::w1_regressions::r2_nonrendering_background_and_responsive_keep_code ... ok
+test server::projection::w1_regressions::r13_asset_derivations_survive_map_and_diagnostics_opt_out ... ok
+test server::projection::w1_regressions::r12_oversized_export_retains_artifact_and_callable_resource_projection ... ok
+test server::projection::w1_regressions::r7_real_wquw118_layout_contracts_are_preserved ... ok
+test server::projection::w1_regressions::r9_confirmed_evidence_survives_diagnostics_opt_out ... ok
+test server::projection::w1_regressions::r13_final_frame_contract_covers_both_outputs_after_filename_rewrite ... ok
+test server::projection::w1_regressions::r8_three_frame_nine_output_units_measure_local_projection ... ok
+test server::projection::w1_regressions::r8_final_korean_semantic_map_follows_asset_path_rewrites ... ok
+test server::projection::w1_regressions::r10_resource_note_does_not_claim_nonfinal_tsx_is_final ... ok
+test server::projection::w1_regressions::r4_export_exposes_placement_contract_without_diagnostics ... ok
+test server::projection::w1_regressions::r10_content_sizing_uncertainty_survives_diagnostics_opt_out ... ok
+test server::projection::w1_regressions::r10_diagnostics_identify_exportable_screen ... ok
+test server::projection::w1_regressions::r2_production_six_frames_return_valid_story_tsx ... ok
+test server::projection::w1_regressions::r2_production_layout_evidence_is_actionable_per_output ... ok
+
+test result: ok. 186 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.34s
+
+     Running unittests src\main.rs (target\debug\deps\devup_mcp-7f5300a590dcf287.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\artifact_cache.rs (target\debug\deps\artifact_cache-788e307af666f384.exe)
+
+running 9 tests
+test safe_keys_and_stats_never_serialize_url_credentials_or_payloads ... ok
+test set_like_capture_and_section_inputs_share_one_cache_key ... ok
+test concurrent_related_explore_waits_for_one_compatible_acquisition ... ok
+test concurrent_same_key_requests_share_one_acquisition ... ok
+test evicts_lru_entries_by_count_and_aggregate_bytes ... ok
+test cancelled_owner_does_not_poison_later_same_key_acquisitions ... ok
+test artifact_lookup_preserves_capture_capabilities ... ok
+test concurrent_uncovered_explore_falls_through_to_its_own_acquisition ... ok
+test reuses_same_request_until_expiry_and_refresh_bypasses_it ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\call_cache_resume.rs (target\debug\deps\call_cache_resume-3c1e472db5d84a27.exe)
+
+running 3 tests
+test a_refusal_that_arrives_as_an_answer_is_not_banked ... ok
+test nothing_is_banked_unless_a_directory_was_named ... ok
+test a_second_attempt_does_not_buy_what_the_first_one_banked ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\cli.rs (target\debug\deps\cli-eade5d7a1dcd6118.exe)
+
+running 19 tests
+test build_identity_composes_clean_dirty_and_safe_fallbacks ... ok
+test figma_callback_port_rejects_missing_or_non_numeric_values ... ok
+test figma_client_name_flag_populates_server_config_and_rejects_blank_values ... ok
+test figma_client_credential_and_callback_port_flags_populate_server_config ... ok
+test figma_client_id_and_secret_reject_missing_or_empty_values ... ok
+test no_arguments_use_the_startup_current_directory ... ok
+test resolve_figma_direct_config_prioritizes_cli_arg_over_env ... ok
+test r5_batch_summary_without_asset_identities_cannot_claim_complete ... ok
+test r5_batch_summary_without_discovery_counts_is_incomplete ... ok
+test resolve_figma_direct_config_resolves_client_name_independently_of_credentials ... ok
+test version_and_self_check_are_rejected_when_combined_with_figma_flags ... ok
+test resolve_figma_direct_config_falls_back_to_env_then_to_none ... ok
+test invalid_cli_arguments_fail_without_starting_stdio ... ok
+test repeated_allowed_write_roots_are_validated_before_stdio ... ok
+test version_flag_reports_the_installed_binary_version ... ok
+test self_check_is_local_safe_json ... ok
+test r5_merge_asset_batches_cli_combines_partial_responses ... ok
+test r5_batch_merge_does_not_hide_conflicts_failures_or_unknown_discovery ... ok
+test version_build_id_reports_the_repository_dirty_state ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+     Running tests\composite_export.rs (target\debug\deps\composite_export-5eca1b2253e1959d.exe)
+
+running 20 tests
+test r3_oversized_assets_rejected_before_upstream ... ok
+test r3_asset_job_timeout_keeps_first_asset_and_resumes_pending_read ... ok
+test r3_cancelled_client_recovers_retained_asset_job ... ok
+test strict_export_rejects_partial_payload_before_projection ... ok
+test a_clean_capture_reports_its_projection_shortfall_by_default ... ok
+test explicit_asset_request_exports_once_and_returns_validated_binary ... ok
+test the_collected_design_is_reachable_only_in_debug ... ok
+test artifact_reuse_rejects_file_theme_beyond_captured_scope ... ok
+test artifact_reuse_rejects_a_different_asset_format_or_scale ... ok
+test reference_png_is_acquired_once_and_delivered_as_a_binary_resource ... ok
+test strict_tsx_export_rejects_lossy_projection ... ok
+test r3_asset_job_resumes_only_pending_read_and_recovers_identical_request ... ok
+test r3_different_output_job_does_not_wait_on_unresumable_owner ... ok
+test r3_distinct_resource_jobs_keep_both_manifests_readable ... ok
+test r3_sixteen_assets_succeed_in_recommended_batches ... ok
+test resource_asset_manifest_reconstructs_the_exact_independent_binary ... ok
+test r8_completed_exports_do_not_exhaust_active_job_capacity ... ok
+test one_acquisition_projects_all_outputs_and_artifact_reuse_is_zero_call ... ok
+test p3_public_root_mapping_survives_resource_delivery_and_file_writes ... ok
+test r8_code_only_slow_capture_returns_pollable_job_before_client_deadline ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.03s
+
+     Running tests\downstream_integration.rs (target\debug\deps\downstream_integration-608c4206817ef447.exe)
+
+running 5 tests
+test conversion_asks_to_be_logged_in_rather_than_starting_oauth ... ok
+test node_theme_scope_excludes_file_variables_not_used_by_the_node ... ok
+test reports_partial_instead_of_complete_when_a_child_is_missing ... ok
+test converts_figma_variables_to_structured_devup_json ... ok
+test converts_a_figma_link_to_structured_devup_ui ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\export_defaults.rs (target\debug\deps\export_defaults-d45c7bc16acea0af.exe)
+
+running 10 tests
+test p3_public_root_requires_absolute_existing_directory ... ok
+test p3_large_export_is_rejected_before_collection ... ok
+test the_description_carries_the_guidance_the_usage_report_asked_for ... ok
+test the_published_schema_defaults_to_tsx_alone ... ok
+test p3_schema_exposes_opt_in_and_cost_and_section_contract ... ok
+test r6_source_map_description_explains_cached_reprojection ... ok
+test p3_parameter_failures_do_not_spend_upstream_calls ... ok
+test r6_export_response_identifies_responding_build ... ok
+test the_default_output_is_tsx_alone ... ok
+test devup_json_is_still_available_when_asked_for ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\figma_doctor.rs (target\debug\deps\figma_doctor-551d8ad285817ab6.exe)
+
+running 8 tests
+test configure_action_fails_for_auth_backends_that_do_not_support_it ... ok
+test configure_action_without_client_id_is_rejected ... ok
+test configure_action_persists_credentials_and_never_echoes_the_secret ... ok
+test doctor_reports_measured_credential_source_token_state_and_callback_port ... ok
+test nothing_offers_the_local_dev_mode_server_as_a_path ... ok
+test doctor_action_reports_measured_paths_and_client_setup_data ... ok
+test doctor_action_reflects_connected_status_without_changing_the_status_action_shape ... ok
+test doctor_falls_back_to_default_direct_path_snapshot_for_plain_auth_doubles ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\figma_explore.rs (target\debug\deps\figma_explore-b0b51cde49bc4300.exe)
+
+running 4 tests
+test wquw_151_heading_discovers_the_actual_screen_group ... ok
+test explore_rejects_missing_node_and_out_of_range_limit ... ok
+test related_nodes_reuse_one_explore_projection_without_changing_the_requested_anchor ... ok
+test refresh_bypasses_an_exact_explore_cache_hit ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\figma_explore_limit.rs (target\debug\deps\figma_explore_limit-264f482a205f5ed4.exe)
+
+running 4 tests
+test the_tool_description_states_what_limit_counts ... ok
+test truncation_says_whether_the_limit_or_the_snapshot_cut_the_list ... ok
+test raising_the_limit_never_returns_fewer_candidates ... ok
+test the_projection_budget_does_not_move_with_limit_or_text_preview ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\figma_search_scope.rs (target\debug\deps\figma_search_scope-efccdf244403850a.exe)
+
+running 6 tests
+test an_out_of_range_limit_is_refused_before_collecting ... ok
+test the_tool_description_states_the_scope_rule ... ok
+test a_small_limit_still_returns_in_scope_matches ... ok
+test a_url_without_a_node_id_still_searches_the_whole_file ... ok
+test a_node_id_in_the_url_scopes_the_search_to_that_subtree ... ok
+test frame_scope_does_not_collect_siblings_even_when_nothing_matches ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\ground_truth_tools.rs (target\debug\deps\ground_truth_tools-86046ca8ddd07c5d.exe)
+
+running 15 tests
+test stack_diff_rejects_unknown_layer_names ... ok
+test ui_validate_accepts_tsx_using_only_real_project_tokens ... ok
+test ui_validate_does_not_flag_dynamic_jsx_props_as_runtime_value ... ok
+test ui_validate_catches_runtime_value_inside_css_call ... ok
+test ui_validate_suggests_the_matching_real_token_for_a_hardcoded_hex_color ... ok
+test project_context_api_scope_lists_real_endpoints_and_required_fields ... ok
+test project_context_theme_scope_reads_exact_tokens_from_the_fixture_devup_json ... ok
+test ui_validate_suggests_the_matching_real_token_for_a_hardcoded_px_length ... ok
+test project_context_returns_stop_and_report_guardrail_when_devup_json_is_absent ... ok
+test ui_validate_reports_missing_theme_without_crashing_and_skips_token_checks ... ok
+test ui_validate_catches_the_exact_gray100_regression_from_the_incident ... ok
+test project_context_db_scope_lists_real_columns_and_enum_values ... ok
+test project_context_missing_project_root_also_reports_stop_and_report_guardrail ... ok
+test ui_validate_strict_mode_fails_on_warning_severity_violations ... ok
+test stack_diff_reports_every_requested_layer_with_explicit_confidence ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\live_figma_contract.rs (target\debug\deps\live_figma_contract-1ba250b007c7edf5.exe)
+
+running 4 tests
+test official_fast_theme_completes_in_one_call ... ignored, requires an official Figma MCP fast-theme result on stdin
+test official_mcp_payload_round_trips_without_value_logging ... ignored, requires official Figma MCP results on stdin
+test corrupted_fast_theme_restarts_at_legacy_metadata ... ok
+test corrupted_fast_envelope_restarts_at_legacy_metadata ... ok
+
+test result: ok. 2 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\module_boundaries.rs (target\debug\deps\module_boundaries-e3184ee740c94c15.exe)
+
+running 1 test
+test router_keeps_projection_and_validation_implementation_in_dedicated_modules ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\output_policy.rs (target\debug\deps\output_policy-e8b9d5ffff431238.exe)
+
+running 5 tests
+test resolves_only_files_inside_preopened_roots ... ok
+test rejects_a_directory_symlink_parent_that_escapes_the_root ... ok
+test rejects_duplicate_targets_before_replacing_any_file ... ok
+test commits_multiple_outputs_only_after_every_stage_succeeds ... ok
+test staging_never_deletes_preexisting_internal_looking_siblings ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\rate_limit_patience.rs (target\debug\deps\rate_limit_patience-dfb631caf8cef915.exe)
+
+running 2 tests
+test a_refused_call_is_waited_out_rather_than_ending_the_collection ... ok
+test an_allowance_that_stays_gone_is_reported_rather_than_waited_on_forever ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests\resource_delivery.rs (target\debug\deps\resource_delivery-05b4b68759062677.exe)
+
+running 7 tests
+test attached_outputs_are_bounded_hashed_and_share_artifact_lifetime ... ok
+test failed_file_commit_does_not_publish_or_evict_lru_resources ... ok
+test resource_protocol_lists_manifests_and_round_trips_chunks ... ok
+test reserved_resources_stay_invisible_until_publication ... ok
+test delivery_boundaries_are_deterministic_and_strict ... ok
+test auto_delivery_accounts_for_json_escaping_base64_and_tool_result_duplication ... ok
+test r12_inline_size_errors_report_measured_output_and_wire_sizes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests\responsive_export.rs (target\debug\deps\responsive_export-03825463658223cc.exe)
+
+running 3 tests
+test the_responsive_module_can_be_asked_for_on_its_own ... ok
+test the_page_is_named_after_its_section_when_the_caller_gives_no_name ... ok
+test a_screen_with_other_widths_is_exported_as_one_responsive_module ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\section_export.rs (target\debug\deps\section_export-e14d306f6740329e.exe)
+
+running 5 tests
+test actual_wquw_151_section_fixture_preserves_the_ten_screen_index ... ok
+test p3_all_screens_is_refused_after_index_before_any_screen_reads ... ok
+test a_thrown_section_error_on_the_direct_path_returns_selectable_screens ... ok
+test p3_section_next_action_executes_without_editing_arguments ... ok
+test section_requires_selection_then_exports_requested_or_all_screens_from_one_artifact ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\source_orchestration.rs (target\debug\deps\source_orchestration-762522615b5e1df5.exe)
+
+running 9 tests
+test rejects_unknown_root_layout_before_collecting ... ok
+test search_collects_the_file_and_returns_replayable_node_urls ... ok
+test direct_disconnected_never_starts_oauth ... ok
+test auto_asks_to_be_logged_in_rather_than_starting_oauth ... ok
+test connected_auto_completes_through_the_direct_collector ... ok
+test direct_fast_call_error_restarts_the_legacy_collector ... ok
+test embedded_root_layout_omits_selected_frame_dimensions ... ok
+test ui_output_path_writes_the_generated_artifact_only_when_requested ... ok
+test a_refusal_is_reported_as_itself ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests\stdio_schema_compat_smoke.rs (target\debug\deps\stdio_schema_compat_smoke-4ee0ba62c72f7745.exe)
+
+running 1 test
+test tools_list_over_raw_stdio_has_no_boolean_schemas_and_object_output_types ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\stdio_smoke.rs (target\debug\deps\stdio_smoke-412f70aa9f059b9b.exe)
+
+running 2 tests
+test r7_local_binary_errors_all_carry_identity ... ok
+test fresh_binary_initializes_lists_tools_and_reports_auth_status ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\stdio_tools.rs (target\debug\deps\stdio_tools-b01a8494a0f1b0ca.exe)
+
+running 1 test
+test exposes_the_seven_read_only_devup_figma_tools ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\ui_validate_response.rs (target\debug\deps\ui_validate_response-f15d0b498565df16.exe)
+
+running 14 tests
+test the_tool_description_states_the_ok_rule ... ok
+test the_two_token_counts_name_what_they_count ... ok
+test clean_tsx_reports_clean ... ok
+test an_error_violation_is_distinguished_from_a_strict_failure ... ok
+test r12_strict_warning_with_error_requires_source_edit_not_partial_retry ... ok
+test strict_mode_fails_on_actionable_warnings ... ok
+test exact_token_matches_are_actionable_warnings ... ok
+test a_skipped_token_check_does_not_read_as_a_passed_one ... ok
+test r12_ambiguous_exact_tokens_require_a_source_decision ... ok
+test empty_length_category_is_summarized_once_in_the_response ... ok
+test r12_unique_exact_token_warning_supplies_callable_corrected_arguments ... ok
+test unmatched_literals_are_info_only_in_both_modes ... ok
+test r12_failed_validation_explains_why_source_cannot_be_corrected_automatically ... ok
+test mixed_severities_keep_counts_and_failure_reasons_consistent ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\upstream_error_surfacing.rs (target\debug\deps\upstream_error_surfacing-7f7cffa49f13ec99.exe)
+
+running 5 tests
+test a_stated_retry_after_is_reported_instead_of_a_guess ... ok
+test a_rate_limited_upstream_reports_its_own_reason_not_a_parse_failure ... ok
+test a_payload_that_mentions_the_limit_is_not_mistaken_for_one ... ok
+test an_unflagged_refusal_is_still_read_as_one ... ok
+test r11_tool_failure_has_identical_content_and_structured_error ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_devup_ui-e9fabd8ef7812fe4.exe)
+
+running 36 tests
+test codegen::animation::tests::durations_are_written_like_the_plugin_s ... ok
+test style_props::tests::a_color_prop_and_its_shorthand_are_covered_together ... ok
+test style_props::tests::color_and_length_subsets_are_subsets_of_style_props ... ok
+test style_props::tests::recognizes_known_and_rejects_unknown_props ... ok
+test theme::project_theme::tests::missing_theme_key_yields_empty_categories_not_an_error ... ok
+test style_props::tests::keyword_valued_props_named_color_are_not_color_like ... ok
+test theme::project_theme::tests::finds_length_tokens_matching_hardcoded_px ... ok
+test theme::project_theme::tests::finds_color_tokens_matching_hardcoded_hex ... ok
+test style_props::tests::style_prop_lists_are_sorted_for_binary_search ... ok
+test theme::project_theme::tests::parses_mode_keyed_colors_and_flat_typography ... ok
+test theme::project_theme::tests::tolerates_flattened_single_mode_colors ... ok
+test theme::tokens::style_token_tests::a_breakpoint_or_number_in_front_says_where_not_what ... ok
+test theme::project_theme::tests::rejects_malformed_json ... ok
+test theme::project_theme::tests::suggests_closest_tokens_by_edit_distance ... ok
+test style_props::tests::logical_border_colors_are_covered_like_the_physical_ones ... ok
+test ui_validate::tests::reports_invalid_syntax_as_violation_not_panic ... ok
+test ui_validate::tests::missing_theme_skips_token_check_without_panicking ... ok
+test ui_validate::tests::does_not_flag_pseudo_and_event_props ... ok
+test ui_validate::tests::flags_unknown_prop_on_primitive_element ... ok
+test ui_validate::tests::flags_hardcoded_px_length_with_suggestion ... ok
+test ui_validate::tests::does_not_flag_unknown_prop_on_custom_component ... ok
+test ui_validate::tests::allows_literal_only_css_call ... ok
+test ui_validate::tests::a_reported_hardcoded_value_names_the_token_that_already_holds_it ... ok
+test ui_validate::tests::strict_mode_fails_on_warnings ... ok
+test ui_validate::tests::catches_runtime_value_inside_css_call ... ok
+test ui_validate::tests::flags_hardcoded_hex_color_with_suggestion ... ok
+test ui_validate::tests::dynamic_jsx_props_are_not_flagged_as_runtime_value ... ok
+test ui_validate::tests::a_theme_with_no_length_tokens_is_never_told_to_use_one ... ok
+test ui_validate::tests::unmatched_lengths_are_info_and_exact_matches_remain_warnings ... ok
+test ui_validate::tests::allows_existing_tokens ... ok
+test ui_validate::tests::empty_color_and_length_categories_are_summarized_once_each ... ok
+test ui_validate::tests::catches_the_gray100_regression_case ... ok
+test ui_validate::tests::without_a_theme_both_hardcoded_rules_report_info_without_advice ... ok
+test ui_validate::tests::unmatched_colors_are_info_even_in_strict_mode ... ok
+test provenance::sizing::r14_tests::r14_rounding_rejects_a_centipixel_change_in_generated_height ... ok
+test provenance::sizing::r14_tests::r14_percentage_rechecks_actual_parent_pixels ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests\asset_boundaries.rs (target\debug\deps\asset_boundaries-b270807a4ac54331.exe)
+
+running 10 tests
+test a_raster_pattern_is_referenced_from_the_image_folder ... ok
+test separate_image_fills_do_not_claim_the_same_file ... ok
+test text_node_is_never_an_asset ... ok
+test container_with_only_visible_vector_children_is_an_svg ... ok
+test image_filled_asset_container_preserves_text_children ... ok
+test container_with_vector_and_text_children_is_not_an_asset ... ok
+test smart_animate_node_and_parent_reactions_prevent_asset_classification ... ok
+test transparent_single_child_container_is_the_asset_boundary ... ok
+test a_folded_asset_does_not_anchor_children_it_no_longer_has ... ok
+test decorated_single_child_containers_do_not_collapse ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\asset_manifest_covers_the_code.rs (target\debug\deps\asset_manifest_covers_the_code-009cc7036b9ac50e.exe)
+
+running 1 test
+test every_asset_the_code_points_at_is_one_the_manifest_lists ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\boolean_logos.rs (target\debug\deps\boolean_logos-4e46b7d45f65debd.exe)
+
+running 3 tests
+test missing_descendants_of_a_hidden_logo_do_not_claim_visual_loss ... ok
+test an_unrepresented_missing_child_is_lossy_even_when_every_collected_node_has_tsx ... ok
+test loading_boolean_logos_reference_exportable_svg_without_hiding_missing_operands ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\button_answer.rs (target\debug\deps\button_answer-56d01032a4a14dbd.exe)
+
+running 1 test
+test the_button_definition_is_the_plugin_s ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\codegen.rs (target\debug\deps\codegen-0efd2bf5d70ab180.exe)
+
+running 12 tests
+test normalizes_names_to_valid_typescript_identifiers ... ok
+test mixed_stroke_without_side_weights_does_not_invent_uniform_border ... ok
+test mixed_individual_stroke_emits_only_nonzero_sides ... ok
+test escapes_static_jsx_attribute_values ... ok
+test generates_deterministic_devup_ui_tsx ... ok
+test nested_text_style_uses_typography ... ok
+test standalone_instance_inlining_uses_resolved_children_not_component_props ... ok
+test fully_represented_absolute_frame_is_not_reported_as_a_fallback ... ok
+test r3_absolute_fallback_carries_parent_geometry_and_constraints ... ok
+test records_explicit_diagnostics_for_unsupported_visuals ... ok
+test standalone_instance_inlining_resolves_descendant_boolean_properties ... ok
+test embedded_root_omits_external_geometry_but_anchors_absolute_children ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\color_like_props.rs (target\debug\deps\color_like_props-4dafedac17e4d7bf.exe)
+
+running 5 tests
+test a_keyword_valued_prop_named_color_is_not_reported ... ok
+test a_hardcoded_color_on_bg_is_reported ... ok
+test the_shorthand_and_the_long_form_agree ... ok
+test a_non_color_background_value_is_not_reported ... ok
+test colors_are_always_reported_but_only_exact_matches_warn_and_suggest ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\compat_fixtures.rs (target\debug\deps\compat_fixtures-21def48330d1fa72.exe)
+
+running 1 test
+test upstream_json_goldens ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests\compat_manifest.rs (target\debug\deps\compat_manifest-d83068f8b9bdf329.exe)
+
+running 3 tests
+test manifest_hashes_are_stable_across_checkout_line_endings ... ok
+test coverage_registry_maps_every_inventory_entry_to_real_evidence ... ok
+test pinned_plugin_corpus_is_complete_and_self_consistent ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests\component_projection.rs (target\debug\deps\component_projection-54f7a1dc961fe760.exe)
+
+running 1 test
+test an_instance_is_a_reference_in_one_projection_and_its_parts_in_the_other ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\default_omission_golden.rs (target\debug\deps\default_omission_golden-7590ebc5cb067221.exe)
+
+running 4 tests
+test presence_sensitive_fields_are_never_omitted ... ok
+test every_null_field_the_fixtures_contain_is_classified_deliberately ... ok
+test omitting_default_valued_fields_keeps_every_real_screen_byte_identical ... ok
+test deduping_single_segment_text_keeps_every_real_screen_byte_identical ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 42.70s
+
+     Running tests\effect_fidelity_golden.rs (target\debug\deps\effect_fidelity_golden-40d4a9a780bce670.exe)
+
+running 11 tests
+test an_unknown_effect_type_is_still_reported_lossy ... ok
+test an_invisible_unsupported_effect_is_not_reported_lossy ... ok
+test a_text_shadow_without_spread_is_not_reported_lossy ... ok
+test texture_is_still_reported_lossy ... ok
+test a_lone_layer_blur_is_not_reported_lossy ... ok
+test glass_is_still_reported_lossy ... ok
+test a_text_shadow_that_needs_spread_is_reported_lossy ... ok
+test a_shadow_with_a_non_normal_blend_mode_is_reported_lossy ... ok
+test noise_is_still_reported_lossy ... ok
+test effects_that_convert_exactly_are_not_reported_lossy ... ok
+test a_blur_without_a_radius_is_reported_lossy ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\folded_asset_size.rs (target\debug\deps\folded_asset_size-1339586b786847af.exe)
+
+running 18 tests
+test fixed_non_square_frame_folded_into_mask_keeps_its_size ... ok
+test r5_embedded_hug_asset_reports_host_size_without_pinning_root ... ok
+test r5_empty_non_asset_hug_box_cannot_claim_visible_height ... ok
+test r5_both_hug_mask_uses_measured_anchors_and_records_the_lost_children ... ok
+test r5_hug_asset_missing_geometry_is_not_exact ... ok
+test r5_mask_ratio_keeps_fractional_geometry_precision ... ok
+test r5_fixed_mask_never_receives_hug_repair_provenance ... ok
+test r5_vertical_fill_requires_definite_parent_height ... ok
+test r5_fill_ratio_cannot_bootstrap_a_hug_parent_width ... ok
+test r5_empty_hug_non_asset_cannot_use_percentage_or_wrong_size_as_proof ... ok
+test r5_wquw119_hug_mask_preserves_render_size_and_source_map ... ok
+test r5_absolute_wide_hug_mask_does_not_collapse ... ok
+test r5_asset_size_mapping_to_zero_is_not_evidence ... ok
+test r5_hug_asset_wrong_positive_height_is_not_exact ... ok
+test r5_asset_url_in_non_rendering_attribute_is_not_covered ... ok
+test r5_asset_url_identity_cannot_be_replaced_with_another_file ... ok
+test r5_ratio_without_fill_anchor_or_with_fixed_fill_width_is_not_exact ... ok
+test r5_rotated_or_offset_mask_cannot_claim_responsive_repair ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests\free_placement_anchor.rs (target\debug\deps\free_placement_anchor-45b74df558c1804e.exe)
+
+running 5 tests
+test a_measurable_inset_becomes_padding_and_needs_no_anchor ... ok
+test a_child_that_fills_its_frame_keeps_the_anchor ... ok
+test an_asset_is_not_given_the_opacity_its_export_already_carries ... ok
+test shapes_in_a_pinned_group_are_placed_in_the_group_at_their_own_size ... ok
+test a_pinned_child_drawn_first_goes_behind_the_content_but_one_drawn_second_does_not ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\keyframes_screen.rs (target\debug\deps\keyframes_screen-96533aa1b5d9ebb2.exe)
+
+running 2 tests
+test the_animated_module_passes_the_validator ... ok
+test the_spinner_s_keyframes_are_the_plugin_s ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\local_screens.rs (target\debug\deps\local_screens-cdd2cfb235a0446c.exe)
+
+running 1 test
+test every_captured_screen_converts_and_accounts_for_itself ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\manifest_trim_golden.rs (target\debug\deps\manifest_trim_golden-75c757cd9490090e.exe)
+
+running 4 tests
+test the_trimmed_collection_is_materially_smaller_for_the_same_node ... ok
+test the_recorded_end_to_end_tsx_carries_every_measured_design_value ... ok
+test no_field_the_converter_reads_was_dropped_from_the_trimmed_nodes ... ok
+test the_trimmed_manifest_produces_the_same_tsx_as_the_full_legacy_collection ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\paint_opacity_golden.rs (target\debug\deps\paint_opacity_golden-0f672159de8e5494.exe)
+
+running 3 tests
+test masked_asset_bg_keeps_the_paint_opacity ... ok
+test masked_asset_bg_omits_the_alpha_byte_when_the_paint_is_opaque ... ok
+test the_asset_path_and_the_plain_path_agree_on_the_same_paint ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\pinned_size_restatement.rs (target\debug\deps\pinned_size_restatement-c86a69dc2a5b103b.exe)
+
+running 2 tests
+test a_padded_container_does_not_also_restate_its_size ... ok
+test a_folded_asset_still_states_the_size_it_was_pinned_to ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\placement_contract.rs (target\debug\deps\placement_contract-f143c434b440ea71.exe)
+
+running 10 tests
+test r4_hidden_absolute_child_does_not_pin_a_fluid_screen ... ok
+test r4_absolute_instance_wrapper_discloses_omitted_fixed_sizes ... ok
+test r4_absolute_capture_root_discloses_external_containing_block ... ok
+test r4_section_selection_reports_the_actual_rendered_root ... ok
+test r4_embedded_root_anchors_children_and_discloses_host_size ... ok
+test r4_nonfixed_containing_block_discloses_content_size_dependency ... ok
+test r4_capture_boundary_states_root_basis_and_missing_parent ... ok
+test r4_page_root_keeps_a_background_absolute_child_behind_content ... ok
+test r4_absolute_root_isolates_its_background_child ... ok
+test r4_wquw_120_root_owns_absolute_modal_coordinates ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\plugin_compat.rs (target\debug\deps\plugin_compat-243b9629f047092d.exe)
+
+running 3 tests
+test import_metadata_is_sorted_deduplicated_and_stable ... ok
+test component_usage_preserves_variants_boolean_and_text_properties ... ok
+test responsive_provider_covers_sections_variants_and_pure_code_first ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\polymorphic_props.rs (target\debug\deps\polymorphic_props-c0535895235e7084.exe)
+
+running 2 tests
+test r12_intrinsic_as_accepts_the_rendered_elements_attributes ... ok
+test r12_as_does_not_disable_unknown_prop_or_leak_to_other_elements ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\provenance.rs (target\debug\deps\provenance-2a3d190ad6b1ca3c.exe)
+
+running 22 tests
+test strict_fidelity_rejects_an_approximated_impact ... ok
+test devup_json_pointers_trace_variable_alias_and_style_sources ... ok
+test inline_instance_provenance_offsets_reference_sorted_and_prefixed_final_tsx ... ok
+test component_set_provenance_offsets_reference_the_wrapped_final_tsx ... ok
+test r2_component_set_nonrendering_asset_retains_valid_code_without_reference ... ok
+test strict_fidelity_requires_source_asset_identity_mapping ... ok
+test a_canvas_root_dimension_is_not_counted_as_an_unmet_layout_fact ... ok
+test variant_component_set_rebuilds_nonempty_provenance_over_final_tsx ... ok
+test r5_extra_text_in_a_valid_mapping_is_not_exact ... ok
+test strict_fidelity_rejects_corrupted_text_style_identity ... ok
+test non_default_variant_missing_child_is_lossy_not_falsely_covered ... ok
+test strict_fidelity_uses_snapshot_variables_instead_of_emitted_mappings_as_denominator ... ok
+test r5_resource_identity_requires_the_expected_token_and_style ... ok
+test strict_fidelity_requires_every_multiline_text_segment_in_the_mapped_final_range ... ok
+test strict_fidelity_requires_layout_property_mappings_not_only_node_trace ... ok
+test strict_fidelity_consumes_repeated_text_segment_mappings_one_to_one ... ok
+test semantic_map_traces_components_text_props_and_resources ... ok
+test non_default_nested_variant_difference_is_lossy_not_falsely_covered ... ok
+test strict_fidelity_uses_snapshot_semantics_even_if_trace_disposition_is_corrupted ... ok
+test text_fidelity_matches_the_final_jsx_encoding_of_multiline_special_characters ... ok
+test r5_fully_overridden_mixed_fill_is_not_a_rendered_variable ... ok
+test asset_boundaries_exclude_internal_and_descendant_layout_fields ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\r10_content_sizing.rs (target\debug\deps\r10_content_sizing-5290240f0a4162fa.exe)
+
+running 3 tests
+test r10_content_sizing_does_not_require_unrelated_typography_props ... ok
+test r10_content_sizing_claim_is_rechecked_against_source_and_generated_element ... ok
+test r10_content_sizing_accounts_for_intent_and_keeps_pixel_uncertainty ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\r13_provenance.rs (target\debug\deps\r13_provenance-f87a5fd4cbac7da4.exe)
+
+running 3 tests
+test r13_parser_covers_expressions_spreads_and_boolean_props_without_reading_comments ... ok
+test r13_every_final_attribute_has_property_mapping_or_projection_evidence ... ok
+test r13_contract_rejects_new_attributes_changed_values_and_wrong_element ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests\r14_absolute_evidence.rs (target\debug\deps\r14_absolute_evidence-c1015fcbf04dfd7d.exe)
+
+running 9 tests
+test r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof ... ok
+test r14_asset_boundary_read_error_cannot_be_verified ... ok
+test r14_asset_fill_is_not_a_verified_fixed_export_dimension ... ok
+test r14_asset_boundary_rounding_and_inherited_constraints_are_separate ... ok
+test r14_far_edge_boundary_proof_rejects_parent_size_read_errors ... ok
+test r14_null_and_absent_constraints_report_actual_fallback_without_promoting_it ... ok
+test r14_percentage_relation_is_independent_of_the_observed_360px_width ... ok
+test r14_fixed_width_percentage_proves_equal_containing_block_without_changing_css ... ok
+test r14_percentage_rejects_mismatch_unknown_parent_and_read_errors ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.72s
+
+     Running tests\r6_vertical_sizing.rs (target\debug\deps\r6_vertical_sizing-f94ab0d5eb53ee28.exe)
+
+running 13 tests
+test r6_horizontal_body_does_not_sum_side_by_side_child_heights ... ok
+test r6_divider_width_is_verified_implicit_stretch ... ok
+test r6_fractional_fixed_height_keeps_its_verified_sizing_mapping ... ok
+test r6_nested_vertical_fill_uses_the_ancestor_height_basis ... ok
+test r6_centered_parent_does_not_explain_divider_width ... ok
+test r6_overflowing_fill_body_can_shrink_without_displacing_bottom_action ... ok
+test r6_completion_fixed_root_fill_body_and_bottom_action ... ok
+test r6_embedded_vertical_relation_requires_host_height ... ok
+test r6_stretch_proof_is_rechecked_after_generated_parent_changes ... ok
+test r6_lost_vertical_semantics_cannot_pass_fidelity ... ok
+test r6_unknown_parent_css_is_not_claimed_as_verified ... ok
+test r6_hug_and_fill_roots_are_not_pinned_to_captured_height ... ok
+test r6_replay_records_existing_frames_without_hiding_new_losses ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+     Running tests\r7_layout.rs (target\debug\deps\r7_layout-ff7b26681661430c.exe)
+
+running 10 tests
+test r7_cross_axis_constraints_are_not_hidden_by_stretch ... ok
+test r7_cross_axis_fill_overrides_center_without_percentage_height ... ok
+test r7_main_axis_fill_accounts_for_remaining_width ... ok
+test r7_main_axis_changed_gap_stays_lossy_with_reason ... ok
+test r7_auto_text_explicitly_reports_unverified_font_metrics ... ok
+test r7_replaced_element_minimum_is_not_assumed_zero ... ok
+test r7_fixed_sibling_with_flex_cannot_be_subtracted_as_fixed_width ... ok
+test r7_forged_main_axis_resolution_is_rechecked ... ok
+test r7_mixed_horizontal_strokes_are_not_ignored ... ok
+test r7_main_axis_unproven_constraints_remain_lossy ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\r8_absolute_scroll.rs (target\debug\deps\r8_absolute_scroll-2f94ad257e63741e.exe)
+
+running 4 tests
+test r8_scroll_intent_overrides_clipping ... ok
+test r8_all_four_sizing_resolutions_have_semantic_mapping ... ok
+test r8_semantic_map_has_properties_without_encoding_offsets ... ok
+test r8_absolute_fixed_height_survives_derived_padding ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-2e064b5dabb56ef1.exe)
+
+running 16 tests
+test r9_source_map_documents_optional_identifiers_and_resolutions ... ok
+test r9_verified_pixels_do_not_override_fill_asset_sizing ... ok
+test r9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence ... ok
+test r9_non_rendering_requires_explicit_evidence ... ok
+test r9_captured_non_rendering_asset_and_read_error_are_distinguished ... ok
+test r9_hidden_absolute_root_has_no_placement_fidelity_loss ... ok
+test r9_hidden_node_records_accounted_for_evidence ... ok
+test r9_verified_absolute_components_clear_only_their_own_impact ... ok
+test r9_center_relation_does_not_certify_mutated_parent_width ... ok
+test r9_absolute_verification_is_rechecked_after_generated_css_changes ... ok
+test r9_parent_side_border_requires_containing_block_proof ... ok
+test r9_preserved_height_has_verified_resolution ... ok
+test r9_legacy_exact_still_reports_and_rechecks_constraints ... ok
+test r9_center_offset_and_field_errors_are_not_verified ... ok
+test r9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides ... ok
+test r9_absolute_reports_verified_axes_and_remaining_width ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.77s
+
+     Running tests\responsive_alignment.rs (target\debug\deps\responsive_alignment-0eb9daa9befe6d2f.exe)
+
+running 3 tests
+test a_single_width_has_nothing_to_line_up ... ok
+test the_places_the_widths_part_company_are_named_and_no_others ... ok
+test widths_keep_the_section_s_order_and_carry_their_rank ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\responsive_merge.rs (target\debug\deps\responsive_merge-43791a550fe185d3.exe)
+
+running 10 tests
+test a_leading_default_is_dropped ... ok
+test a_node_hidden_at_every_width_stays_a_literal ... ok
+test one_width_never_produces_an_array ... ok
+test a_width_lands_in_the_slot_its_size_falls_into ... ok
+test the_popup_screen_is_reproduced_prop_for_prop ... ok
+test the_about_screen_needs_every_slot ... ok
+test the_notice_screen_display_toggles_are_reproduced ... ok
+test a_prop_outside_the_cleared_set_is_left_to_inherit ... ok
+test r2_visibility_restores_middle_breakpoint_between_hidden_assets ... ok
+test widths_that_agree_are_left_alone ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\responsive_screen.rs (target\debug\deps\responsive_screen-f026dabb56576c93.exe)
+
+running 11 tests
+test every_element_the_module_draws_is_one_it_imports ... ok
+test a_variant_that_differs_by_width_is_reported_not_faked ... ok
+test components_are_referenced_and_shapes_are_spelled_out ... ok
+test the_about_screen_matches_the_answer_when_both_are_present ... ok
+test the_display_arrays_are_the_reference_s ... ok
+test the_popup_screen_matches_the_answer_when_both_are_present ... ok
+test every_merged_module_passes_the_validator ... ok
+test the_notice_screen_matches_the_answer_when_both_are_present ... ok
+test the_widths_land_where_their_sizes_put_them ... ok
+test the_order_of_the_widths_decides_which_one_stands_in_for_a_missing_one ... ok
+test the_shape_of_the_output_is_the_reference_s ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\root_canvas_width.rs (target\debug\deps\root_canvas_width-77d45fb3f10c0fb0.exe)
+
+running 3 tests
+test a_child_that_happens_to_be_full_width_still_states_it ... ok
+test without_a_recorded_parent_type_the_width_is_still_emitted ... ok
+test a_screen_on_a_section_does_not_restate_its_canvas_width ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\single_frame_answers.rs (target\debug\deps\single_frame_answers-b95bfdf7ea8cf687.exe)
+
+running 3 tests
+test the_report_section_is_the_plugin_s ... ok
+test the_notice_desktop_is_the_plugin_s_pure_code ... ok
+test the_grid_of_pictures_is_the_plugin_s ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\testcase_expectations.rs (target\debug\deps\testcase_expectations-dd5e444031946e07.exe)
+
+running 1 test
+test generated_code_matches_what_each_case_states ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\theme.rs (target\debug\deps\theme-0034585f72092e65.exe)
+
+running 6 tests
+test reports_alias_cycles_instead_of_inventing_values ... ok
+test unresolved_variables_do_not_remove_independent_valid_tokens ... ok
+test node_scope_keeps_used_alias_dependencies_and_excludes_unused_resources ... ok
+test maps_variables_modes_aliases_and_styles_to_devup_json ... ok
+test resolves_token_conflicts_deterministically_across_input_orders ... ok
+test styles_named_for_a_breakpoint_become_one_responsive_entry ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\unresolved_token_binding.rs (target\debug\deps\unresolved_token_binding-4a5f9d18889c70c8.exe)
+
+running 2 tests
+test a_binding_whose_name_never_arrived_is_reported_rather_than_quietly_resolved ... ok
+test a_binding_the_catalog_carried_is_written_as_its_token ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\validation.rs (target\debug\deps\validation-9f019b47fd152678.exe)
+
+running 2 tests
+test syntax_accepts_nested_typescript_jsx ... ok
+test syntax_rejects_invalid_tsx_without_echoing_source_text ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\variant_nesting.rs (target\debug\deps\variant_nesting-ba9d01fe927cef4d.exe)
+
+running 7 tests
+test a_boolean_property_becomes_an_optional_prop_and_a_guard ... ok
+test a_node_some_variants_do_not_hold_is_guarded_by_the_ones_that_do ... ok
+test a_prop_two_dimensions_decide_is_written_as_a_map_inside_a_map ... ok
+test a_branch_whose_options_agree_collapses_to_the_value ... ok
+test the_sheet_a_variant_was_laid_out_on_does_not_reach_the_component ... ok
+test a_combination_never_drawn_is_not_a_hole_but_a_refused_value_is ... ok
+test what_a_text_node_says_is_a_variant_too ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\variant_typography.rs (target\debug\deps\variant_typography-320b5fc42fe0b67b.exe)
+
+running 2 tests
+test a_typography_map_is_frozen_before_it_is_indexed ... ok
+test nothing_else_is_frozen ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\wquw_151.rs (target\debug\deps\wquw_151-3f3ae59690bc4cbe.exe)
+
+running 1 test
+test actual_wquw_151_screen_preserves_children_tokens_and_typography ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running tests\wquw_151_frames.rs (target\debug\deps\wquw_151_frames-eebbf31f6e6fc76b.exe)
+
+running 3 tests
+test actual_section_lists_exactly_ten_screens_in_visual_order ... ok
+test every_actual_frame_is_reachable_and_preserves_text_and_resource_ids ... ok
+test every_actual_frame_generates_reviewed_devup_ui ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.41s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_figma-1d9c5a6fa8d628d0.exe)
+
+running 22 tests
+test metadata::tests::prose_without_any_element_is_still_rejected ... ok
+test metadata::tests::a_preamble_and_a_footer_together_are_tolerated ... ok
+test metadata::tests::bare_xml_still_parses ... ok
+test metadata::tests::a_selected_nodes_preamble_is_tolerated ... ok
+test metadata::tests::an_instruction_footer_is_tolerated ... ok
+test search::tests::fuzzy_matching_is_opt_in ... ok
+test oauth::p4_tests::p4_tls_initialization_error_preserves_actionable_cause ... ok
+test search::tests::ranks_exact_normalized_prefix_and_contains_with_breadcrumbs ... ok
+test variables::tests::merges_compact_consumer_fragments_in_range_order ... ok
+test collector::w5_tests::w5_file_search_still_schedules_all_thirteen_pages ... ok
+test upstream::tests::expired_session_reconnects_and_reverifies_capabilities ... ok
+test upstream::tests::bounded_session_reuses_one_connection_and_one_filtered_capability_catalog ... ok
+test upstream::tests::ordinary_tool_error_evicts_its_remote_session ... ok
+test upstream::tests::stalled_connection_returns_a_bounded_safe_timeout ... ok
+test upstream::tests::stalled_capability_catalog_returns_a_bounded_safe_timeout ... ok
+test upstream::tests::stalled_tool_call_times_out_and_evicts_its_remote_session ... ok
+test collector::w5_tests::w5_previews_are_retained_when_the_envelope_has_room ... ok
+test collector::w5_tests::p4_section_keeps_long_page_and_nested_automatic_screens ... ok
+test collector::w5_tests::w5_node_search_finishes_in_one_call_without_page_catalog ... ok
+test collector::w5_tests::w5_empty_search_preserves_anchor_and_ancestry ... ok
+test collector::w5_tests::w5_search_accepts_section_and_frame_roots_without_scanning_siblings ... ok
+test collector::w5_tests::w5_text_preview_does_not_change_candidates_or_projection_truncation ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests\assets.rs (target\debug\deps\assets-f58217e4c6535a42.exe)
+
+running 16 tests
+test decorated_single_child_containers_do_not_replace_their_children ... ok
+test hidden_node_is_reported_as_unexportable_instead_of_available ... ok
+test a_node_clipped_out_of_sight_is_reported_as_unexportable ... ok
+test asset_leaf_with_one_non_tiled_image_fill_is_a_png_asset ... ok
+test bare_vector_is_an_svg_asset_but_text_is_not ... ok
+test manifest_preserves_image_and_vector_source_details_without_exporting_bytes ... ok
+test requesting_a_hidden_asset_is_rejected_with_the_reason ... ok
+test a_frame_holding_one_picture_is_exported_as_the_node_not_a_fill_it_lacks ... ok
+test icon_container_wins_over_its_vector_fragments ... ok
+test an_svg_payload_inlined_beside_the_descriptor_is_decoded_from_its_text ... ok
+test a_missing_asset_payload_reports_the_shapes_that_were_present ... ok
+test only_svg_and_png_exports_are_carried_in_fragments ... ok
+test exported_asset_validates_descriptor_bytes_hash_and_requested_settings ... ok
+test collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failure ... ok
+test an_svg_over_the_inline_cap_arrives_in_fragments ... ok
+test a_png_over_the_attachment_cap_arrives_in_fragments ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\collector.rs (target\debug\deps\collector-eabe9905ef75d9d2.exe)
+
+running 42 tests
+test file_scope_starts_from_the_file_even_when_the_url_contains_a_node ... ok
+test official_top_level_page_list_expands_to_page_metadata_calls ... ok
+test malformed_or_rejected_fast_theme_restarts_legacy_collection_atomically ... ok
+test accepts_the_official_xml_metadata_envelope_without_inventing_values ... ok
+test a_fast_theme_page_that_does_not_advance_is_refused ... ok
+test exposes_at_most_four_in_flight_calls ... ok
+test large_page_is_split_in_declared_child_order ... ok
+test node_collection_advances_from_metadata_to_snapshot_to_complete ... ok
+test explore_collection_starts_with_one_bounded_projection_and_no_resources ... ok
+test rejected_fast_call_can_restart_legacy_collection ... ok
+test reference_png_rejects_an_image_nested_outside_the_official_result ... ok
+test legacy_used_resources_combine_variables_and_styles_in_one_call ... ok
+test exact_node_fast_path_accepts_the_stringified_handoff_contract ... ok
+test metadata_only_file_collection_completes_without_snapshot_calls ... ok
+test rejected_exact_section_probe_pivots_to_the_compact_index ... ok
+test rejects_snapshot_from_a_different_file_version ... ok
+test reference_png_rejects_a_signature_only_payload ... ok
+test reference_png_rejects_an_image_hidden_in_json_text ... ok
+test rejects_unknown_or_replayed_call_ids ... ok
+test reference_png_rejects_a_truncated_image ... ok
+test reference_png_rejects_multiple_image_content_blocks ... ok
+test reference_png_rejects_zero_content_blocks ... ok
+test failed_fast_and_legacy_section_root_is_reported_without_losing_siblings ... ok
+test reference_png_rejects_dimensions_above_the_decode_bound ... ok
+test exact_node_fast_path_completes_in_one_call ... ok
+test requested_reference_png_is_collected_after_the_design_snapshot ... ok
+test a_paged_fast_theme_is_read_page_by_page_and_merged ... ok
+test malformed_fast_result_restarts_legacy_from_metadata ... ok
+test node_snapshot_follows_the_compiled_cursor_until_complete ... ok
+test section_collection_without_selection_completes_after_the_compact_index ... ok
+test style_consumers_are_planned_as_compact_bounded_fragments ... ok
+test section_collection_indexes_before_planning_selected_roots ... ok
+test a_family_gathered_around_the_target_pages_through_the_fast_path ... ok
+test oversized_section_root_uses_legacy_once_and_preserves_fast_resources ... ok
+test failed_section_batch_retries_only_its_root_and_preserves_fast_resources ... ok
+test variable_batches_merge_in_catalog_order_when_results_arrive_out_of_order ... ok
+test used_scope_resolves_only_snapshot_references_and_keeps_partial_results ... ok
+test variable_collection_uses_catalog_then_batched_resources ... ok
+test variables_only_file_collection_skips_page_and_node_snapshots ... ok
+test failed_section_continuations_do_not_restart_over_accepted_large_values ... ok
+test section_boolean_operands_are_collected_from_each_roots_continuation ... ok
+test section_pages_reject_mismatched_or_nonadvancing_cursors ... ok
+
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\envelope.rs (target\debug\deps\envelope-58a3630fe689d926.exe)
+
+running 19 tests
+test missing_fast_envelope_text_is_rejected ... ok
+test a_first_page_that_omits_the_root_is_still_rejected ... ok
+test json_stringified_fast_theme_result_round_trips ... ok
+test a_cursor_marker_missing_offset_is_rejected ... ok
+test a_complete_single_page_envelope_still_requires_full_child_containment ... ok
+test duplicate_tagged_envelopes_are_rejected ... ok
+test a_final_page_with_an_explicit_cursor_still_requires_full_child_containment ... ok
+test a_non_final_page_may_reference_children_that_have_not_arrived_yet ... ok
+test a_continuation_page_may_omit_the_root_that_a_prior_page_already_sent ... ok
+test valid_snapshot_envelope_round_trips_without_an_image ... ok
+test valid_fast_theme_envelope_round_trips_and_validates_counts ... ok
+test json_stringified_official_mcp_result_round_trips ... ok
+test a_reserialized_envelope_decodes_even_though_its_byte_count_no_longer_matches ... ok
+test duplicate_cursor_markers_are_rejected ... ok
+test valid_multi_root_envelope_requires_the_exact_ordered_root_set ... ok
+test schema_target_and_resource_integrity_are_validated ... ok
+test a_single_root_request_accepts_the_family_the_script_gathered_around_it ... ok
+test oversized_stringified_upstream_result_is_rejected_before_json_decode ... ok
+test a_text_envelope_is_bounded_but_leaves_headroom_above_the_producer_budget ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\explore.rs (target\debug\deps\explore-b0d6d0556a705200.exe)
+
+running 7 tests
+test classification_distinguishes_heading_screen_annotation_and_container ... ok
+test exact_screen_anchor_is_returned_without_semantic_guessing ... ok
+test section_notes_combine_direct_text_and_descendant_annotations ... ok
+test heading_group_keeps_duplicate_states_and_stops_at_the_next_heading ... ok
+test candidate_order_is_stable_and_the_two_truncations_are_reported_apart ... ok
+test nested_heading_uses_its_section_scope_without_replacing_the_public_anchor ... ok
+test target_classification_and_section_candidates_are_explicit_and_complete ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\figma_url.rs (target\debug\deps\figma_url-b7f3ee0b5430c2a4.exe)
+
+running 6 tests
+test errors_do_not_echo_query_secrets ... ok
+test parses_design_link_and_normalizes_dash_node_id ... ok
+test accepts_file_and_branch_routes ... ok
+test rejects_malformed_keys_and_node_ids ... ok
+test rejects_non_figma_and_deceptive_hosts ... ok
+test serializes_the_stable_public_error_code ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\large_values.rs (target\debug\deps\large_values-351de2fb071d0c56.exe)
+
+running 4 tests
+test rejects_conflicting_duplicate_missing_and_wrong_identity_fragments ... ok
+test reassembles_out_of_order_fragments_and_accepts_identical_duplicates ... ok
+test collector_marks_large_value_as_unsupported_when_upstream_rejects_continuation ... ok
+test collector_resolves_every_descriptor_before_completing_the_snapshot ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\manifest_covers_readers.rs (target\debug\deps\manifest_covers_readers-52e7c9bc3238c03f.exe)
+
+running 1 test
+test every_field_the_code_reads_is_a_field_the_collector_requests ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\oauth_flow.rs (target\debug\deps\oauth_flow-5a235cb446d7f8ad.exe)
+
+running 13 tests
+test client_secret_never_appears_in_debug_output ... ok
+test default_client_name_is_codex_and_remains_overridable ... ok
+test p4_invalid_oauth_endpoint_does_not_panic ... ok
+test direct_path_snapshot_reports_measured_credential_and_port_state ... ok
+test blank_client_name_override_falls_back_to_the_default ... ok
+test logout_clears_persisted_authorization ... ok
+test direct_path_snapshot_probes_the_real_callback_port_state ... ok
+test occupied_callback_port_fails_immediately_instead_of_waiting ... ok
+test dcr_403_is_classified_as_catalog_rejected_with_actionable_options ... ok
+test static_client_credentials_skip_dynamic_client_registration ... ok
+test configured_client_name_is_sent_verbatim_to_dynamic_client_registration ... ok
+test login_discovers_registers_uses_pkce_and_stores_tokens ... ok
+test a_dcr_issued_client_secret_is_used_for_the_token_exchange_and_refresh ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\payload_contract.rs (target\debug\deps\payload_contract-4b383732c331c5f5.exe)
+
+running 4 tests
+test payload_context_rejects_a_different_figma_target ... ok
+test completeness_report_combines_graph_and_unresolved_resource_state ... ok
+test structure_report_contains_shapes_but_no_design_values ... ok
+test collected_payload_round_trips_without_losing_unknown_fields ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\r7_section_error.rs (target\debug\deps\r7_section_error-14ba6a0786a27049.exe)
+
+running 2 tests
+test r7_section_script_reports_actual_ancestor_and_correction ... ok
+test r7_section_recovery_does_not_select_a_nested_text_node ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\r8_scroll_capture.rs (target\debug\deps\r8_scroll_capture-d75fc84572470c8a.exe)
+
+running 1 test
+test r8_capture_distinguishes_scroll_none_absent_and_failed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests\r9_render_bounds_capture.rs (target\debug\deps\r9_render_bounds_capture-ba31ce246e3b12d8.exe)
+
+running 1 test
+test r9_capture_preserves_explicit_null_without_inventing_missing_bounds ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+     Running tests\section.rs (target\debug\deps\section-a7e6afaa26260d8c.exe)
+
+running 9 tests
+test p1_no_automatic_screens_explains_explicit_selection ... ok
+test packing_uses_two_balanced_batches_for_a_nontrivial_visual_sequence ... ok
+test index_offers_small_cases_standing_beside_screen_shaped_notes ... ok
+test index_contains_top_level_visible_children_in_visual_order ... ok
+test p1_all_screens_matches_explore_but_small_cases_remain_explicitly_selectable ... ok
+test r10_compact_index_corrects_descendant_selection_without_selecting_silently ... ok
+test r11_section_queries_requested_ids_and_refreshes_unknown_cached_ownership ... ok
+test selection_and_batches_are_strict_bounded_and_deterministic ... ok
+test r11_large_section_script_behavior_runs_in_cargo_suite ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests\snapshot.rs (target\debug\deps\snapshot-d85f713f8faa3fcc.exe)
+
+running 12 tests
+test audit_fails_when_a_requested_root_is_missing ... ok
+test audit_preserves_declared_order_for_missing_children ... ok
+test audit_reports_observed_child_count_mismatches ... ok
+test audit_marks_missing_children_parent_mismatches_and_field_loss_partial ... ok
+test audit_treats_hidden_and_expanded_instance_children_as_complete ... ok
+test merges_chunks_by_node_id_and_keeps_child_order ... ok
+test extracts_snapshot_from_structured_or_text_mcp_results ... ok
+test preserves_known_unknown_and_failed_fields_without_loss ... ok
+test structured_diagnostic_round_trips_safe_recovery_context ... ok
+test rejects_cross_version_and_conflicting_chunks ... ok
+test typed_views_are_additive_over_the_raw_snapshot ... ok
+test r11_snapshot_extraction_reports_safe_failure_location_and_schema ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\upstream_contract.rs (target\debug\deps\upstream_contract-3dacc8452487277d.exe)
+
+running 19 tests
+test explore_uses_a_bounded_spatial_projection ... ok
+test explore_never_reads_scene_only_visibility_from_a_page ... ok
+test asset_export_uses_only_compiled_read_only_export_settings ... ok
+test large_values_use_a_compiled_bounded_read_only_continuation ... ok
+test snapshot_accepts_only_compiled_in_scripts ... ok
+test snapshot_collects_styled_text_segments_from_the_compiled_manifest ... ok
+test section_index_exposes_compact_candidates_without_descendant_fields ... ok
+test maps_every_read_call_to_the_fixed_figma_tool_contract ... ok
+test search_uses_a_compiled_read_only_page_projection ... ok
+test snapshot_is_byte_bounded_and_cursor_driven ... ok
+test fast_theme_collects_complete_local_theme_and_used_remote_resources_read_only ... ok
+test style_consumers_use_async_compact_range_projection ... ok
+test used_resources_use_exact_ids_without_file_catalog_or_consumers ... ok
+test fast_snapshot_resolves_every_compiled_placeholder_for_the_requested_root ... ok
+test snapshot_manifest_covers_fields_the_devup_ui_converter_actually_reads ... ok
+test snapshot_reads_only_manifest_properties_supported_by_the_runtime_node ... ok
+test fast_snapshot_is_paginated_manifest_scoped_and_read_only ... ok
+test multi_root_fast_snapshot_embeds_only_validated_root_ids ... ok
+test built_in_scripts_expose_only_read_operations ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\upstream_failures.rs (target\debug\deps\upstream_failures-231c7799fbe78864.exe)
+
+running 4 tests
+test caller_mistakes_are_separated_from_failures_behind_the_call ... ok
+test classifies_upstream_failures_from_boundary_metadata ... ok
+test error_codes_have_stable_json_values ... ok
+test classified_errors_never_copy_the_raw_upstream_message ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\used_resources.rs (target\debug\deps\used_resources-b7c4985caa12d4fb.exe)
+
+running 4 tests
+test variable_aliases_are_collected_from_any_lossless_snapshot_field ... ok
+test scanner_collects_bound_variables_and_every_supported_style_field ... ok
+test exact_id_script_fetches_used_resources_without_style_consumers ... ok
+test scanner_is_deterministic_and_ignores_unbound_ids_and_mixed_sentinels ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_visual-6a90e5c77ca57b4c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\devup_mcp_visual-df32b603e03c68d4.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\compare.rs (target\debug\deps\compare-a2272504b72dd270.exe)
+
+running 2 tests
+test tolerance_and_dimension_mismatch_are_explicit ... ok
+test exact_and_changed_pngs_report_deterministic_metrics_and_diff ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests devup_mcp
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests devup_mcp_devup_ui
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests devup_mcp_figma
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests devup_mcp_visual
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

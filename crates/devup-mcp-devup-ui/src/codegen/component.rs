@@ -1203,6 +1203,13 @@ fn finalize_codegen_output(
                 }
                 let details = diagnostic.details.as_mut().unwrap();
                 details["components"] = components.clone();
+                details["appliedValue"]["widthPreservation"] = components["width"].clone();
+                details["componentSummary"] = serde_json::json!({
+                    "verified": (["height", "width", "horizontal", "vertical"].into_iter()
+                        .filter(|name| components[*name]["fidelityImpact"] == "none").collect::<Vec<_>>()),
+                    "unresolved": (["height", "width", "horizontal", "vertical"].into_iter()
+                        .filter(|name| components[*name]["fidelityImpact"] != "none").collect::<Vec<_>>())
+                });
                 details["resolutionConditions"] = serde_json::json!(unresolved);
                 details["classification"] = serde_json::json!(if verified {
                     "verified-absolute-components"

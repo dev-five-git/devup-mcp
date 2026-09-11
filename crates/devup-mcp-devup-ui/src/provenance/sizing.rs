@@ -69,8 +69,20 @@ pub(crate) fn absolute_component_verification(
             && ["minW", "maxW", "minH", "maxH", "flex"]
                 .iter()
                 .all(|name| prop(tag, name).is_none());
-        // Only source-matching auto-layout containers have this percentage proof.
-        let percentage = auto_layout
+        // An absolute Box with derived padding need not be an auto-layout
+        // container. Its percentage still resolves in the emitted positioned
+        // parent. Keep this extension on width; retain the prior height proof.
+        let absolute_width = axis == "width"
+            && !node.field_errors.contains_key("layoutMode")
+            && prop(tag, "pos") == Some("absolute")
+            && view.string("layoutPositioning") == Some("ABSOLUTE")
+            && !node.field_errors.contains_key("layoutPositioning")
+            && matches!(
+                prop(parent_tag, "pos"),
+                Some("relative" | "absolute" | "fixed")
+            )
+            && prop(parent_tag, "transform").is_none();
+        let percentage = (auto_layout || absolute_width)
             && no_parent_border
             && generated == Some("100%")
             && view.string(sizing) == Some("FIXED")
@@ -100,10 +112,35 @@ pub(crate) fn absolute_component_verification(
                     .iter()
                     .all(|name| prop(parent_tag, name).is_none())
             });
-        json!({"state":if preserved {"preserved"} else if intrinsic || percentage {"verified"} else {"approximated"},"fidelityImpact":if preserved || intrinsic || percentage {"none"} else {"approximated"},
+        let mut evidence = json!({"state":if preserved {"preserved"} else if intrinsic || percentage {"verified"} else {"approximated"},"fidelityImpact":if preserved || intrinsic || percentage {"none"} else {"approximated"},
             "sourceSizing":view.string(sizing),"sourceValue":original,"generatedValue":generated,
-            "reason":if preserved {"Explicit generated pixels equal the collected FIXED dimension."} else if intrinsic {"Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels."} else if percentage {"Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders."} else {"No verified explicit FIXED dimension; percentage, intrinsic or missing sizes need a separate sizing proof."},
-            "resolutionCondition":"Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."})
+            "reason":if preserved {"Explicit generated pixels equal the collected FIXED dimension."} else if intrinsic {"Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels."} else if percentage && absolute_width {"Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides."} else if percentage {"Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders."} else {"No verified explicit FIXED dimension; percentage, intrinsic or missing sizes need a separate sizing proof."},
+            "resolutionCondition":"Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."});
+        if axis == "width" {
+            evidence["sourceFields"] = json!([
+                "width",
+                "layoutSizingHorizontal",
+                "layoutPositioning",
+                "parentId",
+                "parent.width",
+                "parent.layoutSizingHorizontal"
+            ]);
+            evidence["parentGeneratedValue"] =
+                json!(prop(parent_tag, name).or_else(|| prop(parent_tag, "boxSize")));
+            evidence["resolvedPixels"] = json!(if percentage || preserved {
+                original
+            } else {
+                None
+            });
+            evidence["calculation"] = json!(if preserved {
+                "Generated explicit px width equals the source FIXED width."
+            } else if intrinsic {
+                "No explicit width on a matching HUG auto-layout container; intrinsic sizing intent is verified without resolving pixels."
+            } else {
+                "For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation."
+            });
+        }
+        evidence
     };
     let common = prop(tag, "pos") == Some("absolute")
         && owner.is_some_and(|p| p.node_type == "FRAME")
@@ -195,12 +232,14 @@ pub(crate) fn absolute_component_verification(
             "reason":if verified {"Collected offset and emitted CSS agree in the emitted immediate positioned parent; without a declared constraint only the captured local offset is verified."} else {"Constraint, geometry, read errors, containing block or emitted props do not satisfy the bounded CENTER/MIN/MAX proof; STRETCH/SCALE and MAX with unverified sizing require separate proofs."},
             "resolutionCondition":"Collect error-free local geometry and constraints; establish the emitted immediate containing block; verify MIN offset, zero CENTER offset with exact translation, or MAX margin with verified sizing, without conflicting props."})
     };
-    json!({"height":height,"width":width,
+    let mut components = json!({"height":height,"width":width,
         "horizontal":axis(horizontal,"x","width","left","right"),"vertical":axis(vertical,"y","height","top","bottom"),
-        "containingBlock":{"parentId":owner.map(|p|&p.id),"generatedParent":parent_tag,"generatedChild":tag}})
+        "containingBlock":{"parentId":owner.map(|p|&p.id),"generatedParent":parent_tag,"generatedChild":tag}});
+    super::absolute_bounds::annotate(snapshot, node, owner, tag, parent_tag, &mut components);
+    components
 }
 
-fn prop<'a>(opening: &'a str, name: &str) -> Option<&'a str> {
+pub(super) fn prop<'a>(opening: &'a str, name: &str) -> Option<&'a str> {
     let needle = format!("{name}=\"");
     let start = find_prop(opening, &needle)? + needle.len();
     opening[start..].split_once('"').map(|(v, _)| v)
@@ -879,4 +918,51 @@ pub(super) fn content_sizing_accounted(
         ]
         .iter()
         .all(|name| find_prop(tag, &format!("{name}=")).is_none())
+}
+
+#[cfg(test)]
+mod r14_tests {
+    use super::*;
+    use crate::codegen::{CodegenOptions, generate_component};
+
+    #[test]
+    fn r14_rounding_rejects_a_centipixel_change_in_generated_height() {
+        let s: Snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r14/asset-snapshot.json"))
+                .unwrap();
+        let mut o = generate_component(&s, "3997:46667", &CodegenOptions::default()).unwrap();
+        let before = absolute_component_verification(&s, &o, "3997:46668");
+        assert_eq!(before["height"]["rounding"]["state"], "verified");
+        // Same byte length keeps source ranges valid, exercising the audit of
+        // actual emitted values instead of trusting a resolution label.
+        o.tsx = o.tsx.replace("117.67px", "117.66px");
+        let after = absolute_component_verification(&s, &o, "3997:46668");
+        assert_eq!(after["height"]["rounding"]["state"], "unverified");
+        assert_eq!(after["height"]["state"], "approximated");
+    }
+
+    #[test]
+    fn r14_percentage_rechecks_actual_parent_pixels() {
+        let s: Snapshot =
+            serde_json::from_str(include_str!("../../../../fixtures/r8/modal-snapshot.json"))
+                .unwrap();
+        let mut o = generate_component(
+            &s,
+            "3997:46582",
+            &CodegenOptions {
+                inline_instances: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            absolute_component_verification(&s, &o, "3997:46621")["width"]["state"],
+            "verified"
+        );
+        o.tsx = o.tsx.replacen("w=\"360px\"", "w=\"359px\"", 1);
+        assert_eq!(
+            absolute_component_verification(&s, &o, "3997:46621")["width"]["state"],
+            "approximated"
+        );
+    }
 }

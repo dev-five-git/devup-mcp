@@ -1,0 +1,42 @@
+   Compiling windows-sys v0.61.2
+   Compiling aho-corasick v1.1.5
+   Compiling regex-automata v0.4.18
+   Compiling socket2 v0.6.5
+   Compiling mio v1.2.2
+   Compiling tokio v1.53.1
+   Compiling regex v1.13.1
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling windows-native-keyring-store v1.1.0
+   Compiling keyring v4.2.0
+   Compiling cap-primitives v4.0.3
+   Compiling hyper v1.11.1
+   Compiling hyper-util v0.1.20
+   Compiling tower v0.5.3
+   Compiling tokio-rustls v0.26.4
+   Compiling tower-http v0.6.11
+   Compiling hyper-rustls v0.27.9
+   Compiling tokio-util v0.7.19
+   Compiling tokio-stream v0.1.19
+   Compiling reqwest v0.13.4
+   Compiling axum v0.8.9
+   Compiling rmcp v3.2.0
+   Compiling matchers v0.2.0
+   Compiling nu-ansi-term v0.50.3
+   Compiling devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp)
+   Compiling tracing-subscriber v0.3.23
+   Compiling cap-std v4.0.3
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-figma)
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp-e7c3ff09bf3cef75.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\devup_mcp-e7c3ff09bf3cef75.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 04s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp-e7c3ff09bf3cef75.exe)
+
+running 1 test
+test server::projection::w1_regressions::r2_production_layout_evidence_is_actionable_per_output ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 185 filtered out; finished in 1.95s
+

@@ -1,0 +1,4 @@
+    Checking devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-devup-ui)
+    Checking devup-mcp v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp)
+    Checking devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-figma)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.24s

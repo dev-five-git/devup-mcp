@@ -8,6 +8,7 @@ use crate::codegen::{
     AssetKind, CodegenOutput, asset_kind, derived_padding, placed_by_a_free_layout,
 };
 
+mod absolute_bounds;
 pub mod attributes;
 mod sizing;
 pub(crate) use sizing::absolute_component_verification;

@@ -1,0 +1,254 @@
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.13.4
+   Compiling rmcp v3.2.0
+   Compiling devup-mcp-figma v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-figma)
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r9_precision-879ea00139ecb6a4.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r9_precision-879ea00139ecb6a4.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r9_precision") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r8_absolute_scroll-005ec92e95784092.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r8_absolute_scroll-005ec92e95784092.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r8_absolute_scroll") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r14_absolute_evidence-fec758715b259016.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\r14_absolute_evidence-fec758715b259016.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r14_absolute_evidence") generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\wquw_151-eca47123f337dbbe.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\target\debug\deps\wquw_151-eca47123f337dbbe.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "wquw_151") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 40.21s
+     Running tests\r14_absolute_evidence.rs (target\debug\deps\r14_absolute_evidence-fec758715b259016.exe)
+
+running 9 tests
+test r14_assets_without_export_bounds_retain_the_existing_explicit_dimension_proof ... ok
+test r14_asset_boundary_rounding_and_inherited_constraints_are_separate ... ok
+test r14_far_edge_boundary_proof_rejects_parent_size_read_errors ... ok
+test r14_asset_boundary_read_error_cannot_be_verified ... ok
+test r14_asset_fill_is_not_a_verified_fixed_export_dimension ... ok
+test r14_null_and_absent_constraints_report_actual_fallback_without_promoting_it ... ok
+test r14_percentage_relation_is_independent_of_the_observed_360px_width ... ok
+test r14_fixed_width_percentage_proves_equal_containing_block_without_changing_css ... ok
+test r14_percentage_rejects_mismatch_unknown_parent_and_read_errors ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.71s
+
+     Running tests\r8_absolute_scroll.rs (target\debug\deps\r8_absolute_scroll-005ec92e95784092.exe)
+
+running 4 tests
+test r8_scroll_intent_overrides_clipping ... ok
+test r8_all_four_sizing_resolutions_have_semantic_mapping ... ok
+test r8_semantic_map_has_properties_without_encoding_offsets ... ok
+test r8_absolute_fixed_height_survives_derived_padding ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests\r9_precision.rs (target\debug\deps\r9_precision-879ea00139ecb6a4.exe)
+
+running 16 tests
+test r9_source_map_documents_optional_identifiers_and_resolutions ... ok
+test r9_verified_pixels_do_not_override_fill_asset_sizing ... ok
+test r9_non_rendering_asset_coverage_rechecks_raw_and_generated_evidence ... ok
+test r9_non_rendering_requires_explicit_evidence ... ok
+test r9_captured_non_rendering_asset_and_read_error_are_distinguished ... ok
+test r9_hidden_absolute_root_has_no_placement_fidelity_loss ... ok
+test r9_hidden_node_records_accounted_for_evidence ... ok
+test r9_verified_absolute_components_clear_only_their_own_impact ... ok
+test r9_center_relation_does_not_certify_mutated_parent_width ... ok
+test r9_absolute_verification_is_rechecked_after_generated_css_changes ... ok
+test r9_parent_side_border_requires_containing_block_proof ... ok
+test r9_preserved_height_has_verified_resolution ... ok
+test r9_legacy_exact_still_reports_and_rechecks_constraints ... ok
+test r9_center_offset_and_field_errors_are_not_verified ... ok
+test r9_intrinsic_and_percentage_proofs_reject_read_errors_and_overrides ... ok
+test r9_absolute_reports_verified_axes_and_remaining_width ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.82s
+
+     Running tests\wquw_151.rs (target\debug\deps\wquw_151-eca47123f337dbbe.exe)
+
+running 1 test
+stored new snapshot C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds\crates\devup-mcp-devup-ui\tests\snapshots\wquw_151__wquw_151_proofread_diagnostics.snap.new
+test actual_wquw_151_screen_preserves_children_tokens_and_typography ... FAILED
+
+failures:
+
+---- actual_wquw_151_screen_preserves_children_tokens_and_typography stdout ----
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Snapshot Summary ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Snapshot file: crates\devup-mcp-devup-ui\tests\snapshots\wquw_151__wquw_151_proofread_diagnostics.snap
+Snapshot: wquw_151_proofread_diagnostics
+Source: C:\Users\owjs3\orca\workspaces\devup-mcp\r14-absolute-width-asset-bounds:177
+───────────────────────────────────────────────────────────────────────────────
+Expression: json!(output.diagnostics)
+───────────────────────────────────────────────────────────────────────────────
+-old snapshot
++new results
+────────────┬──────────────────────────────────────────────────────────────────
+  253   253 │           "sourceHeight": 40.0,
+  254   254 │           "state": "not-fixed",
+  255   255 │           "basis": "Generated explicit height; derived padding alone is not a fixed-height guarantee."
+  256   256 │         },
+  257       │-        "derivedPadding": null
+        257 │+        "derivedPadding": null,
+        258 │+        "widthPreservation": {
+        259 │+          "state": "verified",
+        260 │+          "fidelityImpact": "none",
+        261 │+          "sourceSizing": "HUG",
+        262 │+          "sourceValue": 40.0,
+        263 │+          "generatedValue": null,
+        264 │+          "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
+        265 │+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+        266 │+          "sourceFields": [
+        267 │+            "width",
+        268 │+            "layoutSizingHorizontal",
+        269 │+            "layoutPositioning",
+        270 │+            "parentId",
+        271 │+            "parent.width",
+        272 │+            "parent.layoutSizingHorizontal"
+        273 │+          ],
+        274 │+          "parentGeneratedValue": "100%",
+        275 │+          "resolvedPixels": null,
+        276 │+          "calculation": "No explicit width on a matching HUG auto-layout container; intrinsic sizing intent is verified without resolving pixels."
+        277 │+        }
+  258   278 │       },
+  259   279 │       "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
+  260   280 │       "stage": "projection",
+  261   281 │       "components": {
+┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+  274   294 │           "sourceSizing": "HUG",
+  275   295 │           "sourceValue": 40.0,
+  276   296 │           "generatedValue": null,
+  277   297 │           "reason": "Source HUG is emitted as intrinsic size on a matching auto-layout container without dimension overrides; this verifies sizing intent, not measured pixels.",
+  278       │-          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+        298 │+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+        299 │+          "sourceFields": [
+        300 │+            "width",
+        301 │+            "layoutSizingHorizontal",
+        302 │+            "layoutPositioning",
+        303 │+            "parentId",
+        304 │+            "parent.width",
+        305 │+            "parent.layoutSizingHorizontal"
+        306 │+          ],
+        307 │+          "parentGeneratedValue": "100%",
+        308 │+          "resolvedPixels": null,
+        309 │+          "calculation": "No explicit width on a matching HUG auto-layout container; intrinsic sizing intent is verified without resolving pixels."
+  279   310 │         },
+  280   311 │         "horizontal": {
+  281   312 │           "state": "verified",
+  282   313 │           "fidelityImpact": "none",
+┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+  310   341 │           "generatedParent": "    <VStack\n          bg=\"$background\"\n          borderRadius=\"12px\"\n          gap=\"8px\"\n          p=\"16px\"\n          pos=\"relative\"\n          w=\"100%\"\n        ",
+  311   342 │           "generatedChild": "      <Flex\n            alignItems=\"center\"\n            borderRadius=\"1000px\"\n            p=\"10px\"\n            pos=\"absolute\"\n            right=\"8px\"\n            top=\"8px\"\n          "
+  312   343 │         }
+  313   344 │       },
+        345 │+      "componentSummary": {
+        346 │+        "verified": [
+        347 │+          "height",
+        348 │+          "width",
+        349 │+          "horizontal",
+        350 │+          "vertical"
+        351 │+        ],
+        352 │+        "unresolved": []
+        353 │+      },
+  314   354 │       "resolutionConditions": [],
+  315   355 │       "classification": "verified-absolute-components"
+  316   356 │     }
+  317   357 │   },
+┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+  661   701 │           "sourceHeight": 67.0,
+  662   702 │           "state": "not-fixed",
+  663   703 │           "basis": "Generated explicit height; derived padding alone is not a fixed-height guarantee."
+  664   704 │         },
+  665       │-        "derivedPadding": null
+        705 │+        "derivedPadding": null,
+        706 │+        "widthPreservation": {
+        707 │+          "state": "verified",
+        708 │+          "fidelityImpact": "none",
+        709 │+          "sourceSizing": "FIXED",
+        710 │+          "sourceValue": 360.0,
+        711 │+          "generatedValue": "100%",
+        712 │+          "reason": "Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides.",
+        713 │+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+        714 │+          "sourceFields": [
+        715 │+            "width",
+        716 │+            "layoutSizingHorizontal",
+        717 │+            "layoutPositioning",
+        718 │+            "parentId",
+        719 │+            "parent.width",
+        720 │+            "parent.layoutSizingHorizontal"
+        721 │+          ],
+        722 │+          "parentGeneratedValue": "360px",
+        723 │+          "resolvedPixels": 360.0,
+        724 │+          "calculation": "For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation."
+        725 │+        }
+  666   726 │       },
+  667   727 │       "evidenceLimit": "Generated source and collected geometry are comparison evidence, not measured browser layout or proof of responsive equivalence.",
+  668   728 │       "stage": "projection",
+  669   729 │       "components": {
+┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+  681   741 │           "fidelityImpact": "none",
+  682   742 │           "sourceSizing": "FIXED",
+  683   743 │           "sourceValue": 360.0,
+  684   744 │           "generatedValue": "100%",
+  685       │-          "reason": "Auto-layout percentage equals the source FIXED dimension in an explicit equal-sized FIXED parent without padding or borders.",
+  686       │-          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation."
+        745 │+          "reason": "Absolute percentage resolves to the collected FIXED width in the emitted immediate positioned parent with equal explicit FIXED pixels, no parent padding/borders or dimension overrides.",
+        746 │+          "resolutionCondition": "Verify the emitted dimension against source sizing; percentage sizing also requires a proven containing-block size and responsive relation.",
+        747 │+          "sourceFields": [
+        748 │+            "width",
+        749 │+            "layoutSizingHorizontal",
+        750 │+            "layoutPositioning",
+        751 │+            "parentId",
+        752 │+            "parent.width",
+        753 │+            "parent.layoutSizingHorizontal"
+        754 │+          ],
+        755 │+          "parentGeneratedValue": "360px",
+        756 │+          "resolvedPixels": 360.0,
+        757 │+          "calculation": "For a proven containing block: resolved width = 100 / 100 * generated parent width in px = source FIXED width. Unknown or unequal parent widths, read errors, non-FIXED sizing and conflicting dimension props do not establish this relation."
+  687   758 │         },
+  688   759 │         "horizontal": {
+  689   760 │           "state": "verified",
+  690   761 │           "fidelityImpact": "none",
+┈┈┈┈┈┈┈┈┈┈┈┈┼┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
+  718   789 │           "generatedParent": "<VStack\n      bg=\"$backgroundLight\"\n      h=\"740px\"\n      overflow=\"hidden\"\n      pos=\"relative\"\n      w=\"360px\"\n    ",
+  719   790 │           "generatedChild": "  <Flex\n        alignItems=\"center\"\n        bg=\"$containerBackground\"\n        borderTop=\"solid 1px $border\"\n        bottom=\"0px\"\n        justifyContent=\"space-between\"\n        left=\"0px\"\n        overflow=\"hidden\"\n        pos=\"absolute\"\n        px=\"10px\"\n        py=\"8px\"\n        w=\"100%\"\n      "
+  720   791 │         }
+  721   792 │       },
+        793 │+      "componentSummary": {
+        794 │+        "verified": [
+        795 │+          "height",
+        796 │+          "width",
+        797 │+          "horizontal",
+        798 │+          "vertical"
+        799 │+        ],
+        800 │+        "unresolved": []
+        801 │+      },
+  722   802 │       "resolutionConditions": [],
+  723   803 │       "classification": "verified-absolute-components"
+  724   804 │     }
+  725   805 │   },
+────────────┴──────────────────────────────────────────────────────────────────
+To update snapshots run `cargo insta review`
+Stopped on the first failure. Run `cargo insta test` to run all snapshots.
+
+thread 'actual_wquw_151_screen_preserves_children_tokens_and_typography' (87608) panicked at C:\Users\owjs3\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\insta-1.48.0\src\runtime.rs:719:13:
+snapshot assertion for 'wquw_151_proofread_diagnostics' failed in line 177
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    actual_wquw_151_screen_preserves_children_tokens_and_typography
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test wquw_151`
+error: 1 target failed:
+    `-p devup-mcp-devup-ui --test wquw_151`

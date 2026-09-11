@@ -3843,7 +3843,13 @@ mod w1_regressions {
             let issues = result["projectionIssues"].as_array().unwrap();
             for issue in issues
                 .iter()
-                .filter(|i| i["code"] == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK")
+                .chain(result["projectionEvidence"].as_array().unwrap())
+                .filter(|i| {
+                    matches!(
+                        i["code"].as_str(),
+                        Some("DEVUP_CODEGEN_ABSOLUTE_FALLBACK" | "DEVUP_CODEGEN_ABSOLUTE_VERIFIED")
+                    )
+                })
             {
                 let original = &issue["details"]["originalValue"];
                 assert_eq!(original["x"], 0);
@@ -3931,7 +3937,24 @@ mod w1_regressions {
             }
             if count == 40 {
                 let frame = &result["frames"][0];
-                assert_eq!(frame["outputResults"]["tsx"]["projection"], "approximated");
+                // R14 proves the modal's width in its definite containing
+                // block. Component-reference loss in componentTsx is separate.
+                assert_eq!(frame["outputResults"]["tsx"]["projection"], "exact");
+                let modal = frame["projectionEvidence"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|d| {
+                        d["nodeId"] == "3997:46621"
+                            && d["code"] == "DEVUP_CODEGEN_ABSOLUTE_VERIFIED"
+                            && d["details"]["output"] == "tsx"
+                    })
+                    .unwrap();
+                assert_eq!(
+                    modal["details"]["components"]["width"]["generatedValue"],
+                    "100%"
+                );
+                assert_eq!(modal["details"]["components"]["width"]["state"], "verified");
                 assert_eq!(
                     frame["outputResults"]["componentTsx"]["projection"],
                     "lossy"
