@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Report layout provenance in both directions so source fields without generated output can no longer pass as exact. Verify absolute width, asset boundary selection and rounding separately from constraint assumptions. Derive asset evidence wording from the actual property writer. Explain resolution labels, verdict scope and blocked promotion reasons. Identify deployments by commit rather than version, and surface token match modes, filter semantics, validator source positions and recovery arguments.",
+  "date": "2026-09-11T23:13:34+09:00"
+}
