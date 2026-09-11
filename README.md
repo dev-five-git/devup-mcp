@@ -650,3 +650,13 @@ ABSOLUTE 진단의 `components`는 height/width/horizontal/vertical별 state·fi
 HUG 검증은 원본과 일치하는 생성 auto-layout에서 크기 override 없이 intrinsic sizing 의도를 표현했는지 확인합니다. FIXED percentage 크기는 일치하는 auto-layout과 명시적으로 같은 크기인 FIXED 부모, 테두리·padding·min/max override 부재가 확인된 제한된 경우만 검증합니다. CENTER 검증은 원본의 중심 오프셋 0과 생성 CSS의 중심 관계를 뜻합니다. 부모가 커질 때 원래 x를 고정한다는 뜻이 아니며, 부모의 명시적 px 값이 바뀌면 부모 자신의 dimension coverage 재검증이 실패합니다. 검증된 명시적 크기 매핑은 canvas/derived-padding의 일반 생략 규칙으로 재검증 의무를 면제하지 않습니다.
 
 `projectionEvidence`는 확인된 비렌더와 검증 완료 ABSOLUTE 항목의 근거를 담으며, `includeDiagnostics=false`여도 최상위 및 프레임 응답에 제공합니다. 미해결 근사는 `projectionIssues`에 남으므로 두 배열을 구분해 읽습니다.
+
+### R13 생성 속성 provenance와 출력 전달
+
+최종 TSX의 모든 JSX 속성(표현식·boolean·spread 포함)을 파서로 검사합니다. 기존 `sourceMap`에 없는 속성은 생성 단계의 원본 필드와 계산으로 대조하며, 확인된 항목은 `DEVUP_CODEGEN_PROPERTY_EVIDENCE`로 `projectionEvidence`에 남깁니다. `sourceFields`, `originalValue`, `calculation`, `stage`, `generatedProperty`, `elementIndex`, `assetId` 및 `details.output`을 함께 읽습니다. 자산 경계 보정은 render bounds와 bounding box의 차이, 효과는 원본 `effects`를 근거로 남깁니다. 이 근거는 생성 계산의 대응이며 SVG/CSS 효과의 브라우저 합성 실측이 아닙니다.
+
+설명할 수 없는 속성은 `DEVUP_CODEGEN_PROPERTY_UNMAPPED`, `mappingComplete=false`로 항상 보고합니다. 값은 유지되므로 이 진단의 `fidelityImpact`는 `none`입니다. 다른 손실·근사가 없는 경우 `quality.projection=mapping-incomplete`가 되며 `exact`와 최종 완료 판정을 허용하지 않습니다. 기존 lossy·approximated 판정은 유지합니다. 반응형 병합은 개별 breakpoint source mapping만으로 병합 속성을 증명할 수 없으므로 같은 진단을 제공합니다. `strict`는 매핑 누락도 거절합니다. `tsx`와 `componentTsx`를 함께 요청한 경우 `sourceMap.byOutput`이 출력별 map을 구분하며 기존 단일 map 필드는 호환성을 위해 유지합니다.
+
+`outputPaths`의 프레임 출력 키는 `frame:<nodeId>:<output>`입니다. 예: `{"frame:3997:46715:tsx":"C:/allowed/Screen.tsx","frame:3997:46715:sourceMap":"C:/allowed/Screen.map.json"}`. `outputPathResults.supportedKeys`는 이번 투영에서 실제 쓸 수 있는 키를 열거합니다. 프레임 응답에 일반 `tsx`/`sourceMap` 키를 쓰거나 미지원·미생성 출력 키를 쓰면 `outputPathResults.diagnostics`에 명시하며 조용히 무시하지 않습니다. 최상위 단일 출력은 기존 일반 키를 사용합니다. `outputPaths` 응답은 성공적으로 커밋한 파일만 나타냅니다. 자산 binary는 계속 `assetRequests[].outputPath`를 사용합니다.
+
+명시적 `resource`와 자동 resource 전환 모두 `nextAction.tool/arguments`로 동일 artifact의 작은 본문 대조 예시를 제공합니다. 일반 화면은 단일 frame·단일 출력이며 파일을 다시 쓰지 않습니다. `sizeEstimate.outputBytes`는 기존 선택 출력의 UTF-8 바이트 수(PNG는 binary 바이트 수)이고 `minimumWireBytes`는 메타데이터를 제외한 JSON 중복 전송 하한입니다. 재투영 응답의 전체 크기는 실측하지 않았으므로 한도 미만의 경우에도 `inlineFit=unknown`입니다. 확실히 한도를 넘는 경우 resource를 안내하며, inline 크기 초과 시 기존 R12 교정 인자를 유지합니다. 자산 요청·출력 경로가 코드 URL을 결정하는 경우에는 원래 결합된 resource 인자를 유지하여 잘못된 본문 대조를 방지합니다.

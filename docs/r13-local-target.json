@@ -1,0 +1,22 @@
+{
+  "workspace": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r13-postprocess-provenance",
+  "target": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r13-postprocess-provenance\\target",
+  "cargoTargetDirSet": false,
+  "binaries": [
+    {
+      "path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r13-postprocess-provenance\\target\\debug\\devup-mcp.exe",
+      "sha256": "52E8D3583DD6E2A1EE10BB24AA2C7D8954EC3DD1550979354AF40C4FD283C98C",
+      "modifiedUtc": "2026-09-11T03:01:49.3222694Z"
+    },
+    {
+      "path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r13-postprocess-provenance\\target\\debug\\deps\\devup_mcp-bbcce4741168dc25.exe",
+      "sha256": "4DD52FF75477F2E8298CF6C03F8586A41874B9C1C9892FEBFE78310A077AADF2",
+      "modifiedUtc": "2026-09-11T03:03:45.6402459Z"
+    },
+    {
+      "path": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r13-postprocess-provenance\\target\\debug\\deps\\r13_provenance-f87a5fd4cbac7da4.exe",
+      "sha256": "EA3D74DC5E3A76012E8B426E774219209B7ED550BBF109D79D0F03E7DF809EA3",
+      "modifiedUtc": "2026-09-11T03:02:54.8729452Z"
+    }
+  ]
+}

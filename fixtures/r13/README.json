@@ -1,0 +1,32 @@
+{
+  "source": "C:\\Users\\owjs3\\orca\\workspaces\\girok-space\\wquw-118-fr007-question-trial-send\\docs\\wquw-118-followup\\calls.json",
+  "sha256": "b3a53bf996ff4ed4594e86028c5752bb47e2dfbb3504bf0a6da429da1dbe343a",
+  "arguments": [
+    {
+      "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/?node-id=4279-7806",
+      "frameIds": [
+        "3997:46715"
+      ],
+      "outputs": [
+        "tsx",
+        "rawSnapshot",
+        "sourceMap",
+        "assetManifest"
+      ],
+      "debug": true,
+      "delivery": "inline"
+    },
+    {
+      "jobId": "asset-a81e6aad4fc36eb5",
+      "jobAction": "status"
+    }
+  ],
+  "server": {
+    "version": "0.4.4",
+    "buildId": "a66fc287d0b4",
+    "commit": "a66fc287d0b4"
+  },
+  "originalProjection": "exact",
+  "fixtureExtraction": "second response.structuredContent.rawSnapshot, unchanged JSON values",
+  "scope": "Generated values and mapping only; no browser SVG/CSS composition measurement"
+}

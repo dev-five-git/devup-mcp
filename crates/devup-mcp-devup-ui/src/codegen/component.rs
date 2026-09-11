@@ -1212,8 +1212,9 @@ fn finalize_codegen_output(
             }
         }
     }
-    output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     output.source_map.describe_properties(&output.tsx);
+    crate::provenance::attributes::audit_properties(snapshot, &mut output, options, root_id);
+    output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     Ok(output)
 }
 

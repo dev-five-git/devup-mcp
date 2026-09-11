@@ -1,0 +1,14 @@
+
+running 1 test
+
+thread 'r13_every_final_attribute_has_property_mapping_or_projection_evidence' (29600) panicked at crates\devup-mcp-devup-ui\tests\r13_provenance.rs:34:5:
+Unmapped generated attributes: ["flexShrink=\"0\"", "maskPos=\"center\"", "maskRepeat=\"no-repeat\"", "maskSize=\"contain\"", "flexShrink=\"0\"", "wordBreak=\"keep-all\"", "flexShrink=\"0\"", "maskPos=\"center\"", "maskRepeat=\"no-repeat\"", "maskSize=\"contain\"", "wordBreak=\"keep-all\"", "wordBreak=\"keep-all\"", "maskPos=\"center\"", "maskRepeat=\"no-repeat\"", "maskSize=\"contain\"", "wordBreak=\"keep-all\"", "wordBreak=\"keep-all\"", "wordBreak=\"keep-all\"", "wordBreak=\"keep-all\"", "boxShadow=\"0 4px 32px 0 #46608740\"", "objectFit=\"none\"", "objectPos=\"-32px -28px\"", "wordBreak=\"keep-all\"", "boxShadow=\"0 4px 32px 0 #46608740\"", "objectFit=\"none\"", "objectPos=\"-32px -28px\"", "wordBreak=\"keep-all\"", "boxShadow=\"0 4px 32px 0 #46608740\"", "objectFit=\"none\"", "objectPos=\"-32px -28px\""]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test r13_every_final_attribute_has_property_mapping_or_projection_evidence ... FAILED
+
+failures:
+
+failures:
+    r13_every_final_attribute_has_property_mapping_or_projection_evidence
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
