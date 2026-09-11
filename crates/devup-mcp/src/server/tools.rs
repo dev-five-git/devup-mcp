@@ -140,6 +140,7 @@ pub struct ProjectContextInput {
     #[serde(default)]
     pub project_root: Option<String>,
     #[serde(default)]
+    /// Literal case-sensitive substring match, not a regular expression. Example: primary matches primaryBg but not Primary; .* matches only the literal characters .*. Theme: token names; API: path, lowercase method, operationId and schema name; DB: table name.
     pub filter: Option<String>,
 }
 
@@ -153,6 +154,9 @@ pub struct ProjectContextInput {
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
     pub tsx: String,
+    /// Optional source label echoed in diagnostics; never read as a file path.
+    #[serde(default)]
+    pub source_name: Option<String>,
     #[serde(default)]
     pub project_root: Option<String>,
     #[serde(default)]

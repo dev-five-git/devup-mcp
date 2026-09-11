@@ -308,3 +308,19 @@ test("oversized required nodes collapse to a bounded required-only projection", 
     /DEVUP_EXPLORE_PROJECTION_TOO_LARGE/,
   );
 });
+
+test("R17 Section preview exhaustion is distinct from absent text", async () => {
+  const frames = Array.from({length: 23}, (_, i) => {
+    const text = sceneNode({id: `t${i}`, type: "TEXT"});
+    text.characters = "한글😀".repeat(200);
+    return sceneNode({id: `f${i}`, type: "FRAME", children: [text]});
+  });
+  const section = sceneNode({id: "section", type: "SECTION", children: frames});
+  pageWith(section);
+  const result = await executeSection(section);
+  assert.equal(result.nodes.at(-1).fields.textPreviewState, "budget-exhausted");
+  const empty = sceneNode({id: "empty", type: "FRAME"});
+  const small = sceneNode({id: "small", type: "SECTION", children: [empty]});
+  pageWith(small);
+  assert.equal((await executeSection(small)).nodes[1].fields.textPreviewState, "no-text");
+});

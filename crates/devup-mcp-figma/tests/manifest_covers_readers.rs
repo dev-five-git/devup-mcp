@@ -29,6 +29,7 @@ const NOT_NODE_FIELDS: &[&str] = &[
     "projectionTruncated",
     "subtreeNodeCount",
     "textPreview",
+    "textPreviewState", // Computed preview-budget status, not a Figma node property.
     // Read only on the explore path, whose script reads the node directly
     // rather than through the manifest.
     "absoluteBoundingBox",

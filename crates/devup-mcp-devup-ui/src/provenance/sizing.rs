@@ -701,13 +701,13 @@ pub(crate) fn implicit_css_verification(
         return json!({"state":"not-verifiable","parentId":parent.id,"reason":"The emitted parent is not a known flex primitive; its CSS cannot be verified."});
     };
     let sizing = match field {
-        "width" => "layoutSizingHorizontal",
+        "width" | "layoutSizingHorizontal" => "layoutSizingHorizontal",
         "height" | "layoutSizingVertical" => "layoutSizingVertical",
         _ => {
             return json!({"state":"not-accounted-for","reason":"Flex stretch does not account for this field."});
         }
     };
-    let width = field == "width";
+    let width = matches!(field, "width" | "layoutSizingHorizontal");
     let view = node.typed_view();
     let source_mode = parent.typed_view().string("layoutMode");
     let cross = if width {
@@ -773,6 +773,26 @@ pub(super) fn sizing_mapping_matches(
         return false;
     };
     let view = node.typed_view();
+    if field == "layoutSizingHorizontal" {
+        if view.string(field) != Some("FILL") {
+            return false;
+        }
+        if matches!(source, "w=\"100%\"" | "boxSize=\"100%\"") {
+            return fill_axis_is_established(snapshot, output, id, "width")
+                && (matches!(prop(child_tag, "pos"), Some("absolute" | "fixed"))
+                    || parent(snapshot, output, id)
+                        .and_then(|p| node_opening(output, &p.id))
+                        .is_some_and(|s| flex_axis(s) == Some("VERTICAL")));
+        }
+        let parent_axis = parent(snapshot, output, id)
+            .and_then(|p| node_opening(output, &p.id))
+            .and_then(flex_axis);
+        return matches!(
+            (source, parent_axis),
+            ("flex=\"1\"", Some("HORIZONTAL")) | ("alignSelf=\"stretch\"", Some("VERTICAL"))
+        ) && implicit_css_verification(snapshot, output, id, field)["state"]
+            == "accounted-for";
+    }
     if field == "layoutSizingVertical" && view.string(field) == Some("FIXED") {
         return view.number("height").is_some_and(|h| {
             let h = crate::codegen::px(h);
@@ -868,11 +888,15 @@ pub(crate) fn account_for_sizing(snapshot: &Snapshot, output: &mut CodegenOutput
                 ..Default::default()
             });
         }
-        for field in ["layoutSizingVertical", "layoutGrow"] {
+        for field in [
+            "layoutSizingHorizontal",
+            "layoutSizingVertical",
+            "layoutGrow",
+        ] {
             if !layout_field_is_semantic(snapshot, node, field) {
                 continue;
             }
-            for name in ["h", "boxSize", "flex"] {
+            for name in ["w", "h", "boxSize", "flex", "alignSelf"] {
                 let needle = format!("{name}=\"");
                 let Some(start) = find_prop(opening, &needle) else {
                     continue;
@@ -894,8 +918,20 @@ pub(crate) fn account_for_sizing(snapshot: &Snapshot, output: &mut CodegenOutput
                 }
             }
         }
-        for field in ["width", "height", "layoutSizingVertical"] {
-            if field != "layoutSizingVertical"
+        for field in [
+            "width",
+            "height",
+            "layoutSizingHorizontal",
+            "layoutSizingVertical",
+        ] {
+            if field == "layoutSizingHorizontal"
+                && entries.iter().any(|e| {
+                    e.node_id.as_deref() == Some(id) && e.property.as_deref() == Some(field)
+                })
+            {
+                continue;
+            }
+            if !matches!(field, "layoutSizingHorizontal" | "layoutSizingVertical")
                 && !empty_layout_leaf(output, id)
                 && !projects_as_asset(snapshot, node)
             {
@@ -911,7 +947,7 @@ pub(crate) fn account_for_sizing(snapshot: &Snapshot, output: &mut CodegenOutput
                 field,
                 None,
                 None,
-                if field == "width"
+                if matches!(field, "width" | "layoutSizingHorizontal")
                     && parent(snapshot, output, id)
                         .is_some_and(|p| p.typed_view().string("layoutMode") == Some("HORIZONTAL"))
                 {
@@ -920,6 +956,12 @@ pub(crate) fn account_for_sizing(snapshot: &Snapshot, output: &mut CodegenOutput
                     "accounted-for-implicit-flex-stretch"
                 },
             ));
+            // The new horizontal obligation is carried by the verified source-map
+            // entry. Avoid duplicating full parent/child excerpts in every response
+            // envelope; keep all pre-existing R6/R7 dimension diagnostics intact.
+            if field == "layoutSizingHorizontal" {
+                continue;
+            }
             diagnostics.push(devup_mcp_figma::Diagnostic {
                 code:"DEVUP_CODEGEN_LAYOUT_ACCOUNTED_FOR".into(),
                 node_id:Some(id.into()),property:Some(field.into()),

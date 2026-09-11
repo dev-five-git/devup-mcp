@@ -253,12 +253,63 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
             .filter(|(name, _)| matches_filter(name))
             .map(|(name, value)| (name.clone(), value.clone()))
             .collect::<Map<_, _>>();
+        let catalog = theme.token_catalog();
+        let matched_count = catalog.keys().filter(|name| matches_filter(name)).count();
+        let mut categories = Map::new();
+        for (name, original, returned) in [
+            (
+                "colors",
+                serde_json::to_value(&theme.colors).unwrap(),
+                json!(colors),
+            ),
+            (
+                "length",
+                serde_json::to_value(&theme.length).unwrap(),
+                json!(length),
+            ),
+            (
+                "shadow",
+                serde_json::to_value(&theme.shadow).unwrap(),
+                json!(shadow),
+            ),
+            (
+                "typography",
+                serde_json::to_value(&theme.typography).unwrap(),
+                json!(typography),
+            ),
+        ] {
+            let names = |value: &Value| -> std::collections::BTreeSet<String> {
+                if name == "typography" {
+                    value
+                        .as_object()
+                        .into_iter()
+                        .flat_map(|m| m.keys().cloned())
+                        .collect()
+                } else {
+                    value
+                        .as_object()
+                        .into_iter()
+                        .flat_map(|m| m.values())
+                        .filter_map(Value::as_object)
+                        .flat_map(|m| m.keys().cloned())
+                        .collect()
+                }
+            };
+            let total = names(&original).len();
+            let matched = names(&returned).len();
+            categories.insert(name.into(), json!({"totalTokenCount":total,"matchedTokenCount":matched,
+                "state":if total == 0 {"absent-in-source"} else if matched == 0 {"filtered-out"} else {"included"}}));
+        }
         projects.push(json!({
             "path": relative,
             "authority": authority,
             "appliesTo": applies_to,
             "modes": modes,
             "tokenCount": theme.token_count(),
+            "totalTokenCount": theme.token_count(),
+            "matchedTokenCount": matched_count,
+            "tokenCountScope":"Distinct token names across all categories and modes in this file before filtering; tokenCount is a compatibility alias of totalTokenCount. matchedTokenCount uses the same deduplication after filtering. Category counts deduplicate names within each category.",
+            "categories": categories,
             "colors": colors,
             "typography": typography,
             "length": length,
@@ -960,5 +1011,31 @@ mod tests {
         assert!(result.get("theme").is_some());
         assert!(result.get("api").is_some());
         assert!(result.get("db").is_some());
+    }
+}
+
+#[cfg(test)]
+mod r17_tests {
+    use super::*;
+    #[tokio::test]
+    async fn r17_context_distinguishes_total_matches_and_empty_categories() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/ground-truth-project");
+        let all = run("theme", root.to_str(), None).await.unwrap();
+        let filtered = run("theme", root.to_str(), Some("NO_MATCH")).await.unwrap();
+        let f = &filtered["files"][0];
+        assert_eq!(f["totalTokenCount"], all["files"][0]["tokenCount"]);
+        assert_eq!(f["matchedTokenCount"], 0);
+        assert_eq!(f["categories"]["colors"]["state"], "filtered-out");
+        let schema =
+            serde_json::to_value(schemars::schema_for!(super::super::ProjectContextInput)).unwrap();
+        let description = schema["properties"]["filter"]["description"]
+            .as_str()
+            .unwrap_or("");
+        assert!(
+            description.contains("case-sensitive")
+                && description.contains("substring")
+                && description.contains("not a regular expression")
+        );
     }
 }

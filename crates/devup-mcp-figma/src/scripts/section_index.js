@@ -37,6 +37,8 @@ function textPreview(root) {
   let preview = "";
   let characters = 0;
   let bytes = 0;
+  let scanTruncated = false;
+  if (remainingPreviewBytes === 0) return { text: "", state: "budget-exhausted" };
   for (let index = 0; index < queue.length; index += 1) {
     const node = queue[index];
     if (node.visible === false) continue;
@@ -46,19 +48,21 @@ function textPreview(root) {
         const size = utf8ByteLength(character);
         if (characters >= MAX_PREVIEW_CHARACTERS || bytes + size > remainingPreviewBytes) {
           remainingPreviewBytes -= bytes;
-          return preview.trimEnd();
+          return { text: preview.trimEnd(), state: size > remainingPreviewBytes ? "budget-exhausted" : "truncated" };
         }
         preview += character;
         characters += 1;
         bytes += size;
       }
     }
-    if ("children" in node && queue.length < MAX_PREVIEW_NODES) {
-      queue.push(...node.children.slice(0, MAX_PREVIEW_NODES - queue.length));
+    if ("children" in node) {
+      const room = Math.max(0, MAX_PREVIEW_NODES - queue.length);
+      if (node.children.length > room) scanTruncated = true;
+      queue.push(...node.children.slice(0, room));
     }
   }
   remainingPreviewBytes -= bytes;
-  return preview;
+  return { text: preview, state: scanTruncated ? "truncated" : (preview ? "available" : "no-text") };
 }
 
 function bounds(node) {
@@ -221,6 +225,7 @@ const sectionNode = {
 };
 const candidates = selected.map(({ node, box }) => {
   const estimate = subtreeEstimate(node);
+  const preview = textPreview(node);
   return {
     id: node.id,
     type: node.type,
@@ -232,7 +237,8 @@ const candidates = selected.map(({ node, box }) => {
       visible: node.visible !== false,
       breadcrumb: breadcrumb(node),
       directChildCount: "children" in node ? node.children.length : 0,
-      textPreview: textPreview(node),
+      textPreview: preview.text,
+      textPreviewState: preview.state,
       subtreeNodeCount: estimate.subtreeNodeCount,
       estimatedSerializedBytes: estimate.estimatedSerializedBytes,
       selectionReasons: [isScreen(node, box) ? "screen-like" : "explicit-selection-only", "inside-section"],
@@ -257,6 +263,7 @@ let responseBytes = utf8ByteLength(JSON.stringify(result));
 // complete menu; never drop a selectable screen merely to fit the transport.
 for (let index = candidates.length - 1; index >= 0 && responseBytes > 19 * 1024; index -= 1) {
   candidates[index].fields.textPreview = "";
+  candidates[index].fields.textPreviewState = "budget-exhausted";
   responseBytes = utf8ByteLength(JSON.stringify(result));
 }
 if (responseBytes > 19 * 1024) {

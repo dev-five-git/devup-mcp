@@ -42,6 +42,42 @@ expression: json!(output.diagnostics)
     }
   },
   {
+    "code": "DEVUP_CODEGEN_LAYOUT_UNCOVERED",
+    "message": "No verified property mapping accounts for this layout field; generated evidence describes what was emitted.",
+    "nodeId": "3879:35547",
+    "fidelityImpact": "lossy",
+    "property": "layoutSizingHorizontal",
+    "details": {
+      "originalValue": "FILL",
+      "originalValueReason": null,
+      "appliedValue": {
+        "state": "emitted",
+        "generatedNodeId": "3879:35547",
+        "generatedSource": "        <Text color=\"$primary\" flex=\"1\" typography=\"h5\" wordBreak=\"keep-all\">\n              작은 시장, 큰 사랑\n            </Text>",
+        "sourceTruncated": false,
+        "propertyMappingVerified": false
+      },
+      "classification": "property-unmapped",
+      "appliedValueReason": "The node was emitted, but no verified property mapping accounts for this source layout field.",
+      "nextAction": "Compare this generated element's layout props with the source field; the excerpt reports actual code, not computed browser dimensions.",
+      "verification": null,
+      "implicitCssVerification": {
+        "state": "not-accounted-for",
+        "cssBehavior": "flex main-axis grow allocation",
+        "parentId": "3879:35546",
+        "parentLayoutMode": "HORIZONTAL",
+        "childSizing": "FILL",
+        "generatedParent": "      <Center bg=\"$containerBackground\" px=\"20px\" py=\"24px\"",
+        "generatedChild": "        <Text color=\"$primary\" flex=\"1\" typography=\"h5\" wordBreak=\"keep-all\"",
+        "flexBasis": "0%",
+        "flexShrink": 1,
+        "evidenceLimit": "Verifies the responsive allocation contract at the captured parent/sibling sizes, not browser font metrics or pixel equivalence.",
+        "reasonCode": "gap-mismatch",
+        "reason": "Cannot prove main-axis allocation: gap-mismatch."
+      }
+    }
+  },
+  {
     "code": "DEVUP_CODEGEN_ABSOLUTE_VERIFIED",
     "message": "Absolute dimensions and constraint props verified against collected geometry.",
     "nodeId": "3879:35540",

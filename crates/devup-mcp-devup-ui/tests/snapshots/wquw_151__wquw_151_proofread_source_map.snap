@@ -3047,6 +3047,162 @@ expression: output.source_map
       "nodeId": "3879:35568",
       "property": "characters",
       "resolution": "exact"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35519",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35520",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35521",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35522",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35526",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35532",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35533",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35535",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35536",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35537",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35539",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35543",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35544",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35546",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35548",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35550",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35551",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35552",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35554",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35555",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35556",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35558",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35559",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35560",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "implicit:align-self:stretch",
+      "nodeId": "3879:35562",
+      "property": "layoutSizingHorizontal",
+      "resolution": "accounted-for-implicit-flex-stretch"
+    },
+    {
+      "generatedProperty": "w=\"100%\"",
+      "nodeId": "3879:35563",
+      "property": "layoutSizingHorizontal",
+      "resolution": "verified-layout-sizing"
     }
   ],
   "resolutionSemantics": {

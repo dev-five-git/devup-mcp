@@ -44,7 +44,7 @@ export function Wquw151Frame387935503() {
         py="30px"
         w="100%"
       >
-        <Center bg="$mainBeige" borderRadius="20px 20px 0px" p="20px">
+        <Center bg="$mainBeige" borderRadius="20px 20px 0px" p="20px" w="100%">
           <Text
             color="$text"
             flex="1"

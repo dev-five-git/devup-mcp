@@ -1139,10 +1139,43 @@ impl DevupServer {
         }
         let reference_png_requested = input.outputs.iter().any(|output| output == "referencePng");
         if reference_png_requested && (!input.frame_ids.is_empty() || input.all_screens) {
-            return Err(to_mcp_error(DevupError::new(
+            let target = if let Some(url) = &input.url {
+                FigmaTarget::parse(url).ok()
+            } else if let Some(id) = &input.artifact_id {
+                self.artifacts
+                    .get(id)
+                    .await
+                    .map(|a| a.payload.target.clone())
+            } else {
+                None
+            };
+            let url = target
+                .as_ref()
+                .zip(input.frame_ids.first())
+                .map(|(target, id)| {
+                    format!(
+                        "{}?node-id={}",
+                        file_scope_url(target),
+                        id.replace(':', "-")
+                    )
+                });
+            let mut arguments = json!(input);
+            for key in ["artifactId", "frameIds", "allScreens", "url"] {
+                arguments.as_object_mut().unwrap().remove(key);
+            }
+            arguments["scope"] = json!("node");
+            if let Some(url) = &url {
+                arguments["url"] = json!(url);
+            }
+            return Err(to_mcp_error(DevupError::with_details(
                 ErrorCode::DevupSnapshotUnsupported,
                 "referencePng can only be collected for a single Figma link target.",
                 false,
+                json!({"recoveryState":if url.is_some() {"available"} else {"manual-fix-required"},
+                    "nextAction":{"tool":"devup_figma_export","arguments":arguments,
+                        "requiredArguments":if url.is_some() {Vec::<&str>::new()} else {vec!["url"]},
+                        "omitArguments":["artifactId","frameIds","allScreens"],
+                        "how":"Request each frame by its direct canonicalUrl with outputs including referencePng and scope=node. For multiple selected frames, repeat once per direct frame URL. If the cached file URL is unavailable, copy the frame link from Figma."}}),
             )));
         }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
@@ -1318,7 +1351,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses",
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_project_context(
@@ -1404,6 +1437,11 @@ impl DevupServer {
             "themeAvailable": theme_lookup.theme.is_some(),
             "themeGuardrail": theme_lookup.guardrail,
         });
+        if let Some(name) = &input.source_name {
+            for finding in result["violations"].as_array_mut().unwrap() {
+                finding["sourceName"] = json!(name);
+            }
+        }
         if !report.ok {
             result.as_object_mut().unwrap().extend(
                 validation_guidance::guidance(&input, &report, theme_lookup.theme.as_ref())
@@ -1443,6 +1481,7 @@ fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidat
             bounds: candidate.bounds,
             child_count: candidate.direct_child_count,
             text_preview: candidate.text_preview.clone(),
+            text_preview_state: candidate.text_preview_state.clone(),
             parent_id: candidate.parent_id.clone(),
             kind: ExploreKind::Screen,
             visible: candidate.visible,
@@ -1623,14 +1662,15 @@ impl ServerHandler for DevupServer {
         )
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
         .with_instructions(
-            "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
+            "Build identity: identify deployments by server.commit/buildId, not version alone; server.displayVersion combines version and buildId. Reconnect the MCP server if the expected build differs.\n\
+             1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
              2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; a complete response marks it with deliverable.isFinal.\n\
              2a. Ask for an output only when you will read it. Measured on the Korean WQUW-120 modal, semantic sourceMap is about 5.4x TSX (48,832 versus 9,099 UTF-8 bytes; 12.6% smaller than its former offset map). Sizes vary by screen; earlier rawPayload/rawSnapshot measurements were about 7x/2x TSX, so requesting them by default spends most of the response on bytes nothing reads. sourceMap records nodeId, original property, generatedProperty and resolution, plus optional variableId (variable token), styleId (style token), assetId (asset reference), with no character/byte offsets. raw-fallback means a raw-value mapping, not necessarily an inaccurate value; verified-explicit-dimension checks emitted pixels equal the source dimension, while verified-layout-sizing checks sizing intent against emitted CSS. exact verifies that field-to-property mapping, not rendered pixel equivalence. Use generatedSource diagnostics for node code excerpts; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
              3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
              4. Do not hand-interpret a node tree to write devup-ui code. Do not infer layout from coordinates.\n\
              5. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
              6. Do not guess UI values such as color, spacing, radius, or typography. If you could not obtain them, stop and report.\n\
-             7. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with per-screen export via frameIds or allScreens.\n\
+             7. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with bounded per-screen frameIds batches in nextAction; allScreens is valid only when the complete list fits the advertised frame/output budget.\n\
              8. The generated component name comes from the Figma layer name and is a starting point, not a contract. Rename it to fit the codebase, and rename a name that is meaningless or not a valid identifier.\n\
              10. An asset path in the output, such as a maskImage or Image src, is a placeholder built from the layer name. Rename the file to fit the project. If the asset varies per usage, lift it into a prop instead of hardcoding it.\n\
              11. A fixed asset such as an icon must actually be exported, never referenced by a path that does not exist yet. Read assetManifest for the asset IDs, then call devup_figma_export again with assetRequests, giving each entry an outputPath under an allowed write root, and make the path in the code match the path you wrote.\n\

@@ -1341,7 +1341,7 @@ pub(super) async fn complete_operation(
                     "nextAction".to_owned(),
                     json!({
                         "why": "This is a Section candidate list. Screen artifacts have not been exported yet.",
-                        "how": "Review selection.candidates using name, nodeType and textPreview. Use allScreens:true for these automatic screen candidates in a complete list. Nonstandard cases and notes are in selection.explicitCandidates; select them with frameIds or their canonicalUrl.",
+                        "how": "Review selection.candidates using name, nodeType, textPreview and textPreviewState. Run the bounded batches below in order, retaining each response before continuing. Select nonstandard cases and notes from selection.explicitCandidates with frameIds or their canonicalUrl. Use the per-candidate nextAction to inspect text when preview is unavailable.",
                         "doNot": "Do not try to collect the whole Section at once."
                     }),
                 );
@@ -1391,6 +1391,46 @@ pub(super) async fn complete_operation(
                             "limit":100
                         }
                     });
+                }
+                let output_count = outputs
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    .max(1);
+                let png = outputs.iter().any(|s| s == "referencePng");
+                let batch_size = if png {
+                    1
+                } else {
+                    (12 / output_count).clamp(1, 6)
+                };
+                let template = result["nextAction"]["example"]["arguments"].clone();
+                let batches: Vec<_> = screens
+                    .chunks(batch_size)
+                    .map(|batch| {
+                        let mut args = template.clone();
+                        if png {
+                            args["url"] = json!(batch[0].canonical_url);
+                        } else {
+                            args["frameIds"] =
+                                json!(batch.iter().map(|c| &c.node.node_id).collect::<Vec<_>>());
+                        }
+                        json!({"tool":"devup_figma_export","arguments":args})
+                    })
+                    .collect();
+                result.get_mut("nextAction").unwrap()["maxFramesPerCall"] = json!(batch_size);
+                result.get_mut("nextAction").unwrap()["batches"] = json!(batches);
+                for category in ["candidates", "explicitCandidates"] {
+                    if let Some(list) =
+                        result.get_mut("selection").unwrap()[category].as_array_mut()
+                    {
+                        for candidate in list {
+                            if candidate.get("textPreviewState").is_none() {
+                                candidate["textPreviewState"] = json!("unknown-in-cached-snapshot");
+                            }
+                            candidate["nextAction"] = json!({"tool":"devup_figma_export","arguments":{
+                                "url":candidate["canonicalUrl"],"outputs":["tsx"],"scope":"node","delivery":"resource"}});
+                        }
+                    }
                 }
                 return Ok(Value::Object(result));
             }
@@ -2710,6 +2750,17 @@ fn audit_delivered_properties(value: &mut Value) {
         };
         let mut missing =
             devup_mcp_devup_ui::provenance::attributes::uncovered_attributes(code, &contract);
+        let layout = &value["outputResults"][field]["fidelity"]["layout"];
+        if layout["total"]
+            .as_u64()
+            .zip(layout["covered"].as_u64())
+            .is_some_and(|(total, covered)| covered < total)
+        {
+            missing.push(json!({"reason":"unmapped-source-layout-fields",
+                "sourceFields":value["outputResults"][field]["fidelity"]["uncoveredLayout"],
+                "propertyMappingVerified":false,
+                "message":"Source layout obligations lack verified emitted mappings, even if every generated attribute has provenance."}));
+        }
         if field == "responsiveTsx"
             && value["outputResults"][field]["fidelity"]["mergedMappingVerified"] == false
         {
@@ -2723,7 +2774,7 @@ fn audit_delivered_properties(value: &mut Value) {
         }
         complete = false;
         let issue = json!({"code":"DEVUP_CODEGEN_PROPERTY_UNMAPPED",
-            "message":"Final TSX contains attributes without verified source provenance; generated values are preserved.",
+            "message":"The final bidirectional contract has uncovered generated attributes or source layout obligations. Existing value-loss classifications remain unchanged.",
             "nodeId":value["nodeId"].as_str().or(value["source"]["nodeId"].as_str()),"severity":"warning","fidelityImpact":"none",
             "details":{"stage":"delivery-property-audit","output":field,"classification":"mapping-incomplete",
                 "unmappedProperties":missing,"propertyMappingVerified":false,
@@ -2877,6 +2928,16 @@ mod w1_regressions {
         };
         let quality = serde_json::to_value(projection_quality(true, &[d])).unwrap();
         assert_eq!(quality, "mapping-incomplete");
+    }
+
+    #[test]
+    fn r17_source_layout_gap_cannot_be_overwritten_by_complete_attribute_audit() {
+        let mut result = json!({"tsx":"<Box/>","quality":{"projection":"lossy"},"status":"partial",
+            "outputResults":{"tsx":{"projection":"lossy","fidelity":{"layout":{"total":1,"covered":0},"uncoveredLayout":["child#layoutSizingHorizontal"]},"_propertyContract":[]}},"projectionIssues":[]});
+        audit_delivered_properties(&mut result);
+        assert_eq!(result["mappingComplete"], false);
+        assert_eq!(result["outputResults"]["tsx"]["mappingComplete"], false);
+        assert_eq!(result["quality"]["projection"], "lossy");
     }
 
     #[test]
@@ -3793,7 +3854,7 @@ mod w1_regressions {
         assert_eq!(result["placementContracts"].as_array().unwrap().len(), 2);
         assert_eq!(
             frame["outputResults"]["tsx"]["fidelity"]["layout"]["covered"],
-            117 // R9: prior 114 + verified root width/height and explicit modal height.
+            134 // R17: prior 117 + 17 verified horizontal FILL obligations.
         );
         assert_eq!(
             frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
@@ -3924,7 +3985,7 @@ mod w1_regressions {
                     .iter()
                     .filter(|i| i["details"]["classification"] == original_class)
                     .count(),
-                count
+                if count == 40 { 39 } else { count } // R17 fluid width now proves one previously missing mapping.
             );
             for issue in layout {
                 assert_eq!(
@@ -3940,6 +4001,15 @@ mod w1_regressions {
                 if issue["details"]["classification"] == "component-reference" {
                     assert_eq!(issue["details"]["output"], "componentTsx");
                     assert_eq!(issue["details"]["classification"], "component-reference");
+                } else if issue["property"] == "layoutSizingHorizontal" {
+                    // R17 checks source FILL even when no width property was emitted.
+                    assert_eq!(issue["details"]["originalValue"], "FILL");
+                    assert_eq!(issue["fidelityImpact"], "lossy");
+                    assert_eq!(
+                        issue["details"]["implicitCssVerification"]["state"],
+                        "not-accounted-for"
+                    );
+                    assert!(issue["details"]["implicitCssVerification"]["reasonCode"].is_string());
                 } else if issue["property"] == "layoutSizingVertical" {
                     // R6 exposes a real percentage-height dependency that R2 did not count.
                     assert_eq!(issue["nodeId"], "3997:46313");
@@ -3975,7 +4045,16 @@ mod w1_regressions {
                 let frame = &result["frames"][0];
                 // R14 proves the modal's width in its definite containing
                 // block. Component-reference loss in componentTsx is separate.
-                assert_eq!(frame["outputResults"]["tsx"]["projection"], "exact");
+                assert_eq!(frame["outputResults"]["tsx"]["projection"], "lossy");
+                assert_eq!(frame["outputResults"]["tsx"]["mappingComplete"], false);
+                assert!(
+                    frame["projectionIssues"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|i| i["property"] == "layoutSizingHorizontal"
+                            && i["fidelityImpact"] == "lossy")
+                );
                 let modal = frame["projectionEvidence"]
                     .as_array()
                     .unwrap()
@@ -4804,6 +4883,60 @@ mod w1_regressions {
     }
 
     #[tokio::test]
+    async fn r17_large_section_provides_bounded_continuation_batches() {
+        let result = project(
+            section_without_index(23, false),
+            operation(&["tsx", "sourceMap", "rawSnapshot"]),
+        )
+        .await
+        .unwrap();
+        let next = &result["nextAction"];
+        assert_eq!(next["maxFramesPerCall"], 4);
+        let batches = next["batches"].as_array().expect("bounded batch examples");
+        assert_eq!(batches.len(), 6);
+        assert_eq!(
+            batches
+                .iter()
+                .map(|b| b["arguments"]["frameIds"].as_array().unwrap().len())
+                .sum::<usize>(),
+            23
+        );
+        for batch in batches {
+            assert!(batch["arguments"]["frameIds"].as_array().unwrap().len() <= 4);
+        }
+        assert!(
+            !next["how"]
+                .as_str()
+                .unwrap()
+                .contains("Use allScreens:true")
+        );
+    }
+
+    #[tokio::test]
+    async fn r17_section_png_batches_use_single_direct_frame_urls() {
+        let result = project(
+            section_without_index(23, false),
+            operation(&["tsx", "referencePng"]),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["nextAction"]["maxFramesPerCall"], 1);
+        let batches = result["nextAction"]["batches"].as_array().unwrap();
+        assert_eq!(batches.len(), 23);
+        let mut urls = std::collections::BTreeSet::new();
+        for batch in batches {
+            let args = &batch["arguments"];
+            assert!(args.get("artifactId").is_none());
+            assert!(args.get("frameIds").is_none());
+            assert_eq!(args["scope"], "node");
+            assert_eq!(args["outputs"], json!(["tsx", "referencePng"]));
+            let url = args["url"].as_str().unwrap();
+            assert!(url.contains("node-id="));
+            assert!(urls.insert(url));
+        }
+    }
+
+    #[tokio::test]
     async fn w1_selection_exactly_100_candidates_is_complete() {
         let result = project(section_without_index(100, false), operation(&["tsx"]))
             .await
@@ -5067,7 +5200,69 @@ mod w1_regressions {
             ];
         }
         let began = std::time::Instant::now();
-        let result = project(data, op).await.unwrap();
+        let store = ArtifactStore::default();
+        let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+            data.target.clone(),
+            CollectionScope::Node,
+        ));
+        let artifact = store.insert(key, data).await.unwrap();
+        let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+        // R17 source FILL issues exceed the unchanged inline limit. Exercise the
+        // retained-artifact recovery and read every output, rather than hiding loss.
+        let error = complete_operation(
+            op.clone(),
+            &artifact.payload,
+            "fixture",
+            &artifact,
+            &policy,
+            &store,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
+        assert_eq!(error.details["recoveryState"], "available");
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["artifactId"],
+            artifact.artifact_id
+        );
+        assert_eq!(
+            error.details["nextAction"]["arguments"]["delivery"],
+            "resource"
+        );
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Resource;
+        }
+        let mut result =
+            complete_operation(op, &artifact.payload, "fixture", &artifact, &policy, &store)
+                .await
+                .unwrap();
+        let mut outputs = BTreeMap::new();
+        for manifest in store.output_manifests().await {
+            let mut bytes = Vec::new();
+            for index in 0..manifest.chunk_count {
+                bytes.extend(
+                    store
+                        .read_output_chunk(&artifact.artifact_id, &manifest.output_id, index)
+                        .await
+                        .unwrap(),
+                );
+            }
+            assert_eq!(bytes.len(), manifest.raw_bytes);
+            outputs.insert(manifest.name, String::from_utf8(bytes).unwrap());
+        }
+        assert_eq!(outputs.len(), 7); // shared snapshot plus 3 TSX/sourceMap pairs
+        assert_eq!(
+            serde_json::from_str::<Value>(&outputs["raw-snapshot.json"]).unwrap(),
+            serde_json::to_value(&artifact.payload.snapshot).unwrap()
+        );
+        for index in 0..3 {
+            let tsx = &outputs[&format!("frame-{}.tsx", index + 1)];
+            assert!(tsx.contains("export function"));
+            result["frames"][index]["tsx"] = json!(tsx);
+            result["frames"][index]["sourceMap"] =
+                serde_json::from_str(&outputs[&format!("frame-{}.source-map.json", index + 1)])
+                    .unwrap();
+        }
         assert_eq!(result["frames"].as_array().unwrap().len(), 3);
         for frame in result["frames"].as_array().unwrap() {
             assert!(frame["tsx"].is_string());
@@ -5181,11 +5376,24 @@ mod w1_regressions {
 
     #[tokio::test]
     async fn r16_complete_scope_and_mapping_semantics_survive_resource_delivery() {
-        for delivery_mode in [DeliveryMode::Inline, DeliveryMode::Resource] {
-            let data: CollectedPayload = serde_json::from_str(include_str!(
-                "../../../../fixtures/r2/wquw-118-payload.json"
-            ))
-            .unwrap();
+        for (delivery_mode, real_fill) in [
+            (DeliveryMode::Inline, false),
+            (DeliveryMode::Resource, false),
+            (DeliveryMode::Inline, true),
+            (DeliveryMode::Resource, true),
+        ] {
+            let data: CollectedPayload = if real_fill {
+                serde_json::from_str(include_str!(
+                    "../../../../fixtures/r2/wquw-118-payload.json"
+                ))
+                .unwrap()
+            } else {
+                let mut data = section(1);
+                data.snapshot.nodes.get_mut("1:1").unwrap().fields.extend(
+                    serde_json::from_value::<BTreeMap<String, Value>>(json!({"layoutSizingHorizontal":"FIXED", "layoutSizingVertical":"FIXED", "fills":[{"type":"SOLID","color":{"r":0.2,"g":0.4,"b":0.6}}]})).unwrap()
+                );
+                data
+            };
             let mut op = operation(&["tsx", "sourceMap"]);
             if let PendingOperation::Export {
                 frame_ids,
@@ -5193,14 +5401,34 @@ mod w1_regressions {
                 ..
             } = &mut op
             {
-                *frame_ids = vec!["3997:46129".into()];
+                *frame_ids = vec![if real_fill { "3997:46129" } else { "1:1" }.into()];
                 *delivery = delivery_mode;
             }
             let result = project(data, op).await.unwrap();
-            assert_eq!(result["status"], "complete");
-            assert_eq!(result["verdictScope"]["projectionCauses"], json!([]));
-            assert_eq!(result["verdictScope"]["statusCauses"], json!([]));
-            assert_eq!(result["verdictScope"]["projection"], "exact");
+            if real_fill {
+                assert_eq!(result["status"], "partial");
+                assert_eq!(result["verdictScope"]["projection"], "lossy");
+                let fill_issues: Vec<_> = result["projectionIssues"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|d| d["property"] == "layoutSizingHorizontal")
+                    .collect();
+                assert_eq!(fill_issues.len(), 18);
+                for issue in fill_issues {
+                    assert_eq!(issue["fidelityImpact"], "lossy");
+                    assert_eq!(issue["details"]["originalValue"], "FILL");
+                }
+                assert_eq!(
+                    result["frames"][0]["outputResults"]["tsx"]["mappingComplete"],
+                    false
+                );
+            } else {
+                assert_eq!(result["status"], "complete");
+                assert_eq!(result["verdictScope"]["projectionCauses"], json!([]));
+                assert_eq!(result["verdictScope"]["statusCauses"], json!([]));
+                assert_eq!(result["verdictScope"]["projection"], "exact");
+            }
             assert_eq!(result["resolutionSemantics"]["axis"], "mapping-method");
             assert!(
                 result["resolutionSemantics"]["values"]["raw-fallback"]
