@@ -20,6 +20,7 @@ pub(crate) fn property_derivations(
     let mut props = Vec::new();
     let mut origins = BTreeMap::new();
     let mut tokens = BTreeSet::new();
+    let mut style_derivations = style::StyleDerivations::default();
     for stage in ["layout", "style", "text", "animation"] {
         let before = props.clone();
         match stage {
@@ -31,18 +32,20 @@ pub(crate) fn property_derivations(
                 options.root_layout,
                 is_root,
             ),
-            "style" => style::push_style_props(
-                snapshot,
-                node,
-                component,
-                style::asset_kind(snapshot, node),
-                &mut props,
-                &mut tokens,
-                style::StyleOptions {
-                    variable_tokens: &options.variable_tokens,
-                    asset_names_per_node: options.asset_names_per_node,
-                },
-            ),
+            "style" => {
+                style_derivations = style::push_style_props(
+                    snapshot,
+                    node,
+                    component,
+                    style::asset_kind(snapshot, node),
+                    &mut props,
+                    &mut tokens,
+                    style::StyleOptions {
+                        variable_tokens: &options.variable_tokens,
+                        asset_names_per_node: options.asset_names_per_node,
+                    },
+                );
+            }
             "text" => text::push_text_props(
                 &node.typed_view(),
                 &options.text_style_tokens,
@@ -72,12 +75,10 @@ pub(crate) fn property_derivations(
             "wordBreak" => (vec!["styledTextSegments"], "push_text_props: Korean segment text uses keep-all word breaking."),
             "boxShadow" | "textShadow" | "filter" | "backdropFilter" => (vec!["effects"],
                 "push_effects: visible effects in source order; shadow offset.x/y, radius, spread and bound/resolved RGBA color; textShadow omits spread; blur uses radius. Existing effect-loss diagnostics still apply."),
-            "objectFit" | "objectPos" | "maskSize" | "maskPos" if layout::export_offset(node).is_some() =>
-                (vec!["absoluteRenderBounds", "absoluteBoundingBox", "layoutPositioning", "parentId", "fills"],
-                "In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout."),
-            "maskRepeat" | "maskSize" | "maskPos" => (vec!["fills", "childrenIds", "isAsset", "absoluteRenderBounds", "absoluteBoundingBox"],
-                "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them."),
-            "objectFit" => (vec!["isAsset", "fills"], "push_object_fit: first visible IMAGE paint scaleMode FIT -> contain; CROP -> cover."),
+            "objectFit" | "objectPos" | "maskRepeat" | "maskSize" | "maskPos" => {
+                if *stage != "style" { return None; }
+                style_derivations.matching(&name, &value)?.description()
+            },
             "alignSelf" => (vec!["layoutAlign", "layoutSizingHorizontal", "layoutSizingVertical", "parentId"], "Layout cross-axis fill maps to alignSelf=stretch when required by parent alignment."),
             "transform" | "transformOrigin" => (vec!["rotation", "relativeTransform", "absoluteBoundingBox", "absoluteRenderBounds", "constraints", "x", "y", "parentId"], "Layout/style transform composition from rotation, placement and CENTER constraints; asset exports may already bake rotation. The emitted expression is compared with the responsible stage."),
             "zIndex" => (vec!["layoutPositioning", "fills", "childrenIds", "parentId"], "Layout stacking policy for absolute backgrounds and overlapping children, evaluated by push_layout_props."),
@@ -125,7 +126,67 @@ pub(crate) fn property_derivations(
         let mut evidence = json!({"stage":stage,
             "generatedProperty":render_static_attribute(&name, &value),
             "sourceFields":source_fields,"originalValue":original,"calculation":calculation});
+        if let Some(route) = style_derivations.matching(&name, &value) {
+            evidence["derivationPath"] = json!(route.path());
+        }
         if !context.is_empty() { evidence["context"] = Value::Object(context); }
         Some(evidence)
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn r15_image_fit_evidence_tracks_paint_or_boundary_writer() {
+        for (positioning, value, path, prefix) in [
+            (
+                "ABSOLUTE",
+                "contain",
+                "image-paint-scale",
+                "push_object_fit:",
+            ),
+            (
+                "AUTO",
+                "none",
+                "in-flow-export-boundary",
+                "In-flow export boundary:",
+            ),
+        ] {
+            let snapshot: Snapshot = serde_json::from_value(json!({
+                "fileKey":"r15-image","roots":["p"],"diagnostics":[],"nodes":{
+                    "p":{"id":"p","type":"FRAME","fields":{"layoutMode":"HORIZONTAL","childrenIds":["c"]}},
+                    "c":{"id":"c","type":"RECTANGLE","fields":{
+                        "parentId":"p","isAsset":true,"layoutPositioning":positioning,
+                        "absoluteBoundingBox":{"x":10,"y":20,"width":100,"height":50},
+                        "absoluteRenderBounds":{"x":12,"y":23,"width":80,"height":40},
+                        "fills":[{"type":"IMAGE","visible":true,"scaleMode":"FIT"}]}}
+                }
+            })).unwrap();
+            let evidence = property_derivations(
+                &snapshot,
+                &snapshot.nodes["c"],
+                "Image",
+                &CodegenOptions::default(),
+                false,
+            );
+            let fit = evidence
+                .iter()
+                .find(|e| e["generatedProperty"] == format!("objectFit=\"{value}\""))
+                .unwrap();
+            assert!(
+                fit["calculation"].as_str().unwrap().starts_with(prefix),
+                "{fit}"
+            );
+            assert_eq!(fit["derivationPath"], path);
+            if positioning == "AUTO" {
+                let pos = evidence
+                    .iter()
+                    .find(|e| e["generatedProperty"] == "objectPos=\"2px 3px\"")
+                    .unwrap();
+                assert_eq!(pos["derivationPath"], path);
+            }
+        }
+    }
 }

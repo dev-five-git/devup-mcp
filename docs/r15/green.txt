@@ -1,0 +1,28 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\devup_mcp_devup_ui-2f2da51af2f18270.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\devup_mcp_devup_ui-2f2da51af2f18270.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\r15_evidence_wording-7f0fc806df1a8ba3.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\r15_evidence_wording-7f0fc806df1a8ba3.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r15_evidence_wording") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.29s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_devup_ui-2f2da51af2f18270.exe)
+
+running 1 test
+test codegen::property_derivations::tests::r15_image_fit_evidence_tracks_paint_or_boundary_writer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+
+     Running tests\r15_evidence_wording.rs (target\debug\deps\r15_evidence_wording-7f0fc806df1a8ba3.exe)
+
+running 4 tests
+test r15_boundary_override_reports_boundary_only_for_overwritten_props ... ok
+test r15_free_layout_mask_reports_policy_despite_export_offset ... ok
+test r15_absolute_mask_reports_policy_despite_export_offset ... ok
+test r15_observed_absolute_mask_keeps_values_and_reports_policy ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

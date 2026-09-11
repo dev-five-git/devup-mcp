@@ -1,0 +1,26 @@
+{
+  "rust": {
+    "command": "cargo test --workspace -j 2 --no-fail-fast",
+    "passed": 811,
+    "failed": 0,
+    "ignored": 2,
+    "exitCode": 0
+  },
+  "js": {
+    "passed": 12,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "clippy": {
+    "exitCode": 0,
+    "warnings": 0
+  },
+  "fmt": {
+    "exitCode": 0
+  },
+  "tsxGoldenChanges": 0,
+  "diagnosticGoldenChanges": 1,
+  "newRegressionTests": 5,
+  "installedMcpUsed": false,
+  "browserOrAssetCompositionMeasured": false
+}

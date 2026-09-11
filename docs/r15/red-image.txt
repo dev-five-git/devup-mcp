@@ -1,0 +1,27 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\devup_mcp_devup_ui-2f2da51af2f18270.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\devup_mcp_devup_ui-2f2da51af2f18270.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.38s
+     Running unittests src\lib.rs (target\debug\deps\devup_mcp_devup_ui-2f2da51af2f18270.exe)
+
+running 1 test
+test codegen::property_derivations::tests::r15_image_fit_evidence_tracks_paint_or_boundary_writer ... FAILED
+
+failures:
+
+---- codegen::property_derivations::tests::r15_image_fit_evidence_tracks_paint_or_boundary_writer stdout ----
+
+thread 'codegen::property_derivations::tests::r15_image_fit_evidence_tracks_paint_or_boundary_writer' (59032) panicked at crates\devup-mcp-devup-ui\src\codegen\property_derivations.rs:155:13:
+{"stage":"style","generatedProperty":"objectFit=\"contain\"","sourceFields":["absoluteRenderBounds","absoluteBoundingBox","layoutPositioning","parentId","fills"],"originalValue":{"absoluteBoundingBox":{"x":10,"y":20,"width":100,"height":50},"absoluteRenderBounds":{"x":12,"y":23,"width":80,"height":40},"fills":[{"type":"IMAGE","visible":true,"scaleMode":"FIT"}],"layoutPositioning":"ABSOLUTE","parentId":"p"},"calculation":"In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.","context":{"parentNodeId":"p"}}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    codegen::property_derivations::tests::r15_image_fit_evidence_tracks_paint_or_boundary_writer
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --lib`

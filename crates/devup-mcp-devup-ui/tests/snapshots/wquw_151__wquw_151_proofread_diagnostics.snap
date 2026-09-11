@@ -953,6 +953,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35527"
       },
@@ -987,6 +988,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35527"
       },
@@ -1021,6 +1023,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35527"
       },
@@ -1134,6 +1137,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35533"
       },
@@ -1168,6 +1172,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35533"
       },
@@ -1202,6 +1207,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35533"
       },
@@ -1309,6 +1315,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35540"
       },
@@ -1343,6 +1350,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35540"
       },
@@ -1377,6 +1385,7 @@ expression: json!(output.diagnostics)
         "isAsset": true
       },
       "calculation": "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+      "derivationPath": "svg-mask-policy",
       "context": {
         "parentNodeId": "3879:35540"
       },

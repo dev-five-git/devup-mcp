@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use devup_mcp_figma::{RawNode, Snapshot, TypedNode};
 use serde_json::Value;
@@ -433,6 +433,77 @@ pub(super) struct StyleOptions<'a> {
     pub asset_names_per_node: bool,
 }
 
+// Record the route at the property writer; available geometry alone is not
+// evidence that a boundary override actually ran.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StyleDerivation {
+    SvgMaskPolicy,
+    InFlowExportBoundary,
+    ImagePaintScale,
+}
+
+impl StyleDerivation {
+    pub(super) fn path(self) -> &'static str {
+        match self {
+            Self::SvgMaskPolicy => "svg-mask-policy",
+            Self::InFlowExportBoundary => "in-flow-export-boundary",
+            Self::ImagePaintScale => "image-paint-scale",
+        }
+    }
+
+    pub(super) fn description(self) -> (Vec<&'static str>, &'static str) {
+        match self {
+            Self::SvgMaskPolicy => (
+                vec![
+                    "fills",
+                    "childrenIds",
+                    "isAsset",
+                    "absoluteRenderBounds",
+                    "absoluteBoundingBox",
+                ],
+                "SVG mask projection policy from asset_kind/same_color: maskRepeat=no-repeat, maskSize=contain, maskPos=center unless export boundary derivation overrides them.",
+            ),
+            Self::InFlowExportBoundary => (
+                vec![
+                    "absoluteRenderBounds",
+                    "absoluteBoundingBox",
+                    "layoutPositioning",
+                    "parentId",
+                    "fills",
+                ],
+                "In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.",
+            ),
+            Self::ImagePaintScale => (
+                vec!["isAsset", "fills"],
+                "push_object_fit: first visible IMAGE paint scaleMode FIT -> contain; CROP -> cover.",
+            ),
+        }
+    }
+}
+
+#[derive(Default)]
+pub(super) struct StyleDerivations(BTreeMap<String, (String, StyleDerivation)>);
+
+impl StyleDerivations {
+    fn push(
+        &mut self,
+        props: &mut Vec<Prop>,
+        name: &str,
+        value: impl Into<String>,
+        route: StyleDerivation,
+    ) {
+        let value = value.into();
+        string_prop(props, name, value.clone());
+        // Last writer wins for both the value and its explanation.
+        self.0.insert(name.to_owned(), (value, route));
+    }
+
+    pub(super) fn matching(&self, name: &str, value: &str) -> Option<StyleDerivation> {
+        let (written, route) = self.0.get(name)?;
+        (written == value).then_some(*route)
+    }
+}
+
 pub(super) fn push_style_props(
     snapshot: &Snapshot,
     node: &RawNode,
@@ -441,7 +512,8 @@ pub(super) fn push_style_props(
     props: &mut Vec<Prop>,
     used_tokens: &mut BTreeSet<String>,
     style: StyleOptions<'_>,
-) {
+) -> StyleDerivations {
+    let mut derivations = StyleDerivations::default();
     let StyleOptions {
         variable_tokens,
         asset_names_per_node: per_node,
@@ -454,7 +526,7 @@ pub(super) fn push_style_props(
         // Background paints and the variant tree also pass here. Do not
         // leave a URL behind merely because the node is not an Image leaf.
         string_prop(props, "visibility", "hidden");
-        return;
+        return derivations;
     }
     if let Some(asset) = asset {
         let folder = if matches!(asset, AssetKind::Svg | AssetKind::SvgMask) {
@@ -483,13 +555,18 @@ pub(super) fn push_style_props(
                 format!("url({source})")
             };
             string_prop(props, "maskImage", url);
-            string_prop(props, "maskRepeat", "no-repeat");
-            string_prop(props, "maskSize", "contain");
-            string_prop(props, "maskPos", "center");
+            derivations.push(
+                props,
+                "maskRepeat",
+                "no-repeat",
+                StyleDerivation::SvgMaskPolicy,
+            );
+            derivations.push(props, "maskSize", "contain", StyleDerivation::SvgMaskPolicy);
+            derivations.push(props, "maskPos", "center", StyleDerivation::SvgMaskPolicy);
         } else {
             string_prop(props, "src", source);
         }
-        push_object_fit(&view, props);
+        push_object_fit(&view, props, &mut derivations);
         // An export in flow is drawn where it sits in the box the layout gives
         // the node. They coincide for a plain icon; the notice logo is an
         // instance of 1373x98 whose vector is 952x104 at 425px in, and
@@ -510,11 +587,31 @@ pub(super) fn push_style_props(
             let size = format!("{} {}", px(offset.w), px(offset.h));
             let position = format!("{} {}", px(offset.x), px(offset.y));
             if asset == AssetKind::SvgMask {
-                string_prop(props, "maskSize", size);
-                string_prop(props, "maskPos", position);
+                derivations.push(
+                    props,
+                    "maskSize",
+                    size,
+                    StyleDerivation::InFlowExportBoundary,
+                );
+                derivations.push(
+                    props,
+                    "maskPos",
+                    position,
+                    StyleDerivation::InFlowExportBoundary,
+                );
             } else {
-                string_prop(props, "objectFit", "none");
-                string_prop(props, "objectPos", position);
+                derivations.push(
+                    props,
+                    "objectFit",
+                    "none",
+                    StyleDerivation::InFlowExportBoundary,
+                );
+                derivations.push(
+                    props,
+                    "objectPos",
+                    position,
+                    StyleDerivation::InFlowExportBoundary,
+                );
             }
         }
         push_radius(&view, props);
@@ -528,10 +625,10 @@ pub(super) fn push_style_props(
         // SVG's own opacity thins the mask, so the colour painted through it
         // already shows at the node's opacity.
         push_blend_mode(&view, props);
-        return;
+        return derivations;
     }
 
-    push_object_fit(&view, props);
+    push_object_fit(&view, props, &mut derivations);
     let color_prop = if component == "Text" { "color" } else { "bg" };
     // A background is every visible paint, back to front, as the plugin's
     // `getBackgroundProps` composes it. Reading only the bound variable
@@ -618,6 +715,7 @@ pub(super) fn push_style_props(
         string_prop(props, "opacity", format_number(opacity));
     }
     push_blend_mode(&view, props);
+    derivations
 }
 
 pub(super) fn non_rendering_asset_reason(
@@ -644,7 +742,11 @@ pub(super) fn non_rendering_asset_reason(
 /// node became — the about member cards are a `Box` whose photo sits on a
 /// `$gray200` plate, and the reference gives them `objectFit="cover"` all the
 /// same. `FILL` and `TILE` say nothing.
-fn push_object_fit(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
+fn push_object_fit(
+    view: &TypedNode<'_>,
+    props: &mut Vec<Prop>,
+    derivations: &mut StyleDerivations,
+) {
     if view.bool("isAsset") != Some(true) {
         return;
     }
@@ -663,8 +765,18 @@ fn push_object_fit(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
         return;
     };
     match scale {
-        "FIT" => string_prop(props, "objectFit", "contain"),
-        "CROP" => string_prop(props, "objectFit", "cover"),
+        "FIT" => derivations.push(
+            props,
+            "objectFit",
+            "contain",
+            StyleDerivation::ImagePaintScale,
+        ),
+        "CROP" => derivations.push(
+            props,
+            "objectFit",
+            "cover",
+            StyleDerivation::ImagePaintScale,
+        ),
         _ => {}
     }
 }

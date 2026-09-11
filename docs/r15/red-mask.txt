@@ -1,0 +1,50 @@
+   Compiling devup-mcp-devup-ui v0.4.4 (C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\crates\devup-mcp-devup-ui)
+warning: linker stdout: C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\r15_evidence_wording-7f0fc806df1a8ba3.lib 라이브러리 및 C:\Users\owjs3\orca\workspaces\devup-mcp\r15-evidence-wording\target\debug\deps\r15_evidence_wording-7f0fc806df1a8ba3.exp 개체를 생성하고 있습니다.
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `devup-mcp-devup-ui` (test "r15_evidence_wording") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.98s
+     Running tests\r15_evidence_wording.rs (target\debug\deps\r15_evidence_wording-7f0fc806df1a8ba3.exe)
+
+running 4 tests
+test r15_boundary_override_reports_boundary_only_for_overwritten_props ... FAILED
+test r15_free_layout_mask_reports_policy_despite_export_offset ... FAILED
+test r15_absolute_mask_reports_policy_despite_export_offset ... FAILED
+test r15_observed_absolute_mask_keeps_values_and_reports_policy ... FAILED
+
+failures:
+
+---- r15_boundary_override_reports_boundary_only_for_overwritten_props stdout ----
+
+thread 'r15_boundary_override_reports_boundary_only_for_overwritten_props' (88664) panicked at crates\devup-mcp-devup-ui\tests\r15_evidence_wording.rs:35:9:
+assertion `left == right` failed
+  left: Null
+ right: "in-flow-export-boundary"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- r15_free_layout_mask_reports_policy_despite_export_offset stdout ----
+
+thread 'r15_free_layout_mask_reports_policy_despite_export_offset' (35012) panicked at crates\devup-mcp-devup-ui\tests\r15_evidence_wording.rs:34:9:
+maskPos: In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.
+
+---- r15_absolute_mask_reports_policy_despite_export_offset stdout ----
+
+thread 'r15_absolute_mask_reports_policy_despite_export_offset' (104892) panicked at crates\devup-mcp-devup-ui\tests\r15_evidence_wording.rs:34:9:
+maskPos: In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.
+
+---- r15_observed_absolute_mask_keeps_values_and_reports_policy stdout ----
+
+thread 'r15_observed_absolute_mask_keeps_values_and_reports_policy' (58888) panicked at crates\devup-mcp-devup-ui\tests\r15_evidence_wording.rs:63:9:
+{"stage":"style","generatedProperty":"maskPos=\"center\"","sourceFields":["absoluteRenderBounds","absoluteBoundingBox","layoutPositioning","parentId","fills"],"originalValue":{"absoluteBoundingBox":{"height":117.6744155883789,"width":433.8122863769531,"x":19244,"y":16871},"absoluteRenderBounds":{"height":117.6744155883789,"width":360,"x":19263,"y":16871},"layoutPositioning":"ABSOLUTE","parentId":"3997:46667"},"calculation":"In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.","context":{"parentNodeId":"3997:46667","parentBounds":{"height":460,"width":360,"x":19263,"y":16557}},"elementIndex":1,"propertyMappingVerified":true,"assetId":"3997:46668:node","evidenceLimit":"No browser or SVG/CSS composition measurement."}
+
+
+failures:
+    r15_absolute_mask_reports_policy_despite_export_offset
+    r15_boundary_override_reports_boundary_only_for_overwritten_props
+    r15_free_layout_mask_reports_policy_despite_export_offset
+    r15_observed_absolute_mask_keeps_values_and_reports_policy
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p devup-mcp-devup-ui --test r15_evidence_wording`
