@@ -494,16 +494,9 @@ fn find_files_by_extension(dir: &Path, extension: &str, max_depth: usize) -> Vec
 // route-openapi: #[vespera::route(...)] handlers vs openapi.json paths
 // ---------------------------------------------------------------------
 
-/// Scans every `.rs` file under each `src/routes/` tree found in the
-/// project for `#[vespera::route(<method> [, path = "..."])]` attributes,
-/// derives each handler's URL from Vespera's documented file-structure
-/// convention (`src/routes/users.rs` -> `/users`, `src/routes/admin/mod.rs`
-/// -> `/admin`, `path = "/{id}"` appended), and compares the resulting
-/// `(METHOD, path)` set against `openapi.json`'s `paths`. Attribute
-/// extraction is a bracket-balanced text scan for the macro call, not a
-/// real Rust/proc-macro parse, so multi-app merges
-/// (`vespera::export_app!`/`merge = [...]`) and non-standard route-macro
-/// formatting can produce false positives — `confidence: "medium"`.
+/// Parses Rust handler attributes and compares their declared method/path
+/// against generated OpenAPI. Macro expansion, merged apps and cfg evaluation
+/// remain outside the scan, so successful parsing never raises confidence.
 fn route_openapi_layer(root: &Path) -> Value {
     let (routes_dirs, excluded_routes) = find_dirs_named(root, "routes", 5);
     let routes_dirs = routes_dirs
@@ -524,20 +517,85 @@ fn route_openapi_layer(root: &Path) -> Value {
     }
 
     let mut code_routes = BTreeSet::<(String, String)>::new();
+    let mut conditional_routes = BTreeSet::<(String, String)>::new();
+    let mut drifts = Vec::new();
     for routes_dir in &routes_dirs {
+        let mut files = Vec::new();
+        let mut conditional_modules = Vec::new();
         for file in collect_rust_sources(routes_dir, 6) {
-            let Ok(source) = std::fs::read_to_string(&file) else {
-                continue;
-            };
             let Ok(relative) = file.strip_prefix(routes_dir) else {
                 continue;
             };
             let prefix = route_url_prefix(relative);
-            for (method, path_attr) in extract_vespera_route_attributes(&source) {
-                let url = join_route_url(&prefix, path_attr.as_deref());
-                code_routes.insert((method.to_ascii_uppercase(), url));
+            let source = std::fs::read_to_string(&file);
+            let parsed = source
+                .as_ref()
+                .ok()
+                .map(|source| parse::route_attributes(source));
+            if let Some(parsed) = &parsed {
+                let mut module_base = relative.with_extension("");
+                if relative.file_name().is_some_and(|name| name == "mod.rs") {
+                    module_base.pop();
+                }
+                for module in &parsed.conditional_modules {
+                    let mut target = module_base.clone();
+                    target.extend(module);
+                    conditional_modules.push(target);
+                }
+            }
+            files.push((file.clone(), relative.to_owned(), prefix, source, parsed));
+        }
+        for (file, relative, prefix, source, parsed) in files {
+            let module = relative.with_extension("");
+            let inherited_gate = conditional_modules
+                .iter()
+                .any(|gate| module == *gate || relative.starts_with(gate));
+            let unresolved = parsed.as_ref().is_none_or(|parsed| parsed.unresolved);
+            if let Some(parsed) = parsed {
+                for route in parsed.routes {
+                    let url = join_route_url(&prefix, route.path.as_deref());
+                    let key = (route.method.to_ascii_uppercase(), url);
+                    if inherited_gate || route.conditional {
+                        conditional_routes.insert(key);
+                    } else {
+                        code_routes.insert(key);
+                    }
+                }
+            }
+            if unresolved {
+                let guesses = source
+                    .as_ref()
+                    .map(|source| {
+                        fallback_vespera_route_attributes(source)
+                            .into_iter()
+                            .map(|(method, path)| {
+                                json!({
+                                    "method": method.to_ascii_uppercase(),
+                                    "path": join_route_url(&prefix, path.as_deref()),
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                drifts.push(json!({
+                    "kind": "route-openapi-unresolved-fallback",
+                    "message": "Could not resolve all route declarations in this file. These legacy text-scan candidates are unverified, may include comments or unrelated strings, and are excluded from declared route counts; review the source and build configuration before rebuilding the generated spec.",
+                    "file": display_path(&file),
+                    "routes": guesses,
+                    "confidence": "low",
+                }));
             }
         }
+    }
+    if !conditional_routes.is_empty() {
+        drifts.push(json!({
+            "kind": "conditional-route-openapi",
+            "message": "These route declarations depend on cfg/cfg_attr configuration and may be compiled out. They are excluded from definite route counts and missing-from-spec findings; inspect the build configuration before rebuilding the generated spec.",
+            "routes": conditional_routes.iter().map(|(method, path)| json!({
+                "method": method, "path": path,
+            })).collect::<Vec<_>>(),
+            "confidence": "low",
+        }));
     }
 
     let mut spec_routes = BTreeSet::<(String, String)>::new();
@@ -570,7 +628,7 @@ fn route_openapi_layer(root: &Path) -> Value {
             "checked": false,
             "reason": "No openapi.json found, so there is no spec to compare against.",
             "codeRoutesFound": code_routes.len(),
-            "drifts": [],
+            "drifts": drifts,
         });
         attach_excluded_paths(&mut layer, excluded);
         return layer;
@@ -579,10 +637,14 @@ fn route_openapi_layer(root: &Path) -> Value {
     let code_by_key = group_by_comparison_key(&code_routes);
     let spec_by_key = group_by_comparison_key(&spec_routes);
     let stale_spec = routes_absent_from(&code_by_key, &spec_by_key);
-    let stale_code_or_merged = routes_absent_from(&spec_by_key, &code_by_key);
+    // A conditional declaration was scanned, but is not proof of an active
+    // operation. Avoid also labelling its spec path as absent from the scan.
+    let mut scanned_routes = code_routes.clone();
+    scanned_routes.extend(conditional_routes.iter().cloned());
+    let stale_code_or_merged =
+        routes_absent_from(&spec_by_key, &group_by_comparison_key(&scanned_routes));
     let spelling_only_matches = spelling_only_match_count(&code_by_key, &spec_by_key);
 
-    let mut drifts = Vec::new();
     if !stale_spec.is_empty() {
         drifts.push(json!({
             "kind": "route-missing-from-openapi",
@@ -610,6 +672,7 @@ fn route_openapi_layer(root: &Path) -> Value {
     let mut layer = json!({
         "checked": true,
         "codeRouteCount": code_routes.len(),
+        "conditionalRouteCount": conditional_routes.len(),
         "openapiRouteCount": spec_routes.len(),
         "openapiSpecsFound": specs_checked,
         "spellingNormalizedMatches": spelling_only_matches,
@@ -759,12 +822,20 @@ fn mirrored_drift_count(left: &[Value], right: &[Value]) -> usize {
         .count()
 }
 
-/// Extracts `(method, path_attribute)` pairs from every
-/// `#[vespera::route(...)]` (or `#[route(...)]` when `vespera::route` is
-/// imported directly) attribute in `source`, matched to the very next
-/// `pub async fn` per Vespera's "route handlers MUST be `pub async fn`"
-/// requirement — attributes not immediately followed by one are ignored.
+/// Returns only resolved, unconditional handler declarations. Conditional
+/// routes and unresolved syntax are disclosed separately by route_openapi_layer.
 pub(super) fn extract_vespera_route_attributes(source: &str) -> Vec<(String, Option<String>)> {
+    parse::route_attributes(source)
+        .routes
+        .into_iter()
+        .filter(|route| !route.conditional)
+        .map(|route| (route.method, route.path))
+        .collect()
+}
+
+/// Legacy text evidence is retained only in a distinctly low-confidence
+/// unresolved finding; never use these guesses as declared route keys.
+fn fallback_vespera_route_attributes(source: &str) -> Vec<(String, Option<String>)> {
     let mut results = Vec::new();
     let mut search_from = 0usize;
     while let Some(relative) = source[search_from..].find("route(") {
@@ -796,6 +867,9 @@ pub(super) fn extract_vespera_route_attributes(source: &str) -> Vec<(String, Opt
                 }
                 _ => {}
             }
+        }
+        if depth != 0 {
+            break;
         }
         let args = &source[args_start..args_end];
         search_from = args_end + 1;
@@ -1129,6 +1203,266 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    #[test]
+    fn route_arguments_ignore_comment_paths() {
+        for source in [
+            "#[route(get, /* path = \"/fake\" */ tags = [\"/tag\"])]\npub async fn real() {}",
+            "#[route(get, // path = \"/fake\"\n)]\npub async fn real() {}",
+            "#[route(get, /* outer /* path = \"/fake\" */ end */)]\npub async fn real() {}",
+        ] {
+            assert_eq!(
+                extract_vespera_route_attributes(source),
+                vec![("get".into(), None)]
+            );
+        }
+    }
+
+    #[test]
+    fn route_arguments_ignore_doc_comment_and_macro_examples() {
+        for source in [
+            "/// #[route(get, path = \"/fake\")]\npub async fn real() {}",
+            "/* #[route(get, path = \"/fake\")] */\npub async fn real() {}",
+            "unrelated! { #[route(get, path = \"/fake\")]\npub async fn real() {} }",
+        ] {
+            assert!(
+                extract_vespera_route_attributes(source).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn route_arguments_decode_rust_string_literals() {
+        for (literal, expected) in [
+            (r##"r"/raw""##, "/raw"),
+            (r##"r#"/raw"quote"#"##, "/raw\"quote"),
+            (r#""/escaped\"quote""#, "/escaped\"quote"),
+            ("\"/continued\\\n    /path\"", "/continued/path"),
+            (r#""/\u{61}\x62""#, "/ab"),
+        ] {
+            let source =
+                format!("#[vespera::route(get, path = {literal})]\npub async fn real() {{}}");
+            assert_eq!(
+                extract_vespera_route_attributes(&source),
+                vec![("get".into(), Some(expected.into()))]
+            );
+        }
+    }
+
+    #[test]
+    fn route_arguments_multiline_reversed_and_two_handlers() {
+        let source = r#"
+            #[vespera :: route (
+                path = "/first", tags = ["path = fake"], get,
+            )]
+            #[allow(
+                dead_code
+            )]
+            pub async fn first() {}
+            #[route(post, path = "/second")]
+            pub async fn second() {}
+        "#;
+        assert_eq!(
+            extract_vespera_route_attributes(source),
+            vec![
+                ("get".into(), Some("/first".into())),
+                ("post".into(), Some("/second".into())),
+            ]
+        );
+    }
+
+    #[test]
+    fn route_arguments_reject_unsupported_or_ambiguous_paths() {
+        for args in [
+            "get, \"/positional\"",
+            "get, path = PATH",
+            "get, path = concat!(\"/x\")",
+            "get, path = \"/one\", path = \"/two\"",
+            "get, post",
+            "get, path = b\"/bytes\"",
+        ] {
+            let source = format!("#[route({args})]\npub async fn real() {{}}");
+            assert!(
+                extract_vespera_route_attributes(&source).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn route_arguments_cfg_handlers_are_conditional_with_ownership() {
+        let temp = ScopedTempDir::new("route-cfg");
+        mapping_project(
+            temp.path(),
+            &[(
+                "user.rs",
+                "#[route(get)]\n#[cfg(feature = \"optional\")]\npub async fn user() {}",
+            )],
+        );
+        std::fs::write(temp.path().join("openapi.json"), r#"{"paths":{}}"#).unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        assert_eq!(layer["codeRouteCount"], 0);
+        let findings = layer["drifts"].as_array().unwrap();
+        let conditional = findings
+            .iter()
+            .find(|f| f["kind"] == "conditional-route-openapi")
+            .unwrap();
+        assert_eq!(conditional["confidence"], "low");
+        assert!(conditional["sourceOwnership"].is_object());
+        assert!(
+            !findings
+                .iter()
+                .any(|f| f["kind"] == "route-missing-from-openapi")
+        );
+    }
+
+    #[tokio::test]
+    async fn route_arguments_unresolved_file_keeps_low_confidence_fallback() {
+        let temp = ScopedTempDir::new("route-fallback");
+        mapping_project(
+            temp.path(),
+            &[(
+                "user.rs",
+                "#[route(get, path = PATH)]\npub async fn user() {}",
+            )],
+        );
+        std::fs::write(temp.path().join("openapi.json"), r#"{"paths":{}}"#).unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        assert_eq!(layer["codeRouteCount"], 0);
+        let fallback = layer["drifts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["kind"] == "route-openapi-unresolved-fallback")
+            .unwrap();
+        assert_eq!(fallback["confidence"], "low");
+        assert!(fallback["sourceOwnership"].is_object());
+    }
+
+    #[test]
+    fn route_arguments_do_not_promote_cfg_modules_or_cfg_attr() {
+        for source in [
+            "#![cfg(feature = \"optional\")]\n#[route(get)]\npub async fn real() {}",
+            "#[cfg(feature = \"optional\")] mod inner { #[route(get)]\npub async fn real() {} }",
+            "#[cfg_attr(feature = \"optional\", cfg(unix))]\n#[route(get)]\npub async fn real() {}",
+        ] {
+            assert!(
+                extract_vespera_route_attributes(source).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn route_arguments_do_not_extract_other_namespaces_or_function_bodies() {
+        for source in [
+            "#[other::route(get, path = \"/fake\")]\npub async fn real() {}",
+            "pub async fn outer() { #[route(get)]\npub async fn inner() {} }",
+            "#[route(get)]\nfn private() {}\npub async fn unrelated() {}",
+        ] {
+            assert!(
+                extract_vespera_route_attributes(source).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn route_arguments_malformed_file_preserves_fallback_evidence() {
+        let temp = ScopedTempDir::new("route-malformed");
+        mapping_project(
+            temp.path(),
+            &[(
+                "user.rs",
+                "#[route(get, path = \"/known\")]\npub async fn user() {}\nfn broken(",
+            )],
+        );
+        std::fs::write(temp.path().join("openapi.json"), r#"{"paths":{}}"#).unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        assert_eq!(layer["codeRouteCount"], 0);
+        let fallback = layer["drifts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["kind"] == "route-openapi-unresolved-fallback")
+            .unwrap();
+        assert_eq!(fallback["confidence"], "low");
+        assert_eq!(fallback["routes"][0]["path"], "/user/known");
+    }
+
+    #[tokio::test]
+    async fn route_arguments_unfinished_unicode_attribute_does_not_panic() {
+        let temp = ScopedTempDir::new("route-unicode");
+        mapping_project(temp.path(), &[("user.rs", "#[route(경로")]);
+        std::fs::write(temp.path().join("openapi.json"), r#"{"paths":{}}"#).unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        assert_eq!(layer["codeRouteCount"], 0);
+        assert_eq!(
+            layer["drifts"][0]["kind"],
+            "route-openapi-unresolved-fallback"
+        );
+    }
+
+    #[tokio::test]
+    async fn route_arguments_cfg_module_declaration_gates_child_file() {
+        let temp = ScopedTempDir::new("route-module-cfg");
+        mapping_project(
+            temp.path(),
+            &[
+                ("mod.rs", "#[cfg(feature = \"optional\")]\npub mod user;"),
+                ("user.rs", "#[route(get)]\npub async fn user() {}"),
+            ],
+        );
+        std::fs::write(
+            temp.path().join("openapi.json"),
+            r#"{"paths":{"/user/":{"get":{}}}}"#,
+        )
+        .unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["route-openapi".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["route-openapi"];
+        assert_eq!(layer["codeRouteCount"], 0);
+        assert_eq!(layer["spellingNormalizedMatches"], 0);
+        let findings = layer["drifts"].as_array().unwrap();
+        assert!(
+            findings
+                .iter()
+                .any(|f| f["kind"] == "conditional-route-openapi")
+        );
+        assert!(
+            !findings
+                .iter()
+                .any(|f| f["kind"] == "openapi-path-not-found-in-scanned-routes")
+        );
+    }
     fn mapping_project(root: &Path, routes: &[(&str, &str)]) {
         std::fs::write(root.join("package.json"), "{}").unwrap();
         std::fs::create_dir_all(root.join("models")).unwrap();

@@ -3,6 +3,152 @@
 
 use std::collections::BTreeSet;
 
+/// Direct declarations, kept separate from configuration-dependent evidence.
+#[derive(Default)]
+pub(in crate::server) struct RouteAttributes {
+    pub(in crate::server) routes: Vec<RouteAttribute>,
+    pub(in crate::server) unresolved: bool,
+    /// Out-of-line modules whose descendants inherit a configuration gate.
+    pub(in crate::server) conditional_modules: Vec<Vec<String>>,
+}
+
+pub(in crate::server) struct RouteAttribute {
+    pub(in crate::server) method: String,
+    pub(in crate::server) path: Option<String>,
+    pub(in crate::server) conditional: bool,
+}
+
+struct RouteArgs {
+    method: String,
+    path: Option<String>,
+}
+
+impl syn::parse::Parse for RouteArgs {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let mut method = None;
+        let mut path = None;
+        while !input.is_empty() {
+            let name: syn::Ident = input.parse()?;
+            let key = name.to_string().to_ascii_lowercase();
+            if http_method(&key) || key == "trace" {
+                if method.replace(key).is_some() {
+                    return Err(input.error("duplicate HTTP method"));
+                }
+            } else if key == "path" {
+                input.parse::<syn::Token![=]>()?;
+                let value: syn::LitStr = input.parse()?;
+                if path.replace(value.value()).is_some() {
+                    return Err(input.error("duplicate route path"));
+                }
+            } else if key != "deprecated" {
+                input.parse::<syn::Token![=]>()?;
+                // Other options cannot supply the method or path. Skip one
+                // balanced token value, without interpreting nested strings,
+                // expressions or Vespera-specific header/response syntax.
+                input.step(|cursor| {
+                    let mut rest = *cursor;
+                    let mut consumed = false;
+                    while let Some((tree, next)) = rest.token_tree() {
+                        if rest.punct().is_some_and(|(p, _)| p.as_char() == ',') {
+                            break;
+                        }
+                        drop(tree);
+                        consumed = true;
+                        rest = next;
+                    }
+                    if consumed {
+                        Ok(((), rest))
+                    } else {
+                        Err(cursor.error("missing route option value"))
+                    }
+                })?;
+            }
+            if !input.is_empty() {
+                input.parse::<syn::Token![,]>()?;
+            }
+        }
+        Ok(Self {
+            method: method.ok_or_else(|| input.error("unresolved HTTP method"))?,
+            path,
+        })
+    }
+}
+
+fn configuration_gated(attributes: &[syn::Attribute]) -> bool {
+    attributes
+        .iter()
+        .any(|attr| attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr"))
+}
+
+fn is_route_attribute(attribute: &syn::Attribute) -> bool {
+    let path = attribute.path();
+    path.is_ident("route")
+        || (path.segments.len() == 2
+            && path.segments[0].ident == "vespera"
+            && path.segments[1].ident == "route")
+}
+
+/// Parse Rust items, not arbitrary token substrings: comments, literal
+/// examples, macro bodies and nested function bodies are not declarations.
+/// No macro expansion, cfg evaluation or import/name resolution is attempted.
+pub(in crate::server) fn route_attributes(source: &str) -> RouteAttributes {
+    fn visit(
+        items: &[syn::Item],
+        inherited_gate: bool,
+        modules: &[String],
+        result: &mut RouteAttributes,
+    ) {
+        for item in items {
+            match item {
+                syn::Item::Fn(handler)
+                    if matches!(handler.vis, syn::Visibility::Public(_))
+                        && handler.sig.asyncness.is_some() =>
+                {
+                    let conditional = inherited_gate || configuration_gated(&handler.attrs);
+                    for attribute in &handler.attrs {
+                        if is_route_attribute(attribute) {
+                            match attribute.parse_args::<RouteArgs>() {
+                                Ok(args) => result.routes.push(RouteAttribute {
+                                    method: args.method,
+                                    path: args.path,
+                                    conditional,
+                                }),
+                                Err(_) => result.unresolved = true,
+                            }
+                        } else if attribute.path().is_ident("cfg_attr") {
+                            // cfg_attr can introduce a route macro itself.
+                            result.unresolved = true;
+                        }
+                    }
+                }
+                syn::Item::Mod(module) => {
+                    let conditional = inherited_gate || configuration_gated(&module.attrs);
+                    let mut nested = modules.to_vec();
+                    nested.push(module.ident.to_string());
+                    if let Some((_, items)) = &module.content {
+                        visit(items, conditional, &nested, result);
+                    } else if conditional {
+                        result.conditional_modules.push(nested);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let mut result = RouteAttributes::default();
+    match syn::parse_file(source) {
+        Ok(file) => visit(
+            &file.items,
+            configuration_gated(&file.attrs),
+            &[],
+            &mut result,
+        ),
+        Err(_) => result.unresolved = true,
+    }
+    result
+}
+
 #[derive(Debug, PartialEq)]
 enum Token {
     Word(String),
