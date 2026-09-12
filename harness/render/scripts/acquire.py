@@ -42,6 +42,10 @@ HARNESS = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(HARNESS))
 BANK = os.path.join(REPO, "fixtures", "local-call-bank")
 
+# `devup_figma_export` refuses more than 6 asset requests in one call and
+# recommends 3. Staying at the recommendation keeps every batch inside the cap.
+ASSET_BATCH = 3
+
 
 def exe_candidates():
     """Where a devup-mcp binary may be, most explicit first.
@@ -145,6 +149,25 @@ class Server:
         raise SystemExit(f"no response to {method} within {limit}s")
 
     def export(self, arguments, allow_error=False):
+        """One export, polled to completion.
+
+        A fresh export does not necessarily answer with the finished result: if
+        collection is still running after about a second the server returns
+        `exportJob` with a top-level `status` of `in_progress`, and the outputs
+        are written only once the job settles.
+
+        This script used to read that first reply as final and then open an
+        output file the server had not written yet, which is exactly why the
+        harness could no longer regenerate the inputs it needs - the very
+        inputs that are gitignored as generated. The measurements it produced
+        therefore came from a server that still answered synchronously.
+        """
+        body = self._export_call(arguments, allow_error)
+        if "error" in body:
+            return body
+        return self._settle(body, allow_error)
+
+    def _export_call(self, arguments, allow_error):
         # Asset naming is left to the server's own default, so what is
         # measured here is what a caller actually receives rather than
         # something this harness asked for.
@@ -157,6 +180,36 @@ class Server:
         text = "".join(part.get("text", "") for part in response["result"].get("content", [])
                        if part.get("type") == "text")
         return json.loads(text)
+
+    def _settle(self, body, allow_error, limit=3600):
+        """Poll `jobId` until the top-level status is no longer `in_progress`.
+
+        A polling call may carry only `jobId`, plus `jobAction` when the job
+        asked to be resumed; the server refuses a poll that repeats the
+        original request or its output paths. Resume is driven by the job's own
+        `nextAction` rather than guessed, so a job that merely needs more time
+        is waited on instead of being poked.
+        """
+        deadline = time.time() + limit
+        while body.get("status") == "in_progress":
+            job = body.get("exportJob") or body.get("assetJob") or {}
+            job_id = job.get("jobId")
+            if not job_id:
+                raise SystemExit(
+                    "export reported in_progress without a jobId: "
+                    + json.dumps(body)[:400]
+                )
+            if time.time() > deadline:
+                raise SystemExit(f"export job {job_id} did not settle within {limit}s")
+            poll = {"jobId": job_id}
+            next_action = (job.get("nextAction") or {}).get("arguments") or {}
+            if next_action.get("jobAction") == "resume":
+                poll["jobAction"] = "resume"
+            time.sleep(1.0)
+            body = self._export_call(poll, allow_error)
+            if "error" in body:
+                return body
+        return body
 
     def close(self):
         try:
@@ -268,8 +321,15 @@ def acquire(server, name, target, manifest):
                 continue
             manifest["assets"][path] = asset["assetId"]
             requests.append({"assetId": asset["assetId"], "format": fmt, "scale": 1, "outputPath": path})
-        for start in range(0, len(requests), 16):
-            batch = requests[start:start + 16]
+        # The server caps a call at 6 asset requests and recommends 3, so a
+        # batch of 16 was refused every single time: each batch paid one
+        # guaranteed-failing round trip before the one-at-a-time fallback below
+        # did the actual work. The fallback meant nothing was lost, which is why
+        # this went unnoticed - the cost was a wasted call per batch, not a
+        # missing asset. Batching at the recommended size makes the happy path
+        # actually succeed.
+        for start in range(0, len(requests), ASSET_BATCH):
+            batch = requests[start:start + ASSET_BATCH]
             # An artifact holds only the assets its own collection exported,
             # so the bytes are asked for by URL; the node reads are replayed
             # from the bank and only the export itself is new.
