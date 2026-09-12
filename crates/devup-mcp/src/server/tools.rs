@@ -153,7 +153,18 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    #[serde(default)]
     pub tsx: String,
+    /// Optional supplied-source bundle: at most 64 entries and 1 MiB total
+    /// UTF-8 path/content bytes. Enables structural checks without disk reads.
+    /// Entries require path and content strings; include devup.json for tokens.
+    /// Omit tsx when supplying files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<Vec<std::collections::BTreeMap<String, String>>>", extend(
+        "maxItems" = 64,
+        "items" = serde_json::json!({"type":"object","required":["path","content"],"additionalProperties":{"not":{}},"properties":{"path":{"type":"string"},"content":{"type":"string"}}})
+    ))]
+    pub files: Option<Vec<devup_mcp_devup_ui::ui_validate::SourceFile>>,
     /// Optional source label echoed in diagnostics; never read as a file path.
     #[serde(default)]
     pub source_name: Option<String>,

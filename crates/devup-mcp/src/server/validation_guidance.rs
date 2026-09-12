@@ -46,6 +46,9 @@ fn corrected_tsx(
     report: &UiValidation,
     theme: Option<&ProjectTheme>,
 ) -> Option<String> {
+    if input.files.is_some() {
+        return None;
+    }
     let theme = theme?;
     if report.ok
         || report
