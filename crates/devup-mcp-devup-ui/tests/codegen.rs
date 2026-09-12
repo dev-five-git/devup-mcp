@@ -274,7 +274,7 @@ fn nested_text_style_uses_typography() {
     assert!(output.tsx.contains("{\" \"}왔어?<br />다음 줄"));
     assert!(output.tsx.contains("fontSize=\"16px\""));
     assert!(output.tsx.contains("lineHeight=\"normal\""));
-    assert!(!output.tsx.contains("fontWeight=\"600\""));
+    assert!(output.tsx.contains("fontWeight=\"600\""));
 }
 
 #[test]

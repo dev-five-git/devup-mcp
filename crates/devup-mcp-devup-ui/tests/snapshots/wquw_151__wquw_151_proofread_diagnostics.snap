@@ -91,7 +91,7 @@ expression: json!(output.diagnostics)
       "appliedValue": {
         "state": "emitted",
         "generatedNodeId": "3879:35547",
-        "generatedSource": "        <Text\n              color=\"$primary\"\n              flex=\"1\"\n              fontSize=\"22px\"\n              lineHeight=\"31px\"\n              typography=\"h5\"\n              wordBreak=\"keep-all\"\n            >\n              작은 시장, 큰 사랑\n            </Text>",
+        "generatedSource": "        <Text\n              color=\"$primary\"\n              flex=\"1\"\n              fontSize=\"22px\"\n              fontWeight=\"700\"\n              lineHeight=\"31px\"\n              typography=\"h5\"\n              wordBreak=\"keep-all\"\n            >\n              작은 시장, 큰 사랑\n            </Text>",
         "sourceTruncated": false,
         "propertyMappingVerified": false
       },
@@ -106,7 +106,7 @@ expression: json!(output.diagnostics)
         "parentLayoutMode": "HORIZONTAL",
         "childSizing": "FILL",
         "generatedParent": "      <Center bg=\"$containerBackground\" px=\"20px\" py=\"24px\"",
-        "generatedChild": "        <Text\n              color=\"$primary\"\n              flex=\"1\"\n              fontSize=\"22px\"\n              lineHeight=\"31px\"\n              typography=\"h5\"\n              wordBreak=\"keep-all\"\n            ",
+        "generatedChild": "        <Text\n              color=\"$primary\"\n              flex=\"1\"\n              fontSize=\"22px\"\n              fontWeight=\"700\"\n              lineHeight=\"31px\"\n              typography=\"h5\"\n              wordBreak=\"keep-all\"\n            ",
         "flexBasis": "0%",
         "flexShrink": 1,
         "evidenceLimit": "Verifies the responsive allocation contract at the captured parent/sibling sizes, not browser font metrics or pixel equivalence.",
@@ -775,7 +775,7 @@ expression: json!(output.diagnostics)
       "originalResourceId": null,
       "appliedValue": {
         "generatedSource": [
-          "  <Flex\n        alignItems=\"center\"\n        bg=\"$containerBackground\"\n        borderTop=\"solid 1px $border\"\n        bottom=\"0px\"\n        justifyContent=\"space-between\"\n        left=\"0px\"\n        overflow=\"hidden\"\n        pos=\"absolute\"\n        px=\"10px\"\n        py=\"8px\"\n        w=\"100%\"\n      >\n        <Center\n          bg=\"$innerBg\"\n          border=\"solid 1px $borderBold\"\n          borderRadius=\"10px\"\n          px=\"19px\"\n          py=\"9px\"\n        >\n          <Text\n            color=\"$text\"\n            fontSize=\"18px\"\n            lineHeight=\"31px\"\n            typography=\"bodySemibold\"\n            wordBreak=\"keep-all\"\n          >\n            편집 설정\n          </Text>\n        </Center>\n        <Center bg=\"$primary\" borderRadius=\"10px\" px=\"20px\" py=\"10px\">\n          <Text\n            color=\"#FFF\"\n            fontSize=\"18px\"\n            lineHeight=\"31px\"\n            typography=\"bodySemibold\"\n            wordBreak=\"keep-all\"\n          >\n            검토 완료\n          </Text>\n        </Center>\n      </Flex>"
+          "  <Flex\n        alignItems=\"center\"\n        bg=\"$containerBackground\"\n        borderTop=\"solid 1px $border\"\n        bottom=\"0px\"\n        justifyContent=\"space-between\"\n        left=\"0px\"\n        overflow=\"hidden\"\n        pos=\"absolute\"\n        px=\"10px\"\n        py=\"8px\"\n        w=\"100%\"\n      >\n        <Center\n          bg=\"$innerBg\"\n          border=\"solid 1px $borderBold\"\n          borderRadius=\"10px\"\n          px=\"19px\"\n          py=\"9px\"\n        >\n          <Text\n            color=\"$text\"\n            fontSize=\"18px\"\n            fontWeight=\"600\"\n            lineHeight=\"31px\"\n            typography=\"bodySemibold\"\n            wordBreak=\"keep-all\"\n          >\n            편집 설정\n          </Text>\n        </Center>\n        <Center bg=\"$primary\" borderRadius=\"10px\" px=\"20px\" py=\"10px\">\n          <Text\n            color=\"#FFF\"\n            fontSize=\"18px\"\n            fontWeight=\"600\"\n            lineHeight=\"31px\"\n            typography=\"bodySemibold\"\n            wordBreak=\"keep-all\"\n          >\n            검토 완료\n          </Text>\n        </Center>\n      </Flex>"
         ],
         "fallback": null,
         "heightPreservation": {
