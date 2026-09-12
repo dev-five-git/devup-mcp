@@ -74,6 +74,7 @@ async fn fresh_binary_initializes_lists_tools_and_reports_auth_status() -> anyho
         .collect::<Vec<_>>();
     assert!(names.contains(&"devup_figma_auth"));
     assert!(names.contains(&"devup_figma_explore"));
+    assert!(names.contains(&"devup_visual_compare"));
 
     send(
         &mut stdin,

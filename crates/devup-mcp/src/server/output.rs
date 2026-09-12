@@ -407,6 +407,57 @@ impl Drop for OutputTransaction {
 }
 
 impl OutputTarget {
+    /// Read through the held capability root, never through an ambient path.
+    /// Reject links and non-files before reading and refuse (never truncate)
+    /// inputs exceeding the caller's byte limit, including a growing file.
+    pub fn read_bounded(&self, max_bytes: usize) -> Result<Vec<u8>, DevupError> {
+        reject_existing_symlink_ancestors(&self.root, &self.relative_path)?;
+        let metadata = self
+            .root
+            .dir
+            .symlink_metadata(&self.relative_path)
+            .map_err(|_| invalid_path("Cannot inspect the input PNG file."))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(invalid_path(
+                "The input PNG must be a regular file, not a symlink or junction.",
+            ));
+        }
+        let too_large = || {
+            DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "The input PNG exceeds the compressed byte limit.",
+                false,
+            )
+        };
+        if metadata.len() > max_bytes as u64 {
+            return Err(too_large());
+        }
+        // cap-std confines resolution to the held root even if an ancestor or
+        // leaf is replaced between the checks and open.
+        let file = self
+            .root
+            .dir
+            .open(&self.relative_path)
+            .map_err(|_| invalid_path("Cannot open the input PNG within the allowed root."))?;
+        let metadata = file
+            .metadata()
+            .map_err(|_| invalid_path("Cannot inspect the opened input PNG."))?;
+        if !metadata.is_file() {
+            return Err(invalid_path("The input PNG must be a regular file."));
+        }
+        if metadata.len() > max_bytes as u64 {
+            return Err(too_large());
+        }
+        let mut bytes = Vec::new();
+        file.take((max_bytes as u64).saturating_add(1))
+            .read_to_end(&mut bytes)
+            .map_err(|_| invalid_path("Cannot read the input PNG."))?;
+        if bytes.len() > max_bytes {
+            return Err(too_large());
+        }
+        Ok(bytes)
+    }
+
     pub fn display_path(&self) -> &Path {
         &self.display_path
     }

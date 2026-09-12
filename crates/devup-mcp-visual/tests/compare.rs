@@ -89,3 +89,54 @@ fn tolerance_and_dimension_mismatch_are_explicit() -> anyhow::Result<()> {
     std::fs::remove_dir_all(root)?;
     Ok(())
 }
+
+#[test]
+fn memory_comparison_returns_red_diff_without_writing_a_path() -> anyhow::Result<()> {
+    use devup_mcp_visual::compare_png_bytes;
+    let mut reference = std::io::Cursor::new(Vec::new());
+    let mut actual = std::io::Cursor::new(Vec::new());
+    let white = ImageBuffer::from_pixel(2, 1, Rgba([255_u8; 4]));
+    let mut changed = white.clone();
+    changed.put_pixel(1, 0, Rgba([0, 0, 0, 255]));
+    white.write_to(&mut reference, image::ImageFormat::Png)?;
+    changed.write_to(&mut actual, image::ImageFormat::Png)?;
+    let (report, diff) = compare_png_bytes(
+        reference.get_ref(),
+        actual.get_ref(),
+        &CompareOptions {
+            max_changed_ratio: 0.5,
+            diff_path: Some(PathBuf::from("nonexistent-directory/must-not-write.png")),
+            ..CompareOptions::default()
+        },
+        true,
+    )?;
+    assert_eq!(report.changed_ratio, 0.5);
+    assert!(report.passed());
+    assert!(report.diff_path.is_none());
+    let decoded =
+        image::load_from_memory_with_format(&diff.unwrap(), image::ImageFormat::Png)?.into_rgba8();
+    assert_eq!(decoded.get_pixel(0, 0).0, [0, 0, 0, 0]);
+    assert_eq!(decoded.get_pixel(1, 0).0, [255, 0, 0, 255]);
+    Ok(())
+}
+
+#[test]
+fn memory_comparison_refuses_invalid_png_and_nonfinite_threshold() {
+    use devup_mcp_visual::{VisualError, compare_png_bytes};
+    assert!(matches!(
+        compare_png_bytes(b"not PNG", b"not PNG", &CompareOptions::default(), false),
+        Err(VisualError::Image(_))
+    ));
+    assert!(matches!(
+        compare_png_bytes(
+            &[],
+            &[],
+            &CompareOptions {
+                max_changed_ratio: f64::NAN,
+                ..CompareOptions::default()
+            },
+            false
+        ),
+        Err(VisualError::InvalidThreshold)
+    ));
+}

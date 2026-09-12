@@ -87,28 +87,54 @@ pub fn compare_png(
     if !(0.0..=1.0).contains(&options.max_changed_ratio) {
         return Err(VisualError::InvalidThreshold);
     }
-    let reference = image::open(reference_path)?.into_rgba8();
-    let actual = image::open(actual_path)?.into_rgba8();
+    let reference = std::fs::read(reference_path).map_err(ImageError::IoError)?;
+    let actual = std::fs::read(actual_path).map_err(ImageError::IoError)?;
+    let (mut report, diff) =
+        compare_png_bytes(&reference, &actual, options, options.diff_path.is_some())?;
+    if let (Some(path), Some(bytes)) = (&options.diff_path, diff) {
+        std::fs::write(path, bytes).map_err(ImageError::IoError)?;
+        report.diff_path = Some(path.to_string_lossy().into_owned());
+    }
+    Ok(report)
+}
+
+/// Compare PNGs without disk writes. The optional diff uses opaque red changed
+/// pixels and transparent unchanged pixels, exactly as the CLI does.
+/// Inputs are limited to 16 MiB compressed, 8192 pixels per axis, and 64 MiB RGBA.
+pub fn compare_png_bytes(
+    reference: &[u8],
+    actual: &[u8],
+    options: &CompareOptions,
+    include_diff: bool,
+) -> Result<(VisualReport, Option<Vec<u8>>), VisualError> {
+    if !(0.0..=1.0).contains(&options.max_changed_ratio) {
+        return Err(VisualError::InvalidThreshold);
+    }
+    let reference = decode_png(reference)?;
+    let actual = decode_png(actual)?;
     let reference_dimensions = [reference.width(), reference.height()];
     let actual_dimensions = [actual.width(), actual.height()];
     if reference_dimensions != actual_dimensions {
-        return Ok(VisualReport {
-            status: VisualStatus::InvalidDimensions,
-            reference_dimensions,
-            actual_dimensions,
-            changed_pixels: 0,
-            total_pixels: 0,
-            changed_ratio: 1.0,
-            max_changed_ratio: options.max_changed_ratio,
-            channel_tolerance: options.channel_tolerance,
-            max_channel_delta: 0,
-            diff_path: None,
-        });
+        return Ok((
+            VisualReport {
+                status: VisualStatus::InvalidDimensions,
+                reference_dimensions,
+                actual_dimensions,
+                changed_pixels: 0,
+                total_pixels: 0,
+                changed_ratio: 1.0,
+                max_changed_ratio: options.max_changed_ratio,
+                channel_tolerance: options.channel_tolerance,
+                max_channel_delta: 0,
+                diff_path: None,
+            },
+            None,
+        ));
     }
 
     let mut changed_pixels = 0_u64;
     let mut max_channel_delta = 0_u8;
-    let mut diff = options.diff_path.as_ref().map(|_| {
+    let mut diff = include_diff.then(|| {
         ImageBuffer::from_pixel(
             reference.width(),
             reference.height(),
@@ -149,22 +175,48 @@ pub fn compare_png(
     } else {
         VisualStatus::Mismatch
     };
-    let diff_path = if let (Some(path), Some(diff)) = (&options.diff_path, diff) {
-        diff.save_with_format(path, image::ImageFormat::Png)?;
-        Some(path.to_string_lossy().into_owned())
-    } else {
-        None
+    let diff_png = diff
+        .map(|diff| {
+            let mut bytes = std::io::Cursor::new(Vec::new());
+            diff.write_to(&mut bytes, image::ImageFormat::Png)?;
+            Ok::<_, ImageError>(bytes.into_inner())
+        })
+        .transpose()?;
+    Ok((
+        VisualReport {
+            status,
+            reference_dimensions,
+            actual_dimensions,
+            changed_pixels,
+            total_pixels,
+            changed_ratio,
+            max_changed_ratio: options.max_changed_ratio,
+            channel_tolerance: options.channel_tolerance,
+            max_channel_delta,
+            diff_path: None,
+        },
+        diff_png,
+    ))
+}
+
+fn decode_png(bytes: &[u8]) -> Result<image::RgbaImage, VisualError> {
+    use image::{ImageDecoder, Limits, codecs::png::PngDecoder};
+    let invalid = || {
+        ImageError::Limits(image::error::LimitError::from_kind(
+            image::error::LimitErrorKind::DimensionError,
+        ))
     };
-    Ok(VisualReport {
-        status,
-        reference_dimensions,
-        actual_dimensions,
-        changed_pixels,
-        total_pixels,
-        changed_ratio,
-        max_changed_ratio: options.max_changed_ratio,
-        channel_tolerance: options.channel_tolerance,
-        max_channel_delta,
-        diff_path,
-    })
+    if bytes.len() > 16 * 1024 * 1024 {
+        return Err(invalid().into());
+    }
+    let mut limits = Limits::default();
+    limits.max_image_width = Some(8192);
+    limits.max_image_height = Some(8192);
+    limits.max_alloc = Some(64 * 1024 * 1024);
+    let decoder = PngDecoder::with_limits(std::io::Cursor::new(bytes), limits)?;
+    let (width, height) = decoder.dimensions();
+    if width == 0 || height == 0 || u64::from(width) * u64::from(height) * 4 > 64 * 1024 * 1024 {
+        return Err(invalid().into());
+    }
+    Ok(image::DynamicImage::from_decoder(decoder)?.into_rgba8())
 }
