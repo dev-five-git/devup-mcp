@@ -1352,7 +1352,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, Vespertide models/*.json tables/columns, or UI component/props/import/route reuse evidence (scope: theme | api | db | ui | all) — read-only, no session cache, never guesses. UI is opt-in and excluded from all: large monorepo inventories must not pollute token context. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_project_context(

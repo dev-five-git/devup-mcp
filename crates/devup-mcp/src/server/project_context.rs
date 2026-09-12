@@ -15,6 +15,13 @@ use devup_mcp_figma::{DevupError, ErrorCode};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
+#[cfg(test)]
+#[path = "project_context_ui_tests.rs"]
+mod ui_tests;
+
+#[path = "project_context_ui.rs"]
+mod ui;
+
 use super::project_root::{
     PROJECT_ROOT_NOT_FOUND_MESSAGE, display_path, find_dirs_named, find_files_named,
     find_project_root, guardrail_object, json_files_in, not_found_response,
@@ -161,10 +168,10 @@ pub async fn run(
     project_root: Option<&str>,
     filter: Option<&str>,
 ) -> Result<Value, DevupError> {
-    if !["theme", "api", "db", "all"].contains(&scope) {
+    if !["theme", "api", "db", "ui", "all"].contains(&scope) {
         return Err(DevupError::new(
             ErrorCode::DevupInvalidInput,
-            "scope must be theme, api, db, or all.",
+            "scope must be theme, api, db, ui, or all (ui is opt-in).",
             false,
         ));
     }
@@ -190,6 +197,7 @@ pub async fn run(
         "theme" => Ok(theme_scope(&root, filter)),
         "api" => Ok(api_scope(&root, filter)),
         "db" => Ok(db_scope(&root, filter)),
+        "ui" => Ok(ui::run(&root, filter)),
         "all" => {
             let mut all = Map::new();
             all.insert("found".to_owned(), Value::Bool(true));

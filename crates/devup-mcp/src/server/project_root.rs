@@ -84,6 +84,30 @@ fn find_named(
     max_depth: usize,
     directories: bool,
 ) -> (Vec<PathBuf>, Vec<Value>) {
+    find_matching(
+        root,
+        |path| path.file_name().is_some_and(|name| name == target_name),
+        max_depth,
+        directories,
+    )
+}
+
+/// File-predicate variant of the same authoritative scan. It shares all pruning,
+/// nested-checkout diagnostics, sorting and symlink handling with named scans.
+pub fn find_matching_files(
+    root: &Path,
+    matches: impl Fn(&Path) -> bool,
+    max_depth: usize,
+) -> (Vec<PathBuf>, Vec<Value>) {
+    find_matching(root, matches, max_depth, false)
+}
+
+fn find_matching(
+    root: &Path,
+    matches: impl Fn(&Path) -> bool,
+    max_depth: usize,
+    directories: bool,
+) -> (Vec<PathBuf>, Vec<Value>) {
     let mut found = Vec::new();
     let mut excluded = Vec::new();
     // The explicit root is authoritative even when it is itself a worktree.
@@ -115,7 +139,7 @@ fn find_named(
                     None
                 }
             });
-            if name == target_name
+            if matches(&path)
                 && (if directories {
                     is_dir
                 } else {
