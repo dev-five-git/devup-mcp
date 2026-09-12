@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Stop failing a build-identity test for something that is not a defect. The test compared the -dirty suffix baked into the binary at compile time against a git status it ran itself at test time, which are two observations of the working tree taken at two different moments; an untracked file appearing in between, a probe script or a scratch log, made a correctly behaving binary report clean while the test's own git call reported dirty, and the assertion failed with no bug to find. It failed that way during the line-box investigation. The build script now publishes what it actually observed, DEVUP_MCP_GIT_DIRTY as true, false or unknown when git could not be asked, together with DEVUP_MCP_BUILD_ID_SOURCE recording whether the identity came from git or from an injected DEVUP_MCP_BUILD_ID, and the test asserts against those build-time facts instead. What stays under test is the chain that can actually break: the git observation, the suffix git_identity derives from it, and --version printing the baked value faithfully; an injected identity carries whatever suffix its caller chose and an unknown observation says nothing about this plumbing, so neither is asserted. The run-time comparison remains as a note on stderr, because a tree that moved between building and running is information about the run rather than a fault in the binary.",
+  "date": "2026-09-12T21:40:00+09:00"
+}
