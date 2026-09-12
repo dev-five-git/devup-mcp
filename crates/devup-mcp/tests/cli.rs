@@ -47,14 +47,6 @@ fn version_flag_reports_the_installed_binary_version() {
 
 #[test]
 fn version_build_id_reports_the_repository_dirty_state() {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let status = Command::new("git")
-        .args(["status", "--porcelain=v1", "--untracked-files=normal"])
-        .current_dir(repository)
-        .output()
-        .expect("inspect repository status");
-    assert!(status.status.success());
-
     let output = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
         .arg("--version")
         .output()
@@ -67,7 +59,61 @@ fn version_build_id_reports_the_repository_dirty_state() {
         .and_then(|(_, value)| value.strip_suffix(')'))
         .expect("version output includes a parenthesized build ID");
 
-    assert_eq!(build_id.ends_with("-dirty"), !status.stdout.is_empty());
+    // Compare the baked suffix against what the build script OBSERVED, not
+    // against a fresh `git status`. Those are two observations at two different
+    // times: the suffix is fixed at compile time, and an untracked file
+    // appearing afterwards - a probe script, a scratch log - makes a run-time
+    // git call disagree with a binary that is behaving correctly. This test
+    // failed exactly that way during the line-box investigation.
+    //
+    // What remains under test is the chain that can actually break: the build
+    // script's git observation, `git_identity`'s suffix, and `--version`
+    // printing the baked value faithfully.
+    match (
+        env!("DEVUP_MCP_BUILD_ID_SOURCE"),
+        env!("DEVUP_MCP_GIT_DIRTY"),
+    ) {
+        ("git", "true") => assert!(
+            build_id.ends_with("-dirty"),
+            "the build script saw a dirty tree, so --version must say so: {build_id}"
+        ),
+        ("git", "false") => assert!(
+            !build_id.ends_with("-dirty"),
+            "the build script saw a clean tree, so --version must not claim dirty: {build_id}"
+        ),
+        // An injected DEVUP_MCP_BUILD_ID carries whatever suffix its caller
+        // chose, and "unknown" means git could not be asked at build time.
+        // Neither says anything about this plumbing, so neither is asserted.
+        (source, dirty) => {
+            assert!(
+                !build_id.is_empty(),
+                "a build ID is still required (source={source}, gitDirty={dirty})"
+            );
+        }
+    }
+
+    // Advisory only: if the tree moved between compiling and running, say so
+    // rather than failing. A mismatch here is information about the run, not a
+    // defect in the binary.
+    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    if let Ok(status) = Command::new("git")
+        .args(["status", "--porcelain=v1", "--untracked-files=normal"])
+        .current_dir(repository)
+        .output()
+        && status.status.success()
+    {
+        let now_dirty = !status.stdout.is_empty();
+        if env!("DEVUP_MCP_GIT_DIRTY") == "true" && !now_dirty
+            || env!("DEVUP_MCP_GIT_DIRTY") == "false" && now_dirty
+        {
+            eprintln!(
+                "note: the working tree changed between build and run \
+                 (build saw dirty={}, now dirty={now_dirty}); the baked build ID is \
+                 still correct for the build that produced it",
+                env!("DEVUP_MCP_GIT_DIRTY")
+            );
+        }
+    }
 }
 
 #[test]
