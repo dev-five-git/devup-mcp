@@ -17,6 +17,7 @@ devup-mcp-figma = { path = "../devup-mcp-figma" }
 dunce.workspace = true
 rmcp.workspace = true
 rand.workspace = true
+reqwest.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -30,7 +31,6 @@ axum.workspace = true
 # the same way OutputPolicy does — std::fs::canonicalize would return a `\\?\`
 # UNC path on Windows and never match.
 dunce.workspace = true
-reqwest.workspace = true
 # `start_paused` lets a test watch the retry waits elapse without spending the
 # minute they describe.
 tokio = { workspace = true, features = ["test-util"] }
