@@ -255,20 +255,20 @@ pub(super) fn render_text_children(
     depth: usize,
 ) -> String {
     let indent = "  ".repeat(depth);
-    let Some(segments) = view.value("styledTextSegments").and_then(Value::as_array) else {
+    let Some(segments) = view
+        .value("styledTextSegments")
+        .and_then(Value::as_array)
+        .filter(|segments| !segments.is_empty())
+    else {
         return format!(
             "{indent}{}",
             escape_jsx_text(view.string("characters").unwrap_or_default())
         );
     };
-    if segments.is_empty() {
-        return indent;
-    }
     let default = default_segment(view).expect("non-empty styledTextSegments");
     let default_props = typography_props(default, text_style_tokens, variable_tokens, used_tokens);
-    let mut rendered = Vec::new();
-    let last = segments.len() - 1;
-    for (index, segment) in segments.iter().enumerate() {
+    let mut rendered: Vec<String> = Vec::new();
+    for segment in segments {
         let value = segment
             .get("characters")
             .and_then(Value::as_str)
@@ -280,9 +280,20 @@ pub(super) fn render_text_children(
             .and_then(Value::as_str)
             .unwrap_or("NONE");
         if list != "NONE" {
-            rendered.extend(value.lines().map(|line| {
+            let lines = value
+                .replace("\r\n", "\n")
+                .replace(['\r', '\u{2028}', '\u{2029}'], "\n");
+            let items = lines.split_terminator('\n').collect::<Vec<_>>();
+            rendered.extend(items.iter().enumerate().map(|(index, line)| {
+                // A trailing separator is a break inside the last item, not
+                // another item (which would introduce an extra list marker).
+                let trailing_break = if index + 1 == items.len() && lines.ends_with('\n') {
+                    "<br />"
+                } else {
+                    ""
+                };
                 format!(
-                    "{indent}<li>\n{}{}\n{indent}</li>",
+                    "{indent}<li>\n{}{}{trailing_break}\n{indent}</li>",
                     "  ".repeat(depth + 1),
                     escape_jsx_text(line)
                 )
@@ -297,9 +308,23 @@ pub(super) fn render_text_children(
                 .iter()
                 .any(|(default_name, default_value)| default_name == name && default_value == value)
         });
-        let content = escape_jsx_segment(value, index == 0, index == last);
+        let content = escape_jsx_text(value);
         if segment_props.is_empty() {
-            rendered.push(format!("{indent}{content}"));
+            if content.is_empty() {
+                continue;
+            }
+            // Two bare children are one JSXText token. A formatting newline
+            // between nonempty lines becomes a space, even inside a word.
+            // Join only that hazardous boundary; element/expression boundaries
+            // already prevent JSX from inserting a space and stay unchanged.
+            if !content.starts_with(['<', '{'])
+                && let Some(previous) = rendered.last_mut()
+                && !previous.ends_with(['>', '}'])
+            {
+                previous.push_str(&content);
+            } else {
+                rendered.push(format!("{indent}{content}"));
+            }
         } else {
             segment_props.sort_by(|left, right| left.0.cmp(&right.0));
             let props = segment_props
@@ -431,30 +456,12 @@ fn is_js_whitespace(character: char) -> bool {
     )
 }
 
-/// A whole text as JSX text: the plugin's `fixTextChild` and its line-break
-/// substitution.
-///
-/// Whitespace at either edge is written as a JSX expression holding one
-/// space per character, because JSX would fold it away otherwise, and a
-/// newline there counts as a space too — `"기원합니다.\n"` ends in `{" "}`,
-/// which the pinned corpus holds. A run of the characters JSX cannot hold
-/// bare is wrapped as one expression, `{"&&"}`. Inside the text a line break
-/// is `<br />`, and so is a soft return (U+2028, Shift+Enter in Figma): the
-/// plugin passes the character through and a browser does not break on it.
+/// Preserve ordinary text in the plugin's JSX spelling. Edge spaces use
+/// string expressions because source indentation would trim them; other edge
+/// whitespace retains its actual characters instead of becoming ASCII spaces.
+/// Design line separators paint as explicit breaks (CRLF is one separator).
+/// This encoder is also used by the provenance mapper.
 pub(crate) fn escape_jsx_text(input: &str) -> String {
-    escape_jsx_segment(input, true, true)
-}
-
-/// One segment of a text, which is [`escape_jsx_text`] except at an edge the
-/// segment shares with the next.
-///
-/// The plugin counts a newline at the edge of *every* segment as a space, so
-/// a break that falls where a coloured span ends — which is where a designer
-/// most often puts one — is not drawn at all: `"성인 ADHD, \n"` followed by
-/// `"우리는 다르게 봅니다."` came out on one line. At an edge inside the text
-/// the break is kept, with the spaces around it still counted:
-/// `성인 ADHD,{" "}<br />`. The text's own outer edges keep the plugin's rule.
-fn escape_jsx_segment(input: &str, at_start: bool, at_end: bool) -> String {
     let characters = input.chars().collect::<Vec<_>>();
     let leading = characters
         .iter()
@@ -472,7 +479,7 @@ fn escape_jsx_segment(input: &str, at_start: bool, at_end: bool) -> String {
     let middle = &characters[leading..characters.len() - trailing];
 
     let mut result = String::new();
-    push_edge_whitespace(&characters[..leading], at_start, &mut result);
+    push_edge_whitespace(&characters[..leading], &mut result);
     let mut index = 0;
     while index < middle.len() {
         let character = middle[index];
@@ -494,48 +501,82 @@ fn escape_jsx_segment(input: &str, at_start: bool, at_end: bool) -> String {
                 result.push_str("<br />");
             }
             '\n' | '\u{2028}' | '\u{2029}' => result.push_str("<br />"),
+            '\t' => result.push_str("{\"\\t\"}"),
             other => result.push(other),
         }
         index += 1;
     }
-    push_edge_whitespace(
-        &characters[characters.len() - trailing..],
-        at_end,
-        &mut result,
-    );
+    push_edge_whitespace(&characters[characters.len() - trailing..], &mut result);
     result
 }
 
-/// The whitespace at one edge of a segment. At the text's outer edge every
-/// character is a space, as the plugin counts them; at an edge inside the
-/// text each break is a `<br />`, and the spaces between and around them one
-/// JSX expression per run, a space per character.
-fn push_edge_whitespace(run: &[char], outer_edge: bool, into: &mut String) {
-    if outer_edge {
-        if !run.is_empty() {
-            into.push_str(&format!("{{\"{}\"}}", " ".repeat(run.len())));
-        }
-        return;
-    }
-    let mut spaces = 0;
-    let mut index = 0;
-    while index < run.len() {
-        match run[index] {
-            '\r' | '\n' | '\u{2028}' | '\u{2029}' => {
-                if spaces > 0 {
-                    into.push_str(&format!("{{\"{}\"}}", " ".repeat(spaces)));
-                    spaces = 0;
-                }
-                if run[index] == '\r' && run.get(index + 1) == Some(&'\n') {
-                    index += 1;
-                }
-                into.push_str("<br />");
+/// Preserve each whitespace run verbatim, with explicit design line breaks.
+fn push_edge_whitespace(run: &[char], into: &mut String) {
+    let mut start = 0;
+    while start < run.len() {
+        if matches!(run[start], '\r' | '\n' | '\u{2028}' | '\u{2029}') {
+            if run[start] == '\r' && run.get(start + 1) == Some(&'\n') {
+                start += 1;
             }
-            _ => spaces += 1,
+            into.push_str("<br />");
+            start += 1;
+        } else {
+            let end = run[start..]
+                .iter()
+                .position(|ch| matches!(ch, '\r' | '\n' | '\u{2028}' | '\u{2029}'))
+                .map_or(run.len(), |offset| start + offset);
+            let whitespace = run[start..end].iter().collect::<String>();
+            into.push('{');
+            into.push_str(&serde_json::to_string(&whitespace).expect("serialize whitespace"));
+            into.push('}');
+            start = end;
         }
-        index += 1;
     }
-    if spaces > 0 {
-        into.push_str(&format!("{{\"{}\"}}", " ".repeat(spaces)));
+}
+
+/// CSS normal and nowrap both collapse ASCII spaces/tabs; JSX expressions do
+/// not prevent that. Report the remaining visual loss without changing layout.
+pub(super) fn whitespace_collapse_diagnostic(
+    view: &TypedNode<'_>,
+) -> Option<devup_mcp_figma::Diagnostic> {
+    if view.node_type() != "TEXT" {
+        return None;
     }
+    let characters = view
+        .string("characters")
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            view.value("styledTextSegments")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|segment| segment.get("characters").and_then(Value::as_str))
+                .collect()
+        });
+    let collapses = characters
+        .split(['\r', '\n', '\u{2028}', '\u{2029}'])
+        .any(|line| {
+            line.starts_with(' ')
+                || line.ends_with(' ')
+                || line.contains("  ")
+                || line.contains('\t')
+        });
+    if !collapses {
+        return None;
+    }
+    Some(devup_mcp_figma::Diagnostic {
+        code: "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE".into(),
+        node_id: Some(view.id().to_owned()),
+        property: Some("characters".into()),
+        message: "Text characters are retained in JSX, but CSS collapses source spaces or tabs."
+            .into(),
+        fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
+        details: Some(serde_json::json!({
+            "originalValue": characters,
+            "classification": "css-whitespace-collapse",
+            "whiteSpace": if view.number("maxLines") == Some(1.0) { "nowrap" } else { "normal" },
+            "nextAction": "Review intentional spaces or tabs in Figma and choose an explicit whitespace-preserving style if required."
+        })),
+        ..devup_mcp_figma::Diagnostic::default()
+    })
 }

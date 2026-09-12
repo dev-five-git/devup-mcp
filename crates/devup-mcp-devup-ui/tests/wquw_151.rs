@@ -144,7 +144,23 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
         output.fidelity_report.layout.total - output.fidelity_report.layout.covered,
         1
     );
-    assert_eq!(output.fidelity_report.impacts.lossy, 1);
+    // The existing FILL loss plus three texts whose spaces precede line breaks.
+    assert_eq!(output.fidelity_report.impacts.lossy, 4);
+    let mut whitespace_nodes = output
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE")
+        .map(|diagnostic| {
+            assert_eq!(diagnostic.property.as_deref(), Some("characters"));
+            assert_eq!(
+                diagnostic.fidelity_impact,
+                Some(devup_mcp_figma::FidelityImpact::Lossy)
+            );
+            diagnostic.node_id.as_deref().unwrap()
+        })
+        .collect::<Vec<_>>();
+    whitespace_nodes.sort();
+    assert_eq!(whitespace_nodes, ["3879:35520", "3879:35535", "3879:35539"]);
     assert_eq!(output.fidelity_report.impacts.failed, 0);
     assert_eq!(output.fidelity_report.impacts.approximated, 0);
     assert!(!output.fidelity_report.strict_compatible());

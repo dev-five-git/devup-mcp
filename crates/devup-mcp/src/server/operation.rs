@@ -26,6 +26,7 @@ pub enum PendingOperation {
     },
     Export {
         outputs: Vec<String>,
+        previous_design_fingerprints: Option<String>,
         component_name: Option<String>,
         include_diagnostics: bool,
         root_layout: RootLayout,

@@ -32,6 +32,10 @@ pub struct FigmaExportInput {
         "enum": super::validation::EXPORT_OUTPUTS,
     })))]
     pub outputs: Vec<String>,
+    /// Saved designFingerprints sidecar JSON text. Request designChanges to compare
+    /// captured converter inputs; this does not verify rendered pixels or code on disk.
+    #[serde(default)]
+    pub previous_design_fingerprints: Option<String>,
     #[serde(default)]
     pub component_name: Option<String>,
     #[serde(default)]
@@ -76,6 +80,8 @@ pub struct FigmaExportInput {
     #[serde(default)]
     /// pageScaffold (or frame:<nodeId>:pageScaffold) names a project directory;
     /// other output keys name files. Scaffold writes require pageScaffold.write=true.
+    /// designFingerprints writes a versioned JSON sidecar and replaces an existing file
+    /// through the guarded output transaction, unless scaffold options prohibit it.
     pub output_paths: BTreeMap<String, String>,
     #[serde(default)]
     pub page_scaffold: Option<super::projection::page_scaffold::PageScaffoldOptions>,
