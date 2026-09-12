@@ -333,6 +333,62 @@ async fn converts_a_figma_link_to_structured_devup_ui() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+struct TextWhitespaceUpstream;
+
+#[async_trait]
+impl FigmaUpstream for TextWhitespaceUpstream {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        FixtureUpstream.list_tools().await
+    }
+
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        let is_node = matches!(
+            call,
+            ReadToolCall::Snapshot {
+                script: devup_mcp_figma::BuiltinScript::NodeSnapshot,
+                ..
+            }
+        );
+        let mut result = FixtureUpstream.call_read_tool(call).await?;
+        if is_node {
+            let node = &mut result.raw["structuredContent"]["result"]["nodes"][0];
+            node["type"] = json!("TEXT");
+            node["fields"] = json!({
+                "name": "Whitespace", "characters": "a  b",
+                "textTruncation": "DISABLED", "childrenIds": []
+            });
+        }
+        Ok(result)
+    }
+}
+
+#[tokio::test]
+async fn jsx_css_whitespace_loss_is_exposed_without_optional_diagnostics() -> anyhow::Result<()> {
+    let result = call_tool_with_services(
+        Arc::new(ConnectedAuth),
+        Arc::new(TextWhitespaceUpstream),
+        "devup_figma_export",
+        json!({
+            "url": "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Name?node-id=3879-35481",
+            "outputs": ["tsx"], "includeDiagnostics": false
+        }),
+    )
+    .await?;
+    let issue = result["projectionIssues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|issue| issue["code"] == "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE")
+        .expect("CSS whitespace loss must reach the always-visible projectionIssues");
+    assert_eq!(issue["nodeId"], "3879:35481");
+    assert_eq!(issue["property"], "characters");
+    assert_eq!(issue["fidelityImpact"], "lossy");
+    assert_eq!(result["quality"]["projection"], "lossy");
+    assert!(result["tsx"].as_str().unwrap().contains("a  b"));
+    Ok(())
+}
+
 #[tokio::test]
 async fn reports_partial_instead_of_complete_when_a_child_is_missing() -> anyhow::Result<()> {
     let result = call_tool_with_services(

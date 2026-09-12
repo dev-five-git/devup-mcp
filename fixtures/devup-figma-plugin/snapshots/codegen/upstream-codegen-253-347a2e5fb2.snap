@@ -62,7 +62,7 @@ expression: actual
               lineHeight="1.5"
               wordBreak="keep-all"
             >
-              “ 섬, 그 바람의 울림! ”<br />희망찬 봄을 여는 관악의 울림이 더 <br />널리,<br />더 멀리 퍼져나가기를 기원합니다.{" "}
+              “ 섬, 그 바람의 울림! ”<br />희망찬 봄을 여는 관악의 울림이 더 <br />널리,<br />더 멀리 퍼져나가기를 기원합니다.<br />
             </Text>
             <Text
               color="$text"
@@ -85,7 +85,7 @@ expression: actual
                 lineHeight="1.8"
                 wordBreak="keep-all"
               >
-                제주국제관악제조직위원장{" "}
+                제주국제관악제조직위원장<br />
               </Text>
               <Text
                 color="$text"

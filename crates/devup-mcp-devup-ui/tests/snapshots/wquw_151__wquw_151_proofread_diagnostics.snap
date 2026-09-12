@@ -1,9 +1,48 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
-assertion_line: 177
+assertion_line: 213
 expression: json!(output.diagnostics)
 ---
 [
+  {
+    "code": "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE",
+    "message": "Text characters are retained in JSX, but CSS collapses source spaces or tabs.",
+    "nodeId": "3879:35520",
+    "fidelityImpact": "lossy",
+    "property": "characters",
+    "details": {
+      "originalValue": "이야기가 글로 \n정리되었어요",
+      "classification": "css-whitespace-collapse",
+      "whiteSpace": "normal",
+      "nextAction": "Review intentional spaces or tabs in Figma and choose an explicit whitespace-preserving style if required."
+    }
+  },
+  {
+    "code": "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE",
+    "message": "Text characters are retained in JSX, but CSS collapses source spaces or tabs.",
+    "nodeId": "3879:35535",
+    "fidelityImpact": "lossy",
+    "property": "characters",
+    "details": {
+      "originalValue": "[여기]를 눌러 이야기에 \n어울리는 사진을 추가해보세요.\r\n사진은 선택사항이며, \n나중에 천천히 추가하셔도 괜찮습니다.",
+      "classification": "css-whitespace-collapse",
+      "whiteSpace": "normal",
+      "nextAction": "Review intentional spaces or tabs in Figma and choose an explicit whitespace-preserving style if required."
+    }
+  },
+  {
+    "code": "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE",
+    "message": "Text characters are retained in JSX, but CSS collapses source spaces or tabs.",
+    "nodeId": "3879:35539",
+    "fidelityImpact": "lossy",
+    "property": "characters",
+    "details": {
+      "originalValue": "각 단락을 선택해서 고유명사를 수정하거나, \n의도와 다르게 작성된 이야기를 원하는 내용으로 직접 바꿀 수 있습니다. ",
+      "classification": "css-whitespace-collapse",
+      "whiteSpace": "normal",
+      "nextAction": "Review intentional spaces or tabs in Figma and choose an explicit whitespace-preserving style if required."
+    }
+  },
   {
     "code": "DEVUP_CODEGEN_PLACEMENT_CONTRACT",
     "message": "Root placement contract: inspect the coordinate basis and host requirements before inserting this TSX.",
