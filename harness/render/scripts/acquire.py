@@ -6,10 +6,28 @@ it lands under the harness, none of it is committed.
 
   python scripts/acquire.py [target-name ...]
 
-The server is `~/.cargo/bin/devup-mcp.exe` over stdio, banking its Figma
-calls in `fixtures/local-call-bank` so a re-run costs nothing already paid
-for. Write roots: the server only writes under its current directory, so it
-is started in the harness directory and every output path is relative to it.
+The server is a devup-mcp binary over stdio, banking its Figma calls in
+`fixtures/local-call-bank` so a re-run costs nothing already paid for. Write
+roots: the server only writes under its current directory, so it is started in
+the harness directory and every output path is relative to it.
+
+The binary is resolved in this order, and `resolve_exe` reports every candidate
+it tried when none exists rather than failing with an opaque spawn error:
+
+  1. `$DEVUP_MCP_BIN`                     - an explicit path, checked first
+  2. `<repo>/target/release/devup-mcp`    - what `cargo build --release` leaves
+  3. `<repo>/target/debug/devup-mcp`      - what `cargo build` leaves
+  4. `~/.cargo/bin/devup-mcp`             - what `cargo install` leaves
+
+This used to be a single hardcoded `~/.cargo/bin/devup-mcp.exe`, which meant
+the harness could not run from a checkout that had built the workspace but not
+installed it, and the literal `.exe` meant it could not run off Windows at all.
+
+Note what this does NOT fix: the harness's inputs - `src/screens/`,
+`public/icons/`, `public/images/`, `devup.json`, `themes/`, `targets.json` - are
+gitignored as generated, so a fresh checkout still has to run this script
+against live Figma once before `render.mjs` has anything to compare. The call
+bank makes only the re-runs free.
 """
 
 import json
@@ -22,8 +40,41 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 HARNESS = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(HARNESS))
-EXE = os.path.expanduser(r"~\.cargo\bin\devup-mcp.exe")
 BANK = os.path.join(REPO, "fixtures", "local-call-bank")
+
+
+def exe_candidates():
+    """Where a devup-mcp binary may be, most explicit first.
+
+    `$DEVUP_MCP_BIN` wins so a caller can point at a specific build - which is
+    the whole reason this is not one hardcoded path any more.
+    """
+    name = "devup-mcp.exe" if os.name == "nt" else "devup-mcp"
+    override = os.environ.get("DEVUP_MCP_BIN")
+    return ([override] if override else []) + [
+        os.path.join(REPO, "target", "release", name),
+        os.path.join(REPO, "target", "debug", name),
+        os.path.expanduser(os.path.join("~", ".cargo", "bin", name)),
+    ]
+
+
+def resolve_exe():
+    """The first candidate that exists, or an error naming every one that did not.
+
+    Resolution is deferred to the moment a server is actually started rather
+    than done at import, so reading TARGETS from this module stays possible on
+    a checkout that has not built anything.
+    """
+    candidates = exe_candidates()
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    raise FileNotFoundError(
+        "No devup-mcp binary found. Set DEVUP_MCP_BIN, or build the workspace "
+        "with `cargo build` (or `cargo build --release`), or install it with "
+        "`cargo install --path crates/devup-mcp`. Tried:\n  "
+        + "\n  ".join(candidates)
+    )
 FILE_KEY = "f1AJyo27afkkr6U9PhnWSu"
 
 # name: the module to render, the frames whose PNGs it is compared against
@@ -51,7 +102,7 @@ class Server:
         environment = dict(os.environ)
         environment["DEVUP_FIGMA_CALL_CACHE"] = BANK
         self.proc = subprocess.Popen(
-            [EXE], cwd=HARNESS, env=environment,
+            [resolve_exe()], cwd=HARNESS, env=environment,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, encoding="utf-8", bufsize=1,
         )
