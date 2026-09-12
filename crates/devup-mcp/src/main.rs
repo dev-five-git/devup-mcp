@@ -20,6 +20,20 @@ async fn main() -> anyhow::Result<()> {
         );
         return Ok(());
     }
+    if let devup_mcp::CliAction::InstallSkills(config) = &action {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&devup_mcp::skills::install(config).await?)?
+        );
+        return Ok(());
+    }
+    if let devup_mcp::CliAction::CheckSkills(config) = &action {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&devup_mcp::skills::check(config).await?)?
+        );
+        return Ok(());
+    }
     let devup_mcp::CliAction::Serve(config) = action else {
         unreachable!("version action returned above")
     };
