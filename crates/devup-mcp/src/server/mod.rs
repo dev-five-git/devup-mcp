@@ -2,6 +2,7 @@ pub mod artifacts;
 mod asset_jobs;
 mod call_cache;
 pub mod delivery;
+mod design_drift;
 mod diagnostics;
 mod feature_trace;
 mod guide;
@@ -1142,6 +1143,11 @@ impl DevupServer {
             }
         }
         validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
+        design_drift::validate_request(
+            &input.outputs,
+            input.previous_design_fingerprints.as_deref(),
+        )
+        .map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
             && !input
                 .outputs
@@ -1258,6 +1264,7 @@ impl DevupServer {
                             strict: input.strict,
                             output_paths: input.output_paths,
                             page_scaffold: input.page_scaffold,
+                            previous_design_fingerprints: input.previous_design_fingerprints,
                             frame_ids: input.frame_ids,
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
@@ -1290,6 +1297,7 @@ impl DevupServer {
                     strict: input.strict,
                     output_paths: input.output_paths,
                     page_scaffold: input.page_scaffold,
+                    previous_design_fingerprints: input.previous_design_fingerprints,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
@@ -1355,6 +1363,7 @@ impl DevupServer {
                     strict: input.strict,
                     output_paths: input.output_paths,
                     page_scaffold: input.page_scaffold,
+                    previous_design_fingerprints: input.previous_design_fingerprints,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,

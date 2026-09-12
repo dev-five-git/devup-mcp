@@ -38,7 +38,7 @@ pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
     "openapi-client",
 ];
 
-pub(crate) const EXPORT_OUTPUTS: [&str; 10] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 12] = [
     "tsx",
     "componentTsx",
     "responsiveTsx",
@@ -47,6 +47,8 @@ pub(crate) const EXPORT_OUTPUTS: [&str; 10] = [
     "rawSnapshot",
     "rawPayload",
     "sourceMap",
+    "designFingerprints",
+    "designChanges",
     "assetManifest",
     "referencePng",
 ];
@@ -69,6 +71,8 @@ pub(super) fn validate_artifact_projection(
                 | "rawSnapshot"
                 | "rawPayload"
                 | "sourceMap"
+                | "designFingerprints"
+                | "designChanges"
                 | "assetManifest"
                 | "referencePng"
         )
@@ -82,7 +86,12 @@ pub(super) fn validate_artifact_projection(
         ArtifactKind::SectionIndex => outputs.iter().any(|output| {
             matches!(
                 output.as_str(),
-                "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+                "tsx"
+                    | "componentTsx"
+                    | "responsiveTsx"
+                    | "pageScaffold"
+                    | "designFingerprints"
+                    | "designChanges"
             )
         }),
         ArtifactKind::Search | ArtifactKind::Explore => false,
