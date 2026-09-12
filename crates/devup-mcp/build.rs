@@ -22,12 +22,51 @@ fn main() {
         println!("cargo:rerun-if-changed={}", path.display());
     }
 
-    let build_id = env::var("DEVUP_MCP_BUILD_ID")
+    let overridden = env::var("DEVUP_MCP_BUILD_ID")
         .ok()
-        .filter(|value| safe(value))
+        .filter(|value| safe(value));
+    let source = if overridden.is_some() { "env" } else { "git" };
+    let build_id = overridden
         .or_else(git_build_id)
         .unwrap_or_else(|| "source-unknown".to_owned());
     println!("cargo:rustc-env=DEVUP_MCP_BUILD_ID={build_id}");
+
+    // What the working tree looked like AT BUILD TIME, and where the build id
+    // came from. Without these, a test can only compare the baked `-dirty`
+    // suffix against a fresh `git status`, which is a different observation at
+    // a different time: an untracked file appearing after compilation - a probe
+    // script, a scratch log - makes the binary say clean while the test's own
+    // git call says dirty, and the test fails for a reason that is not a defect.
+    // That happened. Recording the build-time facts lets the test check the
+    // plumbing that can actually break (git observation -> `git_identity`
+    // suffix -> `--version` output) without asserting that the tree stood still.
+    println!(
+        "cargo:rustc-env=DEVUP_MCP_BUILD_ID_SOURCE={}",
+        if build_id == "source-unknown" {
+            "unknown"
+        } else {
+            source
+        }
+    );
+    println!(
+        "cargo:rustc-env=DEVUP_MCP_GIT_DIRTY={}",
+        match git_dirty() {
+            Some(true) => "true",
+            Some(false) => "false",
+            None => "unknown",
+        }
+    );
+}
+
+/// Whether the working tree had changes when this build ran, or `None` when git
+/// could not be asked. Separate from [`git_build_id`] so the observation can be
+/// published on its own rather than only surviving as a `-dirty` suffix.
+fn git_dirty() -> Option<bool> {
+    let status = Command::new("git")
+        .args(["status", "--porcelain=v1", "--untracked-files=normal"])
+        .output()
+        .ok()?;
+    status.status.success().then_some(!status.stdout.is_empty())
 }
 
 fn git_build_id() -> Option<String> {
