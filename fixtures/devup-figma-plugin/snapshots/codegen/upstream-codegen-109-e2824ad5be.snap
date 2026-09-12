@@ -7,6 +7,7 @@ expression: actual
   boxSize="100%"
   color="#F00"
   fontSize="16px"
+  fontWeight="400"
   lineHeight="1.5px"
   typography="typographyHeading"
 >

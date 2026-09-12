@@ -39,6 +39,7 @@ export function Wquw151Frame387936108() {
             <Text
               color="$textLight"
               fontSize="15px"
+              fontWeight="600"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
@@ -58,6 +59,7 @@ export function Wquw151Frame387936108() {
         <Text
           color="$text"
           fontSize="24px"
+          fontWeight="700"
           lineHeight="34px"
           overflow="hidden"
           textOverflow="ellipsis"
@@ -87,6 +89,7 @@ export function Wquw151Frame387936108() {
           <Text
             color="$secondary"
             fontSize="16px"
+            fontWeight="600"
             lineHeight="26px"
             typography="bodyXsSemibold"
             wordBreak="keep-all"
@@ -98,6 +101,7 @@ export function Wquw151Frame387936108() {
           color="$textLight"
           flex="1"
           fontSize="18px"
+          fontWeight="500"
           lineHeight="31px"
           overflow="hidden"
           textOverflow="ellipsis"
@@ -112,6 +116,7 @@ export function Wquw151Frame387936108() {
             <Text
               color="$textLight"
               fontSize="15px"
+              fontWeight="600"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
@@ -124,6 +129,7 @@ export function Wquw151Frame387936108() {
             <Text
               color="$textLight"
               fontSize="15px"
+              fontWeight="600"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
@@ -136,6 +142,7 @@ export function Wquw151Frame387936108() {
             <Text
               color="$textLight"
               fontSize="15px"
+              fontWeight="600"
               lineHeight="24px"
               typography="captionSemibold"
               wordBreak="keep-all"
@@ -148,6 +155,7 @@ export function Wquw151Frame387936108() {
         <Text
           color="$caption"
           fontSize="16px"
+          fontWeight="600"
           lineHeight="26px"
           typography="bodyXsSemibold"
           wordBreak="keep-all"

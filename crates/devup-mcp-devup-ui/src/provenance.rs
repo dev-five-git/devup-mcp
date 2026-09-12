@@ -1585,11 +1585,19 @@ pub(crate) fn finalize_tsx(
             } else {
                 "raw-fallback"
             };
+            let source_property = if *prop == "fontWeight"
+                && node.node_type == "TEXT"
+                && node.typed_view().number(property).is_none()
+            {
+                "styledTextSegments"
+            } else {
+                property
+            };
             entries.push(generated_entry(
                 range.start + open_relative + start,
                 range.start + open_relative + end,
                 &node_id,
-                property,
+                source_property,
                 variable_id,
                 style_id,
                 resolution,
@@ -2014,7 +2022,7 @@ fn add_text_entries(
     let mut cursor = 0;
     for (characters, segment) in text_segments {
         if let Some((start, end)) = find_text_span(source, characters, cursor) {
-            // A rich-text wrapper can now carry its own integer advance.
+            // A rich-text wrapper can carry its own advance and weight.
             // Attribute ownership belongs to the segment whose text directly
             // follows this opening, rather than the node's default metrics.
             if let Some(segment) = segment
@@ -2024,7 +2032,7 @@ fn add_text_entries(
                 && source[open_start + close + 1..start].trim().is_empty()
             {
                 let opening = &source[open_start..open_start + close];
-                for field in ["fontSize", "lineHeight"] {
+                for field in ["fontSize", "lineHeight", "fontWeight"] {
                     if segment.get(field).is_none() {
                         continue;
                     }

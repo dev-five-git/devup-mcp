@@ -24,6 +24,7 @@ export function AStoryFProofread() {
         <Text
           color="$text"
           fontSize="28px"
+          fontWeight="700"
           lineHeight="39px"
           textAlign="center"
           typography="h3"
@@ -37,6 +38,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="16px"
+              fontWeight="400"
               lineHeight="26px"
               typography="bodyXs"
               wordBreak="keep-all"
@@ -46,6 +48,7 @@ export function AStoryFProofread() {
             <Text
               color="$primary"
               fontSize="17px"
+              fontWeight="600"
               lineHeight="29px"
               typography="bodySmSemibold"
               wordBreak="keep-all"
@@ -59,6 +62,7 @@ export function AStoryFProofread() {
               <Text
                 color="$text"
                 fontSize="16px"
+                fontWeight="400"
                 lineHeight="26px"
                 typography="bodyXs"
                 wordBreak="keep-all"
@@ -68,6 +72,7 @@ export function AStoryFProofread() {
               <Text
                 color="$primary"
                 fontSize="17px"
+                fontWeight="600"
                 lineHeight="29px"
                 typography="bodySmSemibold"
                 wordBreak="keep-all"
@@ -111,13 +116,14 @@ export function AStoryFProofread() {
             <Text
               color="$textLight"
               fontSize="15px"
+              fontWeight="400"
               lineHeight="24px"
               textAlign="center"
               typography="caption"
               w="100%"
               wordBreak="keep-all"
             >
-              <Text color="$primary" typography="captionSemibold">
+              <Text color="$primary" fontWeight="600" typography="captionSemibold">
                 [여기]
               </Text>
               를 눌러 이야기에 <br />어울리는 사진을 추가해보세요.<br />사진은 선택사항이며, <br />나중에 천천히 추가하셔도 괜찮습니다.
@@ -126,6 +132,7 @@ export function AStoryFProofread() {
           <Text
             color="$textLight"
             fontSize="14px"
+            fontWeight="400"
             lineHeight="22px"
             typography="captionSm"
             wordBreak="keep-all"
@@ -141,12 +148,19 @@ export function AStoryFProofread() {
           pos="relative"
           w="100%"
         >
-          <Text color="$text" fontSize="16px" lineHeight="26px" typography="bodyXsSemibold">
+          <Text
+            color="$text"
+            fontSize="16px"
+            fontWeight="600"
+            lineHeight="26px"
+            typography="bodyXsSemibold"
+          >
             TIP
           </Text>
           <Text
             color="$text"
             fontSize="16px"
+            fontWeight="400"
             lineHeight="26px"
             typography="bodyXs"
             wordBreak="keep-all"
@@ -187,6 +201,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="16px"
+              fontWeight="600"
               lineHeight="26px"
               typography="bodyXsSemibold"
               wordBreak="keep-all"
@@ -198,6 +213,7 @@ export function AStoryFProofread() {
               <Text
                 color="$textLight"
                 fontSize="14px"
+                fontWeight="600"
                 lineHeight="22px"
                 typography="captionSmSemibold"
                 wordBreak="keep-all"
@@ -211,6 +227,7 @@ export function AStoryFProofread() {
               color="$primary"
               flex="1"
               fontSize="22px"
+              fontWeight="700"
               lineHeight="31px"
               typography="h5"
               wordBreak="keep-all"
@@ -231,6 +248,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="16px"
+              fontWeight="600"
               lineHeight="26px"
               typography="bodyXsSemibold"
               wordBreak="keep-all"
@@ -242,6 +260,7 @@ export function AStoryFProofread() {
               <Text
                 color="$textLight"
                 fontSize="14px"
+                fontWeight="600"
                 lineHeight="22px"
                 typography="captionSmSemibold"
                 wordBreak="keep-all"
@@ -254,6 +273,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="18px"
+              fontWeight="400"
               lineHeight="32px"
               typography="body"
               w="100%"
@@ -275,6 +295,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="16px"
+              fontWeight="600"
               lineHeight="26px"
               typography="bodyXsSemibold"
               wordBreak="keep-all"
@@ -286,6 +307,7 @@ export function AStoryFProofread() {
               <Text
                 color="$textLight"
                 fontSize="14px"
+                fontWeight="600"
                 lineHeight="22px"
                 typography="captionSmSemibold"
                 wordBreak="keep-all"
@@ -298,17 +320,18 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="18px"
+              fontWeight="400"
               lineHeight="32px"
               typography="body"
               w="100%"
               wordBreak="keep-all"
             >
               “엄마!”<br /><br />나는 반가운 마음에 큰 소리로 어머니를 불렀다. 어머니는 미역이 담긴 비닐봉지를 고르고 계셨는데, 내 목소리에 깜짝 놀라시더니 고개를 돌려 나를 보셨다. 순간 어머니의 얼굴에 번져가는 웃음이 얼마나 따뜻하고 아름다웠는지 모른다. 놀라움이 가득한 표정에서 환한 미소로 변해가는 그 표정을, 나는 아직도 잊을 수 없다.<br /><br />“우리{" "}
-              <Text color="$primaryLight" lineHeight="31px" typography="bodySemibold">
+              <Text color="$primaryLight" fontWeight="600" lineHeight="31px" typography="bodySemibold">
                 [1. 이름]
               </Text>
               {" "}왔어?”<br /><br />어머니는 장바구니를 들어 올리며 내 앞까지 걸어오셨다. 얼굴에는 하루의 피로가 묻어 있었지만, 나를 보는 눈빛은 그 어떤 보석보다 반짝였다. 나는 어머니가 드신 장바구니를 대신 들어드리려고 손을 뻗었지만, 어머니는 살짝 웃으며 고개를 저으셨다.<br /><br />“괜찮아. 엄마가 들 수 있어.{" "}
-              <Text color="$primaryLight" lineHeight="31px" typography="bodySemibold">
+              <Text color="$primaryLight" fontWeight="600" lineHeight="31px" typography="bodySemibold">
                 [1. 이름]
               </Text>
               {" "}학교 끝났어? 배고프지?”
@@ -327,6 +350,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="16px"
+              fontWeight="600"
               lineHeight="26px"
               typography="bodyXsSemibold"
               wordBreak="keep-all"
@@ -338,6 +362,7 @@ export function AStoryFProofread() {
               <Text
                 color="$textLight"
                 fontSize="14px"
+                fontWeight="600"
                 lineHeight="22px"
                 typography="captionSmSemibold"
                 wordBreak="keep-all"
@@ -350,6 +375,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="18px"
+              fontWeight="400"
               lineHeight="32px"
               typography="body"
               w="100%"
@@ -371,6 +397,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="16px"
+              fontWeight="600"
               lineHeight="26px"
               typography="bodyXsSemibold"
               wordBreak="keep-all"
@@ -382,6 +409,7 @@ export function AStoryFProofread() {
               <Text
                 color="$textLight"
                 fontSize="14px"
+                fontWeight="600"
                 lineHeight="22px"
                 typography="captionSmSemibold"
                 wordBreak="keep-all"
@@ -394,6 +422,7 @@ export function AStoryFProofread() {
             <Text
               color="$text"
               fontSize="18px"
+              fontWeight="400"
               lineHeight="32px"
               typography="body"
               w="100%"
@@ -427,6 +456,7 @@ export function AStoryFProofread() {
           <Text
             color="$text"
             fontSize="18px"
+            fontWeight="600"
             lineHeight="31px"
             typography="bodySemibold"
             wordBreak="keep-all"
@@ -438,6 +468,7 @@ export function AStoryFProofread() {
           <Text
             color="#FFF"
             fontSize="18px"
+            fontWeight="600"
             lineHeight="31px"
             typography="bodySemibold"
             wordBreak="keep-all"

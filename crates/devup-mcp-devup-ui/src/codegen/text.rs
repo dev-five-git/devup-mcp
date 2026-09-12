@@ -56,9 +56,9 @@ pub(super) fn push_text_props(
     if let Some(font_size) = value("fontSize").and_then(Value::as_f64) {
         string_prop(props, "fontSize", px(font_size));
     }
-    if typography.is_none()
-        && let Some(weight) = value("fontWeight").and_then(Value::as_f64)
-    {
+    // A shared text style can have local weight overrides (including mixed
+    // regular/bold runs). The token name does not carry those resolved values.
+    if let Some(weight) = value("fontWeight").and_then(Value::as_f64) {
         string_prop(props, "fontWeight", format_number(weight));
     }
     if typography.is_none()
@@ -219,6 +219,16 @@ fn line_height(value: Option<&Value>, font_size: Option<f64>) -> Option<String> 
     }
 }
 
+/// Korean offers a browser no inter-word breaking opportunity it can infer, so
+/// the default `word-break` splits a word wherever the line happens to end.
+/// Figma's text engine breaks Korean the same way, which puts pixel fidelity
+/// and correct Korean in direct opposition here: dropping this moves the render
+/// closer to Figma's PNG and makes the generated screen worse. The plugin
+/// settles it deliberately - `if (hasKorean) defaultProps.wordBreak =
+/// 'keep-all'` in its text renderer - and so do we, because Figma's behaviour
+/// is a limitation to compensate for rather than a specification to reproduce.
+/// This was measured before being kept: removing it buys 0.21 percent on one
+/// screen and costs 38 byte-parity goldens and every Korean line break.
 fn segments_contain_korean(view: &TypedNode<'_>) -> bool {
     view.value("styledTextSegments")
         .and_then(Value::as_array)
@@ -384,9 +394,7 @@ fn typography_props(
     if let Some(value) = segment.get("fontSize").and_then(Value::as_f64) {
         string_prop(&mut props, "fontSize", px(value));
     }
-    if typography.is_none()
-        && let Some(value) = segment.get("fontWeight").and_then(Value::as_f64)
-    {
+    if let Some(value) = segment.get("fontWeight").and_then(Value::as_f64) {
         string_prop(&mut props, "fontWeight", format_number(value));
     }
     if typography.is_none()

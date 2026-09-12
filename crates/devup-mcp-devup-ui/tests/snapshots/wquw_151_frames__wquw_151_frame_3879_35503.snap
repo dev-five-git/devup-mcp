@@ -34,6 +34,7 @@ export function Wquw151Frame387935503() {
         <Text
           color="$text"
           fontSize="18px"
+          fontWeight="600"
           lineHeight="31px"
           textAlign="center"
           typography="bodySemibold"
@@ -55,6 +56,7 @@ export function Wquw151Frame387935503() {
             color="$text"
             flex="1"
             fontSize="15px"
+            fontWeight="600"
             lineHeight="24px"
             overflow="hidden"
             textAlign="center"
