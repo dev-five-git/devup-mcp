@@ -38,10 +38,11 @@ pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
     "openapi-client",
 ];
 
-pub(crate) const EXPORT_OUTPUTS: [&str; 9] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 10] = [
     "tsx",
     "componentTsx",
     "responsiveTsx",
+    "pageScaffold",
     "devupJson",
     "rawSnapshot",
     "rawPayload",
@@ -64,6 +65,7 @@ pub(super) fn validate_artifact_projection(
             "tsx"
                 | "componentTsx"
                 | "responsiveTsx"
+                | "pageScaffold"
                 | "rawSnapshot"
                 | "rawPayload"
                 | "sourceMap"
@@ -77,9 +79,12 @@ pub(super) fn validate_artifact_projection(
         ArtifactKind::ThemeOnly => theme_requested && !design_output_requested,
         // An index can return a selection for any code projection. Actual
         // generation still requires collected frame snapshots.
-        ArtifactKind::SectionIndex => outputs
-            .iter()
-            .any(|output| matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")),
+        ArtifactKind::SectionIndex => outputs.iter().any(|output| {
+            matches!(
+                output.as_str(),
+                "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+            )
+        }),
         ArtifactKind::Search | ArtifactKind::Explore => false,
     };
     if capabilities.kind == ArtifactKind::SectionIndex && !kind_compatible {

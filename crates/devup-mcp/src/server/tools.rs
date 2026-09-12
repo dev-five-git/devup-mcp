@@ -74,7 +74,11 @@ pub struct FigmaExportInput {
     #[serde(default)]
     pub refresh: bool,
     #[serde(default)]
+    /// pageScaffold (or frame:<nodeId>:pageScaffold) names a project directory;
+    /// other output keys name files. Scaffold writes require pageScaffold.write=true.
     pub output_paths: BTreeMap<String, String>,
+    #[serde(default)]
+    pub page_scaffold: Option<super::projection::page_scaffold::PageScaffoldOptions>,
     #[serde(default)]
     pub frame_ids: Vec<String>,
     #[serde(default)]
