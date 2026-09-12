@@ -139,7 +139,8 @@ pub struct FigmaExploreInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectContextInput {
-    #[schemars(extend("enum" = super::validation::PROJECT_CONTEXT_SCOPES))]
+    /// theme | api | db | ui | all. UI reuse evidence is opt-in and excluded from all to avoid large monorepo inventories polluting token context. UI filter: literal case-sensitive substring of component path, exported/local name, route path or page path. UI is read-only and reports output caps, unparsed files and unresolved evidence.
+    #[schemars(extend("enum" = super::validation::PROJECT_CONTEXT_SCOPES.into_iter().chain(["ui"]).collect::<Vec<_>>()))]
     pub scope: String,
     #[serde(default)]
     pub project_root: Option<String>,
