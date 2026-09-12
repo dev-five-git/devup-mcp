@@ -281,8 +281,11 @@ async fn resource_protocol_lists_manifests_and_round_trips_chunks() -> anyhow::R
     let manifest = &attached[0];
 
     let listed = list_output_resources(&store, None).await?;
-    assert_eq!(listed.resources.len(), 1);
+    // One generated output plus the static usage guide, which is always listed
+    // and always last so that manifest positions keep their meaning.
+    assert_eq!(listed.resources.len(), 2, "{:?}", listed.resources);
     assert_eq!(listed.resources[0].uri, manifest.manifest_uri);
+    assert_eq!(listed.resources[1].uri, "devup://guide/usage");
     assert_eq!(
         listed.resources[0].mime_type.as_deref(),
         Some("application/json")
@@ -389,7 +392,8 @@ async fn reserved_resources_stay_invisible_until_publication() -> anyhow::Result
     transaction.commit()?;
     reservation.commit();
 
-    assert_eq!(listing.await??.resources.len(), 1);
+    // The published manifest plus the always-listed usage guide.
+    assert_eq!(listing.await??.resources.len(), 2);
     assert!(reading.await?.is_ok());
     assert_eq!(fs::read(root.join("Component.tsx"))?, b"reserved");
 
@@ -444,12 +448,12 @@ async fn failed_file_commit_does_not_publish_or_evict_lru_resources() -> anyhow:
 
     assert!(store.get(&unrelated.artifact_id).await.is_some());
     assert!(read_output_resource(&store, &manifest_uri).await.is_err());
-    assert!(
-        list_output_resources(&store, None)
-            .await?
-            .resources
-            .is_empty()
-    );
+    // A failed commit must publish no output. The usage guide is static rather
+    // than published, so it is the only thing that may remain listed - and its
+    // presence is what proves the list itself still works.
+    let listed = list_output_resources(&store, None).await?;
+    assert_eq!(listed.resources.len(), 1, "{:?}", listed.resources);
+    assert_eq!(listed.resources[0].uri, "devup://guide/usage");
 
     drop(policy);
     fs::remove_dir_all(root)?;

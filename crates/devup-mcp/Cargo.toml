@@ -22,6 +22,10 @@ oxc_span.workspace = true
 dunce.workspace = true
 rmcp.workspace = true
 rand.workspace = true
+# The release check needs an outbound GET. It was already here as a
+# dev-dependency for the axum-backed test servers; a normal dependency serves
+# both, so the duplicate entry below is gone.
+reqwest.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -35,7 +39,6 @@ axum.workspace = true
 # the same way OutputPolicy does — std::fs::canonicalize would return a `\\?\`
 # UNC path on Windows and never match.
 dunce.workspace = true
-reqwest.workspace = true
 # `start_paused` lets a test watch the retry waits elapse without spending the
 # minute they describe.
 tokio = { workspace = true, features = ["test-util"] }

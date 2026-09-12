@@ -215,11 +215,51 @@ async fn doctor_action_reflects_connected_status_without_changing_the_status_act
     .await?
     .structured_content
     .unwrap();
-    assert_eq!(
-        status,
-        json!({ "status": "connected", "server": {"version":env!("CARGO_PKG_VERSION"),"buildId":devup_mcp::build_id(),"commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty()),"displayVersion":format!("{}+{}",env!("CARGO_PKG_VERSION"),devup_mcp::build_id()),"identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary."} })
-    );
+    // The tool's own payload is still pinned exactly - that is what keeps
+    // existing callers compatible. The identity block is asserted field by
+    // field instead of as one literal: it is shared by every tool and grows
+    // (it just gained `updateAvailable`), and spelling it out in full made
+    // unrelated tests fail for a change that broke nothing.
+    let mut status = status;
+    let server = status
+        .as_object_mut()
+        .expect("structured content is an object")
+        .remove("server")
+        .expect("every response carries build identity");
+    assert_eq!(status, json!({ "status": "connected" }));
+    assert_identity(&server);
     Ok(())
+}
+
+/// The identity every tool response carries: build coordinates plus the
+/// cache-only staleness report, which must always be present and must always
+/// name its own state.
+fn assert_identity(server: &Value) {
+    assert_eq!(server["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(server["buildId"], devup_mcp::build_id());
+    assert_eq!(
+        server["displayVersion"],
+        format!("{}+{}", env!("CARGO_PKG_VERSION"), devup_mcp::build_id())
+    );
+    assert_eq!(
+        server["commit"],
+        json!(option_env!("DEVUP_MCP_GIT_COMMIT").filter(|value| !value.is_empty()))
+    );
+    assert!(
+        server["identityGuidance"]
+            .as_str()
+            .is_some_and(|guidance| guidance.contains("commit/buildId")),
+        "{server}"
+    );
+    let update = &server["updateAvailable"];
+    assert_eq!(update["current"], env!("CARGO_PKG_VERSION"));
+    assert!(
+        matches!(
+            update["state"].as_str(),
+            Some("unknown" | "known" | "disabled")
+        ),
+        "{server}"
+    );
 }
 
 /// The core deliverable of the handoff-completion fix: every `needs_figma`
@@ -333,12 +373,18 @@ async fn configure_action_persists_credentials_and_never_echoes_the_secret() -> 
     )
     .await?;
     let output = result.structured_content.unwrap();
-    assert_eq!(
-        output,
-        json!({ "status": "configured", "server": {"version":env!("CARGO_PKG_VERSION"),"buildId":devup_mcp::build_id(),"commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s| !s.is_empty()),"displayVersion":format!("{}+{}",env!("CARGO_PKG_VERSION"),devup_mcp::build_id()),"identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary."} })
-    );
+    // The secret check below runs against the FULL response, identity included,
+    // so `raw` is taken before the identity is split off for assertion.
     let raw = output.to_string();
     assert!(!raw.contains("preregistered-secret"));
+    let mut output = output;
+    let server = output
+        .as_object_mut()
+        .expect("structured content is an object")
+        .remove("server")
+        .expect("every response carries build identity");
+    assert_eq!(output, json!({ "status": "configured" }));
+    assert_identity(&server);
 
     let captured = auth.configured.lock().await.clone();
     assert_eq!(

@@ -7,6 +7,7 @@ use rmcp::model::{
 use serde_json::Value;
 
 use super::artifacts::{ArtifactStore, AttachedOutputManifest};
+use super::guide;
 
 const LIST_PAGE_SIZE: usize = 50;
 
@@ -63,18 +64,34 @@ pub async fn list_output_resources(
         .transpose()
         .map_err(|_| invalid_request())?
         .unwrap_or(0);
-    let manifests = store.output_manifests().await;
-    if offset > manifests.len() {
-        return Err(invalid_request());
-    }
-    let end = offset.saturating_add(LIST_PAGE_SIZE).min(manifests.len());
-    let resources = manifests[offset..end]
+    // Generated outputs come first and the static guide last. The order is not
+    // cosmetic: a caller already holding a manifest link indexes into this list,
+    // and `instructions` names the guide URI outright, so the guide loses
+    // nothing by sitting at the end while the existing contract keeps its
+    // positions.
+    let mut listed = store
+        .output_manifests()
+        .await
         .iter()
         .map(manifest_resource)
-        .collect();
-    let mut result = ListResourcesResult::with_all_items(resources);
-    result.next_cursor = (end < manifests.len()).then(|| end.to_string());
+        .collect::<Vec<_>>();
+    listed.push(guide_resource());
+    if offset > listed.len() {
+        return Err(invalid_request());
+    }
+    let end = offset.saturating_add(LIST_PAGE_SIZE).min(listed.len());
+    let mut result = ListResourcesResult::with_all_items(listed[offset..end].to_vec());
+    result.next_cursor = (end < listed.len()).then(|| end.to_string());
     Ok(result)
+}
+
+/// The usage guide is a fixed resource rather than a template: there is one of
+/// it, at one URI, and a template would imply parameters it does not have.
+fn guide_resource() -> Resource {
+    Resource::new(guide::GUIDE_URI, guide::GUIDE_NAME)
+        .with_title(guide::GUIDE_TITLE)
+        .with_description(guide::GUIDE_DESCRIPTION)
+        .with_mime_type(guide::GUIDE_MIME_TYPE)
 }
 
 pub fn resource_templates() -> ListResourceTemplatesResult {
@@ -99,6 +116,14 @@ pub async fn read_output_resource(
     store: &ArtifactStore,
     uri: &str,
 ) -> Result<ReadResourceResult, DevupError> {
+    // The guide is answered before the artifact address is parsed: it is not an
+    // artifact, it never expires, and it must stay readable in a session that
+    // has produced no outputs at all.
+    if uri == guide::GUIDE_URI {
+        return Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(guide::GUIDE, uri).with_mime_type(guide::GUIDE_MIME_TYPE),
+        ]));
+    }
     match ResourceAddress::parse(uri)? {
         ResourceAddress::Manifest {
             artifact_id,

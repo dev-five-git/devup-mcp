@@ -279,7 +279,11 @@ pub(crate) fn server_identity() -> Value {
     serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"buildId":crate::build_id(),
         "commit":option_env!("DEVUP_MCP_GIT_COMMIT").filter(|s|!s.is_empty()),
         "displayVersion":format!("{}+{}", env!("CARGO_PKG_VERSION"), crate::build_id()),
-        "identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary."})
+        "identityGuidance":"Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+        // Cache-only. The lookup lives in a background task, so adding this to
+        // the identity every response carries costs no network on the call path
+        // and cannot delay a tool call.
+        "updateAvailable":super::release_check::snapshot()})
 }
 
 pub fn tool_result(mut value: Value) -> CallToolResult {

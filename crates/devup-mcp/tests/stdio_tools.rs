@@ -101,7 +101,13 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
         .expect("resources capability");
     assert_eq!(resources.subscribe, None);
     assert_eq!(resources.list_changed, None);
-    assert_eq!(client.list_all_resources().await?, Vec::new());
+    // This used to assert an empty list, which recorded the fact that the only
+    // resources were per-artifact outputs and a fresh session had none. The
+    // usage guide is now a static resource, so a fresh session lists exactly
+    // it, and the artifact outputs still come first when they exist.
+    let listed = client.list_all_resources().await?;
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].uri, "devup://guide/usage");
     assert_eq!(client.list_all_resource_templates().await?.len(), 2);
     let tools = client.list_all_tools().await?;
     assert!(
