@@ -1576,6 +1576,7 @@ pub(super) async fn complete_operation(
                         attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                         if outputs.iter().any(|output| output == "sourceMap") {
                             frame["sourceMap"] = json!({"version":output.source_map.version,
+                                "designFingerprints":devup_mcp_devup_ui::provenance::design_fingerprints(&payload.snapshot),
                                 "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
                                 "entries":output.source_map.property_entries(),"source":{"fileKey":payload.target.file_key,
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
@@ -2012,6 +2013,7 @@ pub(super) async fn complete_operation(
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
                     "version": 2,
+                    "designFingerprints":devup_mcp_devup_ui::provenance::design_fingerprints(&payload.snapshot),
                     "resolutionSemantics":devup_mcp_devup_ui::provenance::resolution_semantics(),
                     "tsx": tsx_source_map.map(|source_map| source_map.property_entries()).unwrap_or_default(),
                     "devupJson": devup_json_source_map
@@ -5560,6 +5562,8 @@ mod w1_regressions {
             }
         }
     }
+
+    include!("projection_fingerprint_tests.rs");
 
     async fn project(
         payload: CollectedPayload,

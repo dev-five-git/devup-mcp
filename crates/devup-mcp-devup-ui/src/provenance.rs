@@ -10,8 +10,10 @@ use crate::codegen::{
 
 mod absolute_bounds;
 pub mod attributes;
+mod fingerprint;
 mod resolution;
 mod sizing;
+pub use fingerprint::design_fingerprints;
 pub use resolution::resolution_semantics;
 pub(crate) use sizing::absolute_component_verification;
 pub(crate) use sizing::{account_for_sizing, implicit_css_verification};
