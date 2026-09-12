@@ -96,6 +96,30 @@ pub struct FigmaExportInput {
     #[serde(default = "default_delivery")]
     #[schemars(extend("enum" = super::validation::DELIVERY_MODES))]
     pub delivery: String,
+    /// The project the generated TSX is going into, so the export can say
+    /// whether it fits.
+    ///
+    /// Tokens are named after the Figma variables and text styles a screen
+    /// actually uses. That is right for a project with no `devup.json` yet,
+    /// and wrong for one that already has its own names: a Braillify Studio
+    /// login screen came back asking for `$background`, `$innerBg`,
+    /// `$kakaoLogo`, `$title`, `$textSub`, `$borderLight` and the typography
+    /// `mainSubText`, `titleSmMed`, `bodyMed`, of which that project defines
+    /// none — it calls them `$bg`, `$panel`, `$text`, `$textSubtle`,
+    /// `$borderStrong`, `body`, `bodyL`. Every one of those is an error
+    /// `devup_ui_validate` reports against the same project, so the export
+    /// handed back code this server's own validator refuses.
+    ///
+    /// Given a root, `projectThemeValidation` carries that verdict in the
+    /// export itself, naming the tokens that do not exist and what the
+    /// project calls the ones it has. Omitted, nothing is read from disk and
+    /// the response is unchanged.
+    ///
+    /// Pass it on whichever call returns the outputs. A collection of any
+    /// size answers `in_progress` first and hands the TSX back from the
+    /// `jobId` poll, so that poll needs the root too.
+    #[serde(default)]
+    pub project_root: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
