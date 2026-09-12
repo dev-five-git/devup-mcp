@@ -11,10 +11,10 @@ expression: actual
       fontSize="40px"
       fontWeight="500"
       letterSpacing="-0.05em"
-      lineHeight="1.4"
+      lineHeight="56px"
       wordBreak="keep-all"
     >
-      <Text color="$primary" fontSize="42px" fontWeight="800">
+      <Text color="$primary" fontSize="42px" fontWeight="800" lineHeight="59px">
         온글
       </Text>
       과 함께라면

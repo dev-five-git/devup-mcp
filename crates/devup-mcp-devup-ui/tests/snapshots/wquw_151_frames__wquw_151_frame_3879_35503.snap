@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
-assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Image, Text, VStack } from "@devup-ui/react";
@@ -32,7 +31,14 @@ export function Wquw151Frame387935503() {
           maskSize="contain"
           w="64px"
         />
-        <Text color="$text" textAlign="center" typography="bodySemibold" wordBreak="keep-all">
+        <Text
+          color="$text"
+          fontSize="18px"
+          lineHeight="31px"
+          textAlign="center"
+          typography="bodySemibold"
+          wordBreak="keep-all"
+        >
           기록해주신 이야기를<br />정리하고 있어요<br />잠시만 기다려주세요
         </Text>
       </Center>
@@ -48,6 +54,8 @@ export function Wquw151Frame387935503() {
           <Text
             color="$text"
             flex="1"
+            fontSize="15px"
+            lineHeight="24px"
             overflow="hidden"
             textAlign="center"
             textOverflow="ellipsis"

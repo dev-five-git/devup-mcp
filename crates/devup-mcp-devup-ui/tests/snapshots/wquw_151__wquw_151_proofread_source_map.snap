@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
-assertion_line: 178
 expression: output.source_map
 ---
 {
@@ -123,6 +122,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"28px\"",
+      "nodeId": "3879:35520",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"39px\"",
+      "nodeId": "3879:35520",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "textAlign=\"center\"",
@@ -255,6 +266,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "3879:35523",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "3879:35523",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35523",
       "property": "styledTextSegments",
@@ -299,6 +322,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"17px\"",
+      "nodeId": "3879:35524",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"29px\"",
+      "nodeId": "3879:35524",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodySmSemibold\"",
@@ -457,6 +492,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "3879:35528",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "3879:35528",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35528",
       "property": "styledTextSegments",
@@ -501,6 +548,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"17px\"",
+      "nodeId": "3879:35529",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"29px\"",
+      "nodeId": "3879:35529",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodySmSemibold\"",
@@ -737,6 +796,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"15px\"",
+      "nodeId": "3879:35535",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"24px\"",
+      "nodeId": "3879:35535",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "textAlign=\"center\"",
       "nodeId": "3879:35535",
       "property": "textAlignHorizontal",
@@ -813,6 +884,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"14px\"",
+      "nodeId": "3879:35536",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"22px\"",
+      "nodeId": "3879:35536",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"captionSm\"",
@@ -928,6 +1011,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "3879:35538",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "3879:35538",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
@@ -966,6 +1061,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "3879:35539",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "3879:35539",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
@@ -1210,6 +1317,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "I3879:35545;1690:32933",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
@@ -1311,6 +1430,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"14px\"",
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"22px\"",
+      "nodeId": "I3879:35545;1690:32947",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
@@ -1403,6 +1534,18 @@ expression: output.source_map
       "generatedProperty": "flex=\"1\"",
       "nodeId": "3879:35547",
       "property": "layoutGrow",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "fontSize=\"22px\"",
+      "nodeId": "3879:35547",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"31px\"",
+      "nodeId": "3879:35547",
+      "property": "lineHeight",
       "resolution": "raw-fallback"
     },
     {
@@ -1523,6 +1666,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "I3879:35549;1690:32933",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
@@ -1626,6 +1781,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"14px\"",
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"22px\"",
+      "nodeId": "I3879:35549;1690:32947",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
@@ -1719,6 +1886,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"18px\"",
+      "nodeId": "3879:35551",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"32px\"",
+      "nodeId": "3879:35551",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"body\"",
@@ -1844,6 +2023,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "I3879:35553;1690:32933",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
@@ -1947,6 +2138,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"14px\"",
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"22px\"",
+      "nodeId": "I3879:35553;1690:32947",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
@@ -2042,6 +2245,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"18px\"",
+      "nodeId": "3879:35555",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"32px\"",
+      "nodeId": "3879:35555",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -2081,6 +2296,12 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "lineHeight=\"31px\"",
+      "nodeId": "3879:35555",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
@@ -2105,6 +2326,12 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:98:3276",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "lineHeight=\"31px\"",
+      "nodeId": "3879:35555",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodySemibold\"",
@@ -2217,6 +2444,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "I3879:35557;1690:32933",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
@@ -2320,6 +2559,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"14px\"",
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"22px\"",
+      "nodeId": "I3879:35557;1690:32947",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
@@ -2413,6 +2664,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"18px\"",
+      "nodeId": "3879:35559",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"32px\"",
+      "nodeId": "3879:35559",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"body\"",
@@ -2540,6 +2803,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"16px\"",
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"26px\"",
+      "nodeId": "I3879:35561;1690:32933",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
@@ -2641,6 +2916,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"14px\"",
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"22px\"",
+      "nodeId": "I3879:35561;1690:32947",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
@@ -2734,6 +3021,18 @@ expression: output.source_map
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
       "resolution": "variable-token"
+    },
+    {
+      "generatedProperty": "fontSize=\"18px\"",
+      "nodeId": "3879:35563",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"32px\"",
+      "nodeId": "3879:35563",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
     },
     {
       "generatedProperty": "typography=\"body\"",
@@ -2936,6 +3235,18 @@ expression: output.source_map
       "resolution": "variable-token"
     },
     {
+      "generatedProperty": "fontSize=\"18px\"",
+      "nodeId": "3879:35566",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"31px\"",
+      "nodeId": "3879:35566",
+      "property": "lineHeight",
+      "resolution": "raw-fallback"
+    },
+    {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
@@ -3020,6 +3331,18 @@ expression: output.source_map
       "generatedProperty": "color=\"#FFF\"",
       "nodeId": "3879:35568",
       "property": "fills",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "fontSize=\"18px\"",
+      "nodeId": "3879:35568",
+      "property": "fontSize",
+      "resolution": "raw-fallback"
+    },
+    {
+      "generatedProperty": "lineHeight=\"31px\"",
+      "nodeId": "3879:35568",
+      "property": "lineHeight",
       "resolution": "raw-fallback"
     },
     {

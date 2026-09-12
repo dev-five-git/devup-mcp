@@ -423,6 +423,27 @@ pub fn generate_devup_json(
         let level = level.min(5);
         match style.style_type.as_str() {
             "TEXT" => {
+                if style
+                    .value
+                    .pointer("/lineHeight/unit")
+                    .and_then(Value::as_str)
+                    == Some("PERCENT")
+                    && (style
+                        .value
+                        .get("fontSize")
+                        .and_then(Value::as_f64)
+                        .is_none()
+                        || style.value.pointer("/boundVariables/fontSize").is_some())
+                {
+                    return Err(DevupError::new(
+                        ErrorCode::DevupThemeConflict,
+                        format!(
+                            "Text style '{}' needs a fixed numeric font size for an integer percentage line advance; variable or missing sizes are not representable.",
+                            style.id
+                        ),
+                        false,
+                    ));
+                }
                 let slots = typography_slots.entry(token.clone()).or_default();
                 // The first style seen for a slot keeps it, as in the plugin.
                 if slots[level].is_none() {
@@ -671,7 +692,10 @@ fn typography_value(style: &Value, variable_names: &BTreeMap<&str, String>) -> V
         let value = line_height.get("value").and_then(Value::as_f64);
         let written = match (unit, value) {
             (Some("AUTO"), _) => Some(Value::String("normal".to_owned())),
-            (Some("PERCENT"), Some(percent)) => Some(Value::from((percent / 10.0).round() / 10.0)),
+            (Some("PERCENT"), Some(percent)) => style
+                .get("fontSize")
+                .and_then(Value::as_f64)
+                .map(|size| Value::String(format_px((size * percent / 100.0).round()))),
             (Some(_), Some(pixels)) => Some(Value::String(format_px(pixels))),
             _ => None,
         };

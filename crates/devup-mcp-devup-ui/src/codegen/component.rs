@@ -1622,6 +1622,7 @@ fn render_node(
             asset_names_per_node: context.asset_names_per_node,
         },
     );
+    text::validate_line_metrics(&view, &context.text_style_tokens)?;
     text::push_text_props(
         &view,
         &context.text_style_tokens,

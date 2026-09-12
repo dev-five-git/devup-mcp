@@ -195,6 +195,7 @@ fn nested_text_style_uses_typography() {
                         "start": 0,
                         "end": 3,
                         "textStyleId": "S:body",
+                        "lineHeight": {"unit": "AUTO"},
                         "fontName": {"family": "Pretendard", "style": "Regular"},
                         "fontSize": 16,
                         "fontWeight": 400,
@@ -209,6 +210,7 @@ fn nested_text_style_uses_typography() {
                         "start": 3,
                         "end": 10,
                         "textStyleId": "S:bodySemibold",
+                        "lineHeight": {"unit": "AUTO"},
                         "fontName": {"family": "Pretendard", "style": "SemiBold"},
                         "fontSize": 16,
                         "fontWeight": 600,
@@ -223,6 +225,7 @@ fn nested_text_style_uses_typography() {
                         "start": 10,
                         "end": 20,
                         "textStyleId": "S:body",
+                        "lineHeight": {"unit": "AUTO"},
                         "fontName": {"family": "Pretendard", "style": "Regular"},
                         "fontSize": 16,
                         "fontWeight": 400,
@@ -269,7 +272,8 @@ fn nested_text_style_uses_typography() {
     assert!(output.used_tokens.contains("text"));
     assert!(output.used_tokens.contains("primaryLight"));
     assert!(output.tsx.contains("{\" \"}왔어?<br />다음 줄"));
-    assert!(!output.tsx.contains("fontSize=\"16px\""));
+    assert!(output.tsx.contains("fontSize=\"16px\""));
+    assert!(output.tsx.contains("lineHeight=\"normal\""));
     assert!(!output.tsx.contains("fontWeight=\"600\""));
 }
 

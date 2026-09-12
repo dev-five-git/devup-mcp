@@ -71,7 +71,7 @@ expression: actual
               fontSize="20px"
               fontWeight="400"
               letterSpacing="-0.03em"
-              lineHeight="2"
+              lineHeight="40px"
               textAlign="center"
               wordBreak="keep-all"
             >
@@ -83,7 +83,7 @@ expression: actual
               fontSize="16px"
               fontWeight="400"
               letterSpacing="-0.02em"
-              lineHeight="1.8"
+              lineHeight="29px"
               textAlign="center"
             >
               We are currently updating our website to serve you better. <br />We apologize for the inconvenience.
@@ -97,7 +97,7 @@ expression: actual
             fontSize="17px"
             fontWeight="700"
             letterSpacing="-0.02em"
-            lineHeight="1.7"
+            lineHeight="29px"
             wordBreak="keep-all"
           >
             제주국제관악제 최신 소식 확인하기
@@ -121,7 +121,7 @@ expression: actual
             fontSize="17px"
             fontWeight="500"
             letterSpacing="-0.02em"
-            lineHeight="1.7"
+            lineHeight="29px"
             wordBreak="keep-all"
           >
             문의 : 064-722-8704 / bandfestival@hanmail.net

@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
-assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -43,7 +42,13 @@ export function Wquw151Frame387936059() {
               maskRepeat="no-repeat"
               maskSize="contain"
             />
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               초기화
             </Text>
           </Flex>
@@ -58,6 +63,8 @@ export function Wquw151Frame387936059() {
       >
         <Text
           color="$text"
+          fontSize="24px"
+          lineHeight="34px"
           overflow="hidden"
           textOverflow="ellipsis"
           typography="h4"
@@ -83,13 +90,21 @@ export function Wquw151Frame387936059() {
             maskRepeat="no-repeat"
             maskSize="contain"
           />
-          <Text color="$secondary" typography="bodyXsSemibold" wordBreak="keep-all">
+          <Text
+            color="$secondary"
+            fontSize="16px"
+            lineHeight="26px"
+            typography="bodyXsSemibold"
+            wordBreak="keep-all"
+          >
             이야기가 막힐 때 눌러보세요
           </Text>
         </Center>
         <Text
           color="$textLight"
           flex="1"
+          fontSize="18px"
+          lineHeight="31px"
           overflow="hidden"
           textOverflow="ellipsis"
           typography="recordText"
@@ -100,25 +115,49 @@ export function Wquw151Frame387936059() {
         </Text>
         <Flex alignItems="center" gap="30px">
           <Center flexDir="column" gap="8px">
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               직접 입력
             </Text>
             <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               녹음하기
             </Text>
             <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/플레이 버튼.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               작성 완료
             </Text>
             <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
           </Center>
         </Flex>
-        <Text color="$caption" typography="bodyXsSemibold" wordBreak="keep-all">
+        <Text
+          color="$caption"
+          fontSize="16px"
+          lineHeight="26px"
+          typography="bodyXsSemibold"
+          wordBreak="keep-all"
+        >
           임시 저장하고 다음에 이어서 하기
         </Text>
       </VStack>
@@ -137,18 +176,27 @@ export function Wquw151Frame387936059() {
       >
         <VStack
           bg="$containerBackground"
-          border="solid 1px $border"
           borderRadius="20px"
+          outline="solid 1px $border"
+          outlineOffset="-1px"
           overflow="hidden"
           w="320px"
         >
           <Center flexDir="column" gap="8px" minH="180px" p="30px">
-            <Text color="$text" typography="h6" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="20px"
+              lineHeight="28px"
+              typography="h6"
+              wordBreak="keep-all"
+            >
               이야기 다듬기 시작
             </Text>
             <Center flexDir="column" gap="12px" w="100%">
               <Text
                 color="$text"
+                fontSize="17px"
+                lineHeight="29px"
                 overflow="hidden"
                 textAlign="center"
                 textOverflow="ellipsis"
@@ -168,6 +216,8 @@ export function Wquw151Frame387936059() {
               >
                 <Text
                   color="$textLight"
+                  fontSize="15px"
+                  lineHeight="24px"
                   overflow="hidden"
                   textOverflow="ellipsis"
                   typography="caption"
@@ -185,7 +235,13 @@ export function Wquw151Frame387936059() {
                       boxSize="20px"
                       overflow="hidden"
                     />
-                    <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+                    <Text
+                      color="$text"
+                      fontSize="16px"
+                      lineHeight="26px"
+                      typography="bodyXs"
+                      wordBreak="keep-all"
+                    >
                       AI 담당자와 함께 문체 다듬기
                     </Text>
                   </Flex>
@@ -198,7 +254,13 @@ export function Wquw151Frame387936059() {
                       boxSize="20px"
                       overflow="hidden"
                     />
-                    <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+                    <Text
+                      color="$text"
+                      fontSize="16px"
+                      lineHeight="26px"
+                      typography="bodyXs"
+                      wordBreak="keep-all"
+                    >
                       내 문장 그대로 맞춤법만 다듬기
                     </Text>
                   </Flex>
@@ -208,7 +270,13 @@ export function Wquw151Frame387936059() {
           </Center>
           <Flex>
             <Center borderTop="solid 1px $border" flex="1" px="10px" py="16px">
-              <Text color="$textLight" typography="bodySmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="17px"
+                lineHeight="29px"
+                typography="bodySmSemibold"
+                wordBreak="keep-all"
+              >
                 더 이야기 할게요
               </Text>
             </Center>
@@ -219,7 +287,13 @@ export function Wquw151Frame387936059() {
               px="10px"
               py="16px"
             >
-              <Text color="$primary" typography="bodySmSemibold" wordBreak="keep-all">
+              <Text
+                color="$primary"
+                fontSize="17px"
+                lineHeight="29px"
+                typography="bodySmSemibold"
+                wordBreak="keep-all"
+              >
                 마무리 할게요
               </Text>
             </Center>

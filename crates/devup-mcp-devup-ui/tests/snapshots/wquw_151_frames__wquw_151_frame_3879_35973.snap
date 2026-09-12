@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
-assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -24,6 +23,8 @@ export function Wquw151Frame387935973() {
       >
         <Text
           color="$text"
+          fontSize="28px"
+          lineHeight="39px"
           overflow="hidden"
           textAlign="center"
           textOverflow="ellipsis"
@@ -35,10 +36,22 @@ export function Wquw151Frame387935973() {
         </Text>
         <VStack gap="8px" w="100%">
           <Center borderRadius="12px" gap="12px" p="12px">
-            <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="16px"
+              lineHeight="26px"
+              typography="bodyXs"
+              wordBreak="keep-all"
+            >
               현재 적용된 문체 :
             </Text>
-            <Text color="$primary" typography="bodySmSemibold" wordBreak="keep-all">
+            <Text
+              color="$primary"
+              fontSize="17px"
+              lineHeight="29px"
+              typography="bodySmSemibold"
+              wordBreak="keep-all"
+            >
               담담체
             </Text>
             <Image aspectRatio="1" boxSize="20px" src="/icons/write.svg" />
@@ -52,6 +65,8 @@ export function Wquw151Frame387935973() {
           >
             <Text
               color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
               overflow="hidden"
               textOverflow="ellipsis"
               typography="caption"
@@ -69,7 +84,13 @@ export function Wquw151Frame387935973() {
                   boxSize="20px"
                   overflow="hidden"
                 />
-                <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+                <Text
+                  color="$text"
+                  fontSize="16px"
+                  lineHeight="26px"
+                  typography="bodyXs"
+                  wordBreak="keep-all"
+                >
                   AI 편집자에게 다듬기 맡기기
                 </Text>
               </Flex>
@@ -82,7 +103,13 @@ export function Wquw151Frame387935973() {
                   boxSize="20px"
                   overflow="hidden"
                 />
-                <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+                <Text
+                  color="$text"
+                  fontSize="16px"
+                  lineHeight="26px"
+                  typography="bodyXs"
+                  wordBreak="keep-all"
+                >
                   내 문장 최대한 유지하기
                 </Text>
               </Flex>
@@ -90,10 +117,22 @@ export function Wquw151Frame387935973() {
           </VStack>
           <Center border="solid 1px $border" borderRadius="12px" flexDir="column" p="11px">
             <Flex alignItems="center" gap="12px">
-              <Text color="$text" typography="bodyXs" wordBreak="keep-all">
+              <Text
+                color="$text"
+                fontSize="16px"
+                lineHeight="26px"
+                typography="bodyXs"
+                wordBreak="keep-all"
+              >
                 공개 설정 :
               </Text>
-              <Text color="$primary" typography="bodySmSemibold" wordBreak="keep-all">
+              <Text
+                color="$primary"
+                fontSize="17px"
+                lineHeight="29px"
+                typography="bodySmSemibold"
+                wordBreak="keep-all"
+              >
                 나만 보기
               </Text>
               <Box
@@ -132,6 +171,8 @@ export function Wquw151Frame387935973() {
             />
             <Text
               color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
               overflow="hidden"
               textAlign="center"
               textOverflow="ellipsis"
@@ -147,6 +188,8 @@ export function Wquw151Frame387935973() {
           </Center>
           <Text
             color="$textLight"
+            fontSize="14px"
+            lineHeight="22px"
             overflow="hidden"
             textOverflow="ellipsis"
             typography="captionSm"
@@ -163,11 +206,13 @@ export function Wquw151Frame387935973() {
           pos="relative"
           w="100%"
         >
-          <Text color="$text" typography="bodyXsSemibold">
+          <Text color="$text" fontSize="16px" lineHeight="26px" typography="bodyXsSemibold">
             TIP
           </Text>
           <Text
             color="$text"
+            fontSize="16px"
+            lineHeight="26px"
             overflow="hidden"
             textOverflow="ellipsis"
             typography="bodyXs"
@@ -206,12 +251,24 @@ export function Wquw151Frame387935973() {
             py="10px"
             w="360px"
           >
-            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="16px"
+              lineHeight="26px"
+              typography="bodyXsSemibold"
+              wordBreak="keep-all"
+            >
               제목
             </Text>
             <Flex alignItems="center" gap="6px">
               <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
-              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="14px"
+                lineHeight="22px"
+                typography="captionSmSemibold"
+                wordBreak="keep-all"
+              >
                 수정
               </Text>
             </Flex>
@@ -220,6 +277,8 @@ export function Wquw151Frame387935973() {
             <Text
               color="$primary"
               flex="1"
+              fontSize="22px"
+              lineHeight="31px"
               overflow="hidden"
               textOverflow="ellipsis"
               typography="h5"
@@ -238,12 +297,24 @@ export function Wquw151Frame387935973() {
             py="10px"
             w="360px"
           >
-            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="16px"
+              lineHeight="26px"
+              typography="bodyXsSemibold"
+              wordBreak="keep-all"
+            >
               1단락
             </Text>
             <Flex alignItems="center" gap="6px">
               <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
-              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="14px"
+                lineHeight="22px"
+                typography="captionSmSemibold"
+                wordBreak="keep-all"
+              >
                 수정
               </Text>
             </Flex>
@@ -251,6 +322,8 @@ export function Wquw151Frame387935973() {
           <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
             <Text
               color="$text"
+              fontSize="18px"
+              lineHeight="32px"
               overflow="hidden"
               textOverflow="ellipsis"
               typography="body"
@@ -270,12 +343,24 @@ export function Wquw151Frame387935973() {
             py="10px"
             w="360px"
           >
-            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="16px"
+              lineHeight="26px"
+              typography="bodyXsSemibold"
+              wordBreak="keep-all"
+            >
               2단락
             </Text>
             <Flex alignItems="center" gap="6px">
               <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
-              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="14px"
+                lineHeight="22px"
+                typography="captionSmSemibold"
+                wordBreak="keep-all"
+              >
                 수정
               </Text>
             </Flex>
@@ -283,6 +368,8 @@ export function Wquw151Frame387935973() {
           <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
             <Text
               color="$text"
+              fontSize="18px"
+              lineHeight="32px"
               overflow="hidden"
               textOverflow="ellipsis"
               typography="body"
@@ -290,11 +377,11 @@ export function Wquw151Frame387935973() {
               wordBreak="keep-all"
             >
               “엄마!”<br /><br />나는 반가운 마음에 큰 소리로 어머니를 불렀다. 어머니는 미역이 담긴 비닐봉지를 고르고 계셨는데, 내 목소리에 깜짝 놀라시더니 고개를 돌려 나를 보셨다. 순간 어머니의 얼굴에 번져가는 웃음이 얼마나 따뜻하고 아름다웠는지 모른다. 놀라움이 가득한 표정에서 환한 미소로 변해가는 그 표정을, 나는 아직도 잊을 수 없다.<br /><br />“우리{" "}
-              <Text color="$primaryLight" typography="bodySemibold">
+              <Text color="$primaryLight" lineHeight="31px" typography="bodySemibold">
                 [1. 이름]
               </Text>
               {" "}왔어?”<br /><br />어머니는 장바구니를 들어 올리며 내 앞까지 걸어오셨다. 얼굴에는 하루의 피로가 묻어 있었지만, 나를 보는 눈빛은 그 어떤 보석보다 반짝였다. 나는 어머니가 드신 장바구니를 대신 들어드리려고 손을 뻗었지만, 어머니는 살짝 웃으며 고개를 저으셨다.<br /><br />“괜찮아. 엄마가 들 수 있어.{" "}
-              <Text color="$primaryLight" typography="bodySemibold">
+              <Text color="$primaryLight" lineHeight="31px" typography="bodySemibold">
                 [1. 이름]
               </Text>
               {" "}학교 끝났어? 배고프지?”
@@ -310,12 +397,24 @@ export function Wquw151Frame387935973() {
             py="10px"
             w="360px"
           >
-            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="16px"
+              lineHeight="26px"
+              typography="bodyXsSemibold"
+              wordBreak="keep-all"
+            >
               3단락
             </Text>
             <Flex alignItems="center" gap="6px">
               <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
-              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="14px"
+                lineHeight="22px"
+                typography="captionSmSemibold"
+                wordBreak="keep-all"
+              >
                 수정
               </Text>
             </Flex>
@@ -323,6 +422,8 @@ export function Wquw151Frame387935973() {
           <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
             <Text
               color="$text"
+              fontSize="18px"
+              lineHeight="32px"
               overflow="hidden"
               textOverflow="ellipsis"
               typography="body"
@@ -342,12 +443,24 @@ export function Wquw151Frame387935973() {
             py="10px"
             w="360px"
           >
-            <Text color="$text" typography="bodyXsSemibold" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="16px"
+              lineHeight="26px"
+              typography="bodyXsSemibold"
+              wordBreak="keep-all"
+            >
               4단락
             </Text>
             <Flex alignItems="center" gap="6px">
               <Image aspectRatio="1" boxSize="16px" src="/icons/write.svg" />
-              <Text color="$textLight" typography="captionSmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="14px"
+                lineHeight="22px"
+                typography="captionSmSemibold"
+                wordBreak="keep-all"
+              >
                 수정
               </Text>
             </Flex>
@@ -355,6 +468,8 @@ export function Wquw151Frame387935973() {
           <Center bg="$containerBackground" flexDir="column" px="20px" py="24px">
             <Text
               color="$text"
+              fontSize="18px"
+              lineHeight="32px"
               overflow="hidden"
               textOverflow="ellipsis"
               typography="body"
@@ -380,12 +495,24 @@ export function Wquw151Frame387935973() {
         w="100%"
       >
         <Center bg="$primaryBg" borderRadius="10px" px="20px" py="10px">
-          <Text color="$primary" typography="bodySemibold" wordBreak="keep-all">
+          <Text
+            color="$primary"
+            fontSize="18px"
+            lineHeight="31px"
+            typography="bodySemibold"
+            wordBreak="keep-all"
+          >
             문체 변경
           </Text>
         </Center>
         <Center bg="$primary" borderRadius="10px" px="20px" py="10px">
-          <Text color="#FFF" typography="bodySemibold" wordBreak="keep-all">
+          <Text
+            color="#FFF"
+            fontSize="18px"
+            lineHeight="31px"
+            typography="bodySemibold"
+            wordBreak="keep-all"
+          >
             검토 완료
           </Text>
         </Center>
@@ -414,10 +541,22 @@ export function Wquw151Frame387935973() {
           <VStack pb="12px">
             <VStack gap="4px" pos="relative" px="12px" py="20px">
               <VStack gap="4px">
-                <Text color="$text" typography="h6" wordBreak="keep-all">
+                <Text
+                  color="$text"
+                  fontSize="20px"
+                  lineHeight="28px"
+                  typography="h6"
+                  wordBreak="keep-all"
+                >
                   공개 설정
                 </Text>
-                <Text color="$textLight" typography="caption" wordBreak="keep-all">
+                <Text
+                  color="$textLight"
+                  fontSize="15px"
+                  lineHeight="24px"
+                  typography="caption"
+                  wordBreak="keep-all"
+                >
                   작성하신 이야기를 누구와 함께 나눌지 선택해 주세요.
                 </Text>
               </VStack>
@@ -453,11 +592,19 @@ export function Wquw151Frame387935973() {
                 maskSize="contain"
               />
               <VStack flex="1" gap="2px" justifyContent="center">
-                <Text color="$primary" typography="bodySemibold" wordBreak="keep-all">
+                <Text
+                  color="$primary"
+                  fontSize="18px"
+                  lineHeight="31px"
+                  typography="bodySemibold"
+                  wordBreak="keep-all"
+                >
                   동행인
                 </Text>
                 <Text
                   color="$caption"
+                  fontSize="15px"
+                  lineHeight="24px"
                   overflow="hidden"
                   textOverflow="ellipsis"
                   typography="caption"
@@ -479,11 +626,19 @@ export function Wquw151Frame387935973() {
                 maskSize="contain"
               />
               <VStack flex="1" gap="2px" justifyContent="center">
-                <Text color="$text" typography="body" wordBreak="keep-all">
+                <Text
+                  color="$text"
+                  fontSize="18px"
+                  lineHeight="32px"
+                  typography="body"
+                  wordBreak="keep-all"
+                >
                   나만 보기
                 </Text>
                 <Text
                   color="$caption"
+                  fontSize="15px"
+                  lineHeight="24px"
                   overflow="hidden"
                   textOverflow="ellipsis"
                   typography="caption"
@@ -496,10 +651,22 @@ export function Wquw151Frame387935973() {
           </VStack>
           <VStack borderTop="solid 1px $border" px="12px" py="20px">
             <VStack gap="4px">
-              <Text color="$text" typography="h6" wordBreak="keep-all">
+              <Text
+                color="$text"
+                fontSize="20px"
+                lineHeight="28px"
+                typography="h6"
+                wordBreak="keep-all"
+              >
                 교정 설정
               </Text>
-              <Text color="$textLight" typography="bodyXs" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="16px"
+                lineHeight="26px"
+                typography="bodyXs"
+                wordBreak="keep-all"
+              >
                 <Text typography="bodyXsSemibold">
                   이번 이야기
                 </Text>
@@ -519,10 +686,22 @@ export function Wquw151Frame387935973() {
               maskSize="contain"
             />
             <VStack gap="2px" justifyContent="center">
-              <Text color="$primary" typography="bodySemibold" wordBreak="keep-all">
+              <Text
+                color="$primary"
+                fontSize="18px"
+                lineHeight="31px"
+                typography="bodySemibold"
+                wordBreak="keep-all"
+              >
                 AI 담당자와 함께 문체 다듬기
               </Text>
-              <Text color="$caption" typography="caption" wordBreak="keep-all">
+              <Text
+                color="$caption"
+                fontSize="15px"
+                lineHeight="24px"
+                typography="caption"
+                wordBreak="keep-all"
+              >
                 AI 담당자가 문맥을 자연스럽게 수정해요
               </Text>
             </VStack>
@@ -539,10 +718,22 @@ export function Wquw151Frame387935973() {
               maskSize="contain"
             />
             <VStack alignSelf="flex-start" gap="2px" justifyContent="center">
-              <Text color="$text" typography="body" wordBreak="keep-all">
+              <Text
+                color="$text"
+                fontSize="18px"
+                lineHeight="32px"
+                typography="body"
+                wordBreak="keep-all"
+              >
                 내 문장 그대로 맞춤법만 다듬기
               </Text>
-              <Text color="$caption" typography="caption" wordBreak="keep-all">
+              <Text
+                color="$caption"
+                fontSize="15px"
+                lineHeight="24px"
+                typography="caption"
+                wordBreak="keep-all"
+              >
                 입력하신 문장 그대로의 느낌을 담아내요
               </Text>
             </VStack>
@@ -565,18 +756,27 @@ export function Wquw151Frame387935973() {
       >
         <VStack
           bg="$containerBackground"
-          border="solid 1px $border"
           borderRadius="20px"
+          outline="solid 1px $border"
+          outlineOffset="-1px"
           overflow="hidden"
           w="320px"
         >
           <Center flexDir="column" gap="8px" minH="180px" p="30px">
-            <Text color="$text" typography="h6" wordBreak="keep-all">
+            <Text
+              color="$text"
+              fontSize="20px"
+              lineHeight="28px"
+              typography="h6"
+              wordBreak="keep-all"
+            >
               문체를 적용합니다.
             </Text>
             <Center flexDir="column" w="100%">
               <Text
                 color="$text"
+                fontSize="17px"
+                lineHeight="29px"
                 overflow="hidden"
                 textAlign="center"
                 textOverflow="ellipsis"
@@ -594,7 +794,13 @@ export function Wquw151Frame387935973() {
           </Center>
           <Flex>
             <Center borderTop="solid 1px $border" flex="1" px="10px" py="16px">
-              <Text color="$textLight" typography="bodySmSemibold" wordBreak="keep-all">
+              <Text
+                color="$textLight"
+                fontSize="17px"
+                lineHeight="29px"
+                typography="bodySmSemibold"
+                wordBreak="keep-all"
+              >
                 취소
               </Text>
             </Center>
@@ -605,7 +811,13 @@ export function Wquw151Frame387935973() {
               px="10px"
               py="16px"
             >
-              <Text color="$primary" typography="bodySmSemibold" wordBreak="keep-all">
+              <Text
+                color="$primary"
+                fontSize="17px"
+                lineHeight="29px"
+                typography="bodySmSemibold"
+                wordBreak="keep-all"
+              >
                 적용하기
               </Text>
             </Center>

@@ -1,6 +1,5 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151_frames.rs
-assertion_line: 218
 expression: output.tsx
 ---
 import { Box, Center, Flex, Image, Text, VStack } from "@devup-ui/react";
@@ -37,7 +36,13 @@ export function Wquw151Frame387936108() {
               maskRepeat="no-repeat"
               maskSize="contain"
             />
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               초기화
             </Text>
           </Flex>
@@ -52,6 +57,8 @@ export function Wquw151Frame387936108() {
       >
         <Text
           color="$text"
+          fontSize="24px"
+          lineHeight="34px"
           overflow="hidden"
           textOverflow="ellipsis"
           typography="h4"
@@ -77,13 +84,21 @@ export function Wquw151Frame387936108() {
             maskRepeat="no-repeat"
             maskSize="contain"
           />
-          <Text color="$secondary" typography="bodyXsSemibold" wordBreak="keep-all">
+          <Text
+            color="$secondary"
+            fontSize="16px"
+            lineHeight="26px"
+            typography="bodyXsSemibold"
+            wordBreak="keep-all"
+          >
             이야기가 막힐 때 눌러보세요
           </Text>
         </Center>
         <Text
           color="$textLight"
           flex="1"
+          fontSize="18px"
+          lineHeight="31px"
           overflow="hidden"
           textOverflow="ellipsis"
           typography="recordText"
@@ -94,25 +109,49 @@ export function Wquw151Frame387936108() {
         </Text>
         <Flex alignItems="center" gap="30px">
           <Center flexDir="column" gap="8px">
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               직접 입력
             </Text>
             <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               녹음하기
             </Text>
             <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="80px" src="/icons/플레이 버튼.svg" />
           </Center>
           <Center flexDir="column" gap="8px">
-            <Text color="$textLight" typography="captionSemibold" wordBreak="keep-all">
+            <Text
+              color="$textLight"
+              fontSize="15px"
+              lineHeight="24px"
+              typography="captionSemibold"
+              wordBreak="keep-all"
+            >
               작성 완료
             </Text>
             <Image aspectRatio="1" boxShadow="0 4px 32px 0 #46608740" boxSize="60px" src="/icons/플레이 버튼.svg" />
           </Center>
         </Flex>
-        <Text color="$caption" typography="bodyXsSemibold" wordBreak="keep-all">
+        <Text
+          color="$caption"
+          fontSize="16px"
+          lineHeight="26px"
+          typography="bodyXsSemibold"
+          wordBreak="keep-all"
+        >
           임시 저장하고 다음에 이어서 하기
         </Text>
       </VStack>

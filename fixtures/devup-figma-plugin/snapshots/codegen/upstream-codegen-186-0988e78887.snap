@@ -16,7 +16,7 @@ expression: actual
         fontSize="16px"
         fontWeight="400"
         letterSpacing="0em"
-        lineHeight="1.6"
+        lineHeight="26px"
         overflow="hidden"
         textOverflow="ellipsis"
       >

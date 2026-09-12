@@ -19,7 +19,7 @@ expression: actual
           fontSize="16px"
           fontWeight="600"
           letterSpacing="-1px"
-          lineHeight="1.5"
+          lineHeight="24px"
           wordBreak="keep-all"
         >
           플레이 제목
@@ -37,7 +37,7 @@ expression: actual
           fontSize="15px"
           fontWeight="400"
           letterSpacing="-0.5px"
-          lineHeight="1.5"
+          lineHeight="23px"
         >
           2025.03.03 18:00
         </Text>
@@ -64,7 +64,7 @@ expression: actual
             fontSize="15px"
             fontWeight="600"
             letterSpacing="-0.5px"
-            lineHeight="1.5"
+            lineHeight="23px"
           >
             2
           </Text>
@@ -76,7 +76,7 @@ expression: actual
         fontSize="16px"
         fontWeight="400"
         letterSpacing="-1px"
-        lineHeight="1.5"
+        lineHeight="24px"
         wordBreak="keep-all"
       >
         댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력 댓글 내용 출력

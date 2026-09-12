@@ -1304,6 +1304,7 @@ fn push_padding(snapshot: &Snapshot, node: &RawNode, props: &mut Vec<Prop>) {
     // the padding puts the content where Figma has it on every axis: it
     // starts `p` in and, hugging, the box is content plus `2p`.
     if view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
+        && !super::style::inside_stroke_uses_outline(&view)
         && view.node_type() != "LINE"
         && let Some(weight) = view.number("strokeWeight").filter(|weight| *weight > 0.0)
         && view

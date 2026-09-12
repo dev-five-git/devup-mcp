@@ -162,8 +162,8 @@ fn a_binding_the_catalog_carried_is_written_as_its_token() {
         output.tsx
     );
     assert!(
-        !output.tsx.contains("fontSize=\"14px\""),
-        "a typography token replaces the font properties it stands for:\n{}",
+        output.tsx.contains("fontSize=\"14px\"") && output.tsx.contains("lineHeight=\"22px\""),
+        "resolved size and advance keep the typography token valid for this node:\n{}",
         output.tsx
     );
     assert!(

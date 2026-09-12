@@ -53,6 +53,7 @@ fn fidelity_snapshot(characters: &str) -> Snapshot {
                         "characters": characters, "start": 0, "end": characters.len(),
                         "textStyleId": "s", "fontName": {"family": "Inter", "style": "Regular"},
                         "fontSize": 16, "fontWeight": 400,
+                        "lineHeight": {"unit": "AUTO"},
                         "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}]
                     }],
                     "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}]
@@ -277,13 +278,13 @@ fn strict_fidelity_consumes_repeated_text_segment_mappings_one_to_one() {
             {
                 "characters": "A", "start": 0, "end": 1, "textStyleId": "s",
                 "fontName": {"family": "Inter", "style": "Regular"},
-                "fontSize": 16, "fontWeight": 400,
+                "fontSize": 16, "fontWeight": 400, "lineHeight": {"unit":"AUTO"},
                 "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}]
             },
             {
                 "characters": "A", "start": 1, "end": 2, "textStyleId": "s",
                 "fontName": {"family": "Inter", "style": "Regular"},
-                "fontSize": 16, "fontWeight": 400,
+                "fontSize": 16, "fontWeight": 400, "lineHeight": {"unit":"AUTO"},
                 "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}]
             }
         ]),

@@ -32,7 +32,7 @@ expression: actual
         fontSize="16px"
         fontWeight="700"
         letterSpacing="-0.04em"
-        lineHeight="1.4"
+        lineHeight="22px"
         wordBreak="keep-all"
       >
         자세히 알아보기 →

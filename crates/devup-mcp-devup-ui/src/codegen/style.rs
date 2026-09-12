@@ -1454,6 +1454,19 @@ fn push_radius(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
     }
 }
 
+/// An inside stroke cannot consume layout space when the padding is too small
+/// to absorb a CSS border. Paint it inward with an outline instead.
+pub(super) fn inside_stroke_uses_outline(view: &TypedNode<'_>) -> bool {
+    view.string("strokeAlign").unwrap_or("INSIDE") == "INSIDE"
+        && matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
+        && view.number("strokeWeight").is_some_and(|weight| {
+            weight > 0.0
+                && ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]
+                    .iter()
+                    .any(|field| view.number(field).is_some_and(|padding| padding < weight))
+        })
+}
+
 fn push_strokes(
     view: &TypedNode<'_>,
     props: &mut Vec<Prop>,
@@ -1535,7 +1548,10 @@ fn push_strokes(
         }
         return;
     }
-    if align == "INSIDE" {
+    if inside_stroke_uses_outline(view) {
+        string_prop(props, "outline", format!("{style} {} {color}", px(weight)));
+        string_prop(props, "outlineOffset", px(-weight));
+    } else if align == "INSIDE" {
         string_prop(props, "border", format!("{style} {} {color}", px(weight)));
     } else {
         string_prop(props, "outline", format!("{style} {} {color}", px(weight)));

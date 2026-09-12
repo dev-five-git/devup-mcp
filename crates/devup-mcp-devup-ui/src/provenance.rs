@@ -1952,6 +1952,8 @@ const PROP_SOURCES: &[(&str, &str)] = &[
     ("minH", "minHeight"),
     ("minW", "minWidth"),
     ("opacity", "opacity"),
+    ("outline", "strokes"),
+    ("outlineOffset", "strokeWeight"),
     ("overflow", "clipsContent"),
     ("overflow", "overflowDirection"),
     ("overflowX", "overflowDirection"),
@@ -1998,19 +2000,50 @@ fn add_text_entries(
             segment
                 .get("characters")
                 .and_then(serde_json::Value::as_str)
+                .map(|characters| (characters, Some(segment)))
         })
-        .filter(|characters| !characters.is_empty())
+        .filter(|(characters, _)| !characters.is_empty())
         .collect::<Vec<_>>();
     if text_segments.is_empty()
         && let Some(characters) = view
             .string("characters")
             .filter(|characters| !characters.is_empty())
     {
-        text_segments.push(characters);
+        text_segments.push((characters, None));
     }
     let mut cursor = 0;
-    for characters in text_segments {
+    for (characters, segment) in text_segments {
         if let Some((start, end)) = find_text_span(source, characters, cursor) {
+            // A rich-text wrapper can now carry its own integer advance.
+            // Attribute ownership belongs to the segment whose text directly
+            // follows this opening, rather than the node's default metrics.
+            if let Some(segment) = segment
+                && let Some(open_start) = source[..start].rfind("<Text")
+                && source[..open_start].contains("<Text")
+                && let Some(close) = source[open_start..start].find('>')
+                && source[open_start + close + 1..start].trim().is_empty()
+            {
+                let opening = &source[open_start..open_start + close];
+                for field in ["fontSize", "lineHeight"] {
+                    if segment.get(field).is_none() {
+                        continue;
+                    }
+                    let needle = format!("{field}=\"");
+                    if let Some(attr_start) = find_prop(opening, &needle)
+                        && let Some(attr_end) = opening[attr_start + needle.len()..].find('"')
+                    {
+                        entries.push(generated_entry(
+                            range.start + open_start + attr_start,
+                            range.start + open_start + attr_start + needle.len() + attr_end + 1,
+                            node_id,
+                            "styledTextSegments",
+                            None,
+                            None,
+                            "raw-fallback",
+                        ));
+                    }
+                }
+            }
             entries.push(generated_entry(
                 range.start + start,
                 range.start + end,
