@@ -201,13 +201,13 @@ enum Columns {
 }
 
 #[derive(Default)]
-pub(super) struct RouteMapping {
+pub(in crate::server) struct RouteMapping {
     references: Vec<(String, Columns)>,
-    pub(super) unresolved: bool,
+    pub(in crate::server) unresolved: bool,
 }
 
 impl RouteMapping {
-    pub(super) fn mentions(&self, table: &str, column: &str) -> bool {
+    pub(in crate::server) fn mentions(&self, table: &str, column: &str) -> bool {
         self.references.iter().any(|(model, columns)| {
             model == table
                 && match columns {
@@ -279,7 +279,7 @@ fn schema_reference(tokens: &[Token]) -> Option<(String, Columns)> {
     ))
 }
 
-pub(super) fn route_mapping(source: &str) -> RouteMapping {
+pub(in crate::server) fn route_mapping(source: &str) -> RouteMapping {
     let tokens = tokenize(source, true);
     let mut mapping = RouteMapping::default();
     let mut i = 0;
@@ -373,7 +373,7 @@ fn object_config(tokens: &[Token]) -> Option<String> {
 /// references, which must first be expanded through OpenAPI's devup tags.
 type References = Vec<(String, String)>;
 
-pub(super) fn client_references(source: &str) -> (References, References) {
+pub(in crate::server) fn client_references(source: &str) -> (References, References) {
     let tokens = tokenize(source, false);
     let mut calls = Vec::new();
     let mut configs = Vec::new();

@@ -209,8 +209,8 @@ fn tools_list_over_raw_stdio_has_no_boolean_schemas_and_object_output_types() ->
         .expect("tools/list result must contain a tools array");
     assert_eq!(
         tools.len(),
-        8,
-        "expected all 8 devup-mcp tools (4 devup_figma_* + devup_project_context + devup_ui_validate + devup_stack_diff + devup_visual_compare) to be listed: {tools:?}"
+        9,
+        "expected all 9 devup-mcp tools (4 devup_figma_* + devup_project_context + devup_ui_validate + devup_stack_diff + devup_visual_compare + devup_feature_trace) to be listed: {tools:?}"
     );
 
     let mut boolean_schema_hits = Vec::new();

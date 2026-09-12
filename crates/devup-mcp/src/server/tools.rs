@@ -264,3 +264,29 @@ pub struct VisualCompareInput {
     #[schemars(extend("enum" = super::validation::DELIVERY_MODES))]
     pub delivery: String,
 }
+
+/// Read-only cross-layer slice. Anchors are literal identifiers, never inferred
+/// from requirement or acceptanceCriteria. A path-only API anchor is invalid.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct FeatureTraceInput {
+    pub project_root: Option<String>,
+    pub route_path: Option<String>,
+    pub figma_node_id: Option<String>,
+    pub artifact_id: Option<String>,
+    pub operation_id: Option<String>,
+    pub api_path: Option<String>,
+    pub method: Option<String>,
+    pub component_path: Option<String>,
+    pub table_name: Option<String>,
+    pub requirement: Option<String>,
+    #[serde(default)]
+    pub acceptance_criteria: Vec<String>,
+    /// Caller-supplied componentTsx export tied to the explicit Figma anchor.
+    /// Its provenance is caller-declared; cached artifact generation is preferred.
+    pub component_tsx: Option<String>,
+    /// Per-array response cap, default 100, maximum 200. Byte cap is 65536.
+    #[schemars(range(min = 1, max = 200))]
+    pub max_items: Option<usize>,
+}

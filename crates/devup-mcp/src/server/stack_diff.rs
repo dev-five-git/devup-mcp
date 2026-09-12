@@ -22,7 +22,7 @@ use devup_mcp_figma::{DevupError, ErrorCode};
 use serde_json::{Value, json};
 
 #[path = "stack_diff_parse.rs"]
-mod parse;
+pub(super) mod parse;
 
 use super::project_root::{
     PROJECT_ROOT_NOT_FOUND_MESSAGE, display_path, find_dirs_named, find_files_named,
@@ -100,7 +100,7 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
 
 /// Ownership is part of every finding, including scan self-checks. Generated
 /// artifacts are evidence to compare, never a destination for manual repairs.
-fn attach_source_ownership(result: &mut Value, layer: &str) {
+pub(super) fn attach_source_ownership(result: &mut Value, layer: &str) {
     let repair = match layer {
         "db-entity" => {
             "Review and edit the Vespertide model in models/*.json, then run vespertide revision and vespertide export --orm seaorm to regenerate entities and migrations."
@@ -671,7 +671,7 @@ fn attach_excluded_paths(layer: &mut Value, excluded: Vec<Value>) {
 /// Reported drifts always carry the path *as written in their own layer*;
 /// only the matching is spelling-insensitive, and the layer says how many
 /// routes needed it.
-fn route_comparison_key(method: &str, path: &str) -> (String, String) {
+pub(super) fn route_comparison_key(method: &str, path: &str) -> (String, String) {
     let folded = path.replace('_', "-");
     let trimmed = folded.trim_end_matches('/');
     let path = if trimmed.is_empty() {
@@ -764,7 +764,7 @@ fn mirrored_drift_count(left: &[Value], right: &[Value]) -> usize {
 /// imported directly) attribute in `source`, matched to the very next
 /// `pub async fn` per Vespera's "route handlers MUST be `pub async fn`"
 /// requirement — attributes not immediately followed by one are ignored.
-fn extract_vespera_route_attributes(source: &str) -> Vec<(String, Option<String>)> {
+pub(super) fn extract_vespera_route_attributes(source: &str) -> Vec<(String, Option<String>)> {
     let mut results = Vec::new();
     let mut search_from = 0usize;
     while let Some(relative) = source[search_from..].find("route(") {
@@ -848,7 +848,7 @@ fn extract_quoted_value_after(source: &str, key: &str) -> Option<String> {
 /// Vespera's file-structure-to-URL convention: `users.rs` -> `/users`,
 /// `mod.rs` (at any nesting) -> the directory path itself, `admin/stats.rs`
 /// -> `/admin/stats`. Root `mod.rs` maps to the empty prefix.
-fn route_url_prefix(relative_path: &Path) -> String {
+pub(super) fn route_url_prefix(relative_path: &Path) -> String {
     let mut components = relative_path
         .components()
         .map(|component| component.as_os_str().to_string_lossy().to_string())
@@ -867,7 +867,7 @@ fn route_url_prefix(relative_path: &Path) -> String {
     }
 }
 
-fn join_route_url(prefix: &str, path_attr: Option<&str>) -> String {
+pub(super) fn join_route_url(prefix: &str, path_attr: Option<&str>) -> String {
     match path_attr {
         Some(path) if !path.is_empty() => format!("{prefix}{path}"),
         _ if prefix.is_empty() => "/".to_owned(),
@@ -1060,7 +1060,7 @@ fn openapi_client_layer(root: &Path) -> Value {
 /// Case and the `_`/`-` separators are folded and nothing else; the
 /// path's `/` and `{}` structure still has to agree exactly, so
 /// `/users/{id}` and `/user/{sid}` remain different endpoints.
-fn client_path_key(path: &str) -> String {
+pub(super) fn client_path_key(path: &str) -> String {
     let folded = path.to_ascii_lowercase().replace(['_', '-'], "");
     let trimmed = folded.trim_end_matches('/');
     if trimmed.is_empty() {

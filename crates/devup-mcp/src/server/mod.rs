@@ -3,6 +3,7 @@ mod asset_jobs;
 mod call_cache;
 pub mod delivery;
 mod diagnostics;
+mod feature_trace;
 pub mod operation;
 pub mod output;
 mod pacing;
@@ -1511,6 +1512,20 @@ impl DevupServer {
         Parameters(input): Parameters<tools::VisualCompareInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let result = visual_compare::compare(input, &self.output_policy, &self.artifacts)
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Read-only cross-layer feature slice and acceptance matrix from explicit anchors: routePath, figmaNodeId/artifactId, operationId or apiPath+method, componentPath, tableName. Refuses anchorless prose. Returns evidence-backed or UNVERIFIED hops, generated-source ownership, ranked UI reuse, literal design binding versus request/response fields, required-state coverage, and named truncation caps. Optional requirement/acceptanceCriteria are echoed without semantic interpretation. componentTsx is a caller-declared Figma export; artifactId uses the cached snapshot. Static parsing never proves runtime behavior.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_feature_trace(
+        &self,
+        Parameters(input): Parameters<tools::FeatureTraceInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = feature_trace::run(input, &self.artifacts)
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))

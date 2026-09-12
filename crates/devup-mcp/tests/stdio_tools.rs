@@ -154,6 +154,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert_eq!(
         names,
         [
+            "devup_feature_trace",
             "devup_figma_auth",
             "devup_figma_explore",
             "devup_figma_export",
