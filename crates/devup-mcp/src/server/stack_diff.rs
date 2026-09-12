@@ -2,7 +2,7 @@
 //! stack (`vespertide model -> sea-orm entity -> vespera route ->
 //! openapi.json -> @devup-api client`). This is the one ground-truth tool
 //! that cannot be reduced to "read one file and report its contents": it
-//! compares independently-authored layers that a human reviewer would
+//! compares authored sources with derived layers that a human reviewer would
 //! normally have to cross-reference by hand.
 //!
 //! Every check here is text/JSON-based, not a real compiler front end for
@@ -11,7 +11,7 @@
 //! `vespera::export_app!`-merged sub-apps), non-standard formatting, or
 //! re-exported client wrappers. Every reported drift and every skipped
 //! layer carries an explicit `confidence` (`"low"` or `"medium"`) — never
-//! `"high"`, since none of these checks is a real parse — and the tool
+//! `"high"`, since a bounded parse cannot prove scan completeness — and the tool
 //! never claims a clean layer is drift-free with unwarranted certainty;
 //! see each layer's doc comment for exactly what it can and cannot see.
 
@@ -20,6 +20,9 @@ use std::path::{Path, PathBuf};
 
 use devup_mcp_figma::{DevupError, ErrorCode};
 use serde_json::{Value, json};
+
+#[path = "stack_diff_parse.rs"]
+pub(super) mod parse;
 
 use super::project_root::{
     PROJECT_ROOT_NOT_FOUND_MESSAGE, display_path, find_dirs_named, find_files_named,
@@ -84,6 +87,7 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
         if matches!(layer.as_str(), "db-entity" | "entity-route") {
             attach_excluded_paths(&mut result, excluded_models.clone());
         }
+        attach_source_ownership(&mut result, layer);
         layers_out.insert(layer.clone(), result);
     }
 
@@ -92,6 +96,44 @@ pub async fn run(project_root: Option<&str>, layers: &[String]) -> Result<Value,
         "projectRoot": display_path(&root),
         "layers": Value::Object(layers_out),
     }))
+}
+
+/// Ownership is part of every finding, including scan self-checks. Generated
+/// artifacts are evidence to compare, never a destination for manual repairs.
+pub(super) fn attach_source_ownership(result: &mut Value, layer: &str) {
+    let repair = match layer {
+        "db-entity" => {
+            "Review and edit the Vespertide model in models/*.json, then run vespertide revision and vespertide export --orm seaorm to regenerate entities and migrations."
+        }
+        "entity-route" => {
+            "Review the human-authored route shapes and whether the column is intentionally internal. Edit route handlers for API exposure; for database changes, edit models/*.json and run vespertide revision/export, then rebuild the routes and regenerate the client."
+        }
+        "route-openapi" => {
+            "Review the human-authored route handlers and merged app configuration, then rebuild so Vespera regenerates openapi.json and regenerate the downstream client."
+        }
+        "openapi-client" => {
+            "Review the human-authored frontend call and upstream route handlers or devup tags. Correct the call or route declaration, rebuild so Vespera regenerates openapi.json, then regenerate the @devup-api client from that spec."
+        }
+        _ => unreachable!("validated layer"),
+    };
+    let ownership = json!({
+        "humanAuthored": ["models/*.json (Vespertide models)", "src/routes/**/*.rs (Vespera route handlers and schema shapes)", "frontend .ts/.tsx call sites"],
+        "generated": [
+            {"path": "src/models/**/*.rs", "generator": "vespertide", "source": "models/*.json"},
+            {"path": "migrations/**", "generator": "vespertide", "source": "models/*.json"},
+            {"path": "openapi.json", "generator": "vespera", "source": "route handlers"},
+            {"path": "@devup-api client", "generator": "@devup-api", "source": "openapi.json"}
+        ],
+        "repairDirection": repair,
+    });
+    if let Some(drifts) = result.get_mut("drifts").and_then(Value::as_array_mut) {
+        for drift in drifts {
+            drift["sourceOwnership"] = ownership.clone();
+        }
+    }
+    if let Some(check) = result.get_mut("selfCheck") {
+        check["sourceOwnership"] = ownership;
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -282,14 +324,12 @@ fn extract_model_struct_fields(source: &str) -> BTreeSet<String> {
 // entity-route: does any route file even mention each entity field?
 // ---------------------------------------------------------------------
 
-/// For each Vespertide column, checks whether its snake_case name or its
-/// PascalCase sea-orm `Column::Variant` form appears as a plain substring
-/// anywhere under a sibling `src/routes/` tree. This is a *presence*
-/// check, not a semantic one: a column could appear in a comment, an
-/// unrelated string, or a route that never actually serializes it, and a
-/// column genuinely unused by any route (by design, e.g. an internal-only
-/// audit column) will still be flagged. `confidence: "low"` reflects this;
-/// treat every reported item as a lead to verify, not a confirmed bug.
+/// Maps explicit schema_type! pick/omit shapes and crate::models references
+/// to their tables and columns. Whole Model/Entity references conservatively
+/// count as use of every column; this is presence, not proof of serialization.
+/// Files without resolvable references retain the old substring heuristic,
+/// with a distinct low-confidence finding kind. Macro expansion, cfg and
+/// re-exports remain outside this bounded parser; no finding is high confidence.
 fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
     if model_dirs.is_empty() {
         return json!({
@@ -329,6 +369,16 @@ fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
             }));
             continue;
         }
+        let route_mappings = route_sources
+            .iter()
+            .map(|source| parse::route_mapping(source))
+            .collect::<Vec<_>>();
+        let unresolved = route_sources
+            .iter()
+            .zip(&route_mappings)
+            .filter(|(_, mapping)| mapping.unresolved)
+            .map(|(source, _)| source)
+            .collect::<Vec<_>>();
         for model_file in json_files_in(models_dir) {
             let Ok(source) = std::fs::read_to_string(&model_file) else {
                 continue;
@@ -350,18 +400,24 @@ fn entity_route_layer(root: &Path, model_dirs: &[PathBuf]) -> Value {
                 };
                 columns_checked += 1;
                 let pascal = snake_to_pascal(column_name);
-                let mentioned = route_sources
+                let parsed_mention = route_mappings
+                    .iter()
+                    .any(|mapping| mapping.mentions(table, column_name));
+                let fallback_mention = unresolved
                     .iter()
                     .any(|source| source.contains(column_name) || source.contains(&pascal));
-                if !mentioned {
+                if !parsed_mention && !fallback_mention {
+                    let fallback = !unresolved.is_empty();
                     drifts.push(json!({
                         "table": table,
                         "column": column_name,
-                        "kind": "column-never-referenced-in-routes",
+                        "kind": if fallback { "column-never-referenced-in-routes-text-fallback" } else { "column-never-referenced-in-routes" },
                         "message": format!(
-                            "No route referencing {table}.{column_name} was found. It may be an intentionally internal-only column."
+                            "No route referencing {table}.{column_name} was found. It may be an intentionally internal-only column. {}",
+                            if fallback { "Unresolved route files were checked only by substring; comments and unrelated identifiers can affect this weak signal." }
+                            else { "Compared explicit model and column references; cfg, macro expansion and re-exports are not resolved." }
                         ),
-                        "confidence": "low",
+                        "confidence": if fallback { "low" } else { "medium" },
                     }));
                 }
             }
@@ -615,7 +671,7 @@ fn attach_excluded_paths(layer: &mut Value, excluded: Vec<Value>) {
 /// Reported drifts always carry the path *as written in their own layer*;
 /// only the matching is spelling-insensitive, and the layer says how many
 /// routes needed it.
-fn route_comparison_key(method: &str, path: &str) -> (String, String) {
+pub(super) fn route_comparison_key(method: &str, path: &str) -> (String, String) {
     let folded = path.replace('_', "-");
     let trimmed = folded.trim_end_matches('/');
     let path = if trimmed.is_empty() {
@@ -708,7 +764,7 @@ fn mirrored_drift_count(left: &[Value], right: &[Value]) -> usize {
 /// imported directly) attribute in `source`, matched to the very next
 /// `pub async fn` per Vespera's "route handlers MUST be `pub async fn`"
 /// requirement — attributes not immediately followed by one are ignored.
-fn extract_vespera_route_attributes(source: &str) -> Vec<(String, Option<String>)> {
+pub(super) fn extract_vespera_route_attributes(source: &str) -> Vec<(String, Option<String>)> {
     let mut results = Vec::new();
     let mut search_from = 0usize;
     while let Some(relative) = source[search_from..].find("route(") {
@@ -792,7 +848,7 @@ fn extract_quoted_value_after(source: &str, key: &str) -> Option<String> {
 /// Vespera's file-structure-to-URL convention: `users.rs` -> `/users`,
 /// `mod.rs` (at any nesting) -> the directory path itself, `admin/stats.rs`
 /// -> `/admin/stats`. Root `mod.rs` maps to the empty prefix.
-fn route_url_prefix(relative_path: &Path) -> String {
+pub(super) fn route_url_prefix(relative_path: &Path) -> String {
     let mut components = relative_path
         .components()
         .map(|component| component.as_os_str().to_string_lossy().to_string())
@@ -811,7 +867,7 @@ fn route_url_prefix(relative_path: &Path) -> String {
     }
 }
 
-fn join_route_url(prefix: &str, path_attr: Option<&str>) -> String {
+pub(super) fn join_route_url(prefix: &str, path_attr: Option<&str>) -> String {
     match path_attr {
         Some(path) if !path.is_empty() => format!("{prefix}{path}"),
         _ if prefix.is_empty() => "/".to_owned(),
@@ -847,9 +903,9 @@ fn extract_openapi_path_methods(spec: &Value) -> Vec<(String, String)> {
 /// 'operationIdOrPath', ...)`, `useMutation('post', 'operationIdOrPath',
 /// ...)` — and checks whether each referenced identifier exists as an
 /// `operationId` or raw path template in any discovered `openapi.json`.
-/// String-literal extraction is done by scanning for the call-site
-/// substrings and reading the following quoted literal, not a TS parser,
-/// so template-built identifiers, re-exported wrapper functions, and
+/// Literal calls, JSX forms, server imports, Zod schemas and query keys are
+/// extracted from tokens; CRUD config names are expanded through devup tags.
+/// This is a bounded parser, so re-exported wrapper functions and
 /// destructured/aliased `api` bindings will not be detected —
 /// `confidence: "low"`.
 fn openapi_client_layer(root: &Path) -> Value {
@@ -876,6 +932,7 @@ fn openapi_client_layer(root: &Path) -> Value {
 
     let mut known_identifiers = BTreeSet::<String>::new();
     let mut known_paths = BTreeSet::<String>::new();
+    let mut crud_operations = BTreeMap::<String, BTreeSet<String>>::new();
     for file in &openapi_files {
         let Ok(source) = std::fs::read_to_string(file) else {
             continue;
@@ -894,6 +951,28 @@ fn openapi_client_layer(root: &Path) -> Value {
                         {
                             known_identifiers.insert(operation_id.to_owned());
                         }
+                        for tag in operation
+                            .get("tags")
+                            .and_then(Value::as_array)
+                            .into_iter()
+                            .flatten()
+                            .filter_map(Value::as_str)
+                        {
+                            let parts = tag.split(':').collect::<Vec<_>>();
+                            if let ["devup", name, "one" | "create" | "edit" | "fix"] =
+                                parts.as_slice()
+                                && !name.is_empty()
+                            {
+                                let identifier = operation
+                                    .get("operationId")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or(path);
+                                crud_operations
+                                    .entry((*name).to_owned())
+                                    .or_default()
+                                    .insert(identifier.to_owned());
+                            }
+                        }
                     }
                 }
             }
@@ -907,7 +986,27 @@ fn openapi_client_layer(root: &Path) -> Value {
         let Ok(source) = std::fs::read_to_string(file) else {
             continue;
         };
-        for (call_site, identifier) in extract_devup_api_calls(&source) {
+        let (mut calls, configs) = parse::client_references(&source);
+        for (call_site, name) in configs {
+            if let Some(operations) = crud_operations.get(&name) {
+                calls.extend(
+                    operations
+                        .iter()
+                        .map(|operation| (call_site.clone(), operation.clone())),
+                );
+            } else {
+                calls_checked += 1;
+                drifts.push(json!({
+                    "kind": "client-crud-config-not-in-openapi",
+                    "file": relative_or_absolute(root, file),
+                    "callSite": call_site,
+                    "identifier": name,
+                    "message": "The CRUD configuration has no matching devup:NAME:one/create/edit/fix operation tags in openapi.json.",
+                    "confidence": "low",
+                }));
+            }
+        }
+        for (call_site, identifier) in calls {
             calls_checked += 1;
             if known_identifiers.contains(&identifier) {
                 continue;
@@ -961,7 +1060,7 @@ fn openapi_client_layer(root: &Path) -> Value {
 /// Case and the `_`/`-` separators are folded and nothing else; the
 /// path's `/` and `{}` structure still has to agree exactly, so
 /// `/users/{id}` and `/user/{sid}` remain different endpoints.
-fn client_path_key(path: &str) -> String {
+pub(super) fn client_path_key(path: &str) -> String {
     let folded = path.to_ascii_lowercase().replace(['_', '-'], "");
     let trimmed = folded.trim_end_matches('/');
     if trimmed.is_empty() {
@@ -1020,89 +1119,425 @@ fn find_frontend_sources(root: &Path, max_depth: usize) -> Vec<PathBuf> {
     found
 }
 
-const DEVUP_API_CALL_SITES: &[&str] = &[
-    "api.get(",
-    "api.post(",
-    "api.put(",
-    "api.patch(",
-    "api.delete(",
-];
-const DEVUP_API_HOOK_SITES: &[&str] = &[
-    "useQuery(",
-    "useMutation(",
-    "useSuspenseQuery(",
-    "useInfiniteQuery(",
-];
-
-/// Returns `(call_site_label, referenced_identifier)` pairs found in
-/// `source`.
+#[cfg(test)]
 fn extract_devup_api_calls(source: &str) -> Vec<(String, String)> {
-    let mut results = Vec::new();
-    for call_site in DEVUP_API_CALL_SITES {
-        let mut search_from = 0usize;
-        while let Some(relative) = source[search_from..].find(call_site) {
-            let start = search_from + relative + call_site.len();
-            if let Some(identifier) = read_next_string_literal(&source[start..]) {
-                results.push(((*call_site).to_owned(), identifier));
-            }
-            search_from = start;
-        }
-    }
-    for call_site in DEVUP_API_HOOK_SITES {
-        let mut search_from = 0usize;
-        while let Some(relative) = source[search_from..].find(call_site) {
-            let start = search_from + relative + call_site.len();
-            let tail = &source[start..];
-            // First literal is the HTTP method ('get'/'post'/...); the
-            // identifier we care about is the second.
-            if let Some(after_method) = skip_past_string_literal(tail)
-                && let Some(identifier) = read_next_string_literal(after_method)
-            {
-                results.push(((*call_site).to_owned(), identifier));
-            }
-            search_from = start;
-        }
-    }
-    results
-}
-
-fn read_next_string_literal(text: &str) -> Option<String> {
-    let mut chars = text.char_indices().peekable();
-    let (start, quote) = loop {
-        let (index, character) = chars.next()?;
-        match character {
-            '\'' | '"' => break (index, character),
-            // Bail out if we hit something that isn't whitespace, a comma,
-            // or an opening paren before finding a string — this argument
-            // position isn't a plain string literal (e.g. a variable).
-            character if character.is_whitespace() || character == ',' => continue,
-            _ => return None,
-        }
-    };
-    let rest = &text[start + 1..];
-    let end = rest.find(quote)?;
-    Some(rest[..end].to_owned())
-}
-
-fn skip_past_string_literal(text: &str) -> Option<&str> {
-    let mut chars = text.char_indices().peekable();
-    let (start, quote) = loop {
-        let (index, character) = chars.next()?;
-        match character {
-            '\'' | '"' => break (index, character),
-            character if character.is_whitespace() || character == ',' => continue,
-            _ => return None,
-        }
-    };
-    let rest = &text[start + 1..];
-    let end = rest.find(quote)?;
-    Some(&rest[end + 1..])
+    parse::client_references(source).0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    fn mapping_project(root: &Path, routes: &[(&str, &str)]) {
+        std::fs::write(root.join("package.json"), "{}").unwrap();
+        std::fs::create_dir_all(root.join("models")).unwrap();
+        std::fs::create_dir_all(root.join("src/routes")).unwrap();
+        for table in ["user", "team"] {
+            std::fs::write(
+                root.join(format!("models/{table}.json")),
+                json!({
+                    "name": table, "columns": [{"name":"id"}, {"name":"email"}, {"name":"secret"}]
+                })
+                .to_string(),
+            )
+            .unwrap();
+        }
+        for (name, source) in routes {
+            std::fs::write(root.join("src/routes").join(name), source).unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn parsed_route_mapping_ignores_comments_strings_and_other_models() {
+        let temp = ScopedTempDir::new("exact-map");
+        mapping_project(
+            temp.path(),
+            &[(
+                "user.rs",
+                r#"
+            schema_type!(User from crate::models::user::Model, pick = [id]);
+            schema_type!(Team from crate::models::team::Model, omit = [secret]);
+            // email secret crate::models::user::Column::Email
+            const TEXT: &str = "crate::models::user::Model";
+            fn unrelated() { let email_secret = 1; }
+        "#,
+            )],
+        );
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["entity-route".into()],
+        )
+        .await
+        .unwrap();
+        let drifts = result["layers"]["entity-route"]["drifts"]
+            .as_array()
+            .unwrap();
+        let columns = drifts
+            .iter()
+            .map(|d| (d["table"].as_str().unwrap(), d["column"].as_str().unwrap()))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            columns,
+            BTreeSet::from([("user", "email"), ("user", "secret"), ("team", "secret")])
+        );
+        assert!(
+            drifts
+                .iter()
+                .all(|d| d["kind"] == "column-never-referenced-in-routes")
+        );
+    }
+
+    #[tokio::test]
+    async fn parsed_route_mapping_direct_references_are_table_scoped() {
+        let temp = ScopedTempDir::new("direct-map");
+        mapping_project(
+            temp.path(),
+            &[(
+                "user.rs",
+                r#"
+            fn route() { crate::models::user::Column::Email; crate::models::team::Entity::find(); }
+        "#,
+            )],
+        );
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["entity-route".into()],
+        )
+        .await
+        .unwrap();
+        let drifts = result["layers"]["entity-route"]["drifts"]
+            .as_array()
+            .unwrap();
+        assert_eq!(drifts.len(), 2, "{result}");
+        assert!(
+            drifts
+                .iter()
+                .all(|d| d["table"] == "user" && d["column"] != "email")
+        );
+    }
+
+    #[tokio::test]
+    async fn unresolved_route_files_keep_separate_low_confidence_fallback() {
+        let temp = ScopedTempDir::new("fallback-map");
+        mapping_project(temp.path(), &[("user.rs", "fn route() { let id = 1; }")]);
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["entity-route".into()],
+        )
+        .await
+        .unwrap();
+        let drifts = result["layers"]["entity-route"]["drifts"]
+            .as_array()
+            .unwrap();
+        assert_eq!(drifts.len(), 4);
+        assert!(drifts.iter().all(|d| d["kind"]
+            == "column-never-referenced-in-routes-text-fallback"
+            && d["confidence"] == "low"));
+    }
+
+    #[test]
+    fn extracts_all_literal_client_forms() {
+        for source in [
+            r#"<ApiForm api={api} method="post" path="missingOperation" />"#,
+            r#"<ApiForm path='/users/{id}' method='patch' api={api} />"#,
+            "import { missingOperation as localName, anotherOperation } from '@devup-api/fetch/server';",
+            "pathSchemas.GET['missingOperation']",
+            "queryClient.getQueryKey('GET', 'missingOperation')",
+            "useSuspenseQuery('get', 'missingOperation')",
+            "useInfiniteQuery('get', 'missingOperation')",
+            "useQueries([['get', 'missingOperation', { nested: ['get', 'notACall'] }], ['post', 'anotherOperation']])",
+        ] {
+            let calls = extract_devup_api_calls(source);
+            assert!(!calls.is_empty(), "unrecognised form: {source}");
+            assert!(!calls.iter().any(|(_, id)| id == "notACall"));
+        }
+    }
+
+    #[test]
+    fn client_extraction_preserves_literals_and_ignores_lookalikes() {
+        let source = r##"
+            // pathSchemas.GET['comment']
+            const example = "queryClient.getQueryKey('get', 'string')";
+            <OtherForm method="post" path="notAForm" />;
+            <ApiForm method="get" path="notAMutation" />;
+            <ApiForm method="delete" path={dynamicPath} />;
+            import { wrongModule } from 'another/server';
+            pathSchemas.NOT_A_METHOD['wrongMethod'];
+            longeruseQueries([['get', 'wrongFunction']]);
+            queryClient.getQueryKey('GET', '/users/{userId}/');
+            useQueries([['get', 'one'], ['post', 'two', { nested: ['get', 'notACall'] }]]);
+        "##;
+        let ids = extract_devup_api_calls(source)
+            .into_iter()
+            .map(|(_, id)| id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            ids,
+            BTreeSet::from(["/users/{userId}/".into(), "one".into(), "two".into()])
+        );
+    }
+
+    #[tokio::test]
+    async fn mixed_route_resolution_preserves_fallback_without_cross_model_leaks() {
+        let temp = ScopedTempDir::new("mixed-map");
+        mapping_project(
+            temp.path(),
+            &[
+                (
+                    "explicit.rs",
+                    "schema_type!(User from crate::models::user::Model, pick = [id]); // secret",
+                ),
+                ("unresolved.rs", "fn handler() { let email = 1; }"),
+            ],
+        );
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["entity-route".into()],
+        )
+        .await
+        .unwrap();
+        let drifts = result["layers"]["entity-route"]["drifts"]
+            .as_array()
+            .unwrap();
+        assert_eq!(drifts.len(), 3, "{result}");
+        assert!(
+            drifts
+                .iter()
+                .all(|d| d["kind"] == "column-never-referenced-in-routes-text-fallback")
+        );
+        assert!(
+            drifts
+                .iter()
+                .any(|d| d["table"] == "user" && d["column"] == "secret")
+        );
+    }
+
+    #[tokio::test]
+    async fn schema_mapping_handles_omit_raw_identifiers_and_grouped_model_imports() {
+        let temp = ScopedTempDir::new("schema-map");
+        mapping_project(
+            temp.path(),
+            &[(
+                "user.rs",
+                r##"
+            vespera::schema_type! {
+                User from crate :: models :: user :: Model, omit = [r#secret]
+            }
+            use crate::models::team::{Entity, Model, Column};
+            const EXAMPLE: &str = r#"crate::models::user::Model"#;
+            /* nested /* crate::models::user::Model */ ignored */
+        "##,
+            )],
+        );
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["entity-route".into()],
+        )
+        .await
+        .unwrap();
+        let drifts = result["layers"]["entity-route"]["drifts"]
+            .as_array()
+            .unwrap();
+        assert_eq!(drifts.len(), 1, "{result}");
+        assert_eq!(drifts[0]["table"], "user");
+        assert_eq!(drifts[0]["column"], "secret");
+        assert_eq!(drifts[0]["kind"], "column-never-referenced-in-routes");
+    }
+
+    #[test]
+    fn incomplete_rust_syntax_keeps_unresolved_mapping_without_panicking() {
+        for source in [
+            "r#",
+            "schema_type!(User from crate::models::user::Model, pick = [id]",
+            "schema_type!(User from crate::models::user::Model, unsupported = [id]);",
+        ] {
+            let mapping = parse::route_mapping(source);
+            assert!(mapping.unresolved, "{source}");
+            assert!(!mapping.mentions("user", "secret"), "{source}");
+        }
+    }
+
+    #[tokio::test]
+    async fn new_client_forms_share_normalization_and_crud_tag_resolution() {
+        let temp = ScopedTempDir::new("client-forms");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        std::fs::write(
+            temp.path().join("openapi.json"),
+            json!({"paths": {
+                "/users/{user-id}": {"get": {"operationId":"getUser", "tags":["devup:user:one"]},
+                    "post": {"operationId":"createUser", "tags":["devup:user:create"]},
+                    "put": {"operationId":"editUser", "tags":["devup:user:edit"]},
+                    "patch": {"operationId":"fixUser", "tags":["devup:user:fix"]}}
+            }})
+            .to_string(),
+        )
+        .unwrap();
+        std::fs::write(
+            temp.path().join("page.tsx"),
+            r#"
+            <ApiForm api={api} method="post" path="/users/{userId}/" />
+            pathSchemas.GET['/users/{userId}'];
+            queryClient.getQueryKey('GET', '/users/{userId}');
+            useQueries([['get', '/users/{userId}'], ['post', '/users/{userId}/missing']]);
+            import { getUser as local, missingServerOperation } from '@devup-api/fetch/server';
+            <ApiCrud config={crudConfigs.user} />
+            useApiCrud({ config: crudConfigs.user });
+            <ApiCrud config={crudConfigs.missing} />
+        "#,
+        )
+        .unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["openapi-client".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["openapi-client"];
+        assert_eq!(layer["spellingNormalizedMatches"], 4, "{layer}");
+        assert_eq!(layer["callsChecked"], 16, "{layer}");
+        let drifts = layer["drifts"].as_array().unwrap();
+        assert_eq!(drifts.len(), 3, "{layer}");
+        assert!(
+            drifts
+                .iter()
+                .any(|d| d["identifier"] == "/users/{userId}/missing")
+        );
+        assert!(
+            drifts
+                .iter()
+                .any(|d| d["identifier"] == "missingServerOperation")
+        );
+        assert!(
+            drifts
+                .iter()
+                .any(|d| d["kind"] == "client-crud-config-not-in-openapi")
+        );
+    }
+
+    #[tokio::test]
+    async fn each_new_client_form_reports_unknown_identifiers_verbatim() {
+        let temp = ScopedTempDir::new("each-client-form");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        std::fs::write(
+            temp.path().join("openapi.json"),
+            r#"{"paths":{"/users/{user-id}":{"get":{"operationId":"getUser"}}}}"#,
+        )
+        .unwrap();
+        for template in [
+            "<ApiForm api={api} method=\"post\" path=\"IDENTIFIER\" />",
+            "pathSchemas.GET['IDENTIFIER']",
+            "queryClient.getQueryKey('GET', 'IDENTIFIER')",
+            "useSuspenseQuery('get', 'IDENTIFIER')",
+            "useInfiniteQuery('get', 'IDENTIFIER')",
+            "useQueries([['get', 'IDENTIFIER']])",
+        ] {
+            for (identifier, expected_drifts, normalized) in [
+                ("/users/{userId}/", 0, 1),
+                ("getUser", 0, 0),
+                ("/users/{otherId}", 1, 0),
+                ("/users/{userId}/extra", 1, 0),
+                ("missingOperation", 1, 0),
+            ] {
+                std::fs::write(
+                    temp.path().join("page.tsx"),
+                    template.replace("IDENTIFIER", identifier),
+                )
+                .unwrap();
+                let result = run(
+                    Some(&temp.path().to_string_lossy()),
+                    &["openapi-client".into()],
+                )
+                .await
+                .unwrap();
+                let layer = &result["layers"]["openapi-client"];
+                assert_eq!(layer["callsChecked"], 1, "{template}: {layer}");
+                assert_eq!(
+                    layer["spellingNormalizedMatches"], normalized,
+                    "{template}: {layer}"
+                );
+                assert_eq!(
+                    layer["drifts"].as_array().unwrap().len(),
+                    expected_drifts,
+                    "{template}: {layer}"
+                );
+                if expected_drifts > 0 {
+                    assert_eq!(layer["drifts"][0]["identifier"], identifier);
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn crud_resolution_requires_a_recognized_devup_role() {
+        let temp = ScopedTempDir::new("crud-tags");
+        std::fs::write(temp.path().join("package.json"), "{}").unwrap();
+        std::fs::write(temp.path().join("openapi.json"), json!({"paths": {
+            "/users": {"get": {"tags":["devup:valid:one", "devup:wrong:list", "devup:extra:one:more", "ordinary"]}}
+        }}).to_string()).unwrap();
+        std::fs::write(
+            temp.path().join("page.tsx"),
+            r#"
+            <ApiCrud config={crudConfigs.valid} />
+            useApiCrud({ config: crudConfigs.wrong });
+            <ApiCrud config={crudConfigs.extra} />
+            <OtherCrud config={crudConfigs.ignored} />
+            const unusedConfig = crudConfigs.unused;
+        "#,
+        )
+        .unwrap();
+        let result = run(
+            Some(&temp.path().to_string_lossy()),
+            &["openapi-client".into()],
+        )
+        .await
+        .unwrap();
+        let layer = &result["layers"]["openapi-client"];
+        assert_eq!(layer["callsChecked"], 3, "{layer}");
+        let names = layer["drifts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| d["identifier"].as_str().unwrap())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(names, BTreeSet::from(["wrong", "extra"]));
+    }
+
+    #[tokio::test]
+    async fn every_drift_identifies_ownership_and_upstream_repair() {
+        let temp = ScopedTempDir::new("ownership");
+        mapping_project(
+            temp.path(),
+            &[("user.rs", "#[vespera::route(get)]\npub async fn user() {}")],
+        );
+        std::fs::write(
+            temp.path().join("openapi.json"),
+            r#"{"paths":{"/old":{"post":{}}}}"#,
+        )
+        .unwrap();
+        std::fs::write(temp.path().join("page.ts"), "api.get('missing')").unwrap();
+        let result = run(Some(&temp.path().to_string_lossy()), &[])
+            .await
+            .unwrap();
+        for (name, layer) in result["layers"].as_object().unwrap() {
+            let drifts = layer["drifts"].as_array().unwrap();
+            assert!(!drifts.is_empty(), "{name}");
+            for drift in drifts {
+                let ownership = &drift["sourceOwnership"];
+                assert!(ownership["humanAuthored"].is_array(), "{drift}");
+                assert!(ownership["generated"].is_array(), "{drift}");
+                let repair = ownership["repairDirection"]
+                    .as_str()
+                    .expect("repair direction");
+                assert!(!repair.contains("edit openapi.json"));
+                assert!(!repair.contains("edit the entity"));
+                assert!(matches!(
+                    drift["confidence"].as_str(),
+                    Some("low" | "medium")
+                ));
+            }
+        }
+    }
 
     struct ScopedTempDir(PathBuf);
 

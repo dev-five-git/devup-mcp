@@ -3,6 +3,7 @@ mod asset_jobs;
 mod call_cache;
 pub mod delivery;
 mod diagnostics;
+mod feature_trace;
 pub mod operation;
 pub mod output;
 mod pacing;
@@ -17,6 +18,7 @@ mod tools;
 mod validation;
 mod validation_guidance;
 mod verdict_scope;
+mod visual_compare;
 
 use std::sync::Arc;
 
@@ -1052,6 +1054,8 @@ impl DevupServer {
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let input = workflow.input;
+        projection::page_scaffold::validate(input.page_scaffold.as_ref(), &input.outputs)
+            .map_err(to_mcp_error)?;
         validation::validate_asset_budget(&input.asset_requests).map_err(to_mcp_error)?;
         if let Some(id) = workflow.job_id.as_deref() {
             if input.url.is_some()
@@ -1059,6 +1063,7 @@ impl DevupServer {
                 || !input.asset_requests.is_empty()
                 || !input.output_paths.is_empty()
                 || workflow.asset_public_root.is_some()
+                || input.page_scaffold.is_some()
                 || input.refresh
                 || !input.frame_ids.is_empty()
                 || input.all_screens
@@ -1098,6 +1103,7 @@ impl DevupServer {
             validation::validate_public_root(workflow.asset_public_root.as_deref())
                 .map_err(to_mcp_error)?;
         if asset_public_root.is_some()
+            && input.page_scaffold.is_none()
             && !input
                 .asset_requests
                 .iter()
@@ -1111,12 +1117,18 @@ impl DevupServer {
         }
         validation::validate_export_budget(&input.frame_ids, &input.outputs)
             .map_err(to_mcp_error)?;
-        for path in input.output_paths.values().chain(
-            input
-                .asset_requests
-                .iter()
-                .filter_map(|asset| asset.output_path.as_ref()),
-        ) {
+        for path in input
+            .output_paths
+            .iter()
+            .filter(|(key, _)| !key.ends_with("pageScaffold"))
+            .map(|(_, path)| path)
+            .chain(
+                input
+                    .asset_requests
+                    .iter()
+                    .filter_map(|asset| asset.output_path.as_ref()),
+            )
+        {
             let target = self.output_policy.resolve(path).map_err(to_mcp_error)?;
             if let Some(root) = &asset_public_root
                 && input
@@ -1129,7 +1141,10 @@ impl DevupServer {
         }
         validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
-            && !input.outputs.iter().any(|output| output == "assetManifest")
+            && !input
+                .outputs
+                .iter()
+                .any(|output| matches!(output.as_str(), "assetManifest" | "pageScaffold"))
         {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
@@ -1240,6 +1255,7 @@ impl DevupServer {
                             scope: input.scope,
                             strict: input.strict,
                             output_paths: input.output_paths,
+                            page_scaffold: input.page_scaffold,
                             frame_ids: input.frame_ids,
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
@@ -1271,6 +1287,7 @@ impl DevupServer {
                     scope: input.scope,
                     strict: input.strict,
                     output_paths: input.output_paths,
+                    page_scaffold: input.page_scaffold,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
@@ -1335,6 +1352,7 @@ impl DevupServer {
                     scope: input.scope,
                     strict: input.strict,
                     output_paths: input.output_paths,
+                    page_scaffold: input.page_scaffold,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
@@ -1351,7 +1369,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, or Vespertide models/*.json tables/columns (scope: theme | api | db | all) — read-only, no session cache, never guesses. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, Vespertide models/*.json tables/columns, or UI component/props/import/route reuse evidence (scope: theme | api | db | ui | all) — read-only, no session cache, never guesses. UI is opt-in and excluded from all: large monorepo inventories must not pollute token context. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_project_context(
@@ -1378,13 +1396,31 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<UiValidateInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        let theme_lookup = project_context::theme_for_validation(input.project_root.as_deref())
-            .map_err(to_mcp_error)?;
-        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
-            &input.tsx,
-            theme_lookup.theme.as_ref(),
-            input.strict,
-        );
+        use devup_mcp_devup_ui::ui_validate::{bundle_theme, check_bundle, validate_bundle};
+        let invalid = |message: String| ErrorData::invalid_params(message, None);
+        let theme_lookup = if let Some(files) = &input.files {
+            check_bundle(files).map_err(invalid)?;
+            if !input.tsx.is_empty() {
+                return Err(invalid("Supply either tsx or files, not both".into()));
+            }
+            let theme = bundle_theme(files).map_err(invalid)?;
+            let guardrail = theme.is_none().then(|| json!({
+                "message": "No devup.json supplied in files; token checks skipped. Bundle validation never reads the filesystem."
+            }));
+            project_context::ThemeLookup { theme, guardrail }
+        } else {
+            project_context::theme_for_validation(input.project_root.as_deref())
+                .map_err(to_mcp_error)?
+        };
+        let report = if let Some(files) = &input.files {
+            validate_bundle(files, theme_lookup.theme.as_ref(), input.strict).map_err(invalid)?
+        } else {
+            devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+                &input.tsx,
+                theme_lookup.theme.as_ref(),
+                input.strict,
+            )
+        };
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three
@@ -1462,6 +1498,34 @@ impl DevupServer {
         Parameters(input): Parameters<StackDiffInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let result = stack_diff::run(input.project_root.as_deref(), &input.layers)
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Compare consumer-produced actual PNG with exactly one reference PNG path or cached artifactId. Paths must be allowlisted. Never renders, launches a browser, or runs commands. Default threshold is 0.005 (0.5 percent). Supply the content-free visual renderer contract environment manifest; absent, incomplete, or invalid environment yields verdict inconclusive even when visual.passed is true. Optional diff PNG uses auto|inline|resource delivery.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_visual_compare(
+        &self,
+        Parameters(input): Parameters<tools::VisualCompareInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = visual_compare::compare(input, &self.output_policy, &self.artifacts)
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Read-only cross-layer feature slice and acceptance matrix from explicit anchors: routePath, figmaNodeId/artifactId, operationId or apiPath+method, componentPath, tableName. Refuses anchorless prose. Returns evidence-backed or UNVERIFIED hops, generated-source ownership, ranked UI reuse, literal design binding versus request/response fields, required-state coverage, and named truncation caps. Optional requirement/acceptanceCriteria are echoed without semantic interpretation. componentTsx is a caller-declared Figma export; artifactId uses the cached snapshot. Static parsing never proves runtime behavior.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_feature_trace(
+        &self,
+        Parameters(input): Parameters<tools::FeatureTraceInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = feature_trace::run(input, &self.artifacts)
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))

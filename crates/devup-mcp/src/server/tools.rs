@@ -74,7 +74,11 @@ pub struct FigmaExportInput {
     #[serde(default)]
     pub refresh: bool,
     #[serde(default)]
+    /// pageScaffold (or frame:<nodeId>:pageScaffold) names a project directory;
+    /// other output keys name files. Scaffold writes require pageScaffold.write=true.
     pub output_paths: BTreeMap<String, String>,
+    #[serde(default)]
+    pub page_scaffold: Option<super::projection::page_scaffold::PageScaffoldOptions>,
     #[serde(default)]
     pub frame_ids: Vec<String>,
     #[serde(default)]
@@ -135,7 +139,8 @@ pub struct FigmaExploreInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectContextInput {
-    #[schemars(extend("enum" = super::validation::PROJECT_CONTEXT_SCOPES))]
+    /// theme | api | db | ui | all. UI reuse evidence is opt-in and excluded from all to avoid large monorepo inventories polluting token context. UI filter: literal case-sensitive substring of component path, exported/local name, route path or page path. UI is read-only and reports output caps, unparsed files and unresolved evidence.
+    #[schemars(extend("enum" = super::validation::PROJECT_CONTEXT_SCOPES.into_iter().chain(["ui"]).collect::<Vec<_>>()))]
     pub scope: String,
     #[serde(default)]
     pub project_root: Option<String>,
@@ -153,7 +158,18 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    #[serde(default)]
     pub tsx: String,
+    /// Optional supplied-source bundle: at most 64 entries and 1 MiB total
+    /// UTF-8 path/content bytes. Enables structural checks without disk reads.
+    /// Entries require path and content strings; include devup.json for tokens.
+    /// Omit tsx when supplying files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<Vec<std::collections::BTreeMap<String, String>>>", extend(
+        "maxItems" = 64,
+        "items" = serde_json::json!({"type":"object","required":["path","content"],"additionalProperties":{"not":{}},"properties":{"path":{"type":"string"},"content":{"type":"string"}}})
+    ))]
+    pub files: Option<Vec<devup_mcp_devup_ui::ui_validate::SourceFile>>,
     /// Optional source label echoed in diagnostics; never read as a file path.
     #[serde(default)]
     pub source_name: Option<String>,
@@ -226,4 +242,51 @@ fn default_asset_format() -> String {
 
 fn default_asset_scale() -> u8 {
     1
+}
+
+/// Compare a consumer-produced PNG; this tool never renders or runs commands.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct VisualCompareInput {
+    pub actual: String,
+    pub reference: super::visual_compare::VisualReference,
+    /// Changed-pixel ratio in [0, 1]; omitted uses 0.005 (0.5 percent).
+    #[serde(default)]
+    #[schemars(range(min = 0.0, max = 1.0))]
+    pub threshold: Option<f64>,
+    #[serde(default)]
+    pub environment: Option<super::visual_compare::VisualEnvironment>,
+    /// Include the red diff PNG using the standard binary delivery limits.
+    #[serde(default)]
+    pub include_diff: bool,
+    #[serde(default = "default_delivery")]
+    #[schemars(extend("enum" = super::validation::DELIVERY_MODES))]
+    pub delivery: String,
+}
+
+/// Read-only cross-layer slice. Anchors are literal identifiers, never inferred
+/// from requirement or acceptanceCriteria. A path-only API anchor is invalid.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct FeatureTraceInput {
+    pub project_root: Option<String>,
+    pub route_path: Option<String>,
+    pub figma_node_id: Option<String>,
+    pub artifact_id: Option<String>,
+    pub operation_id: Option<String>,
+    pub api_path: Option<String>,
+    pub method: Option<String>,
+    pub component_path: Option<String>,
+    pub table_name: Option<String>,
+    pub requirement: Option<String>,
+    #[serde(default)]
+    pub acceptance_criteria: Vec<String>,
+    /// Caller-supplied componentTsx export tied to the explicit Figma anchor.
+    /// Its provenance is caller-declared; cached artifact generation is preferred.
+    pub component_tsx: Option<String>,
+    /// Per-array response cap, default 100, maximum 200. Byte cap is 65536.
+    #[schemars(range(min = 1, max = 200))]
+    pub max_items: Option<usize>,
 }

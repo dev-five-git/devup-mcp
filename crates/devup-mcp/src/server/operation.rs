@@ -33,6 +33,7 @@ pub enum PendingOperation {
         scope: String,
         strict: bool,
         output_paths: BTreeMap<String, String>,
+        page_scaffold: Option<super::projection::page_scaffold::PageScaffoldOptions>,
         frame_ids: Vec<String>,
         all_screens: bool,
         asset_captures: Vec<devup_mcp_figma::AssetSelection>,

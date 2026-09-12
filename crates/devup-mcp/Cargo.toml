@@ -14,6 +14,11 @@ base64.workspace = true
 cap-std.workspace = true
 devup-mcp-devup-ui = { path = "../devup-mcp-devup-ui" }
 devup-mcp-figma = { path = "../devup-mcp-figma" }
+devup-mcp-visual = { path = "../devup-mcp-visual" }
+oxc_allocator.workspace = true
+oxc_ast.workspace = true
+oxc_parser.workspace = true
+oxc_span.workspace = true
 dunce.workspace = true
 rmcp.workspace = true
 rand.workspace = true

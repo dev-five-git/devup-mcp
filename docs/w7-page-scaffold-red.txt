@@ -1,0 +1,26 @@
+Initial test-first RED, before production implementation.
+Command: cargo test -p devup-mcp --test page_scaffold -j 2 --no-fail-fast
+Worktree: W7-page-scaffold; local target; debug=0; incremental=0.
+
+failures:
+    w7_existing_file_refusal_names_collision
+    w7_explicit_write_matches_manifest_exactly
+    w7_page_shell_and_named_screen_have_no_inferred_client_boundary
+    w7_preview_is_default_and_writes_nothing
+    w7_route_is_required_and_never_invented
+    w7_traversal_route_is_rejected_without_writing
+    w7_unsupported_output_key_is_reported_without_writing
+
+test result: FAILED. 1 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p devup-mcp --test page_scaffold`
+error: 1 target failed:
+    `-p devup-mcp --test page_scaffold`
+
+The pre-existing export treated the requested scaffold directory as a file path; seven assertions failed because no scaffold or route-specific response existed. The existing out-of-root test already passed.
+
+Additional response-contract RED: w7_resource_delivery_includes_scaffold_manifest and w7_written_output_keys_are_only_requested_keys failed before their resource-removal and grouped-write-key fixes (8 passed / 2 failed in that public suite).
+
+Review-driven directory contract RED: w7_file_target_is_diagnosed_as_requiring_a_directory and strengthened w7_preview_is_default_and_writes_nothing failed (10 passed / 2 failed) before adding directory-type metadata and typed no-write diagnostics.
+
+Section continuation RED: server::projection::w1_regressions::w7_section_selection_keeps_one_route_and_a_usable_frame_key failed (0 passed / 1 failed) before replacing batch guidance with one-candidate guidance and translating the directory key.

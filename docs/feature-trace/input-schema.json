@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": {
+    "not": {}
+  },
+  "properties": {
+    "projectRoot": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "routePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "figmaNodeId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifactId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operationId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "apiPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "method": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "componentPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tableName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requirement": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "componentTsx": {
+      "description": "Caller-supplied componentTsx export tied to the explicit Figma anchor.\nIts provenance is caller-declared; cached artifact generation is preferred.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "maxItems": {
+      "description": "Per-array response cap, default 100, maximum 200. Byte cap is 65536.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "type": "object"
+}
