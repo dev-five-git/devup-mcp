@@ -1,0 +1,22 @@
+[
+  {
+    "exitCode": 0,
+    "check": "fmt"
+  },
+  {
+    "exitCode": 0,
+    "check": "clippy"
+  },
+  {
+    "exitCode": 0,
+    "check": "workspace"
+  },
+  {
+    "exitCode": 0,
+    "check": "smoke"
+  },
+  {
+    "exitCode": 0,
+    "check": "insta"
+  }
+]
