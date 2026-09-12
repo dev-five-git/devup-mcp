@@ -1,3 +1,6 @@
+#[path = "page_scaffold.rs"]
+pub(crate) mod page_scaffold;
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -221,6 +224,7 @@ pub(super) fn projected_outputs_from_result(
         ("rawPayload", "raw-payload.json"),
         ("sourceMap", "source-map.json"),
         ("assetManifest", "asset-manifest.json"),
+        ("pageScaffold", "page-scaffold.json"),
     ] {
         if let Some(value) = result.get(field) {
             outputs.push(ProjectedOutput::text(
@@ -232,6 +236,13 @@ pub(super) fn projected_outputs_from_result(
     }
     if let Some(frames) = result.get("frames").and_then(Value::as_array) {
         for (index, frame) in frames.iter().enumerate() {
+            if let Some(scaffold) = frame.get("pageScaffold") {
+                outputs.push(ProjectedOutput::text(
+                    format!("frame-{}.page-scaffold.json", index + 1),
+                    "application/json",
+                    encode_projected_json(scaffold)?,
+                ));
+            }
             for field in ["tsx", "componentTsx"] {
                 if let Some(tsx) = frame.get(field).and_then(Value::as_str) {
                     let name = if field == "tsx" {
@@ -286,9 +297,10 @@ pub(super) async fn apply_delivery(
     let frames = result["frames"].as_array();
     let selected_frame = frames.and_then(|frames| {
         frames.iter().enumerate().find(|(_, frame)| {
-            ["tsx", "componentTsx"]
-                .iter()
-                .any(|field| frame.get(*field).is_some_and(Value::is_string))
+            frame.get("pageScaffold").is_some()
+                || ["tsx", "componentTsx"]
+                    .iter()
+                    .any(|field| frame.get(*field).is_some_and(Value::is_string))
         })
     });
     let frame = selected_frame.map(|(_, frame)| frame);
@@ -300,6 +312,7 @@ pub(super) async fn apply_delivery(
         "rawPayload",
         "responsiveTsx",
         "assetManifest",
+        "pageScaffold",
         "referencePng",
     ]
     .into_iter()
@@ -325,8 +338,10 @@ pub(super) async fn apply_delivery(
         } else {
             serde_json::to_vec(body).unwrap().len()
         };
-        let coupled = reprojection_arguments
-            .is_some_and(|a| a["assetRequests"].as_array().is_some_and(|a| !a.is_empty()));
+        let coupled = reprojection_arguments.is_some_and(|a| {
+            a.get("pageScaffold").is_some()
+                || a["assetRequests"].as_array().is_some_and(|a| !a.is_empty())
+        });
         let mut args = reprojection_arguments.cloned().unwrap_or_else(|| json!({}));
         if !coupled {
             args["artifactId"] = json!(artifact.artifact_id);
@@ -351,6 +366,9 @@ pub(super) async fn apply_delivery(
             );
             args.as_object_mut().unwrap().remove("outputPaths");
             args.as_object_mut().unwrap().remove("assetRequests");
+        }
+        if args.get("pageScaffold").is_some() {
+            args["pageScaffold"]["write"] = json!(false);
         }
         let example = json!({"tool":"devup_figma_export","arguments":args});
         result["nextAction"] = json!({"tool":"devup_figma_export","arguments":args,"example":example,
@@ -385,6 +403,7 @@ pub(super) async fn apply_delivery(
         "rawPayload",
         "sourceMap",
         "assetManifest",
+        "pageScaffold",
         "referencePng",
     ] {
         result.remove(field);
@@ -395,6 +414,7 @@ pub(super) async fn apply_delivery(
                 frame.remove("tsx");
                 frame.remove("componentTsx");
                 frame.remove("sourceMap");
+                frame.remove("pageScaffold");
             }
         }
     }
@@ -1145,17 +1165,24 @@ pub(super) async fn complete_operation(
             scope,
             strict,
             output_paths,
+            page_scaffold,
             frame_ids,
             all_screens,
             asset_captures,
             mut asset_output_paths,
-            asset_public_root,
+            mut asset_public_root,
             delivery,
         } => {
+            page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
+            let scaffold_requested = page_scaffold.is_some();
+            let keep_tsx = outputs.iter().any(|o| o == "tsx");
             if outputs.iter().any(|output| output == "sourceMap")
-                && !outputs
-                    .iter()
-                    .any(|output| matches!(output.as_str(), "tsx" | "componentTsx" | "devupJson"))
+                && !outputs.iter().any(|output| {
+                    matches!(
+                        output.as_str(),
+                        "tsx" | "componentTsx" | "devupJson" | "pageScaffold"
+                    )
+                })
             {
                 return Err(unavailable_output(
                     payload,
@@ -1176,6 +1203,9 @@ pub(super) async fn complete_operation(
                 "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,
                     "outputPath":asset_output_paths.get(&a.asset_id)})).collect::<Vec<_>>()
             });
+            if let Some(options) = &page_scaffold {
+                recovery_arguments["pageScaffold"] = json!(options);
+            }
             if let Some(root) = &asset_public_root {
                 recovery_arguments["assetPublicRoot"] = json!(root);
             }
@@ -1274,7 +1304,10 @@ pub(super) async fn complete_operation(
             let mut candidates_truncated = false;
             let section_candidates = if target_kind == TargetKind::Section
                 && outputs.iter().any(|output| {
-                    matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")
+                    matches!(
+                        output.as_str(),
+                        "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+                    )
                 }) {
                 Some(if let Some(index) = &payload_section_index {
                     candidates_truncated = index.truncated;
@@ -1377,6 +1410,9 @@ pub(super) async fn complete_operation(
                         result.get_mut("nextAction").expect("nextAction")["example"]["arguments"]
                             .as_object_mut()
                             .expect("example arguments");
+                    if let Some(options) = &page_scaffold {
+                        arguments.insert("pageScaffold".into(), json!(options));
+                    }
                     arguments.insert("scope".into(), json!("node"));
                     if outputs.iter().any(|output| output == "referencePng") {
                         arguments.remove("artifactId");
@@ -1431,6 +1467,9 @@ pub(super) async fn complete_operation(
                                 "url":candidate["canonicalUrl"],"outputs":["tsx"],"scope":"node","delivery":"resource"}});
                         }
                     }
+                }
+                if scaffold_requested {
+                    page_scaffold::selection_guidance(&mut result);
                 }
                 return Ok(Value::Object(result));
             }
@@ -1507,6 +1546,13 @@ pub(super) async fn complete_operation(
                         .map(|candidate| candidate.node.node_id.clone())
                         .collect::<Vec<_>>(),
                 );
+                if scaffold_requested && selected.len() != 1 {
+                    return Err(DevupError::new(
+                        ErrorCode::DevupInvalidInput,
+                        "pageScaffold requires one frameId for the caller-supplied route.",
+                        false,
+                    ));
+                }
                 const MAX_SECTION_FRAMES: usize = 6;
                 if selected.len() > MAX_SECTION_FRAMES {
                     return Err(DevupError::with_details(
@@ -1540,7 +1586,9 @@ pub(super) async fn complete_operation(
                     let before_failures = failures.len();
                     let mut frame_diagnostics = Vec::new();
                     for field in ["tsx", "componentTsx"] {
-                        if !outputs.iter().any(|output| output == field) {
+                        if !outputs.iter().any(|output| output == field)
+                            && !(scaffold_requested && field == "tsx")
+                        {
                             continue;
                         }
                         let output = generate_collected_component(
@@ -1668,10 +1716,9 @@ pub(super) async fn complete_operation(
                         asset_summary(payload, artifact, roots, manifest_requested),
                     );
                 }
-                if outputs
-                    .iter()
-                    .any(|output| matches!(output.as_str(), "tsx" | "componentTsx"))
-                {
+                if outputs.iter().any(|output| {
+                    matches!(output.as_str(), "tsx" | "componentTsx" | "pageScaffold")
+                }) {
                     result.insert("frames".to_owned(), Value::Array(frames));
                 }
                 section_tsx_projected = true;
@@ -1842,7 +1889,7 @@ pub(super) async fn complete_operation(
                 ));
             }
 
-            if outputs.iter().any(|output| output == "tsx") && !section_tsx_projected {
+            if (keep_tsx || scaffold_requested) && !section_tsx_projected {
                 let node_id = payload.target.node_id.as_deref().ok_or_else(|| {
                     DevupError::new(
                         ErrorCode::DevupFigmaNodeNotFound,
@@ -1870,7 +1917,7 @@ pub(super) async fn complete_operation(
                 fidelity_reports.push(output.fidelity_report.clone());
                 generated_output_target = "tsx";
                 tsx_source_map = Some(output.source_map.clone());
-                if output_paths.contains_key("tsx") {
+                if keep_tsx && output_paths.contains_key("tsx") {
                     pending_text_outputs.insert("tsx".to_owned(), output.tsx.clone());
                 }
                 result.insert("tsx".to_owned(), json!(output.tsx));
@@ -2069,9 +2116,12 @@ pub(super) async fn complete_operation(
                 .iter()
                 .any(|asset| asset.status == AssetStatus::Exported)
                 && outputs.iter().any(|output| {
-                    matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")
+                    matches!(
+                        output.as_str(),
+                        "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+                    )
                 });
-            if manifest_requested || reconcile_captured_assets {
+            if manifest_requested || reconcile_captured_assets || scaffold_requested {
                 let mut manifest = devup_mcp_figma::discover_asset_manifest(&payload.snapshot);
                 for exported in &payload.assets {
                     if let Some(existing) = manifest
@@ -2313,7 +2363,10 @@ pub(super) async fn complete_operation(
                 acquisition: acquisition_quality(&completeness_report, false),
                 projection: projection_quality(
                     outputs.iter().any(|output| {
-                        matches!(output.as_str(), "tsx" | "componentTsx" | "responsiveTsx")
+                        matches!(
+                            output.as_str(),
+                            "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+                        )
                     }),
                     &projection_diagnostics,
                 ),
@@ -2455,6 +2508,22 @@ pub(super) async fn complete_operation(
             if let Some(report) = carrier.get("completenessReport") {
                 result.insert("completenessReport".to_owned(), report.clone());
             }
+            if scaffold_requested
+                && let Some(refusal) =
+                    page_scaffold::directory_refusal(&result, &output_paths, output_policy)?
+            {
+                return Ok(refusal);
+            }
+            if scaffold_requested && let Some(manifest) = &pending_asset_manifest {
+                page_scaffold::prepare_assets(
+                    &result,
+                    &output_paths,
+                    manifest,
+                    &mut asset_output_paths,
+                    &mut asset_public_root,
+                    output_policy,
+                )?;
+            }
             let replacements = if let Some(manifest) = &mut pending_asset_manifest {
                 reconcile_asset_paths(
                     manifest,
@@ -2518,7 +2587,10 @@ pub(super) async fn complete_operation(
             }
             result = value.as_object().expect("result object").clone();
             for (name, contents) in &mut pending_text_outputs {
-                if matches!(name.as_str(), "tsx" | "componentTsx" | "responsiveTsx") {
+                if matches!(
+                    name.as_str(),
+                    "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+                ) {
                     if let Some(code) = result.get(name).and_then(Value::as_str) {
                         *contents = code.to_owned();
                     }
@@ -2531,6 +2603,19 @@ pub(super) async fn complete_operation(
             }
             let mut planned_outputs = Vec::new();
             let mut supported_keys = Vec::new();
+            if let Some(options) = &page_scaffold {
+                let (key, planned) = page_scaffold::attach(
+                    &mut result,
+                    options,
+                    &output_paths,
+                    pending_asset_manifest.as_ref(),
+                    &asset_output_paths,
+                    output_policy,
+                    keep_tsx,
+                )?;
+                supported_keys.push(key);
+                planned_outputs.extend(planned);
+            }
             for field in [
                 "tsx",
                 "componentTsx",
@@ -2569,9 +2654,17 @@ pub(super) async fn complete_operation(
                     "message":"This key has no writable output in this projection. Use a supportedKeys entry; frame outputs require frame:<nodeId>:<output>."})
             }).collect();
             result.insert("outputPathResults".into(), json!({"supportedKeys":supported_keys,
-                "frameKeyFormat":"frame:<nodeId>:<tsx|componentTsx|sourceMap>",
+                "frameKeyFormat":if scaffold_requested { "frame:<nodeId>:<tsx|componentTsx|sourceMap|pageScaffold>" } else { "frame:<nodeId>:<tsx|componentTsx|sourceMap>" },
                 "diagnostics":path_diagnostics,
                 "note":"outputPaths reports committed writes only. Unsupported or unavailable keys do not write files; assetRequests use their own outputPath."}));
+            if scaffold_requested {
+                let kinds: Map<String, Value> = supported_keys
+                    .iter()
+                    .filter(|key| key.ends_with("pageScaffold"))
+                    .map(|key| (key.clone(), json!("directory")))
+                    .collect();
+                result.get_mut("outputPathResults").unwrap()["pathKinds"] = json!(kinds);
+            }
             for (output, contents) in pending_text_outputs {
                 if let Some(path) = output_paths.get(&output) {
                     planned_outputs.push((
@@ -2615,7 +2708,16 @@ pub(super) async fn complete_operation(
                     ));
                 }
             }
+            if page_scaffold.as_ref().is_some_and(|options| !options.write) {
+                planned_outputs.clear();
+            }
             let mut transaction = OutputTransaction::new();
+            if page_scaffold
+                .as_ref()
+                .is_some_and(|options| !options.overwrite)
+            {
+                transaction.refuse_existing();
+            }
             // Two nodes can be one picture - a logo drawn at three sizes
             // shares a file, as the plugin has it - so several assets resolve
             // to one path. That is one write, not a collision. Only differing
@@ -2635,6 +2737,13 @@ pub(super) async fn complete_operation(
                     Some(staged) if *staged == fingerprint => {
                         written_paths.insert(name, json!(path));
                         continue;
+                    }
+                    Some(_) if scaffold_requested => {
+                        return Err(DevupError::new(
+                            ErrorCode::DevupInvalidInput,
+                            format!("Scaffold file collision: different outputs claim {path}."),
+                            false,
+                        ));
                     }
                     Some(_) => {
                         let asset = name.strip_prefix("asset:").unwrap_or(&name).to_owned();
@@ -2689,6 +2798,9 @@ pub(super) async fn complete_operation(
                     }
                 }
                 result.insert("assetManifest".to_owned(), manifest);
+            }
+            if scaffold_requested {
+                page_scaffold::committed_paths(&result, &mut written_paths);
             }
             result.insert("outputPaths".to_owned(), Value::Object(written_paths));
             for value in result.values_mut() {
@@ -4853,6 +4965,7 @@ mod w1_regressions {
             scope: "node".into(),
             strict: false,
             output_paths: BTreeMap::new(),
+            page_scaffold: None,
             frame_ids: vec![],
             all_screens: false,
             asset_captures: vec![],
@@ -6143,5 +6256,174 @@ mod w1_regressions {
             host_safe_asset_path("/icons/Foo Bar.svg"),
             host_safe_asset_path("/icons/Foo-Bar.svg")
         );
+    }
+    #[tokio::test]
+    async fn w7_scaffold_assets_match_public_paths_and_preview_has_no_asset_writes() {
+        let dir =
+            std::env::temp_dir().join(format!("devup-w7-assets-{:016x}", rand::random::<u64>()));
+        std::fs::create_dir_all(dir.join("public")).unwrap();
+        let root = crate::test_paths::canonical(&dir);
+        let mut op = operation(&["pageScaffold"]);
+        if let PendingOperation::Export {
+            page_scaffold,
+            output_paths,
+            asset_public_root,
+            asset_output_paths,
+            ..
+        } = &mut op
+        {
+            *page_scaffold = Some(page_scaffold::PageScaffoldOptions {
+                route: "/settings/profile".into(),
+                write: false,
+                overwrite: false,
+            });
+            output_paths.insert("pageScaffold".into(), root.to_string_lossy().into_owned());
+            *asset_public_root = Some(root.join("public"));
+            asset_output_paths.insert(
+                "1:2:fills:0".into(),
+                root.join("public/icons/actual.png")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        let preview = project(p3_asset_payload(b"first image"), op.clone())
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_dir(root.join("public")).unwrap().count(), 0);
+        assert!(!root.join("src").exists());
+        assert!(preview.get("tsx").is_none());
+        assert!(preview.get("assetManifest").is_none());
+        let preview_files = preview["pageScaffold"]["files"].as_array().unwrap();
+        assert_eq!(
+            preview_files.len(),
+            3,
+            "identical captured bytes reuse one asset"
+        );
+        if let PendingOperation::Export {
+            page_scaffold: Some(options),
+            ..
+        } = &mut op
+        {
+            options.write = true;
+        }
+        let written = project(p3_asset_payload(b"first image"), op).await.unwrap();
+        let files = written["pageScaffold"]["files"].as_array().unwrap();
+        assert_eq!(preview_files, files);
+        let code = files
+            .iter()
+            .find(|f| f["path"].as_str().unwrap().contains("components"))
+            .unwrap()["content"]
+            .as_str()
+            .unwrap();
+        assert!(code.contains("/icons/actual.png"), "{code}");
+        for file in files {
+            let expected = if file["encoding"] == "base64" {
+                STANDARD.decode(file["content"].as_str().unwrap()).unwrap()
+            } else {
+                file["content"].as_str().unwrap().as_bytes().to_vec()
+            };
+            assert_eq!(
+                std::fs::read(file["path"].as_str().unwrap()).unwrap(),
+                expected
+            );
+        }
+        assert_eq!(
+            std::fs::read(root.join("public/icons/actual.png")).unwrap(),
+            b"first image"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn w7_frame_scaffold_uses_frame_output_key_and_rejects_multi_route_guess() {
+        let dir =
+            std::env::temp_dir().join(format!("devup-w7-frame-{:016x}", rand::random::<u64>()));
+        std::fs::create_dir(&dir).unwrap();
+        let mut op = operation(&["pageScaffold"]);
+        if let PendingOperation::Export {
+            page_scaffold,
+            output_paths,
+            frame_ids,
+            ..
+        } = &mut op
+        {
+            *page_scaffold = Some(page_scaffold::PageScaffoldOptions {
+                route: "settings".into(),
+                write: true,
+                overwrite: false,
+            });
+            *frame_ids = vec!["1:1".into()];
+            output_paths.insert(
+                "frame:1:1:pageScaffold".into(),
+                dir.to_string_lossy().into_owned(),
+            );
+            output_paths.insert(
+                "pageScaffold".into(),
+                dir.join("ignored").to_string_lossy().into_owned(),
+            );
+        }
+        let value = project(section(2), op.clone()).await.unwrap();
+        assert!(value.get("pageScaffold").is_none());
+        assert!(value["frames"][0].get("tsx").is_none());
+        assert_eq!(
+            value["frames"][0]["pageScaffold"]["files"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(
+            value["outputPathResults"]["supportedKeys"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("frame:1:1:pageScaffold"))
+        );
+        assert!(
+            value["outputPathResults"]["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|d| d["key"] == "pageScaffold")
+        );
+        assert!(!dir.join("ignored").exists());
+        if let PendingOperation::Export { frame_ids, .. } = &mut op {
+            frame_ids.push("1:2".into());
+        }
+        assert!(
+            project(section(2), op)
+                .await
+                .unwrap_err()
+                .message
+                .contains("one frameId")
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[tokio::test]
+    async fn w7_section_selection_keeps_one_route_and_a_usable_frame_key() {
+        let mut op = operation(&["pageScaffold"]);
+        if let PendingOperation::Export {
+            page_scaffold,
+            output_paths,
+            ..
+        } = &mut op
+        {
+            *page_scaffold = Some(page_scaffold::PageScaffoldOptions {
+                route: "/settings".into(),
+                write: true,
+                overwrite: false,
+            });
+            output_paths.insert("pageScaffold".into(), "project".into());
+        }
+        let value = project(section(3), op).await.unwrap();
+        assert_eq!(value["status"], "selection_required");
+        assert_eq!(value["nextAction"]["maxFramesPerCall"], 1);
+        assert!(
+            value["nextAction"].get("batches").is_none(),
+            "one supplied route cannot be applied to every screen"
+        );
+        let args = &value["nextAction"]["example"]["arguments"];
+        assert_eq!(args["pageScaffold"]["route"], "/settings");
+        assert_eq!(args["outputPaths"]["frame:1:1:pageScaffold"], "project");
+        assert!(args["outputPaths"].get("pageScaffold").is_none());
     }
 }

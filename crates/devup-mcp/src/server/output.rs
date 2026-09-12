@@ -50,6 +50,7 @@ pub struct OutputTarget {
 
 pub struct OutputTransaction {
     staged: Vec<StagedOutput>,
+    no_clobber: bool,
     targets: BTreeSet<PathBuf>,
 }
 
@@ -162,8 +163,14 @@ impl OutputTransaction {
     pub fn new() -> Self {
         Self {
             staged: Vec::new(),
+            no_clobber: false,
             targets: BTreeSet::new(),
         }
+    }
+
+    /// Opt in only for scaffold transactions; existing callers retain replacement behavior.
+    pub fn refuse_existing(&mut self) {
+        self.no_clobber = true;
     }
 
     pub fn stage(
@@ -235,6 +242,12 @@ impl OutputTransaction {
                         "The output target must be a regular file or not exist yet.",
                     ));
                 }
+                Ok(_) if self.no_clobber => {
+                    return Err(transaction_error(format!(
+                        "Scaffold file collision: {} already exists.",
+                        output.target.display_path.display()
+                    )));
+                }
                 Ok(_) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => {
@@ -278,6 +291,33 @@ impl OutputTransaction {
     fn replace_all(&mut self, hook: &mut impl CommitHook) -> std::io::Result<()> {
         let mut replaced = 0;
         for output in &mut self.staged {
+            if self.no_clobber {
+                // Hard-link publication is atomic create-if-absent, unlike exists+rename.
+                // The staging sibling is on the same filesystem and inside the held capability.
+                output
+                    .target
+                    .root
+                    .dir
+                    .hard_link(
+                        &output.temp_path,
+                        &output.target.root.dir,
+                        &output.target.relative_path,
+                    )
+                    .map_err(|error| {
+                        std::io::Error::new(
+                            error.kind(),
+                            format!(
+                                "Scaffold file collision or publication failure at {}: {error}",
+                                output.target.display_path.display()
+                            ),
+                        )
+                    })?;
+                output.replaced = true;
+                output.target.root.dir.remove_file(&output.temp_path)?;
+                replaced += 1;
+                hook.after_replacement(replaced)?;
+                continue;
+            }
             if output
                 .target
                 .root
@@ -733,6 +773,89 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(internal_files.is_empty(), "stale files: {internal_files:?}");
 
+        drop(transaction);
+        drop(policy);
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn w7_no_clobber_refuses_a_late_collision_and_rolls_back_published_files() -> anyhow::Result<()>
+    {
+        struct CreateCollision(PathBuf);
+        impl CommitHook for CreateCollision {
+            fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
+                if replaced == 1 {
+                    fs::write(self.0.join("second.tsx"), b"concurrent original")?;
+                }
+                Ok(())
+            }
+        }
+        let root = std::env::temp_dir().join(format!(
+            "devup-w7-transaction-{:016x}",
+            rand::random::<u64>()
+        ));
+        fs::create_dir(&root)?;
+        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+        let mut transaction = OutputTransaction::new();
+        transaction.refuse_existing();
+        transaction.stage("page", policy.resolve("first.tsx")?, b"new page")?;
+        transaction.stage("screen", policy.resolve("second.tsx")?, b"new screen")?;
+        let error = transaction
+            .commit_with_hook(&mut CreateCollision(root.clone()))
+            .unwrap_err();
+        assert!(error.message.contains("second.tsx"));
+        assert!(!root.join("first.tsx").exists());
+        assert_eq!(fs::read(root.join("second.tsx"))?, b"concurrent original");
+        drop(transaction);
+        assert_eq!(fs::read_dir(&root)?.count(), 1);
+        drop(policy);
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn w7_later_scaffold_file_failure_restores_originals_in_reverse_order() -> anyhow::Result<()> {
+        struct FailSecond(Vec<String>);
+        impl CommitHook for FailSecond {
+            fn after_replacement(&mut self, replaced: usize) -> io::Result<()> {
+                if replaced == 2 {
+                    Err(io::Error::other("later scaffold failure"))
+                } else {
+                    Ok(())
+                }
+            }
+            fn before_restore(&mut self, backup: &std::path::Path) -> io::Result<()> {
+                self.0.push(backup.to_string_lossy().into_owned());
+                Ok(())
+            }
+        }
+        let root = std::env::temp_dir().join(format!(
+            "devup-w7-transaction-{:016x}",
+            rand::random::<u64>()
+        ));
+        fs::create_dir(&root)?;
+        let page = "src/app/proofread/page.tsx";
+        let screen = "components/pages/proofread/Proofread.tsx";
+        for name in [page, screen] {
+            fs::create_dir_all(root.join(name).parent().unwrap())?;
+            fs::write(root.join(name), name)?;
+        }
+        let policy = OutputPolicy::from_roots(vec![root.clone()])?;
+        let mut transaction = OutputTransaction::new();
+        transaction.stage("pageScaffold:page", policy.resolve(page)?, b"new page")?;
+        transaction.stage(
+            "pageScaffold:component",
+            policy.resolve(screen)?,
+            b"new screen",
+        )?;
+        let mut hook = FailSecond(Vec::new());
+        assert!(transaction.commit_with_hook(&mut hook).is_err());
+        for name in [page, screen] {
+            assert_eq!(fs::read_to_string(root.join(name))?, name);
+        }
+        assert!(hook.0[0].contains("components"));
+        assert!(hook.0[1].contains("src"));
         drop(transaction);
         drop(policy);
         fs::remove_dir_all(root)?;

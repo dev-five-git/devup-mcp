@@ -1053,6 +1053,8 @@ impl DevupServer {
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let input = workflow.input;
+        projection::page_scaffold::validate(input.page_scaffold.as_ref(), &input.outputs)
+            .map_err(to_mcp_error)?;
         validation::validate_asset_budget(&input.asset_requests).map_err(to_mcp_error)?;
         if let Some(id) = workflow.job_id.as_deref() {
             if input.url.is_some()
@@ -1060,6 +1062,7 @@ impl DevupServer {
                 || !input.asset_requests.is_empty()
                 || !input.output_paths.is_empty()
                 || workflow.asset_public_root.is_some()
+                || input.page_scaffold.is_some()
                 || input.refresh
                 || !input.frame_ids.is_empty()
                 || input.all_screens
@@ -1099,6 +1102,7 @@ impl DevupServer {
             validation::validate_public_root(workflow.asset_public_root.as_deref())
                 .map_err(to_mcp_error)?;
         if asset_public_root.is_some()
+            && input.page_scaffold.is_none()
             && !input
                 .asset_requests
                 .iter()
@@ -1112,12 +1116,18 @@ impl DevupServer {
         }
         validation::validate_export_budget(&input.frame_ids, &input.outputs)
             .map_err(to_mcp_error)?;
-        for path in input.output_paths.values().chain(
-            input
-                .asset_requests
-                .iter()
-                .filter_map(|asset| asset.output_path.as_ref()),
-        ) {
+        for path in input
+            .output_paths
+            .iter()
+            .filter(|(key, _)| !key.ends_with("pageScaffold"))
+            .map(|(_, path)| path)
+            .chain(
+                input
+                    .asset_requests
+                    .iter()
+                    .filter_map(|asset| asset.output_path.as_ref()),
+            )
+        {
             let target = self.output_policy.resolve(path).map_err(to_mcp_error)?;
             if let Some(root) = &asset_public_root
                 && input
@@ -1130,7 +1140,10 @@ impl DevupServer {
         }
         validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
         if !input.asset_requests.is_empty()
-            && !input.outputs.iter().any(|output| output == "assetManifest")
+            && !input
+                .outputs
+                .iter()
+                .any(|output| matches!(output.as_str(), "assetManifest" | "pageScaffold"))
         {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupSnapshotUnsupported,
@@ -1241,6 +1254,7 @@ impl DevupServer {
                             scope: input.scope,
                             strict: input.strict,
                             output_paths: input.output_paths,
+                            page_scaffold: input.page_scaffold,
                             frame_ids: input.frame_ids,
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
@@ -1272,6 +1286,7 @@ impl DevupServer {
                     scope: input.scope,
                     strict: input.strict,
                     output_paths: input.output_paths,
+                    page_scaffold: input.page_scaffold,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
@@ -1336,6 +1351,7 @@ impl DevupServer {
                     scope: input.scope,
                     strict: input.strict,
                     output_paths: input.output_paths,
+                    page_scaffold: input.page_scaffold,
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
