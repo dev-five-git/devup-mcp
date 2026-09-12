@@ -1,5 +1,6 @@
 pub mod asset_batches;
 pub mod server;
+pub mod skills;
 
 #[cfg(test)]
 #[path = "../tests/support/paths.rs"]
@@ -24,6 +25,11 @@ pub struct ServerConfig {
     /// From `--figma-client-name`. `None` keeps devup-mcp's own literal
     /// name for Dynamic Client Registration.
     pub figma_client_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillCommandConfig {
+    pub skill_dirs: Vec<PathBuf>,
 }
 
 /// Fully resolved Figma direct-connection configuration: cli-arg values
@@ -109,6 +115,8 @@ pub enum CliAction {
     Version,
     SelfCheck,
     MergeAssetBatches(Vec<PathBuf>),
+    InstallSkills(SkillCommandConfig),
+    CheckSkills(SkillCommandConfig),
     Serve(ServerConfig),
 }
 
@@ -138,12 +146,16 @@ where
     let mut figma_client_secret: Option<String> = None;
     let mut figma_callback_port: Option<u16> = None;
     let mut figma_client_name: Option<String> = None;
+    let mut skill_dirs = Vec::new();
+    let mut skill_action: Option<bool> = None;
     while let Some(argument) = arguments.next() {
         let no_other_options_yet = roots.is_empty()
             && figma_client_id.is_none()
             && figma_client_secret.is_none()
             && figma_callback_port.is_none()
-            && figma_client_name.is_none();
+            && figma_client_name.is_none()
+            && skill_dirs.is_empty()
+            && skill_action.is_none();
         match argument.to_str() {
             Some("--version" | "-V") if no_other_options_yet && arguments.peek().is_none() => {
                 return Ok(CliAction::Version);
@@ -159,7 +171,54 @@ where
                 );
                 return Ok(CliAction::MergeAssetBatches(paths));
             }
+            Some("--install-skills") => {
+                anyhow::ensure!(
+                    roots.is_empty()
+                        && figma_client_id.is_none()
+                        && figma_client_secret.is_none()
+                        && figma_callback_port.is_none()
+                        && figma_client_name.is_none()
+                        && skill_action.is_none(),
+                    "--install-skills cannot be combined with server options or --check-skills."
+                );
+                skill_action = Some(true);
+            }
+            Some("--check-skills") => {
+                anyhow::ensure!(
+                    roots.is_empty()
+                        && figma_client_id.is_none()
+                        && figma_client_secret.is_none()
+                        && figma_callback_port.is_none()
+                        && figma_client_name.is_none()
+                        && skill_action.is_none(),
+                    "--check-skills cannot be combined with server options or --install-skills."
+                );
+                skill_action = Some(false);
+            }
+            Some("--skill-dir") => {
+                anyhow::ensure!(
+                    roots.is_empty()
+                        && figma_client_id.is_none()
+                        && figma_client_secret.is_none()
+                        && figma_callback_port.is_none()
+                        && figma_client_name.is_none(),
+                    "--skill-dir cannot be combined with server options."
+                );
+                let directory = arguments.next().ok_or_else(|| {
+                    anyhow::anyhow!("--skill-dir requires an existing directory path.")
+                })?;
+                let directory = PathBuf::from(directory);
+                anyhow::ensure!(
+                    directory.is_dir(),
+                    "--skill-dir must be an existing directory."
+                );
+                skill_dirs.push(directory);
+            }
             Some("--allow-write-root") => {
+                anyhow::ensure!(
+                    skill_action.is_none() && skill_dirs.is_empty(),
+                    "--allow-write-root cannot be combined with skill commands."
+                );
                 let root = arguments.next().ok_or_else(|| {
                     anyhow::anyhow!("--allow-write-root requires a directory path.")
                 })?;
@@ -170,6 +229,10 @@ where
                 roots.push(root);
             }
             Some("--figma-client-id") => {
+                anyhow::ensure!(
+                    skill_action.is_none() && skill_dirs.is_empty(),
+                    "--figma-client-id cannot be combined with skill commands."
+                );
                 let value = arguments
                     .next()
                     .ok_or_else(|| anyhow::anyhow!("--figma-client-id requires a value."))?;
@@ -183,6 +246,10 @@ where
                 figma_client_id = Some(value);
             }
             Some("--figma-client-secret") => {
+                anyhow::ensure!(
+                    skill_action.is_none() && skill_dirs.is_empty(),
+                    "--figma-client-secret cannot be combined with skill commands."
+                );
                 let value = arguments
                     .next()
                     .ok_or_else(|| anyhow::anyhow!("--figma-client-secret requires a value."))?;
@@ -198,6 +265,10 @@ where
                 figma_client_secret = Some(value);
             }
             Some("--figma-client-name") => {
+                anyhow::ensure!(
+                    skill_action.is_none() && skill_dirs.is_empty(),
+                    "--figma-client-name cannot be combined with skill commands."
+                );
                 let value = arguments
                     .next()
                     .ok_or_else(|| anyhow::anyhow!("--figma-client-name requires a value."))?;
@@ -212,6 +283,10 @@ where
                 figma_client_name = Some(value);
             }
             Some("--figma-callback-port") => {
+                anyhow::ensure!(
+                    skill_action.is_none() && skill_dirs.is_empty(),
+                    "--figma-callback-port cannot be combined with skill commands."
+                );
                 let value = arguments.next().ok_or_else(|| {
                     anyhow::anyhow!("--figma-callback-port requires a port number.")
                 })?;
@@ -226,6 +301,18 @@ where
             None => anyhow::bail!("devup-mcp arguments must be UTF-8 flags."),
         }
     }
+    if let Some(install) = skill_action {
+        let config = SkillCommandConfig { skill_dirs };
+        return Ok(if install {
+            CliAction::InstallSkills(config)
+        } else {
+            CliAction::CheckSkills(config)
+        });
+    }
+    anyhow::ensure!(
+        skill_dirs.is_empty(),
+        "--skill-dir requires --install-skills or --check-skills."
+    );
     if roots.is_empty() {
         roots.push(std::env::current_dir()?);
     }
