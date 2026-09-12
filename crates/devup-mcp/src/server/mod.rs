@@ -4,6 +4,7 @@ mod call_cache;
 pub mod delivery;
 mod diagnostics;
 mod feature_trace;
+mod guide;
 pub mod operation;
 pub mod output;
 mod pacing;
@@ -11,6 +12,7 @@ mod project_context;
 mod project_root;
 mod projection;
 mod quality;
+mod release_check;
 pub mod resources;
 mod result_contract;
 mod stack_diff;
@@ -1718,6 +1720,13 @@ impl ServerHandler for DevupServer {
     }
 
     fn get_info(&self) -> ServerInfo {
+        // Initialize is the first moment a real session exists, which makes it
+        // the right place to start the release lookup: server construction is
+        // not, because `self_check()` constructs a server on a thread with no
+        // Tokio runtime and `--self-check` must stay network-free. `spawn` is
+        // idempotent and returns immediately when disabled or when there is no
+        // runtime, so this costs nothing here.
+        release_check::spawn();
         ServerInfo::new(
             ServerCapabilities::builder()
                 .enable_resources()
@@ -1725,21 +1734,7 @@ impl ServerHandler for DevupServer {
                 .build(),
         )
         .with_server_info(Implementation::new("devup-mcp", env!("CARGO_PKG_VERSION")))
-        .with_instructions(
-            "Build identity: identify deployments by server.commit/buildId, not version alone; server.displayVersion combines version and buildId. Reconnect the MCP server if the expected build differs.\n\
-             1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n\
-             2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; a complete response marks it with deliverable.isFinal.\n\
-             2a. Ask for an output only when you will read it. Measured on the Korean WQUW-120 modal, semantic sourceMap is about 5.4x TSX (48,832 versus 9,099 UTF-8 bytes; 12.6% smaller than its former offset map). Sizes vary by screen; earlier rawPayload/rawSnapshot measurements were about 7x/2x TSX, so requesting them by default spends most of the response on bytes nothing reads. sourceMap records nodeId, original property, generatedProperty and resolution, plus optional variableId (variable token), styleId (style token), assetId (asset reference), with no character/byte offsets. raw-fallback means a raw-value mapping, not necessarily an inaccurate value; verified-explicit-dimension checks emitted pixels equal the source dimension, while verified-layout-sizing checks sizing intent against emitted CSS. exact verifies that field-to-property mapping, not rendered pixel equivalence. Use generatedSource diagnostics for node code excerpts; rawSnapshot and rawPayload are for banking a capture as an offline fixture. componentTsx is the same screen with instances left as <Name /> references, and responsiveTsx appears on its own whenever the capture carries more than one width.\n\
-             3. get_design_context, screenshots, and visual reasoning are verification aids only. Do not overwrite devup-mcp output.\n\
-             4. Do not hand-interpret a node tree to write devup-ui code. Do not infer layout from coordinates.\n\
-             5. If a devup-mcp call fails, record it explicitly. Do not silently route around it.\n\
-             6. Do not guess UI values such as color, spacing, radius, or typography. If you could not obtain them, stop and report.\n\
-             7. Do not implement a Section link as one whole subtree. Check the selection_required candidates and continue with bounded per-screen frameIds batches in nextAction; allScreens is valid only when the complete list fits the advertised frame/output budget.\n\
-             8. The generated component name comes from the Figma layer name and is a starting point, not a contract. Rename it to fit the codebase, and rename a name that is meaningless or not a valid identifier.\n\
-             10. An asset path in the output, such as a maskImage or Image src, is a placeholder built from the layer name. Rename the file to fit the project. If the asset varies per usage, lift it into a prop instead of hardcoding it.\n\
-             11. A fixed asset such as an icon must actually be exported, never referenced by a path that does not exist yet. Read assetManifest for the asset IDs, then call devup_figma_export again with assetRequests, giving each entry an outputPath under an allowed write root, and make the path in the code match the path you wrote.\n\
-             12. Prefer delivery: \"resource\" for assets and large outputs. devup-mcp then returns devup://artifact/... resource links to read on demand instead of inlining bytes in every response.",
-        )
+        .with_instructions(guide::INSTRUCTIONS)
     }
 
     async fn list_resources(

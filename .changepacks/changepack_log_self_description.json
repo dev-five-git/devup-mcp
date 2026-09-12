@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor"
+  },
+  "note": "Stop charging every session for guidance most callers never read, and report build staleness on the identity every response already carries. The twelve numbered rules move out of the initialize instructions, which drop from about 3,500 bytes to 951, into a pulled devup://guide/usage resource; rule numbering is preserved and a test asserts no rule was lost in the move, and shipping the text inside the binary keeps it from drifting the way a README can. server.updateAvailable reports whether a newer release exists, distinguishing disabled, not-yet-run, ran-and-could-not-tell and known, and only the last ever claims staleness. The lookup runs in a background task on a daily interval and the response path reads a cache, so no tool call performs a network request and none can be delayed by one; doctor and --self-check stay network-free because the task starts from the initialize handler rather than from server construction. DEVUP_MCP_NO_UPDATE_CHECK disables it. The server never downloads or replaces its own binary, which it could not do anyway while the MCP host owns its stdio pipes.",
+  "date": "2026-09-12T16:05:00+09:00"
+}
