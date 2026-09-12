@@ -17,6 +17,7 @@ mod tools;
 mod validation;
 mod validation_guidance;
 mod verdict_scope;
+mod visual_compare;
 
 use std::sync::Arc;
 
@@ -1462,6 +1463,20 @@ impl DevupServer {
         Parameters(input): Parameters<StackDiffInput>,
     ) -> Result<CallToolResult, ErrorData> {
         let result = stack_diff::run(input.project_root.as_deref(), &input.layers)
+            .await
+            .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Compare consumer-produced actual PNG with exactly one reference PNG path or cached artifactId. Paths must be allowlisted. Never renders, launches a browser, or runs commands. Default threshold is 0.005 (0.5 percent). Supply the content-free visual renderer contract environment manifest; absent, incomplete, or invalid environment yields verdict inconclusive even when visual.passed is true. Optional diff PNG uses auto|inline|resource delivery.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_visual_compare(
+        &self,
+        Parameters(input): Parameters<tools::VisualCompareInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = visual_compare::compare(input, &self.output_policy, &self.artifacts)
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))

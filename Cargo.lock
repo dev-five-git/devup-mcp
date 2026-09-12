@@ -693,6 +693,7 @@ dependencies = [
  "cap-std",
  "devup-mcp-devup-ui",
  "devup-mcp-figma",
+ "devup-mcp-visual",
  "dunce",
  "rand 0.10.2",
  "reqwest",

@@ -227,3 +227,24 @@ fn default_asset_format() -> String {
 fn default_asset_scale() -> u8 {
     1
 }
+
+/// Compare a consumer-produced PNG; this tool never renders or runs commands.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct VisualCompareInput {
+    pub actual: String,
+    pub reference: super::visual_compare::VisualReference,
+    /// Changed-pixel ratio in [0, 1]; omitted uses 0.005 (0.5 percent).
+    #[serde(default)]
+    #[schemars(range(min = 0.0, max = 1.0))]
+    pub threshold: Option<f64>,
+    #[serde(default)]
+    pub environment: Option<super::visual_compare::VisualEnvironment>,
+    /// Include the red diff PNG using the standard binary delivery limits.
+    #[serde(default)]
+    pub include_diff: bool,
+    #[serde(default = "default_delivery")]
+    #[schemars(extend("enum" = super::validation::DELIVERY_MODES))]
+    pub delivery: String,
+}
