@@ -223,6 +223,8 @@ pub(super) fn projected_outputs_from_result(
         ("rawSnapshot", "raw-snapshot.json"),
         ("rawPayload", "raw-payload.json"),
         ("sourceMap", "source-map.json"),
+        ("designFingerprints", "design-fingerprints.json"),
+        ("designChanges", "design-changes.json"),
         ("assetManifest", "asset-manifest.json"),
         ("pageScaffold", "page-scaffold.json"),
     ] {
@@ -314,6 +316,8 @@ pub(super) async fn apply_delivery(
         "assetManifest",
         "pageScaffold",
         "referencePng",
+        "designFingerprints",
+        "designChanges",
     ]
     .into_iter()
     .find_map(|field| {
@@ -402,6 +406,8 @@ pub(super) async fn apply_delivery(
         "rawSnapshot",
         "rawPayload",
         "sourceMap",
+        "designFingerprints",
+        "designChanges",
         "assetManifest",
         "pageScaffold",
         "referencePng",
@@ -1158,6 +1164,7 @@ pub(super) async fn complete_operation(
         }
         PendingOperation::Export {
             outputs,
+            previous_design_fingerprints,
             component_name,
             include_diagnostics,
             root_layout,
@@ -1174,6 +1181,19 @@ pub(super) async fn complete_operation(
             delivery,
         } => {
             page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
+            let previous_fingerprints = super::design_drift::validate_request(
+                &outputs,
+                previous_design_fingerprints.as_deref(),
+            )?;
+            let design_fingerprints = outputs
+                .iter()
+                .any(|output| {
+                    matches!(
+                        output.as_str(),
+                        "sourceMap" | "designFingerprints" | "designChanges"
+                    )
+                })
+                .then(|| devup_mcp_devup_ui::provenance::design_fingerprints(&payload.snapshot));
             let scaffold_requested = page_scaffold.is_some();
             let keep_tsx = outputs.iter().any(|o| o == "tsx");
             if outputs.iter().any(|output| output == "sourceMap")
@@ -1203,6 +1223,9 @@ pub(super) async fn complete_operation(
                 "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,
                     "outputPath":asset_output_paths.get(&a.asset_id)})).collect::<Vec<_>>()
             });
+            if let Some(previous) = &previous_design_fingerprints {
+                recovery_arguments["previousDesignFingerprints"] = json!(previous);
+            }
             if let Some(options) = &page_scaffold {
                 recovery_arguments["pageScaffold"] = json!(options);
             }
@@ -1306,7 +1329,12 @@ pub(super) async fn complete_operation(
                 && outputs.iter().any(|output| {
                     matches!(
                         output.as_str(),
-                        "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+                        "tsx"
+                            | "componentTsx"
+                            | "responsiveTsx"
+                            | "pageScaffold"
+                            | "designFingerprints"
+                            | "designChanges"
                     )
                 }) {
                 Some(if let Some(index) = &payload_section_index {
@@ -1410,6 +1438,9 @@ pub(super) async fn complete_operation(
                         result.get_mut("nextAction").expect("nextAction")["example"]["arguments"]
                             .as_object_mut()
                             .expect("example arguments");
+                    if let Some(previous) = &previous_design_fingerprints {
+                        arguments.insert("previousDesignFingerprints".into(), json!(previous));
+                    }
                     if let Some(options) = &page_scaffold {
                         arguments.insert("pageScaffold".into(), json!(options));
                     }
@@ -1485,6 +1516,15 @@ pub(super) async fn complete_operation(
             let mut theme_conflict_count = 0;
             let mut theme_unresolved_count = 0;
             let mut pending_text_outputs = std::collections::BTreeMap::new();
+            if let Some(current) = &design_fingerprints {
+                super::design_drift::attach(
+                    &outputs,
+                    previous_fingerprints.as_ref(),
+                    current,
+                    &mut result,
+                    &mut pending_text_outputs,
+                );
+            }
             let mut pending_binary_outputs = std::collections::BTreeMap::new();
             let mut pending_asset_manifest = None;
             let mut asset_resource_outputs = Vec::new();
@@ -1624,7 +1664,7 @@ pub(super) async fn complete_operation(
                         attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                         if outputs.iter().any(|output| output == "sourceMap") {
                             frame["sourceMap"] = json!({"version":output.source_map.version,
-                                "designFingerprints":devup_mcp_devup_ui::provenance::design_fingerprints(&payload.snapshot),
+                                "designFingerprints":design_fingerprints,
                                 "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
                                 "entries":output.source_map.property_entries(),"source":{"fileKey":payload.target.file_key,
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
@@ -2060,7 +2100,7 @@ pub(super) async fn complete_operation(
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
                 let source_map = json!({
                     "version": 2,
-                    "designFingerprints":devup_mcp_devup_ui::provenance::design_fingerprints(&payload.snapshot),
+                    "designFingerprints":design_fingerprints,
                     "resolutionSemantics":devup_mcp_devup_ui::provenance::resolution_semantics(),
                     "tsx": tsx_source_map.map(|source_map| source_map.property_entries()).unwrap_or_default(),
                     "devupJson": devup_json_source_map
@@ -2626,6 +2666,7 @@ pub(super) async fn complete_operation(
                 "rawSnapshot",
                 "rawPayload",
                 "sourceMap",
+                "designFingerprints",
                 "referencePng",
             ] {
                 if result.contains_key(field) {
@@ -2730,6 +2771,10 @@ pub(super) async fn complete_operation(
             // can. The first is written and the rest are reported, so the
             // code still points at a file that exists and the caller learns
             // which names hide more than one picture.
+            let fingerprint_path = planned_outputs
+                .iter()
+                .find(|(name, _, _)| name == "designFingerprints")
+                .map(|(_, target, _)| target.display_path().to_path_buf());
             let mut staged_content: BTreeMap<String, String> = BTreeMap::new();
             let mut shared_names: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for (name, target, bytes) in planned_outputs {
@@ -2740,10 +2785,13 @@ pub(super) async fn complete_operation(
                         written_paths.insert(name, json!(path));
                         continue;
                     }
-                    Some(_) if scaffold_requested => {
+                    Some(_)
+                        if scaffold_requested
+                            || fingerprint_path.as_deref() == Some(target.display_path()) =>
+                    {
                         return Err(DevupError::new(
                             ErrorCode::DevupInvalidInput,
-                            format!("Scaffold file collision: different outputs claim {path}."),
+                            format!("Output file collision: different outputs claim {path}."),
                             false,
                         ));
                     }
@@ -2827,6 +2875,9 @@ pub(super) async fn complete_operation(
                 return Err(error);
             }
             commit_delivery(attachment);
+            if let Some(path) = result["outputPaths"].get("designFingerprints").cloned() {
+                result["outputPathResults"]["committed"] = json!({"designFingerprints":path});
+            }
             Ok(result)
         }
         PendingOperation::Collect | PendingOperation::Artifact { .. } => Err(DevupError::new(
@@ -3029,6 +3080,7 @@ fn attach_diagnostic_screens(value: &mut Value, owners: &BTreeMap<String, Option
 
 #[cfg(test)]
 mod w1_regressions {
+    include!("projection/design_drift_tests.rs");
     use super::super::artifacts::ArtifactRequestKey;
     use super::*;
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
@@ -4968,6 +5020,7 @@ mod w1_regressions {
             strict: false,
             output_paths: BTreeMap::new(),
             page_scaffold: None,
+            previous_design_fingerprints: None,
             frame_ids: vec![],
             all_screens: false,
             asset_captures: vec![],
