@@ -1903,6 +1903,9 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
     use devup_mcp_figma::FidelityImpact;
 
     let view = node.typed_view();
+    if let Some(diagnostic) = text::whitespace_collapse_diagnostic(&view) {
+        context.diagnostics.push(diagnostic);
+    }
     let candidates = [
         (
             view.bool("isMask") == Some(true),

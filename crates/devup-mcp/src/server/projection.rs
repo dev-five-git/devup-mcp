@@ -3973,7 +3973,19 @@ mod w1_regressions {
         );
         assert_eq!(
             frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
-            40
+            41 // W8: the paragraph's spaces before line breaks are now accounted for.
+        );
+        assert!(
+            frame["projectionIssues"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|issue| {
+                    issue["code"] == "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE"
+                        && issue["nodeId"] == "3997:46604"
+                        && issue["property"] == "characters"
+                        && issue["fidelityImpact"] == "lossy"
+                })
         );
     }
 
