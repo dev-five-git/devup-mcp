@@ -1,9 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
-    "crates/devup-mcp-visual/Cargo.toml": "Minor",
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "Extend the server past design projection into the rest of the DevFive lifecycle. Expose the existing pure-Rust PNG comparison as devup_visual_compare, where an unattested or invalid renderer environment makes the verdict inconclusive rather than a pass. Add devup_feature_trace, which turns caller-supplied anchors into a screen-to-API-to-route-to-model-to-column slice and refuses to read requirement prose as an anchor. Map route columns by parsing schema_type! pick and omit declarations instead of matching substrings, recognise the remaining devup-api call forms, and attach source ownership so a drift never proposes editing a generated artifact. Validate DevFive client-boundary, file-placement, export-shape, query-state and inline-style conventions from a bounded in-memory file bundle. Return ranked component reuse evidence under a project context ui scope that stays out of all. Fingerprint each design node over the fields the converter reads so a re-export can name what changed. Emit a preview-first page scaffold file set whose writes are opt-in and refuse collisions atomically through the existing rollback.",
-  "date": "2026-09-12T13:36:58+09:00"
-}
