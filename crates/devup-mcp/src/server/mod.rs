@@ -1378,13 +1378,31 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<UiValidateInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        let theme_lookup = project_context::theme_for_validation(input.project_root.as_deref())
-            .map_err(to_mcp_error)?;
-        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
-            &input.tsx,
-            theme_lookup.theme.as_ref(),
-            input.strict,
-        );
+        use devup_mcp_devup_ui::ui_validate::{bundle_theme, check_bundle, validate_bundle};
+        let invalid = |message: String| ErrorData::invalid_params(message, None);
+        let theme_lookup = if let Some(files) = &input.files {
+            check_bundle(files).map_err(invalid)?;
+            if !input.tsx.is_empty() {
+                return Err(invalid("Supply either tsx or files, not both".into()));
+            }
+            let theme = bundle_theme(files).map_err(invalid)?;
+            let guardrail = theme.is_none().then(|| json!({
+                "message": "No devup.json supplied in files; token checks skipped. Bundle validation never reads the filesystem."
+            }));
+            project_context::ThemeLookup { theme, guardrail }
+        } else {
+            project_context::theme_for_validation(input.project_root.as_deref())
+                .map_err(to_mcp_error)?
+        };
+        let report = if let Some(files) = &input.files {
+            validate_bundle(files, theme_lookup.theme.as_ref(), input.strict).map_err(invalid)?
+        } else {
+            devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+                &input.tsx,
+                theme_lookup.theme.as_ref(),
+                input.strict,
+            )
+        };
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three

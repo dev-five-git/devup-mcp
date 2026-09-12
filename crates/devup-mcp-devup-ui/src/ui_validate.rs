@@ -133,8 +133,17 @@ pub fn validate_devup_ui_tsx(
     theme: Option<&ProjectTheme>,
     strict: bool,
 ) -> UiValidation {
+    validate_source(tsx, theme, strict, SourceType::tsx())
+}
+
+fn validate_source(
+    tsx: &str,
+    theme: Option<&ProjectTheme>,
+    strict: bool,
+    source_type: SourceType,
+) -> UiValidation {
     let allocator = Allocator::default();
-    let parsed = Parser::new(&allocator, tsx, SourceType::tsx()).parse();
+    let parsed = Parser::new(&allocator, tsx, source_type).parse();
 
     let mut violations = Vec::new();
     for diagnostic in &parsed.diagnostics {
@@ -905,3 +914,9 @@ mod tests {
         assert!(!strict.ok);
     }
 }
+
+#[path = "ui_structure.rs"]
+mod structure;
+pub use structure::{
+    MAX_FILES, MAX_TOTAL_BYTES, SourceFile, bundle_theme, check_bundle, validate_bundle,
+};

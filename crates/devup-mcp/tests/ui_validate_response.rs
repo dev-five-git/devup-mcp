@@ -540,3 +540,373 @@ async fn r17_partial_mode_match_never_auto_replaces_literal() -> anyhow::Result<
     assert!(out["nextAction"].is_null(), "{out}");
     Ok(())
 }
+
+async fn structural(content: &str, path: &str) -> anyhow::Result<Value> {
+    validate(json!({"tsx":"", "files":[{"path":path,"content":content}],"strict":true,"projectRoot":fixture_project_root()})).await
+}
+fn has_rule(output: &Value, rule: &str) -> bool {
+    output["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v["rule"] == rule)
+}
+macro_rules! structural_case {
+    ($name:ident, $rule:literal, $path:literal, $source:literal) => {
+        #[tokio::test]
+        async fn $name() -> anyhow::Result<()> {
+            let output = structural($source, $path).await?;
+            assert!(has_rule(&output, $rule), "{output}");
+            for finding in output["violations"].as_array().unwrap() {
+                assert_eq!(finding["path"], $path);
+                assert!(finding["line"].is_number());
+                assert!(finding["column"].is_number());
+                assert!(finding["snippet"].as_str().unwrap().chars().count() <= 120);
+            }
+            Ok(())
+        }
+    };
+}
+structural_case!(
+    bundle_wrapped_prop_handler,
+    "client-boundary",
+    "src/components/Button.tsx",
+    "export function Button({onClick}) { return <button onClick={() => onClick?.()}/> }"
+);
+structural_case!(
+    bundle_unnecessary_client,
+    "client-boundary",
+    "src/components/Card.tsx",
+    "'use client'; export function Card() { return <div/> }"
+);
+structural_case!(
+    bundle_missing_client,
+    "client-boundary",
+    "src/components/Card.tsx",
+    "import {useState} from 'react'; export function Card() { const [x,setX] = useState(0); return <div>{x}</div> }"
+);
+structural_case!(
+    bundle_app_component,
+    "file-placement",
+    "src/app/Card.tsx",
+    "export function Card() { return <div/> }"
+);
+structural_case!(
+    bundle_default_export,
+    "file-placement",
+    "src/components/Card.tsx",
+    "export default function Card() { return <div/> }"
+);
+structural_case!(
+    bundle_page_name,
+    "file-placement",
+    "src/app/page.tsx",
+    "export default function Home() { return <div/> }"
+);
+structural_case!(
+    bundle_barrel,
+    "file-placement",
+    "src/components/index.ts",
+    "export {Card} from './Card'; export * from './Button';"
+);
+structural_case!(
+    bundle_multiple_components,
+    "one-component-per-file",
+    "src/components/Card.tsx",
+    "export function Card() { return <div/> } function Other() { return <span/> }"
+);
+structural_case!(
+    bundle_inline_style,
+    "inline-style",
+    "src/components/Card.tsx",
+    "export function Card() { return <div style={{color:'red'}}/> }"
+);
+#[tokio::test]
+async fn bundle_direct_prop_handlers_are_valid() -> anyhow::Result<()> {
+    for value in ["onClick", "onClick ? onClick : undefined"] {
+        let output = structural(
+            &format!(
+                "export function Button({{onClick}}) {{ return <button onClick={{{value}}}/> }}"
+            ),
+            "src/components/Button.tsx",
+        )
+        .await?;
+        assert!(!has_rule(&output, "client-boundary"), "{output}");
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_query_missing_local_states_is_error() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card() { const {data} = useQuery({queryKey:['x'],queryFn:load}); return <div>{data.name}</div> }", "src/components/Card.tsx").await?;
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "react-query-states" && v["severity"] == "error"),
+        "{output}"
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_visible_boundaries_downgrade_query_to_info() -> anyhow::Result<()> {
+    for boundary in ["Suspense", "ErrorBoundary"] {
+        let output = structural(&format!("import {{useQuery}} from '@tanstack/react-query'; export function Card() {{ const {{data}} = useQuery({{queryKey:['x'],queryFn:load}}); return <{boundary}><div>{{data.name}}</div></{boundary}> }}"), "src/components/Card.tsx").await?;
+        assert!(
+            output["violations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["rule"] == "react-query-states" && v["severity"] == "info"),
+            "{output}"
+        );
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_rejects_bounds_before_validation() -> anyhow::Result<()> {
+    let result = validate(json!({"tsx":"<", "files":vec![json!({"path":"a.tsx","content":"<"});65],"projectRoot":"this-path-must-not-be-inspected"})).await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("files exceeds 64 entries")
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_absent_preserves_legacy_bytes() -> anyhow::Result<()> {
+    let args = json!({"tsx":"'use client'; export default function Card(){return <div style={{color:'red'}}/>}","sourceName":"src/app/Card.tsx","projectRoot":fixture_project_root()});
+    let legacy = validate(args.clone()).await?;
+    assert_eq!(legacy["violations"], json!([]));
+    let mut explicit = args;
+    explicit["files"] = Value::Null;
+    assert_eq!(
+        serde_json::to_vec(&legacy)?,
+        serde_json::to_vec(&validate(explicit).await?)?
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_accepts_files_without_tsx_and_never_loads_disk_theme() -> anyhow::Result<()> {
+    let output = validate(json!({"files":[{"path":"src/components/Card.tsx","content":"export function Card(){return <Box bg=\"$primaryColor\"/>}"}],"projectRoot":fixture_project_root(),"sourceName":"caller label"})).await?;
+    assert_eq!(output["themeAvailable"], false);
+    assert_eq!(output["tokens"]["unknownTokenCheckRan"], false);
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_rejects_total_byte_bound() -> anyhow::Result<()> {
+    let result =
+        validate(json!({"tsx":"", "files":[{"path":"a.tsx","content":" ".repeat(1024*1024+1)}]}))
+            .await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("files exceeds 1048576 total UTF-8 bytes")
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_query_handled_states_are_valid() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card() { const {data,isPending,isError} = useQuery({queryKey:['x'],queryFn:load}); if(isPending) return <div/>; if(isError) return <div/>; return <div>{data.name}</div> }", "src/components/Card.tsx").await?;
+    assert!(!has_rule(&output, "react-query-states"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_ambiguous_query_is_info_and_never_fails_strict() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card() { const {data} = useQuery({queryKey:['x'],queryFn:load}); return <div>{data?.name}</div> }", "src/components/Card.tsx").await?;
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "react-query-states" && v["severity"] == "info"),
+        "{output}"
+    );
+    assert_eq!(output["ok"], true);
+    assert_eq!(output["okReason"], "info-only");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_named_internal_handler_requires_boundary_review() -> anyhow::Result<()> {
+    let output = structural("export function Button() { const handleClick = () => alert('x'); return <button onClick={handleClick}/> }", "src/components/Button.tsx").await?;
+    assert!(has_rule(&output, "client-boundary"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_named_handler_keeps_client_directive() -> anyhow::Result<()> {
+    let output = structural("'use client'; export function Button() { const handleClick = () => {}; return <button onClick={handleClick}/> }", "src/components/Button.tsx").await?;
+    assert!(!has_rule(&output, "client-boundary"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_query_data_not_rendered_abstains() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card() { const {data} = useQuery({queryKey:['x'],queryFn:load}); console.log(data.name); return <div/> }", "src/components/Card.tsx").await?;
+    assert!(!has_rule(&output, "react-query-states"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_query_initial_data_downgrades_uncertain_access() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card() { const {data} = useQuery({queryKey:['x'],queryFn:load,initialData:{name:'x'}}); return <div>{data.name}</div> }", "src/components/Card.tsx").await?;
+    assert!(
+        !output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["severity"] == "error"),
+        "{output}"
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_react_namespace_hook_keeps_client_directive() -> anyhow::Result<()> {
+    let output = structural("'use client'; import * as React from 'react'; export function Card() {const [x,setX]=React.useState(0); return <div>{x}</div>}","src/components/Card.tsx").await?;
+    assert!(!has_rule(&output, "client-boundary"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_query_object_passed_to_child_is_info() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card() { const query = useQuery({queryKey:['x'],queryFn:load}); return <Child data={query.data}/> }", "src/components/Card.tsx").await?;
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "react-query-states" && v["severity"] == "info"),
+        "{output}"
+    );
+    assert_eq!(output["ok"], true);
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_cross_file_boundary_and_delegation_are_info() -> anyhow::Result<()> {
+    for companion in [
+        "export function Shell(){return <Suspense><Card/></Suspense>}",
+        "export function Child({data,isPending,isError}){if(isPending)return <div/>;if(isError)return <div/>;return <div>{data.name}</div>}",
+    ] {
+        let output = validate(json!({"files":[{"path":"src/components/Card.tsx","content":"import {useQuery} from '@tanstack/react-query'; export function Card(){const {data}=useQuery({queryKey:['x'],queryFn:load});return <Child data={data.name}/>}"},{"path":"src/components/Companion.tsx","content":companion}],"strict":true})).await?;
+        assert!(
+            output["violations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["rule"] == "react-query-states" && v["severity"] == "info"),
+            "{output}"
+        );
+        assert_eq!(output["ok"], true);
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_supplied_theme_and_source_label_are_preserved() -> anyhow::Result<()> {
+    let output = validate(json!({"files":[{"path":"devup.json","content":"{\"theme\":{\"colors\":{\"light\":{\"primary\":\"#123456\"}}}}"},{"path":"src/components/Card.tsx","content":"<><span>한글</span><Box bg=\"$missing\"/></>"}],"sourceName":"caller label"})).await?;
+    assert_eq!(output["themeAvailable"], true);
+    let v = &output["violations"][0];
+    assert_eq!(v["path"], "src/components/Card.tsx");
+    assert_eq!(v["sourceName"], "caller label");
+    assert_eq!(v["rule"], "unknown-token");
+    assert_eq!(v["column"], 26);
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_nested_component_is_counted() -> anyhow::Result<()> {
+    let output = structural(
+        "export function Card(){function Inner(){return <span/>}return <Inner/>}",
+        "src/components/Card.tsx",
+    )
+    .await?;
+    assert!(has_rule(&output, "one-component-per-file"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_aliased_suspense_downgrades_query() -> anyhow::Result<()> {
+    let output = structural("import {Suspense as Loading} from 'react'; import {useQuery} from '@tanstack/react-query'; export function Card(){const {data}=useQuery({queryKey:['x'],queryFn:load});return <Loading><div>{data.name}</div></Loading>}","src/components/Card.tsx").await?;
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "react-query-states" && v["severity"] == "info"),
+        "{output}"
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_class_error_boundary_downgrades_query() -> anyhow::Result<()> {
+    let output = validate(json!({"files":[{"path":"src/components/Card.tsx","content":"import {useQuery} from '@tanstack/react-query'; export function Card(){const {data}=useQuery({queryKey:['x'],queryFn:load});return <div>{data.name}</div>}"},{"path":"src/components/Recovery.tsx","content":"class Recovery extends React.Component { componentDidCatch(error) {report(error)} render(){return this.props.children} }"}],"strict":true})).await?;
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "react-query-states" && v["severity"] == "info"),
+        "{output}"
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_nested_scope_query_does_not_claim_proven_error() -> anyhow::Result<()> {
+    let output = structural("import {useQuery} from '@tanstack/react-query'; export function Card(){const {data}=useQuery({queryKey:['x'],queryFn:load});function helper(data){return <span>{data.name}</span>}return <div>{data?.name}</div>}","src/components/Card.tsx").await?;
+    assert!(
+        !output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["severity"] == "error"),
+        "{output}"
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_internal_inline_handler_with_client_is_valid() -> anyhow::Result<()> {
+    let output=structural("'use client'; import {useState} from 'react'; export function Button(){const [count,setCount]=useState(0);return <button onClick={()=>setCount(count+1)}/>}","src/components/Button.tsx").await?;
+    assert!(!has_rule(&output, "client-boundary"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_parenthesized_component_is_recognized() -> anyhow::Result<()> {
+    let output = structural(
+        "export function Card(){return (<div/>)}",
+        "src/app/Card.tsx",
+    )
+    .await?;
+    assert!(has_rule(&output, "file-placement"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_conditional_component_is_recognized() -> anyhow::Result<()> {
+    let output = structural(
+        "export const Card = ({active}) => active ? <div/> : null;",
+        "src/app/Card.tsx",
+    )
+    .await?;
+    assert!(has_rule(&output, "file-placement"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_query_callback_parameter_shadowing_is_info() -> anyhow::Result<()> {
+    let output=structural("import {useQuery} from '@tanstack/react-query'; export function Card(){const {data}=useQuery({queryKey:['x'],queryFn:load});return <div>{items.map(data => data.name)}{data?.name}</div>}","src/components/Card.tsx").await?;
+    assert!(
+        !output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["severity"] == "error"),
+        "{output}"
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_handler_parameters_do_not_leak_between_functions() -> anyhow::Result<()> {
+    let output=structural("'use client'; function helper(onClick){} export function Button(){const onClick=()=>{};return <button onClick={()=>onClick()}/>}","src/components/Button.tsx").await?;
+    assert!(!has_rule(&output, "client-boundary"), "{output}");
+    Ok(())
+}
+#[tokio::test]
+async fn bundle_typescript_files_use_typescript_syntax() -> anyhow::Result<()> {
+    let output = structural("export const value = <string>input;", "src/lib/value.ts").await?;
+    assert_eq!(output["ok"], true, "{output}");
+    assert!(!has_rule(&output, "invalid-syntax"), "{output}");
+    Ok(())
+}
