@@ -121,10 +121,63 @@ test("Section preview text has per-candidate and aggregate limits", async () => 
   pageWith(section);
   const result = await executeSection(section);
   const previews = result.nodes.slice(1).map(n => n.fields.textPreview);
-  assert.equal(Array.from(previews[0]).length, 120);
+  // Crowded, so the aggregate limit is the one that binds. It is shared out
+  // rather than taken first-come, so no candidate reaches the per-candidate
+  // ceiling here and, more to the point, none is left with nothing.
   assert.ok(previews.every(value => Array.from(value).length <= 120));
+  assert.ok(previews.every(value => value.length > 0), JSON.stringify(previews));
   assert.ok(previews.reduce((sum, value) => sum + Buffer.byteLength(value), 0) <= 2048);
   assert.ok(previews.every(value => value.isWellFormed()));
+
+  // Uncrowded, so the per-candidate ceiling is the one that binds: a single
+  // candidate with the whole budget still stops at 120 characters.
+  const lone = sceneNode({ id: "copy-lone", type: "TEXT" });
+  lone.characters = "안내😀".repeat(300);
+  const only = sceneNode({ id: "frame-lone", type: "FRAME", children: [lone] });
+  const small = sceneNode({ id: "section-lone", type: "SECTION", children: [only] });
+  pageWith(small);
+  const single = (await executeSection(small)).nodes[1].fields.textPreview;
+  assert.equal(Array.from(single).length, 120);
+});
+
+test("R21 the Section preview budget is shared between candidates, not taken", async () => {
+  // Braillify Studio's `로그인 화면`: fourteen screens, repeating names, Korean
+  // copy. Spent first-come, seven candidates took their full 120 characters —
+  // Korean is three UTF-8 bytes each, so 360 bytes apiece against a
+  // 2,048-byte pool — and the other seven came back empty. That file names
+  // four frames `AUTH-01` and four `Frame 3`, so a candidate with no text is
+  // one the caller cannot tell from its neighbours, which is the only thing
+  // a preview is for.
+  const frames = Array.from({ length: 14 }, (_, i) => {
+    const text = sceneNode({ id: `t${i}`, type: "TEXT" });
+    text.characters = `${String(i + 1).padStart(2, "0")}번 화면 ${"읽을 수 있는 세상을 함께 만드는 점역 에디터 ".repeat(6)}`;
+    return sceneNode({
+      id: `f${i}`,
+      type: "FRAME",
+      name: i % 2 === 0 ? "AUTH-01" : "AUTH-02",
+      children: [text],
+    });
+  });
+  const section = sceneNode({ id: "section", type: "SECTION", children: frames });
+  pageWith(section);
+  const previews = (await executeSection(section)).nodes
+    .slice(1)
+    .map((node) => node.fields.textPreview);
+
+  assert.equal(previews.length, 14);
+  assert.equal(
+    previews.filter((preview) => preview.length === 0).length,
+    0,
+    `candidates left unidentifiable: ${JSON.stringify(previews)}`,
+  );
+  // Enough of each to carry the part that differs, and all different.
+  assert.ok(
+    Math.min(...previews.map((preview) => Array.from(preview).length)) >= 8,
+    JSON.stringify(previews),
+  );
+  assert.equal(new Set(previews).size, previews.length);
+  // Sharing the pool must not enlarge it.
+  assert.ok(previews.reduce((sum, value) => sum + Buffer.byteLength(value), 0) <= 2048);
 });
 
 function sceneNode({

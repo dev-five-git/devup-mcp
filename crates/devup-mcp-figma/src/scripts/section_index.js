@@ -32,13 +32,25 @@ let remainingPreviewBytes = 2048;
 
 // The menu needs enough copy to distinguish similarly named frames, without
 // returning their descendants or letting previews dominate the compact index.
-function textPreview(root) {
+//
+// `allowance` is this candidate's share of the budget rather than the whole
+// of what is left. Reading the pool directly spent it first-come: on the
+// Braillify Studio login Section the first seven candidates took their full
+// 120 characters — Korean is three UTF-8 bytes each, so 360 bytes apiece
+// against a 2,048-byte pool — and the remaining seven came back
+// `budget-exhausted` with nothing to read. That file names four frames
+// `AUTH-01` and four `Frame 3`, so a candidate without text is a candidate
+// that cannot be identified, and the previews that did land were three
+// strings repeated twice over. Screens differ in their opening characters,
+// so a short preview for every candidate is worth more than a long one for
+// the first few.
+function textPreview(root, allowance) {
   const queue = [root];
   let preview = "";
   let characters = 0;
   let bytes = 0;
   let scanTruncated = false;
-  if (remainingPreviewBytes === 0) return { text: "", state: "budget-exhausted" };
+  if (allowance <= 0) return { text: "", state: "budget-exhausted", spent: 0 };
   for (let index = 0; index < queue.length; index += 1) {
     const node = queue[index];
     if (node.visible === false) continue;
@@ -46,9 +58,12 @@ function textPreview(root) {
       const text = node.characters.replace(/\s+/g, " ").trim();
       for (const character of (preview && text ? " " : "") + text) {
         const size = utf8ByteLength(character);
-        if (characters >= MAX_PREVIEW_CHARACTERS || bytes + size > remainingPreviewBytes) {
-          remainingPreviewBytes -= bytes;
-          return { text: preview.trimEnd(), state: size > remainingPreviewBytes ? "budget-exhausted" : "truncated" };
+        if (characters >= MAX_PREVIEW_CHARACTERS || bytes + size > allowance) {
+          return {
+            text: preview.trimEnd(),
+            state: bytes + size > allowance ? "budget-exhausted" : "truncated",
+            spent: bytes,
+          };
         }
         preview += character;
         characters += 1;
@@ -61,8 +76,11 @@ function textPreview(root) {
       queue.push(...node.children.slice(0, room));
     }
   }
-  remainingPreviewBytes -= bytes;
-  return { text: preview, state: scanTruncated ? "truncated" : (preview ? "available" : "no-text") };
+  return {
+    text: preview,
+    state: scanTruncated ? "truncated" : (preview ? "available" : "no-text"),
+    spent: bytes,
+  };
 }
 
 function bounds(node) {
@@ -223,9 +241,17 @@ const sectionNode = {
   extra: {},
   fieldErrors: {},
 };
+let unfunded = selected.length;
 const candidates = selected.map(({ node, box }) => {
   const estimate = subtreeEstimate(node);
-  const preview = textPreview(node);
+  // An equal share of what is left, so the last candidate is funded before
+  // the first is indulged. What a candidate does not spend stays in the pool
+  // and widens every share after it, so a menu of short texts still reads in
+  // full.
+  const allowance = Math.floor(remainingPreviewBytes / unfunded);
+  unfunded -= 1;
+  const preview = textPreview(node, allowance);
+  remainingPreviewBytes -= preview.spent;
   return {
     id: node.id,
     type: node.type,

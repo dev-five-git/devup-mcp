@@ -49,7 +49,7 @@ use crate::style_props::{
     DEVUP_PRIMITIVE_ELEMENTS, is_color_like_prop, is_known_non_style_prop, is_known_style_prop,
     is_length_like_prop,
 };
-use crate::theme::{ProjectTheme, closest_tokens};
+use crate::theme::{ProjectTheme, TokenCategory, closest_tokens};
 
 /// Devup-ui `css`/`globalCss`/`keyframes` utility call names whose object
 /// argument must be statically analyzable (devup-ui's own
@@ -247,7 +247,14 @@ impl<'t> TsxVisitor<'t> {
                 && !theme.contains_token(token)
             {
                 let catalog = theme.token_catalog();
-                let names = catalog.keys().collect::<Vec<_>>();
+                let expected = token_category_for_prop(prop_name);
+                let names = catalog
+                    .iter()
+                    .filter(|(_, entry)| {
+                        expected.is_none_or(|category| entry.category == category)
+                    })
+                    .map(|(name, _)| name)
+                    .collect::<Vec<_>>();
                 let suggestions = closest_tokens(token, names.into_iter(), 3);
                 self.violations.push(Violation {
                     rule: "unknown-token",
@@ -269,6 +276,43 @@ impl<'t> TsxVisitor<'t> {
                     },
                 });
             }
+            return;
+        }
+        // devup-ui's `typography` prop names a theme token without a `$`, so
+        // the check above never sees one. A generated Braillify Studio screen
+        // carried `typography="mainSubText"`, `"titleSmMed"` and `"bodyMed"`,
+        // none of them in that project's devup.json, and validation reported
+        // six unknown tokens — every one a color — while these three passed.
+        // An unknown typography token is a style that silently does not apply.
+        if prop_name == "typography" {
+            let Some(theme) = self.theme else {
+                return;
+            };
+            // Nothing to check against, and a check that cannot be made is
+            // skipped rather than guessed, as it is for an absent theme.
+            if theme.typography.is_empty() {
+                return;
+            }
+            self.checked_tokens += 1;
+            if theme.typography.contains_key(text) {
+                return;
+            }
+            let suggestions = closest_tokens(text, theme.typography.keys(), 3);
+            self.violations.push(Violation {
+                rule: "unknown-token",
+                severity: Severity::Error,
+                context: Default::default(),
+                byte_range: [span.start as usize, span.end as usize],
+                message: format!("{text} is not a typography token in devup.json."),
+                suggestion: if suggestions.is_empty() {
+                    None
+                } else {
+                    Some(format!(
+                        "closest existing typography tokens: {}",
+                        suggestions.join(", ")
+                    ))
+                },
+            });
             return;
         }
         if is_color_like_prop(prop_name) && is_hex_color(text) {
@@ -533,6 +577,30 @@ fn is_static_expression(expression: &Expression, conditional_classes: bool) -> b
     }
 }
 
+/// Which category a `$token` written in this prop could belong to.
+///
+/// A prop admits one kind of token, so only that kind can replace a name
+/// the theme does not have. Ranking the whole catalog by edit distance
+/// ignores that and answers a color prop with whatever is spelled closest:
+/// `bg="$background"` came back as `$bodyStrong, $button, $caption`, three
+/// typography tokens, while `$bg` — the color the project defines for
+/// exactly this — was never offered.
+///
+/// `None` for a prop this validator does not model. The whole catalog is
+/// ranked then, as before: a worse suggestion is still better than none,
+/// and narrowing on a guess would be the same mistake in reverse.
+fn token_category_for_prop(prop_name: &str) -> Option<TokenCategory> {
+    if is_color_like_prop(prop_name) {
+        Some(TokenCategory::Colors)
+    } else if is_length_like_prop(prop_name) {
+        Some(TokenCategory::Length)
+    } else if matches!(prop_name, "boxShadow" | "textShadow") {
+        Some(TokenCategory::Shadow)
+    } else {
+        None
+    }
+}
+
 fn is_hex_color(text: &str) -> bool {
     let Some(hex) = text.strip_prefix('#') else {
         return false;
@@ -605,6 +673,173 @@ mod tests {
         let report = validate_devup_ui_tsx(tsx, Some(&fixture_theme()), false);
         assert!(report.ok, "{:?}", report.violations);
         assert_eq!(report.checked_tokens, 1);
+    }
+
+    /// A real project's `devup.json` (`braillify-studio` `apps/front`): colors
+    /// and typography side by side, where the color the generator wanted is
+    /// one edit away under a different name.
+    fn theme_with_colors_and_typography() -> ProjectTheme {
+        parse_project_theme(
+            r##"{ "theme": {
+                "colors": { "light": {
+                    "bg": "#FFFFFF", "border": "#E5E5E5",
+                    "text": "#111111", "textSubtle": "#9A9A9A"
+                } },
+                "typography": {
+                    "bodyStrong": { "fontSize": "14px" },
+                    "button": { "fontSize": "15px" },
+                    "caption": { "fontSize": "12px" }
+                },
+                "length": {}, "shadow": {}
+            } }"##,
+        )
+        .unwrap()
+    }
+
+    /// A token named in a color prop can only be replaced by a color token.
+    /// Ranking the whole catalog by edit distance answered `bg="$background"`
+    /// with `$bodyStrong, $button, $caption` — three typography tokens, none
+    /// of which is usable here — while `$bg`, the one the project actually
+    /// defines for this, did not appear at all.
+    #[test]
+    fn unknown_color_token_is_never_advised_to_use_a_typography_token() {
+        let tsx = r##"export const X = () => <Box bg="$background" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&theme_with_colors_and_typography()), false);
+        let violation = report
+            .violations
+            .iter()
+            .find(|violation| violation.rule == "unknown-token")
+            .expect("unknown-token violation");
+        let suggestion = violation
+            .suggestion
+            .as_deref()
+            .expect("a theme with color tokens can always advise one");
+        for typography in ["$bodyStrong", "$button", "$caption"] {
+            assert!(
+                !suggestion.contains(typography),
+                "{typography} cannot be used in a color prop: {suggestion}"
+            );
+        }
+        assert!(
+            suggestion.contains("$bg"),
+            "the color token this project defines must be offered: {suggestion}"
+        );
+    }
+
+    /// The same rule in the other direction: a length prop is advised with
+    /// length tokens, never with the colors that happen to be spelled alike.
+    #[test]
+    fn unknown_length_token_is_advised_only_with_length_tokens() {
+        let theme = parse_project_theme(
+            r##"{ "theme": {
+                "colors": { "default": { "gutterColor": "#FFFFFF" } },
+                "typography": {},
+                "length": { "default": { "gutter": "16px" } },
+                "shadow": {}
+            } }"##,
+        )
+        .unwrap();
+        let tsx = r##"export const X = () => <Box p="$gutterX" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&theme), false);
+        let violation = report
+            .violations
+            .iter()
+            .find(|violation| violation.rule == "unknown-token")
+            .expect("unknown-token violation");
+        let suggestion = violation.suggestion.as_deref().expect("length advice");
+        assert!(
+            !suggestion.contains("$gutterColor"),
+            "a color token cannot be used in a length prop: {suggestion}"
+        );
+        assert!(
+            suggestion.contains("$gutter"),
+            "the length token this project defines must be offered: {suggestion}"
+        );
+    }
+
+    /// A theme that names its typography, as every real one does.
+    fn theme_with_typography() -> ProjectTheme {
+        parse_project_theme(
+            r##"{ "theme": {
+                "colors": { "default": { "text": "#111111" } },
+                "typography": {
+                    "body": { "fontSize": "14px" },
+                    "bodyL": { "fontSize": "16px" },
+                    "h1": { "fontSize": "36px" }
+                },
+                "length": {}, "shadow": {}
+            } }"##,
+        )
+        .unwrap()
+    }
+
+    /// devup-ui's `typography` prop names a theme token without a `$`, so the
+    /// `$`-prefixed check never saw one. A generated Braillify Studio screen
+    /// carried `typography="mainSubText"`, `"titleSmMed"` and `"bodyMed"` —
+    /// none of them in that project's devup.json — and validation reported
+    /// six unknown tokens, every one of them a color, and said nothing about
+    /// these three. An unknown typography token is a style that silently does
+    /// not apply.
+    #[test]
+    fn an_unknown_typography_token_is_reported() {
+        let tsx = r##"export const X = () => <Text typography="mainSubText" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&theme_with_typography()), false);
+        let violation = report
+            .violations
+            .iter()
+            .find(|violation| violation.rule == "unknown-token")
+            .unwrap_or_else(|| {
+                panic!("mainSubText is not in the theme: {:?}", report.violations)
+            });
+        assert_eq!(violation.severity, Severity::Error);
+        assert!(violation.message.contains("mainSubText"), "{violation:?}");
+        assert!(!report.ok);
+    }
+
+    /// The advice for one names the others, and only the others.
+    #[test]
+    fn an_unknown_typography_token_is_advised_with_typography_tokens() {
+        let tsx = r##"export const X = () => <Text typography="bodyMed" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&theme_with_typography()), false);
+        let violation = report
+            .violations
+            .iter()
+            .find(|violation| violation.rule == "unknown-token")
+            .expect("bodyMed is not in the theme");
+        let suggestion = violation.suggestion.as_deref().expect("typography advice");
+        assert!(suggestion.contains("body"), "{suggestion}");
+        assert!(
+            !suggestion.contains("$text"),
+            "a color cannot be a typography token: {suggestion}"
+        );
+    }
+
+    /// A token the theme does define is not flagged, and is counted as checked.
+    #[test]
+    fn a_defined_typography_token_passes() {
+        let tsx = r##"export const X = () => <Text typography="bodyL" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&theme_with_typography()), false);
+        assert!(report.ok, "{:?}", report.violations);
+        assert_eq!(report.checked_tokens, 1);
+    }
+
+    /// With no typography in the theme there is nothing to check against, and
+    /// a check that cannot be made is skipped rather than guessed — the rule
+    /// `a_theme_with_no_length_tokens_is_never_told_to_use_one` already holds
+    /// for lengths.
+    #[test]
+    fn a_theme_with_no_typography_tokens_flags_nothing() {
+        let tsx = r##"export const X = () => <Text typography="body" />;"##;
+        let report = validate_devup_ui_tsx(tsx, Some(&fixture_theme()), false);
+        assert!(report.ok, "{:?}", report.violations);
+        assert!(
+            report
+                .violations
+                .iter()
+                .all(|violation| violation.rule != "unknown-token"),
+            "{:?}",
+            report.violations
+        );
     }
 
     #[test]
