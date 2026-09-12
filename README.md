@@ -6,7 +6,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 4개, 프로젝트 쪽 3개, 모두 7개입니다.
+Figma 쪽 4개, 프로젝트 쪽 5개, 모두 9개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
@@ -15,6 +15,8 @@ Figma 쪽 4개, 프로젝트 쪽 3개, 모두 7개입니다.
 - `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
 - `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
+- `devup_visual_compare`: 소비자가 만든 `actual.png`를 reference PNG 하나와 비교. **스스로 렌더하지 않고 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 경로는 allowlist 안이어야 합니다. 기본 threshold는 0.005(0.5%). renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면 `visual.passed`가 true여도 판정은 `inconclusive`입니다
+- `devup_feature_trace`: 명시적 anchor(`routePath`, `figmaNodeId`/`artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`)에서 출발해 화면→API→라우트→모델→컬럼 슬라이스와 acceptance matrix를 읽어냄. **요구사항 산문만 주면 거절합니다.** 각 hop은 근거가 있거나 `UNVERIFIED`로 표시되고, 생성 산출물 소유권·UI 재사용 순위·잘림 상한을 함께 보고합니다
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
 
@@ -546,6 +548,24 @@ Figma 연결은 direct 하나뿐입니다. `sourcePolicy` 파라미터는 `auto`
 레이어는 `db-entity`, `entity-route`, `route-openapi`, `openapi-client` 넷이며 생략하면 전부 실행합니다. 컴파일러가 아니라 텍스트/JSON 휴리스틱이므로 모든 발견은 `confidence`를 달고 나오고, 그 값은 `low` 또는 `medium`입니다 — **`high`는 없습니다.**
 
 `_`와 `-`의 차이는 **대조할 때만** 접습니다. Vespera가 `openapi.json`에 kebab-case를 쓰고 코드는 원문을 쓰기 때문입니다. 보고되는 드리프트는 **각 레이어가 실제로 쓴 철자 그대로** 싣고, 정규화로 일치시킨 건수는 `spellingNormalizedMatches`로 따로 공개합니다. 같은 라우트가 언더스코어판과 하이픈판으로 양쪽에 중복 신고되던 문제는 이 방식으로 사라집니다.
+
+### `devup_visual_compare` — 렌더하지 않는다
+
+`actual.png` 하나와 reference PNG 하나를 비교합니다. reference는 경로로 주거나 `artifactId`로 캐시된 것을 가리킵니다. 기본 threshold는 `0.005`(0.5%)이고, 원하면 diff PNG를 `auto | inline | resource`로 받습니다.
+
+**이 도구는 스스로 그리지 않습니다.** 브라우저를 띄우지도, 명령을 실행하지도 않습니다. `actual.png`는 소비자 repository가 자기 font·asset·DevupUI 환경에서 만들어 건네는 것이고, 여기서는 순수 Rust로 픽셀만 비교합니다. 경로는 allowlist 안이어야 합니다.
+
+그래서 **통과 여부보다 판정 근거가 중요합니다.** renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면, 픽셀이 일치해 `visual.passed`가 `true`여도 최종 판정은 `inconclusive`입니다 — 무엇으로 그린 그림인지 모르는 채 "같다"고 말하는 것은 보증이 아니기 때문입니다. renderer pinning과 환경 manifest 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
+
+### `devup_feature_trace` — anchor가 없으면 거절한다
+
+화면부터 컬럼까지 한 기능의 슬라이스를 읽어 acceptance matrix로 돌려줍니다. 출발점은 **명시적 anchor**여야 합니다 — `routePath`, `figmaNodeId` 또는 `artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`.
+
+**요구사항 산문은 anchor가 아닙니다.** "로그인 화면 만들어줘" 같은 문장만 주면 추측해서 답하지 않고 거절합니다. 근거 없이 이어 붙인 슬라이스는 틀렸을 때 어디서 틀렸는지 알 수 없기 때문입니다.
+
+각 hop은 근거가 있거나 `UNVERIFIED`로 표시되며, 생성 산출물의 소유권(그 파일을 손으로 고치면 안 되는지), 순위가 매겨진 UI 재사용 후보, 디자인의 문자열과 request/response 필드의 대응, 필수 상태 커버리지, 그리고 잘림이 일어났다면 그 상한을 함께 보고합니다. `requirement`와 `acceptanceCriteria`를 넘기면 **해석하지 않고 그대로** 실어 돌려줍니다.
+
+정적 파싱은 런타임 동작을 증명하지 않습니다. 이 도구가 "연결돼 있다"고 말하는 것은 코드가 그렇게 적혀 있다는 뜻이지, 실행했을 때 그렇게 동작한다는 뜻이 아닙니다.
 
 ## 읽기 전용·개인정보 보호
 
