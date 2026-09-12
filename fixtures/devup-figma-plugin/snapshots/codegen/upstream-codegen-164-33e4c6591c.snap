@@ -19,7 +19,7 @@ expression: actual
         fontSize="18px"
         fontWeight="700"
         letterSpacing="-0.04em"
-        lineHeight="1.6"
+        lineHeight="29px"
         wordBreak="keep-all"
       >
         더 자세히 알아보기

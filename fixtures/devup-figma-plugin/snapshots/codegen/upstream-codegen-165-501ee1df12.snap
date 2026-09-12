@@ -13,7 +13,7 @@ expression: actual
         fontSize="20px"
         fontWeight="800"
         letterSpacing="-0.04em"
-        lineHeight="1.4"
+        lineHeight="28px"
         wordBreak="keep-all"
       >
         <Text color="$primary">
@@ -27,7 +27,7 @@ expression: actual
         fontSize="16px"
         fontWeight="500"
         letterSpacing="-0.06em"
-        lineHeight="1.6"
+        lineHeight="26px"
         wordBreak="keep-all"
       >
         웹앱팩토리와 Presskit 등 자체 운영 중인 <br />솔루션과의 연계를 통해 프로젝트의 서비스 범위 확장, <br />운영 효율화, 성장 기회까지 제안드립니다.

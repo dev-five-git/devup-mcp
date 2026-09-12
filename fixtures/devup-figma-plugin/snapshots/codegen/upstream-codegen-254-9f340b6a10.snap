@@ -23,7 +23,7 @@ expression: actual
         </Center>
         <VStack maxW="1280px" w="100%">
           <VStack>
-            <Flex border="solid 1px $border" overflow="hidden" pos="relative">
+            <Flex outline="solid 1px $border" outlineOffset="-1px" overflow="hidden" pos="relative">
               <Image flex="1" h="640px" objectFit="cover" src="/images/image 22.png" />
               <Box left="570px" pos="absolute" top="80px">
                 <MapPin />

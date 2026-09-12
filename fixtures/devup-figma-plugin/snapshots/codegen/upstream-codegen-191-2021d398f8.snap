@@ -43,7 +43,7 @@ expression: actual
           fontSize="12px"
           fontWeight="600"
           letterSpacing="-0.04em"
-          lineHeight="1.6"
+          lineHeight="19px"
           wordBreak="keep-all"
         >
           지금 시작할 수 있어요
@@ -54,7 +54,7 @@ expression: actual
           fontSize="20px"
           fontWeight="700"
           letterSpacing="-0.04em"
-          lineHeight="1.2"
+          lineHeight="24px"
           wordBreak="keep-all"
         >
           내 삶을 더 잘 이해하는 첫 걸음
@@ -66,7 +66,7 @@ expression: actual
         fontSize="14px"
         fontWeight="400"
         letterSpacing="-0.04em"
-        lineHeight="1.6"
+        lineHeight="22px"
         wordBreak="keep-all"
       >
         자꾸 미뤄졌던 나에 대한 고민, <br />퍼즐핏에서 구체적인 답을 찾아보세요.
@@ -79,7 +79,7 @@ expression: actual
           fontSize="12px"
           fontWeight="400"
           letterSpacing="-0.04em"
-          lineHeight="1.6"
+          lineHeight="19px"
           opacity="0.5"
           wordBreak="keep-all"
         >

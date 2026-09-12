@@ -20,7 +20,7 @@ expression: actual
           fontSize="36px"
           fontWeight="500"
           letterSpacing="-0.06em"
-          lineHeight="1.6"
+          lineHeight="58px"
         >
           CARD 1
         </Text>
@@ -39,7 +39,7 @@ expression: actual
           fontSize="36px"
           fontWeight="500"
           letterSpacing="-0.06em"
-          lineHeight="1.6"
+          lineHeight="58px"
         >
           CARD 2
         </Text>
@@ -58,7 +58,7 @@ expression: actual
           fontSize="36px"
           fontWeight="500"
           letterSpacing="-0.06em"
-          lineHeight="1.6"
+          lineHeight="58px"
         >
           CARD 3
         </Text>

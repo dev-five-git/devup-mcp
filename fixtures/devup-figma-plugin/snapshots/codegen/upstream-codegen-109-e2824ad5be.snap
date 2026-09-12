@@ -3,6 +3,12 @@ source: crates/devup-mcp-devup-ui/tests/compat_fixtures.rs
 expression: actual
 ---
 
-"<Text boxSize="100%" color="#F00" typography="typographyHeading">
+"<Text
+  boxSize="100%"
+  color="#F00"
+  fontSize="16px"
+  lineHeight="1.5px"
+  typography="typographyHeading"
+>
   Heading
 </Text>"

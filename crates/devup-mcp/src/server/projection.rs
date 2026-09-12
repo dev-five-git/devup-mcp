@@ -3316,7 +3316,7 @@ mod w1_regressions {
         node.node_type = "TEXT".into();
         node.fields.extend(serde_json::from_value::<std::collections::BTreeMap<String, Value>>(json!({
             "characters":"ab", "textTruncation":"DISABLED",
-            "styledTextSegments":[{"characters":"a","fontSize":16},{"characters":"b","fontSize":20}]
+            "styledTextSegments":[{"characters":"a","fontSize":16,"fontWeight":400},{"characters":"b","fontSize":16,"fontWeight":700}]
         })).unwrap());
         let output = generate_component(&data.snapshot, "1:1", &CodegenOptions::default()).unwrap();
         assert!(
@@ -3336,7 +3336,7 @@ mod w1_regressions {
                 .is_some_and(|issues| issues.iter().any(|d| d["code"]
                     == "DEVUP_CODEGEN_PROPERTY_UNMAPPED"
                     && d["nodeId"] == "1:1"
-                    && d["property"] == "fontSize"
+                    && d["property"] == "fontWeight"
                     && d["fidelityImpact"] == "none"))
         );
     }

@@ -11,7 +11,7 @@ expression: actual
       fontSize="64px"
       fontWeight="400"
       letterSpacing="-0.05em"
-      lineHeight="1.4"
+      lineHeight="90px"
       mixBlendMode="darken"
       wordBreak="keep-all"
     >

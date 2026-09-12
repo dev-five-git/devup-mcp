@@ -83,7 +83,7 @@ fn maps_variables_modes_aliases_and_styles_to_devup_json() {
             "        \"fontFamily\": \"Pretendard\",\n",
             "        \"fontWeight\": 700,\n",
             "        \"fontSize\": \"32px\",\n",
-            "        \"lineHeight\": 1.3,\n",
+            "        \"lineHeight\": \"42px\",\n",
             "        \"letterSpacing\": \"-0.02em\"\n",
             "      }\n",
             "    },\n",
@@ -179,7 +179,7 @@ fn styles_named_for_a_breakpoint_become_one_responsive_entry() {
                 {"fontFamily": "Pretendard", "fontWeight": 800, "fontSize": "$sizeLg", "lineHeight": "48px", "letterSpacing": "0em"}
             ],
             // one slot only is the value alone, wherever the slot was
-            "label": {"fontFamily": "Noto Sans KR", "fontWeight": 500, "fontSize": "13px", "lineHeight": 1.5, "letterSpacing": "-0.04em"}
+            "label": {"fontFamily": "Noto Sans KR", "fontWeight": 500, "fontSize": "13px", "lineHeight": "20px", "letterSpacing": "-0.04em"}
         })
     );
     // A blur is not a shadow; an effect style with only blurs is no entry.

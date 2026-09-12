@@ -19,7 +19,7 @@ expression: actual
         fontSize="20px"
         fontWeight="700"
         letterSpacing="-1px"
-        lineHeight="1.5"
+        lineHeight="30px"
         w="100%"
         wordBreak="keep-all"
       >
@@ -40,7 +40,7 @@ expression: actual
             fontSize="16px"
             fontWeight="600"
             letterSpacing="-1px"
-            lineHeight="1.5"
+            lineHeight="24px"
             wordBreak="keep-all"
           >
             카카오
@@ -51,7 +51,7 @@ expression: actual
             fontSize="15px"
             fontWeight="400"
             letterSpacing="-0.5px"
-            lineHeight="1.5"
+            lineHeight="23px"
             wordBreak="keep-all"
           >
             연결 전
@@ -90,7 +90,7 @@ expression: actual
             fontSize="16px"
             fontWeight="600"
             letterSpacing="-1px"
-            lineHeight="1.5"
+            lineHeight="24px"
             wordBreak="keep-all"
           >
             구글
@@ -101,7 +101,7 @@ expression: actual
             fontSize="15px"
             fontWeight="400"
             letterSpacing="-0.5px"
-            lineHeight="1.5"
+            lineHeight="23px"
           >
             cooolvita@gmail.com
           </Text>
@@ -142,7 +142,7 @@ expression: actual
             fontSize="16px"
             fontWeight="600"
             letterSpacing="-1px"
-            lineHeight="1.5"
+            lineHeight="24px"
             wordBreak="keep-all"
           >
             서비스 이용약관
@@ -171,7 +171,7 @@ expression: actual
             fontSize="16px"
             fontWeight="600"
             letterSpacing="-1px"
-            lineHeight="1.5"
+            lineHeight="24px"
             wordBreak="keep-all"
           >
             개인정보 처리방침
@@ -200,7 +200,7 @@ expression: actual
             fontSize="16px"
             fontWeight="600"
             letterSpacing="-1px"
-            lineHeight="1.5"
+            lineHeight="24px"
             wordBreak="keep-all"
           >
             회원 탈퇴

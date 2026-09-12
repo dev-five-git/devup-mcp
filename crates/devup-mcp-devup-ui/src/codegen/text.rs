@@ -53,9 +53,7 @@ pub(super) fn push_text_props(
     {
         string_prop(props, "fontStyle", "italic");
     }
-    if typography.is_none()
-        && let Some(font_size) = value("fontSize").and_then(Value::as_f64)
-    {
+    if let Some(font_size) = value("fontSize").and_then(Value::as_f64) {
         string_prop(props, "fontSize", px(font_size));
     }
     if typography.is_none()
@@ -68,9 +66,10 @@ pub(super) fn push_text_props(
     {
         string_prop(props, "letterSpacing", letter_spacing);
     }
-    if typography.is_none()
-        && let Some(line_height) = line_height(value("lineHeight"))
-    {
+    if let Some(line_height) = line_height(
+        value("lineHeight"),
+        value("fontSize").and_then(Value::as_f64),
+    ) {
         string_prop(props, "lineHeight", line_height);
     }
     if typography.is_none() {
@@ -203,7 +202,7 @@ fn letter_spacing(value: Option<&Value>) -> Option<String> {
     }
 }
 
-fn line_height(value: Option<&Value>) -> Option<String> {
+fn line_height(value: Option<&Value>, font_size: Option<f64>) -> Option<String> {
     let value = value?;
     if let Some(number) = value.as_f64() {
         return Some(px(number));
@@ -214,7 +213,8 @@ fn line_height(value: Option<&Value>) -> Option<String> {
         Some("PERCENT") => object
             .get("value")
             .and_then(Value::as_f64)
-            .map(|number| format_number((number / 10.0).round() / 10.0)),
+            .zip(font_size)
+            .map(|(number, size)| px((size * number / 100.0).round())),
         _ => object.get("value").and_then(Value::as_f64).map(px),
     }
 }
@@ -381,9 +381,7 @@ fn typography_props(
     {
         string_prop(&mut props, "fontStyle", "italic");
     }
-    if typography.is_none()
-        && let Some(value) = segment.get("fontSize").and_then(Value::as_f64)
-    {
+    if let Some(value) = segment.get("fontSize").and_then(Value::as_f64) {
         string_prop(&mut props, "fontSize", px(value));
     }
     if typography.is_none()
@@ -396,9 +394,10 @@ fn typography_props(
     {
         string_prop(&mut props, "letterSpacing", value);
     }
-    if typography.is_none()
-        && let Some(value) = line_height(segment.get("lineHeight"))
-    {
+    if let Some(value) = line_height(
+        segment.get("lineHeight"),
+        segment.get("fontSize").and_then(Value::as_f64),
+    ) {
         string_prop(&mut props, "lineHeight", value);
     }
     if typography.is_none() {
@@ -420,6 +419,75 @@ fn record_used_color(color: &str, used_tokens: &mut BTreeSet<String>) {
     if let Some(token) = color.strip_prefix('$') {
         used_tokens.insert(token.to_owned());
     }
+}
+
+/// Token names carry no metrics. Resolved overrides must travel as a pair;
+/// otherwise a pixel advance from the token may belong to another font size.
+pub(super) fn validate_line_metrics(
+    view: &TypedNode<'_>,
+    tokens: &BTreeMap<String, String>,
+) -> Result<(), devup_mcp_figma::DevupError> {
+    if view.node_type() != "TEXT" {
+        return Ok(());
+    }
+    let validate = |size: Option<&Value>,
+                    height: Option<&Value>,
+                    bound: Option<&Value>,
+                    styled: bool| {
+        let percent = height.and_then(|h| h.get("unit")).and_then(Value::as_str) == Some("PERCENT");
+        let invalid = (percent
+            && (size.and_then(Value::as_f64).is_none()
+                || bound.and_then(|v| v.get("fontSize")).is_some()))
+            || (styled
+                && size.is_some()
+                && line_height(height, size.and_then(Value::as_f64)).is_none());
+        if invalid {
+            Err(devup_mcp_figma::DevupError::new(
+                devup_mcp_figma::ErrorCode::DevupCodegenFailed,
+                format!(
+                    "Text node '{}' cannot represent a size-dependent line advance without resolved fontSize and lineHeight; variable sizes require mode-aware metrics.",
+                    view.id()
+                ),
+                false,
+            ))
+        } else {
+            Ok(())
+        }
+    };
+    let segment = default_segment(view);
+    let value = |field: &str| {
+        view.value(field)
+            .filter(|v| is_resolved_value(v))
+            .or_else(|| segment.and_then(|s| s.get(field)))
+    };
+    let styled = segment
+        .and_then(|s| s.get("textStyleId"))
+        .and_then(Value::as_str)
+        .is_some_and(|id| tokens.contains_key(id));
+    validate(
+        value("fontSize"),
+        value("lineHeight"),
+        value("boundVariables"),
+        styled,
+    )?;
+    for segment in view
+        .value("styledTextSegments")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let styled = segment
+            .get("textStyleId")
+            .and_then(Value::as_str)
+            .is_some_and(|id| tokens.contains_key(id));
+        validate(
+            segment.get("fontSize"),
+            segment.get("lineHeight"),
+            segment.get("boundVariables"),
+            styled,
+        )?;
+    }
+    Ok(())
 }
 
 fn bound_segment_color(
