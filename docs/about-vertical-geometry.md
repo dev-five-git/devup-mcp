@@ -116,6 +116,24 @@ rounding over a smaller regression.
 Mobile's +0.02pp is retained in the record rather than smoothed away. It is the
 cost of correct bold runs, and the wider screens pay it back many times over.
 
+### Reproduced independently
+
+The coordinator repeated the paired measurement in the main checkout with its
+own binaries, built from `main` at `1575b58` and from this branch, and obtained
+the same theme hash and the same figures to the decimal:
+
+| About width | Baseline `1575b58` | Candidate | Baseline height | Candidate height |
+| ---: | ---: | ---: | ---: | ---: |
+| 360 | 7.44% | 7.46% | 7240 | 7240 |
+| 992 | 6.90% | 4.06% | 5656 | 5620 |
+| 1920 | 4.19% | 2.41% | 4794 | 4758 |
+
+`landing` (4.99 / 2.47 / 1.50), `popup` (3.64 / 2.06 / 0.85), `grid` (2.96) and
+`keyframes` (6.71) are unchanged between the two runs. Two environments
+reaching identical figures is what makes the delta credible; neither
+environment's *absolute* level is yet reproducible across sessions, which is
+why no threshold moved.
+
 ### The harness does not reproduce across sessions
 
 The supplied `about` baseline of 11.24 / 6.92 / 4.37 was **not** reproduced by
