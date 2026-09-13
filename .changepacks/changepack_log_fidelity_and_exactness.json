@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "Stop painting words the design does not contain, parse route declarations instead of scanning for quotes, and let a re-export name what went stale. The text emitter no longer lets JSX insert a space where the design has none and no longer turns a design line break into a space; a 466-text sweep now round-trips every text node against a browser whitespace model, Unicode and non-breaking spaces survive, and the CSS collapse that no emission can avoid is reported as an explicit finding rather than silently painted. Vespera route attributes are parsed as Rust rather than matched with a quote scan, so a path inside a comment, a doc comment or an unrelated macro is no longer mistaken for a route, raw strings and multi-line attributes resolve, and a cfg-gated handler is reported conditionally instead of being claimed as present; unresolved files keep the old check under a separate lower-confidence kind and no finding is promoted above medium, because a successful parse is not proof of complete scanning. Design fingerprints can now be written as a guarded versioned sidecar and compared on a later export, returning unchanged, changed, added and removed nodes together with an explicit statement that a change means a converter input moved, not that the rendered screen changed and not that the code on disk still matches.",
-  "date": "2026-09-12T18:20:00+09:00"
-}
