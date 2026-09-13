@@ -261,6 +261,7 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
 /// 브리지 서버. 포트를 잡지 못하면 열지 않으며, 그 경우 호출자는 원격 경로만 쓴다.
 pub struct BridgeServer {
     state: BridgeState,
+    port: u16,
 }
 
 impl BridgeServer {
@@ -275,6 +276,8 @@ impl BridgeServer {
     pub fn start(port: u16) -> Option<Self> {
         let listener = std::net::TcpListener::bind(("127.0.0.1", port)).ok()?;
         listener.set_nonblocking(true).ok()?;
+        // 0 을 주면 커널이 빈 포트를 고른다. 실제로 잡힌 번호를 알아야 붙을 수 있다.
+        let bound = listener.local_addr().ok()?.port();
         // 런타임 밖에서 만들어졌다면 붙일 곳이 없다. 그때도 원격 경로는 멀쩡하다.
         let runtime = tokio::runtime::Handle::try_current().ok()?;
 
@@ -288,7 +291,7 @@ impl BridgeServer {
             };
             let _ = axum::serve(listener, app).await;
         });
-        Some(Self { state })
+        Some(Self { state, port: bound })
     }
 
     /// 환경 설정을 읽어 띄운다.
@@ -308,6 +311,11 @@ impl BridgeServer {
 
     pub fn state(&self) -> BridgeState {
         self.state.clone()
+    }
+
+    /// 실제로 잡은 포트. `start(0)` 으로 띄웠을 때 어디에 붙어야 하는지 알려 준다.
+    pub fn port(&self) -> u16 {
+        self.port
     }
 }
 

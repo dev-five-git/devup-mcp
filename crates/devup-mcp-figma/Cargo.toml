@@ -30,3 +30,7 @@ webbrowser.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 tempfile = "3"
+# 브리지 서버에 붙는 가짜 플러그인 역할. axum 의 `ws` 가 이미 끌어오는 것과 같은
+# 구현이라 의존성 트리가 늘지 않는다.
+tokio-tungstenite = "0.28"
+futures-util = "0.3"
