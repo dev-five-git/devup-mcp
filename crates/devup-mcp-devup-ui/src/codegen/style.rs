@@ -615,7 +615,9 @@ pub(super) fn push_style_props(
             }
         }
         push_radius(&view, props);
-        push_strokes(&view, props, used_tokens, variable_tokens);
+        // The exported asset has its own painted bounds. The live-container
+        // outside-edge correction does not establish how to compose those.
+        push_strokes(&view, None, props, used_tokens, variable_tokens);
         push_effects(&view, component, props, used_tokens, variable_tokens);
         // An export carries the node's own opacity: Figma writes it into the
         // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
@@ -706,7 +708,13 @@ pub(super) fn push_style_props(
 
     push_radius(&view, props);
     if component != "Text" {
-        push_strokes(&view, props, used_tokens, variable_tokens);
+        push_strokes(
+            &view,
+            single_outside_stroke(&view),
+            props,
+            used_tokens,
+            variable_tokens,
+        );
     }
     push_effects(&view, component, props, used_tokens, variable_tokens);
     if let Some(opacity) = view.number("opacity")
@@ -1431,8 +1439,71 @@ pub(super) fn inside_stroke_uses_outline(view: &TypedNode<'_>) -> bool {
         })
 }
 
+/// A single straight outside edge is a translated, zero-blur box shadow.
+/// Unlike a CSS border it does not reduce a fixed content box or grow a HUG
+/// box. Rounded corners, dashes and multi-edge joins need a different paint
+/// construction, so retain their existing emission rather than approximate it.
+pub(crate) fn single_outside_stroke(view: &TypedNode<'_>) -> Option<(usize, f64)> {
+    if view.string("strokeAlign") != Some("OUTSIDE")
+        || !matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
+        || view.number("strokeWeight").is_some()
+        || [
+            "cornerRadius",
+            "topLeftRadius",
+            "topRightRadius",
+            "bottomRightRadius",
+            "bottomLeftRadius",
+        ]
+        .iter()
+        .any(|field| view.number(field).is_some_and(|radius| radius != 0.0))
+        || view
+            .value("dashPattern")
+            .and_then(Value::as_array)
+            .is_some_and(|dash| !dash.is_empty())
+        || !view
+            .value("strokes")
+            .and_then(Value::as_array)
+            .is_some_and(|paints| {
+                // Match push_strokes' selected paint, not a later paint that
+                // it will never reach after rejecting an unpaintable first one.
+                paints
+                    .iter()
+                    .find(|paint| {
+                        paint.get("visible").and_then(Value::as_bool) != Some(false)
+                            && paint.get("type").and_then(Value::as_str) == Some("SOLID")
+                    })
+                    .is_some_and(|paint| color_from_paint(paint).is_some())
+            })
+    {
+        return None;
+    }
+    let mut edge = None;
+    for (index, field) in [
+        "strokeTopWeight",
+        "strokeRightWeight",
+        "strokeBottomWeight",
+        "strokeLeftWeight",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let weight = view.number(field)?;
+        if !weight.is_finite() || weight < 0.0 {
+            return None;
+        }
+        if weight > 0.0 {
+            if edge.is_some() {
+                return None;
+            }
+            edge = Some((index, weight));
+        }
+    }
+    edge
+}
+
 fn push_strokes(
     view: &TypedNode<'_>,
+    outside_edge: Option<(usize, f64)>,
     props: &mut Vec<Prop>,
     used_tokens: &mut BTreeSet<String>,
     variable_tokens: &std::collections::BTreeMap<String, String>,
@@ -1468,6 +1539,15 @@ fn push_strokes(
     };
     let align = view.string("strokeAlign").unwrap_or("INSIDE");
     let explicit_weight = view.number("strokeWeight");
+    if let Some((edge, weight)) = outside_edge {
+        let (x, y) = [(0.0, -weight), (weight, 0.0), (0.0, weight), (-weight, 0.0)][edge];
+        string_prop(
+            props,
+            "boxShadow",
+            format!("{} {} 0 0 {color}", zero_or_px(x), zero_or_px(y)),
+        );
+        return;
+    }
     if explicit_weight.is_none() {
         let sides = [
             ("strokeTopWeight", "borderTop"),
@@ -1588,6 +1668,14 @@ fn push_effects(
         })
         .collect::<Vec<_>>();
     if !shadows.is_empty() {
+        let mut composed = shadows.join(", ");
+        if component != "Text"
+            && single_outside_stroke(view).is_some()
+            && let Some((_, super::component::PropValue::String(stroke))) =
+                props.iter().find(|(name, _)| name == "boxShadow")
+        {
+            composed = format!("{stroke}, {composed}");
+        }
         string_prop(
             props,
             if component == "Text" {
@@ -1595,7 +1683,7 @@ fn push_effects(
             } else {
                 "boxShadow"
             },
-            shadows.join(", "),
+            composed,
         );
     }
     for effect in visible {

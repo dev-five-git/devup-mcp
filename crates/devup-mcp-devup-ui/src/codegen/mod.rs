@@ -25,6 +25,7 @@ pub(crate) use layout::{
     layout_box, placed_by_a_free_layout, px, vertical_fill_container,
     vertical_fill_needs_minimum_reset,
 };
+pub(crate) use style::single_outside_stroke;
 pub(crate) use style::{AssetKind, asset_kind};
 pub use style::{asset_path, image_fill_path};
 pub(crate) use text::escape_jsx_text;

@@ -73,6 +73,9 @@ pub(crate) fn property_derivations(
             "flexShrink" => (vec!["layoutSizingHorizontal", "layoutSizingVertical", "layoutGrow", "parentId", "width", "height"],
                 "push_layout_props: preserve the fixed primary-axis size in the parent flex layout by disabling shrink."),
             "wordBreak" => (vec!["styledTextSegments"], "push_text_props: Korean segment text uses keep-all word breaking."),
+            "boxShadow" if style::asset_kind(snapshot, node).is_none() && style::single_outside_stroke(&node.typed_view()).is_some() =>
+                (vec!["strokes", "strokeAlign", "strokeTopWeight", "strokeRightWeight", "strokeBottomWeight", "strokeLeftWeight", "effects"],
+                "One solid square-cornered OUTSIDE edge becomes a zero-blur translated box shadow that consumes no layout space; real effects follow it in paint order. This does not claim a source shadow effect or pixel parity."),
             "boxShadow" | "textShadow" | "filter" | "backdropFilter" => (vec!["effects"],
                 "push_effects: visible effects in source order; shadow offset.x/y, radius, spread and bound/resolved RGBA color; textShadow omits spread; blur uses radius. Existing effect-loss diagnostics still apply."),
             "objectFit" | "objectPos" | "maskRepeat" | "maskSize" | "maskPos" => {
