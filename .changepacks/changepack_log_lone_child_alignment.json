@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
-  },
-  "note": "A single child is not distributed. Figma centers the only in-flow child of a SPACE_BETWEEN auto-layout; CSS flexbox has nothing to space between and parks that child at the start, so every such node was generated in the wrong place. The keyframes screen made it visible because it is 64 pixels across and built from single-dot wrappers: a 2px dot that Figma draws at x=5 inside a 12px box was drawn at x=0, and the same wrappers recur on the notice desktop frame. The emitter now reads the distribution as center when the layout is horizontal or vertical, the alignment is SPACE_BETWEEN, and exactly one child is both visible and not absolutely positioned, because hidden and absolute children take no part in distribution and must not be counted. The source map gains derived-lone-child-center rather than reusing an existing label, and its published description states which fields decide the count and that the mapping is a layout-semantics correspondence rather than a claim of pixel parity. Measured against Figma's reference PNG, keyframes falls from 6.71 to 2.69 percent and notice desktop from 2.20 to 1.88, with every other screen byte-identical and all 268 plugin byte-parity goldens unchanged. The investigation also retired a standing theory with evidence: the harness disables animations, so this screen's divergence was never the animation being caught mid-flight. The 110 pixels that remain are circle edges, and the report names fractional paint origins and edge coverage as the next lead rather than guessing at a cause."
-,
-  "date": "2026-09-13T16:20:00+09:00"
-}

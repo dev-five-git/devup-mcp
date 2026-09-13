@@ -1,9 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
-    "crates/devup-mcp-figma/Cargo.toml": "Minor",
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "The 0.4.6 line, landed on main at last. R20 audits what still stands between the generator and a browser-measured claim, naming each remaining approximation rather than leaving the gap implicit. F1-F5 and F7 carry the responsive and project-context corrections: prevalidating a responsive export before it is projected, discovering breakpoint widths from the frames rather than assuming them, reconciling exported tokens against the theme a project already has, categorising token suggestions so an unmatched value is not advised toward a token that does not exist, budgeting a Section preview so a large selection cannot exhaust the projection, covering FILL layout where it was previously approximated, and reporting a typography token the validator had never been checking. F8 teaches devup-ui semantics to the caller and delivers skills through the CLI. The branch had never passed CI: ten rustfmt violations rode along with it, and they are fixed here rather than carried further. The bridge plugin's committed bundle is rebuilt because explore.js and section_index.js changed, and those scripts are compiled into the plugin - which is precisely the drift the new bundle gate exists to catch, and did.",
-  "date": "2026-09-14T00:30:00+09:00"
-}
