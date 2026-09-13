@@ -1505,9 +1505,23 @@ pub(crate) fn finalize_tsx(
             }
         }
 
+        let mut prop_sources = PROP_SOURCES.to_vec();
+        if crate::codegen::asset_kind(snapshot, node).is_none()
+            && crate::codegen::single_outside_stroke(&node.typed_view()).is_some()
+        {
+            prop_sources.push(("boxShadow", "strokes"));
+            if node
+                .typed_view()
+                .value("effects")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|effects| !effects.is_empty())
+            {
+                prop_sources.push(("boxShadow", "effects"));
+            }
+        }
         let mut selector_properties = BTreeSet::new();
         if let Some(selector) = non_default_variant_selector(snapshot, node) {
-            for (prop, property) in PROP_SOURCES {
+            for (prop, property) in &prop_sources {
                 let Some((start, end)) = selector_prop_range(opening, &selector, prop) else {
                     continue;
                 };
@@ -1524,7 +1538,7 @@ pub(crate) fn finalize_tsx(
             }
         }
 
-        for (prop, property) in PROP_SOURCES {
+        for (prop, property) in &prop_sources {
             if *property == "overflowDirection"
                 && node.typed_view().string("overflowDirection").is_none()
             {
@@ -1566,7 +1580,12 @@ pub(crate) fn finalize_tsx(
                         .find_map(|(id, token)| (token == value).then(|| id.clone()))
                 })
                 .flatten();
-            let resolution = if variable_id.is_some() {
+            let resolution = if *prop == "boxShadow"
+                && crate::codegen::asset_kind(snapshot, node).is_none()
+                && crate::codegen::single_outside_stroke(&node.typed_view()).is_some()
+            {
+                "derived-single-edge-outside-stroke"
+            } else if variable_id.is_some() {
                 "variable-token"
             } else if style_id.is_some() {
                 "style-token"
