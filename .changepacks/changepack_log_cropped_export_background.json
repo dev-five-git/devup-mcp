@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
+  },
+  "note": "Stop cropping a photograph twice. A CROP image fill carries its framing as a matrix over the image's own coordinate space, and the generator read that matrix and turned it into a CSS background position and size. That would be right if the file being positioned were the original image, but it is not: the emitted file is a node export, and Figma has already applied the crop when producing those pixels. Applying the matrix again framed an already-framed picture, which is why the about page's photographs came out zoomed and offset against Figma's own render of the same frame - and why the earlier attempt to honour the crop appeared to help while measuring worse. A cropped fill now maps its exported frame once onto the layout box, and the matrix reader is deleted rather than left for someone to reach for again; FIT, FILL and TILE are unchanged. Measured against Figma's reference PNG, the three about screens improve from 7.46, 4.06 and 2.41 percent to 5.51, 3.01 and 1.77, with page heights unchanged and every other screen byte-identical. All 268 plugin byte-parity goldens are unchanged, and the responsive-screen expectation that asserted the old doubled crop is corrected to state why the export is mapped once.",
+  "date": "2026-09-13T14:15:00+09:00"
+}

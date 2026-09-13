@@ -917,37 +917,6 @@ pub fn asset_path(snapshot: &Snapshot, node_id: &str, per_node: bool) -> Option<
     Some(asset_source(snapshot, node, folder, extension, per_node))
 }
 
-/// The `position/size` a cropped image fill is painted with, read from
-/// Figma's `imageTransform`. The matrix maps the image's own 0..1 space onto
-/// the box: the part on show runs from `tx` for `sx` across and from `ty` for
-/// `sy` down. Scaling the picture by `1/sx` makes that part as wide as the
-/// box, and `tx / (1 - sx)` is where along the overflow it has to sit - which
-/// is exactly the percentage CSS positions a background by. A scale of one
-/// leaves no overflow to position within, so it sits at the start.
-fn image_crop(paint: &Value) -> Option<String> {
-    let rows = paint.get("imageTransform")?.as_array()?;
-    let cell = |row: usize, column: usize| rows.get(row)?.as_array()?.get(column)?.as_f64();
-    let (scale_x, offset_x) = (cell(0, 0)?, cell(0, 2)?);
-    let (scale_y, offset_y) = (cell(1, 1)?, cell(1, 2)?);
-    if scale_x == 0.0 || scale_y == 0.0 {
-        return None;
-    }
-    let position = |scale: f64, offset: f64| {
-        if (1.0 - scale).abs() < 1e-6 {
-            0.0
-        } else {
-            offset / (1.0 - scale) * 100.0
-        }
-    };
-    Some(format!(
-        "{}% {}%/{}% {}%",
-        format_number(position(scale_x, offset_x)),
-        format_number(position(scale_y, offset_y)),
-        format_number(100.0 / scale_x),
-        format_number(100.0 / scale_y),
-    ))
-}
-
 /// Where the code draws one of a node's image fills from: `/images/x.png`
 /// for the first fill and `/images/x-2.png` past it, the same name
 /// `image_fill_source` writes into the code but without the quoting a CSS
@@ -1048,19 +1017,14 @@ fn paint_css(
         "GRADIENT_DIAMOND" => gradient_css(node, paint, "diamond", variable_tokens),
         "IMAGE" => {
             let source = image_fill_source(snapshot, node, fill_index, per_node);
-            // A cropped fill carries its crop as a matrix over the image's own
-            // 0..1 space. Painted `center/cover` that is thrown away and the
-            // whole picture is shown instead, which is a different crop: the
-            // about page's photographs came out zoomed in against the render
-            // Figma draws of the same frame.
-            if paint.get("scaleMode").and_then(Value::as_str) == Some("CROP")
-                && let Some(crop) = image_crop(paint)
-            {
-                return Some(format!("url({source}) {crop} no-repeat"));
-            }
             let fit = match paint.get("scaleMode").and_then(Value::as_str) {
+                // image_fill_source names a node.exportAsync rendition, not
+                // the original imageHash bytes. Figma has already applied
+                // imageTransform to that rendition; applying its inverse here
+                // crops and stretches the exported picture a second time.
+                Some("CROP") => "0 0/100% 100% no-repeat",
                 Some("FIT") => "center/contain no-repeat",
-                Some("FILL" | "CROP") => "center/cover no-repeat",
+                Some("FILL") => "center/cover no-repeat",
                 Some("TILE") => "repeat",
                 _ => "center/cover no-repeat",
             };

@@ -1,0 +1,977 @@
+{
+  "baseCommit": "b7451aa410246f066e1dc5fd685a23456d46d94a",
+  "baseline": [
+    {
+      "name": "about-422-2987",
+      "rendered": {
+        "width": 1920,
+        "height": 4758
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          4757
+        ],
+        "actualDimensions": [
+          1920,
+          4757
+        ],
+        "changedPixels": 220572,
+        "totalPixels": 9133440,
+        "changedRatio": 0.024149936935043095,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-2987.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+      "actualSha256": "69f144c1ebe9ea6eb5c3ae056fe8db709f7b95f5cdedaf73e169a2b41ae0d47b"
+    },
+    {
+      "name": "about-422-3180",
+      "rendered": {
+        "width": 992,
+        "height": 5620
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          5619
+        ],
+        "actualDimensions": [
+          992,
+          5619
+        ],
+        "changedPixels": 226519,
+        "totalPixels": 5574048,
+        "changedRatio": 0.04063815022762631,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3180.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+      "actualSha256": "bb18213011cc6ebd7cbe384a2a40720d4966437dffc51de957cf0c9e29b9d271"
+    },
+    {
+      "name": "about-422-3376",
+      "rendered": {
+        "width": 360,
+        "height": 7240
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          7240
+        ],
+        "actualDimensions": [
+          360,
+          7240
+        ],
+        "changedPixels": 194374,
+        "totalPixels": 2606400,
+        "changedRatio": 0.07457565991405771,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 239,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3376.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+      "actualSha256": "ac23b6b562c1b09ffcd1491487c7c8e353c8d274d61f0360edb14934c17efef9"
+    },
+    {
+      "name": "grid-429-1966",
+      "rendered": {
+        "width": 1281,
+        "height": 1086
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1281,
+          1086
+        ],
+        "actualDimensions": [
+          1281,
+          1086
+        ],
+        "changedPixels": 41234,
+        "totalPixels": 1391166,
+        "changedRatio": 0.029639884816046395,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 176,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\grid-429-1966.diff.png"
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+      "actualSha256": "a7ea4c4023061e9851972a8ad633af22fa160a0d610621d98e00529959cab69f"
+    },
+    {
+      "name": "keyframes-458-2021",
+      "rendered": {
+        "width": 64,
+        "height": 64
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          64,
+          64
+        ],
+        "actualDimensions": [
+          64,
+          64
+        ],
+        "changedPixels": 275,
+        "totalPixels": 4096,
+        "changedRatio": 0.067138671875,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 225,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\keyframes-458-2021.diff.png"
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+      "actualSha256": "49551a58d3283ba4cb5e1277893db55014aecc0b05d2752d8f081c2ee48ab225"
+    },
+    {
+      "name": "landing-832-2975",
+      "rendered": {
+        "width": 1920,
+        "height": 3084
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          3084
+        ],
+        "actualDimensions": [
+          1920,
+          3084
+        ],
+        "changedPixels": 89041,
+        "totalPixels": 5921280,
+        "changedRatio": 0.015037458117163857,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-832-2975.diff.png"
+      },
+      "themeHash": "3ae50e9a165f5060e6c977a6c6b610a4238192437492acd7de908a65c2274018",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "68b0743556479681e642b389f89fd2a082d86c6d634884739bd8725522cf8c6b",
+      "actualSha256": "1bf31cea5d1dbf5d6a5c2b4eb35fab39b6800f56bf1905a9278621e08c2787d3"
+    },
+    {
+      "name": "landing-833-3322",
+      "rendered": {
+        "width": 992,
+        "height": 2964
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          2964
+        ],
+        "actualDimensions": [
+          992,
+          2964
+        ],
+        "changedPixels": 72515,
+        "totalPixels": 2940288,
+        "changedRatio": 0.024662550063123068,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-833-3322.diff.png"
+      },
+      "themeHash": "87ef9f58fdb853cb6603a7704dc4b685e4af4242eb3e0b2058e3fbbd968c011d",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "f3eebec1a9e5f574922b4f616d08abae92f9cada366213d4ac4d748553bd96a9",
+      "actualSha256": "619165013992405a3bf47132235f2e735ff2a1ec39686b79d4c61bfa1d0bf279"
+    },
+    {
+      "name": "landing-833-3640",
+      "rendered": {
+        "width": 360,
+        "height": 2955
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          2955
+        ],
+        "actualDimensions": [
+          360,
+          2955
+        ],
+        "changedPixels": 53054,
+        "totalPixels": 1063800,
+        "changedRatio": 0.049872156420379773,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-833-3640.diff.png"
+      },
+      "themeHash": "e18d9d7e25b4e288f369d28230c89f2e6a6da90e9275134b667bf79be7844134",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "d66ec480cec7ae66c6e2ffe03161b763dc7d446c064fd82318a4d0f3d3e9bb92",
+      "actualSha256": "f35490cf62a1d7f3622a210624366fadb6e81f5415d5b03a5979b23dae372cdd"
+    },
+    {
+      "name": "notice-422-6865",
+      "rendered": {
+        "width": 1920,
+        "height": 1145
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          1142
+        ],
+        "actualDimensions": [
+          1920,
+          1142
+        ],
+        "changedPixels": 48286,
+        "totalPixels": 2192640,
+        "changedRatio": 0.022021854932866316,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-6865.diff.png"
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "73049f14e3be6c308652418bf69f7d53af44f0df650241b29e0e7aff16c3a1b4",
+      "actualSha256": "8fd58f7f3428c90f51712865db2ef1514124bfeb237a1288344f88483aa1387a"
+    },
+    {
+      "name": "notice-422-6914",
+      "rendered": {
+        "width": 360,
+        "height": 1217
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          1215
+        ],
+        "actualDimensions": [
+          360,
+          1215
+        ],
+        "changedPixels": 22982,
+        "totalPixels": 437400,
+        "changedRatio": 0.05254229538180155,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-6914.diff.png"
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "421d8a6fdda27079f183c6927c0672568648be3b23e37526938eb58c1276764a",
+      "actualSha256": "0f2cdb2303f39bf1edd65eb0b983b39374b4c938354b149c41ec9e769a238eec"
+    },
+    {
+      "name": "notice-422-7088",
+      "rendered": {
+        "width": 992,
+        "height": 1145
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          1142
+        ],
+        "actualDimensions": [
+          992,
+          1142
+        ],
+        "changedPixels": 36501,
+        "totalPixels": 1132864,
+        "changedRatio": 0.03222010762103836,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-7088.diff.png"
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "7f8ab78a60ef7f6adac3e4f8a93bfd767ead06841030a2647490f9ded53d6386",
+      "actualSha256": "625143077b60ee5f4857e1336a03ef96f582070fbfe607e6fb4ed2a429545c55"
+    },
+    {
+      "name": "popup-422-5682",
+      "rendered": {
+        "width": 390,
+        "height": 800
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          390,
+          800
+        ],
+        "actualDimensions": [
+          390,
+          800
+        ],
+        "changedPixels": 11370,
+        "totalPixels": 312000,
+        "changedRatio": 0.03644230769230769,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 236,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5682.diff.png"
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+      "actualSha256": "059c502c8c28229cd099ecc1202461d347c069cadd2ba2efee1a37aa0baace2f"
+    },
+    {
+      "name": "popup-422-5705",
+      "rendered": {
+        "width": 768,
+        "height": 1024
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          768,
+          1024
+        ],
+        "actualDimensions": [
+          768,
+          1024
+        ],
+        "changedPixels": 16221,
+        "totalPixels": 786432,
+        "changedRatio": 0.020626068115234375,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 236,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5705.diff.png"
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+      "actualSha256": "ee43d4428b94262fc87460a413da67350f4a3446e8122a3bb53ae96a25ea71fe"
+    },
+    {
+      "name": "popup-422-5728",
+      "rendered": {
+        "width": 1920,
+        "height": 1080
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          1080
+        ],
+        "actualDimensions": [
+          1920,
+          1080
+        ],
+        "changedPixels": 17699,
+        "totalPixels": 2073600,
+        "changedRatio": 0.00853539737654321,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 237,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5728.diff.png"
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+      "actualSha256": "38ed76ac08098116a37b0c511fbf9b2a61c7b1ec5a7d89bd69aec2e428abcd00"
+    },
+    {
+      "name": "report-446-1971",
+      "rendered": {
+        "width": 1920,
+        "height": 734
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          734
+        ],
+        "actualDimensions": [
+          1920,
+          734
+        ],
+        "changedPixels": 17989,
+        "totalPixels": 1409280,
+        "changedRatio": 0.012764674159854678,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 200,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\report-446-1971.diff.png"
+      },
+      "themeHash": "46d713e0a8523f77d004ec78a2997810a6bf58d1e380a13bcda9de96388fd56a",
+      "binarySha256": "2933385fdb7a495f0fb2b05afe9b1228270ed80cc2318b605a685a685bd9dca6",
+      "referenceSha256": "0cf71b751e361e59966634f18a787d22d794c1648c15d3ab91977090f1b18efd",
+      "actualSha256": "de0a90f9c933f64944e5d991640b4eca24e47f6c5ee90521d527fcc109ca961d"
+    }
+  ],
+  "browserOnlyProbe": {
+    "screen": "about-422-3376",
+    "changedPixels": 143728,
+    "changedRatio": 0.05514426028238183,
+    "modifiedNodes": [
+      "422:3514",
+      "422:3551",
+      "422:3560"
+    ],
+    "intervention": "background-size:100% 100%; background-position:0 0 on already-cropped node exports; layout boxes unchanged"
+  },
+  "candidate": [
+    {
+      "name": "about-422-2987",
+      "rendered": {
+        "width": 1920,
+        "height": 4758
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          4757
+        ],
+        "actualDimensions": [
+          1920,
+          4757
+        ],
+        "changedPixels": 161950,
+        "totalPixels": 9133440,
+        "changedRatio": 0.017731544741083315,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-2987.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+      "actualSha256": "5c482d9557ad96d674c5b8ce26d406e7e7c9a5a6ada078ee75bfb34fb079b477"
+    },
+    {
+      "name": "about-422-3180",
+      "rendered": {
+        "width": 992,
+        "height": 5620
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          5619
+        ],
+        "actualDimensions": [
+          992,
+          5619
+        ],
+        "changedPixels": 167899,
+        "totalPixels": 5574048,
+        "changedRatio": 0.030121556183226265,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3180.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+      "actualSha256": "b3b842fa7984cd7aedc4b8d44a7267481277e392471d4f426d5780798cd3ca41"
+    },
+    {
+      "name": "about-422-3376",
+      "rendered": {
+        "width": 360,
+        "height": 7240
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          7240
+        ],
+        "actualDimensions": [
+          360,
+          7240
+        ],
+        "changedPixels": 143728,
+        "totalPixels": 2606400,
+        "changedRatio": 0.05514426028238183,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3376.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+      "actualSha256": "ead165daab28017371c3883d61f20cbb82cd637aec44a2439971b1820b7e8ef1"
+    },
+    {
+      "name": "grid-429-1966",
+      "rendered": {
+        "width": 1281,
+        "height": 1086
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1281,
+          1086
+        ],
+        "actualDimensions": [
+          1281,
+          1086
+        ],
+        "changedPixels": 41234,
+        "totalPixels": 1391166,
+        "changedRatio": 0.029639884816046395,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 176,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\grid-429-1966.diff.png"
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+      "actualSha256": "a7ea4c4023061e9851972a8ad633af22fa160a0d610621d98e00529959cab69f"
+    },
+    {
+      "name": "keyframes-458-2021",
+      "rendered": {
+        "width": 64,
+        "height": 64
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          64,
+          64
+        ],
+        "actualDimensions": [
+          64,
+          64
+        ],
+        "changedPixels": 275,
+        "totalPixels": 4096,
+        "changedRatio": 0.067138671875,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 225,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\keyframes-458-2021.diff.png"
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+      "actualSha256": "49551a58d3283ba4cb5e1277893db55014aecc0b05d2752d8f081c2ee48ab225"
+    },
+    {
+      "name": "landing-832-2975",
+      "rendered": {
+        "width": 1920,
+        "height": 3084
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          3084
+        ],
+        "actualDimensions": [
+          1920,
+          3084
+        ],
+        "changedPixels": 89041,
+        "totalPixels": 5921280,
+        "changedRatio": 0.015037458117163857,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-832-2975.diff.png"
+      },
+      "themeHash": "3ae50e9a165f5060e6c977a6c6b610a4238192437492acd7de908a65c2274018",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "68b0743556479681e642b389f89fd2a082d86c6d634884739bd8725522cf8c6b",
+      "actualSha256": "1bf31cea5d1dbf5d6a5c2b4eb35fab39b6800f56bf1905a9278621e08c2787d3"
+    },
+    {
+      "name": "landing-833-3322",
+      "rendered": {
+        "width": 992,
+        "height": 2964
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          2964
+        ],
+        "actualDimensions": [
+          992,
+          2964
+        ],
+        "changedPixels": 72515,
+        "totalPixels": 2940288,
+        "changedRatio": 0.024662550063123068,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-833-3322.diff.png"
+      },
+      "themeHash": "87ef9f58fdb853cb6603a7704dc4b685e4af4242eb3e0b2058e3fbbd968c011d",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "f3eebec1a9e5f574922b4f616d08abae92f9cada366213d4ac4d748553bd96a9",
+      "actualSha256": "619165013992405a3bf47132235f2e735ff2a1ec39686b79d4c61bfa1d0bf279"
+    },
+    {
+      "name": "landing-833-3640",
+      "rendered": {
+        "width": 360,
+        "height": 2955
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          2955
+        ],
+        "actualDimensions": [
+          360,
+          2955
+        ],
+        "changedPixels": 53054,
+        "totalPixels": 1063800,
+        "changedRatio": 0.049872156420379773,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-833-3640.diff.png"
+      },
+      "themeHash": "e18d9d7e25b4e288f369d28230c89f2e6a6da90e9275134b667bf79be7844134",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "d66ec480cec7ae66c6e2ffe03161b763dc7d446c064fd82318a4d0f3d3e9bb92",
+      "actualSha256": "f35490cf62a1d7f3622a210624366fadb6e81f5415d5b03a5979b23dae372cdd"
+    },
+    {
+      "name": "notice-422-6865",
+      "rendered": {
+        "width": 1920,
+        "height": 1145
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          1142
+        ],
+        "actualDimensions": [
+          1920,
+          1142
+        ],
+        "changedPixels": 48286,
+        "totalPixels": 2192640,
+        "changedRatio": 0.022021854932866316,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-6865.diff.png"
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "73049f14e3be6c308652418bf69f7d53af44f0df650241b29e0e7aff16c3a1b4",
+      "actualSha256": "8fd58f7f3428c90f51712865db2ef1514124bfeb237a1288344f88483aa1387a"
+    },
+    {
+      "name": "notice-422-6914",
+      "rendered": {
+        "width": 360,
+        "height": 1217
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          1215
+        ],
+        "actualDimensions": [
+          360,
+          1215
+        ],
+        "changedPixels": 22982,
+        "totalPixels": 437400,
+        "changedRatio": 0.05254229538180155,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-6914.diff.png"
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "421d8a6fdda27079f183c6927c0672568648be3b23e37526938eb58c1276764a",
+      "actualSha256": "0f2cdb2303f39bf1edd65eb0b983b39374b4c938354b149c41ec9e769a238eec"
+    },
+    {
+      "name": "notice-422-7088",
+      "rendered": {
+        "width": 992,
+        "height": 1145
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          1142
+        ],
+        "actualDimensions": [
+          992,
+          1142
+        ],
+        "changedPixels": 36501,
+        "totalPixels": 1132864,
+        "changedRatio": 0.03222010762103836,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-7088.diff.png"
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "7f8ab78a60ef7f6adac3e4f8a93bfd767ead06841030a2647490f9ded53d6386",
+      "actualSha256": "625143077b60ee5f4857e1336a03ef96f582070fbfe607e6fb4ed2a429545c55"
+    },
+    {
+      "name": "popup-422-5682",
+      "rendered": {
+        "width": 390,
+        "height": 800
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          390,
+          800
+        ],
+        "actualDimensions": [
+          390,
+          800
+        ],
+        "changedPixels": 11370,
+        "totalPixels": 312000,
+        "changedRatio": 0.03644230769230769,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 236,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5682.diff.png"
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+      "actualSha256": "059c502c8c28229cd099ecc1202461d347c069cadd2ba2efee1a37aa0baace2f"
+    },
+    {
+      "name": "popup-422-5705",
+      "rendered": {
+        "width": 768,
+        "height": 1024
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          768,
+          1024
+        ],
+        "actualDimensions": [
+          768,
+          1024
+        ],
+        "changedPixels": 16221,
+        "totalPixels": 786432,
+        "changedRatio": 0.020626068115234375,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 236,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5705.diff.png"
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+      "actualSha256": "ee43d4428b94262fc87460a413da67350f4a3446e8122a3bb53ae96a25ea71fe"
+    },
+    {
+      "name": "popup-422-5728",
+      "rendered": {
+        "width": 1920,
+        "height": 1080
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          1080
+        ],
+        "actualDimensions": [
+          1920,
+          1080
+        ],
+        "changedPixels": 17699,
+        "totalPixels": 2073600,
+        "changedRatio": 0.00853539737654321,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 237,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5728.diff.png"
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+      "actualSha256": "38ed76ac08098116a37b0c511fbf9b2a61c7b1ec5a7d89bd69aec2e428abcd00"
+    },
+    {
+      "name": "report-446-1971",
+      "rendered": {
+        "width": 1920,
+        "height": 734
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          734
+        ],
+        "actualDimensions": [
+          1920,
+          734
+        ],
+        "changedPixels": 17989,
+        "totalPixels": 1409280,
+        "changedRatio": 0.012764674159854678,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 200,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\report-446-1971.diff.png"
+      },
+      "themeHash": "46d713e0a8523f77d004ec78a2997810a6bf58d1e380a13bcda9de96388fd56a",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "0cf71b751e361e59966634f18a787d22d794c1648c15d3ab91977090f1b18efd",
+      "actualSha256": "de0a90f9c933f64944e5d991640b4eca24e47f6c5ee90521d527fcc109ca961d"
+    }
+  ],
+  "repeatedAbout": [
+    {
+      "name": "about-422-3376",
+      "rendered": {
+        "width": 360,
+        "height": 7240
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          7240
+        ],
+        "actualDimensions": [
+          360,
+          7240
+        ],
+        "changedPixels": 143728,
+        "totalPixels": 2606400,
+        "changedRatio": 0.05514426028238183,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3376.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+      "actualSha256": "ead165daab28017371c3883d61f20cbb82cd637aec44a2439971b1820b7e8ef1"
+    },
+    {
+      "name": "about-422-3180",
+      "rendered": {
+        "width": 992,
+        "height": 5620
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          5619
+        ],
+        "actualDimensions": [
+          992,
+          5619
+        ],
+        "changedPixels": 167899,
+        "totalPixels": 5574048,
+        "changedRatio": 0.030121556183226265,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3180.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+      "actualSha256": "b3b842fa7984cd7aedc4b8d44a7267481277e392471d4f426d5780798cd3ca41"
+    },
+    {
+      "name": "about-422-2987",
+      "rendered": {
+        "width": 1920,
+        "height": 4758
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          4757
+        ],
+        "actualDimensions": [
+          1920,
+          4757
+        ],
+        "changedPixels": 161950,
+        "totalPixels": 9133440,
+        "changedRatio": 0.017731544741083315,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-2987.diff.png"
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "binarySha256": "7f1bf937c8da32739851e45900a40d03d9cc051d9a6ec7fbf0e3eebca7264924",
+      "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+      "actualSha256": "5c482d9557ad96d674c5b8ce26d406e7e7c9a5a6ada078ee75bfb34fb079b477"
+    }
+  ]
+}

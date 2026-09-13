@@ -1,5 +1,5 @@
 {
-  "note": "Current generated-screen baselines are backed by two fresh-process acquire/render measurements on d039623, with identical input hashes and exact divergence values; see docs/harness-determinism.md and its evidence JSON. Notice tablet was subsequently tightened for collective row overflow, then all three notice screens were tightened after repeated fresh acquire/render measurements of the independent offset-mask HUG repair; see docs/notice-layout-divergence.md. Values are percentages; render.mjs fails above each value plus tolerance. The unchanged popup-answer entries are historical plugin-answer comparisons and were not remeasured in this task.",
+  "note": "Current generated-screen baselines are backed by two fresh-process acquire/render measurements on d039623, with identical input hashes and exact divergence values; see docs/harness-determinism.md and its evidence JSON. Notice tablet was subsequently tightened for collective row overflow, then all three notice screens were tightened after repeated fresh acquire/render measurements of the independent offset-mask HUG repair; see docs/notice-layout-divergence.md. About was subsequently tightened after repeated fresh acquire/render measurements of the cropped-node-export correction; see docs/about-mobile-composition.md. Values are percentages; render.mjs fails above each value plus tolerance. The unchanged popup-answer entries are historical plugin-answer comparisons and were not remeasured in this task.",
   "tolerance": 0.05,
   "screens": {
     "popup-422-5682": 3.64,
@@ -14,9 +14,9 @@
     "notice-422-6914": 5.25,
     "notice-422-7088": 3.22,
     "notice-422-6865": 2.2,
-    "about-422-3376": 7.46,
-    "about-422-3180": 4.06,
-    "about-422-2987": 2.41,
+    "about-422-3376": 5.51,
+    "about-422-3180": 3.01,
+    "about-422-2987": 1.77,
     "landing-833-3640": 4.99,
     "landing-833-3322": 2.47,
     "landing-832-2975": 1.5
