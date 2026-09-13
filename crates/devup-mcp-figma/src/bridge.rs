@@ -456,7 +456,7 @@ impl FigmaUpstream for BridgeFigmaClient {
     }
 
     fn batch_budget(&self) -> BatchBudget {
-        BRIDGE_BATCH
+        bridge_batch_budget()
     }
 }
 
@@ -478,6 +478,25 @@ const BRIDGE_BATCH: BatchBudget = BatchBudget {
     used_resource_items: 4096,
     used_resource_bytes: BRIDGE_ENVELOPE_BYTES,
 };
+
+/// 한 번에 물을 리소스 수를 밖에서 낮춰 보기 위한 손잡이.
+///
+/// 리소스가 하나도 해석되지 않는 것을 실기기에서 봤고, 원인이 이 크기인지
+/// (플러그인이 그만한 동시 조회를 감당하지 못하는지) 아니면 애초에 그 변수를
+/// 읽을 권한이 없는지 가려야 했다. 둘은 고치는 곳이 다르다.
+const BRIDGE_USED_RESOURCE_ITEMS_ENV: &str = "DEVUP_FIGMA_BRIDGE_USED_RESOURCE_ITEMS";
+
+fn bridge_batch_budget() -> BatchBudget {
+    let mut budget = BRIDGE_BATCH;
+    if let Some(items) = std::env::var(BRIDGE_USED_RESOURCE_ITEMS_ENV)
+        .ok()
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .filter(|items| *items > 0)
+    {
+        budget.used_resource_items = items;
+    }
+    budget
+}
 
 /// 브리지가 맡을 수 있으면 브리지로, 아니면 원격으로 보낸다.
 ///
