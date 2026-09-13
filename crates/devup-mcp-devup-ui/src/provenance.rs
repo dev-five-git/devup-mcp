@@ -1585,7 +1585,13 @@ pub(crate) fn finalize_tsx(
             } else {
                 "raw-fallback"
             };
-            let source_property = if *prop == "fontWeight"
+            let source_property = if *prop == "minW"
+                && value == "0"
+                && node.typed_view().number("minWidth").is_none()
+                && node.typed_view().string("layoutSizingHorizontal") == Some("FILL")
+            {
+                "layoutSizingHorizontal"
+            } else if *prop == "fontWeight"
                 && node.node_type == "TEXT"
                 && node.typed_view().number(property).is_none()
             {

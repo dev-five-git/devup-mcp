@@ -1,5 +1,5 @@
 {
-  "note": "Current generated-screen baselines are backed by two fresh-process acquire/render measurements on d039623, with identical input hashes and exact divergence values; see docs/harness-determinism.md and its evidence JSON. Values are percentages; render.mjs fails above each value plus tolerance. The unchanged popup-answer entries are historical plugin-answer comparisons and were not remeasured in this task.",
+  "note": "Current generated-screen baselines are backed by two fresh-process acquire/render measurements on d039623, with identical input hashes and exact divergence values; see docs/harness-determinism.md and its evidence JSON. Notice tablet was subsequently tightened after two fresh acquire/render rounds; see docs/notice-layout-divergence.md. Values are percentages; render.mjs fails above each value plus tolerance. The unchanged popup-answer entries are historical plugin-answer comparisons and were not remeasured in this task.",
   "tolerance": 0.05,
   "screens": {
     "popup-422-5682": 3.64,
@@ -12,7 +12,7 @@
     "grid-429-1966": 2.96,
     "report-446-1971": 1.28,
     "notice-422-6914": 5.54,
-    "notice-422-7088": 3.35,
+    "notice-422-7088": 3.26,
     "notice-422-6865": 2.22,
     "about-422-3376": 7.46,
     "about-422-3180": 4.06,

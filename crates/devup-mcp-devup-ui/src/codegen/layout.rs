@@ -591,11 +591,11 @@ pub(super) fn push_layout_props(
         // the share to 132 and took the 9px from the hugging sibling, whose
         // `Devup-ui` then broke across two lines. `minW="0"` lets the share
         // be the share, and the content spill as Figma draws it. Written
-        // only where the snapshot shows content wider than the box, which is
-        // the only place the two layouts part.
-        if let Some(own) = view.number("width")
-            && view
-                .child_ids()
+        // only where the snapshot shows content wider than the box. A row
+        // can overflow collectively even when each child fits individually.
+        // Wrapping rows can distribute that content over multiple lines.
+        let child_overflows = view.number("width").is_some_and(|own| {
+            view.child_ids()
                 .filter_map(|id| snapshot.nodes.get(id))
                 .any(|child| {
                     let child = child.typed_view();
@@ -603,7 +603,11 @@ pub(super) fn push_layout_props(
                         && child.string("layoutPositioning") != Some("ABSOLUTE")
                         && child.number("width").is_some_and(|width| width > own + 0.5)
                 })
-        {
+        });
+        let row_overflows = view.string("layoutMode") == Some("HORIZONTAL")
+            && view.string("layoutWrap") != Some("WRAP")
+            && line_overflows(snapshot, node, "width", "paddingLeft", "paddingRight");
+        if view.number("minWidth").is_none() && (child_overflows || row_overflows) {
             string_prop(props, "minW", "0");
         }
     }
