@@ -14,6 +14,9 @@ export default [
     name: 'code',
     target: 'web',
     mode: 'production',
+    // `dist/` 는 커밋된다. 소스맵은 Figma 가 읽지 않으면서 번들의 네 배가 넘고,
+    // 빌드마다 저장소에 들어갈 이유가 없다.
+    devtool: false,
     entry: { code: resolve(here, 'src/code.ts') },
     output: { path: resolve(here, 'dist'), filename: '[name].js' },
     resolve: { extensions: ['.ts', '.js'] },
@@ -37,6 +40,7 @@ export default [
     name: 'ui',
     target: 'web',
     mode: 'production',
+    devtool: false,
     entry: { ui: resolve(here, 'src/ui.ts') },
     output: { path: resolve(here, 'dist'), filename: '[name].js' },
     resolve: { extensions: ['.ts', '.js'] },

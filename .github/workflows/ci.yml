@@ -115,6 +115,21 @@ jobs:
       - run: cargo install cargo-insta --version 1.48.0 --locked
       - run: cargo fmt --all -- --check
       - run: node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs
+      # `plugin/dist/` is committed so a user can import the plugin into Figma
+      # without running a build. That only stays true if the committed bundle
+      # is the one this source produces, so rebuild it and refuse a difference.
+      # The build is reproducible: same input, byte-identical output.
+      - name: The committed plugin bundle matches its source
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        working-directory: plugin
+        run: |
+          npm ci
+          npm run build
+          git diff --exit-code -- dist || {
+            echo "::error::plugin/dist is stale. Run 'npm run build' in plugin/ and commit the result."
+            exit 1
+          }
       - run: cargo test --locked -p devup-mcp --test stdio_smoke
       - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - run: cargo insta test --workspace --all-features --check

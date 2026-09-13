@@ -20,16 +20,25 @@ getLocalPaintStylesAsync / TextStylesAsync / EffectStylesAsync / GridStylesAsync
 
 ## 설치
 
+빌드할 필요 없습니다. `dist/` 가 저장소에 들어 있습니다.
+
+Figma 데스크톱 앱에서 **Plugins → Development → Import plugin from manifest** 를
+고르고 `plugin/manifest.json` 을 선택하면 끝입니다.
+
+브라우저판에서는 개발 플러그인을 불러올 수 없으므로 데스크톱 앱이 필요합니다.
+
+### 플러그인 소스를 고쳤다면
+
 ```bash
 cd plugin
 npm install
-npm run build
+npm run build   # dist/ 를 다시 만든다 — 함께 커밋해야 한다
 ```
 
-그다음 Figma 데스크톱 앱에서 **Plugins → Development → Import plugin from
-manifest** 를 고르고 `plugin/manifest.json` 을 선택합니다.
-
-브라우저판에서는 개발 플러그인을 불러올 수 없으므로 데스크톱 앱이 필요합니다.
+`dist/` 는 의도적으로 커밋합니다. 받는 사람이 Node 없이 곧장 import 할 수 있게
+하려는 것이고, 그 대가로 원본과 어긋날 위험이 생기므로 CI 가 매번 다시 빌드해
+`git diff --exit-code -- dist` 로 대조합니다. 빌드는 재현 가능합니다 — 같은 입력에서
+같은 바이트가 나옵니다. 어긋난 채로는 병합되지 않습니다.
 
 ## 쓰는 법
 
@@ -85,7 +94,9 @@ devup-mcp 쪽은 아무 설정도 필요 없습니다. 플러그인이 붙어 �
 ```
 crates/devup-mcp-figma/src/scripts/*.js   ← 원본 (공식 MCP 경로도 이것을 씀)
         ↓ plugin/scripts/gen-scripts.mjs
-plugin/src/generated/scripts.js           ← 빌드 산출물 (커밋하지 않음)
+plugin/src/generated/scripts.js           ← 중간 산출물 (커밋하지 않음)
+        ↓ rspack + scripts/inline-ui.mjs
+plugin/dist/{code.js,ui.html}             ← 최종 번들 (커밋함, CI 가 대조)
 ```
 
 두 경로가 같은 소스를 쓰므로 봉투가 갈라질 수 없습니다. 원본의 플레이스홀더는
