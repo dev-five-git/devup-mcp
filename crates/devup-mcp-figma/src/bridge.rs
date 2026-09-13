@@ -217,6 +217,27 @@ impl BridgeState {
     }
 }
 
+/// 봉투의 `fileKey` 가 비어 있으면 요청한 값으로 채운다.
+///
+/// 스크립트는 `figma.fileKey` 를 그대로 싣는데, 그 값이 늘 오지는 않는다 —
+/// 비어 오는 것을 실기기에서 확인했다. 디코더는 비어 있지 않은 `fileKey` 를 요구하므로
+/// 그대로 두면 노드를 다 받고도 "스냅샷을 찾지 못했다"며 버린다.
+///
+/// 지어내는 값이 아니다. 이 읽기가 어느 파일을 향했는지는 호출자가 알고 있고,
+/// 그 파일을 이 플러그인이 맡는다는 판단은 이미 `resolve_key` 가 내렸다.
+fn stamp_file_key(data: &mut Value, file_key: &str) {
+    let Some(object) = data.as_object_mut() else {
+        return;
+    };
+    let empty = object
+        .get("fileKey")
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty);
+    if empty {
+        object.insert("fileKey".to_owned(), Value::String(file_key.to_owned()));
+    }
+}
+
 /// 플러그인이 돌려준 값을 원격 `use_figma` 가 주는 모양으로 감싼다.
 ///
 /// 디코더들은 `content[].text` 안의 JSON 문자열을 찾도록 쓰여 있다. 값을 그대로
@@ -383,10 +404,11 @@ impl FigmaUpstream for BridgeFigmaClient {
             // 여기서 흉내 내지 않는다.
             return Err(unavailable("the bridge serves script reads only"));
         };
-        let data = self
+        let mut data = self
             .state
             .dispatch(call.file_key(), job.script, job.params)
             .await?;
+        stamp_file_key(&mut data, call.file_key());
         Ok(UpstreamResult {
             raw: wrap_as_tool_result(&data)?,
         })
