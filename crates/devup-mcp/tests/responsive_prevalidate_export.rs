@@ -113,7 +113,8 @@ async fn call(
 }
 
 #[tokio::test]
-async fn responsive_tsx_over_unrelated_frames_is_refused_without_collecting() -> anyhow::Result<()> {
+async fn responsive_tsx_over_unrelated_frames_is_refused_without_collecting() -> anyhow::Result<()>
+{
     let upstream = Arc::new(IndexOnlyUpstream::default());
     let server = DevupServer::new(Services::new(Arc::new(ConnectedAuth), upstream.clone()));
     let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
@@ -150,7 +151,10 @@ async fn responsive_tsx_over_unrelated_frames_is_refused_without_collecting() ->
         after_index,
         "the refusal must not cost a single Figma read"
     );
-    assert!(errored, "two unrelated screens are not one responsive module");
+    assert!(
+        errored,
+        "two unrelated screens are not one responsive module"
+    );
     let text = refusal.to_string();
     assert!(
         text.contains("responsiveTsx"),

@@ -259,9 +259,7 @@ impl<'t> TsxVisitor<'t> {
                 let expected = token_category_for_prop(prop_name);
                 let names = catalog
                     .iter()
-                    .filter(|(_, entry)| {
-                        expected.is_none_or(|category| entry.category == category)
-                    })
+                    .filter(|(_, entry)| expected.is_none_or(|category| entry.category == category))
                     .map(|(name, _)| name)
                     .collect::<Vec<_>>();
                 let suggestions = closest_tokens(token, names.into_iter(), 3);
@@ -797,9 +795,7 @@ mod tests {
             .violations
             .iter()
             .find(|violation| violation.rule == "unknown-token")
-            .unwrap_or_else(|| {
-                panic!("mainSubText is not in the theme: {:?}", report.violations)
-            });
+            .unwrap_or_else(|| panic!("mainSubText is not in the theme: {:?}", report.violations));
         assert_eq!(violation.severity, Severity::Error);
         assert!(violation.message.contains("mainSubText"), "{violation:?}");
         assert!(!report.ok);

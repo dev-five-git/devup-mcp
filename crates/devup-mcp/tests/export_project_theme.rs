@@ -149,7 +149,10 @@ const URL: &str = "https://www.figma.com/design/85CgSws3o5XsLv7aAwWJyS/Fixture?n
 async fn an_export_without_a_project_root_reads_nothing_from_disk() -> anyhow::Result<()> {
     let result = export(json!({"url": URL, "outputs": ["tsx"]})).await?;
     assert!(
-        result["tsx"].as_str().unwrap_or_default().contains("$primary"),
+        result["tsx"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("$primary"),
         "the fixture must generate the Figma name: {}",
         result["tsx"]
     );

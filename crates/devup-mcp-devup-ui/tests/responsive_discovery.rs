@@ -54,8 +54,11 @@ fn merged_slots(frames: &[(&str, &str, f64)]) -> Option<Vec<usize>> {
 /// The reported case: one screen, two widths, a name the plugin does not use.
 #[test]
 fn one_name_at_two_widths_is_a_breakpoint_family() {
-    let slots = merged_slots(&[("777:510", "AUTH-01", 1920.0), ("789:1425", "AUTH-01", 375.0)])
-        .expect("1920 and 375 of one screen are a family");
+    let slots = merged_slots(&[
+        ("777:510", "AUTH-01", 1920.0),
+        ("789:1425", "AUTH-01", 375.0),
+    ])
+    .expect("1920 and 375 of one screen are a family");
     assert_eq!(slots, vec![0, 4], "375 is slot 0 and 1920 is slot 4");
 }
 
@@ -77,7 +80,10 @@ fn the_plugin_breakpoint_names_still_merge() {
 #[test]
 fn one_name_twice_at_one_width_is_not_a_family() {
     assert_eq!(
-        merged_slots(&[("789:1425", "AUTH-01", 375.0), ("789:1491", "AUTH-01", 375.0)]),
+        merged_slots(&[
+            ("789:1425", "AUTH-01", 375.0),
+            ("789:1491", "AUTH-01", 375.0)
+        ]),
         None,
         "same width, so there is no second breakpoint"
     );
@@ -88,7 +94,10 @@ fn one_name_twice_at_one_width_is_not_a_family() {
 #[test]
 fn different_names_are_never_merged_on_width_alone() {
     assert_eq!(
-        merged_slots(&[("777:510", "AUTH-01", 1920.0), ("789:1540", "AUTH-02", 375.0)]),
+        merged_slots(&[
+            ("777:510", "AUTH-01", 1920.0),
+            ("789:1540", "AUTH-02", 375.0)
+        ]),
         None,
         "unrelated screens must not merge"
     );

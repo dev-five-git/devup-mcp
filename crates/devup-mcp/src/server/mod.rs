@@ -1113,7 +1113,12 @@ impl DevupServer {
             return job
                 .wait_briefly()
                 .await
-                .map(|result| tool_result(with_project_theme_validation(result, project_root.as_deref())))
+                .map(|result| {
+                    tool_result(with_project_theme_validation(
+                        result,
+                        project_root.as_deref(),
+                    ))
+                })
                 .map_err(to_mcp_error);
         }
         if workflow.job_action.is_some() {
@@ -1705,8 +1710,11 @@ fn with_project_theme_validation(mut result: Value, project_root: Option<&str>) 
     };
     let mut outputs = serde_json::Map::new();
     for (key, tsx) in generated {
-        let report =
-            devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(&tsx, lookup.theme.as_ref(), false);
+        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+            &tsx,
+            lookup.theme.as_ref(),
+            false,
+        );
         // Only the findings a caller has to act on. The hardcoded-value
         // information is already in `fidelity`, and repeating twenty of them
         // here would bury the handful that stop the code compiling into a
