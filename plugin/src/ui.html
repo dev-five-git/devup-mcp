@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font: 12px/1.5 Inter, system-ui, sans-serif;
+        color: #1e1e1e;
+        background: #fff;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+        color: #8c8c8c;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+        background: #c4c4c4;
+      }
+      .dot.on {
+        background: #14ae5c;
+      }
+      .dot.off {
+        background: #e5484d;
+      }
+      #line {
+        font-weight: 500;
+      }
+      #detail {
+        margin-top: 6px;
+        color: #8c8c8c;
+      }
+      .hint {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #e6e6e6;
+        color: #8c8c8c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Devup Bridge</h1>
+    <p>이 창을 열어 두면 devup-mcp 가 이 파일을 직접 읽습니다.</p>
+
+    <div class="row">
+      <span class="dot" id="dot"></span>
+      <span id="line">시작하는 중…</span>
+    </div>
+    <div id="detail"></div>
+
+    <p class="hint">
+      읽기 전용입니다. 문서를 바꾸지 않고, 데이터는 같은 기기의 devup-mcp 로만
+      나갑니다.
+    </p>
+  </body>
+</html>
