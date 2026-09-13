@@ -12,10 +12,10 @@
     "typecheck": "npm run gen && tsc --noEmit"
   },
   "devDependencies": {
-    "@figma/plugin-typings": "^1.109.0",
-    "@rspack/cli": "^1.2.0",
-    "@rspack/core": "^1.2.0",
-    "html-webpack-plugin": "^5.6.3",
-    "typescript": "^5.8.0"
+    "@figma/plugin-typings": "^1.138.0",
+    "@rspack/cli": "^2.2.3",
+    "@rspack/core": "^2.2.3",
+    "html-webpack-plugin": "^5.6.8",
+    "typescript": "^7.0.2"
   }
 }
