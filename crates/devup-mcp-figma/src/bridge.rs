@@ -14,7 +14,7 @@ use std::{
     collections::HashMap,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -39,7 +39,7 @@ use tokio::{
 
 use crate::{
     errors::{DevupError, ErrorCode},
-    upstream::{FigmaUpstream, ReadToolCall, UpstreamResult},
+    upstream::{BatchBudget, FigmaUpstream, ReadToolCall, UpstreamResult},
 };
 
 /// 플러그인 manifest 의 `allowedDomains` 와 같은 값이어야 한다. 바꾸려면 양쪽을
@@ -106,6 +106,9 @@ struct Inner {
 pub struct BridgeState {
     inner: Arc<Mutex<Inner>>,
     counter: Arc<AtomicU64>,
+    /// 붙어 있는 플러그인 수. 배치 크기를 정할 때는 잠금을 기다릴 수 없어
+    /// (그 자리가 async 가 아니다) 따로 센다.
+    connected: Arc<AtomicUsize>,
 }
 
 fn unavailable(message: impl Into<String>) -> DevupError {
@@ -309,6 +312,10 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                             key.clone(),
                             Connected { outbox: outbox.clone() },
                         );
+                        state.connected.store(
+                            state.inner.lock().await.plugins.len(),
+                            Ordering::Relaxed,
+                        );
                         registered = Some(key);
                     }
                     Some("devup-result") => {
@@ -330,6 +337,9 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
     if let Some(key) = registered {
         state.inner.lock().await.plugins.remove(&key);
     }
+    state
+        .connected
+        .store(state.inner.lock().await.plugins.len(), Ordering::Relaxed);
 }
 
 /// 브리지 서버. 포트를 잡지 못하면 열지 않으며, 그 경우 호출자는 원격 경로만 쓴다.
@@ -402,6 +412,10 @@ impl BridgeServer {
 #[async_trait]
 pub trait PreferredUpstream: FigmaUpstream {
     async fn can_serve(&self, call: &ReadToolCall) -> bool;
+
+    /// 지금 이 상류가 쓸 수 있는 상태인지. 배치 크기를 정하는 자리는 async 가
+    /// 아니어서 `can_serve` 를 부를 수 없다.
+    fn is_live(&self) -> bool;
 }
 
 /// 플러그인을 통해 Figma 를 읽는 `FigmaUpstream`.
@@ -440,6 +454,10 @@ impl FigmaUpstream for BridgeFigmaClient {
             raw: wrap_as_tool_result(&data)?,
         })
     }
+
+    fn batch_budget(&self) -> BatchBudget {
+        BRIDGE_BATCH
+    }
 }
 
 #[async_trait]
@@ -447,7 +465,19 @@ impl PreferredUpstream for BridgeFigmaClient {
     async fn can_serve(&self, call: &ReadToolCall) -> bool {
         call.bridge_job().is_some() && self.state.has_plugin(call.file_key()).await
     }
+
+    fn is_live(&self) -> bool {
+        self.state.connected.load(Ordering::Relaxed) > 0
+    }
 }
+
+/// 자르지 않는 전송이므로 쪼갤 이유가 없다. 변수와 스타일을 한 번에 다 묻는다.
+const BRIDGE_BATCH: BatchBudget = BatchBudget {
+    variable_items: 4096,
+    style_items: 4096,
+    used_resource_items: 4096,
+    used_resource_bytes: BRIDGE_ENVELOPE_BYTES,
+};
 
 /// 브리지가 맡을 수 있으면 브리지로, 아니면 원격으로 보낸다.
 ///
@@ -484,5 +514,20 @@ where
             return self.preferred.call_read_tool(call).await;
         }
         self.secondary.call_read_tool(call).await
+    }
+
+    /// 붙어 있는 플러그인이 있으면 그쪽 크기로 묶는다.
+    ///
+    /// 배치는 부르기 한참 전에 나뉘므로 어느 전송이 받을지 그때는 알 수 없다.
+    /// 다만 크게 묶어도 되는 읽기는 전부 스크립트 경로이고, 플러그인이 붙어 있는
+    /// 한 그것은 브리지가 받는다. 수집 도중 플러그인이 닫히면 남은 배치가 원격에
+    /// 너무 커서 거절되는데, 그때는 수집 자체가 이어질 수 없으므로 실패가 드러나는
+    /// 편이 맞다.
+    fn batch_budget(&self) -> BatchBudget {
+        if self.preferred.is_live() {
+            self.preferred.batch_budget()
+        } else {
+            self.secondary.batch_budget()
+        }
     }
 }

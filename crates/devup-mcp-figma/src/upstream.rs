@@ -796,10 +796,39 @@ pub struct UpstreamResult {
     pub raw: Value,
 }
 
+/// 리소스를 몇 개씩 묶어 물어볼 수 있는지.
+///
+/// 기본값은 공식 MCP 가 텍스트 결과를 자르는 지점에서 나왔다. 변수 8개, 스타일
+/// 8개씩 끊어 묻느라 화면 하나에 수십 번을 오가고, 그 왕복 하나하나가 창이 뒤에
+/// 있을 때 10초를 넘는다. 자르지 않는 전송은 한 번에 다 물어도 된다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BatchBudget {
+    pub variable_items: usize,
+    pub style_items: usize,
+    pub used_resource_items: usize,
+    pub used_resource_bytes: usize,
+}
+
+impl Default for BatchBudget {
+    fn default() -> Self {
+        Self {
+            variable_items: 8,
+            style_items: 8,
+            used_resource_items: 12,
+            used_resource_bytes: 12_000,
+        }
+    }
+}
+
 #[async_trait]
 pub trait FigmaUpstream: Send + Sync {
     async fn list_tools(&self) -> Result<Vec<String>, DevupError>;
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError>;
+
+    /// 이 전송으로 한 번에 물어볼 수 있는 양.
+    fn batch_budget(&self) -> BatchBudget {
+        BatchBudget::default()
+    }
 }
 
 #[derive(Clone)]

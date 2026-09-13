@@ -14,12 +14,12 @@ use crate::large_values::{
     LargeValueResult, descriptors_in_chunk, large_value_from_result, replace_descriptor,
 };
 use crate::{
-    AssetExportOutcome, AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchLimits,
-    BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget, LargeValueAssembler,
-    LargeValueReadOptions, RawNode, ReadToolCall, ResourceBatch, ResourceScope, ResourceStyleRef,
-    SNAPSHOT_CURSOR_ID, SearchReadOptions, SectionIndex, SnapshotChunk, SnapshotCursor,
-    SnapshotReadOptions, UnresolvedResource, UpstreamResult, UsedResourceRefs,
-    asset_export_from_result, build_section_index, collect_used_resource_refs,
+    AssetExportOutcome, AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, BatchBudget,
+    BatchLimits, BuiltinScript, DevupError, ErrorCode, ExploreReadOptions, FigmaTarget,
+    LargeValueAssembler, LargeValueReadOptions, RawNode, ReadToolCall, ResourceBatch,
+    ResourceScope, ResourceStyleRef, SNAPSHOT_CURSOR_ID, SearchReadOptions, SectionIndex,
+    SnapshotChunk, SnapshotCursor, SnapshotReadOptions, UnresolvedResource, UpstreamResult,
+    UsedResourceRefs, asset_export_from_result, build_section_index, collect_used_resource_refs,
     decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme, exported_asset_from_bytes,
     merge_chunks,
     metadata::{MetadataResult, metadata_from_result_for_target},
@@ -33,8 +33,6 @@ use crate::{
 const LARGE_SUBTREE_THRESHOLD: usize = 200;
 
 const MAX_PENDING_CALLS: usize = 4;
-const VARIABLE_BATCH_SIZE: usize = 8;
-const STYLE_BATCH_SIZE: usize = 8;
 // The byte budget below measures the *request* — the IDs — and the ceiling
 // that matters is on the *response*: the official MCP cuts a text result at
 // 20,480 UTF-8 bytes (measured; see `scripts/fast_snapshot.js`) and appends
@@ -42,8 +40,6 @@ const STYLE_BATCH_SIZE: usize = 8;
 // codeSyntax is five hundred to a thousand bytes on the way back, so the
 // sixty-four this allowed could not fit; thirty-eight were measured filling
 // the cap exactly. Twelve leaves the response near a third of it.
-const USED_RESOURCE_BATCH_ITEMS: usize = 12;
-const USED_RESOURCE_BATCH_BYTES: usize = 12_000;
 // Consumer relations can be huge. Compact, bounded fragments are expanded
 // back to the exhaustive shape in Rust without dropping any relation.
 const STYLE_CONSUMER_BATCH_SIZE: usize = 320;
@@ -63,6 +59,8 @@ pub enum CollectionScope {
 
 #[derive(Debug, Clone)]
 pub struct CollectionRequest {
+    /// 이 수집을 실어 나를 전송이 한 번에 받을 수 있는 양.
+    pub batch_budget: BatchBudget,
     pub target: FigmaTarget,
     pub scope: CollectionScope,
     pub resource_scope: ResourceScope,
@@ -91,6 +89,9 @@ impl CollectionRequest {
         Self {
             target,
             scope,
+            // 자르는 전송을 전제로 한 값. 브리지로 수집할 때는 호출자가
+            // `FigmaUpstream::batch_budget` 에서 받아 덮어쓴다.
+            batch_budget: BatchBudget::default(),
             resource_scope: ResourceScope::None,
             include_context: false,
             metadata_only: false,
@@ -1940,7 +1941,10 @@ impl CollectorSession {
         let node_id = self.root_node_id.clone().ok_or_else(|| {
             invalid_call("No root node ID available for the Figma variable batch.")
         })?;
-        for variable_ids in catalog.variable_ids.chunks(VARIABLE_BATCH_SIZE) {
+        for variable_ids in catalog
+            .variable_ids
+            .chunks(self.request.batch_budget.variable_items.max(1))
+        {
             self.enqueue(
                 ReadToolCall::resource_batch(
                     &self.request.target.file_key,
@@ -1954,7 +1958,10 @@ impl CollectorSession {
                 CallKind::VariableBatch,
             );
         }
-        for styles in catalog.styles.chunks(STYLE_BATCH_SIZE) {
+        for styles in catalog
+            .styles
+            .chunks(self.request.batch_budget.style_items.max(1))
+        {
             self.enqueue(
                 ReadToolCall::resource_batch(
                     &self.request.target.file_key,
@@ -1991,7 +1998,7 @@ impl CollectorSession {
         let node_id = self.root_node_id.clone().ok_or_else(|| {
             invalid_call("No root node ID available for the used Figma resource batch.")
         })?;
-        for batch in used_resource_batches(&refs)? {
+        for batch in used_resource_batches(&refs, self.request.batch_budget)? {
             self.enqueue(
                 ReadToolCall::used_resources(&self.request.target.file_key, &node_id, batch),
                 Some(node_id.clone()),
@@ -2411,7 +2418,10 @@ enum UsedResourceItem {
     Style(ResourceStyleRef),
 }
 
-fn used_resource_batches(refs: &UsedResourceRefs) -> Result<Vec<ResourceBatch>, DevupError> {
+fn used_resource_batches(
+    refs: &UsedResourceRefs,
+    budget: BatchBudget,
+) -> Result<Vec<ResourceBatch>, DevupError> {
     let items = refs
         .variable_ids
         .iter()
@@ -2427,7 +2437,7 @@ fn used_resource_batches(refs: &UsedResourceRefs) -> Result<Vec<ResourceBatch>, 
     for item in items {
         let mut candidate = current.clone();
         add_used_resource(&mut candidate, item.clone());
-        if used_resource_batch_fits(&candidate) {
+        if used_resource_batch_fits(&candidate, budget) {
             current = candidate;
             continue;
         }
@@ -2444,7 +2454,7 @@ fn used_resource_batches(refs: &UsedResourceRefs) -> Result<Vec<ResourceBatch>, 
             styles: Vec::new(),
         };
         add_used_resource(&mut current, item);
-        if !used_resource_batch_fits(&current) {
+        if !used_resource_batch_fits(&current, budget) {
             return Err(DevupError::new(
                 ErrorCode::DevupFigmaResponseTooLarge,
                 "A single Figma resource ID exceeds the safe batch size.",
@@ -2465,9 +2475,9 @@ fn add_used_resource(batch: &mut ResourceBatch, item: UsedResourceItem) {
     }
 }
 
-fn used_resource_batch_fits(batch: &ResourceBatch) -> bool {
-    batch.variable_ids.len() + batch.styles.len() <= USED_RESOURCE_BATCH_ITEMS
-        && serde_json::to_vec(batch).is_ok_and(|bytes| bytes.len() <= USED_RESOURCE_BATCH_BYTES)
+fn used_resource_batch_fits(batch: &ResourceBatch, budget: BatchBudget) -> bool {
+    batch.variable_ids.len() + batch.styles.len() <= budget.used_resource_items
+        && serde_json::to_vec(batch).is_ok_and(|bytes| bytes.len() <= budget.used_resource_bytes)
 }
 
 #[cfg(test)]
