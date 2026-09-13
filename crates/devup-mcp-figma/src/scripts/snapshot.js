@@ -6,8 +6,14 @@ const manifestSet = new Set(manifest);
 const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
 const snapshotOptions = "__DEVUP_SNAPSHOT__";
 const offset = Math.max(0, Math.floor(Number(snapshotOptions.offset) || 0));
+// 이 천장들은 공식 MCP 가 텍스트 결과를 자르는 지점에서 나왔다. 로컬 소켓으로
+// 읽을 때는 자름이 없으므로 한 번에 다 담을 수 있고, 그러면 큰 필드를 따로
+// 받아오는 chunk-read 왕복이 통째로 사라진다. 값이 없으면 기존 그대로다.
+const payloadCeiling = snapshotOptions.maxEnvelopeBytes
+  ? Math.max(8 * 1024, Math.floor(Number(snapshotOptions.maxEnvelopeBytes)))
+  : 16000;
 const maxPayloadBytes = Math.min(
-  16000,
+  payloadCeiling,
   Math.max(4096, Math.floor(Number(snapshotOptions.maxPayloadBytes) || 15000)),
 );
 const maxFieldBytes = Math.min(

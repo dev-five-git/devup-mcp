@@ -279,6 +279,12 @@ struct ScriptInputs<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotReadOptions {
+    /// 봉투 전체가 넘을 수 없는 바이트 수. `0` 이면 스크립트 기본 천장.
+    ///
+    /// 공식 MCP 는 텍스트 결과를 자르므로 그 아래로 쪼개 여러 번 읽어야 한다.
+    /// 로컬 소켓에는 그 자름이 없어 한 번에 담을 수 있고, 그만큼 왕복이 사라진다.
+    #[serde(default)]
+    pub max_envelope_bytes: usize,
     pub offset: usize,
     pub max_payload_bytes: usize,
     pub max_field_bytes: usize,
@@ -294,6 +300,9 @@ impl Default for SnapshotReadOptions {
             // up in `scripts/fast_snapshot.js`.
             max_payload_bytes: 15_000,
             max_field_bytes: 4_096,
+            // 0 이면 스크립트가 위에서 잰 천장을 그대로 쓴다. 자름이 없는 전송
+            // (로컬 브리지)만 이 값을 올려 한 페이지에 전부 담는다.
+            max_envelope_bytes: 0,
         }
     }
 }
@@ -787,10 +796,39 @@ pub struct UpstreamResult {
     pub raw: Value,
 }
 
+/// 리소스를 몇 개씩 묶어 물어볼 수 있는지.
+///
+/// 기본값은 공식 MCP 가 텍스트 결과를 자르는 지점에서 나왔다. 변수 8개, 스타일
+/// 8개씩 끊어 묻느라 화면 하나에 수십 번을 오가고, 그 왕복 하나하나가 창이 뒤에
+/// 있을 때 10초를 넘는다. 자르지 않는 전송은 한 번에 다 물어도 된다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BatchBudget {
+    pub variable_items: usize,
+    pub style_items: usize,
+    pub used_resource_items: usize,
+    pub used_resource_bytes: usize,
+}
+
+impl Default for BatchBudget {
+    fn default() -> Self {
+        Self {
+            variable_items: 8,
+            style_items: 8,
+            used_resource_items: 12,
+            used_resource_bytes: 12_000,
+        }
+    }
+}
+
 #[async_trait]
 pub trait FigmaUpstream: Send + Sync {
     async fn list_tools(&self) -> Result<Vec<String>, DevupError>;
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError>;
+
+    /// 이 전송으로 한 번에 물어볼 수 있는 양.
+    fn batch_budget(&self) -> BatchBudget {
+        BatchBudget::default()
+    }
 }
 
 #[derive(Clone)]
@@ -884,6 +922,143 @@ fn upstream_timeout_error(context: UpstreamFailureContext) -> DevupError {
         "phase": phase,
     });
     error
+}
+
+impl BuiltinScript {
+    /// 플러그인이 아는 이름.
+    ///
+    /// 코드젠이 파일명에서 만든 것과 같아야 한다(`fast_snapshot.js` →
+    /// `fastSnapshot`). 어긋나면 플러그인이 `DEVUP_BRIDGE_UNKNOWN_SCRIPT` 를
+    /// 돌려주며 아는 이름을 함께 알려 준다.
+    pub fn plugin_name(self) -> &'static str {
+        match self {
+            Self::NodeSnapshot => "snapshot",
+            // 두 변형이 같은 원본을 쓴다. 나뉘는 곳은 넘기는 rootIds 뿐이다.
+            Self::FastSnapshotEnvelope | Self::MultiRootSnapshotEnvelope => "fastSnapshot",
+            Self::FastThemeEnvelope => "fastTheme",
+            Self::PageCatalog => "pageCatalog",
+            Self::SearchSnapshot => "search",
+            Self::VariableCatalog => "variableCatalog",
+            Self::LocalVariables => "variables",
+            Self::UsedResources => "usedResources",
+            Self::ExploreSnapshot => "explore",
+            Self::SectionIndex => "sectionIndex",
+            Self::LargeValue => "largeValue",
+            Self::AssetExport => "assets",
+        }
+    }
+}
+
+impl ReadToolCall {
+    /// 이 읽기가 향하는 파일.
+    pub fn file_key(&self) -> &str {
+        match self {
+            Self::Metadata { file_key, .. }
+            | Self::VariableDefs { file_key, .. }
+            | Self::DesignContext { file_key, .. }
+            | Self::CodeConnectMap { file_key, .. }
+            | Self::Screenshot { file_key, .. }
+            | Self::Snapshot { file_key, .. }
+            | Self::SearchSnapshot { file_key, .. }
+            | Self::PageCatalog { file_key }
+            | Self::ExploreSnapshot { file_key, .. }
+            | Self::FastTheme { file_key, .. }
+            | Self::LargeValue { file_key, .. }
+            | Self::AssetExport { file_key, .. } => file_key,
+        }
+    }
+
+    /// 브리지가 대신할 수 있는 읽기면 스크립트 이름과 값을, 아니면 `None`.
+    ///
+    /// 값이 놓이는 자리는 [`BuiltinScript::source`] 의 치환 자리와 1:1 이다. 한쪽만
+    /// 고치면 브리지 경로에서만 빈 값이 들어가 조용히 다른 결과가 나온다.
+    ///
+    /// 공식 도구 이름으로 가는 읽기(`get_metadata` 등)는 `None` 이다. 플러그인이
+    /// 같은 정보를 만들 수는 있지만 응답 모양이 달라, 흉내 내면 디코더가 두 경로
+    /// 에서 다르게 동작한다.
+    pub fn bridge_job(&self) -> Option<crate::bridge::BridgeJob> {
+        use crate::bridge::BridgeJob;
+
+        let job = match self {
+            Self::Metadata { .. }
+            | Self::VariableDefs { .. }
+            | Self::DesignContext { .. }
+            | Self::CodeConnectMap { .. }
+            | Self::Screenshot { .. } => return None,
+
+            Self::Snapshot {
+                node_id,
+                script,
+                resources,
+                snapshot,
+                root_ids,
+                ..
+            } => BridgeJob {
+                script: script.plugin_name(),
+                params: json!({
+                    "nodeId": node_id,
+                    // `source` 와 같은 기본값. 단일 루트 읽기는 대상 노드 하나다.
+                    "rootIds": root_ids.clone()
+                        .unwrap_or_else(|| vec![node_id.clone()]),
+                    "snapshot": snapshot.clone().unwrap_or_default(),
+                    // `source` 의 `empty_resources` 와 같은 빈 값. 스크립트는 두
+                    // 배열이 있다고 전제하므로 없는 채로 두면 거기서 죽는다.
+                    "resources": resources.clone().unwrap_or(ResourceBatch {
+                        variable_ids: Vec::new(),
+                        styles: Vec::new(),
+                    }),
+                }),
+            },
+
+            Self::SearchSnapshot {
+                node_id, options, ..
+            } => BridgeJob {
+                script: BuiltinScript::SearchSnapshot.plugin_name(),
+                params: json!({ "nodeId": node_id, "search": options }),
+            },
+
+            Self::PageCatalog { .. } => BridgeJob {
+                script: BuiltinScript::PageCatalog.plugin_name(),
+                params: json!({}),
+            },
+
+            Self::ExploreSnapshot {
+                node_id, options, ..
+            } => BridgeJob {
+                script: BuiltinScript::ExploreSnapshot.plugin_name(),
+                params: json!({ "nodeId": node_id, "explore": options }),
+            },
+
+            Self::FastTheme { offset, .. } => BridgeJob {
+                script: BuiltinScript::FastThemeEnvelope.plugin_name(),
+                params: json!({ "theme": { "offset": offset } }),
+            },
+
+            Self::LargeValue { options, .. } => BridgeJob {
+                script: BuiltinScript::LargeValue.plugin_name(),
+                params: json!({ "nodeId": options.node_id, "largeValue": options }),
+            },
+
+            Self::AssetExport {
+                version, request, ..
+            } => BridgeJob {
+                script: BuiltinScript::AssetExport.plugin_name(),
+                params: json!({
+                    "nodeId": request.node_id,
+                    "asset": {
+                        "assetId": request.asset_id,
+                        "nodeId": request.node_id,
+                        "field": request.field,
+                        "imageHash": request.image_hash,
+                        "format": request.format,
+                        "scale": request.scale,
+                        "version": version,
+                    },
+                }),
+            },
+        };
+        Some(job)
+    }
 }
 
 #[cfg(test)]

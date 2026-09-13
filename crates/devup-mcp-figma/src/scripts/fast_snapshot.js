@@ -104,11 +104,22 @@ const offset = Math.max(0, Math.floor(Number(pageOptions.offset) || 0));
 // `integrity.utf8Bytes` matched the text that arrived on every one of 488
 // banked pages, so a 1 KiB margin under the cut is enough. There is no PNG
 // fallback any more; a page has to survive as text.
+// 위 측정은 공식 MCP 가 텍스트 결과를 자르는 지점에 관한 것이다. 로컬 소켓으로
+// 읽을 때는 그 자름이 없어 한 페이지에 전부 담을 수 있고, 그러면 이 스크립트를
+// 수십 번 다시 부르지 않아도 된다. 천장을 옵션으로 열어 두되, 값이 없으면 위에서
+// 잰 그대로 동작한다.
+const envelopeCeiling = Math.max(
+  8 * 1024,
+  Math.floor(Number(pageOptions.maxEnvelopeBytes) || 19 * 1024),
+);
+const payloadCeiling = pageOptions.maxEnvelopeBytes
+  ? envelopeCeiling - 1024
+  : 18000;
 const maxPayloadBytes = Math.min(
-  18000,
+  payloadCeiling,
   Math.max(4096, Math.floor(Number(pageOptions.maxPayloadBytes) || 15000)),
 );
-const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;
+const MAX_TEXT_ENVELOPE_BYTES = envelopeCeiling;
 
 // A field whose value equals its default carries no information the converter
 // can't recover from the key being absent, so it is dropped from the envelope.

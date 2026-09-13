@@ -1,0 +1,48 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"/><style>body {
+        margin: 0;
+        padding: 16px;
+        font: 12px/1.5 Inter, system-ui, sans-serif;
+        color: #1e1e1e;
+        background: #fff;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+        color: #8c8c8c;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+        background: #c4c4c4;
+      }
+      .dot.on {
+        background: #14ae5c;
+      }
+      .dot.off {
+        background: #e5484d;
+      }
+      #line {
+        font-weight: 500;
+      }
+      #detail {
+        margin-top: 6px;
+        color: #8c8c8c;
+      }
+      .hint {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #e6e6e6;
+        color: #8c8c8c;
+      }</style></head><body><h1>Devup Bridge</h1><p>이 창을 열어 두면 devup-mcp 가 이 파일을 직접 읽습니다.</p><div class="row"><span class="dot" id="dot"></span> <span id="line">시작하는 중…</span></div><div id="detail"></div><p class="hint">읽기 전용입니다. 문서를 바꾸지 않고, 데이터는 같은 기기의 devup-mcp 로만 나갑니다.</p><script>(()=>{var e={},t={};function n(o){var r=t[o];if(void 0!==r)return r.exports;var i=t[o]={exports:{}};return e[o](i,i.exports,n),i.exports}n.rv=()=>"1.7.12",n.ruid="bundler=rspack@1.7.12";let o=null,r=null,i=0,s=document.getElementById("dot"),a=document.getElementById("line"),l=document.getElementById("detail");function u(e,t){s.className=`dot ${e}`,a.textContent=t,l.textContent=r?`${r.fileName} \xb7 처리 ${i}건`:"파일 정보를 읽는 중…"}window.onmessage=e=>{let t=e.data?.pluginMessage;if(t&&"object"==typeof t){if("devup-status"===t.kind){r=t,u("off","devup-mcp 연결 대기 중…"),function e(){let t;if(!r)return;let n=`ws://localhost:${r.port}/plugin`;try{t=new WebSocket(n)}catch{u("off","devup-mcp 를 찾지 못했습니다"),setTimeout(e,2e3);return}o=t,t.onopen=()=>{u("on","devup-mcp 에 연결됨"),t.send(JSON.stringify({kind:"hello",fileKey:r?.fileKey??null,fileName:r?.fileName??""}))},t.onmessage=e=>{let t;try{t=JSON.parse(String(e.data))}catch{return}parent.postMessage({pluginMessage:t},"*")},t.onclose=()=>{o=null,u("off","devup-mcp 연결 대기 중…"),setTimeout(e,2e3)},t.onerror=()=>{}}();return}"devup-result"===t.kind&&o&&o.readyState===WebSocket.OPEN&&(o.send(JSON.stringify(t)),i+=1,u("on","devup-mcp 에 연결됨"))}},!function(){try{let e=window.AudioContext??window.webkitAudioContext;if(!e)return;let t=new e,n=t.createGain();n.gain.value=0;let o=t.createOscillator();o.connect(n),n.connect(t.destination),o.start(),"suspended"===t.state&&t.resume()}catch{}}(),parent.postMessage({pluginMessage:{kind:"devup-ready"}},"*")})();</script></body></html>

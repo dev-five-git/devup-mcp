@@ -1,0 +1,14 @@
+{
+  "name": "Devup Bridge",
+  "id": "devup-bridge-plugin",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "capabilities": ["inspect"],
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma", "dev"],
+  "networkAccess": {
+    "allowedDomains": ["ws://localhost:1993"],
+    "reasoning": "devup-mcp 가 같은 기기에서 여는 로컬 WebSocket 에 붙어, 열려 있는 파일의 노드를 읽어 돌려줍니다. 문서를 바꾸지 않고 외부로 보내지도 않습니다."
+  }
+}

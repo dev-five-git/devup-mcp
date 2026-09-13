@@ -40,13 +40,14 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload,
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
-    DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
-    ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
-    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
-    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
-    SystemBrowser, TokenState, UpstreamResult,
+    AuthStatus, BridgeFigmaClient, BridgeServer, ClientCredentialSource, ClientCredentials,
+    CollectedParts, CollectedPayload, CollectionRequest, CollectionScope, CollectorSession,
+    CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode,
+    ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions, FallbackUpstream, FigmaTarget,
+    FigmaUpstream, KeyringClientCredentialStore, KeyringCredentialStore, OAuthManager,
+    ReadToolCall, RemoteFigmaClient, ResourceScope, SearchReadOptions, SecretString,
+    SectionCandidate, SectionIndex, SectionReadOptions, Snapshot, SystemBrowser, TokenState,
+    UpstreamResult,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -271,8 +272,18 @@ impl Services {
                 figma_direct.credential_source,
             );
         }
-        let upstream = RemoteFigmaClient::new(oauth.clone());
-        Ok(Self::new(Arc::new(oauth), Arc::new(upstream)))
+        let remote = RemoteFigmaClient::new(oauth.clone());
+        // A script read goes to the bridge when one is listening. With no
+        // plugin attached every call falls straight through to the remote
+        // path, so opening the door costs nothing when nobody walks through.
+        let upstream: Arc<dyn FigmaUpstream> = match BridgeServer::from_env() {
+            Some(bridge) => Arc::new(FallbackUpstream::new(
+                BridgeFigmaClient::new(bridge.state()),
+                remote,
+            )),
+            None => Arc::new(remote),
+        };
+        Ok(Self::new(Arc::new(oauth), upstream))
     }
 }
 
@@ -560,6 +571,11 @@ impl DevupServer {
             validation::validate_export_budget(&index.select(&[], true)?, outputs)?;
         }
         let target = request.target.clone();
+        // 리소스를 몇 개씩 묶어 물을지는 이 수집을 실어 나를 전송이 정한다.
+        // 공식 MCP 는 응답을 자르므로 8개씩 끊지만, 자르지 않는 전송은 한 번에
+        // 다 물어도 되고 그만큼 왕복이 사라진다.
+        let mut request = request;
+        request.batch_budget = self.services.upstream.batch_budget();
         let mut collector = CollectorSession::new(request);
         loop {
             if let Some(job) = job {

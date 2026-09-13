@@ -65,6 +65,7 @@ fn snapshot_is_byte_bounded_and_cursor_driven() {
             offset: 7,
             max_payload_bytes: 12_000,
             max_field_bytes: 4_096,
+            ..SnapshotReadOptions::default()
         },
     );
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
@@ -395,7 +396,15 @@ fn fast_snapshot_is_paginated_manifest_scoped_and_read_only() {
     assert!(!code.contains("Math.floor(nodeBudget / 2)"));
     // The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the page is
     // packed to 1 KiB under that, measured as the bytes that are cut.
-    assert!(code.contains("const MAX_TEXT_ENVELOPE_BYTES = 19 * 1024;"));
+    //
+    // What has to hold is the 19 KiB bound for this transport, not the literal
+    // that carries it. A transport that does not cut - the local bridge - hands
+    // its own ceiling in and reads a screen in one page instead of thirty, so
+    // the number is a default rather than a constant.
+    assert!(code.contains("Number(pageOptions.maxEnvelopeBytes) || 19 * 1024"));
+    assert!(code.contains("const MAX_TEXT_ENVELOPE_BYTES = envelopeCeiling;"));
+    // Absent an override the packing ceiling is what it was measured to be.
+    assert!(code.contains(": 18000;"));
     assert!(code.contains("utf8ByteLength(JSON.stringify(envelope))"));
     // Item B: PNG-chunked binary transport is gone entirely — text only,
     // dynamically byte-budgeted and cursor-paginated like the legacy path.

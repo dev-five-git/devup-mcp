@@ -9,7 +9,8 @@ repository.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-axum.workspace = true
+# `ws` 는 기본 기능이 아니다. 브리지가 플러그인을 받는 데 쓴다.
+axum = { workspace = true, features = ["ws"] }
 base64.workspace = true
 image.workspace = true
 keyring.workspace = true
@@ -29,3 +30,7 @@ webbrowser.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 tempfile = "3"
+# 브리지 서버에 붙는 가짜 플러그인 역할. axum 의 `ws` 가 이미 끌어오는 것과 같은
+# 구현이라 의존성 트리가 늘지 않는다.
+tokio-tungstenite = "0.28"
+futures-util = "0.3"

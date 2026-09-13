@@ -1,0 +1,21 @@
+{
+  "name": "devup-bridge-plugin",
+  "version": "0.4.6",
+  "private": true,
+  "type": "module",
+  "description": "devup-mcp 가 Figma 를 읽을 때 공식 MCP 할당량을 쓰지 않도록, 열려 있는 파일을 로컬 WebSocket 으로 직접 읽어 주는 Figma 플러그인",
+  "scripts": {
+    "gen": "node scripts/gen-scripts.mjs",
+    "verify": "npm run gen && node scripts/verify-generated.mjs",
+    "build": "npm run gen && node scripts/verify-generated.mjs && rspack build && node scripts/inline-ui.mjs",
+    "watch": "npm run gen && rspack build --watch",
+    "typecheck": "npm run gen && tsc --noEmit"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.109.0",
+    "@rspack/cli": "^1.2.0",
+    "@rspack/core": "^1.2.0",
+    "html-webpack-plugin": "^5.6.3",
+    "typescript": "^5.8.0"
+  }
+}

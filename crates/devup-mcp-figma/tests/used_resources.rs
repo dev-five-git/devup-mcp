@@ -35,8 +35,19 @@ fn exact_id_script_fetches_used_resources_without_style_consumers() {
     assert!(code.contains("getVariableCollectionByIdAsync"));
     assert!(code.contains("getStyleByIdAsync"));
     assert!(code.contains("unresolved"));
-    assert!(!code.contains("getLocalVariablesAsync"));
     assert!(!code.contains("getStyleConsumersAsync"));
+
+    // 이 스크립트가 지켜야 하는 것은 "요청한 것만 돌려준다"이고, 그것은
+    // 출력이 요청한 id 로만 만들어지는지로 확인한다.
+    //
+    // 전에는 `getLocalVariablesAsync` 를 부르지 않는지를 봤다. 그 호출을
+    // 금지한 이유는 파일에 있는 것을 통째로 실어 응답이 커지는 것을 막는
+    // 데 있었는데, 실제로 이 파일에서 재보니 개별 조회가 건당 21.5초를 쓰고
+    // 끝내 null 을 내는 동안 지역 목록 한 번은 12ms 에 돌아왔다. 지금은 그
+    // 목록을 색인으로만 쓰고 응답에는 요청한 id 의 결과만 담으므로, 막으려던
+    // 것은 여전히 막혀 있다. 호출 이름이 아니라 그 사실을 검사한다.
+    assert!(code.contains("usedVariableIds: resources.variableIds"));
+    assert!(code.contains("usedStyleIds: resources.styles.map"));
 }
 
 #[test]
