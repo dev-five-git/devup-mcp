@@ -112,6 +112,28 @@ fn unavailable(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, message, false)
 }
 
+/// 어느 플러그인이 이 파일을 맡을지 고른다.
+///
+/// 보통은 파일 키가 그대로 맞는다. 다만 `figma.fileKey` 는 늘 있는 값이 아니어서
+/// (Dev Mode 에서 비어 오는 것을 실제로 봤다) 키 없이 붙는 플러그인이 생긴다.
+/// 그때 등록을 건너뛰면 창은 "연결됨"이라고 하는데 어떤 읽기도 오지 않는 —
+/// 원인을 찾기 가장 어려운 — 상태가 된다.
+///
+/// 그래서 키 없는 플러그인은 **혼자 붙어 있을 때만** 맡는다. 여럿이면 어느 파일을
+/// 보고 있는지 알 수 없고, 엉뚱한 파일을 읽어 주는 것보다 원격으로 넘기는 편이 낫다.
+fn resolve_key(plugins: &HashMap<String, Connected>, file_key: &str) -> Option<String> {
+    if plugins.contains_key(file_key) {
+        return Some(file_key.to_owned());
+    }
+    if plugins.len() == 1
+        && let Some(key) = plugins.keys().next()
+        && key.is_empty()
+    {
+        return Some(key.clone());
+    }
+    None
+}
+
 impl BridgeState {
     fn next_request_id(&self) -> String {
         format!("job-{}", self.counter.fetch_add(1, Ordering::Relaxed))
@@ -119,7 +141,7 @@ impl BridgeState {
 
     /// 이 파일을 열어 둔 플러그인이 있는지.
     pub async fn has_plugin(&self, file_key: &str) -> bool {
-        self.inner.lock().await.plugins.contains_key(file_key)
+        resolve_key(&self.inner.lock().await.plugins, file_key).is_some()
     }
 
     /// 붙어 있는 파일 키 목록. 진단용.
@@ -140,6 +162,12 @@ impl BridgeState {
 
         {
             let mut inner = self.inner.lock().await;
+            let Some(resolved) = resolve_key(&inner.plugins, file_key) else {
+                return Err(unavailable(format!(
+                    "no Devup Bridge plugin is open for file {file_key}"
+                )));
+            };
+            let file_key = resolved.as_str();
             let Some(plugin) = inner.plugins.get(file_key) else {
                 return Err(unavailable(format!(
                     "no Devup Bridge plugin is open for file {file_key}"
@@ -224,18 +252,18 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
 
                 match value.get("kind").and_then(Value::as_str) {
                     Some("hello") => {
-                        let file_key = serde_json::from_value::<Hello>(value)
+                        // 키가 없어도 등록한다. 건너뛰면 창은 "연결됨"이라고 하는데
+                        // 어떤 읽기도 오지 않아 원인을 찾을 수 없다. 키 없는 연결을
+                        // 어디까지 믿을지는 resolve_key 가 정한다.
+                        let key = serde_json::from_value::<Hello>(value)
                             .ok()
                             .and_then(|hello| hello.file_key)
-                            .filter(|key| !key.is_empty());
-                        // fileKey 가 없는 파일(저장 전 초안)은 요청 대상이 될 수 없다.
-                        if let Some(key) = file_key {
-                            state.inner.lock().await.plugins.insert(
-                                key.clone(),
-                                Connected { outbox: outbox.clone() },
-                            );
-                            registered = Some(key);
-                        }
+                            .unwrap_or_default();
+                        state.inner.lock().await.plugins.insert(
+                            key.clone(),
+                            Connected { outbox: outbox.clone() },
+                        );
+                        registered = Some(key);
                     }
                     Some("devup-result") => {
                         let Ok(result) = serde_json::from_value::<PluginResult>(value) else {

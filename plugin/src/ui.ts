@@ -41,7 +41,10 @@ function render(state: 'on' | 'off', text: string) {
 
 function connect() {
   if (!bridgeStatus) return
-  const url = `ws://127.0.0.1:${bridgeStatus.port}/plugin`
+  // 반드시 `localhost` 여야 한다. Figma 는 manifest 의 allowedDomains 에 적힌
+  // 주소로만 나가게 하는데, `ws://127.0.0.1:...` 은 "유효한 URL 이 아니다"라며
+  // 매니페스트 자체를 거부한다 — 플러그인이 아예 실행되지 않는다.
+  const url = `ws://localhost:${bridgeStatus.port}/plugin`
   let ws: WebSocket
   try {
     ws = new WebSocket(url)
