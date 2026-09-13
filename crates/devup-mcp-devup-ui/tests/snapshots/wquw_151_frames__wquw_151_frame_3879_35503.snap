@@ -62,6 +62,7 @@ export function Wquw151Frame387935503() {
             textAlign="center"
             textOverflow="ellipsis"
             typography="mainPraiseXs"
+            whiteSpace="pre-wrap"
             wordBreak="keep-all"
           >
             기억을 더듬어 기록하는 시간은 <br />그 자체로 훌륭한 여행이랍니다.

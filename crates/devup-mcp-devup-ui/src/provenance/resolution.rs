@@ -11,6 +11,7 @@ pub fn resolution_semantics() -> Value {
             "raw-fallback":"Value/policy mapping, not fidelity; ABSOLUTE can separately be verified.",
             "derived-lone-child-center":"Horizontal/vertical SPACE_BETWEEN becomes center for exactly one visible non-ABSOLUTE child; child membership, visibility and positioning determine the count. This mapping does not claim pixel parity.",
             "derived-single-edge-outside-stroke":"One solid, square-cornered OUTSIDE edge on a non-asset auto-layout node paints as a zero-blur translated box shadow without consuming layout space; side weights and stroke paint determine the translation and color. Existing effects are composed after the stroke. This is a stroke projection, not an assertion that Figma supplied a shadow effect, a claim about exported-asset composition, or a claim of pixel parity.",
+            "derived-hard-break-whitespace":"Source spaces adjacent to explicit line breaks select pre-wrap for non-list, unclamped text whose inline width is fixed and height is automatic. Characters come from the node or collected styled segments. This preserves source whitespace without changing Korean keep-all; it does not claim intrinsic HUG sizing, glyph parity or identical wrapping.",
             "verified-explicit-dimension":"Error-free source = emitted px.",
             "verified-layout-sizing":"FIXED/FILL/layoutGrow to dimension/flex.",
             "accounted-for-content-sizing":"textAutoResize omission; pixels unmeasured.",

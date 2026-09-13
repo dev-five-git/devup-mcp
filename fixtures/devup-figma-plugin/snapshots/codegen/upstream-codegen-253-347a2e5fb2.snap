@@ -60,6 +60,7 @@ expression: actual
               fontWeight="700"
               letterSpacing="-0.03em"
               lineHeight="42px"
+              whiteSpace="pre-wrap"
               wordBreak="keep-all"
             >
               “ 섬, 그 바람의 울림! ”<br />희망찬 봄을 여는 관악의 울림이 더 <br />널리,<br />더 멀리 퍼져나가기를 기원합니다.<br />

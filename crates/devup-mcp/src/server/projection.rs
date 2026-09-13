@@ -4010,6 +4010,7 @@ mod w1_regressions {
             for prop in ["pos=\"relative\"", "w=\"360px\"", "h=\"740px\""] {
                 assert!(tag.contains(prop), "{tag}");
             }
+            assert!(source.contains("whiteSpace=\"pre-wrap\""));
             let contract = frame["placementContracts"]
                 .as_array()
                 .unwrap()
@@ -4025,10 +4026,10 @@ mod w1_regressions {
         );
         assert_eq!(
             frame["outputResults"]["componentTsx"]["fidelity"]["impacts"]["lossy"],
-            41 // W8: the paragraph's spaces before line breaks are now accounted for.
+            40 // The paragraph now preserves its spaces; all other losses remain.
         );
         assert!(
-            frame["projectionIssues"]
+            !frame["projectionIssues"]
                 .as_array()
                 .unwrap()
                 .iter()

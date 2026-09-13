@@ -360,6 +360,7 @@ fn jsx_existing_fixture_texts_round_trip() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut count = 0;
     let mut css_collapsing = 0;
+    let mut css_preserved = 0;
     let mut failures = Vec::new();
     for path in json_files(&root.join("../../fixtures/devup-figma-plugin/cases"))
         .into_iter()
@@ -405,6 +406,24 @@ fn jsx_existing_fixture_texts_round_trip() {
             {
                 css_collapsing += 1;
             }
+            if output.tsx.contains("whiteSpace=\"pre-wrap\"") {
+                assert_eq!(view.string("textAutoResize"), Some("HEIGHT"));
+                assert!(
+                    output.source_map.entries.iter().any(|entry| entry
+                        .generated_property
+                        .as_deref()
+                        == Some("whiteSpace=\"pre-wrap\"")
+                        && entry.resolution == "derived-hard-break-whitespace")
+                );
+                assert!(
+                    !output
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code
+                            == "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE")
+                );
+                css_preserved += 1;
+            }
             count += 1;
             if actual != design_breaks(&expected) {
                 failures.push(format!(
@@ -416,7 +435,16 @@ fn jsx_existing_fixture_texts_round_trip() {
         }
     }
     assert!(count > 400, "representative sweep shrank: {count}");
-    assert_eq!(css_collapsing, 35, "measured CSS-collapse population");
+    assert_eq!(
+        css_collapsing + css_preserved,
+        35,
+        "original whitespace population"
+    );
+    assert_eq!(css_collapsing, 5, "remaining CSS-collapse population");
+    assert_eq!(
+        css_preserved, 30,
+        "fixed-inline-width text now preserves its spaces"
+    );
     assert!(
         failures.is_empty(),
         "{count} texts, {} failures:\n{}",

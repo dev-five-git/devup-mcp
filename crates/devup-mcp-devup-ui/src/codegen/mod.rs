@@ -29,3 +29,4 @@ pub(crate) use style::single_outside_stroke;
 pub(crate) use style::{AssetKind, asset_kind};
 pub use style::{asset_path, image_fill_path};
 pub(crate) use text::escape_jsx_text;
+pub(crate) use text::preserves_hard_break_spaces;
