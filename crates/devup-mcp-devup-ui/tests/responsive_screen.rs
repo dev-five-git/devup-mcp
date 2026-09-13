@@ -718,43 +718,16 @@ const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
         "flex=\"1\"",
         "plugin leaves a filled height unsaid, which CSS cannot reach past a positioned child",
     ),
-    // A cropped image fill carries its crop as a matrix over the image's own
-    // 0..1 space. The plugin paints every image fill `center/cover` and drops
-    // it, showing the whole picture where the designer framed a part of it.
-    // These are the crops Figma itself draws, read off `imageTransform`:
-    // rendered against Figma's own PNG of this page, the photographs only sit
-    // right once the crop is honoured.
+    // Image-fill files are node exports: Figma already baked the crop into
+    // the pixels. Reapplying imageTransform distorts those pixels. The
+    // background maps the exported frame once onto its layout box instead.
     (
-        "bg=\"url(IMAGEFILL) 53.51% -25.92%/91.26% 104.43% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
-    ),
-    (
-        "bg=\"url(IMAGEFILL) 0% 41.89%/100% 114.38% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
-    ),
-    (
-        "bg=\"url(IMAGEFILL) 0% 11.18%/100% 117.53% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
-    ),
-    (
-        "bg=\"url(IMAGEFILL) 0% 11.43%/100% 117.49% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
-    ),
-    (
-        "bg=\"url(IMAGEFILL) 0% 4.04%/100% 120.06% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
-    ),
-    (
-        "bg=\"url(IMAGEFILL) 0% 24.48%/100% 117.53% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
-    ),
-    (
-        "bg=\"url(IMAGEFILL) 0% 30.1%/100% 117.49% no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
+        "bg=\"url(IMAGEFILL) 0 0/100% 100% no-repeat, $gray200\"",
+        "cropped node export already contains the imageTransform",
     ),
     (
         "bg=\"url(IMAGEFILL) center/cover no-repeat, $gray200\"",
-        "plugin drops the crop matrix and paints center/cover",
+        "plugin applies cover to the already-cropped node export",
     ),
     (
         "성인 ADHD,{\"  \"}",
