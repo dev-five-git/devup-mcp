@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Return native bridge asset bytes without the remote MCP file writer. The native Plugin API has no figma.io, so successful small PNG and SVG exports were converted to DEVUP_ASSET_EXPORT_FAILED when the script tried to write an attachment. The script now carries bounded binary bytes and MIME directly in the bridge JSON response, while preserving remote attachment and fragment limits and existing hash validation. The plugin bundle is rebuilt from the same source. This fixes delivery, not whole-node versus isolated-fill composition; the about hero contract and the outstanding live-pixel validation are documented separately, and no visual improvement or eleven-second latency improvement is claimed.",
+  "date": "2026-09-14T01:13:00+09:00"
+}

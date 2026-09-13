@@ -1,0 +1,2820 @@
+{
+  "baseCommit": "937313e39448db7f7c05dbb0ab206432261b2203",
+  "outcome": "Quantified negative; no production change or threshold reduction",
+  "baselineRuns": [
+    [
+      {
+        "name": "grid-429-1966",
+        "frame": "429:1966",
+        "viewport": {
+          "width": 1281,
+          "height": 1086
+        },
+        "reference": "out/grid-429-1966.reference.png",
+        "actual": "out/grid-429-1966.actual.png",
+        "acquisition": {
+          "binarySha256": "27ca7e30f7fea3f1e76fe6e5049e46d1b5461d2b461a7bf8d7e0fef864c831c7",
+          "server": {
+            "version": "0.4.6",
+            "buildId": "937313e39448",
+            "commit": "937313e39448",
+            "displayVersion": "0.4.6+937313e39448",
+            "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+            "updateAvailable": {
+              "current": "0.4.6",
+              "state": "unknown",
+              "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+            }
+          },
+          "responsePath": "out/grid-429-1966-429-1966.response.json",
+          "files": {
+            "src/screens/grid-429-1966.tsx": "6b16b8f79f4ecf590a24a1c13af67b488afc08a2d513d156e000c20728c1b0d2",
+            "themes/grid-429-1966.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+            "out/grid-429-1966.reference.png": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+            "out/grid-429-1966-429-1966.snapshot.json": "9de5a06b83300efc89c2b02b21f0b7af0f71326accac1ad9dfe62a88c3bd6c02",
+            "public/images/Frame-506-429-1967-986461bdbd3b.png": "8722fc62d4e2e2395697bad982d1d28d159d10b15b0d38b09535e78232ea4ed6",
+            "public/images/Frame-508-429-1968-c886d36997c5.png": "7f8167a9cd5504e7a5e3a386993e6b6eb1dbd21753a86b940ecd4084c65983b7",
+            "public/images/Frame-509-429-1969-a6034b24119a.png": "e13b27fae8519c989ccda979e02377c63ed659b6105ce2263f227bae789bb1b8",
+            "public/images/Frame-507-429-1970-021ef10975df.png": "1fd831e6b6aab7c067a2d57fb06d42738fffe7bdf69c3ffbe9cd89fc1d9a9746",
+            "public/images/Frame-510-429-1971-40e88a5fbe9d.png": "83b2e86d2e4017e1a0996b56d76162ed2de8d6002918fb30aa1b4b083a33cc61",
+            "public/images/Frame-511-429-1972-f549097083e6.png": "d005a60f6b3f5d904c8f41f6fca683179e549e8416cee9fec6819e25e6d9d3d7"
+          }
+        },
+        "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+        "rendered": {
+          "width": 1281,
+          "height": 1086
+        },
+        "flattened": {
+          "canvas": [
+            30,
+            30,
+            30
+          ],
+          "alpha": 0
+        },
+        "environmentStatus": "valid",
+        "compare": {
+          "exit": 1,
+          "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1281,1086],\"actualDimensions\":[1281,1086],\"changedPixels\":41234,\"totalPixels\":1391166,\"changedRatio\":0.029639884816046395,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":176,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\orca\\\\workspaces\\\\devup-mcp\\\\W24-C-grid\\\\harness\\\\render\\\\out\\\\grid-429-1966.diff.png\"}",
+          "stderr": ""
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1281,
+            1086
+          ],
+          "actualDimensions": [
+            1281,
+            1086
+          ],
+          "changedPixels": 41234,
+          "totalPixels": 1391166,
+          "changedRatio": 0.029639884816046395,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 176,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-C-grid\\harness\\render\\out\\grid-429-1966.diff.png"
+        }
+      },
+      {
+        "name": "keyframes-458-2021",
+        "frame": "458:2021",
+        "viewport": {
+          "width": 64,
+          "height": 64
+        },
+        "reference": "out/keyframes-458-2021.reference.png",
+        "actual": "out/keyframes-458-2021.actual.png",
+        "acquisition": {
+          "binarySha256": "27ca7e30f7fea3f1e76fe6e5049e46d1b5461d2b461a7bf8d7e0fef864c831c7",
+          "server": {
+            "version": "0.4.6",
+            "buildId": "937313e39448",
+            "commit": "937313e39448",
+            "displayVersion": "0.4.6+937313e39448",
+            "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+            "updateAvailable": {
+              "current": "0.4.6",
+              "state": "unknown",
+              "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+            }
+          },
+          "responsePath": "out/keyframes-458-2021-458-2021.response.json",
+          "files": {
+            "src/screens/keyframes-458-2021.tsx": "f9e4d334a007caf23cc45575ea1a93a33b3b90abb5b8bc416952745072c6a935",
+            "themes/keyframes-458-2021.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+            "out/keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+            "out/keyframes-458-2021-458-2021.snapshot.json": "8ae3430b3818eabbdaae857264cdc505a5fbed16831041e2e747d4a1f3a66d0d"
+          }
+        },
+        "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+        "rendered": {
+          "width": 64,
+          "height": 64
+        },
+        "flattened": {
+          "canvas": [
+            30,
+            30,
+            30
+          ],
+          "alpha": 0
+        },
+        "environmentStatus": "valid",
+        "compare": {
+          "exit": 1,
+          "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[64,64],\"actualDimensions\":[64,64],\"changedPixels\":110,\"totalPixels\":4096,\"changedRatio\":0.02685546875,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":182,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\orca\\\\workspaces\\\\devup-mcp\\\\W24-C-grid\\\\harness\\\\render\\\\out\\\\keyframes-458-2021.diff.png\"}",
+          "stderr": ""
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            64,
+            64
+          ],
+          "actualDimensions": [
+            64,
+            64
+          ],
+          "changedPixels": 110,
+          "totalPixels": 4096,
+          "changedRatio": 0.02685546875,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 182,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-C-grid\\harness\\render\\out\\keyframes-458-2021.diff.png"
+        }
+      }
+    ],
+    [
+      {
+        "name": "grid-429-1966",
+        "frame": "429:1966",
+        "viewport": {
+          "width": 1281,
+          "height": 1086
+        },
+        "reference": "out/grid-429-1966.reference.png",
+        "actual": "out/grid-429-1966.actual.png",
+        "acquisition": {
+          "binarySha256": "27ca7e30f7fea3f1e76fe6e5049e46d1b5461d2b461a7bf8d7e0fef864c831c7",
+          "server": {
+            "version": "0.4.6",
+            "buildId": "937313e39448",
+            "commit": "937313e39448",
+            "displayVersion": "0.4.6+937313e39448",
+            "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+            "updateAvailable": {
+              "current": "0.4.6",
+              "state": "unknown",
+              "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+            }
+          },
+          "responsePath": "out/grid-429-1966-429-1966.response.json",
+          "files": {
+            "src/screens/grid-429-1966.tsx": "6b16b8f79f4ecf590a24a1c13af67b488afc08a2d513d156e000c20728c1b0d2",
+            "themes/grid-429-1966.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+            "out/grid-429-1966.reference.png": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+            "out/grid-429-1966-429-1966.snapshot.json": "9de5a06b83300efc89c2b02b21f0b7af0f71326accac1ad9dfe62a88c3bd6c02",
+            "public/images/Frame-506-429-1967-986461bdbd3b.png": "8722fc62d4e2e2395697bad982d1d28d159d10b15b0d38b09535e78232ea4ed6",
+            "public/images/Frame-508-429-1968-c886d36997c5.png": "7f8167a9cd5504e7a5e3a386993e6b6eb1dbd21753a86b940ecd4084c65983b7",
+            "public/images/Frame-509-429-1969-a6034b24119a.png": "e13b27fae8519c989ccda979e02377c63ed659b6105ce2263f227bae789bb1b8",
+            "public/images/Frame-507-429-1970-021ef10975df.png": "1fd831e6b6aab7c067a2d57fb06d42738fffe7bdf69c3ffbe9cd89fc1d9a9746",
+            "public/images/Frame-510-429-1971-40e88a5fbe9d.png": "83b2e86d2e4017e1a0996b56d76162ed2de8d6002918fb30aa1b4b083a33cc61",
+            "public/images/Frame-511-429-1972-f549097083e6.png": "d005a60f6b3f5d904c8f41f6fca683179e549e8416cee9fec6819e25e6d9d3d7"
+          }
+        },
+        "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+        "rendered": {
+          "width": 1281,
+          "height": 1086
+        },
+        "flattened": {
+          "canvas": [
+            30,
+            30,
+            30
+          ],
+          "alpha": 0
+        },
+        "environmentStatus": "valid",
+        "compare": {
+          "exit": 1,
+          "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1281,1086],\"actualDimensions\":[1281,1086],\"changedPixels\":41234,\"totalPixels\":1391166,\"changedRatio\":0.029639884816046395,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":176,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\orca\\\\workspaces\\\\devup-mcp\\\\W24-C-grid\\\\harness\\\\render\\\\out\\\\grid-429-1966.diff.png\"}",
+          "stderr": ""
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1281,
+            1086
+          ],
+          "actualDimensions": [
+            1281,
+            1086
+          ],
+          "changedPixels": 41234,
+          "totalPixels": 1391166,
+          "changedRatio": 0.029639884816046395,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 176,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-C-grid\\harness\\render\\out\\grid-429-1966.diff.png"
+        }
+      },
+      {
+        "name": "keyframes-458-2021",
+        "frame": "458:2021",
+        "viewport": {
+          "width": 64,
+          "height": 64
+        },
+        "reference": "out/keyframes-458-2021.reference.png",
+        "actual": "out/keyframes-458-2021.actual.png",
+        "acquisition": {
+          "binarySha256": "27ca7e30f7fea3f1e76fe6e5049e46d1b5461d2b461a7bf8d7e0fef864c831c7",
+          "server": {
+            "version": "0.4.6",
+            "buildId": "937313e39448",
+            "commit": "937313e39448",
+            "displayVersion": "0.4.6+937313e39448",
+            "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+            "updateAvailable": {
+              "current": "0.4.6",
+              "state": "unknown",
+              "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+            }
+          },
+          "responsePath": "out/keyframes-458-2021-458-2021.response.json",
+          "files": {
+            "src/screens/keyframes-458-2021.tsx": "f9e4d334a007caf23cc45575ea1a93a33b3b90abb5b8bc416952745072c6a935",
+            "themes/keyframes-458-2021.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+            "out/keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+            "out/keyframes-458-2021-458-2021.snapshot.json": "8ae3430b3818eabbdaae857264cdc505a5fbed16831041e2e747d4a1f3a66d0d"
+          }
+        },
+        "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+        "rendered": {
+          "width": 64,
+          "height": 64
+        },
+        "flattened": {
+          "canvas": [
+            30,
+            30,
+            30
+          ],
+          "alpha": 0
+        },
+        "environmentStatus": "valid",
+        "compare": {
+          "exit": 1,
+          "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[64,64],\"actualDimensions\":[64,64],\"changedPixels\":110,\"totalPixels\":4096,\"changedRatio\":0.02685546875,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":182,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\orca\\\\workspaces\\\\devup-mcp\\\\W24-C-grid\\\\harness\\\\render\\\\out\\\\keyframes-458-2021.diff.png\"}",
+          "stderr": ""
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            64,
+            64
+          ],
+          "actualDimensions": [
+            64,
+            64
+          ],
+          "changedPixels": 110,
+          "totalPixels": 4096,
+          "changedRatio": 0.02685546875,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 182,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-C-grid\\harness\\render\\out\\keyframes-458-2021.diff.png"
+        }
+      }
+    ]
+  ],
+  "baselineActualHashes": {
+    "w24-baseline-grid.png": "a7ea4c4023061e9851972a8ad633af22fa160a0d610621d98e00529959cab69f",
+    "w24-baseline-keyframes.png": "15ae0b08ed2f797bd710d029adddec69d3273b6b214304ebf359e30a8c088764"
+  },
+  "pairedProbes": [
+    {
+      "baseline": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348,
+            "exportAtRoundedOriginChanged": 0
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348,
+            "exportAtRoundedOriginChanged": 0
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717,
+            "exportAtRoundedOriginChanged": 0
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349,
+            "exportAtRoundedOriginChanged": 24299
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349,
+            "exportAtRoundedOriginChanged": 4709
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349,
+            "exportAtRoundedOriginChanged": 4
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "exact-size": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "source-position": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 40,
+          "cols": "0px 0px 0px",
+          "rows": "0px 0px 0px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "rounded-position": {
+        "total": 47524,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          16778,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 40,
+          "cols": "0px 0px 0px",
+          "rows": "0px 0px 0px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-size": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-source-position": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 40,
+          "cols": "0px 0px 0px",
+          "rows": "0px 0px 0px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "compositor": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-compositor": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "svg": {
+        "total": 39806,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          12236,
+          3271
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-svg": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      }
+    },
+    {
+      "baseline": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348,
+            "exportAtRoundedOriginChanged": 0
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348,
+            "exportAtRoundedOriginChanged": 0
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717,
+            "exportAtRoundedOriginChanged": 0
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349,
+            "exportAtRoundedOriginChanged": 24299
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349,
+            "exportAtRoundedOriginChanged": 4709
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349,
+            "exportAtRoundedOriginChanged": 4
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "exact-size": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "source-position": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 40,
+          "cols": "0px 0px 0px",
+          "rows": "0px 0px 0px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "rounded-position": {
+        "total": 47524,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          16778,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 40,
+          "cols": "0px 0px 0px",
+          "rows": "0px 0px 0px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-size": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-source-position": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 40,
+          "cols": "0px 0px 0px",
+          "rows": "0px 0px 0px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "compositor": {
+        "total": 41234,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          10488,
+          6447
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-compositor": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "svg": {
+        "total": 39806,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          12236,
+          3271
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      },
+      "natural-svg": {
+        "total": 29333,
+        "per": [
+          0,
+          0,
+          0,
+          24299,
+          5028,
+          6
+        ],
+        "other": 0,
+        "grid": {
+          "width": 1281,
+          "height": 1085.328125,
+          "cols": "413.328px 413.672px 413.5px",
+          "rows": "348px 349px 348.328px"
+        },
+        "imgs": [
+          {
+            "src": "/images/Frame-506-429-1967-986461bdbd3b.png",
+            "x": 0,
+            "y": 0,
+            "w": 847,
+            "h": 348,
+            "nw": 847,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-508-429-1968-c886d36997c5.png",
+            "x": 867,
+            "y": 0,
+            "w": 413,
+            "h": 348,
+            "nw": 413,
+            "nh": 348
+          },
+          {
+            "src": "/images/Frame-509-429-1969-a6034b24119a.png",
+            "x": 0,
+            "y": 368,
+            "w": 413,
+            "h": 717,
+            "nw": 413,
+            "nh": 717
+          },
+          {
+            "src": "/images/Frame-507-429-1970-021ef10975df.png",
+            "x": 433.328125,
+            "y": 368,
+            "w": 847,
+            "h": 349,
+            "nw": 847,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-510-429-1971-40e88a5fbe9d.png",
+            "x": 433.328125,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          },
+          {
+            "src": "/images/Frame-511-429-1972-f549097083e6.png",
+            "x": 867,
+            "y": 737,
+            "w": 413.328125,
+            "h": 348.328125,
+            "nw": 414,
+            "nh": 349
+          }
+        ],
+        "keyframesChanged": 110
+      }
+    }
+  ],
+  "pixelAnalysis": {
+    "images": [
+      {
+        "id": "429:1967",
+        "source": {
+          "parentId": "429:1966",
+          "absoluteBoundingBox": {
+            "height": 348,
+            "width": 847,
+            "x": 13192,
+            "y": 792
+          },
+          "absoluteRenderBounds": {
+            "height": 348,
+            "width": 847,
+            "x": 13192,
+            "y": 792
+          },
+          "bottomLeftRadius": 0,
+          "bottomRightRadius": 0,
+          "clipsContent": true,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "filters": {
+                "contrast": 0,
+                "exposure": 0,
+                "highlights": 0,
+                "saturation": 0,
+                "shadows": 0,
+                "temperature": 0,
+                "tint": 0
+              },
+              "imageHash": "3db1cf828053e87c2b6a4d8923477b2aa5d5ef3d",
+              "imageTransform": [
+                [
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0
+                ]
+              ],
+              "opacity": 1,
+              "rotation": 0,
+              "scaleMode": "FILL",
+              "scalingFactor": 0.5,
+              "type": "IMAGE",
+              "visible": true
+            }
+          ],
+          "gridColumnAnchorIndex": 0,
+          "gridColumnSpan": 2,
+          "gridRowAnchorIndex": 0,
+          "height": 348,
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutGrow": 0,
+          "layoutMode": "NONE",
+          "layoutWrap": "NO_WRAP",
+          "layoutPositioning": "AUTO",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "maxHeight": null,
+          "maxWidth": null,
+          "name": "Frame 506",
+          "opacity": 1,
+          "overflowDirection": "NONE",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "strokeBottomWeight": 1,
+          "strokeLeftWeight": 1,
+          "strokeRightWeight": 1,
+          "strokeTopWeight": 1,
+          "strokeWeight": 1,
+          "topLeftRadius": 0,
+          "topRightRadius": 0,
+          "visible": true,
+          "width": 847,
+          "x": 0,
+          "y": 0
+        },
+        "exportSize": [
+          847,
+          348
+        ],
+        "naturalAtRoundedOrigin": 0,
+        "bestInteriorShifts": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "changedInterior": 0
+          },
+          {
+            "dx": 0,
+            "dy": -0.3333333333333333,
+            "changedInterior": 6788
+          },
+          {
+            "dx": 0,
+            "dy": 0.3333333333333333,
+            "changedInterior": 6860
+          },
+          {
+            "dx": -0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 9375
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 9420
+          }
+        ]
+      },
+      {
+        "id": "429:1968",
+        "source": {
+          "parentId": "429:1966",
+          "absoluteBoundingBox": {
+            "height": 348,
+            "width": 413,
+            "x": 14059,
+            "y": 792
+          },
+          "absoluteRenderBounds": {
+            "height": 348,
+            "width": 413,
+            "x": 14059,
+            "y": 792
+          },
+          "bottomLeftRadius": 0,
+          "bottomRightRadius": 0,
+          "clipsContent": true,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "filters": {
+                "contrast": 0,
+                "exposure": 0,
+                "highlights": 0,
+                "saturation": 0,
+                "shadows": 0,
+                "temperature": 0,
+                "tint": 0
+              },
+              "imageHash": "22acb2dc595e1b09b8423aae475b6798f4d9c934",
+              "imageTransform": [
+                [
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0
+                ]
+              ],
+              "opacity": 1,
+              "rotation": 0,
+              "scaleMode": "FILL",
+              "scalingFactor": 0.5,
+              "type": "IMAGE",
+              "visible": true
+            }
+          ],
+          "gridColumnAnchorIndex": 2,
+          "gridRowAnchorIndex": 0,
+          "height": 348,
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutGrow": 0,
+          "layoutMode": "NONE",
+          "layoutWrap": "NO_WRAP",
+          "layoutPositioning": "AUTO",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "maxHeight": null,
+          "maxWidth": null,
+          "name": "Frame 508",
+          "opacity": 1,
+          "overflowDirection": "NONE",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "strokeBottomWeight": 1,
+          "strokeLeftWeight": 1,
+          "strokeRightWeight": 1,
+          "strokeTopWeight": 1,
+          "strokeWeight": 1,
+          "topLeftRadius": 0,
+          "topRightRadius": 0,
+          "visible": true,
+          "width": 413,
+          "x": 867,
+          "y": 0
+        },
+        "exportSize": [
+          413,
+          348
+        ],
+        "naturalAtRoundedOrigin": 0,
+        "bestInteriorShifts": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "changedInterior": 0
+          },
+          {
+            "dx": 0,
+            "dy": 0.3333333333333333,
+            "changedInterior": 2924
+          },
+          {
+            "dx": 0,
+            "dy": -0.3333333333333333,
+            "changedInterior": 2926
+          },
+          {
+            "dx": -0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 3629
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 3630
+          }
+        ]
+      },
+      {
+        "id": "429:1969",
+        "source": {
+          "parentId": "429:1966",
+          "absoluteBoundingBox": {
+            "height": 717,
+            "width": 413,
+            "x": 13192,
+            "y": 1160
+          },
+          "absoluteRenderBounds": {
+            "height": 717,
+            "width": 413,
+            "x": 13192,
+            "y": 1160
+          },
+          "bottomLeftRadius": 0,
+          "bottomRightRadius": 0,
+          "clipsContent": true,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "filters": {
+                "contrast": 0,
+                "exposure": 0,
+                "highlights": 0,
+                "saturation": 0,
+                "shadows": 0,
+                "temperature": 0,
+                "tint": 0
+              },
+              "imageHash": "df74260700140ea232b5ef3fda309d4cfc0dba36",
+              "imageTransform": [
+                [
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0
+                ]
+              ],
+              "opacity": 1,
+              "rotation": 0,
+              "scaleMode": "FILL",
+              "scalingFactor": 0.5,
+              "type": "IMAGE",
+              "visible": true
+            }
+          ],
+          "gridColumnAnchorIndex": 0,
+          "gridRowAnchorIndex": 1,
+          "gridRowSpan": 2,
+          "height": 717,
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutGrow": 0,
+          "layoutMode": "NONE",
+          "layoutWrap": "NO_WRAP",
+          "layoutPositioning": "AUTO",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "maxHeight": null,
+          "maxWidth": null,
+          "name": "Frame 509",
+          "opacity": 1,
+          "overflowDirection": "NONE",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "strokeBottomWeight": 1,
+          "strokeLeftWeight": 1,
+          "strokeRightWeight": 1,
+          "strokeTopWeight": 1,
+          "strokeWeight": 1,
+          "topLeftRadius": 0,
+          "topRightRadius": 0,
+          "visible": true,
+          "width": 413,
+          "x": 0,
+          "y": 368
+        },
+        "exportSize": [
+          413,
+          717
+        ],
+        "naturalAtRoundedOrigin": 0,
+        "bestInteriorShifts": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "changedInterior": 0
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 1603
+          },
+          {
+            "dx": -0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 1605
+          },
+          {
+            "dx": 0,
+            "dy": 0.3333333333333333,
+            "changedInterior": 2049
+          },
+          {
+            "dx": 0,
+            "dy": -0.3333333333333333,
+            "changedInterior": 2051
+          }
+        ]
+      },
+      {
+        "id": "429:1970",
+        "source": {
+          "parentId": "429:1966",
+          "absoluteBoundingBox": {
+            "height": 349,
+            "width": 847,
+            "x": 13625.3330078125,
+            "y": 1160
+          },
+          "absoluteRenderBounds": {
+            "height": 349,
+            "width": 847,
+            "x": 13625.3330078125,
+            "y": 1160
+          },
+          "bottomLeftRadius": 0,
+          "bottomRightRadius": 0,
+          "clipsContent": true,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "filters": {
+                "contrast": 0,
+                "exposure": 0,
+                "highlights": 0,
+                "saturation": 0,
+                "shadows": 0,
+                "temperature": 0,
+                "tint": 0
+              },
+              "imageHash": "44c59f89207e33ffc2953c9a49aecf8be9f00fde",
+              "imageTransform": [
+                [
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0
+                ]
+              ],
+              "opacity": 1,
+              "rotation": 0,
+              "scaleMode": "FILL",
+              "scalingFactor": 0.5,
+              "type": "IMAGE",
+              "visible": true
+            }
+          ],
+          "gridColumnAnchorIndex": 1,
+          "gridColumnSpan": 2,
+          "gridRowAnchorIndex": 1,
+          "height": 349,
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutGrow": 0,
+          "layoutMode": "NONE",
+          "layoutWrap": "NO_WRAP",
+          "layoutPositioning": "AUTO",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "maxHeight": null,
+          "maxWidth": null,
+          "name": "Frame 507",
+          "opacity": 1,
+          "overflowDirection": "NONE",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "strokeBottomWeight": 1,
+          "strokeLeftWeight": 1,
+          "strokeRightWeight": 1,
+          "strokeTopWeight": 1,
+          "strokeWeight": 1,
+          "topLeftRadius": 0,
+          "topRightRadius": 0,
+          "visible": true,
+          "width": 847,
+          "x": 433.3333129882813,
+          "y": 368
+        },
+        "exportSize": [
+          847,
+          349
+        ],
+        "naturalAtRoundedOrigin": 24299,
+        "bestInteriorShifts": [
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 12230
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": -0.3333333333333333,
+            "changedInterior": 21634
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0.3333333333333333,
+            "changedInterior": 21638
+          },
+          {
+            "dx": 0,
+            "dy": 0,
+            "changedInterior": 23693
+          },
+          {
+            "dx": 0.6666666666666666,
+            "dy": 0,
+            "changedInterior": 25377
+          }
+        ]
+      },
+      {
+        "id": "429:1971",
+        "source": {
+          "parentId": "429:1966",
+          "absoluteBoundingBox": {
+            "height": 348.3333435058594,
+            "width": 413.3333435058594,
+            "x": 13625.3330078125,
+            "y": 1529
+          },
+          "absoluteRenderBounds": {
+            "height": 348.3333740234375,
+            "width": 413.3333435058594,
+            "x": 13625.3330078125,
+            "y": 1529
+          },
+          "bottomLeftRadius": 0,
+          "bottomRightRadius": 0,
+          "clipsContent": true,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "filters": {
+                "contrast": 0,
+                "exposure": 0,
+                "highlights": 0,
+                "saturation": 0,
+                "shadows": 0,
+                "temperature": 0,
+                "tint": 0
+              },
+              "imageHash": "67073950e0c93639faeeae00b0bd1a361f9a57f7",
+              "imageTransform": [
+                [
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0
+                ]
+              ],
+              "opacity": 1,
+              "rotation": 0,
+              "scaleMode": "FILL",
+              "scalingFactor": 0.5,
+              "type": "IMAGE",
+              "visible": true
+            }
+          ],
+          "gridColumnAnchorIndex": 1,
+          "gridRowAnchorIndex": 2,
+          "height": 348.3333435058594,
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutGrow": 0,
+          "layoutMode": "NONE",
+          "layoutWrap": "NO_WRAP",
+          "layoutPositioning": "AUTO",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "maxHeight": null,
+          "maxWidth": null,
+          "name": "Frame 510",
+          "opacity": 1,
+          "overflowDirection": "NONE",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "strokeBottomWeight": 1,
+          "strokeLeftWeight": 1,
+          "strokeRightWeight": 1,
+          "strokeTopWeight": 1,
+          "strokeWeight": 1,
+          "topLeftRadius": 0,
+          "topRightRadius": 0,
+          "visible": true,
+          "width": 413.3333435058594,
+          "x": 433.3333129882813,
+          "y": 737
+        },
+        "exportSize": [
+          414,
+          349
+        ],
+        "naturalAtRoundedOrigin": 4709,
+        "bestInteriorShifts": [
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 1552
+          },
+          {
+            "dx": 0,
+            "dy": 0,
+            "changedInterior": 4366
+          },
+          {
+            "dx": 0.6666666666666666,
+            "dy": 0,
+            "changedInterior": 4886
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0.3333333333333333,
+            "changedInterior": 5425
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": -0.3333333333333333,
+            "changedInterior": 5455
+          }
+        ]
+      },
+      {
+        "id": "429:1972",
+        "source": {
+          "parentId": "429:1966",
+          "absoluteBoundingBox": {
+            "height": 348.3333435058594,
+            "width": 413.3333435058594,
+            "x": 14059,
+            "y": 1529
+          },
+          "absoluteRenderBounds": {
+            "height": 348.3333740234375,
+            "width": 413.3333435058594,
+            "x": 14059,
+            "y": 1529
+          },
+          "bottomLeftRadius": 0,
+          "bottomRightRadius": 0,
+          "clipsContent": true,
+          "constraints": {
+            "horizontal": "MIN",
+            "vertical": "MIN"
+          },
+          "fills": [
+            {
+              "blendMode": "NORMAL",
+              "filters": {
+                "contrast": 0,
+                "exposure": 0,
+                "highlights": 0,
+                "saturation": 0,
+                "shadows": 0,
+                "temperature": 0,
+                "tint": 0
+              },
+              "imageHash": "54cc76b68aaa8925c68bf975c3dd1bf69557f69e",
+              "imageTransform": [
+                [
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0
+                ]
+              ],
+              "opacity": 1,
+              "rotation": 0,
+              "scaleMode": "FILL",
+              "scalingFactor": 0.5,
+              "type": "IMAGE",
+              "visible": true
+            }
+          ],
+          "gridColumnAnchorIndex": 2,
+          "gridRowAnchorIndex": 2,
+          "height": 348.3333435058594,
+          "isAsset": true,
+          "itemSpacing": 0,
+          "layoutGrow": 0,
+          "layoutMode": "NONE",
+          "layoutWrap": "NO_WRAP",
+          "layoutPositioning": "AUTO",
+          "layoutSizingHorizontal": "FIXED",
+          "layoutSizingVertical": "FIXED",
+          "maxHeight": null,
+          "maxWidth": null,
+          "name": "Frame 511",
+          "opacity": 1,
+          "overflowDirection": "NONE",
+          "paddingBottom": 0,
+          "paddingLeft": 0,
+          "paddingRight": 0,
+          "paddingTop": 0,
+          "strokeBottomWeight": 1,
+          "strokeLeftWeight": 1,
+          "strokeRightWeight": 1,
+          "strokeTopWeight": 1,
+          "strokeWeight": 1,
+          "topLeftRadius": 0,
+          "topRightRadius": 0,
+          "visible": true,
+          "width": 413.3333435058594,
+          "x": 867,
+          "y": 737
+        },
+        "exportSize": [
+          414,
+          349
+        ],
+        "naturalAtRoundedOrigin": 4,
+        "bestInteriorShifts": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "changedInterior": 0
+          },
+          {
+            "dx": -0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 630
+          },
+          {
+            "dx": 0.3333333333333333,
+            "dy": 0,
+            "changedInterior": 630
+          },
+          {
+            "dx": 0,
+            "dy": -0.3333333333333333,
+            "changedInterior": 1076
+          },
+          {
+            "dx": 0,
+            "dy": 0.3333333333333333,
+            "changedInterior": 1076
+          }
+        ]
+      }
+    ],
+    "bands": [
+      {
+        "y": 0,
+        "bottom": 100,
+        "changedPixels": 0
+      },
+      {
+        "y": 100,
+        "bottom": 200,
+        "changedPixels": 0
+      },
+      {
+        "y": 200,
+        "bottom": 300,
+        "changedPixels": 0
+      },
+      {
+        "y": 300,
+        "bottom": 400,
+        "changedPixels": 3251
+      },
+      {
+        "y": 400,
+        "bottom": 500,
+        "changedPixels": 9290
+      },
+      {
+        "y": 500,
+        "bottom": 600,
+        "changedPixels": 6829
+      },
+      {
+        "y": 600,
+        "bottom": 700,
+        "changedPixels": 4914
+      },
+      {
+        "y": 700,
+        "bottom": 800,
+        "changedPixels": 111
+      },
+      {
+        "y": 800,
+        "bottom": 900,
+        "changedPixels": 4232
+      },
+      {
+        "y": 900,
+        "bottom": 1000,
+        "changedPixels": 4908
+      },
+      {
+        "y": 1000,
+        "bottom": 1086,
+        "changedPixels": 7699
+      }
+    ]
+  },
+  "koreanAllowancePp": 0,
+  "koreanAllowanceReason": "No text nodes or live text rendering in this grid capture",
+  "naturalSizeProbeImprovement": {
+    "changedPixelsRemoved": 11901,
+    "percentagePoints": 0.8554694407425139,
+    "isProductionResult": false
+  },
+  "methodology": {
+    "channelTolerance": 24,
+    "canvas": [
+      30,
+      30,
+      30
+    ],
+    "partition": "Union of source asset rectangles using floor(start) and ceil(end), assigned once; gaps have zero differences",
+    "interiorSampling": "Two-pixel inset; bilinear numeric sampling at stated offsets, diagnostic only",
+    "probeScript": "import {readFileSync,writeFileSync} from 'node:fs';\nimport {spawn,spawnSync} from 'node:child_process';\nimport {chromium} from 'playwright';\nimport {PNG} from 'pngjs';\nconst snapshot=JSON.parse(readFileSync('out/grid-429-1966-429-1966.snapshot.json'));\nconst fields=snapshot.nodes['429:1966'].fields.childrenIds.map(id=>({id,...snapshot.nodes[id].fields}));\nconst reference=PNG.sync.read(readFileSync('out/grid-429-1966.reference.png'));\nfunction flatten(png){for(let i=0;i<png.data.length;i+=4){let a=png.data[i+3]/255;for(let c=0;c<3;c++)png.data[i+c]=Math.round(png.data[i+c]*a+30*(1-a));png.data[i+3]=255;}return png;}\nflatten(reference);\nfunction metric(png){flatten(png);let total=0, per=fields.map(()=>0),other=0;for(let y=0;y<1086;y++)for(let x=0;x<1281;x++){let i=(y*1281+x)*4;if([0,1,2].some(c=>Math.abs(png.data[i+c]-reference.data[i+c])>24)){total++;let j=fields.findIndex(f=>x>=Math.floor(f.x)&&x<Math.ceil(f.x+f.width)&&y>=Math.floor(f.y)&&y<Math.ceil(f.y+f.height));if(j>=0)per[j]++;else other++;}}return {total,per,other};}\nconst preview=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--port','4276','--strictPort'],{stdio:'ignore'});\nconst browser=await chromium.launch();const results={};\ntry{\nfor(let i=0;i<50;i++){try{if((await fetch('http://localhost:4276')).ok)break;}catch{} await new Promise(r=>setTimeout(r,200));}\nconst page=await browser.newPage({viewport:{width:1281,height:1086},deviceScaleFactor:1});\nfor(const mode of ['baseline','exact-size','source-position','rounded-position','natural-size','natural-source-position','compositor','natural-compositor','svg','natural-svg']){\nawait page.goto('http://localhost:4276/?screen=grid-429-1966',{waitUntil:'networkidle'});await page.waitForSelector('body[data-ready=\"1\"]');await page.evaluate(()=>document.fonts.ready);\nawait page.evaluate(({mode,fields})=>{const imgs=[...document.images];imgs.forEach((img,i)=>{const f=fields[i];if(mode.includes('compositor'))img.style.transform='translateZ(0)';if(mode==='exact-size'){img.style.width=f.width+'px';img.style.height=f.height+'px';}if(mode==='source-position'||mode==='rounded-position'||mode==='natural-source-position'){img.style.position='absolute';img.style.left=(mode==='rounded-position'?Math.round(f.x):f.x)+'px';img.style.top=(mode==='rounded-position'?Math.round(f.y):f.y)+'px';}if(mode.startsWith('natural')){img.style.objectFit='none';img.style.objectPosition='left top';}if(mode.includes('svg')){const r=img.getBoundingClientRect();const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.style.cssText='position:absolute;left:'+r.x+'px;top:'+r.y+'px;width:'+r.width+'px;height:'+r.height+'px;overflow:hidden';const si=document.createElementNS('http://www.w3.org/2000/svg','image');si.setAttribute('href',img.src);si.setAttribute('width',mode.startsWith('natural')?img.naturalWidth:r.width);si.setAttribute('height',mode.startsWith('natural')?img.naturalHeight:r.height);si.setAttribute('preserveAspectRatio','none');svg.append(si);document.body.append(svg);img.style.visibility='hidden';}});}, {mode,fields});\nconst boxes=await page.evaluate(()=>({grid:(()=>{let e=document.querySelector('#root>div'),s=getComputedStyle(e),r=e.getBoundingClientRect();return {width:r.width,height:r.height,cols:s.gridTemplateColumns,rows:s.gridTemplateRows};})(),imgs:[...document.images].map(img=>{let r=img.getBoundingClientRect();return {src:img.getAttribute('src'),x:r.x,y:r.y,w:r.width,h:r.height,nw:img.naturalWidth,nh:img.naturalHeight};})}));\nconst bytes=await page.screenshot({omitBackground:true});writeFileSync(`out/w24-probe-${mode}.png`,bytes);results[mode]={...metric(PNG.sync.read(bytes)),...boxes};\nawait page.setViewportSize({width:64,height:64});\nawait page.goto('http://localhost:4276/?screen=keyframes-458-2021',{waitUntil:'networkidle'});await page.waitForSelector('body[data-ready=\"1\"]');\nconst kp=flatten(PNG.sync.read(await page.screenshot({omitBackground:true}))),kr=flatten(PNG.sync.read(readFileSync('out/keyframes-458-2021.reference.png')));let kc=0;for(let i=0;i<kp.data.length;i+=4)if([0,1,2].some(c=>Math.abs(kp.data[i+c]-kr.data[i+c])>24))kc++;\nresults[mode].keyframesChanged=kc;await page.setViewportSize({width:1281,height:1086});\n}\n}finally{await browser.close();spawnSync('taskkill',['/PID',String(preview.pid),'/T','/F']);}\nfor(let i=0;i<fields.length;i++){let f=fields[i],img=PNG.sync.read(readFileSync('public'+results.baseline.imgs[i].src));flatten(img);let count=0;for(let y=0;y<img.height;y++)for(let x=0;x<img.width;x++){let a=(y*img.width+x)*4,b=((y+Math.round(f.y))*1281+x+Math.round(f.x))*4;if([0,1,2].some(c=>Math.abs(img.data[a+c]-reference.data[b+c])>24))count++;}results.baseline.imgs[i].exportAtRoundedOriginChanged=count;}\nwriteFileSync('out/w24-grid-probes.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));\n\n",
+    "pixelAnalysisScript": "import json, math\nfrom pathlib import Path\nimport numpy as np\nfrom PIL import Image\n\ndef rgb(path):\n    a=np.array(Image.open(path).convert('RGBA')).astype(float)\n    return np.rint(a[:,:,:3]*a[:,:,3:4]/255+30*(1-a[:,:,3:4]/255))\n\nroot=Path('out')\nref=rgb(root/'grid-429-1966.reference.png')\nbaseline=rgb(root/'w24-baseline-grid.png')\nnodes=json.loads((root/'grid-429-1966-429-1966.snapshot.json').read_text())['nodes']\nprobes=json.loads((root/'w24-grid-probes.json').read_text())\nresult=[]\nfor node,img in zip(list(nodes.values())[1:],probes['baseline']['imgs']):\n    f=node['fields']; source=rgb('public'+img['src']); h,w=source.shape[:2]\n    x,y=round(f['x']),round(f['y']); target=ref[y:y+h,x:x+w]\n    shifts=[]\n    # Interior only: isolate sampling phase from boundary clipping.\n    yy,xx=np.mgrid[2:h-2,2:w-2]; wanted=target[2:h-2,2:w-2]\n    for dx in [-1,-2/3,-1/3,0,1/3,2/3,1]:\n      for dy in [-1/3,0,1/3]:\n        sx=xx-dx;sy=yy-dy;ix=np.floor(sx).astype(int);iy=np.floor(sy).astype(int);ax=(sx-ix)[...,None];ay=(sy-iy)[...,None]\n        sampled=source[iy,ix]*(1-ax)*(1-ay)+source[iy,ix+1]*ax*(1-ay)+source[iy+1,ix]*(1-ax)*ay+source[iy+1,ix+1]*ax*ay\n        count=int(np.any(np.abs(np.rint(sampled)-wanted)>24,axis=2).sum())\n        shifts.append({'dx':dx,'dy':dy,'changedInterior':count})\n    result.append({'id':node['id'],'source':f,'exportSize':[w,h],'naturalAtRoundedOrigin':int(np.any(abs(source-target)>24,axis=2).sum()),'bestInteriorShifts':sorted(shifts,key=lambda e:e['changedInterior'])[:5]})\nbands=[]\nmask=np.any(abs(baseline-ref)>24,axis=2)\nfor y in range(0,1086,100): bands.append({'y':y,'bottom':min(y+100,1086),'changedPixels':int(mask[y:y+100].sum())})\noutput={'images':result,'bands':bands}\n(root/'w24-grid-pixels.json').write_text(json.dumps(output,indent=2))\nprint(json.dumps({'images':[{k:v for k,v in e.items() if k!='source'} for e in result],'bands':bands},indent=2))\n"
+  },
+  "densityExportAttempt": {
+    "scale": 2,
+    "nodeIds": [
+      "429:1970",
+      "429:1971",
+      "429:1972"
+    ],
+    "result": "No response or exported files after more than five minutes; exploratory Python and own server stopped",
+    "isMeasurement": false
+  },
+  "finalUnchangedRun": [
+    {
+      "name": "grid-429-1966",
+      "frame": "429:1966",
+      "viewport": {
+        "width": 1281,
+        "height": 1086
+      },
+      "reference": "out/grid-429-1966.reference.png",
+      "actual": "out/grid-429-1966.actual.png",
+      "acquisition": {
+        "binarySha256": "27ca7e30f7fea3f1e76fe6e5049e46d1b5461d2b461a7bf8d7e0fef864c831c7",
+        "server": {
+          "version": "0.4.6",
+          "buildId": "937313e39448",
+          "commit": "937313e39448",
+          "displayVersion": "0.4.6+937313e39448",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.6",
+            "state": "unknown",
+            "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+          }
+        },
+        "responsePath": "out/grid-429-1966-429-1966.response.json",
+        "files": {
+          "src/screens/grid-429-1966.tsx": "6b16b8f79f4ecf590a24a1c13af67b488afc08a2d513d156e000c20728c1b0d2",
+          "themes/grid-429-1966.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "out/grid-429-1966.reference.png": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+          "out/grid-429-1966-429-1966.snapshot.json": "9de5a06b83300efc89c2b02b21f0b7af0f71326accac1ad9dfe62a88c3bd6c02",
+          "public/images/Frame-506-429-1967-986461bdbd3b.png": "8722fc62d4e2e2395697bad982d1d28d159d10b15b0d38b09535e78232ea4ed6",
+          "public/images/Frame-508-429-1968-c886d36997c5.png": "7f8167a9cd5504e7a5e3a386993e6b6eb1dbd21753a86b940ecd4084c65983b7",
+          "public/images/Frame-509-429-1969-a6034b24119a.png": "e13b27fae8519c989ccda979e02377c63ed659b6105ce2263f227bae789bb1b8",
+          "public/images/Frame-507-429-1970-021ef10975df.png": "1fd831e6b6aab7c067a2d57fb06d42738fffe7bdf69c3ffbe9cd89fc1d9a9746",
+          "public/images/Frame-510-429-1971-40e88a5fbe9d.png": "83b2e86d2e4017e1a0996b56d76162ed2de8d6002918fb30aa1b4b083a33cc61",
+          "public/images/Frame-511-429-1972-f549097083e6.png": "d005a60f6b3f5d904c8f41f6fca683179e549e8416cee9fec6819e25e6d9d3d7"
+        }
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "rendered": {
+        "width": 1281,
+        "height": 1086
+      },
+      "flattened": {
+        "canvas": [
+          30,
+          30,
+          30
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1281,1086],\"actualDimensions\":[1281,1086],\"changedPixels\":41234,\"totalPixels\":1391166,\"changedRatio\":0.029639884816046395,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":176,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\orca\\\\workspaces\\\\devup-mcp\\\\W24-C-grid\\\\harness\\\\render\\\\out\\\\grid-429-1966.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1281,
+          1086
+        ],
+        "actualDimensions": [
+          1281,
+          1086
+        ],
+        "changedPixels": 41234,
+        "totalPixels": 1391166,
+        "changedRatio": 0.029639884816046395,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 176,
+        "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-C-grid\\harness\\render\\out\\grid-429-1966.diff.png"
+      }
+    },
+    {
+      "name": "keyframes-458-2021",
+      "frame": "458:2021",
+      "viewport": {
+        "width": 64,
+        "height": 64
+      },
+      "reference": "out/keyframes-458-2021.reference.png",
+      "actual": "out/keyframes-458-2021.actual.png",
+      "acquisition": {
+        "binarySha256": "27ca7e30f7fea3f1e76fe6e5049e46d1b5461d2b461a7bf8d7e0fef864c831c7",
+        "server": {
+          "version": "0.4.6",
+          "buildId": "937313e39448",
+          "commit": "937313e39448",
+          "displayVersion": "0.4.6+937313e39448",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.6",
+            "state": "unknown",
+            "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+          }
+        },
+        "responsePath": "out/keyframes-458-2021-458-2021.response.json",
+        "files": {
+          "src/screens/keyframes-458-2021.tsx": "f9e4d334a007caf23cc45575ea1a93a33b3b90abb5b8bc416952745072c6a935",
+          "themes/keyframes-458-2021.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "out/keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+          "out/keyframes-458-2021-458-2021.snapshot.json": "8ae3430b3818eabbdaae857264cdc505a5fbed16831041e2e747d4a1f3a66d0d"
+        }
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "rendered": {
+        "width": 64,
+        "height": 64
+      },
+      "flattened": {
+        "canvas": [
+          30,
+          30,
+          30
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[64,64],\"actualDimensions\":[64,64],\"changedPixels\":110,\"totalPixels\":4096,\"changedRatio\":0.02685546875,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":182,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\orca\\\\workspaces\\\\devup-mcp\\\\W24-C-grid\\\\harness\\\\render\\\\out\\\\keyframes-458-2021.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          64,
+          64
+        ],
+        "actualDimensions": [
+          64,
+          64
+        ],
+        "changedPixels": 110,
+        "totalPixels": 4096,
+        "changedRatio": 0.02685546875,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 182,
+        "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-C-grid\\harness\\render\\out\\keyframes-458-2021.diff.png"
+      }
+    }
+  ],
+  "finalPngsByteIdenticalToBaseline": true,
+  "gates": {
+    "fmt": {
+      "exit": 0
+    },
+    "clippy": {
+      "exit": 0,
+      "warnings": 0
+    },
+    "workspace": {
+      "exit": 0,
+      "passed": 1112,
+      "failed": 0,
+      "ignored": 2
+    },
+    "insta": {
+      "exit": 0,
+      "passed": 1112,
+      "failed": 0,
+      "ignored": 2,
+      "pendingSnapshots": 0
+    },
+    "smoke": {
+      "exit": 0,
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "gateLogHashes": {
+    "fmt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "clippy": "342b704f8833d07592c2447ecc7d606c3436c888afa4beba603d195885fb9c24",
+    "workspace": "916d09cc15389f709cbae052f8e55ea73951d72ffb75cc9227caf1436860e82f",
+    "insta": "6c81edfb0f240654302cc3f7579afc3f220499ed591bbc7897885bac884d69cb",
+    "smoke": "04a8c7c38e22a995c45e9fa8055a89caf321202d9f22000b014363aaca4d542e"
+  }
+}

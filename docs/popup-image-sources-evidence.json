@@ -1,0 +1,2949 @@
+{
+  "baseCommit": "937313e39448db7f7c05dbb0ab206432261b2203",
+  "baselineBinarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+  "candidateBinarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+  "baselines": [
+    [
+      {
+        "name": "popup-422-5682",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 390,
+          "height": 800
+        },
+        "rendered": {
+          "width": 390,
+          "height": 800
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+        "inputHashes": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5682.reference.png": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+          "out/popup-422-5682.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            390,
+            800
+          ],
+          "actualDimensions": [
+            390,
+            800
+          ],
+          "changedPixels": 11370,
+          "totalPixels": 312000,
+          "changedRatio": 0.03644230769230769,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5682.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5705",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "rendered": {
+          "width": 768,
+          "height": 1024
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+        "inputHashes": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5705.reference.png": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+          "out/popup-422-5705.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            768,
+            1024
+          ],
+          "actualDimensions": [
+            768,
+            1024
+          ],
+          "changedPixels": 16221,
+          "totalPixels": 786432,
+          "changedRatio": 0.020626068115234375,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5705.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5728",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 1080
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+        "inputHashes": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5728.reference.png": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+          "out/popup-422-5728.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            1080
+          ],
+          "actualDimensions": [
+            1920,
+            1080
+          ],
+          "changedPixels": 17699,
+          "totalPixels": 2073600,
+          "changedRatio": 0.00853539737654321,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 237,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5728.diff.png"
+        }
+      }
+    ],
+    [
+      {
+        "name": "popup-422-5682",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 390,
+          "height": 800
+        },
+        "rendered": {
+          "width": 390,
+          "height": 800
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+        "inputHashes": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5682.reference.png": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+          "out/popup-422-5682.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            390,
+            800
+          ],
+          "actualDimensions": [
+            390,
+            800
+          ],
+          "changedPixels": 11370,
+          "totalPixels": 312000,
+          "changedRatio": 0.03644230769230769,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5682.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5705",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "rendered": {
+          "width": 768,
+          "height": 1024
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+        "inputHashes": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5705.reference.png": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+          "out/popup-422-5705.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            768,
+            1024
+          ],
+          "actualDimensions": [
+            768,
+            1024
+          ],
+          "changedPixels": 16221,
+          "totalPixels": 786432,
+          "changedRatio": 0.020626068115234375,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5705.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5728",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 1080
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "0ae51b1421d38fe3ca7c7cf079e1f6a28e39f1e77d9e9e5784178df5a47155ab",
+        "inputHashes": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5728.reference.png": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+          "out/popup-422-5728.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            1080
+          ],
+          "actualDimensions": [
+            1920,
+            1080
+          ],
+          "changedPixels": 17699,
+          "totalPixels": 2073600,
+          "changedRatio": 0.00853539737654321,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 237,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5728.diff.png"
+        }
+      }
+    ]
+  ],
+  "candidates": [
+    [
+      {
+        "name": "popup-422-5682",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 390,
+          "height": 800
+        },
+        "rendered": {
+          "width": 390,
+          "height": 800
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+        "inputHashes": {
+          "src/screens/popup.tsx": "1cc9271ad5ef2859438b45415ea5361efac816c73f6105860b0564ab4bc5e5e8",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5682.reference.png": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+          "out/popup-422-5682.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            390,
+            800
+          ],
+          "actualDimensions": [
+            390,
+            800
+          ],
+          "changedPixels": 11155,
+          "totalPixels": 312000,
+          "changedRatio": 0.03575320512820513,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5682.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5705",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "rendered": {
+          "width": 768,
+          "height": 1024
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+        "inputHashes": {
+          "src/screens/popup.tsx": "1cc9271ad5ef2859438b45415ea5361efac816c73f6105860b0564ab4bc5e5e8",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5705.reference.png": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+          "out/popup-422-5705.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            768,
+            1024
+          ],
+          "actualDimensions": [
+            768,
+            1024
+          ],
+          "changedPixels": 15893,
+          "totalPixels": 786432,
+          "changedRatio": 0.020208994547526043,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5705.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5728",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 1080
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+        "inputHashes": {
+          "src/screens/popup.tsx": "1cc9271ad5ef2859438b45415ea5361efac816c73f6105860b0564ab4bc5e5e8",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5728.reference.png": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+          "out/popup-422-5728.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            1080
+          ],
+          "actualDimensions": [
+            1920,
+            1080
+          ],
+          "changedPixels": 17371,
+          "totalPixels": 2073600,
+          "changedRatio": 0.00837721836419753,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 237,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5728.diff.png"
+        }
+      }
+    ],
+    [
+      {
+        "name": "popup-422-5682",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 390,
+          "height": 800
+        },
+        "rendered": {
+          "width": 390,
+          "height": 800
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+        "inputHashes": {
+          "src/screens/popup.tsx": "1cc9271ad5ef2859438b45415ea5361efac816c73f6105860b0564ab4bc5e5e8",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5682.reference.png": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+          "out/popup-422-5682.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            390,
+            800
+          ],
+          "actualDimensions": [
+            390,
+            800
+          ],
+          "changedPixels": 11155,
+          "totalPixels": 312000,
+          "changedRatio": 0.03575320512820513,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5682.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5705",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "rendered": {
+          "width": 768,
+          "height": 1024
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+        "inputHashes": {
+          "src/screens/popup.tsx": "1cc9271ad5ef2859438b45415ea5361efac816c73f6105860b0564ab4bc5e5e8",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5705.reference.png": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+          "out/popup-422-5705.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            768,
+            1024
+          ],
+          "actualDimensions": [
+            768,
+            1024
+          ],
+          "changedPixels": 15893,
+          "totalPixels": 786432,
+          "changedRatio": 0.020208994547526043,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 236,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5705.diff.png"
+        }
+      },
+      {
+        "name": "popup-422-5728",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 1080
+        },
+        "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+        "binarySha256": "eb54a7c9c6e2517ef4308b8376915d04d37b475a16b01c91f6921ccee84304bb",
+        "inputHashes": {
+          "src/screens/popup.tsx": "1cc9271ad5ef2859438b45415ea5361efac816c73f6105860b0564ab4bc5e5e8",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5728.reference.png": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+          "out/popup-422-5728.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            1080
+          ],
+          "actualDimensions": [
+            1920,
+            1080
+          ],
+          "changedPixels": 17371,
+          "totalPixels": 2073600,
+          "changedRatio": 0.00837721836419753,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 237,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-B-popup\\harness\\render\\out\\popup-422-5728.diff.png"
+        }
+      }
+    ]
+  ],
+  "spatial": [
+    {
+      "name": "popup-422-5682",
+      "text": 8728,
+      "asset": 322,
+      "other": 2320,
+      "paintChanges": 361,
+      "hashes": {
+        "reference": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+        "baseline": "059c502c8c28229cd099ecc1202461d347c069cadd2ba2efee1a37aa0baace2f",
+        "candidate": "82b0544ad00211132d16591a65e41f11f01513c30f0c4df2d2b8c47310c89cab"
+      }
+    },
+    {
+      "name": "popup-422-5705",
+      "text": 13392,
+      "asset": 426,
+      "other": 2403,
+      "paintChanges": 491,
+      "hashes": {
+        "reference": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+        "baseline": "ee43d4428b94262fc87460a413da67350f4a3446e8122a3bb53ae96a25ea71fe",
+        "candidate": "4eed90e59623f4fc0931ad81e1350dae33f3b7a9fe7c869abb52c2f415d91765"
+      }
+    },
+    {
+      "name": "popup-422-5728",
+      "text": 14685,
+      "asset": 426,
+      "other": 2588,
+      "paintChanges": 491,
+      "hashes": {
+        "reference": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+        "baseline": "38ed76ac08098116a37b0c511fbf9b2a61c7b1ec5a7d89bd69aec2e428abcd00",
+        "candidate": "5bca365dbd2fc39040833a6917ef12dd63461a220e2bdcb5f01e7c5e0ffdae1b"
+      }
+    }
+  ],
+  "probes": [
+    {
+      "id": "422:5682",
+      "width": 390,
+      "height": 800,
+      "source": [
+        {
+          "id": "422:5682",
+          "type": "FRAME",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 800
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5683",
+          "type": "FRAME",
+          "box": {
+            "x": 36.5,
+            "y": 211.5,
+            "width": 318,
+            "height": 377
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5684",
+          "type": "FRAME",
+          "box": {
+            "x": 36.5,
+            "y": 211.5,
+            "width": 318,
+            "height": 329
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5685",
+          "type": "FRAME",
+          "box": {
+            "x": 66.5,
+            "y": 241.5,
+            "width": 258,
+            "height": 192
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5686",
+          "type": "FRAME",
+          "box": {
+            "x": 66.5,
+            "y": 241.5,
+            "width": 64,
+            "height": 26
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5687",
+          "type": "FRAME",
+          "box": {
+            "x": 66.5,
+            "y": 244.5,
+            "width": 20,
+            "height": 20
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5688",
+          "type": "VECTOR",
+          "box": {
+            "x": 68.099609375,
+            "y": 258.3517761230469,
+            "width": 4.799975395202637,
+            "height": 4.627026081085205
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5689",
+          "type": "VECTOR",
+          "box": {
+            "x": 66.5,
+            "y": 250.5895843505859,
+            "width": 7.632458209991455,
+            "height": 7.827051639556885
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5690",
+          "type": "VECTOR",
+          "box": {
+            "x": 83.775390625,
+            "y": 250.80581665039065,
+            "width": 2.724302291870117,
+            "height": 7.178379535675049
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5691",
+          "type": "VECTOR",
+          "box": {
+            "x": 73.5703125,
+            "y": 245.8266143798828,
+            "width": 10.378362655639648,
+            "height": 17.346708297729492
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5692",
+          "type": "TEXT",
+          "characters": "안내",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 98.5,
+            "y": 241.5,
+            "width": 32,
+            "height": 26
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5693",
+          "type": "FRAME",
+          "box": {
+            "x": 66.5,
+            "y": 287.5,
+            "width": 258,
+            "height": 146
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5694",
+          "type": "TEXT",
+          "characters": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은 \n2026년 하반기부터 정식 서비스로 찾아올 \n예정입니다.\r",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 66.5,
+            "y": 287.5,
+            "width": 258,
+            "height": 78
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5695",
+          "type": "TEXT",
+          "characters": "온글의 소식을 가장 먼저 받아보고 싶다면 \n아래 버튼을 눌러 주세요.",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 66.5,
+            "y": 381.5,
+            "width": 247,
+            "height": 52
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5696",
+          "type": "FRAME",
+          "box": {
+            "x": 85.5,
+            "y": 469.5,
+            "width": 220,
+            "height": 41
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5697",
+          "type": "TEXT",
+          "characters": "서비스 소식 알림 받기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 132.5,
+            "y": 481.5,
+            "width": 126,
+            "height": 17
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5698",
+          "type": "FRAME",
+          "box": {
+            "x": 36.5,
+            "y": 540.5,
+            "width": 318,
+            "height": 48
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5699",
+          "type": "FRAME",
+          "box": {
+            "x": 36.5,
+            "y": 540.5,
+            "width": 137,
+            "height": 48
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5700",
+          "type": "TEXT",
+          "characters": "오늘 하루 그만 보기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 52.5,
+            "y": 556.5,
+            "width": 105,
+            "height": 16
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5701",
+          "type": "FRAME",
+          "box": {
+            "x": 272.5,
+            "y": 540.5,
+            "width": 82,
+            "height": 48
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5702",
+          "type": "FRAME",
+          "box": {
+            "x": 288.5,
+            "y": 556.5,
+            "width": 16,
+            "height": 16
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5703",
+          "type": "VECTOR",
+          "box": {
+            "x": 291.5,
+            "y": 559.5,
+            "width": 10,
+            "height": 10
+          },
+          "stroke": [
+            {
+              "blendMode": "NORMAL",
+              "boundVariables": {
+                "color": {
+                  "id": "VariableID:422:5755",
+                  "type": "VARIABLE_ALIAS"
+                }
+              },
+              "color": {
+                "b": 0.3157050907611847,
+                "g": 0.27816444635391235,
+                "r": 0.26207563281059265
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "strokeAlign": "CENTER"
+        },
+        {
+          "id": "422:5704",
+          "type": "TEXT",
+          "characters": "닫기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 314.5,
+            "y": 556.5,
+            "width": 24,
+            "height": 16
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        }
+      ],
+      "dom": [
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 800
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 35.375,
+            "y": 211.5,
+            "width": 319.25,
+            "height": 377
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 35.375,
+            "y": 211.5,
+            "width": 319.25,
+            "height": 329
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 65.375,
+            "y": 241.5,
+            "width": 259.25,
+            "height": 192
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 65.375,
+            "y": 241.5,
+            "width": 259.25,
+            "height": 26
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "IMG",
+          "text": null,
+          "box": {
+            "x": 65.375,
+            "y": 244.5,
+            "width": 20,
+            "height": 20
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg,/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg,,,/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 0,
+          "complete": true
+        },
+        {
+          "tag": "SPAN",
+          "text": "안내",
+          "box": {
+            "x": 97.375,
+            "y": 241.5,
+            "width": 31.28125,
+            "height": 26
+          },
+          "font": "700 17px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 65.375,
+            "y": 287.5,
+            "width": 259.25,
+            "height": 146
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은\n2026년 하반기부터 정식 서비스로 찾아올\n예정입니다.\n",
+          "box": {
+            "x": 65.375,
+            "y": 287.5,
+            "width": 259.25,
+            "height": 78
+          },
+          "font": "14.5px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 324.625,
+            "y": 289.5,
+            "width": 0,
+            "height": 21
+          },
+          "font": "14.5px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 313.90625,
+            "y": 315.5,
+            "width": 0,
+            "height": 21
+          },
+          "font": "14.5px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 136.125,
+            "y": 341.5,
+            "width": 0,
+            "height": 21
+          },
+          "font": "14.5px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "온글의 소식을 가장 먼저 받아보고 싶다면\n아래 버튼을 눌러 주세요.",
+          "box": {
+            "x": 65.375,
+            "y": 381.5,
+            "width": 259.25,
+            "height": 52
+          },
+          "font": "14.5px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 312.46875,
+            "y": 383.5,
+            "width": 0,
+            "height": 21
+          },
+          "font": "14.5px / 26px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 85,
+            "y": 469.5,
+            "width": 220,
+            "height": 41
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "서비스 소식 알림 받기",
+          "box": {
+            "x": 131.15625,
+            "y": 481.5,
+            "width": 127.6875,
+            "height": 17
+          },
+          "font": "700 14px / 17px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 35.375,
+            "y": 540.5,
+            "width": 319.25,
+            "height": 48
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 35.375,
+            "y": 540.5,
+            "width": 138.609375,
+            "height": 48
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "오늘 하루 그만 보기",
+          "box": {
+            "x": 51.375,
+            "y": 556.5,
+            "width": 106.609375,
+            "height": 16
+          },
+          "font": "500 13px / 16px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 272.703125,
+            "y": 540.5,
+            "width": 81.921875,
+            "height": 48
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 288.703125,
+            "y": 556.5,
+            "width": 16,
+            "height": 16
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "닫기",
+          "box": {
+            "x": 314.703125,
+            "y": 556.5,
+            "width": 23.921875,
+            "height": 16
+          },
+          "font": "500 13px / 16px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        }
+      ],
+      "baseline": {
+        "changed": 11370,
+        "percent": 3.644230769230769,
+        "text": 8699,
+        "asset": 322,
+        "other": 2349,
+        "bands": {
+          "200": 527,
+          "250": 1426,
+          "300": 3057,
+          "350": 2072,
+          "400": 1393,
+          "450": 1309,
+          "500": 370,
+          "550": 1216
+        }
+      },
+      "repairedImage": {
+        "changed": 11155,
+        "percent": 3.575320512820513,
+        "text": 8699,
+        "asset": 119,
+        "other": 2337,
+        "bands": {
+          "200": 473,
+          "250": 1265,
+          "300": 3057,
+          "350": 2072,
+          "400": 1393,
+          "450": 1309,
+          "500": 370,
+          "550": 1216
+        }
+      },
+      "repairedDom": [
+        {
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg",
+          "naturalWidth": 20,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "id": "422:5705",
+      "width": 768,
+      "height": 1024,
+      "source": [
+        {
+          "id": "422:5705",
+          "type": "FRAME",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 1024
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5706",
+          "type": "FRAME",
+          "box": {
+            "x": 184,
+            "y": 279.5,
+            "width": 400,
+            "height": 465
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5707",
+          "type": "FRAME",
+          "box": {
+            "x": 184,
+            "y": 279.5,
+            "width": 400,
+            "height": 407
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5708",
+          "type": "FRAME",
+          "box": {
+            "x": 224,
+            "y": 319.5,
+            "width": 320,
+            "height": 236
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5709",
+          "type": "FRAME",
+          "box": {
+            "x": 224,
+            "y": 319.5,
+            "width": 77,
+            "height": 30
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5710",
+          "type": "FRAME",
+          "box": {
+            "x": 224,
+            "y": 322.5,
+            "width": 24,
+            "height": 24
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5711",
+          "type": "VECTOR",
+          "box": {
+            "x": 225.919921875,
+            "y": 339.12213134765625,
+            "width": 5.759970664978027,
+            "height": 5.552431106567383
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5712",
+          "type": "VECTOR",
+          "box": {
+            "x": 224,
+            "y": 329.8074951171875,
+            "width": 9.158949851989746,
+            "height": 9.392461776733398
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5713",
+          "type": "VECTOR",
+          "box": {
+            "x": 244.73046875,
+            "y": 330.0669860839844,
+            "width": 3.269162654876709,
+            "height": 8.614055633544922
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5714",
+          "type": "VECTOR",
+          "box": {
+            "x": 232.484375,
+            "y": 324.0919189453125,
+            "width": 12.454034805297852,
+            "height": 20.816049575805664
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5715",
+          "type": "TEXT",
+          "characters": "안내",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 264,
+            "y": 319.5,
+            "width": 37,
+            "height": 30
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5716",
+          "type": "FRAME",
+          "box": {
+            "x": 224,
+            "y": 379.5,
+            "width": 320,
+            "height": 176
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5717",
+          "type": "TEXT",
+          "characters": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은 \n2026년 하반기부터 정식 서비스로 찾아올 \n예정입니다.\r",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 224,
+            "y": 379.5,
+            "width": 320,
+            "height": 96
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5718",
+          "type": "TEXT",
+          "characters": "온글의 소식을 가장 먼저 받아보고 싶다면 \n아래 버튼을 눌러 주세요.",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 224,
+            "y": 491.5,
+            "width": 306,
+            "height": 64
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5719",
+          "type": "FRAME",
+          "box": {
+            "x": 272,
+            "y": 595.5,
+            "width": 224,
+            "height": 51
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5720",
+          "type": "TEXT",
+          "characters": "서비스 소식 알림 받기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 312,
+            "y": 611.5,
+            "width": 144,
+            "height": 19
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5721",
+          "type": "FRAME",
+          "box": {
+            "x": 184,
+            "y": 686.5,
+            "width": 400,
+            "height": 58
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5722",
+          "type": "FRAME",
+          "box": {
+            "x": 184,
+            "y": 686.5,
+            "width": 161,
+            "height": 58
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5723",
+          "type": "TEXT",
+          "characters": "오늘 하루 그만 보기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 204,
+            "y": 706.5,
+            "width": 121,
+            "height": 18
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5724",
+          "type": "FRAME",
+          "box": {
+            "x": 490,
+            "y": 686.5,
+            "width": 94,
+            "height": 58
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5725",
+          "type": "FRAME",
+          "box": {
+            "x": 510,
+            "y": 707.5,
+            "width": 16,
+            "height": 16
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5726",
+          "type": "VECTOR",
+          "box": {
+            "x": 513,
+            "y": 710.5,
+            "width": 10,
+            "height": 10
+          },
+          "stroke": [
+            {
+              "blendMode": "NORMAL",
+              "boundVariables": {
+                "color": {
+                  "id": "VariableID:422:5755",
+                  "type": "VARIABLE_ALIAS"
+                }
+              },
+              "color": {
+                "b": 0.3157050907611847,
+                "g": 0.27816444635391235,
+                "r": 0.26207563281059265
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "strokeAlign": "CENTER"
+        },
+        {
+          "id": "422:5727",
+          "type": "TEXT",
+          "characters": "닫기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 536,
+            "y": 706.5,
+            "width": 28,
+            "height": 18
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        }
+      ],
+      "dom": [
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 768,
+            "height": 1024
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 183.078125,
+            "y": 279.5,
+            "width": 401.84375,
+            "height": 465
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 183.078125,
+            "y": 279.5,
+            "width": 401.84375,
+            "height": 407
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 223.078125,
+            "y": 319.5,
+            "width": 321.84375,
+            "height": 236
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 223.078125,
+            "y": 319.5,
+            "width": 321.84375,
+            "height": 30
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "IMG",
+          "text": null,
+          "box": {
+            "x": 223.078125,
+            "y": 322.5,
+            "width": 24,
+            "height": 24
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg,/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg,,,/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 0,
+          "complete": true
+        },
+        {
+          "tag": "SPAN",
+          "text": "안내",
+          "box": {
+            "x": 263.078125,
+            "y": 319.5,
+            "width": 36.8125,
+            "height": 30
+          },
+          "font": "700 20px / 30px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 223.078125,
+            "y": 379.5,
+            "width": 321.84375,
+            "height": 176
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은\n2026년 하반기부터 정식 서비스로 찾아올\n예정입니다.\n",
+          "box": {
+            "x": 223.078125,
+            "y": 379.5,
+            "width": 321.84375,
+            "height": 96
+          },
+          "font": "18px / 32px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 544.921875,
+            "y": 382.5,
+            "width": 0,
+            "height": 26
+          },
+          "font": "18px / 32px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 531.609375,
+            "y": 414.5,
+            "width": 0,
+            "height": 26
+          },
+          "font": "18px / 32px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 310.90625,
+            "y": 446.5,
+            "width": 0,
+            "height": 26
+          },
+          "font": "18px / 32px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "온글의 소식을 가장 먼저 받아보고 싶다면\n아래 버튼을 눌러 주세요.",
+          "box": {
+            "x": 223.078125,
+            "y": 491.5,
+            "width": 321.84375,
+            "height": 64
+          },
+          "font": "18px / 32px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 529.8125,
+            "y": 494.5,
+            "width": 0,
+            "height": 26
+          },
+          "font": "18px / 32px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 271.03125,
+            "y": 595.5,
+            "width": 225.921875,
+            "height": 51
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "서비스 소식 알림 받기",
+          "box": {
+            "x": 311.03125,
+            "y": 611.5,
+            "width": 145.921875,
+            "height": 19
+          },
+          "font": "700 16px / 19px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 183.078125,
+            "y": 686.5,
+            "width": 401.84375,
+            "height": 58
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 183.078125,
+            "y": 686.5,
+            "width": 163,
+            "height": 58
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "오늘 하루 그만 보기",
+          "box": {
+            "x": 203.078125,
+            "y": 706.5,
+            "width": 123,
+            "height": 18
+          },
+          "font": "500 15px / 18px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 491.3125,
+            "y": 686.5,
+            "width": 93.609375,
+            "height": 58
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 511.3125,
+            "y": 707.5,
+            "width": 16,
+            "height": 16
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "닫기",
+          "box": {
+            "x": 537.3125,
+            "y": 706.5,
+            "width": 27.609375,
+            "height": 18
+          },
+          "font": "500 15px / 18px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        }
+      ],
+      "baseline": {
+        "changed": 16221,
+        "percent": 2.0626068115234375,
+        "text": 13392,
+        "asset": 426,
+        "other": 2403,
+        "bands": {
+          "250": 436,
+          "300": 865,
+          "350": 2346,
+          "400": 3620,
+          "450": 912,
+          "500": 4594,
+          "550": 300,
+          "600": 1514,
+          "650": 100,
+          "700": 1534
+        }
+      },
+      "repairedImage": {
+        "changed": 15893,
+        "percent": 2.0208994547526045,
+        "text": 13392,
+        "asset": 112,
+        "other": 2389,
+        "bands": {
+          "250": 436,
+          "300": 537,
+          "350": 2346,
+          "400": 3620,
+          "450": 912,
+          "500": 4594,
+          "550": 300,
+          "600": 1514,
+          "650": 100,
+          "700": 1534
+        }
+      },
+      "repairedDom": [
+        {
+          "src": "/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg",
+          "naturalWidth": 24,
+          "complete": true
+        }
+      ]
+    },
+    {
+      "id": "422:5728",
+      "width": 1920,
+      "height": 1080,
+      "source": [
+        {
+          "id": "422:5728",
+          "type": "FRAME",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5729",
+          "type": "FRAME",
+          "box": {
+            "x": 742,
+            "y": 287.5,
+            "width": 436,
+            "height": 505
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5730",
+          "type": "FRAME",
+          "box": {
+            "x": 742,
+            "y": 287.5,
+            "width": 436,
+            "height": 446
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5731",
+          "type": "FRAME",
+          "box": {
+            "x": 782,
+            "y": 327.5,
+            "width": 356,
+            "height": 262
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5732",
+          "type": "FRAME",
+          "box": {
+            "x": 782,
+            "y": 327.5,
+            "width": 85,
+            "height": 36
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5733",
+          "type": "FRAME",
+          "box": {
+            "x": 782,
+            "y": 333.5,
+            "width": 24,
+            "height": 24
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5734",
+          "type": "VECTOR",
+          "box": {
+            "x": 783.919921875,
+            "y": 350.12213134765625,
+            "width": 5.759970664978027,
+            "height": 5.552431106567383
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5735",
+          "type": "VECTOR",
+          "box": {
+            "x": 782,
+            "y": 340.8074951171875,
+            "width": 9.158949851989746,
+            "height": 9.392461776733398
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5736",
+          "type": "VECTOR",
+          "box": {
+            "x": 802.73046875,
+            "y": 341.0669860839844,
+            "width": 3.269162654876709,
+            "height": 8.614055633544922
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5737",
+          "type": "VECTOR",
+          "box": {
+            "x": 790.484375,
+            "y": 335.0919189453125,
+            "width": 12.454034805297852,
+            "height": 20.816049575805664
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5738",
+          "type": "TEXT",
+          "characters": "안내",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 822,
+            "y": 327.5,
+            "width": 45,
+            "height": 36
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5739",
+          "type": "FRAME",
+          "box": {
+            "x": 782,
+            "y": 393.5,
+            "width": 356,
+            "height": 196
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5740",
+          "type": "TEXT",
+          "characters": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은 \n2026년 하반기부터 정식 서비스로 찾아올 \n예정입니다.\r",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 782,
+            "y": 393.5,
+            "width": 356,
+            "height": 108
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5741",
+          "type": "TEXT",
+          "characters": "온글의 소식을 가장 먼저 받아보고 싶다면 \n아래 버튼을 눌러 주세요.",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 782,
+            "y": 517.5,
+            "width": 340,
+            "height": 72
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5742",
+          "type": "FRAME",
+          "box": {
+            "x": 839,
+            "y": 639.5,
+            "width": 242,
+            "height": 54
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5743",
+          "type": "TEXT",
+          "characters": "서비스 소식 알림 받기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 879,
+            "y": 655.5,
+            "width": 162,
+            "height": 22
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5744",
+          "type": "FRAME",
+          "box": {
+            "x": 742,
+            "y": 733.5,
+            "width": 436,
+            "height": 59
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5745",
+          "type": "FRAME",
+          "box": {
+            "x": 742,
+            "y": 733.5,
+            "width": 169,
+            "height": 59
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5746",
+          "type": "TEXT",
+          "characters": "오늘 하루 그만 보기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 762,
+            "y": 753.5,
+            "width": 129,
+            "height": 19
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        },
+        {
+          "id": "422:5747",
+          "type": "FRAME",
+          "box": {
+            "x": 1079,
+            "y": 733.5,
+            "width": 99,
+            "height": 59
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5748",
+          "type": "FRAME",
+          "box": {
+            "x": 1099,
+            "y": 753.5,
+            "width": 19,
+            "height": 19
+          },
+          "stroke": []
+        },
+        {
+          "id": "422:5749",
+          "type": "VECTOR",
+          "box": {
+            "x": 1102.5625,
+            "y": 757.0625,
+            "width": 11.875,
+            "height": 11.875
+          },
+          "stroke": [
+            {
+              "blendMode": "NORMAL",
+              "boundVariables": {
+                "color": {
+                  "id": "VariableID:422:5755",
+                  "type": "VARIABLE_ALIAS"
+                }
+              },
+              "color": {
+                "b": 0.3157050907611847,
+                "g": 0.27816444635391235,
+                "r": 0.26207563281059265
+              },
+              "opacity": 1,
+              "type": "SOLID",
+              "visible": true
+            }
+          ],
+          "strokeAlign": "CENTER"
+        },
+        {
+          "id": "422:5750",
+          "type": "TEXT",
+          "characters": "닫기",
+          "resize": "WIDTH_AND_HEIGHT",
+          "box": {
+            "x": 1128,
+            "y": 753.5,
+            "width": 30,
+            "height": 19
+          },
+          "stroke": [],
+          "strokeAlign": "OUTSIDE"
+        }
+      ],
+      "dom": [
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 1920,
+            "height": 1080
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 741.1875,
+            "y": 287.5,
+            "width": 437.609375,
+            "height": 505
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 741.1875,
+            "y": 287.5,
+            "width": 437.609375,
+            "height": 446
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 781.1875,
+            "y": 327.5,
+            "width": 357.609375,
+            "height": 262
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 781.1875,
+            "y": 327.5,
+            "width": 357.609375,
+            "height": 36
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "IMG",
+          "text": null,
+          "box": {
+            "x": 781.1875,
+            "y": 333.5,
+            "width": 24,
+            "height": 24
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg,/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg,,,/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 0,
+          "complete": true
+        },
+        {
+          "tag": "SPAN",
+          "text": "안내",
+          "box": {
+            "x": 821.1875,
+            "y": 327.5,
+            "width": 44.171875,
+            "height": 36
+          },
+          "font": "700 24px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 781.1875,
+            "y": 393.5,
+            "width": 357.609375,
+            "height": 196
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은\n2026년 하반기부터 정식 서비스로 찾아올\n예정입니다.\n",
+          "box": {
+            "x": 781.1875,
+            "y": 393.5,
+            "width": 357.609375,
+            "height": 108
+          },
+          "font": "20px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 1138.796875,
+            "y": 396.5,
+            "width": 0,
+            "height": 29
+          },
+          "font": "20px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 1124,
+            "y": 432.5,
+            "width": 0,
+            "height": 29
+          },
+          "font": "20px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 878.78125,
+            "y": 468.5,
+            "width": 0,
+            "height": 29
+          },
+          "font": "20px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "온글의 소식을 가장 먼저 받아보고 싶다면\n아래 버튼을 눌러 주세요.",
+          "box": {
+            "x": 781.1875,
+            "y": 517.5,
+            "width": 357.609375,
+            "height": 72
+          },
+          "font": "20px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "BR",
+          "text": null,
+          "box": {
+            "x": 1122,
+            "y": 520.5,
+            "width": 0,
+            "height": 29
+          },
+          "font": "20px / 36px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 837.90625,
+            "y": 639.5,
+            "width": 244.171875,
+            "height": 54
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "서비스 소식 알림 받기",
+          "box": {
+            "x": 877.90625,
+            "y": 655.5,
+            "width": 164.171875,
+            "height": 22
+          },
+          "font": "700 18px / 22px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 741.1875,
+            "y": 733.5,
+            "width": 437.609375,
+            "height": 59
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 741.1875,
+            "y": 733.5,
+            "width": 171.203125,
+            "height": 59
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "오늘 하루 그만 보기",
+          "box": {
+            "x": 761.1875,
+            "y": 753.5,
+            "width": 131.203125,
+            "height": 19
+          },
+          "font": "500 16px / 19px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 1080.34375,
+            "y": 733.5,
+            "width": 98.453125,
+            "height": 59
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "DIV",
+          "text": null,
+          "box": {
+            "x": 1100.34375,
+            "y": 753.5,
+            "width": 19,
+            "height": 19
+          },
+          "font": "16px / 24px Pretendard, \"Noto Sans KR\", sans-serif",
+          "whiteSpace": "normal",
+          "wordBreak": "normal",
+          "src": null
+        },
+        {
+          "tag": "SPAN",
+          "text": "닫기",
+          "box": {
+            "x": 1129.34375,
+            "y": 753.5,
+            "width": 29.453125,
+            "height": 19
+          },
+          "font": "500 16px / 19px \"Noto Sans KR\"",
+          "whiteSpace": "normal",
+          "wordBreak": "keep-all",
+          "src": null
+        }
+      ],
+      "baseline": {
+        "changed": 17699,
+        "percent": 0.853539737654321,
+        "text": 14684,
+        "asset": 426,
+        "other": 2589,
+        "bands": {
+          "250": 456,
+          "300": 649,
+          "350": 324,
+          "400": 5191,
+          "450": 1938,
+          "500": 3172,
+          "550": 1831,
+          "600": 317,
+          "650": 2062,
+          "700": 100,
+          "750": 1659
+        }
+      },
+      "repairedImage": {
+        "changed": 17371,
+        "percent": 0.8377218364197531,
+        "text": 14684,
+        "asset": 112,
+        "other": 2575,
+        "bands": {
+          "250": 456,
+          "300": 389,
+          "350": 256,
+          "400": 5191,
+          "450": 1938,
+          "500": 3172,
+          "550": 1831,
+          "600": 317,
+          "650": 2062,
+          "700": 100,
+          "750": 1659
+        }
+      },
+      "repairedDom": [
+        {
+          "src": "/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 24,
+          "complete": true
+        }
+      ]
+    }
+  ],
+  "residual": [
+    {
+      "width": 390,
+      "candidate": {
+        "changed": 11155,
+        "percent": 3.575320512820513
+      },
+      "images": [
+        {
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg",
+          "naturalWidth": 20,
+          "display": "block",
+          "box": {
+            "x": 65.375,
+            "y": 244.5,
+            "width": 20,
+            "height": 20
+          }
+        },
+        {
+          "src": "/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg",
+          "naturalWidth": 24,
+          "display": "none",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "src": "/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 24,
+          "display": "none",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "noKerning": {
+        "changed": 11155,
+        "percent": 3.575320512820513
+      },
+      "forcedSourceTextWidths": {
+        "changed": 56635,
+        "percent": 18.152243589743588
+      },
+      "forcedBoxes": [
+        {
+          "text": "안내",
+          "width": 32,
+          "height": 26
+        },
+        {
+          "text": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은\n2026년 하반기부터 정식 서비스로 찾아올\n예정입니다.\n",
+          "width": 258,
+          "height": 104
+        },
+        {
+          "text": "온글의 소식을 가장 먼저 받아보고 싶다면\n아래 버튼을 눌러 주세요.",
+          "width": 247,
+          "height": 78
+        },
+        {
+          "text": "서비스 소식 알림 받기",
+          "width": 126,
+          "height": 34
+        },
+        {
+          "text": "오늘 하루 그만 보기",
+          "width": 105,
+          "height": 32
+        },
+        {
+          "text": "닫기",
+          "width": 24,
+          "height": 16
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "candidate": {
+        "changed": 15893,
+        "percent": 2.0208994547526045
+      },
+      "images": [
+        {
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg",
+          "naturalWidth": 20,
+          "display": "none",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "src": "/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg",
+          "naturalWidth": 24,
+          "display": "block",
+          "box": {
+            "x": 223.078125,
+            "y": 322.5,
+            "width": 24,
+            "height": 24
+          }
+        },
+        {
+          "src": "/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 24,
+          "display": "none",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        }
+      ],
+      "noKerning": {
+        "changed": 15893,
+        "percent": 2.0208994547526045
+      },
+      "forcedSourceTextWidths": {
+        "changed": 81857,
+        "percent": 10.408655802408855
+      },
+      "forcedBoxes": [
+        {
+          "text": "안내",
+          "width": 37,
+          "height": 30
+        },
+        {
+          "text": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은\n2026년 하반기부터 정식 서비스로 찾아올\n예정입니다.\n",
+          "width": 320,
+          "height": 128
+        },
+        {
+          "text": "온글의 소식을 가장 먼저 받아보고 싶다면\n아래 버튼을 눌러 주세요.",
+          "width": 306,
+          "height": 96
+        },
+        {
+          "text": "서비스 소식 알림 받기",
+          "width": 144,
+          "height": 38
+        },
+        {
+          "text": "오늘 하루 그만 보기",
+          "width": 121,
+          "height": 36
+        },
+        {
+          "text": "닫기",
+          "width": 28,
+          "height": 18
+        }
+      ]
+    },
+    {
+      "width": 1920,
+      "candidate": {
+        "changed": 17371,
+        "percent": 0.8377218364197531
+      },
+      "images": [
+        {
+          "src": "/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg",
+          "naturalWidth": 20,
+          "display": "none",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "src": "/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg",
+          "naturalWidth": 24,
+          "display": "none",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "src": "/icons/megaphone_760116-1-422-5733-f0074be50750.svg",
+          "naturalWidth": 24,
+          "display": "block",
+          "box": {
+            "x": 781.1875,
+            "y": 333.5,
+            "width": 24,
+            "height": 24
+          }
+        }
+      ],
+      "noKerning": {
+        "changed": 17371,
+        "percent": 0.8377218364197531
+      },
+      "forcedSourceTextWidths": {
+        "changed": 99193,
+        "percent": 4.783613040123457
+      },
+      "forcedBoxes": [
+        {
+          "text": "안내",
+          "width": 45,
+          "height": 36
+        },
+        {
+          "text": "어려운 글을 쉽게 바꿔 주는 서비스 '온글'은\n2026년 하반기부터 정식 서비스로 찾아올\n예정입니다.\n",
+          "width": 356,
+          "height": 144
+        },
+        {
+          "text": "온글의 소식을 가장 먼저 받아보고 싶다면\n아래 버튼을 눌러 주세요.",
+          "width": 340,
+          "height": 108
+        },
+        {
+          "text": "서비스 소식 알림 받기",
+          "width": 162,
+          "height": 44
+        },
+        {
+          "text": "오늘 하루 그만 보기",
+          "width": 129,
+          "height": 38
+        },
+        {
+          "text": "닫기",
+          "width": 30,
+          "height": 19
+        }
+      ]
+    }
+  ],
+  "fidelity": {
+    "state": "produced",
+    "projection": "lossy",
+    "fidelity": {
+      "scope": "breakpoint-source-projections",
+      "sourceOutput": "tsx",
+      "breakpoints": [
+        {
+          "rootId": "422:5682",
+          "fidelity": {
+            "syntaxValid": true,
+            "nodes": {
+              "total": 23,
+              "covered": 23,
+              "basisPoints": 10000
+            },
+            "text": {
+              "total": 6,
+              "covered": 6,
+              "basisPoints": 10000
+            },
+            "variables": {
+              "total": 9,
+              "covered": 9,
+              "basisPoints": 10000
+            },
+            "typography": {
+              "total": 6,
+              "covered": 6,
+              "basisPoints": 10000
+            },
+            "assets": {
+              "total": 2,
+              "covered": 2,
+              "basisPoints": 10000
+            },
+            "layout": {
+              "total": 37,
+              "covered": 36,
+              "basisPoints": 9729
+            },
+            "impacts": {
+              "none": 11,
+              "approximated": 0,
+              "lossy": 3,
+              "failed": 0
+            },
+            "uncoveredLayout": [
+              "422:5698#layoutSizingHorizontal"
+            ]
+          }
+        },
+        {
+          "rootId": "422:5705",
+          "fidelity": {
+            "syntaxValid": true,
+            "nodes": {
+              "total": 23,
+              "covered": 23,
+              "basisPoints": 10000
+            },
+            "text": {
+              "total": 6,
+              "covered": 6,
+              "basisPoints": 10000
+            },
+            "variables": {
+              "total": 9,
+              "covered": 9,
+              "basisPoints": 10000
+            },
+            "typography": {
+              "total": 6,
+              "covered": 6,
+              "basisPoints": 10000
+            },
+            "assets": {
+              "total": 2,
+              "covered": 2,
+              "basisPoints": 10000
+            },
+            "layout": {
+              "total": 36,
+              "covered": 35,
+              "basisPoints": 9722
+            },
+            "impacts": {
+              "none": 11,
+              "approximated": 0,
+              "lossy": 3,
+              "failed": 0
+            },
+            "uncoveredLayout": [
+              "422:5721#layoutSizingHorizontal"
+            ]
+          }
+        },
+        {
+          "rootId": "422:5728",
+          "fidelity": {
+            "syntaxValid": true,
+            "nodes": {
+              "total": 23,
+              "covered": 23,
+              "basisPoints": 10000
+            },
+            "text": {
+              "total": 6,
+              "covered": 6,
+              "basisPoints": 10000
+            },
+            "variables": {
+              "total": 9,
+              "covered": 9,
+              "basisPoints": 10000
+            },
+            "typography": {
+              "total": 6,
+              "covered": 6,
+              "basisPoints": 10000
+            },
+            "assets": {
+              "total": 2,
+              "covered": 2,
+              "basisPoints": 10000
+            },
+            "layout": {
+              "total": 36,
+              "covered": 35,
+              "basisPoints": 9722
+            },
+            "impacts": {
+              "none": 11,
+              "approximated": 0,
+              "lossy": 3,
+              "failed": 0
+            },
+            "uncoveredLayout": [
+              "422:5744#layoutSizingHorizontal"
+            ]
+          }
+        }
+      ],
+      "syntaxValid": true,
+      "mergedMappingVerified": false,
+      "unrepresentedCount": 0,
+      "note": "Breakpoint reports describe their source projections; they do not certify the merged responsive module. Review responsiveUnrepresented and projectionIssues."
+    },
+    "mappingComplete": false
+  },
+  "quality": {
+    "acquisition": "complete",
+    "projection": "lossy",
+    "theme": "complete",
+    "assets": "not-requested"
+  }
+}

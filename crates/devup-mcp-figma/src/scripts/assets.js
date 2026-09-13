@@ -64,6 +64,11 @@ try {
     return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
   }
   const sha256 = devupSha256(bytes);
+  // figma.io is an extension of the remote MCP, not the native Plugin API.
+  // The bridge returns JSON over its local socket and has no attachment
+  // writer. Carry its bounded bytes inline, without exporting again for each
+  // fragment; the Rust decoder still validates length, MIME type and hash.
+  const hasFileWriter = figma.io && typeof figma.io.write === "function";
   // A PNG past what one attachment carries is not written here either.
   // Figma's remote MCP returns a written PNG as an attachment only up to
   // about a megabyte once base64-encoded: a 665 KB photograph came back, a
@@ -71,7 +76,7 @@ try {
   // devup-ui landing page's hero. Past 768 KiB, which is exactly one MiB
   // encoded, it is announced and read back in fragments like a large SVG.
   const pngTooLargeToAttach = format === "PNG" && bytes.length > 768 * 1024;
-  if ((svgText !== null && bytes.length > 12 * 1024) || pngTooLargeToAttach) {
+  if (hasFileWriter && ((svgText !== null && bytes.length > 12 * 1024) || pngTooLargeToAttach)) {
     // An SVG past what one text response holds is not written here at all:
     // it is announced with its length and hash, and read back in fragments
     // through the large-value script, which re-exports it and slices — the
@@ -94,7 +99,9 @@ try {
       errorCode: null,
     };
   }
-  figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${String(options.format).toLowerCase()}`, bytes);
+  if (hasFileWriter) {
+    figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${String(options.format).toLowerCase()}`, bytes);
+  }
   return {
     kind: "devupAssetExport",
     fileKey: figma.fileKey || "",
@@ -108,9 +115,11 @@ try {
     status: "exported",
     byteLength: bytes.length,
     sha256,
-    // Present only for SVG. `mimeType` is what lets the Rust side recognise
-    // this as the payload rather than as ordinary descriptor prose.
-    mimeType: svgText === null ? null : "image/svg+xml",
+    // MIME identifies inline bridge bytes or remote SVG text as a payload.
+    mimeType: !hasFileWriter
+      ? { PNG: "image/png", JPG: "image/jpeg", SVG: "image/svg+xml", PDF: "application/pdf" }[format]
+      : svgText === null ? null : "image/svg+xml",
+    ...(!hasFileWriter && svgText === null ? { data: figma.base64Encode(bytes) } : {}),
     text: svgText,
     errorCode: null,
   };
