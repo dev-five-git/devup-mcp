@@ -1,0 +1,2559 @@
+{
+  "baseCommit": "937313e39448db7f7c05dbb0ab206432261b2203",
+  "scope": "about; isolated-fill contract is a quantified negative, bridge fix changes transport only",
+  "baselineBuildNote": "Production sources were unchanged; dirty label came from untracked new tests/probe while build ran.",
+  "baselineBinarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+  "baselineRuns": [
+    [
+      {
+        "screen": "about-422-3376",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 360,
+          "height": 7240
+        },
+        "rendered": {
+          "width": 360,
+          "height": 7240
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            360,
+            7240
+          ],
+          "actualDimensions": [
+            360,
+            7240
+          ],
+          "changedPixels": 141574,
+          "totalPixels": 2606400,
+          "changedRatio": 0.05431783302639656,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3376.diff.png"
+        },
+        "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+        "acquisitionFiles": {
+          "src/screens/about-422-3376.tsx": "72d92ac544a77e758fb6547b2085b984d82728cb814bcc2a0a25a7bc2b73827c",
+          "themes/about-422-3376.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-3376.reference.png": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+          "out/about-422-3376-422-3376.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      {
+        "screen": "about-422-3180",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 992,
+          "height": 5619
+        },
+        "rendered": {
+          "width": 992,
+          "height": 5620
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            992,
+            5619
+          ],
+          "actualDimensions": [
+            992,
+            5619
+          ],
+          "changedPixels": 163529,
+          "totalPixels": 5574048,
+          "changedRatio": 0.02933756580495898,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3180.diff.png"
+        },
+        "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+        "acquisitionFiles": {
+          "src/screens/about-422-3180.tsx": "c9f36e5ee08596368962f0872314b74fd7d83ce2f9e32c230400b3e1477ccb92",
+          "themes/about-422-3180.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-3180.reference.png": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+          "out/about-422-3180-422-3180.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      {
+        "screen": "about-422-2987",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 1920,
+          "height": 4757
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 4758
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            4757
+          ],
+          "actualDimensions": [
+            1920,
+            4757
+          ],
+          "changedPixels": 161504,
+          "totalPixels": 9133440,
+          "changedRatio": 0.01768271319459043,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-2987.diff.png"
+        },
+        "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+        "acquisitionFiles": {
+          "src/screens/about-422-2987.tsx": "e0c1ba3c07a85b4a785906a74383ec9c35480a7e95a8d81ecd3df2506fd5f7e6",
+          "themes/about-422-2987.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-2987.reference.png": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+          "out/about-422-2987-422-2987.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      }
+    ],
+    [
+      {
+        "screen": "about-422-3376",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 360,
+          "height": 7240
+        },
+        "rendered": {
+          "width": 360,
+          "height": 7240
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            360,
+            7240
+          ],
+          "actualDimensions": [
+            360,
+            7240
+          ],
+          "changedPixels": 141574,
+          "totalPixels": 2606400,
+          "changedRatio": 0.05431783302639656,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3376.diff.png"
+        },
+        "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+        "acquisitionFiles": {
+          "src/screens/about-422-3376.tsx": "72d92ac544a77e758fb6547b2085b984d82728cb814bcc2a0a25a7bc2b73827c",
+          "themes/about-422-3376.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-3376.reference.png": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+          "out/about-422-3376-422-3376.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      {
+        "screen": "about-422-3180",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 992,
+          "height": 5619
+        },
+        "rendered": {
+          "width": 992,
+          "height": 5620
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            992,
+            5619
+          ],
+          "actualDimensions": [
+            992,
+            5619
+          ],
+          "changedPixels": 163529,
+          "totalPixels": 5574048,
+          "changedRatio": 0.02933756580495898,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3180.diff.png"
+        },
+        "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+        "acquisitionFiles": {
+          "src/screens/about-422-3180.tsx": "c9f36e5ee08596368962f0872314b74fd7d83ce2f9e32c230400b3e1477ccb92",
+          "themes/about-422-3180.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-3180.reference.png": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+          "out/about-422-3180-422-3180.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      {
+        "screen": "about-422-2987",
+        "environmentStatus": "valid",
+        "viewport": {
+          "width": 1920,
+          "height": 4757
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 4758
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            4757
+          ],
+          "actualDimensions": [
+            1920,
+            4757
+          ],
+          "changedPixels": 161504,
+          "totalPixels": 9133440,
+          "changedRatio": 0.01768271319459043,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-2987.diff.png"
+        },
+        "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+        "acquisitionFiles": {
+          "src/screens/about-422-2987.tsx": "e0c1ba3c07a85b4a785906a74383ec9c35480a7e95a8d81ecd3df2506fd5f7e6",
+          "themes/about-422-2987.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-2987.reference.png": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+          "out/about-422-2987-422-2987.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      }
+    ]
+  ],
+  "baselineActualHashes": {
+    "about-422-3376": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+    "about-422-3180": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+    "about-422-2987": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145"
+  },
+  "contractProbe": {
+    "tolerance": 24,
+    "hero": [
+      {
+        "screen": "about-422-3376",
+        "nodeId": "422:3378",
+        "assetId": "422:3378:fills:0",
+        "assetPath": "public/images/Section1-422-3378.png",
+        "bounds": [
+          0,
+          46,
+          360,
+          520
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "09939a0d306a1dc967f5f04afa6756203ca92dec",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 0.699999988079071,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "childIds": [
+          "422:3379"
+        ],
+        "assetSha256": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+        "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+        "actualVsReferenceChangedPixels": 9217
+      },
+      {
+        "screen": "about-422-3180",
+        "nodeId": "422:3183",
+        "assetId": "422:3183:fills:0",
+        "assetPath": "public/images/Section1-422-3183.png",
+        "bounds": [
+          0,
+          64,
+          992,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "09939a0d306a1dc967f5f04afa6756203ca92dec",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 0.699999988079071,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "childIds": [
+          "422:3184"
+        ],
+        "assetSha256": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+        "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+        "actualVsReferenceChangedPixels": 13058
+      },
+      {
+        "screen": "about-422-2987",
+        "nodeId": "422:2989",
+        "assetId": "422:2989:fills:0",
+        "assetPath": "public/images/Section1-422-2989.png",
+        "bounds": [
+          0,
+          64,
+          1920,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "09939a0d306a1dc967f5f04afa6756203ca92dec",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                1,
+                0
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {},
+            "color": {
+              "b": 1,
+              "g": 1,
+              "r": 1
+            },
+            "opacity": 0.699999988079071,
+            "type": "SOLID",
+            "visible": true
+          }
+        ],
+        "childIds": [
+          "422:2990"
+        ],
+        "assetSha256": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+        "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145",
+        "actualVsReferenceChangedPixels": 12922
+      }
+    ],
+    "crop": [
+      {
+        "screen": "about-422-3376",
+        "nodeId": "422:3560",
+        "assetId": "422:3560:fills:2",
+        "assetPath": "public/images/Frame-259-422-3560-2-502893d58465.png",
+        "bounds": [
+          30,
+          6275,
+          300,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "ab3880767ae1e2dd94d3a91c03c26392199271c0",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8575537800788879,
+                0.00833586324006319
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "519055fb73d512870d866e9ef3f0b2c09add1e87",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.8511677980422974,
+                0.04480081424117088
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+        "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+        "actualVsReferenceChangedPixels": 0
+      },
+      {
+        "screen": "about-422-3376",
+        "nodeId": "422:3551",
+        "assetId": "422:3551:fills:2",
+        "assetPath": "public/images/Frame-258-422-3551-2-212ce23b8c62.png",
+        "bounds": [
+          30,
+          5746,
+          300,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "e159e8861126b45cd297c48ed9f7e60f08d314e0",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8572403788566589,
+                0.008515546098351479
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "b1ef2c049ef44d75ca50608e136b185f246a4a07",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.8508567214012146,
+                0.036508746445178986
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+        "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+        "actualVsReferenceChangedPixels": 0
+      },
+      {
+        "screen": "about-422-3376",
+        "nodeId": "422:3514",
+        "assetId": "422:3514:fills:2",
+        "assetPath": "public/images/Frame-256-422-3514-2-ef1ce40418b8.png",
+        "bounds": [
+          30,
+          4514,
+          300,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "1e7af0f5fcc94faf3b675bdf4d0bd1148b3a1c51",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.856992781162262,
+                0.010561937466263773
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "5b094cfd23e732669774034eb6fcfe3a26f7dc63",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.8328898549079895,
+                0.00674342131242156
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+        "referenceSha256": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+        "actualVsReferenceChangedPixels": 0
+      },
+      {
+        "screen": "about-422-3180",
+        "nodeId": "422:3367",
+        "assetId": "422:3367:fills:2",
+        "assetPath": "public/images/Frame-259-422-3367-2-4d462c68adbb.png",
+        "bounds": [
+          506,
+          4612,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "ab3880767ae1e2dd94d3a91c03c26392199271c0",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8575537800788879,
+                0.00833586324006319
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "519055fb73d512870d866e9ef3f0b2c09add1e87",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.8511677980422974,
+                0.017015771940350533
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+        "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+        "actualVsReferenceChangedPixels": 2254
+      },
+      {
+        "screen": "about-422-3180",
+        "nodeId": "422:3358",
+        "assetId": "422:3358:fills:2",
+        "assetPath": "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png",
+        "bounds": [
+          181,
+          4612,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "e159e8861126b45cd297c48ed9f7e60f08d314e0",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8572403788566589,
+                0.008515546098351479
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "b1ef2c049ef44d75ca50608e136b185f246a4a07",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -0.0030579331796616316
+              ],
+              [
+                0,
+                0.8508567214012146,
+                0.016669539734721184
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+        "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+        "actualVsReferenceChangedPixels": 2467
+      },
+      {
+        "screen": "about-422-3180",
+        "nodeId": "422:3340",
+        "assetId": "422:3340:fills:2",
+        "assetPath": "public/images/Frame-257-422-3340-2-a9b56c699b23.png",
+        "bounds": [
+          506,
+          3978,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "1179a834d8e0994450403815221757ee93b76121",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8574491143226624,
+                0.02554485574364662
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "962370ac8fa6e0fa9581925e6deb73aded3625d3",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.874316930770874,
+                0.05264841392636299
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+        "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+        "actualVsReferenceChangedPixels": 2374
+      },
+      {
+        "screen": "about-422-3180",
+        "nodeId": "422:3320",
+        "assetId": "422:3320:fills:2",
+        "assetPath": "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png",
+        "bounds": [
+          181,
+          3978,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "1e7af0f5fcc94faf3b675bdf4d0bd1148b3a1c51",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.856992781162262,
+                0.010561937466263773
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "5b094cfd23e732669774034eb6fcfe3a26f7dc63",
+            "imageTransform": [
+              [
+                1.0957937240600586,
+                0,
+                -0.051260415464639664
+              ],
+              [
+                0,
+                0.9575611352920532,
+                -0.011001000180840492
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+        "referenceSha256": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+        "actualVsReferenceChangedPixels": 2105
+      },
+      {
+        "screen": "about-422-2987",
+        "nodeId": "422:3171",
+        "assetId": "422:3171:fills:2",
+        "assetPath": "public/images/Frame-259-422-3171-2-a35dcd9fae03.png",
+        "bounds": [
+          1295,
+          3655,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "ab3880767ae1e2dd94d3a91c03c26392199271c0",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8575537800788879,
+                0.00833586324006319
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "519055fb73d512870d866e9ef3f0b2c09add1e87",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.8511677980422974,
+                0.017015771940350533
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+        "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145",
+        "actualVsReferenceChangedPixels": 2254
+      },
+      {
+        "screen": "about-422-2987",
+        "nodeId": "422:3162",
+        "assetId": "422:3162:fills:2",
+        "assetPath": "public/images/Frame-258-422-3162-2-e27c69996ca2.png",
+        "bounds": [
+          970,
+          3655,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "e159e8861126b45cd297c48ed9f7e60f08d314e0",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8572403788566589,
+                0.008515546098351479
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "b1ef2c049ef44d75ca50608e136b185f246a4a07",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -0.0030579331796616316
+              ],
+              [
+                0,
+                0.8508567214012146,
+                0.016669539734721184
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+        "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145",
+        "actualVsReferenceChangedPixels": 2466
+      },
+      {
+        "screen": "about-422-2987",
+        "nodeId": "422:3145",
+        "assetId": "422:3145:fills:2",
+        "assetPath": "public/images/Frame-257-422-3145-2-357f7710ea85.png",
+        "bounds": [
+          645,
+          3655,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "1179a834d8e0994450403815221757ee93b76121",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.8574491143226624,
+                0.02554485574364662
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "962370ac8fa6e0fa9581925e6deb73aded3625d3",
+            "imageTransform": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0.874316930770874,
+                0.05264841392636299
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+        "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145",
+        "actualVsReferenceChangedPixels": 2374
+      },
+      {
+        "screen": "about-422-2987",
+        "nodeId": "422:3125",
+        "assetId": "422:3125:fills:2",
+        "assetPath": "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png",
+        "bounds": [
+          320,
+          3655,
+          305,
+          400
+        ],
+        "fills": [
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "1e7af0f5fcc94faf3b675bdf4d0bd1148b3a1c51",
+            "imageTransform": [
+              [
+                1,
+                0,
+                -1.4210854715202004e-14
+              ],
+              [
+                0,
+                0.856992781162262,
+                0.010561937466263773
+              ]
+            ],
+            "opacity": 1,
+            "rotation": 0,
+            "scaleMode": "FILL",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": false
+          },
+          {
+            "blendMode": "NORMAL",
+            "boundVariables": {
+              "color": {
+                "id": "VariableID:422:3781",
+                "type": "VARIABLE_ALIAS"
+              }
+            },
+            "color": {
+              "b": 0.9215686321258544,
+              "g": 0.9058823585510254,
+              "r": 0.8980392217636108
+            },
+            "opacity": 1,
+            "type": "SOLID",
+            "visible": true
+          },
+          {
+            "blendMode": "NORMAL",
+            "filters": {
+              "contrast": 0,
+              "exposure": 0,
+              "highlights": 0,
+              "saturation": 0,
+              "shadows": 0,
+              "temperature": 0,
+              "tint": 0
+            },
+            "imageHash": "5b094cfd23e732669774034eb6fcfe3a26f7dc63",
+            "imageTransform": [
+              [
+                1.0957937240600586,
+                0,
+                -0.051260415464639664
+              ],
+              [
+                0,
+                0.9575611352920532,
+                -0.011001000180840492
+              ]
+            ],
+            "opacity": 1,
+            "scaleMode": "CROP",
+            "scalingFactor": 0.5,
+            "type": "IMAGE",
+            "visible": true
+          }
+        ],
+        "childIds": [],
+        "assetSha256": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+        "referenceSha256": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+        "exportVsReferenceChangedPixels": 0,
+        "actualSha256": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145",
+        "actualVsReferenceChangedPixels": 2105
+      }
+    ],
+    "binarySha256": "21f41954f76d4fe1fbe867191156fc8cc574879885062f792bdd830a95af8cf8"
+  },
+  "liveAssetProbe": {
+    "tool": "figma.download_assets",
+    "fileKey": "f1AJyo27afkkr6U9PhnWSu",
+    "nodeId": "422:3378",
+    "status": "UNAUTHORIZED",
+    "message": "This app connection requires reauthentication before other actions on this app can succeed."
+  },
+  "koreanAllowancePp": 0.21,
+  "mobileResidualExcludingAllowancePp": 5.221783302639656,
+  "bridgeTestFirst": {
+    "red": {
+      "passed": 2,
+      "failed": 1,
+      "failure": "Successful native PNG export (exports=1) becomes DEVUP_ASSET_EXPORT_FAILED because figma.io writer is absent.",
+      "logSha256": "4e09de6640efd3cab0e5cd1926dee57fca67acc2640b3461507eea947cdfeb73"
+    },
+    "green": {
+      "passed": 3,
+      "failed": 0,
+      "logSha256": "87824aeed8b3c74c14666b9fa98ae1509808a2a4e75e168ccb9f4b64e0bbb789"
+    },
+    "generatedPluginProbe": {
+      "kind": "devupAssetExport",
+      "fileKey": "fixture",
+      "assetId": "1:2:node",
+      "nodeId": "1:2",
+      "field": "node",
+      "format": "png",
+      "scale": 1,
+      "status": "exported",
+      "byteLength": 3,
+      "sha256": "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81",
+      "mimeType": "image/png",
+      "data": "AQID",
+      "text": null,
+      "errorCode": null
+    }
+  },
+  "invalidAcquisitions": [
+    "Initial empty harness theme acquisition refused DEVUP_THEME_CONFLICT; copied established devup.json seed, then target acquisition rewrote node themes.",
+    "Initial incomplete exported-asset cache left missing SVG files; acquisition stopped and replaced after copying existing exported cache."
+  ],
+  "productionPixelFix": false,
+  "thresholdsChanged": false,
+  "pluginGoldensChanged": [],
+  "candidateFirstActualHashes": {
+    "about-422-3376": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+    "about-422-3180": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+    "about-422-2987": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145"
+  },
+  "candidateBinarySha256": "c3a5855d2fd50dc07ba712662378ff932c9d0657c9d20a4337d405579ef7fe60",
+  "candidateRuns": [
+    [
+      {
+        "name": "about-422-3376",
+        "viewport": {
+          "width": 360,
+          "height": 7240
+        },
+        "rendered": {
+          "width": 360,
+          "height": 7240
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            360,
+            7240
+          ],
+          "actualDimensions": [
+            360,
+            7240
+          ],
+          "changedPixels": 141574,
+          "totalPixels": 2606400,
+          "changedRatio": 0.05431783302639656,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3376.diff.png"
+        },
+        "environmentStatus": "valid",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7"
+      },
+      {
+        "name": "about-422-3180",
+        "viewport": {
+          "width": 992,
+          "height": 5619
+        },
+        "rendered": {
+          "width": 992,
+          "height": 5620
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            992,
+            5619
+          ],
+          "actualDimensions": [
+            992,
+            5619
+          ],
+          "changedPixels": 163529,
+          "totalPixels": 5574048,
+          "changedRatio": 0.02933756580495898,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3180.diff.png"
+        },
+        "environmentStatus": "valid",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7"
+      },
+      {
+        "name": "about-422-2987",
+        "viewport": {
+          "width": 1920,
+          "height": 4757
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 4758
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            4757
+          ],
+          "actualDimensions": [
+            1920,
+            4757
+          ],
+          "changedPixels": 161504,
+          "totalPixels": 9133440,
+          "changedRatio": 0.01768271319459043,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-2987.diff.png"
+        },
+        "environmentStatus": "valid",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7"
+      }
+    ],
+    [
+      {
+        "name": "about-422-3376",
+        "viewport": {
+          "width": 360,
+          "height": 7240
+        },
+        "rendered": {
+          "width": 360,
+          "height": 7240
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            360,
+            7240
+          ],
+          "actualDimensions": [
+            360,
+            7240
+          ],
+          "changedPixels": 141574,
+          "totalPixels": 2606400,
+          "changedRatio": 0.05431783302639656,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3376.diff.png"
+        },
+        "environmentStatus": "valid",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7"
+      },
+      {
+        "name": "about-422-3180",
+        "viewport": {
+          "width": 992,
+          "height": 5619
+        },
+        "rendered": {
+          "width": 992,
+          "height": 5620
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            992,
+            5619
+          ],
+          "actualDimensions": [
+            992,
+            5619
+          ],
+          "changedPixels": 163529,
+          "totalPixels": 5574048,
+          "changedRatio": 0.02933756580495898,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-3180.diff.png"
+        },
+        "environmentStatus": "valid",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7"
+      },
+      {
+        "name": "about-422-2987",
+        "viewport": {
+          "width": 1920,
+          "height": 4757
+        },
+        "rendered": {
+          "width": 1920,
+          "height": 4758
+        },
+        "metrics": {
+          "status": "mismatch",
+          "referenceDimensions": [
+            1920,
+            4757
+          ],
+          "actualDimensions": [
+            1920,
+            4757
+          ],
+          "changedPixels": 161504,
+          "totalPixels": 9133440,
+          "changedRatio": 0.01768271319459043,
+          "maxChangedRatio": 0.005,
+          "channelTolerance": 24,
+          "maxChannelDelta": 238,
+          "diffPath": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\W24-A-hero-export\\harness\\render\\out\\about-422-2987.diff.png"
+        },
+        "environmentStatus": "valid",
+        "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7"
+      }
+    ]
+  ],
+  "candidateAcquisitionFiles": {
+    "about-422-3376": {
+      "src/screens/about-422-3376.tsx": "72d92ac544a77e758fb6547b2085b984d82728cb814bcc2a0a25a7bc2b73827c",
+      "themes/about-422-3376.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "out/about-422-3376.reference.png": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+      "out/about-422-3376-422-3376.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+      "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+      "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+      "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+      "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+      "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+      "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+      "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+      "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+      "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+      "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+      "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+      "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+      "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+      "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+      "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+      "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+      "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+      "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+      "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+      "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+      "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+      "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+      "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+      "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+      "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+      "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+      "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+      "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+      "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+      "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+      "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+      "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+      "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+      "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+      "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+      "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+      "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+      "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+      "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+      "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+      "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+      "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+      "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+      "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+      "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+      "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+      "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+      "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+      "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+      "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+    },
+    "about-422-3180": {
+      "src/screens/about-422-3180.tsx": "c9f36e5ee08596368962f0872314b74fd7d83ce2f9e32c230400b3e1477ccb92",
+      "themes/about-422-3180.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "out/about-422-3180.reference.png": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+      "out/about-422-3180-422-3180.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+      "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+      "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+      "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+      "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+      "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+      "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+      "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+      "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+      "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+      "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+      "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+      "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+      "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+      "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+      "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+      "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+      "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+      "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+      "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+      "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+      "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+      "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+      "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+      "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+      "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+      "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+      "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+      "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+      "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+      "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+      "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+      "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+      "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+      "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+      "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+      "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+      "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+      "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+      "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+      "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+      "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+      "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+      "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+      "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+      "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+      "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+      "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+      "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+      "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+      "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+    },
+    "about-422-2987": {
+      "src/screens/about-422-2987.tsx": "e0c1ba3c07a85b4a785906a74383ec9c35480a7e95a8d81ecd3df2506fd5f7e6",
+      "themes/about-422-2987.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "out/about-422-2987.reference.png": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+      "out/about-422-2987-422-2987.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+      "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+      "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+      "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+      "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+      "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+      "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+      "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+      "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+      "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+      "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+      "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+      "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+      "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+      "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+      "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+      "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+      "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+      "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+      "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+      "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+      "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+      "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+      "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+      "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+      "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+      "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+      "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+      "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+      "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+      "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+      "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+      "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+      "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+      "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+      "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+      "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+      "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+      "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+      "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+      "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+      "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+      "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+      "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+      "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+      "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+      "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+      "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+      "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+      "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+      "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+      "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+      "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+      "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+      "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+    }
+  },
+  "candidateRepeatActualHashes": {
+    "about-422-3376": "b5b4811070234e052c2f0ecbf2405ecced400aa14a0813661c2331a70899505b",
+    "about-422-3180": "ea08e788ce5c65d1d2c6377a022a3934c6d0707ec1a4c73eedb690c6161627a2",
+    "about-422-2987": "1ff44ea5a12777ee3c5f13e8bc0edc5a1aca42c5d6cea8ae2f426438c91a9145"
+  },
+  "deltaChangedPixels": {
+    "about-422-3376": 0,
+    "about-422-3180": 0,
+    "about-422-2987": 0
+  },
+  "allAboutPngsByteIdenticalToBaseline": true,
+  "gate": {
+    "fmt": {
+      "exit": 0,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "clippy": {
+      "exit": 0,
+      "logSha256": "bc92cd66d6e64b02642385a0997ebf6653e23f964e6583db577f9546eba6fcea",
+      "warnings": 0
+    },
+    "workspace": {
+      "exit": 0,
+      "logSha256": "c4f0cabeb75d794a51526b6def68076ada5e4fe2350f03f9d4feec3418cec69c",
+      "passed": 1115,
+      "failed": 0,
+      "ignored": 2
+    },
+    "insta": {
+      "exit": 0,
+      "logSha256": "b849fa2d7602008a26f46b259c980bf5bdde11a4d559da46cd31885617473342",
+      "passed": 1115,
+      "failed": 0,
+      "ignored": 2,
+      "pendingSnapshots": false
+    },
+    "smoke": {
+      "exit": 0,
+      "logSha256": "8ddb25d938f4895b1a92f674e5cd60ab0b5a063a17958b6bee2d3d9b93cdd223",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "pluginBundleSha256": "b1b59a59e6a1a3b2161b307d96a61f767da8c825210681e1b38b1598fdbd77b6",
+  "pluginRebuildByteIdentical": true,
+  "pluginTypingsVersion": "1.138.0",
+  "visualComparatorSha256": "6f13a2329693e46fc3f872499ac0ded81e94c1f65ed84b01cc1fb1ed79daf0e4",
+  "environment": {
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_TARGET_DIR": "never set",
+    "harnessScriptsChanged": false,
+    "ownTarget": true
+  },
+  "bridgeFixCommit": "8ccc8da15718cc8a5f56db0ae63624877e816af5"
+}
