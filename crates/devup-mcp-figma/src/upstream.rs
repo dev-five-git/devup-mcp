@@ -1046,6 +1046,7 @@ impl ReadToolCall {
                 params: json!({
                     "nodeId": request.node_id,
                     "asset": {
+                        "transport": "bridge",
                         "assetId": request.asset_id,
                         "nodeId": request.node_id,
                         "field": request.field,
