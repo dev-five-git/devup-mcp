@@ -1,5 +1,11 @@
 # Isolated image fills: contract and the remaining validation boundary
 
+Follow-up: [original-image bridge retrieval](bridge-original-image-bytes.md)
+implements the read-only source-byte route and capture probe. Live source capture
+still requires reloading the updated plugin; isolated-fill rendering is not yet
+implemented. The authentication diagnosis below is historical, not the current
+validation boundary.
+
 Investigated on `937313e39448db7f7c05dbb0ab206432261b2203`. The independent
 native-bridge delivery correction is described in
 [bridge-asset-delivery.md](bridge-asset-delivery.md). It changes transport only;

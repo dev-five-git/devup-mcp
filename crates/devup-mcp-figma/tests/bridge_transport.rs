@@ -276,3 +276,45 @@ async fn two_keyless_plugins_are_ambiguous_and_neither_serves() {
             .await
     );
 }
+
+#[tokio::test]
+async fn original_upload_crosses_the_socket_without_remote_text_truncation() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use devup_mcp_figma::{AssetRequest, original_image_from_result};
+    use sha2::{Digest, Sha256};
+
+    let server = BridgeServer::start(0).unwrap();
+    let mut plugin = connect_plugin(&server).await;
+    let client = BridgeFigmaClient::new(server.state());
+    let request = AssetRequest::original_image("n", 2, "hash");
+    let call = ReadToolCall::asset_export(FILE_KEY, Some("v1".into()), request.clone());
+    let reading = tokio::spawn(async move { client.call_read_tool(call).await });
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "assets");
+    assert_eq!(job["params"]["asset"]["transport"], "bridge");
+    assert_eq!(job["params"]["asset"]["field"], "$original-image/fills/2");
+    let mut bytes = vec![31u8; 1_100_000];
+    bytes[..3].copy_from_slice(&[255, 216, 255]);
+    let hash: String = Sha256::digest(&bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    plugin
+        .send(Message::Text(
+            json!({
+                "kind":"devup-result", "requestId":job["requestId"],
+                "data":{"kind":"devupOriginalImage", "representation":"original-image-v1",
+                    "fileKey":FILE_KEY, "version":"v1", "nodeId":"n", "assetId":request.asset_id,
+                    "field":request.field, "imageHash":"hash", "status":"exported",
+                    "format":null, "scale":null, "mimeType":"image/jpeg", "width":100, "height":100,
+                    "byteLength":bytes.len(), "sha256":hash, "data":STANDARD.encode(&bytes)}
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+    let result = reading.await.unwrap().unwrap();
+    let original = original_image_from_result(&result, FILE_KEY, Some("v1"), &request).unwrap();
+    assert_eq!(original.bytes, bytes);
+}

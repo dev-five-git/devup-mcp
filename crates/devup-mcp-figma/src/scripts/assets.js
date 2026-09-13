@@ -19,13 +19,21 @@ function failed(errorCode) {
   };
 }
 
+const original = typeof options.field === "string" && options.field.startsWith("$original-image/fills/");
 try {
+  // Original uploads are a different representation from node renditions.
+  // Only the local bridge opts in: the remote MCP's bounded text envelope
+  // cannot carry arbitrary original bytes, and its file writer is not a
+  // general binary transport. Never silently return a node PNG instead.
+  if (original && options.transport !== "bridge") {
+    return failed("DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE");
+  }
   const node = await figma.getNodeByIdAsync(options.nodeId);
-  if (!node || typeof node.exportAsync !== "function") {
+  if (!node || (!original && typeof node.exportAsync !== "function")) {
     return failed("DEVUP_ASSET_UNSUPPORTED_BY_UPSTREAM");
   }
-  if (typeof options.field === "string" && options.field.startsWith("fills/")) {
-    const index = Number(options.field.slice("fills/".length));
+  if (original || (typeof options.field === "string" && options.field.startsWith("fills/"))) {
+    const index = Number(options.field.slice(original ? "$original-image/fills/".length : "fills/".length));
     const fills = "fills" in node && Array.isArray(node.fills) ? node.fills : [];
     const paint = Number.isInteger(index) ? fills[index] : null;
     const imageHash = paint && paint.type === "IMAGE" ? paint.imageHash || paint.imageRef : null;
@@ -34,6 +42,29 @@ try {
     }
   } else if (options.field !== "node") {
     return failed("DEVUP_ASSET_FIELD_UNSUPPORTED");
+  }
+
+  if (original) {
+    const image = figma.getImageByHash(options.imageHash);
+    if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
+    const bytes = await image.getBytesAsync();
+    if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
+      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
+    }
+    const starts = values => values.every((value, index) => bytes[index] === value);
+    const mimeType = starts([137,80,78,71,13,10,26,10]) ? "image/png"
+      : starts([255,216,255]) ? "image/jpeg"
+      : starts([71,73,70,56]) ? "image/gif"
+      : starts([82,73,70,70]) && bytes[8] === 87 && bytes[9] === 69 && bytes[10] === 66 && bytes[11] === 80 ? "image/webp"
+      : null;
+    if (!mimeType) return failed("DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED");
+    const size = await image.getSizeAsync();
+    return {
+      ...failed(null), status: "exported", kind: "devupOriginalImage",
+      representation: "original-image-v1", format: null, scale: null,
+      mimeType, width: size.width, height: size.height,
+      byteLength: bytes.length, sha256: devupSha256(bytes), data: figma.base64Encode(bytes),
+    };
   }
 
   const format = String(options.format || "").toUpperCase();
@@ -124,5 +155,5 @@ try {
     errorCode: null,
   };
 } catch (_) {
-  return failed("DEVUP_ASSET_EXPORT_FAILED");
+  return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED");
 }
