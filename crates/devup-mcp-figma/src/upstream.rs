@@ -279,6 +279,12 @@ struct ScriptInputs<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotReadOptions {
+    /// 봉투 전체가 넘을 수 없는 바이트 수. `0` 이면 스크립트 기본 천장.
+    ///
+    /// 공식 MCP 는 텍스트 결과를 자르므로 그 아래로 쪼개 여러 번 읽어야 한다.
+    /// 로컬 소켓에는 그 자름이 없어 한 번에 담을 수 있고, 그만큼 왕복이 사라진다.
+    #[serde(default)]
+    pub max_envelope_bytes: usize,
     pub offset: usize,
     pub max_payload_bytes: usize,
     pub max_field_bytes: usize,
@@ -294,6 +300,9 @@ impl Default for SnapshotReadOptions {
             // up in `scripts/fast_snapshot.js`.
             max_payload_bytes: 15_000,
             max_field_bytes: 4_096,
+            // 0 이면 스크립트가 위에서 잰 천장을 그대로 쓴다. 자름이 없는 전송
+            // (로컬 브리지)만 이 값을 올려 한 페이지에 전부 담는다.
+            max_envelope_bytes: 0,
         }
     }
 }

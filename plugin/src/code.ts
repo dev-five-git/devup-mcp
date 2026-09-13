@@ -80,6 +80,42 @@ async function runJob(job: JobMessage): Promise<ResultMessage> {
   }
 }
 
+/**
+ * 들어온 작업을 순서대로 하나씩 처리한다.
+ *
+ * 여러 건이 한꺼번에 와도 받아 두되 동시에 실행하지는 않는다. 스냅샷 스크립트는
+ * `figma.setCurrentPageAsync` 로 현재 페이지를 옮기는데, 두 작업이 겹쳐 돌면
+ * 서로의 페이지를 갈아치워 엉뚱한 화면을 읽은 결과가 섞여 나온다. 그 오염은
+ * 오류로 드러나지 않고 그럴듯한 노드로 돌아오므로 가장 위험하다.
+ *
+ * 큐에 쌓아 두는 것만으로도 왕복 지연은 사라진다 — 다음 작업이 이미 도착해 있어
+ * 앞 작업이 끝나는 즉시 시작한다.
+ */
+const queue: JobMessage[] = []
+let draining = false
+
+async function drain() {
+  if (draining) return
+  draining = true
+  try {
+    while (queue.length > 0) {
+      // biome-ignore lint/style/noNonNullAssertion: length 를 확인하고 꺼낸다
+      const job = queue.shift()!
+      const result = await runJob(job).catch(
+        (error: unknown) =>
+          ({
+            kind: 'devup-result',
+            requestId: job.requestId,
+            error: error instanceof Error ? error.message : String(error),
+          }) satisfies ResultMessage,
+      )
+      figma.ui.postMessage(result)
+    }
+  } finally {
+    draining = false
+  }
+}
+
 figma.showUI(__html__, { width: 320, height: 220 })
 
 figma.ui.onmessage = (message: unknown) => {
@@ -98,17 +134,9 @@ figma.ui.onmessage = (message: unknown) => {
   }
 
   if (msg.kind === 'devup-job') {
-    const job = message as JobMessage
-    // 비동기 결과는 콜백에서 보낸다. onmessage 를 async 로 만들면 Figma 가
-    // 반환값을 기다리지 않아 예외가 조용히 사라진다.
-    runJob(job).then(
-      (result) => figma.ui.postMessage(result),
-      (error: unknown) =>
-        figma.ui.postMessage({
-          kind: 'devup-result',
-          requestId: job.requestId,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies ResultMessage),
-    )
+    queue.push(message as JobMessage)
+    // onmessage 를 async 로 만들면 Figma 가 반환값을 기다리지 않아 예외가 조용히
+    // 사라진다. 큐에 넣고 배수는 따로 돌린다.
+    void drain()
   }
 }

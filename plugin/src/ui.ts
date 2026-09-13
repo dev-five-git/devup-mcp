@@ -111,5 +111,43 @@ window.onmessage = (event: MessageEvent) => {
   }
 }
 
+/**
+ * 창이 뒤로 가도 이 iframe 이 잠들지 않게 붙잡는다.
+ *
+ * Chromium 은 보이지 않는 페이지의 작업 큐를 분당 한 번 수준으로 묶는다. 그래서
+ * 사용자가 다른 창을 누르는 순간 읽기 하나가 60초씩 걸렸고, 화면 하나를 받는 데
+ * 필요한 수십 번의 왕복이 사실상 멈췄다. 실측한 값이다 — 앞의 8번은 206ms 에
+ * 끝나고 9번째가 59초였다.
+ *
+ * 소리를 내고 있는 페이지는 그 대상에서 빠진다. 그래서 들리지 않는 소리를 낸다:
+ * 게인을 0 으로 둔 오실레이터라 스피커로는 아무것도 나가지 않지만, 브라우저에는
+ * 재생 중인 페이지로 보인다.
+ *
+ * 실패해도 브리지는 그대로 동작한다. 느려질 뿐이므로 조용히 넘어간다.
+ */
+function keepAwake() {
+  try {
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext
+    if (!Ctor) return
+    const ctx = new Ctor()
+    const gain = ctx.createGain()
+    gain.gain.value = 0
+    const osc = ctx.createOscillator()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    // 사용자 제스처 없이 시작하면 suspended 로 태어난다. 플러그인 창을 연 것
+    // 자체가 제스처로 잡히는 경우가 많아 대개 여기서 풀린다.
+    if (ctx.state === 'suspended') void ctx.resume()
+  } catch {
+    // 오디오를 못 쓰는 환경. 포그라운드에서는 여전히 제 속도가 난다.
+  }
+}
+
+keepAwake()
+
 // 메인 스레드에 파일 정보를 요청하는 것으로 시작한다.
 parent.postMessage({ pluginMessage: { kind: 'devup-ready' } }, '*')
