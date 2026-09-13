@@ -274,6 +274,70 @@ fn rank_of(name: &str) -> Option<usize> {
     BREAKPOINT_NAMES.iter().position(|known| *known == name)
 }
 
+/// Whether roots with these names and widths could be a breakpoint family.
+///
+/// The question [`breakpoints`] answers, asked without a snapshot, so it can
+/// be put to a Section index — which already carries every candidate's name
+/// and width — before anything is collected.
+///
+/// It has to be answerable there. The refusal lived in projection, which runs
+/// after the collection it needs: asking for `responsiveTsx` over two frames
+/// of one Braillify Studio screen spent 77 seconds and ten Figma reads before
+/// reporting that the snapshot had no mergeable breakpoint frames — a verdict
+/// the frames' own names and widths settle in full.
+///
+/// Keep this in step with [`breakpoints`]. `the_predicate_agrees_with_
+/// discovery` in `tests/responsive_prevalidate.rs` holds the two together, so
+/// a change to either rule that forgets the other fails there rather than in
+/// a 77-second export.
+pub fn breakpoint_family_is_possible(frames: &[(&str, f64)]) -> bool {
+    let mut ranks: Vec<usize> = Vec::new();
+    for (name, _width) in frames {
+        let Some(rank) = rank_of(name) else {
+            continue;
+        };
+        if ranks.contains(&rank) {
+            continue;
+        }
+        ranks.push(rank);
+    }
+    if ranks.len() >= 2 {
+        return true;
+    }
+    width_family_is_possible(frames)
+}
+
+/// The fallback [`breakpoints_by_width`] applies, asked of names and widths
+/// alone: one name across two or more distinct width bands.
+///
+/// Its two refusals are kept exactly, because either one loosened here would
+/// let a collection start that the projection then refuses — the cost this
+/// predicate exists to avoid.
+fn width_family_is_possible(frames: &[(&str, f64)]) -> bool {
+    let mut shared_name: Option<String> = None;
+    let mut slots: Vec<usize> = Vec::new();
+    for (name, width) in frames {
+        let name = name.trim().to_ascii_lowercase();
+        if *shared_name.get_or_insert_with(|| name.clone()) != name {
+            return false;
+        }
+        if *width <= 0.0 {
+            return false;
+        }
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a frame is a small positive number of pixels wide"
+        )]
+        let slot = slot_of_width(*width as u32);
+        if slots.contains(&slot) {
+            return false;
+        }
+        slots.push(slot);
+    }
+    slots.len() >= 2
+}
+
 /// The breakpoint roots this snapshot carries, in the order the Section holds
 /// them.
 ///
@@ -303,6 +367,67 @@ pub fn breakpoints(snapshot: &Snapshot) -> Vec<Breakpoint> {
         }
         found.push(Breakpoint {
             rank,
+            node_id: id.clone(),
+        });
+    }
+    if found.len() < 2 {
+        return breakpoints_by_width(snapshot);
+    }
+    found
+}
+
+/// The same screen drawn at several widths, for a file that does not use the
+/// plugin's breakpoint names.
+///
+/// `slot_of_width` already places a width "by how wide it is, not by what its
+/// frame is called", but discovery read the name alone, so a file naming its
+/// frames anything else had no family at all: Braillify Studio draws `AUTH-01`
+/// at 1920 and again at 375, both directly under one Section, and asking for
+/// `responsiveTsx` over the two answered that there was nothing to merge.
+///
+/// Two conditions keep this from folding things the design never drew, and
+/// either one failing leaves the snapshot with no family rather than a
+/// guessed one:
+///
+/// - **One name.** `AUTH-01` and `AUTH-02` are two designs, not one design at
+///   two sizes.
+/// - **Distinct width bands.** The same screen appears twice at 375 — a light
+///   and a dark rendering — and neither is a breakpoint of the other. A band
+///   claimed twice is ambiguous, and guessing which copy wins is the failure
+///   this is meant to avoid.
+///
+/// The roots keep the order the snapshot carries them in, for the reason
+/// [`breakpoints`] documents: the first width that draws a node supplies the
+/// widths that do not, and sorting changes which one that is.
+fn breakpoints_by_width(snapshot: &Snapshot) -> Vec<Breakpoint> {
+    let mut shared_name: Option<String> = None;
+    let mut found: Vec<Breakpoint> = Vec::new();
+    for id in &snapshot.roots {
+        let Some(node) = snapshot.nodes.get(id) else {
+            return Vec::new();
+        };
+        let view = node.typed_view();
+        let (Some(name), Some(width)) = (view.name(), view.number("width")) else {
+            return Vec::new();
+        };
+        let name = name.trim().to_ascii_lowercase();
+        if *shared_name.get_or_insert_with(|| name.clone()) != name {
+            return Vec::new();
+        }
+        if width <= 0.0 {
+            return Vec::new();
+        }
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a frame is a small positive number of pixels wide"
+        )]
+        let slot = slot_of_width(width as u32);
+        if found.iter().any(|breakpoint| breakpoint.rank == slot) {
+            return Vec::new();
+        }
+        found.push(Breakpoint {
+            rank: slot,
             node_id: id.clone(),
         });
     }

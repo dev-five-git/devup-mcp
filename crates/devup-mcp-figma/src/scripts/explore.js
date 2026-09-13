@@ -286,18 +286,30 @@ if (JSON.stringify(output).length > MAX_PROJECTION_JSON_CHARS) {
 // preview over the envelope cap or evict a candidate.
 let previewBudget = MAX_PROJECTION_JSON_CHARS - JSON.stringify(output).length;
 if (textPreviewLimit > 0 && previewBudget > 0) {
-  for (const projected of output.nodes) {
-    const source = included.get(projected.id);
-    if (!source || projected.id === page.id) continue;
+  // Each candidate takes an equal share of what is left rather than as much
+  // as it wants, so the last one is funded before the first is indulged.
+  // Spending the budget first-come left the tail with nothing at all, and a
+  // candidate with no text is one the caller cannot tell from its
+  // neighbours — which is the only thing a preview is for. What a candidate
+  // does not spend stays in the budget and widens the shares after it.
+  const fundable = output.nodes.filter(
+    (projected) => included.get(projected.id) && projected.id !== page.id,
+  );
+  let unfunded = fundable.length;
+  for (const projected of fundable) {
+    const share = Math.floor(previewBudget / unfunded);
+    unfunded -= 1;
+    if (share <= 0) continue;
     let preview = "";
-    for (const character of textPreview(source.node)) {
+    let spent = 0;
+    for (const character of textPreview(included.get(projected.id).node)) {
       const cost = JSON.stringify(character).length - 2;
-      if (cost > previewBudget) break;
+      if (spent + cost > share) break;
       preview += character;
-      previewBudget -= cost;
+      spent += cost;
     }
     projected.fields.textPreview = preview;
-    if (previewBudget === 0) break;
+    previewBudget -= spent;
   }
 }
 

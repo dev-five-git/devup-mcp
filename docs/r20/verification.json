@@ -1,0 +1,30 @@
+{
+  "rust": {
+    "exit": 0,
+    "ignored": 2,
+    "failed": 0,
+    "passed": 855,
+    "command": "cargo test --workspace -j 2 --no-fail-fast"
+  },
+  "javascript": {
+    "exit": 0,
+    "failed": 0,
+    "passed": 13,
+    "command": "node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs"
+  },
+  "clippy": {
+    "exit": 0,
+    "command": "cargo clippy --workspace --all-targets -j 2 -- -D warnings"
+  },
+  "fmt": {
+    "exit": 0,
+    "command": "cargo fmt --all -- --check"
+  },
+  "measurement": {
+    "snapshots": 23,
+    "replayedOutputs": 62,
+    "eligibleRemainingApproximations": 0,
+    "performed": false
+  },
+  "goldenChanges": 0
+}

@@ -1,0 +1,14 @@
+{
+  "base": "0e01f96d6bde64e15118e1ff7f47cacf19430bd0",
+  "workspace": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r20-browser-measurement",
+  "targetDirectory": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r20-browser-measurement\\target",
+  "cargoTargetDirPresent": false,
+  "testExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r20-browser-measurement\\target\\debug\\deps\\r14_absolute_evidence-6e04826c1505b9df.exe",
+  "testSha256": "4DC1233E643B6A43B3BAC18B5DEA591B26CBFBB56AC8C78EC3CB657F12C08B81",
+  "directTestExit": 0,
+  "inventoryExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r20-browser-measurement\\target\\debug\\examples\\r20_inventory.exe",
+  "inventorySha256": "D6099BBE738ED33AC7B7D501AF0EEFC9671251F78D5BA776DA1E2CA3DD361607",
+  "sourceSnapshotSha256": "E57E99A814F26D45B769E656DD0B581D2011B1997F94FEDCAD97BCB8F81B1D67",
+  "serverExecutable": "C:\\Users\\owjs3\\orca\\workspaces\\devup-mcp\\r20-browser-measurement\\target\\debug\\devup-mcp.exe",
+  "serverSha256": "5211B55C88E73FF387B06ADA5EC8F6AA26B02CC250E92982342ED671AC2F04B1"
+}

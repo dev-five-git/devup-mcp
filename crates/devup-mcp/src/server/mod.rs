@@ -1105,10 +1105,20 @@ impl DevupServer {
                     )));
                 }
             }
+            // A collection of any size answers `in_progress` first, so this
+            // poll — not the call that started it — is what hands the caller
+            // their TSX. Checking it only on the synchronous returns left
+            // every real export unchecked.
+            let project_root = input.project_root.clone();
             return job
                 .wait_briefly()
                 .await
-                .map(tool_result)
+                .map(|result| {
+                    tool_result(with_project_theme_validation(
+                        result,
+                        project_root.as_deref(),
+                    ))
+                })
                 .map_err(to_mcp_error);
         }
         if workflow.job_action.is_some() {
@@ -1258,6 +1268,56 @@ impl DevupServer {
                         false,
                     )));
                 }
+                // A Section index already knows every candidate's name and
+                // width, which is all a breakpoint family is decided on. Ask
+                // here, where the answer costs nothing: the same refusal from
+                // projection arrives only after the whole collection has run.
+                if !input.frame_ids.is_empty()
+                    && input.outputs.iter().any(|output| output == "responsiveTsx")
+                {
+                    let selected = input
+                        .frame_ids
+                        .iter()
+                        .filter_map(|id| {
+                            index
+                                .candidates
+                                .iter()
+                                .find(|candidate| candidate.node_id == *id)
+                        })
+                        .map(|candidate| (candidate.name.as_str(), candidate.bounds.width))
+                        .collect::<Vec<_>>();
+                    // Only when every selected frame was found in the index.
+                    // A frame the index does not describe leaves the question
+                    // open, and an open question is collected, not refused.
+                    if selected.len() == input.frame_ids.len()
+                        && !devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(
+                            &selected,
+                        )
+                    {
+                        let mut arguments = json!(input);
+                        arguments["outputs"] = json!(["tsx"]);
+                        arguments["frameIds"] = json!([input.frame_ids[0]]);
+                        return Err(to_mcp_error(DevupError::with_details(
+                            ErrorCode::DevupInvalidInput,
+                            "responsiveTsx needs the selected frames to be one screen drawn at several widths, and these are not. Nothing was collected.",
+                            false,
+                            json!({
+                                "output": "responsiveTsx",
+                                "selectedFrames": selected
+                                    .iter()
+                                    .map(|(name, width)| json!({"name": name, "width": width}))
+                                    .collect::<Vec<_>>(),
+                                "recoveryState": "available",
+                                "nextAction": {
+                                    "tool": "devup_figma_export",
+                                    "arguments": arguments,
+                                    "why": "Each selected frame still converts on its own.",
+                                    "how": "Request tsx one frame at a time, repeating for each frameId you selected.",
+                                },
+                            }),
+                        )));
+                    }
+                }
                 let mut request =
                     CollectionRequest::new(artifact.payload.target.clone(), collection_scope);
                 request.resource_scope = ResourceScope::Used;
@@ -1293,7 +1353,10 @@ impl DevupServer {
                     )
                     .await
                     .map_err(to_mcp_error)?;
-                return Ok(tool_result(result));
+                return Ok(tool_result(with_project_theme_validation(
+                    result,
+                    input.project_root.as_deref(),
+                )));
             }
             validate_artifact_projection(
                 &artifact,
@@ -1329,7 +1392,10 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-            return Ok(tool_result(result));
+            return Ok(tool_result(with_project_theme_validation(
+                result,
+                input.project_root.as_deref(),
+            )));
         }
 
         let url = input.url.as_deref().ok_or_else(|| {
@@ -1392,7 +1458,10 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(tool_result(result))
+        Ok(tool_result(with_project_theme_validation(
+            result,
+            input.project_root.as_deref(),
+        )))
     }
 
     #[tool(
@@ -1561,6 +1630,130 @@ impl DevupServer {
 
 fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex> {
     serde_json::from_value(payload.metadata.get("sectionIndex")?.clone()).ok()
+}
+
+/// Says whether the TSX just generated fits the project it is going into.
+///
+/// Tokens are named after the Figma variables and text styles the screen
+/// uses. For a project with no `devup.json` that is the right answer, and it
+/// is what the `devupJson` output is for. For a project that already has one,
+/// the names are its own and the export had no way to know them: a Braillify
+/// Studio login screen came back referencing `$background`, `$innerBg`,
+/// `$kakaoLogo`, `$title`, `$textSub`, `$borderLight` and the typography
+/// `mainSubText`, `titleSmMed`, `bodyMed`, and that project defines none of
+/// them. `devup_ui_validate` refused the same code against the same root, so
+/// the export was handing back TSX this server's own validator rejects, and
+/// saying nothing about it.
+///
+/// Reported rather than rewritten. Which token was meant is the caller's
+/// decision — `$background` is one edit from `$bg` and also from any other
+/// name a project happens to use — and silently substituting a colour is a
+/// worse failure than naming the mismatch.
+///
+/// Without a root nothing is read from disk and the response is unchanged.
+fn with_project_theme_validation(mut result: Value, project_root: Option<&str>) -> Value {
+    let Some(project_root) = project_root else {
+        return result;
+    };
+    const OUTPUTS: [&str; 3] = ["tsx", "componentTsx", "responsiveTsx"];
+    let mut generated: Vec<(String, String)> = OUTPUTS
+        .into_iter()
+        .filter_map(|key| {
+            result
+                .get(key)
+                .and_then(Value::as_str)
+                .map(|tsx| (key.to_owned(), tsx.to_owned()))
+        })
+        .collect();
+    // A Section export answers under `frames`, one entry per selected frame,
+    // and nothing at the top level. Reading only the top level checked the
+    // single-node `url` case and silently skipped every `frameIds` call —
+    // which is every Section workflow, and so every screen of the Braillify
+    // Studio handover this exists for.
+    if let Some(frames) = result.get("frames").and_then(Value::as_array) {
+        for frame in frames {
+            let node = frame
+                .get("nodeId")
+                .and_then(Value::as_str)
+                .unwrap_or("frame")
+                .to_owned();
+            for key in OUTPUTS {
+                if let Some(tsx) = frame.get(key).and_then(Value::as_str) {
+                    generated.push((format!("{node}:{key}"), tsx.to_owned()));
+                }
+            }
+        }
+    }
+    if generated.is_empty() {
+        // Resource delivery hands the code back as a link, so there is no
+        // source here to check. Saying so is the point: an absent verdict
+        // reads exactly like a clean one, and this export is neither.
+        if result.get("resources").is_some_and(|r| !r.is_null()) {
+            result["projectThemeValidation"] = json!({
+                "state": "not-checked",
+                "reason": "The outputs were delivered as resources, so no source was present to check.",
+                "note": "Request delivery=inline to have the generated tokens checked against this project.",
+            });
+        }
+        return result;
+    }
+    let lookup = match project_context::theme_for_validation(Some(project_root)) {
+        Ok(lookup) => lookup,
+        Err(error) => {
+            result["projectThemeValidation"] = json!({
+                "state": "unavailable",
+                "reason": error.message,
+                "note": "The generated tokens could not be checked against this project.",
+            });
+            return result;
+        }
+    };
+    let mut outputs = serde_json::Map::new();
+    for (key, tsx) in generated {
+        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+            &tsx,
+            lookup.theme.as_ref(),
+            false,
+        );
+        // Only the findings a caller has to act on. The hardcoded-value
+        // information is already in `fidelity`, and repeating twenty of them
+        // here would bury the handful that stop the code compiling into a
+        // theme.
+        let unknown = report
+            .violations
+            .iter()
+            .filter(|violation| violation.rule == "unknown-token")
+            .map(|violation| {
+                json!({
+                    "message": violation.message,
+                    "suggestion": violation.suggestion,
+                })
+            })
+            .collect::<Vec<_>>();
+        outputs.insert(
+            key.to_owned(),
+            json!({
+                "ok": report.ok,
+                "unknownTokenCount": unknown.len(),
+                "unknownTokens": unknown,
+            }),
+        );
+    }
+    let any_unknown = outputs
+        .values()
+        .any(|output| output["unknownTokenCount"].as_u64().unwrap_or(0) > 0);
+    result["projectThemeValidation"] = json!({
+        "state": if lookup.theme.is_some() { "checked" } else { "no-theme" },
+        "themeAvailable": lookup.theme.is_some(),
+        "guardrail": lookup.guardrail,
+        "outputs": outputs,
+        "note": if any_unknown {
+            "The generated tokens are the Figma names. This project defines different ones; map each unknown token to the project's own before using this TSX, or add the missing tokens to devup.json."
+        } else {
+            "Every token the generated TSX references exists in this project's devup.json."
+        },
+    });
+    result
 }
 
 fn section_candidate_as_explore(candidate: &SectionCandidate) -> ExploreCandidate {

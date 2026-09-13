@@ -187,10 +187,13 @@ pub async fn run(
         })?,
     };
     let Some(root) = find_project_root(&start) else {
-        return Ok(not_found_response(
-            PROJECT_ROOT_NOT_FOUND_MESSAGE,
-            vec![display_path(&start)],
-        ));
+        let response =
+            not_found_response(PROJECT_ROOT_NOT_FOUND_MESSAGE, vec![display_path(&start)]);
+        return Ok(if matches!(scope, "theme" | "all") {
+            attach_theme_semantics(response)
+        } else {
+            response
+        });
     };
 
     match scope {
@@ -220,11 +223,11 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
     files.sort();
     files.dedup();
     if files.is_empty() {
-        return not_found_with_exclusions(
+        return attach_theme_semantics(not_found_with_exclusions(
             "No devup.json found. Do not write code by guessing color, typography, length, or shadow token names.",
             vec![display_path(&root.join("devup.json"))],
             excluded,
-        );
+        ));
     }
     let mut projects = Vec::new();
     for file in &files {
@@ -331,6 +334,32 @@ fn theme_scope(root: &Path, filter: Option<&str>) -> Value {
         "files": projects,
     });
     attach_scan_notes(&mut response, excluded, files.len(), "devup.json");
+    attach_theme_semantics(response)
+}
+
+fn attach_theme_semantics(mut response: Value) -> Value {
+    let Some(object) = response.as_object_mut() else {
+        return response;
+    };
+    object.insert(
+        "modeResolution".to_owned(),
+        json!({
+            "order": "active mode -> selected default mode",
+            "defaultModeSelection": ["default", "light", "first mode in lexical order"],
+            "note": "A token absent from a mode resolves through this chain. Equal values across modes are a design choice, not a defect."
+        }),
+    );
+    object.insert(
+        "responsiveArrayOrder".to_owned(),
+        json!(["mobile", "sm", "tablet", "lg", "PC"]),
+    );
+    object.insert(
+        "propConventions".to_owned(),
+        json!({
+            "colorAndLength": "$token",
+            "typography": "bare token name, no $ prefix"
+        }),
+    );
     response
 }
 
@@ -682,6 +711,23 @@ mod tests {
             result["files"][0]["colors"]["default"]["captionLight"],
             "#999999"
         );
+        assert_eq!(
+            result["modeResolution"]["order"],
+            "active mode -> selected default mode"
+        );
+        assert_eq!(
+            result["modeResolution"]["defaultModeSelection"],
+            json!(["default", "light", "first mode in lexical order"])
+        );
+        assert_eq!(
+            result["responsiveArrayOrder"],
+            json!(["mobile", "sm", "tablet", "lg", "PC"])
+        );
+        assert_eq!(result["propConventions"]["colorAndLength"], "$token");
+        assert_eq!(
+            result["propConventions"]["typography"],
+            "bare token name, no $ prefix"
+        );
     }
 
     #[tokio::test]
@@ -693,6 +739,7 @@ mod tests {
             .unwrap();
         assert_eq!(result["found"], false);
         assert_eq!(result["guardrail"]["action"], "stop-and-report");
+        assert!(result.get("modeResolution").is_some());
     }
 
     #[tokio::test]

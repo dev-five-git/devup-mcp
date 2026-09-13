@@ -188,6 +188,51 @@ fn invalid_cli_arguments_fail_without_starting_stdio() -> anyhow::Result<()> {
 }
 
 #[test]
+fn skill_commands_accept_repeated_explicit_dirs_and_reject_mixed_modes() -> anyhow::Result<()> {
+    let first = std::env::temp_dir().join(format!(
+        "devup-mcp-skill-cli-first-{}",
+        rand::random::<u64>()
+    ));
+    let second = std::env::temp_dir().join(format!(
+        "devup-mcp-skill-cli-second-{}",
+        rand::random::<u64>()
+    ));
+    fs::create_dir_all(&first)?;
+    fs::create_dir_all(&second)?;
+
+    let action = parse_cli_args([
+        OsString::from("--install-skills"),
+        OsString::from("--skill-dir"),
+        first.clone().into_os_string(),
+        OsString::from("--skill-dir"),
+        second.clone().into_os_string(),
+    ])?;
+    let CliAction::InstallSkills(config) = action else {
+        panic!("--install-skills must select the installer")
+    };
+    assert_eq!(config.skill_dirs, vec![first.clone(), second.clone()]);
+    assert!(
+        parse_cli_args([
+            OsString::from("--install-skills"),
+            OsString::from("--check-skills")
+        ])
+        .is_err()
+    );
+    assert!(
+        parse_cli_args([
+            OsString::from("--install-skills"),
+            OsString::from("--allow-write-root"),
+            first.clone().into_os_string(),
+        ])
+        .is_err()
+    );
+
+    fs::remove_dir_all(first)?;
+    fs::remove_dir_all(second)?;
+    Ok(())
+}
+
+#[test]
 fn no_arguments_use_the_startup_current_directory() -> anyhow::Result<()> {
     let action = parse_cli_args(std::iter::empty::<OsString>())?;
     let CliAction::Serve(config) = action else {
