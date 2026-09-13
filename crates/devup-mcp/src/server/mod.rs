@@ -571,6 +571,11 @@ impl DevupServer {
             validation::validate_export_budget(&index.select(&[], true)?, outputs)?;
         }
         let target = request.target.clone();
+        // 리소스를 몇 개씩 묶어 물을지는 이 수집을 실어 나를 전송이 정한다.
+        // 공식 MCP 는 응답을 자르므로 8개씩 끊지만, 자르지 않는 전송은 한 번에
+        // 다 물어도 되고 그만큼 왕복이 사라진다.
+        let mut request = request;
+        request.batch_budget = self.services.upstream.batch_budget();
         let mut collector = CollectorSession::new(request);
         loop {
             if let Some(job) = job {

@@ -72,7 +72,7 @@ pub use source::{
     UpstreamFailureContext, UpstreamFailureKind, classify_upstream_failure, upstream_failure_error,
 };
 pub use upstream::{
-    BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,
+    BatchBudget, BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,
     SearchReadOptions, SnapshotReadOptions, UpstreamResult,
 };
 pub use url::FigmaTarget;
