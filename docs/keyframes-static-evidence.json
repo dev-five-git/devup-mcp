@@ -1,0 +1,2029 @@
+{
+  "base": "ee7fc6d616ecd0e3cd36ae63238d5ace91f44a0e",
+  "baselineBinarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+  "baseline": [
+    {
+      "name": "keyframes-458-2021",
+      "frame": "458:2021",
+      "viewport": {
+        "width": 64,
+        "height": 64
+      },
+      "reference": "out/keyframes-458-2021.reference.png",
+      "actual": "out/keyframes-458-2021.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "state": "unknown",
+            "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+          }
+        },
+        "responsePath": "out/keyframes-458-2021-458-2021.response.json",
+        "files": {
+          "src/screens/keyframes-458-2021.tsx": "873d3092340f7008f37b6e023d84cebe28eabb2a28bdd4fb14440bc4236dccff",
+          "themes/keyframes-458-2021.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "out/keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+          "out/keyframes-458-2021-458-2021.snapshot.json": "8ae3430b3818eabbdaae857264cdc505a5fbed16831041e2e747d4a1f3a66d0d"
+        }
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "rendered": {
+        "width": 64,
+        "height": 64
+      },
+      "flattened": {
+        "canvas": [
+          30,
+          30,
+          30
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[64,64],\"actualDimensions\":[64,64],\"changedPixels\":275,\"totalPixels\":4096,\"changedRatio\":0.067138671875,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":225,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\keyframes-458-2021.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          64,
+          64
+        ],
+        "actualDimensions": [
+          64,
+          64
+        ],
+        "changedPixels": 275,
+        "totalPixels": 4096,
+        "changedRatio": 0.067138671875,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 225,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\keyframes-458-2021.diff.png"
+      }
+    },
+    {
+      "name": "grid-429-1966",
+      "frame": "429:1966",
+      "viewport": {
+        "width": 1281,
+        "height": 1086
+      },
+      "reference": "out/grid-429-1966.reference.png",
+      "actual": "out/grid-429-1966.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "state": "unknown",
+            "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+          }
+        },
+        "responsePath": "out/grid-429-1966-429-1966.response.json",
+        "files": {
+          "src/screens/grid-429-1966.tsx": "6b16b8f79f4ecf590a24a1c13af67b488afc08a2d513d156e000c20728c1b0d2",
+          "themes/grid-429-1966.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "out/grid-429-1966.reference.png": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+          "out/grid-429-1966-429-1966.snapshot.json": "9de5a06b83300efc89c2b02b21f0b7af0f71326accac1ad9dfe62a88c3bd6c02",
+          "public/images/Frame-506-429-1967-986461bdbd3b.png": "8722fc62d4e2e2395697bad982d1d28d159d10b15b0d38b09535e78232ea4ed6",
+          "public/images/Frame-508-429-1968-c886d36997c5.png": "7f8167a9cd5504e7a5e3a386993e6b6eb1dbd21753a86b940ecd4084c65983b7",
+          "public/images/Frame-509-429-1969-a6034b24119a.png": "e13b27fae8519c989ccda979e02377c63ed659b6105ce2263f227bae789bb1b8",
+          "public/images/Frame-507-429-1970-021ef10975df.png": "1fd831e6b6aab7c067a2d57fb06d42738fffe7bdf69c3ffbe9cd89fc1d9a9746",
+          "public/images/Frame-510-429-1971-40e88a5fbe9d.png": "83b2e86d2e4017e1a0996b56d76162ed2de8d6002918fb30aa1b4b083a33cc61",
+          "public/images/Frame-511-429-1972-f549097083e6.png": "d005a60f6b3f5d904c8f41f6fca683179e549e8416cee9fec6819e25e6d9d3d7"
+        }
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "rendered": {
+        "width": 1281,
+        "height": 1086
+      },
+      "flattened": {
+        "canvas": [
+          30,
+          30,
+          30
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1281,1086],\"actualDimensions\":[1281,1086],\"changedPixels\":41234,\"totalPixels\":1391166,\"changedRatio\":0.029639884816046395,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":176,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\grid-429-1966.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1281,
+          1086
+        ],
+        "actualDimensions": [
+          1281,
+          1086
+        ],
+        "changedPixels": 41234,
+        "totalPixels": 1391166,
+        "changedRatio": 0.029639884816046395,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 176,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\grid-429-1966.diff.png"
+      }
+    }
+  ],
+  "browserProbe": {
+    "baseline": {
+      "animations": 0,
+      "root": {
+        "animationName": "none",
+        "duration": "0s",
+        "transform": "none",
+        "box": {
+          "x": 0,
+          "y": 0,
+          "width": 64,
+          "height": 64,
+          "top": 0,
+          "right": 64,
+          "bottom": 64,
+          "left": 0
+        }
+      },
+      "dots": [
+        {
+          "wrapper": {
+            "x": 44,
+            "y": 8,
+            "width": 12,
+            "height": 12,
+            "top": 8,
+            "right": 56,
+            "bottom": 20,
+            "left": 44
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 44,
+            "y": 13,
+            "width": 2,
+            "height": 2,
+            "top": 13,
+            "right": 46,
+            "bottom": 15,
+            "left": 44
+          }
+        },
+        {
+          "wrapper": {
+            "x": 52,
+            "y": 26,
+            "width": 12,
+            "height": 12,
+            "top": 26,
+            "right": 64,
+            "bottom": 38,
+            "left": 52
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 52,
+            "y": 30,
+            "width": 4,
+            "height": 4,
+            "top": 30,
+            "right": 56,
+            "bottom": 34,
+            "left": 52
+          }
+        },
+        {
+          "wrapper": {
+            "x": 44,
+            "y": 44,
+            "width": 12,
+            "height": 12,
+            "top": 44,
+            "right": 56,
+            "bottom": 56,
+            "left": 44
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 44,
+            "y": 47,
+            "width": 6,
+            "height": 6,
+            "top": 47,
+            "right": 50,
+            "bottom": 53,
+            "left": 44
+          }
+        },
+        {
+          "wrapper": {
+            "x": 26,
+            "y": 52,
+            "width": 12,
+            "height": 12,
+            "top": 52,
+            "right": 38,
+            "bottom": 64,
+            "left": 26
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 26,
+            "y": 54,
+            "width": 8,
+            "height": 8,
+            "top": 54,
+            "right": 34,
+            "bottom": 62,
+            "left": 26
+          }
+        },
+        {
+          "wrapper": {
+            "x": 8,
+            "y": 44,
+            "width": 12,
+            "height": 12,
+            "top": 44,
+            "right": 20,
+            "bottom": 56,
+            "left": 8
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 8,
+            "y": 45.5,
+            "width": 9,
+            "height": 9,
+            "top": 45.5,
+            "right": 17,
+            "bottom": 54.5,
+            "left": 8
+          }
+        },
+        {
+          "wrapper": {
+            "x": 0,
+            "y": 26,
+            "width": 12,
+            "height": 12,
+            "top": 26,
+            "right": 12,
+            "bottom": 38,
+            "left": 0
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 0,
+            "y": 27,
+            "width": 10,
+            "height": 10,
+            "top": 27,
+            "right": 10,
+            "bottom": 37,
+            "left": 0
+          }
+        },
+        {
+          "wrapper": {
+            "x": 8,
+            "y": 7,
+            "width": 12,
+            "height": 12,
+            "top": 7,
+            "right": 20,
+            "bottom": 19,
+            "left": 8
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 8,
+            "y": 7.5,
+            "width": 11,
+            "height": 11,
+            "top": 7.5,
+            "right": 19,
+            "bottom": 18.5,
+            "left": 8
+          }
+        },
+        {
+          "wrapper": {
+            "x": 26,
+            "y": 0,
+            "width": 12,
+            "height": 12,
+            "top": 0,
+            "right": 38,
+            "bottom": 12,
+            "left": 26
+          },
+          "justify": "space-between",
+          "dot": {
+            "x": 26,
+            "y": 0,
+            "width": 12,
+            "height": 12,
+            "top": 0,
+            "right": 38,
+            "bottom": 12,
+            "left": 26
+          }
+        }
+      ]
+    },
+    "centered": {
+      "animations": 0,
+      "root": {
+        "animationName": "none",
+        "duration": "0s",
+        "transform": "none",
+        "box": {
+          "x": 0,
+          "y": 0,
+          "width": 64,
+          "height": 64,
+          "top": 0,
+          "right": 64,
+          "bottom": 64,
+          "left": 0
+        }
+      },
+      "dots": [
+        {
+          "wrapper": {
+            "x": 44,
+            "y": 8,
+            "width": 12,
+            "height": 12,
+            "top": 8,
+            "right": 56,
+            "bottom": 20,
+            "left": 44
+          },
+          "justify": "center",
+          "dot": {
+            "x": 49,
+            "y": 13,
+            "width": 2,
+            "height": 2,
+            "top": 13,
+            "right": 51,
+            "bottom": 15,
+            "left": 49
+          }
+        },
+        {
+          "wrapper": {
+            "x": 52,
+            "y": 26,
+            "width": 12,
+            "height": 12,
+            "top": 26,
+            "right": 64,
+            "bottom": 38,
+            "left": 52
+          },
+          "justify": "center",
+          "dot": {
+            "x": 56,
+            "y": 30,
+            "width": 4,
+            "height": 4,
+            "top": 30,
+            "right": 60,
+            "bottom": 34,
+            "left": 56
+          }
+        },
+        {
+          "wrapper": {
+            "x": 44,
+            "y": 44,
+            "width": 12,
+            "height": 12,
+            "top": 44,
+            "right": 56,
+            "bottom": 56,
+            "left": 44
+          },
+          "justify": "center",
+          "dot": {
+            "x": 47,
+            "y": 47,
+            "width": 6,
+            "height": 6,
+            "top": 47,
+            "right": 53,
+            "bottom": 53,
+            "left": 47
+          }
+        },
+        {
+          "wrapper": {
+            "x": 26,
+            "y": 52,
+            "width": 12,
+            "height": 12,
+            "top": 52,
+            "right": 38,
+            "bottom": 64,
+            "left": 26
+          },
+          "justify": "center",
+          "dot": {
+            "x": 28,
+            "y": 54,
+            "width": 8,
+            "height": 8,
+            "top": 54,
+            "right": 36,
+            "bottom": 62,
+            "left": 28
+          }
+        },
+        {
+          "wrapper": {
+            "x": 8,
+            "y": 44,
+            "width": 12,
+            "height": 12,
+            "top": 44,
+            "right": 20,
+            "bottom": 56,
+            "left": 8
+          },
+          "justify": "center",
+          "dot": {
+            "x": 9.5,
+            "y": 45.5,
+            "width": 9,
+            "height": 9,
+            "top": 45.5,
+            "right": 18.5,
+            "bottom": 54.5,
+            "left": 9.5
+          }
+        },
+        {
+          "wrapper": {
+            "x": 0,
+            "y": 26,
+            "width": 12,
+            "height": 12,
+            "top": 26,
+            "right": 12,
+            "bottom": 38,
+            "left": 0
+          },
+          "justify": "center",
+          "dot": {
+            "x": 1,
+            "y": 27,
+            "width": 10,
+            "height": 10,
+            "top": 27,
+            "right": 11,
+            "bottom": 37,
+            "left": 1
+          }
+        },
+        {
+          "wrapper": {
+            "x": 8,
+            "y": 7,
+            "width": 12,
+            "height": 12,
+            "top": 7,
+            "right": 20,
+            "bottom": 19,
+            "left": 8
+          },
+          "justify": "center",
+          "dot": {
+            "x": 8.5,
+            "y": 7.5,
+            "width": 11,
+            "height": 11,
+            "top": 7.5,
+            "right": 19.5,
+            "bottom": 18.5,
+            "left": 8.5
+          }
+        },
+        {
+          "wrapper": {
+            "x": 26,
+            "y": 0,
+            "width": 12,
+            "height": 12,
+            "top": 0,
+            "right": 38,
+            "bottom": 12,
+            "left": 26
+          },
+          "justify": "center",
+          "dot": {
+            "x": 26,
+            "y": 0,
+            "width": 12,
+            "height": 12,
+            "top": 0,
+            "right": 38,
+            "bottom": 12,
+            "left": 26
+          }
+        }
+      ]
+    },
+    "pixels": {
+      "baseline": 275,
+      "centered": 110,
+      "total": 4096,
+      "channelTolerance": 24,
+      "canvas": [
+        30,
+        30,
+        30
+      ]
+    }
+  },
+  "artifactHashes": {
+    "w19-probe-baseline.png": "49551a58d3283ba4cb5e1277893db55014aecc0b05d2752d8f081c2ee48ab225",
+    "w19-probe-centered.png": "15ae0b08ed2f797bd710d029adddec69d3273b6b214304ebf359e30a8c088764",
+    "keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+    "keyframes-458-2021-458-2021.snapshot.json": "8ae3430b3818eabbdaae857264cdc505a5fbed16831041e2e747d4a1f3a66d0d"
+  },
+  "allScreensBaseline": [
+    {
+      "name": "keyframes-458-2021",
+      "frame": "458:2021",
+      "viewport": {
+        "width": 64,
+        "height": 64
+      },
+      "reference": "out/keyframes-458-2021.reference.png",
+      "actual": "out/keyframes-458-2021.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "state": "unknown",
+            "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+          }
+        },
+        "responsePath": "out/keyframes-458-2021-458-2021.response.json",
+        "files": {
+          "src/screens/keyframes-458-2021.tsx": "873d3092340f7008f37b6e023d84cebe28eabb2a28bdd4fb14440bc4236dccff",
+          "themes/keyframes-458-2021.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "out/keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+          "out/keyframes-458-2021-458-2021.snapshot.json": "8ae3430b3818eabbdaae857264cdc505a5fbed16831041e2e747d4a1f3a66d0d"
+        }
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "rendered": {
+        "width": 64,
+        "height": 64
+      },
+      "flattened": {
+        "canvas": [
+          30,
+          30,
+          30
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[64,64],\"actualDimensions\":[64,64],\"changedPixels\":275,\"totalPixels\":4096,\"changedRatio\":0.067138671875,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":225,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\keyframes-458-2021.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          64,
+          64
+        ],
+        "actualDimensions": [
+          64,
+          64
+        ],
+        "changedPixels": 275,
+        "totalPixels": 4096,
+        "changedRatio": 0.067138671875,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 225,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\keyframes-458-2021.diff.png"
+      }
+    },
+    {
+      "name": "grid-429-1966",
+      "frame": "429:1966",
+      "viewport": {
+        "width": 1281,
+        "height": 1086
+      },
+      "reference": "out/grid-429-1966.reference.png",
+      "actual": "out/grid-429-1966.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "state": "unknown",
+            "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call."
+          }
+        },
+        "responsePath": "out/grid-429-1966-429-1966.response.json",
+        "files": {
+          "src/screens/grid-429-1966.tsx": "6b16b8f79f4ecf590a24a1c13af67b488afc08a2d513d156e000c20728c1b0d2",
+          "themes/grid-429-1966.json": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "out/grid-429-1966.reference.png": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+          "out/grid-429-1966-429-1966.snapshot.json": "9de5a06b83300efc89c2b02b21f0b7af0f71326accac1ad9dfe62a88c3bd6c02",
+          "public/images/Frame-506-429-1967-986461bdbd3b.png": "8722fc62d4e2e2395697bad982d1d28d159d10b15b0d38b09535e78232ea4ed6",
+          "public/images/Frame-508-429-1968-c886d36997c5.png": "7f8167a9cd5504e7a5e3a386993e6b6eb1dbd21753a86b940ecd4084c65983b7",
+          "public/images/Frame-509-429-1969-a6034b24119a.png": "e13b27fae8519c989ccda979e02377c63ed659b6105ce2263f227bae789bb1b8",
+          "public/images/Frame-507-429-1970-021ef10975df.png": "1fd831e6b6aab7c067a2d57fb06d42738fffe7bdf69c3ffbe9cd89fc1d9a9746",
+          "public/images/Frame-510-429-1971-40e88a5fbe9d.png": "83b2e86d2e4017e1a0996b56d76162ed2de8d6002918fb30aa1b4b083a33cc61",
+          "public/images/Frame-511-429-1972-f549097083e6.png": "d005a60f6b3f5d904c8f41f6fca683179e549e8416cee9fec6819e25e6d9d3d7"
+        }
+      },
+      "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+      "rendered": {
+        "width": 1281,
+        "height": 1086
+      },
+      "flattened": {
+        "canvas": [
+          30,
+          30,
+          30
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1281,1086],\"actualDimensions\":[1281,1086],\"changedPixels\":41234,\"totalPixels\":1391166,\"changedRatio\":0.029639884816046395,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":176,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\grid-429-1966.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1281,
+          1086
+        ],
+        "actualDimensions": [
+          1281,
+          1086
+        ],
+        "changedPixels": 41234,
+        "totalPixels": 1391166,
+        "changedRatio": 0.029639884816046395,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 176,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\grid-429-1966.diff.png"
+      }
+    },
+    {
+      "name": "about-422-3376",
+      "frame": "422:3376",
+      "viewport": {
+        "width": 360,
+        "height": 7240
+      },
+      "reference": "out/about-422-3376.reference.png",
+      "actual": "out/about-422-3376.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/about-422-3376-422-3376.response.json",
+        "files": {
+          "src/screens/about-422-3376.tsx": "45d1df69c37ab650cba2c2209d381f3df958ff7334a93bff9b6d6b84dcabfe90",
+          "themes/about-422-3376.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-3376.reference.png": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+          "out/about-422-3376-422-3376.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "rendered": {
+        "width": 360,
+        "height": 7240
+      },
+      "flattened": {
+        "canvas": [
+          255,
+          255,
+          255
+        ],
+        "alpha": 0
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[360,7240],\"actualDimensions\":[360,7240],\"changedPixels\":143728,\"totalPixels\":2606400,\"changedRatio\":0.05514426028238183,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":238,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\about-422-3376.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          7240
+        ],
+        "actualDimensions": [
+          360,
+          7240
+        ],
+        "changedPixels": 143728,
+        "totalPixels": 2606400,
+        "changedRatio": 0.05514426028238183,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3376.diff.png"
+      }
+    },
+    {
+      "name": "about-422-3180",
+      "frame": "422:3180",
+      "viewport": {
+        "width": 992,
+        "height": 5619
+      },
+      "reference": "out/about-422-3180.reference.png",
+      "actual": "out/about-422-3180.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/about-422-3180-422-3180.response.json",
+        "files": {
+          "src/screens/about-422-3180.tsx": "01ca812124fbb85364084a462258608431f34efe73117c451e1516beca3277db",
+          "themes/about-422-3180.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-3180.reference.png": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+          "out/about-422-3180-422-3180.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "rendered": {
+        "width": 992,
+        "height": 5620
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[992,5619],\"actualDimensions\":[992,5619],\"changedPixels\":167899,\"totalPixels\":5574048,\"changedRatio\":0.030121556183226265,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":238,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\about-422-3180.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          5619
+        ],
+        "actualDimensions": [
+          992,
+          5619
+        ],
+        "changedPixels": 167899,
+        "totalPixels": 5574048,
+        "changedRatio": 0.030121556183226265,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-3180.diff.png"
+      }
+    },
+    {
+      "name": "about-422-2987",
+      "frame": "422:2987",
+      "viewport": {
+        "width": 1920,
+        "height": 4757
+      },
+      "reference": "out/about-422-2987.reference.png",
+      "actual": "out/about-422-2987.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/about-422-2987-422-2987.response.json",
+        "files": {
+          "src/screens/about-422-2987.tsx": "8632b3526bdc841c9d877d6b5af8d9f2e021b8d5a0be1d3766fb5ecddd550896",
+          "themes/about-422-2987.json": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "out/about-422-2987.reference.png": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+          "out/about-422-2987-422-2987.snapshot.json": "6e68ee5121616f01497345619f8185f6c37fdab363d9132c388738fdd599ebdd",
+          "public/images/Section1-422-2989.png": "40b072777cb9dde85763e63e029239cb1d7e14409f8b316d7283697abcc53868",
+          "public/images/2-1-422-2991-04c06818b22f.png": "e6015ba1c9fb9303d471cf0eb7405afa8e255825684f506b7a0a53ff93fe9c8e",
+          "public/images/Frame-269-422-2996-e302b6b111d4.png": "6a0ae8afa45e6b73a2620d0545a7fed0445ff52515377d8b85db4889db2906ce",
+          "public/icons/file-analytic_14427169-1-422-3010-c18bf91459ac.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3028-21f19fe34057.svg": "e94970ba54e1861da6777e7f8c1094161e9958c3cd7b43fb3ea73cd771cc6a12",
+          "public/icons/meeting_1621655-1-422-3059-fbf10cffffdc.svg": "3380c956ec0a7935618109ea320b56b56c8821f0e3d34023fa8a982998df1133",
+          "public/icons/422-3095-55250514fb17.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3097-0d37556a31a6.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3100-68fcd7ce5191.svg": "f853f0aa03903d26ff4ac0658f81eaa357b78b9881b2e8d2c47ac345e879e38e",
+          "public/images/Frame-1000014115-422-3106-47c4161cbfdc.png": "dd6cb90a65d7ed388b93a7e3ce60b6c4138c54d23a5e24867ce02720b56202a1",
+          "public/images/Frame-256-422-3125-2-176f1c6fe3ab.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3133-3ccb13ba51fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3137-5e3d7d6e17fd.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3141-107eb1e2beea.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3145-2-357f7710ea85.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3150-12eb2516b4d2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3154-a2eb9f1af7d7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3158-4f13a54de65b.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3162-2-e27c69996ca2.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3167-54ec1d92f274.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3171-2-a35dcd9fae03.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3176-97916df902d3.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3183.png": "7720dc3e1f4c9659ffe9fe55604e4bdac5db1e04a7dad88d70890e3c9e7a9fe8",
+          "public/images/2-1-422-3185-c2c2bb9fd4ca.png": "1c38f71561ca2fd4aefa625958d9101e178e1540887049db544c37884f22dc79",
+          "public/images/Frame-269-422-3190-fd04b8b6b1f3.png": "47be398c71c507eede8a2545697ea8db2fe60a9cd2dbfe4d4ef777e7852454b3",
+          "public/icons/file-analytic_14427169-1-422-3204-432c13ca99bd.svg": "9d7d47743459dc88c3f484fdbb53a5bb73fb1be608ba3a6852fcda731f144614",
+          "public/icons/shopping-list_1288709-1-422-3222-b3e9e8487485.svg": "c7a372e75e151f942986fbe8a32a4b1a002ed0f105462a2284b3304d50af77ba",
+          "public/icons/meeting_1621655-1-422-3253-298cce04954e.svg": "39c1f190f5337a2ef2131d345ecb1cc385d7360861d517111901def4511fe106",
+          "public/icons/422-3289-1341670f1470.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3291-f455a67c7691.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/icons/puzzle_17833563-1-422-3294-2f23118b8931.svg": "b30a7b5201b6438bbe3fa0eede1f571bc14f7ca53cbb3e7cd6f073a1c7dea28a",
+          "public/images/Frame-1000014115-422-3300-897dd4548a76.png": "0f14e1f6ba38c889b2a79213a07671cbc7ff77bc64bf0b684ab5d828b0e47ff0",
+          "public/images/Frame-256-422-3320-2-2f4ae32bf58f.png": "d966f8f5ee2c191a163fdb4a6b43c0f579b7f1811961fbda7362f927217d4ad5",
+          "public/icons/Frame-287-422-3328-3a4711366ec2.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3332-afb9a56cd5bf.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3336-2f9cf19d6dce.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-257-422-3340-2-a9b56c699b23.png": "5cf8ab0f1b8cd7b6c70ef03b2d3e15b2c7f67a9e3cb6013d1915c92c6e0cab88",
+          "public/icons/Frame-287-422-3345-d5b693523dde.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3349-0d8a14703259.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/icons/Frame-287-422-3353-eaa50e1d86e7.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-258-422-3358-2-0adcc70fa0d7.png": "f746a34333dfd09fc0507092b27c5300a0c76ec9d44e0ec87d712a410f8ef33b",
+          "public/icons/Frame-287-422-3363-2b09fc7a41f0.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Frame-259-422-3367-2-4d462c68adbb.png": "f6d9ffdbac3cc6d48554c6278019cb6a6184cb10d4670a3b7342808beec3d937",
+          "public/icons/Frame-287-422-3372-240bfbcd93a8.svg": "5e4717de1dd25812cae9b40cef398aedab2d9e4426dd202ea563987e7151fd9c",
+          "public/images/Section1-422-3378.png": "ba4cd45f211bb5e4e73d4bf75981f6f2aed04575e1b82fbb4afbb09c80a92c1c",
+          "public/images/2-1-422-3380-cb2a0042a641.png": "a6604f6a23668a36fe7669bb7dae27e1303241e319ec3c5fc004cef912a4df27",
+          "public/images/Frame-269-422-3392-5be2d3573dd4.png": "856609c2b24d369580edb5cb87430ad33ea8fbc3f5a559fe8e9969c70b781931",
+          "public/icons/file-analytic_14427169-1-422-3399-139dd88e7135.svg": "0071bed431ba0fd316d73e20f975881603c259cbcd21ed7c1c6c327cd5a115b9",
+          "public/icons/shopping-list_1288709-1-422-3417-791e321745e1.svg": "03466401cfb2bdba43054fab1e191393bcf405cb23987e40ff32f20ebd264ab8",
+          "public/icons/meeting_1621655-1-422-3448-05d5b482e0b5.svg": "cbe97ff3f21e401fdea44bd56b50deb907688d9fe70a6ac359c43f72c8b0cb72",
+          "public/icons/puzzle_17833563-1-422-3481-a67ca4e245af.svg": "9e48c170db858584703aa6a6ad8ef1d87497787be9d78ae7e0b97ac707436b7d",
+          "public/icons/422-3486-2489fb200011.svg": "615f28af103729b40141009d91aefa110f95aa2a7b63fcc02f5bb4ab92a74a03",
+          "public/icons/422-3488-1c4e20055c2e.svg": "77a4d846fe533db462c77acc0732fffb71cc51b531cd082f4894fcab416db529",
+          "public/images/Frame-1000014115-422-3495-753f13b2e0dd.png": "8dbde872e57446334285215e31b7ce62888ecc6f734ef80d0b0cbf043fa71ab8",
+          "public/images/Frame-256-422-3514-2-ef1ce40418b8.png": "85a1ac763f2ba75cf4439afe43c79e93d3b9223698e5ddd6f27f7abfc44f5ff6",
+          "public/icons/Frame-287-422-3522-69bff93d7324.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3526-6b5842e92a01.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3530-14f6769de568.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-257-422-3534-2-48ea6bc9848a.png": "1ea58b9e09a248bcfa987612c7c9525cd5ac91c162d284c4ecfb163c135e3e7b",
+          "public/icons/Frame-287-422-3539-b40757ac8c31.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3543-518a0dce63b4.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-287-422-3547-71792e0420f0.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-258-422-3551-2-212ce23b8c62.png": "bb6358a55187f71806b213afa22a8a631290f7643caa60099d70316682a4e42b",
+          "public/icons/Frame-287-422-3556-ef8452af3a3e.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/images/Frame-259-422-3560-2-502893d58465.png": "fbe4631ff8bd6375993763bb6c0e8cbd5c4cfe8bd27ec9e3765a2add021d43b9",
+          "public/icons/Frame-287-422-3565-d40d8a2c65bb.svg": "26bc43fb3586541ebd6694fd32e4ac6449ec35b38613feb679a1d17b8b16df6e",
+          "public/icons/Frame-1000014286-I422-2988-935-102168-8297aaad000c.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3179-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-location-60eb5ab59e5e.svg": "d3941032c41126ef38a5c1e529a4300029c2514f827b84319c54f87def94b031",
+          "public/icons/Icons-tel-b5d1fc7747cd.svg": "89a41a35802eb8d04d6716354e1d7058105fc13b8743210a0a7a4fbb18882493",
+          "public/icons/Icons-email-c8a6dae31bb4.svg": "1dcb7f565b0412e496f625d248ce973abc44b545b9ed7015644deaf0d6fac8ca",
+          "public/icons/Icons-insta-8f3f8e048fd3.svg": "5ccbd4b5ddacef31234d53d90993935ea6e65f138f31c607ee77b1c0c17954ed",
+          "public/icons/Icons-mention-a09d585d05ef.svg": "6a55243c947343a2d9d67a42382017a1fdf91ec52756833bdb8b9c583bb6eb53",
+          "public/icons/Icons-docs-7356013800c3.svg": "acad8716a68f6071b024beccd78080560cff32b1c3ee1a84082d75a360b7ec5e",
+          "public/icons/Frame-1000014286-I422-3182-935-102168-a94614c9360a.svg": "ffb8c9aa5bf5391a72f128243a4a31a4a1bb51f916ef9016c8c5ee65856e3972",
+          "public/icons/Container-I422-3375-1127-78173.svg": "8f3c2a9c29107bb5dce6c10f48884e532c086bf8cc85eed8e5495edc5dcdca0c",
+          "public/icons/Icons-hamburger-cf989eed2cd8.svg": "ac9e2bfeabbaa0102254d8f53bc597888c73af1e226ae0c4bc381ce90f1132d3",
+          "public/icons/Frame-1000014285-I422-3377-935-101749-cfb195196c6c.svg": "8a0565afa4709169455563a507331af0f1994406746f2f27b3c56f60dc265c77",
+          "public/icons/P-I422-3568-277-7767.svg": "682a7fb16df448d4c9435bcaf6306e79761e737490e852190478246303414c37",
+          "public/icons/Icons-arrow-abf22ae153b4.svg": "830d5a696d483574fe3c11135427ff47c9cb86f85984de47b694e64deef7c05c"
+        }
+      },
+      "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+      "rendered": {
+        "width": 1920,
+        "height": 4758
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1920,4757],\"actualDimensions\":[1920,4757],\"changedPixels\":161950,\"totalPixels\":9133440,\"changedRatio\":0.017731544741083315,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":238,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\about-422-2987.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          4757
+        ],
+        "actualDimensions": [
+          1920,
+          4757
+        ],
+        "changedPixels": 161950,
+        "totalPixels": 9133440,
+        "changedRatio": 0.017731544741083315,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 238,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\about-422-2987.diff.png"
+      }
+    },
+    {
+      "name": "landing-833-3640",
+      "frame": "833:3640",
+      "viewport": {
+        "width": 360,
+        "height": 2955
+      },
+      "reference": "out/landing-833-3640.reference.png",
+      "actual": "out/landing-833-3640.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/landing-833-3640-833-3640.response.json",
+        "files": {
+          "src/screens/landing-833-3640.tsx": "a55acb9a08d98c5da824bab33993287b503d5bc4a1672bc2866119f0866a7125",
+          "themes/landing-833-3640.json": "e18d9d7e25b4e288f369d28230c89f2e6a6da90e9275134b667bf79be7844134",
+          "out/landing-833-3640.reference.png": "d66ec480cec7ae66c6e2ffe03161b763dc7d446c064fd82318a4d0f3d3e9bb92",
+          "out/landing-833-3640-833-3640.snapshot.json": "27839ecaebd603beb7a982882e9f668e9af50f08b44c3391386ee8dcb7f1a554",
+          "public/images/418625428_72f26dbd-47e8-4138-9fb0-a2e7a8fa07ff-1-833-3644-08dee1e45f39.png": "0f4f9d466ac14c31b0fb09df34285ecbddb015131cf582e9ad8dff0532e9aaf9",
+          "public/icons/solar-star-bold-833-3652-5cc5453b009b.svg": "fde07d775f5bff6bcbcac56ba578ff7e955294147ab022ac89743b5d304355ed",
+          "public/icons/solar-heart-bold-833-3658-1bde6dbfd06d.svg": "0989ab82a6d17f71133541ab47e581cfae9d69082edb468f40beffcf28530998",
+          "public/icons/Group-1-833-3668-a7c431f3db94.svg": "42b576579bc76fc2995105d41d54c2c2b54a32d8030bb3eec0ba426b348e6570",
+          "public/icons/crown_17099645-1-833-3679-197dbb0a06fc.svg": "33327ac76f21c12dc8d8923084b5657e2686a929d38dd14139c1eb40fe36b295",
+          "public/icons/crown_17099645-1-833-3685-2a58803b3472.svg": "33327ac76f21c12dc8d8923084b5657e2686a929d38dd14139c1eb40fe36b295",
+          "public/icons/010-idea-flat-667ce93d8514.svg": "fcd7da026ef84674fc32c6255b409d34c66c4963f4b88adb4555cbcfba8b12c9",
+          "public/icons/019-trophy-flat-6a363e0e28ee.svg": "13b6f673f75235fbef456af1a773b12036467e2c091a9ae23f1207368e387c09",
+          "public/icons/021-heart-flat-8a173fb684bc.svg": "e87eba39bcd03793587b2f8b9c33367b808d57180d3fe6923cd37fc1a1c77690",
+          "public/icons/016-notice-flat-24194195fe96.svg": "9146a549576b477d064fb32807aa9456cdef3f48fb8768b1615f2d98867eff91",
+          "public/icons/gnb-icon-833-3764-5de973b534cb.svg": "cd7dd9bec8760c18eccb42b348d6d5a926cc30f82f140d2cbea2e177f2eb4987",
+          "public/icons/gnb-icon-833-3766-a48fab4a944c.svg": "ac9ad8343645776ea6aa7006710aa715e2f70330c3e1242b0e42ff7a8f50ff07",
+          "public/images/Frame-1321314530-833-3810-7014d196c3a6.png": "1bf19dfc8a7880fc3551523eb2a4457d1ef488d30cabdfa685e188de730556a8",
+          "public/icons/Group-6-I833-3641-1301-3815-4ba8a24434ef.svg": "9d3777e3c4dbb2e1d4444459329d3bacfe8e48a8f8422409e304722c853d7327",
+          "public/icons/icons-hamburger-16b0ce1b4710.svg": "26fecdf67beac21dd5b9efb5bbb927599aba4fec178b5becb232b35a1fa250a4",
+          "public/icons/icons-right-d6837ecd8440.svg": "644288d1ae14222133581cf93f621b0ec6cdf02b76da4266aa0ab9d8f8ad9f9d",
+          "public/icons/icons-export-db31326b74c1.svg": "df430122b09a14e5d18ad544352ed420df470d04082448aefbe622893a176bff"
+        }
+      },
+      "themeHash": "e18d9d7e25b4e288f369d28230c89f2e6a6da90e9275134b667bf79be7844134",
+      "rendered": {
+        "width": 360,
+        "height": 2955
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[360,2955],\"actualDimensions\":[360,2955],\"changedPixels\":53054,\"totalPixels\":1063800,\"changedRatio\":0.049872156420379773,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":255,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\landing-833-3640.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          2955
+        ],
+        "actualDimensions": [
+          360,
+          2955
+        ],
+        "changedPixels": 53054,
+        "totalPixels": 1063800,
+        "changedRatio": 0.049872156420379773,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-833-3640.diff.png"
+      }
+    },
+    {
+      "name": "landing-833-3322",
+      "frame": "833:3322",
+      "viewport": {
+        "width": 992,
+        "height": 2964
+      },
+      "reference": "out/landing-833-3322.reference.png",
+      "actual": "out/landing-833-3322.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/landing-833-3322-833-3322.response.json",
+        "files": {
+          "src/screens/landing-833-3322.tsx": "f6f4e52ec734fab91ad859de0d755a10a5e2633743956d407f45dc9d458684f8",
+          "themes/landing-833-3322.json": "87ef9f58fdb853cb6603a7704dc4b685e4af4242eb3e0b2058e3fbbd968c011d",
+          "out/landing-833-3322.reference.png": "f3eebec1a9e5f574922b4f616d08abae92f9cada366213d4ac4d748553bd96a9",
+          "out/landing-833-3322-833-3322.snapshot.json": "7da5f5ca3013fcd15b96fb0f45e08ada77b4b8959cfb8bd8aaa1f7ca65a23e3c",
+          "public/images/418625428_72f26dbd-47e8-4138-9fb0-a2e7a8fa07ff-1-833-3326-7243e0115236.png": "8799ce4ee9de8f943c887273ecc2591050929b8d4d4b7a9044d30e5519f959d6",
+          "public/icons/solar-star-bold-833-3334-6755d65e76bb.svg": "1bcf4d7c289428dc0b72b0a821ff10995f6d2b14dc5f9f61dec1cc31aec21e4e",
+          "public/icons/solar-heart-bold-833-3340-540d11bad4d5.svg": "c267bbba89341927c6cfd4a2b1c94d69e733461af1212fe8d5d0abde2db761e0",
+          "public/icons/Group-1-833-3350-47a3055ea985.svg": "37e578e014a174ddc96170e64760ba80233d4d34fceb93625be537cb975b2811",
+          "public/icons/crown_17099645-1-833-3361-139fa64ae5fc.svg": "33327ac76f21c12dc8d8923084b5657e2686a929d38dd14139c1eb40fe36b295",
+          "public/icons/crown_17099645-1-833-3367-1429719bb386.svg": "33327ac76f21c12dc8d8923084b5657e2686a929d38dd14139c1eb40fe36b295",
+          "public/icons/010-idea-flat-667ce93d8514.svg": "fcd7da026ef84674fc32c6255b409d34c66c4963f4b88adb4555cbcfba8b12c9",
+          "public/icons/019-trophy-flat-6a363e0e28ee.svg": "13b6f673f75235fbef456af1a773b12036467e2c091a9ae23f1207368e387c09",
+          "public/icons/021-heart-flat-8a173fb684bc.svg": "e87eba39bcd03793587b2f8b9c33367b808d57180d3fe6923cd37fc1a1c77690",
+          "public/icons/016-notice-flat-24194195fe96.svg": "9146a549576b477d064fb32807aa9456cdef3f48fb8768b1615f2d98867eff91",
+          "public/icons/5191-833-3446-4d3d5dfc424c.svg": "71968c68452d53fce1224f15070698e2963944e39834f2fdec3d8fb5845fa098",
+          "public/icons/gnb-icon-833-3451-c2c37c1f1e10.svg": "2298b1e5855713c2c201be8a1dac8fe1f9cc3de9705cb6ec9d7a6abf0c5a34ed",
+          "public/icons/Group-6-I833-3323-1301-3815-0b44bc4425f2.svg": "8cf0c38b2b94cf332076dc046ceedee088179d531d36c4f6adc2442e02e8d719",
+          "public/icons/icons-hamburger-16b0ce1b4710.svg": "26fecdf67beac21dd5b9efb5bbb927599aba4fec178b5becb232b35a1fa250a4",
+          "public/icons/icons-right-d6837ecd8440.svg": "644288d1ae14222133581cf93f621b0ec6cdf02b76da4266aa0ab9d8f8ad9f9d",
+          "public/icons/icons-export-db31326b74c1.svg": "df430122b09a14e5d18ad544352ed420df470d04082448aefbe622893a176bff",
+          "public/images/Frame-1000014051-I833-3460-22-4263-2c2cfa53c0a1.png": "17a41dcdcdc8347ff92aa7e155cc2b7b81b5156b5a220d6dc6bc3b87299c2e28"
+        }
+      },
+      "themeHash": "87ef9f58fdb853cb6603a7704dc4b685e4af4242eb3e0b2058e3fbbd968c011d",
+      "rendered": {
+        "width": 992,
+        "height": 2964
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[992,2964],\"actualDimensions\":[992,2964],\"changedPixels\":72515,\"totalPixels\":2940288,\"changedRatio\":0.024662550063123068,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":255,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\landing-833-3322.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          2964
+        ],
+        "actualDimensions": [
+          992,
+          2964
+        ],
+        "changedPixels": 72515,
+        "totalPixels": 2940288,
+        "changedRatio": 0.024662550063123068,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-833-3322.diff.png"
+      }
+    },
+    {
+      "name": "landing-832-2975",
+      "frame": "832:2975",
+      "viewport": {
+        "width": 1920,
+        "height": 3084
+      },
+      "reference": "out/landing-832-2975.reference.png",
+      "actual": "out/landing-832-2975.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/landing-832-2975-832-2975.response.json",
+        "files": {
+          "src/screens/landing-832-2975.tsx": "8cc5656a6e2b9c238e7beee366f25ed2cd1a9c2957375483d090fed05cad7144",
+          "themes/landing-832-2975.json": "3ae50e9a165f5060e6c977a6c6b610a4238192437492acd7de908a65c2274018",
+          "out/landing-832-2975.reference.png": "68b0743556479681e642b389f89fd2a082d86c6d634884739bd8725522cf8c6b",
+          "out/landing-832-2975-832-2975.snapshot.json": "9a62aa1b9b7a7a80e3a546574a36d7bbe57bd184fa5031ccb33be9d73e8fef8e",
+          "public/images/418625428_72f26dbd-47e8-4138-9fb0-a2e7a8fa07ff-1-832-2978-4de7b61e6c3c.png": "cdf3bb1f72944e96a49f3d631e80ff3e5960e7af4eeb6de5f3246e0c67ee9b4f",
+          "public/icons/solar-star-bold-832-2986-9f11d7e01c56.svg": "f582be85a51eee841cdf662435c3d0e6a508e2c8fb15828108296005af5d4500",
+          "public/icons/solar-heart-bold-832-2992-cacd42da2c50.svg": "11c3fc4eeba5e51fdd7239dc010378eb4b8f13831a64ff0752d6f6ed9c2c9172",
+          "public/icons/Group-2-832-3006-2032fbefcfa1.svg": "d31bcc8e3ebcdc58595fc46de9b01846bd54d9439bed31e60dc03e574250b78f",
+          "public/icons/crown_17099645-1-832-3017-d73e50b3382b.svg": "33327ac76f21c12dc8d8923084b5657e2686a929d38dd14139c1eb40fe36b295",
+          "public/icons/crown_17099645-1-832-3023-7bcaafe00e55.svg": "33327ac76f21c12dc8d8923084b5657e2686a929d38dd14139c1eb40fe36b295",
+          "public/icons/010-idea-flat-667ce93d8514.svg": "fcd7da026ef84674fc32c6255b409d34c66c4963f4b88adb4555cbcfba8b12c9",
+          "public/icons/019-trophy-flat-6a363e0e28ee.svg": "13b6f673f75235fbef456af1a773b12036467e2c091a9ae23f1207368e387c09",
+          "public/icons/021-heart-flat-8a173fb684bc.svg": "e87eba39bcd03793587b2f8b9c33367b808d57180d3fe6923cd37fc1a1c77690",
+          "public/icons/016-notice-flat-24194195fe96.svg": "9146a549576b477d064fb32807aa9456cdef3f48fb8768b1615f2d98867eff91",
+          "public/icons/5191-832-3100-bf641e9b7756.svg": "71968c68452d53fce1224f15070698e2963944e39834f2fdec3d8fb5845fa098",
+          "public/icons/gnb-icon-832-3103-a91d9f55ac44.svg": "ca7ee51c17e7eb46ad2caa4fb46813e931d97a3d4116d4e9030b3bdc7eb6b0b2",
+          "public/icons/gnb-icon-832-3105-370cb19c018e.svg": "2298b1e5855713c2c201be8a1dac8fe1f9cc3de9705cb6ec9d7a6abf0c5a34ed",
+          "public/icons/icons-right-d6837ecd8440.svg": "644288d1ae14222133581cf93f621b0ec6cdf02b76da4266aa0ab9d8f8ad9f9d",
+          "public/icons/icons-export-db31326b74c1.svg": "df430122b09a14e5d18ad544352ed420df470d04082448aefbe622893a176bff",
+          "public/images/Frame-1000014051-I832-3114-793-7937-a2405a4c664f.png": "17a41dcdcdc8347ff92aa7e155cc2b7b81b5156b5a220d6dc6bc3b87299c2e28",
+          "public/icons/Group-6-I832-3115-1301-3742-c2f11edfdf3b.svg": "3ea594269b28ff969f2fde3d83c56a7765efe855a3ee069e584b53b283b9fc69",
+          "public/icons/gnb-icon-github-eddad4bf4c58.svg": "9563db95991c3e365a9d99ace8202c057a1c1e718cb6a7f0f6ee7aff1edd6f2a",
+          "public/icons/gnb-icon-discord-57dd3850a957.svg": "bb330df8f65247409be005eb88797c538d781bb07f87d00108912356d8486967",
+          "public/icons/gnb-icon-light-c4e2e98c3a38.svg": "c71793bedfe013491a30977255e1a381692ce8d6e3468819b6ed6777916dfc88",
+          "public/icons/gnb-icon-kakao-76d978d7f2f3.svg": "2fe1ec49fb625208ba92946b89c5bbe9c982e4039cd71cc1f71f0d9ee6b837c0"
+        }
+      },
+      "themeHash": "3ae50e9a165f5060e6c977a6c6b610a4238192437492acd7de908a65c2274018",
+      "rendered": {
+        "width": 1920,
+        "height": 3084
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1920,3084],\"actualDimensions\":[1920,3084],\"changedPixels\":89041,\"totalPixels\":5921280,\"changedRatio\":0.015037458117163857,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":255,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\landing-832-2975.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          3084
+        ],
+        "actualDimensions": [
+          1920,
+          3084
+        ],
+        "changedPixels": 89041,
+        "totalPixels": 5921280,
+        "changedRatio": 0.015037458117163857,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\landing-832-2975.diff.png"
+      }
+    },
+    {
+      "name": "notice-422-6914",
+      "frame": "422:6914",
+      "viewport": {
+        "width": 360,
+        "height": 1215
+      },
+      "reference": "out/notice-422-6914.reference.png",
+      "actual": "out/notice-422-6914.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/notice-422-6914-422-6914.response.json",
+        "files": {
+          "src/screens/notice-422-6914.tsx": "5887a5c57cb9e882afac67b0cfe7062ac43194f067fb9bed625e041596ef46e3",
+          "themes/notice-422-6914.json": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "out/notice-422-6914.reference.png": "421d8a6fdda27079f183c6927c0672568648be3b23e37526938eb58c1276764a",
+          "out/notice-422-6914-422-6914.snapshot.json": "b19be0750b97a6109a10d273d1251e6d68f12a74ad1ab59bcbac39ba83ec0082",
+          "public/icons/Frame-1000014364-422-6872-735186ad9985.svg": "13186c81b19b7929b7f01cd8bf55539860f1dd46dd9617be9abc1806461e6a37",
+          "public/icons/icons-search-af676a4ca2dc.svg": "d0437557084f8b6d4f506f5aa6ff528ff6fc95603f6d2bfdd8c4cb0fd48668e5",
+          "public/icons/Frame-1321314514-422-6890-41433cdbff46.svg": "9893898177eb34886da865208a181b54455312e7d06cb67bb777d7e2a7dd88ee",
+          "public/icons/Logo-422-6921.svg": "5bd21a79719a51c44a0ff2b7906383c3429a78d28edd02f676f164c9279ad6c5",
+          "public/icons/Logo-422-6922.svg": "3bd0d997d8ec58c89d85cf63258689923bda86da3c85d9b6b67bf4cb2f5df413",
+          "public/icons/Frame-1321314514-422-6938-e4b33d20a004.svg": "99e30cd4067b7feef69f0d1a0224871db6e1ad8b3926df5b2b133d1cd203f035",
+          "public/icons/Frame-1000014364-422-7095-218dcc03d4f6.svg": "082ce764905b19a264bd6aa87dd5f297edeff084b505b88e39ee3a4c112ed81b",
+          "public/icons/Frame-1321314514-422-7113-216fda47f2e6.svg": "a66a45c15197ca118fdd3a8abd9048fb46a0cfa876c0e2c2560ab8886942a584",
+          "public/icons/Logo-I422-6875-147-914.svg": "d861a953980e76523cb05d695ccb38f53b6c5224a9a4c2ca2929fe9b9da57ece",
+          "public/icons/grommet-icons-language-I422-6875-269-3349-144-620-bb98bbc304de.svg": "a12ce351ff803fe006ad2747bafbbbe9ac87976c8271ad6baaeb9c146ced89c7",
+          "public/icons/grommet-icons-language-I422-6875-269-3349-144-623-85256abe9366.svg": "512413097d0982d5c78785ada759a22df0445240089834771ad4639427d6df00",
+          "public/icons/Frame-1000014290-I422-6880-211-1487-a791a685d32c.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-6913-148-1250.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-6913-148-1388-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-6913-148-1436-f66144fae172.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d",
+          "public/icons/Logo-I422-6923-262-2735.svg": "d4d4d070e9284859922554c32eae7dec0af3613dbb49701ea53be724e0d6b3a6",
+          "public/icons/Header-I422-6923-263-1856.svg": "cc067e2b5cbd4dc07f4444e73cd4f89cfc7160fc702c7fa2c3a23729fae9eba1",
+          "public/icons/Frame-1000014290-I422-6931-211-1487-4e1b2564f709.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-6963-265-2561.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-6963-265-2563-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-6963-265-2564-ec1eb3e1bdce.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d",
+          "public/icons/Logo-I422-7098-147-914.svg": "d861a953980e76523cb05d695ccb38f53b6c5224a9a4c2ca2929fe9b9da57ece",
+          "public/icons/grommet-icons-language-I422-7098-269-3349-144-620-f3a6c9ae0555.svg": "a12ce351ff803fe006ad2747bafbbbe9ac87976c8271ad6baaeb9c146ced89c7",
+          "public/icons/grommet-icons-language-I422-7098-269-3349-144-623-eb4c7fdc67ed.svg": "512413097d0982d5c78785ada759a22df0445240089834771ad4639427d6df00",
+          "public/icons/Frame-1000014290-I422-7103-211-1487-df2d9d4a5ab4.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-7136-148-1250.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-7136-148-1388-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-7136-148-1436-f12e7da43939.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d"
+        }
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "rendered": {
+        "width": 360,
+        "height": 1217
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[360,1215],\"actualDimensions\":[360,1215],\"changedPixels\":22982,\"totalPixels\":437400,\"changedRatio\":0.05254229538180155,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":255,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\notice-422-6914.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          360,
+          1215
+        ],
+        "actualDimensions": [
+          360,
+          1215
+        ],
+        "changedPixels": 22982,
+        "totalPixels": 437400,
+        "changedRatio": 0.05254229538180155,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-6914.diff.png"
+      }
+    },
+    {
+      "name": "notice-422-7088",
+      "frame": "422:7088",
+      "viewport": {
+        "width": 992,
+        "height": 1142
+      },
+      "reference": "out/notice-422-7088.reference.png",
+      "actual": "out/notice-422-7088.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/notice-422-7088-422-7088.response.json",
+        "files": {
+          "src/screens/notice-422-7088.tsx": "3484aa6a3ef64642d7aa5a5539355e3b70a989f7d561c8f8cc7db3703c2791f1",
+          "themes/notice-422-7088.json": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "out/notice-422-7088.reference.png": "7f8ab78a60ef7f6adac3e4f8a93bfd767ead06841030a2647490f9ded53d6386",
+          "out/notice-422-7088-422-7088.snapshot.json": "b19be0750b97a6109a10d273d1251e6d68f12a74ad1ab59bcbac39ba83ec0082",
+          "public/icons/Frame-1000014364-422-6872-735186ad9985.svg": "13186c81b19b7929b7f01cd8bf55539860f1dd46dd9617be9abc1806461e6a37",
+          "public/icons/icons-search-af676a4ca2dc.svg": "d0437557084f8b6d4f506f5aa6ff528ff6fc95603f6d2bfdd8c4cb0fd48668e5",
+          "public/icons/Frame-1321314514-422-6890-41433cdbff46.svg": "9893898177eb34886da865208a181b54455312e7d06cb67bb777d7e2a7dd88ee",
+          "public/icons/Logo-422-6921.svg": "5bd21a79719a51c44a0ff2b7906383c3429a78d28edd02f676f164c9279ad6c5",
+          "public/icons/Logo-422-6922.svg": "3bd0d997d8ec58c89d85cf63258689923bda86da3c85d9b6b67bf4cb2f5df413",
+          "public/icons/Frame-1321314514-422-6938-e4b33d20a004.svg": "99e30cd4067b7feef69f0d1a0224871db6e1ad8b3926df5b2b133d1cd203f035",
+          "public/icons/Frame-1000014364-422-7095-218dcc03d4f6.svg": "082ce764905b19a264bd6aa87dd5f297edeff084b505b88e39ee3a4c112ed81b",
+          "public/icons/Frame-1321314514-422-7113-216fda47f2e6.svg": "a66a45c15197ca118fdd3a8abd9048fb46a0cfa876c0e2c2560ab8886942a584",
+          "public/icons/Logo-I422-6875-147-914.svg": "d861a953980e76523cb05d695ccb38f53b6c5224a9a4c2ca2929fe9b9da57ece",
+          "public/icons/grommet-icons-language-I422-6875-269-3349-144-620-bb98bbc304de.svg": "a12ce351ff803fe006ad2747bafbbbe9ac87976c8271ad6baaeb9c146ced89c7",
+          "public/icons/grommet-icons-language-I422-6875-269-3349-144-623-85256abe9366.svg": "512413097d0982d5c78785ada759a22df0445240089834771ad4639427d6df00",
+          "public/icons/Frame-1000014290-I422-6880-211-1487-a791a685d32c.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-6913-148-1250.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-6913-148-1388-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-6913-148-1436-f66144fae172.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d",
+          "public/icons/Logo-I422-6923-262-2735.svg": "d4d4d070e9284859922554c32eae7dec0af3613dbb49701ea53be724e0d6b3a6",
+          "public/icons/Header-I422-6923-263-1856.svg": "cc067e2b5cbd4dc07f4444e73cd4f89cfc7160fc702c7fa2c3a23729fae9eba1",
+          "public/icons/Frame-1000014290-I422-6931-211-1487-4e1b2564f709.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-6963-265-2561.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-6963-265-2563-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-6963-265-2564-ec1eb3e1bdce.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d",
+          "public/icons/Logo-I422-7098-147-914.svg": "d861a953980e76523cb05d695ccb38f53b6c5224a9a4c2ca2929fe9b9da57ece",
+          "public/icons/grommet-icons-language-I422-7098-269-3349-144-620-f3a6c9ae0555.svg": "a12ce351ff803fe006ad2747bafbbbe9ac87976c8271ad6baaeb9c146ced89c7",
+          "public/icons/grommet-icons-language-I422-7098-269-3349-144-623-eb4c7fdc67ed.svg": "512413097d0982d5c78785ada759a22df0445240089834771ad4639427d6df00",
+          "public/icons/Frame-1000014290-I422-7103-211-1487-df2d9d4a5ab4.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-7136-148-1250.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-7136-148-1388-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-7136-148-1436-f12e7da43939.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d"
+        }
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "rendered": {
+        "width": 992,
+        "height": 1145
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[992,1142],\"actualDimensions\":[992,1142],\"changedPixels\":36501,\"totalPixels\":1132864,\"changedRatio\":0.03222010762103836,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":255,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\notice-422-7088.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          992,
+          1142
+        ],
+        "actualDimensions": [
+          992,
+          1142
+        ],
+        "changedPixels": 36501,
+        "totalPixels": 1132864,
+        "changedRatio": 0.03222010762103836,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-7088.diff.png"
+      }
+    },
+    {
+      "name": "notice-422-6865",
+      "frame": "422:6865",
+      "viewport": {
+        "width": 1920,
+        "height": 1142
+      },
+      "reference": "out/notice-422-6865.reference.png",
+      "actual": "out/notice-422-6865.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/notice-422-6865-422-6865.response.json",
+        "files": {
+          "src/screens/notice-422-6865.tsx": "c2f8fef6deae6070934268d9d5003bf3008d96d8e81a04735e2c3f6185d1150b",
+          "themes/notice-422-6865.json": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "out/notice-422-6865.reference.png": "73049f14e3be6c308652418bf69f7d53af44f0df650241b29e0e7aff16c3a1b4",
+          "out/notice-422-6865-422-6865.snapshot.json": "b19be0750b97a6109a10d273d1251e6d68f12a74ad1ab59bcbac39ba83ec0082",
+          "public/icons/Frame-1000014364-422-6872-735186ad9985.svg": "13186c81b19b7929b7f01cd8bf55539860f1dd46dd9617be9abc1806461e6a37",
+          "public/icons/icons-search-af676a4ca2dc.svg": "d0437557084f8b6d4f506f5aa6ff528ff6fc95603f6d2bfdd8c4cb0fd48668e5",
+          "public/icons/Frame-1321314514-422-6890-41433cdbff46.svg": "9893898177eb34886da865208a181b54455312e7d06cb67bb777d7e2a7dd88ee",
+          "public/icons/Logo-422-6921.svg": "5bd21a79719a51c44a0ff2b7906383c3429a78d28edd02f676f164c9279ad6c5",
+          "public/icons/Logo-422-6922.svg": "3bd0d997d8ec58c89d85cf63258689923bda86da3c85d9b6b67bf4cb2f5df413",
+          "public/icons/Frame-1321314514-422-6938-e4b33d20a004.svg": "99e30cd4067b7feef69f0d1a0224871db6e1ad8b3926df5b2b133d1cd203f035",
+          "public/icons/Frame-1000014364-422-7095-218dcc03d4f6.svg": "082ce764905b19a264bd6aa87dd5f297edeff084b505b88e39ee3a4c112ed81b",
+          "public/icons/Frame-1321314514-422-7113-216fda47f2e6.svg": "a66a45c15197ca118fdd3a8abd9048fb46a0cfa876c0e2c2560ab8886942a584",
+          "public/icons/Logo-I422-6875-147-914.svg": "d861a953980e76523cb05d695ccb38f53b6c5224a9a4c2ca2929fe9b9da57ece",
+          "public/icons/grommet-icons-language-I422-6875-269-3349-144-620-bb98bbc304de.svg": "a12ce351ff803fe006ad2747bafbbbe9ac87976c8271ad6baaeb9c146ced89c7",
+          "public/icons/grommet-icons-language-I422-6875-269-3349-144-623-85256abe9366.svg": "512413097d0982d5c78785ada759a22df0445240089834771ad4639427d6df00",
+          "public/icons/Frame-1000014290-I422-6880-211-1487-a791a685d32c.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-6913-148-1250.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-6913-148-1388-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-6913-148-1436-f66144fae172.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d",
+          "public/icons/Logo-I422-6923-262-2735.svg": "d4d4d070e9284859922554c32eae7dec0af3613dbb49701ea53be724e0d6b3a6",
+          "public/icons/Header-I422-6923-263-1856.svg": "cc067e2b5cbd4dc07f4444e73cd4f89cfc7160fc702c7fa2c3a23729fae9eba1",
+          "public/icons/Frame-1000014290-I422-6931-211-1487-4e1b2564f709.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-6963-265-2561.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-6963-265-2563-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-6963-265-2564-ec1eb3e1bdce.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d",
+          "public/icons/Logo-I422-7098-147-914.svg": "d861a953980e76523cb05d695ccb38f53b6c5224a9a4c2ca2929fe9b9da57ece",
+          "public/icons/grommet-icons-language-I422-7098-269-3349-144-620-f3a6c9ae0555.svg": "a12ce351ff803fe006ad2747bafbbbe9ac87976c8271ad6baaeb9c146ced89c7",
+          "public/icons/grommet-icons-language-I422-7098-269-3349-144-623-eb4c7fdc67ed.svg": "512413097d0982d5c78785ada759a22df0445240089834771ad4639427d6df00",
+          "public/icons/Frame-1000014290-I422-7103-211-1487-df2d9d4a5ab4.svg": "36a431689c4d64fd59ea90acc92de2e682b33c2af86cdeedfd649c1db2392158",
+          "public/icons/Logo-I422-7136-148-1250.svg": "a68b593e1077f3661c78b8c5613d36c9157c8738254c8c58a335eab6bb4246d6",
+          "public/icons/light-I422-7136-148-1388-148-1301.svg": "0065458e8f989438c0ee80754ce7d04dfbc81c8ea974bd41f5c4d54131d8dbfd",
+          "public/icons/Frame-1000014232-I422-7136-148-1436-f12e7da43939.svg": "98ca0f4287b8adb40e74ed6b3bed91b8e44d03efdc6927443df9c17f10d8707d"
+        }
+      },
+      "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+      "rendered": {
+        "width": 1920,
+        "height": 1145
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1920,1142],\"actualDimensions\":[1920,1142],\"changedPixels\":48286,\"totalPixels\":2192640,\"changedRatio\":0.022021854932866316,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":255,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\notice-422-6865.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          1142
+        ],
+        "actualDimensions": [
+          1920,
+          1142
+        ],
+        "changedPixels": 48286,
+        "totalPixels": 2192640,
+        "changedRatio": 0.022021854932866316,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 255,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\notice-422-6865.diff.png"
+      }
+    },
+    {
+      "name": "popup-422-5682",
+      "frame": "422:5682",
+      "viewport": {
+        "width": 390,
+        "height": 800
+      },
+      "reference": "out/popup-422-5682.reference.png",
+      "actual": "out/popup-422-5682.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/popup-422-5682.response.json",
+        "files": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5682.reference.png": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+          "out/popup-422-5682.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        }
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "rendered": {
+        "width": 390,
+        "height": 800
+      },
+      "flattened": {
+        "canvas": [
+          70,
+          70,
+          70
+        ],
+        "alpha": 178
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[390,800],\"actualDimensions\":[390,800],\"changedPixels\":11370,\"totalPixels\":312000,\"changedRatio\":0.03644230769230769,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":236,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\popup-422-5682.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          390,
+          800
+        ],
+        "actualDimensions": [
+          390,
+          800
+        ],
+        "changedPixels": 11370,
+        "totalPixels": 312000,
+        "changedRatio": 0.03644230769230769,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 236,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5682.diff.png"
+      }
+    },
+    {
+      "name": "popup-422-5705",
+      "frame": "422:5705",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "reference": "out/popup-422-5705.reference.png",
+      "actual": "out/popup-422-5705.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/popup-422-5705.response.json",
+        "files": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5705.reference.png": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+          "out/popup-422-5705.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        }
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "rendered": {
+        "width": 768,
+        "height": 1024
+      },
+      "flattened": {
+        "canvas": [
+          70,
+          70,
+          70
+        ],
+        "alpha": 178
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[768,1024],\"actualDimensions\":[768,1024],\"changedPixels\":16221,\"totalPixels\":786432,\"changedRatio\":0.020626068115234375,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":236,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\popup-422-5705.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          768,
+          1024
+        ],
+        "actualDimensions": [
+          768,
+          1024
+        ],
+        "changedPixels": 16221,
+        "totalPixels": 786432,
+        "changedRatio": 0.020626068115234375,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 236,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5705.diff.png"
+      }
+    },
+    {
+      "name": "popup-422-5728",
+      "frame": "422:5728",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "reference": "out/popup-422-5728.reference.png",
+      "actual": "out/popup-422-5728.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/popup-422-5728.response.json",
+        "files": {
+          "src/screens/popup.tsx": "413fa6750729f3fe1c66ca7fc5d149e94bfb73a4d5d6f176b43bff6a467450e7",
+          "themes/popup.json": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "out/popup-422-5728.reference.png": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+          "out/popup-422-5728.snapshot.json": "da2033d27ab05dc0c5f7c562c2308d9c2b427301c9637f50a0e0cee13fb6647e",
+          "public/icons/megaphone_760116-1-422-5687-ddd0aee2dd3c.svg": "5e220d91215a0b70752a999e2c4e6da0341eea9554c089a9437eaf13c0a1110b",
+          "public/icons/Frame-1000013807-422-5702-437ef34c2c83.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5710-9f758e0f819d.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5725-ee6d994851a6.svg": "8066276cd79544ea1b6337c27a3dfb81ed9fa1dace8c2447d181d92e3fd76fcf",
+          "public/icons/megaphone_760116-1-422-5733-f0074be50750.svg": "43fd7a092ba75f5efd858484f07d9ae7169fa044f674fbf7213743b853b4ad4d",
+          "public/icons/Frame-1000013807-422-5748-ae2fb3748882.svg": "05f5307c63820132c4c6026ba941bc955c83c38d6c16f249bea0cea7982b4220"
+        }
+      },
+      "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+      "rendered": {
+        "width": 1920,
+        "height": 1080
+      },
+      "flattened": {
+        "canvas": [
+          70,
+          70,
+          70
+        ],
+        "alpha": 178
+      },
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1920,1080],\"actualDimensions\":[1920,1080],\"changedPixels\":17699,\"totalPixels\":2073600,\"changedRatio\":0.00853539737654321,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":237,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\popup-422-5728.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          1080
+        ],
+        "actualDimensions": [
+          1920,
+          1080
+        ],
+        "changedPixels": 17699,
+        "totalPixels": 2073600,
+        "changedRatio": 0.00853539737654321,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 237,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\popup-422-5728.diff.png"
+      }
+    },
+    {
+      "name": "report-446-1971",
+      "frame": "446:1971",
+      "viewport": {
+        "width": 1920,
+        "height": 734
+      },
+      "reference": "out/report-446-1971.reference.png",
+      "actual": "out/report-446-1971.actual.png",
+      "acquisition": {
+        "binarySha256": "c451093a2fb1bbeb436bf5a364055fa469fc45241476317a21e3e253fb22c352",
+        "server": {
+          "version": "0.4.5",
+          "buildId": "ee7fc6d616ec",
+          "commit": "ee7fc6d616ec",
+          "displayVersion": "0.4.5+ee7fc6d616ec",
+          "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+          "updateAvailable": {
+            "current": "0.4.5",
+            "latest": "0.4.5",
+            "isStale": false,
+            "state": "known",
+            "checkedAtEpochSeconds": 1789278431,
+            "note": "A difference between the running build and the newest release. devup-mcp never replaces its own binary: the MCP host owns this process, so update it and reconnect the client."
+          }
+        },
+        "responsePath": "out/report-446-1971-446-1971.response.json",
+        "files": {
+          "src/screens/report-446-1971.tsx": "23b8eb8ea5d6bd41ce8a77b69ccee3497a68dc7408b1fd50bbb2007b89199959",
+          "themes/report-446-1971.json": "46d713e0a8523f77d004ec78a2997810a6bf58d1e380a13bcda9de96388fd56a",
+          "out/report-446-1971.reference.png": "0cf71b751e361e59966634f18a787d22d794c1648c15d3ab91977090f1b18efd",
+          "out/report-446-1971-446-1971.snapshot.json": "702040cddee8514976571795304b94c4d849e048db76d96564e593110b66b145",
+          "public/icons/Group-20-446-1973-984a06e44ee1.svg": "1de0ad1311e6f9d0b45a14a91c8c53d9034e3187e463321c6916abc1fecead5a",
+          "public/icons/Icons-analysis-5b2df800c9be.svg": "c74db05a9f8edfa17197341751cf4b13928dae8f07c36ace936bb21e79e502c9",
+          "public/icons/Icons-time-55daa681d9f6.svg": "430bf07307875a2dcf3a00adacaa25dceb0462d55afec3cd215b950fd69aa145",
+          "public/icons/Icons-thunder-3cd29312ec2d.svg": "7d3cd111404f71afdd107c1b5deda42e43d7b3aaad8b9564bcc5e06d2386e3a2"
+        }
+      },
+      "themeHash": "46d713e0a8523f77d004ec78a2997810a6bf58d1e380a13bcda9de96388fd56a",
+      "rendered": {
+        "width": 1920,
+        "height": 734
+      },
+      "flattened": null,
+      "environmentStatus": "valid",
+      "compare": {
+        "exit": 1,
+        "stdout": "{\"status\":\"mismatch\",\"referenceDimensions\":[1920,734],\"actualDimensions\":[1920,734],\"changedPixels\":17989,\"totalPixels\":1409280,\"changedRatio\":0.012764674159854678,\"maxChangedRatio\":0.005,\"channelTolerance\":24,\"maxChannelDelta\":200,\"diffPath\":\"C:\\\\Users\\\\owjs3\\\\Desktop\\\\projects\\\\devup-mcp\\\\harness\\\\render\\\\out\\\\report-446-1971.diff.png\"}",
+        "stderr": ""
+      },
+      "metrics": {
+        "status": "mismatch",
+        "referenceDimensions": [
+          1920,
+          734
+        ],
+        "actualDimensions": [
+          1920,
+          734
+        ],
+        "changedPixels": 17989,
+        "totalPixels": 1409280,
+        "changedRatio": 0.012764674159854678,
+        "maxChangedRatio": 0.005,
+        "channelTolerance": 24,
+        "maxChannelDelta": 200,
+        "diffPath": "C:\\Users\\owjs3\\Desktop\\projects\\devup-mcp\\harness\\render\\out\\report-446-1971.diff.png"
+      }
+    }
+  ],
+  "baselinePngHashes": {
+    "about-422-2987.actual.png": "5c482d9557ad96d674c5b8ce26d406e7e7c9a5a6ada078ee75bfb34fb079b477",
+    "about-422-2987.reference.png": "6dc173242afb2bc5ad5d7262d4d23acd1ec7fcc468db32c413cc5356b3dd9120",
+    "about-422-3180.actual.png": "b3b842fa7984cd7aedc4b8d44a7267481277e392471d4f426d5780798cd3ca41",
+    "about-422-3180.reference.png": "9487389f99ba9d199262ddf0c0e8acaed0679b0aadceeb535cecb99f6b3e1faa",
+    "about-422-3376.actual.png": "ead165daab28017371c3883d61f20cbb82cd637aec44a2439971b1820b7e8ef1",
+    "about-422-3376.reference.png": "183b29572ab786dbe588e0bfed57db8210920e4f070dfb22226065a6545c17f8",
+    "grid-429-1966.actual.png": "a7ea4c4023061e9851972a8ad633af22fa160a0d610621d98e00529959cab69f",
+    "grid-429-1966.reference.png": "251925cfa907bcb24ff2077cbf81a778a0be9a9df62a9532359bea231f468e10",
+    "keyframes-458-2021.actual.png": "49551a58d3283ba4cb5e1277893db55014aecc0b05d2752d8f081c2ee48ab225",
+    "keyframes-458-2021.reference.png": "94ff08ecd5dac40feeb9ba154e40f0f527dbcaa31c02f5cbf0c03dae25ede191",
+    "landing-832-2975.actual.png": "1bf31cea5d1dbf5d6a5c2b4eb35fab39b6800f56bf1905a9278621e08c2787d3",
+    "landing-832-2975.reference.png": "68b0743556479681e642b389f89fd2a082d86c6d634884739bd8725522cf8c6b",
+    "landing-833-3322.actual.png": "619165013992405a3bf47132235f2e735ff2a1ec39686b79d4c61bfa1d0bf279",
+    "landing-833-3322.reference.png": "f3eebec1a9e5f574922b4f616d08abae92f9cada366213d4ac4d748553bd96a9",
+    "landing-833-3640.actual.png": "f35490cf62a1d7f3622a210624366fadb6e81f5415d5b03a5979b23dae372cdd",
+    "landing-833-3640.reference.png": "d66ec480cec7ae66c6e2ffe03161b763dc7d446c064fd82318a4d0f3d3e9bb92",
+    "notice-422-6865.actual.png": "8fd58f7f3428c90f51712865db2ef1514124bfeb237a1288344f88483aa1387a",
+    "notice-422-6865.reference.png": "73049f14e3be6c308652418bf69f7d53af44f0df650241b29e0e7aff16c3a1b4",
+    "notice-422-6914.actual.png": "0f2cdb2303f39bf1edd65eb0b983b39374b4c938354b149c41ec9e769a238eec",
+    "notice-422-6914.reference.png": "421d8a6fdda27079f183c6927c0672568648be3b23e37526938eb58c1276764a",
+    "notice-422-7088.actual.png": "625143077b60ee5f4857e1336a03ef96f582070fbfe607e6fb4ed2a429545c55",
+    "notice-422-7088.reference.png": "7f8ab78a60ef7f6adac3e4f8a93bfd767ead06841030a2647490f9ded53d6386",
+    "popup-422-5682.actual.png": "059c502c8c28229cd099ecc1202461d347c069cadd2ba2efee1a37aa0baace2f",
+    "popup-422-5682.reference.png": "b70f8364a24570367868ce0e52c9f64643640a9e5dad9aa589d67633e7fcc155",
+    "popup-422-5705.actual.png": "ee43d4428b94262fc87460a413da67350f4a3446e8122a3bb53ae96a25ea71fe",
+    "popup-422-5705.reference.png": "c4e30d646e39234ef40f09e8e196baf2d3e72addbc4271d0b069193f8f0dc4ad",
+    "popup-422-5728.actual.png": "38ed76ac08098116a37b0c511fbf9b2a61c7b1ec5a7d89bd69aec2e428abcd00",
+    "popup-422-5728.reference.png": "82ab13e4a18136875449cae8e1d34c13bbe0e74350e249d2674ec45dfad86444",
+    "report-446-1971.actual.png": "de0a90f9c933f64944e5d991640b4eca24e47f6c5ee90521d527fcc109ca961d",
+    "report-446-1971.reference.png": "0cf71b751e361e59966634f18a787d22d794c1648c15d3ab91977090f1b18efd"
+  }
+}
