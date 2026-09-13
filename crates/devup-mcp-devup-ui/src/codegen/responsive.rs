@@ -561,11 +561,19 @@ fn children_to_map(tree: &Tree) -> Vec<(String, Vec<&Tree>)> {
     let mut grouped: Vec<(String, Vec<&Tree>)> = Vec::new();
     for child in &tree.children {
         let signature = structure_signature(child);
-        let key = if counts.get(&signature) == Some(&1) {
+        let mut key = if counts.get(&signature) == Some(&1) {
             format!("sig:{signature}")
         } else {
             child.node_name.clone()
         };
+        // `src` is an HTML attribute, not a responsive CSS property. Keep
+        // distinct sources as distinct children; the existing missing-child
+        // merge supplies their visibility slots without array-valued URLs.
+        if child.component == "Image"
+            && let Some(source) = child.props.get("src")
+        {
+            key = serde_json::to_string(&(key, source)).expect("image identity is serializable");
+        }
         if let Some((_, bucket)) = grouped.iter_mut().find(|(existing, _)| *existing == key) {
             bucket.push(child);
         } else {
@@ -1033,6 +1041,18 @@ fn merge_children(
             let mut children: BySlot<Tree> = std::array::from_fn(|slot| {
                 bucket(slot).and_then(|list| list.get(index).cloned().cloned())
             });
+            if (0..SLOTS).any(|slot| by_slot[slot].is_some() && children[slot].is_none()) {
+                for child in children.iter_mut().flatten() {
+                    if child.component == "Image" {
+                        // A present source must restore visibility even when
+                        // it is absent on both sides of this drawn slot.
+                        child
+                            .props
+                            .entry("display".to_owned())
+                            .or_insert_with(|| natural_display("Image").to_owned());
+                    }
+                }
+            }
             // A width that does not draw this child is given a copy of the
             // first one that does — first in the Section's order — hidden. The
             // copies then merge like anything else: the `display` array falls
