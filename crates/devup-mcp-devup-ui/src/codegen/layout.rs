@@ -1587,14 +1587,28 @@ pub(crate) fn folded_mask_dimensions(snapshot: &Snapshot, node: &RawNode) -> Opt
     let view = node.typed_view();
     if super::style::asset_kind(snapshot, node) != Some(super::style::AssetKind::SvgMask)
         || view.child_ids().next().is_none()
-        // Rotated exports and pixel mask offsets need a different transform
-        // proof. Leave them unresolved instead of inventing responsive sizes.
+        // Rotated exports need a separate transform proof.
         || view.number("rotation").is_some_and(|rotation| rotation.abs() > 0.01)
-        || export_offset(node).is_some()
         || !(view.string("layoutSizingHorizontal") == Some("HUG")
             || view.string("layoutSizingVertical") == Some("HUG"))
     {
         return None;
+    }
+    if export_offset(node).is_some() {
+        // In-flow HUG/FIXED axes retain the measured layout box. The export's
+        // larger painted bounds are independently preserved by maskSize and
+        // maskPos. A FILL axis would scale that box while leaving pixel mask
+        // offsets unchanged; positioned assets instead use the export box.
+        let parent = view
+            .string("parentId")
+            .and_then(|id| snapshot.nodes.get(id));
+        if !matches!(view.string("layoutSizingHorizontal"), Some("HUG" | "FIXED"))
+            || !matches!(view.string("layoutSizingVertical"), Some("HUG" | "FIXED"))
+            || view.string("layoutPositioning") == Some("ABSOLUTE")
+            || placed_by_a_free_layout(snapshot, node, parent, false)
+        {
+            return None;
+        }
     }
     let measured = |axis| {
         view.number(axis)

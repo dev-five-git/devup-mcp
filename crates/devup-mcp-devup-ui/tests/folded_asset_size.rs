@@ -64,6 +64,159 @@ fn wquw119() -> devup_mcp_figma::Snapshot {
     serde_json::from_str(include_str!("../../../fixtures/wquw-119-snapshot.json")).unwrap()
 }
 
+fn offset_hug_mask(horizontal: &str, vertical: &str) -> devup_mcp_figma::Snapshot {
+    let mut snapshot = wquw119();
+    let node = snapshot.nodes.get_mut("3997:46317").unwrap();
+    for (field, value) in [
+        ("layoutSizingHorizontal", json!(horizontal)),
+        ("layoutSizingVertical", json!(vertical)),
+        ("width", json!(137)),
+        ("height", json!(29)),
+        (
+            "absoluteBoundingBox",
+            json!({"x":10,"y":20,"width":137,"height":29}),
+        ),
+        (
+            "absoluteRenderBounds",
+            json!({"x":7,"y":18,"width":143,"height":33}),
+        ),
+    ] {
+        node.fields.insert(field.into(), value);
+    }
+    snapshot
+}
+
+#[test]
+fn offset_hug_mask_restores_layout_size_without_replacing_painted_bounds() {
+    for (horizontal, vertical) in [("HUG", "FIXED"), ("FIXED", "HUG"), ("HUG", "HUG")] {
+        let snapshot = offset_hug_mask(horizontal, vertical);
+        let output =
+            generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
+        for expected in [
+            "w=\"137px\"",
+            "h=\"29px\"",
+            "maskSize=\"143px 33px\"",
+            "maskPos=\"-3px -2px\"",
+        ] {
+            assert!(
+                output.tsx.contains(expected),
+                "missing {expected}: {}",
+                output.tsx
+            );
+        }
+        assert!(!output.tsx.contains("aspectRatio="));
+    }
+}
+
+#[test]
+fn offset_hug_mask_maps_restored_width_and_rejects_wrong_size() {
+    let snapshot = offset_hug_mask("HUG", "FIXED");
+    let output = generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
+    for field in ["width", "layoutSizingHorizontal", "childrenIds"] {
+        assert!(
+            output.source_map.entries.iter().any(|entry| {
+                entry.node_id.as_deref() == Some("3997:46317")
+                    && entry.property.as_deref() == Some(field)
+                    && entry.resolution == "restored-hug-after-mask-child-folding"
+                    && entry
+                        .generated_range
+                        .as_ref()
+                        .is_some_and(|r| output.tsx.get(r.start..r.end) == Some("w=\"137px\""))
+            }),
+            "missing {field} restoration evidence"
+        );
+    }
+    assert!(
+        !output
+            .fidelity_report
+            .uncovered_layout
+            .contains(&"3997:46317#width".to_owned())
+    );
+    let mut wrong = output.clone();
+    wrong.tsx = wrong.tsx.replace("w=\"137px\"", "w=\"143px\"");
+    let report =
+        devup_mcp_devup_ui::provenance::validate_fidelity(&snapshot, "3997:46315", &wrong).unwrap();
+    assert!(
+        report
+            .uncovered_layout
+            .contains(&"3997:46317#width".to_owned())
+    );
+}
+
+#[test]
+fn offset_hug_mask_can_restore_layout_bounding_box_fallback() {
+    let mut snapshot = offset_hug_mask("HUG", "HUG");
+    let node = snapshot.nodes.get_mut("3997:46317").unwrap();
+    node.fields.remove("width");
+    node.fields.remove("height");
+    let output = generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
+    assert!(output.tsx.contains("w=\"137px\""), "{}", output.tsx);
+    assert!(output.tsx.contains("h=\"29px\""));
+    assert!(
+        output
+            .source_map
+            .entries
+            .iter()
+            .any(|entry| entry.node_id.as_deref() == Some("3997:46317")
+                && entry.property.as_deref() == Some("width")
+                && entry.resolution
+                    == "restored-hug-after-mask-child-folding-from-absoluteBoundingBox")
+    );
+}
+
+#[test]
+fn offset_mask_restoration_does_not_claim_fluid_rotated_or_positioned_geometry() {
+    for excluded in [
+        "horizontal-fill",
+        "vertical-fill",
+        "rotation",
+        "absolute",
+        "free-layout",
+        "missing-size",
+    ] {
+        let mut snapshot = offset_hug_mask("HUG", "HUG");
+        let node = snapshot.nodes.get_mut("3997:46317").unwrap();
+        match excluded {
+            "horizontal-fill" => {
+                node.fields
+                    .insert("layoutSizingHorizontal".into(), json!("FILL"));
+            }
+            "vertical-fill" => {
+                node.fields
+                    .insert("layoutSizingVertical".into(), json!("FILL"));
+            }
+            "rotation" => {
+                node.fields.insert("rotation".into(), json!(30));
+            }
+            "absolute" => {
+                node.fields
+                    .insert("layoutPositioning".into(), json!("ABSOLUTE"));
+            }
+            "missing-size" => {
+                node.fields.remove("width");
+                node.fields.remove("absoluteBoundingBox");
+            }
+            "free-layout" => {
+                let parent = snapshot.nodes.get_mut("3997:46316").unwrap();
+                parent.fields.insert("layoutMode".into(), json!("NONE"));
+                parent.fields.remove("inferredAutoLayout");
+            }
+            _ => unreachable!(),
+        }
+        let output =
+            generate_component(&snapshot, "3997:46315", &CodegenOptions::default()).unwrap();
+        assert!(
+            !output
+                .source_map
+                .entries
+                .iter()
+                .any(|entry| entry.node_id.as_deref() == Some("3997:46317")
+                    && entry.resolution.starts_with("restored-hug")),
+            "unexpected restoration for {excluded}"
+        );
+    }
+}
+
 #[test]
 fn r5_wquw119_hug_mask_preserves_render_size_and_source_map() {
     let snapshot = wquw119();

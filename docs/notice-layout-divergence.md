@@ -171,3 +171,117 @@ Korean `wordBreak` rule, or corpus consistency assertion changed.
 The change is committed locally without pushing. Build output is cleaned
 after the commit as requested; acquisition and diagnostic browser processes
 were closed, and no worktree devup-mcp process is retained.
+
+## Second fix: offset masks retain their HUG layout size
+
+The follow-up explicitly authorizes the independent mobile defect. This work
+starts on `d4b2056427ab`, preserving the tablet commit without amending or
+squashing it. The scope limitation in the earlier sections records the first
+dispatch's history; it does not apply to this authorized second fix.
+
+The mechanism was independently rechecked using a fresh build of the HEAD
+production sources, fresh acquisition, the generated TSX, collected snapshot,
+and `boxes.mjs`. The baseline mask is **0×32** at x=220, its parent **80×32**
+at x=140, and the toggle x=140. The collected node is **82×32**, with horizontal
+HUG and vertical FIXED sizing. Its exported painted bounds are **82×36**,
+offset **0,-2**. The generated opening has `h="32px"`, `maskSize="82px 36px"`
+and `maskPos="0px -2px"`, but no width. Folding removes the children that
+would supply an intrinsic HUG width; the unconditional `export_offset`
+exclusion prevents restoring it. The baseline PNG visibly lacks both social
+icons. The baseline production binary was preserved before implementation;
+only regression-test additions were present during its build/acquisition.
+
+The fix separates layout geometry from painted export geometry. An offset
+mask can restore measured HUG axes when both axes are HUG/FIXED and it stays
+in normal flow. Existing `maskSize` and `maskPos` continue to describe the
+export. FILL axes, rotation, explicit absolute positioning and placement by a
+free-layout parent remain excluded: their scaling or positioning needs a
+different proof. There is no viewport, breakpoint, node ID or capture-specific
+constant in the production condition. The earlier tablet `minW` logic and
+Korean `wordBreak="keep-all"` are unchanged.
+
+The same defect exists in the wider notice social masks
+`I422:7136;148:1436` and `I422:6913;148:1436`: both are HUG/FIXED 82×32 with
+82×36 painted bounds at y=-2. Their width restoration is the same data-driven
+operation, not a separate tablet or desktop path.
+
+### Regression and provenance evidence
+
+Before implementation, `w16-mask-red.log` records **19 passed / 3 failed**.
+The failures are missing HUG layout dimensions, missing restored-width source
+mapping, and missing bounding-box fallback dimensions. The tests use a
+different **137×29** layout and **143×33** export at **-3,-2**, exercising
+HUG/FIXED, FIXED/HUG and HUG/HUG combinations rather than copying the notice
+capture's values. Negative cases cover both FILL axes, rotation, explicit
+absolute placement, free-layout placement and missing layout measurements.
+All **22** folded-asset tests subsequently pass.
+
+The existing shared restoration predicate also drives provenance, so the new
+width maps to the measured width, HUG sizing and folded children through
+`restored-hug-after-mask-child-folding`. Bounding-box fallback retains the
+existing fallback resolution. A test replaces the correct 137px width with
+the export's 143px width and verifies fidelity rejects it. Mobile's actual
+layout coverage changes from **118/122 to 119/122**, removing exactly
+`I422:6963;265:2564#width` from `uncoveredLayout`. Its other three uncovered
+layout properties remain reported; the screen is still lossy overall.
+
+All **268 plugin goldens** pass byte parity unchanged, and the corpus manifest
+and coverage registry pass. No golden, manifest checksum, corpus assertion,
+forbidden Rust file or `harness/render/scripts/` file changes.
+
+### Fresh measurements and full gate for the second fix
+
+| Screen | HEAD baseline | Repeated baseline | Mask candidate | Post-test final binary | Rendered height |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| notice-422-6914 | 5.54% | 5.54% | 5.25% | 5.25% | 1217 |
+| notice-422-7088 | 3.26% | 3.26% | 3.22% | 3.22% | 1145 |
+| notice-422-6865 | 2.22% | 2.22% | 2.20% | 2.20% | 1145 |
+
+The exact mobile changed ratio is **0.05541838134430727 →
+0.05254229538180155**, a decrease of approximately **0.288 percentage points**.
+Restoring the mask does not change page height. The first candidate's other
+12 actual PNGs are byte-identical to the fresh HEAD baseline, and all 15
+reference hashes match. Their percentages remain about **7.46 / 4.06 / 2.41**,
+landing **4.99 / 2.47 / 1.50**, popup **3.64 / 2.06 / 0.85**, grid **2.96**,
+keyframes **6.71**, and report **1.28**.
+
+| Required gate | Second-fix result |
+| --- | --- |
+| `cargo fmt --all -- --check` | Pass |
+| `cargo clippy --locked --workspace --all-targets --all-features -j 2 -- -D warnings` | Pass, zero warnings |
+| `cargo test --workspace -j 2 --no-fail-fast` | 1067 passed, 0 failed, 2 ignored |
+| `cargo insta test --workspace --all-features --check` | 1067 passed, 0 failed, 2 ignored; no snapshots to review |
+| `cargo test --locked -p devup-mcp --test stdio_smoke -j 2` | 2 passed, 0 failed |
+
+All gates run in this worktree's own target with debug information and
+incremental compilation disabled and two build jobs, including
+`CARGO_BUILD_JOBS=2` for insta. `CARGO_TARGET_DIR` is never set. The ordinary
+MSVC link steps retain their existing localized library-creation warning;
+the Clippy command itself reports zero warnings. Logs use the
+`w16-mask-{red,green,fmt,clippy,workspace,insta,smoke}.log` names in the main
+checkout's ignored harness `out/` directory. Measurement logs and preserved
+reports/PNGs use `w16-mask-baseline`, `w16-mask-candidate` and `w16-mask-final`.
+
+The preserved binaries have distinct SHA-256 identities:
+
+* HEAD production baseline: `1c9dda74c8503ab40364751bc58a1db422819a91c267cd3aa40380431aa9c76d`.
+* First mask candidate: `516476ac9fad7b511e62811517d2a1bfbd66145e96c2e11bbad844710ba4d253`.
+* Post-test final: `28d4c01357b324d7521d18a145ac232871ed1c9853036d9f28f6f36963fe0d06`.
+
+Every measurement is freshly acquired with the exact binary passed through
+`DEVUP_MCP_BIN`. The post-test executable is copied after the final smoke
+gate, so no subsequent test build can replace its measured bytes. No binary
+identity check is bypassed, and the harness scripts remain unmodified.
+
+Final repeated acquisition confirms **5.25 / 3.22 / 2.20%** again. All 15 final
+actual PNGs, exact ratios and heights match the first candidate; all reference
+hashes match baseline. The final DOM measures the mask **82×32** at x=179,
+its parent **162×32** at x=99, and the toggle x=99. The social icons are visible
+again. Only the three measured notice thresholds are lowered, after repetition,
+to **5.25 / 3.22 / 2.20**. The `maskFix` section of
+[notice-layout-evidence.json](notice-layout-evidence.json) preserves the exact
+ratios, repeated notice ratios, actual/reference hashes and binary identities.
+
+The second fix is committed separately on top of `d4b2056`, without pushing.
+Build output is cleaned after that commit, and the acquisition/diagnostic
+processes started for this task are closed.
