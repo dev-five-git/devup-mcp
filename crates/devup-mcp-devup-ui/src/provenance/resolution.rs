@@ -9,6 +9,7 @@ pub fn resolution_semantics() -> Value {
         "values":{
             "exact":"Tag/text mapping.",
             "raw-fallback":"Value/policy mapping, not fidelity; ABSOLUTE can separately be verified.",
+            "derived-lone-child-center":"Horizontal/vertical SPACE_BETWEEN becomes center for exactly one visible non-ABSOLUTE child; child membership, visibility and positioning determine the count. This mapping does not claim pixel parity.",
             "verified-explicit-dimension":"Error-free source = emitted px.",
             "verified-layout-sizing":"FIXED/FILL/layoutGrow to dimension/flex.",
             "accounted-for-content-sizing":"textAutoResize omission; pixels unmeasured.",

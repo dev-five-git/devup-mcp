@@ -1570,6 +1570,11 @@ pub(crate) fn finalize_tsx(
                 "variable-token"
             } else if style_id.is_some() {
                 "style-token"
+            } else if *prop == "justifyContent"
+                && value == "center"
+                && crate::codegen::centers_lone_space_between_child(snapshot, node)
+            {
+                "derived-lone-child-center"
             } else if matches!(*property, "width" | "height")
                 && !node.field_errors.contains_key(*property)
                 && matches!(*prop, "w" | "h" | "boxSize")
