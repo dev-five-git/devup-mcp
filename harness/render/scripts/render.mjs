@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { PNG } from "pngjs";
+import { validateInputs } from "./inputs.mjs";
 
 const HARNESS = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = resolve(HARNESS, "..", "..");
@@ -108,6 +109,10 @@ async function waitForServer(url, attempts = 50) {
 // at node scope. An answer screen borrows the theme of the screen it answers
 // for, so the two are compared under the same colours.
 function themeFor(target) {
+  if (target.theme) {
+    if (!existsSync(join(HARNESS, target.theme))) throw new Error(`${target.name}: missing explicit theme ${target.theme}; reacquire`);
+    return target.theme;
+  }
   const screen = target.screen ?? target.name;
   const candidates = [target.theme, `themes/${screen}.json`, `themes/${screen.replace(/-answer$/, "")}.json`];
   return candidates.find((candidate) => candidate && existsSync(join(HARNESS, candidate))) ?? null;
@@ -117,7 +122,15 @@ async function main() {
   const wanted = process.argv.slice(2);
   const manifest = JSON.parse(readFileSync(join(HARNESS, "targets.json"), "utf8"));
   const targets = manifest.targets.filter((target) => wanted.length === 0 || wanted.some((name) => target.name === name || target.name.startsWith(`${name}-`)));
+  const skipped = (manifest.skipped ?? []).filter((target) => wanted.length === 0 || wanted.some((name) => target.name === name || target.name.startsWith(`${name}-`)));
+  for (const target of skipped) console.error(`${target.name} (${target.frame}): acquisition-skipped ${target.reason}; ${target.responsePath}`);
+  if (skipped.length) process.exitCode = 1;
   if (targets.length === 0) throw new Error("no targets; run scripts/acquire.py first");
+  const binarySha256 = process.env.DEVUP_MCP_BIN ? createHash("sha256").update(readFileSync(process.env.DEVUP_MCP_BIN)).digest("hex") : null;
+  for (const target of targets) {
+    // Hand-authored plugin comparison screens do not come from acquire.py.
+    if (!(target.screen ?? target.name).endsWith("-answer")) validateInputs(HARNESS, target, binarySha256);
+  }
 
   if (!existsSync(VISUAL)) {
     const cargo = run("cargo", ["build", "-p", "devup-mcp-visual", "--release"], { cwd: REPO });
@@ -138,7 +151,8 @@ async function main() {
   }
 
   const browser = await chromium.launch();
-  const report = [];
+  const report = skipped.map((target) => ({ name: target.name, frame: target.frame,
+    environmentStatus: "acquisition-skipped", reason: target.reason, responsePath: target.responsePath }));
   try {
     for (const [index, [key, group]] of [...groups].entries()) {
       if (group.theme) writeFileSync(join(HARNESS, "devup.json"), readFileSync(join(HARNESS, group.theme)));
@@ -208,7 +222,7 @@ async function renderGroup(browser, targets, report, port) {
       await page.goto(`http://localhost:${port}/?screen=${encodeURIComponent(screen)}`, { waitUntil: "networkidle" });
       await page.waitForSelector("body[data-ready]", { timeout: 30000 });
       const ready = await page.evaluate(() => document.body.dataset.ready);
-      const entry = { name: target.name, frame: target.frame, viewport: size, reference: target.reference, actual: `out/${target.name}.actual.png` };
+      const entry = { name: target.name, frame: target.frame, viewport: size, reference: target.reference, actual: `out/${target.name}.actual.png`, acquisition: target.acquisition, themeHash: target.theme ? createHash("sha256").update(readFileSync(join(HARNESS, target.theme))).digest("hex") : null };
       if (ready !== "1" || errors.length > 0) {
         entry.environmentStatus = "environment-invalid";
         entry.errors = errors.concat(ready !== "1" ? [await page.evaluate(() => document.body.dataset.error ?? "not ready")] : []);

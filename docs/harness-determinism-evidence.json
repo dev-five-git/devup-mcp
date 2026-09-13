@@ -1,0 +1,542 @@
+{
+  "baseCommit": "d039623b0d1a",
+  "date": "2026-09-13",
+  "repeatedExact": true,
+  "screenCount": 15,
+  "inputSetHashEncoding": "SHA-256 of UTF-8 json.dumps(pathToSha256, sort_keys=True, separators=(comma, colon)); default ensure_ascii=True",
+  "oldAboutThemeSha256": "d3137cabf5a5692a22406f361a00a85122aecf5d1e24929caaebaae92200c434",
+  "aboutThemeDifferences": [
+    {
+      "path": "/theme/typography/bodyLg/0/lineHeight",
+      "old": 1.6,
+      "current": "26px"
+    },
+    {
+      "path": "/theme/typography/bodyLg/3/lineHeight",
+      "old": 1.6,
+      "current": "29px"
+    },
+    {
+      "path": "/theme/typography/bodyLgBold/0/lineHeight",
+      "old": 1.6,
+      "current": "26px"
+    },
+    {
+      "path": "/theme/typography/bodyLgBold/3/lineHeight",
+      "old": 1.6,
+      "current": "29px"
+    },
+    {
+      "path": "/theme/typography/bodyXlg/0/lineHeight",
+      "old": 1.7,
+      "current": "29px"
+    },
+    {
+      "path": "/theme/typography/bodyXlg/3/lineHeight",
+      "old": 1.8,
+      "current": "36px"
+    },
+    {
+      "path": "/theme/typography/bodyXlgBold/0/lineHeight",
+      "old": 1.7,
+      "current": "29px"
+    },
+    {
+      "path": "/theme/typography/bodyXlgBold/3/lineHeight",
+      "old": 1.8,
+      "current": "36px"
+    },
+    {
+      "path": "/theme/typography/bodyXs/0/lineHeight",
+      "old": 1.6,
+      "current": "19px"
+    },
+    {
+      "path": "/theme/typography/bodyXs/3/lineHeight",
+      "old": 1.6,
+      "current": "21px"
+    },
+    {
+      "path": "/theme/typography/bodyXsMed/0/lineHeight",
+      "old": 1.6,
+      "current": "19px"
+    },
+    {
+      "path": "/theme/typography/bodyXsMed/3/lineHeight",
+      "old": 1.6,
+      "current": "21px"
+    },
+    {
+      "path": "/theme/typography/button/lineHeight",
+      "old": 1.4,
+      "current": "22px"
+    },
+    {
+      "path": "/theme/typography/caption/0/lineHeight",
+      "old": 1.6,
+      "current": "21px"
+    },
+    {
+      "path": "/theme/typography/caption/3/lineHeight",
+      "old": 1.6,
+      "current": "22px"
+    },
+    {
+      "path": "/theme/typography/captionSemiBold/0/lineHeight",
+      "old": 1.6,
+      "current": "21px"
+    },
+    {
+      "path": "/theme/typography/captionSemiBold/3/lineHeight",
+      "old": 1.6,
+      "current": "22px"
+    },
+    {
+      "path": "/theme/typography/h3/0/lineHeight",
+      "old": 1.2,
+      "current": "38px"
+    },
+    {
+      "path": "/theme/typography/h3/3/lineHeight",
+      "old": 1.2,
+      "current": "53px"
+    },
+    {
+      "path": "/theme/typography/h4/0/lineHeight",
+      "old": 1.2,
+      "current": "29px"
+    },
+    {
+      "path": "/theme/typography/h4/3/lineHeight",
+      "old": 1.2,
+      "current": "43px"
+    },
+    {
+      "path": "/theme/typography/header/lineHeight",
+      "old": 1.4,
+      "current": "22px"
+    },
+    {
+      "path": "/theme/typography/title/0/lineHeight",
+      "old": 1.4,
+      "current": "27px"
+    },
+    {
+      "path": "/theme/typography/title/3/lineHeight",
+      "old": 1.4,
+      "current": "34px"
+    },
+    {
+      "path": "/theme/typography/titleSm/lineHeight",
+      "old": 1.4,
+      "current": "24px"
+    }
+  ],
+  "oldPopupReconstruction": {
+    "lineHeightRatios": {
+      "buttonSm": 1.2,
+      "modalBtn": 1.2,
+      "modalText": 1.8,
+      "textboxTitle": 1.5
+    },
+    "sha256": "f26ad027d6dea5dfa4ed10159225888ea2bc6a34325c5612970a8a192d42a9ab",
+    "encoding": "json.dumps(..., ensure_ascii=False, indent=2) plus LF"
+  },
+  "staleAboutModuleHashes": {
+    "about-422-2987.tsx": "39121a74184c74e6a82d935ef72726f05920d68eead40666f81cc52d97c96a89",
+    "about-422-3180.tsx": "34f40844160359c59a9b821f81c7f12e1fd1aef685ec6c2d1b0886e3109a61e8",
+    "about-422-3376.tsx": "d7d7c28e5830d8dc56c170da296dc407ceb985d77afa4a12e58eb296948c6d67"
+  },
+  "staleAboutMeasuredRatios": {
+    "about-422-3376": 0.1123611111111111,
+    "about-422-3180": 0.06920733370075033,
+    "about-422-2987": 0.043702591794548384
+  },
+  "runs": [
+    {
+      "round": 1,
+      "group": "about",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "about-422-3376",
+          "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "changedRatio": 0.07457565991405771,
+          "environmentStatus": "valid",
+          "inputFileCount": 84,
+          "inputSetSha256": "455112c55d7ea512fda77af6cb50eac9506b5a9b195395c991f20c639bba7b6e"
+        },
+        {
+          "name": "about-422-3180",
+          "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "changedRatio": 0.04063815022762631,
+          "environmentStatus": "valid",
+          "inputFileCount": 84,
+          "inputSetSha256": "157d2c3abbedf766536d67010b6373029ac95cc27ded85ad38e577aac3a2b757"
+        },
+        {
+          "name": "about-422-2987",
+          "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "changedRatio": 0.024149936935043095,
+          "environmentStatus": "valid",
+          "inputFileCount": 84,
+          "inputSetSha256": "c68bd052a3039b789bd8cfac2f6c6a95dbf7487569fe8c41f2bcbfc929ce7404"
+        }
+      ],
+      "serverPid": 128552
+    },
+    {
+      "round": 1,
+      "group": "popup",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 1,
+      "screens": [
+        {
+          "name": "popup-422-5682",
+          "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "changedRatio": 0.03644230769230769,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "c6d368f7e43753e335831f39d2ccfb476ddc1d6a27552d34a46d3caea28379d2"
+        },
+        {
+          "name": "popup-422-5705",
+          "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "changedRatio": 0.020626068115234375,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "213aa60e6d10d2b7f5660eed60cc534022d58ef9c6df110cf6b3c7decf997cdd"
+        },
+        {
+          "name": "popup-422-5728",
+          "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "changedRatio": 0.00853539737654321,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "eb6840ef841088558d8b07d61d8c9a5c66365ac27ed8a93d4eafd6b043887aba"
+        }
+      ],
+      "serverPid": 18020
+    },
+    {
+      "round": 1,
+      "group": "landing",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "landing-833-3640",
+          "themeHash": "e18d9d7e25b4e288f369d28230c89f2e6a6da90e9275134b667bf79be7844134",
+          "changedRatio": 0.049872156420379773,
+          "environmentStatus": "valid",
+          "inputFileCount": 21,
+          "inputSetSha256": "0ea4fbc5c41bd7db5b7f9f81754a56ecb817d640cc33469563a517e48492988e"
+        },
+        {
+          "name": "landing-833-3322",
+          "themeHash": "87ef9f58fdb853cb6603a7704dc4b685e4af4242eb3e0b2058e3fbbd968c011d",
+          "changedRatio": 0.024662550063123068,
+          "environmentStatus": "valid",
+          "inputFileCount": 21,
+          "inputSetSha256": "88f11ae5be1dd08b466cd97b7975a48018ede52f6cfc74388d41c8026e35bc76"
+        },
+        {
+          "name": "landing-832-2975",
+          "themeHash": "3ae50e9a165f5060e6c977a6c6b610a4238192437492acd7de908a65c2274018",
+          "changedRatio": 0.015037458117163857,
+          "environmentStatus": "valid",
+          "inputFileCount": 25,
+          "inputSetSha256": "05eb15fe88b44529e5f7beb631ee2537014a5cb20a7020e78eef895eee6cfec8"
+        }
+      ],
+      "serverPid": 56456
+    },
+    {
+      "round": 1,
+      "group": "grid",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "grid-429-1966",
+          "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "changedRatio": 0.029639884816046395,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "6d9883f69032813e8a8f59187d78d08ca65ada83ab3f3fdab45d1aa6512fd3d9"
+        }
+      ],
+      "serverPid": 118464
+    },
+    {
+      "round": 1,
+      "group": "keyframes",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "keyframes-458-2021",
+          "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "changedRatio": 0.067138671875,
+          "environmentStatus": "valid",
+          "inputFileCount": 4,
+          "inputSetSha256": "b568c9fe380c1a6688ca4bc4e629647eb4194b92643c5c2b8ddc0e07e6493938"
+        }
+      ],
+      "serverPid": 55156
+    },
+    {
+      "round": 1,
+      "group": "report",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "report-446-1971",
+          "themeHash": "46d713e0a8523f77d004ec78a2997810a6bf58d1e380a13bcda9de96388fd56a",
+          "changedRatio": 0.012764674159854678,
+          "environmentStatus": "valid",
+          "inputFileCount": 8,
+          "inputSetSha256": "a535185c9db11cc7e749e45e15fa67fc4bff52705fdd78bb027f63b9148fa276"
+        }
+      ],
+      "serverPid": 49184
+    },
+    {
+      "round": 1,
+      "group": "notice",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 1,
+      "screens": [
+        {
+          "name": "notice-422-6914",
+          "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "changedRatio": 0.05541838134430727,
+          "environmentStatus": "valid",
+          "inputFileCount": 32,
+          "inputSetSha256": "360f16c33fcfe2c15427b459c4b270183e74ec8137e0b4163961619aa813d7f3"
+        },
+        {
+          "name": "notice-422-7088",
+          "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "changedRatio": 0.033521234676007004,
+          "environmentStatus": "valid",
+          "inputFileCount": 32,
+          "inputSetSha256": "c113d21fb0456670b96dd758acc81ea601124d5304c9321d856da03ce0793af0"
+        },
+        {
+          "name": "notice-422-6865",
+          "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "changedRatio": 0.022197898423817863,
+          "environmentStatus": "valid",
+          "inputFileCount": 32,
+          "inputSetSha256": "6ec0926e7e5bff96d997d6a4a14ceaaa6ed8349aa99be9b041754c3bde37ae59"
+        }
+      ],
+      "serverPid": 123260
+    },
+    {
+      "round": 2,
+      "group": "about",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "about-422-3376",
+          "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "changedRatio": 0.07457565991405771,
+          "environmentStatus": "valid",
+          "inputFileCount": 84,
+          "inputSetSha256": "455112c55d7ea512fda77af6cb50eac9506b5a9b195395c991f20c639bba7b6e"
+        },
+        {
+          "name": "about-422-3180",
+          "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "changedRatio": 0.04063815022762631,
+          "environmentStatus": "valid",
+          "inputFileCount": 84,
+          "inputSetSha256": "157d2c3abbedf766536d67010b6373029ac95cc27ded85ad38e577aac3a2b757"
+        },
+        {
+          "name": "about-422-2987",
+          "themeHash": "67d6de70e67967432dcafb51a491b2105f11f5f5024cb4f79e1c8aa29b3503b7",
+          "changedRatio": 0.024149936935043095,
+          "environmentStatus": "valid",
+          "inputFileCount": 84,
+          "inputSetSha256": "c68bd052a3039b789bd8cfac2f6c6a95dbf7487569fe8c41f2bcbfc929ce7404"
+        }
+      ],
+      "serverPid": 67468
+    },
+    {
+      "round": 2,
+      "group": "popup",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 1,
+      "screens": [
+        {
+          "name": "popup-422-5682",
+          "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "changedRatio": 0.03644230769230769,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "c6d368f7e43753e335831f39d2ccfb476ddc1d6a27552d34a46d3caea28379d2"
+        },
+        {
+          "name": "popup-422-5705",
+          "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "changedRatio": 0.020626068115234375,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "213aa60e6d10d2b7f5660eed60cc534022d58ef9c6df110cf6b3c7decf997cdd"
+        },
+        {
+          "name": "popup-422-5728",
+          "themeHash": "d541f2ae904988f388a0dc3a0aeed6922924ad181e5d0fe266964deedf62e9ae",
+          "changedRatio": 0.00853539737654321,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "eb6840ef841088558d8b07d61d8c9a5c66365ac27ed8a93d4eafd6b043887aba"
+        }
+      ],
+      "serverPid": 94264
+    },
+    {
+      "round": 2,
+      "group": "landing",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "landing-833-3640",
+          "themeHash": "e18d9d7e25b4e288f369d28230c89f2e6a6da90e9275134b667bf79be7844134",
+          "changedRatio": 0.049872156420379773,
+          "environmentStatus": "valid",
+          "inputFileCount": 21,
+          "inputSetSha256": "0ea4fbc5c41bd7db5b7f9f81754a56ecb817d640cc33469563a517e48492988e"
+        },
+        {
+          "name": "landing-833-3322",
+          "themeHash": "87ef9f58fdb853cb6603a7704dc4b685e4af4242eb3e0b2058e3fbbd968c011d",
+          "changedRatio": 0.024662550063123068,
+          "environmentStatus": "valid",
+          "inputFileCount": 21,
+          "inputSetSha256": "88f11ae5be1dd08b466cd97b7975a48018ede52f6cfc74388d41c8026e35bc76"
+        },
+        {
+          "name": "landing-832-2975",
+          "themeHash": "3ae50e9a165f5060e6c977a6c6b610a4238192437492acd7de908a65c2274018",
+          "changedRatio": 0.015037458117163857,
+          "environmentStatus": "valid",
+          "inputFileCount": 25,
+          "inputSetSha256": "05eb15fe88b44529e5f7beb631ee2537014a5cb20a7020e78eef895eee6cfec8"
+        }
+      ],
+      "serverPid": 78716
+    },
+    {
+      "round": 2,
+      "group": "grid",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "grid-429-1966",
+          "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "changedRatio": 0.029639884816046395,
+          "environmentStatus": "valid",
+          "inputFileCount": 10,
+          "inputSetSha256": "6d9883f69032813e8a8f59187d78d08ca65ada83ab3f3fdab45d1aa6512fd3d9"
+        }
+      ],
+      "serverPid": 87388
+    },
+    {
+      "round": 2,
+      "group": "keyframes",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "keyframes-458-2021",
+          "themeHash": "a1a8437993a02c99489dfdc71ca7e2f5d6447f4956600fd939272816bc0f3f63",
+          "changedRatio": 0.067138671875,
+          "environmentStatus": "valid",
+          "inputFileCount": 4,
+          "inputSetSha256": "b568c9fe380c1a6688ca4bc4e629647eb4194b92643c5c2b8ddc0e07e6493938"
+        }
+      ],
+      "serverPid": 79944
+    },
+    {
+      "round": 2,
+      "group": "report",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 0,
+      "screens": [
+        {
+          "name": "report-446-1971",
+          "themeHash": "46d713e0a8523f77d004ec78a2997810a6bf58d1e380a13bcda9de96388fd56a",
+          "changedRatio": 0.012764674159854678,
+          "environmentStatus": "valid",
+          "inputFileCount": 8,
+          "inputSetSha256": "a535185c9db11cc7e749e45e15fa67fc4bff52705fdd78bb027f63b9148fa276"
+        }
+      ],
+      "serverPid": 20548
+    },
+    {
+      "round": 2,
+      "group": "notice",
+      "binarySha256": "1c511f2d863eb092ec9301425cc1e1228bdf8d718786a4d0ad64316e9180f133",
+      "acquireExit": 0,
+      "renderExit": 1,
+      "screens": [
+        {
+          "name": "notice-422-6914",
+          "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "changedRatio": 0.05541838134430727,
+          "environmentStatus": "valid",
+          "inputFileCount": 32,
+          "inputSetSha256": "360f16c33fcfe2c15427b459c4b270183e74ec8137e0b4163961619aa813d7f3"
+        },
+        {
+          "name": "notice-422-7088",
+          "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "changedRatio": 0.033521234676007004,
+          "environmentStatus": "valid",
+          "inputFileCount": 32,
+          "inputSetSha256": "c113d21fb0456670b96dd758acc81ea601124d5304c9321d856da03ce0793af0"
+        },
+        {
+          "name": "notice-422-6865",
+          "themeHash": "89fe4447f2addc8a19460a819ce4d81a19e14b96cee73d5692d10b1bfdfd5b2f",
+          "changedRatio": 0.022197898423817863,
+          "environmentStatus": "valid",
+          "inputFileCount": 32,
+          "inputSetSha256": "6ec0926e7e5bff96d997d6a4a14ceaaa6ed8349aa99be9b041754c3bde37ae59"
+        }
+      ],
+      "serverPid": 92056
+    }
+  ],
+  "combinedRender": {
+    "exit": 0,
+    "screens": 15,
+    "matchesRepeatedMetrics": true
+  }
+}
