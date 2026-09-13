@@ -936,6 +936,24 @@ fn grid_template(sizes: Option<&Value>, count: f64) -> String {
     }
 }
 
+/// Figma centers a lone in-flow child for SPACE_BETWEEN; CSS flexbox starts it.
+/// Hidden and absolutely positioned children do not participate in distribution.
+pub(crate) fn centers_lone_space_between_child(snapshot: &Snapshot, node: &RawNode) -> bool {
+    let view = node.typed_view();
+    matches!(view.string("layoutMode"), Some("HORIZONTAL" | "VERTICAL"))
+        && view.string("primaryAxisAlignItems") == Some("SPACE_BETWEEN")
+        && view
+            .child_ids()
+            .filter_map(|id| snapshot.nodes.get(id))
+            .filter(|child| {
+                let child = child.typed_view();
+                child.bool("visible") != Some(false)
+                    && child.string("layoutPositioning") != Some("ABSOLUTE")
+            })
+            .count()
+            == 1
+}
+
 fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props: &mut Vec<Prop>) {
     let view = node.typed_view();
     let Some(layout) = view.value("inferredAutoLayout").and_then(Value::as_object) else {
@@ -980,6 +998,7 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
         Some("MIN") => None,
         Some("MAX") => Some("flex-end"),
         Some("CENTER") => Some("center"),
+        Some("SPACE_BETWEEN") if centers_lone_space_between_child(snapshot, node) => Some("center"),
         Some("SPACE_BETWEEN") => Some("space-between"),
         Some("SPACE_AROUND") => Some("space-around"),
         Some("SPACE_EVENLY") => Some("space-evenly"),
