@@ -40,13 +40,14 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload,
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
-    DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
-    ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
-    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
-    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
-    SystemBrowser, TokenState, UpstreamResult,
+    AuthStatus, BridgeFigmaClient, BridgeServer, ClientCredentialSource, ClientCredentials,
+    CollectedParts, CollectedPayload, CollectionRequest, CollectionScope, CollectorSession,
+    CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode,
+    ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions, FallbackUpstream, FigmaTarget,
+    FigmaUpstream, KeyringClientCredentialStore, KeyringCredentialStore, OAuthManager,
+    ReadToolCall, RemoteFigmaClient, ResourceScope, SearchReadOptions, SecretString,
+    SectionCandidate, SectionIndex, SectionReadOptions, Snapshot, SystemBrowser, TokenState,
+    UpstreamResult,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -271,8 +272,18 @@ impl Services {
                 figma_direct.credential_source,
             );
         }
-        let upstream = RemoteFigmaClient::new(oauth.clone());
-        Ok(Self::new(Arc::new(oauth), Arc::new(upstream)))
+        let remote = RemoteFigmaClient::new(oauth.clone());
+        // A script read goes to the bridge when one is listening. With no
+        // plugin attached every call falls straight through to the remote
+        // path, so opening the door costs nothing when nobody walks through.
+        let upstream: Arc<dyn FigmaUpstream> = match BridgeServer::from_env() {
+            Some(bridge) => Arc::new(FallbackUpstream::new(
+                BridgeFigmaClient::new(bridge.state()),
+                remote,
+            )),
+            None => Arc::new(remote),
+        };
+        Ok(Self::new(Arc::new(oauth), upstream))
     }
 }
 

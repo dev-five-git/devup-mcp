@@ -1,4 +1,5 @@
 mod assets;
+mod bridge;
 mod collector;
 mod credentials;
 mod envelope;
@@ -21,6 +22,10 @@ pub use collector::{
     CollectorStep, PlannedCall, ReferencePng, ScreenFailure, SectionReadOptions,
 };
 
+pub use bridge::{
+    BridgeFigmaClient, BridgeJob, BridgeServer, BridgeState, DEFAULT_BRIDGE_PORT, FallbackUpstream,
+    PreferredUpstream,
+};
 pub use credentials::{
     ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,
     KeyringCredentialStore, MemoryClientCredentialStore, MemoryCredentialStore,

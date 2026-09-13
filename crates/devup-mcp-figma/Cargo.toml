@@ -9,7 +9,8 @@ repository.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-axum.workspace = true
+# `ws` 는 기본 기능이 아니다. 브리지가 플러그인을 받는 데 쓴다.
+axum = { workspace = true, features = ["ws"] }
 base64.workspace = true
 image.workspace = true
 keyring.workspace = true
