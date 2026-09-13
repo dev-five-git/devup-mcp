@@ -94,6 +94,7 @@ pub(crate) fn property_derivations(
             "visibility" | "display" => (vec!["visible", "opacity", "absoluteRenderBounds", "fills", "textTruncation", "maxLines"], "Visibility/non-rendering or text truncation policy in the named stage; existing visibility classification is retained."),
             "WebkitTextStroke" | "paintOrder" => (vec!["strokes", "strokeWeight", "styledTextSegments"], "push_text_props composes text stroke width/color and stroke-before-fill paint order."),
             "WebkitBoxOrient" | "WebkitLineClamp" | "textOverflow" => (vec!["textTruncation", "maxLines", "styledTextSegments"], "push_text_props projects truncation and maximum line count into the emitted clamp properties."),
+            "whiteSpace" if text::preserves_hard_break_spaces(&node.typed_view()) => (vec!["characters", "styledTextSegments", "textAutoResize", "maxLines"], "Spaces adjacent to explicit breaks in non-list, unclamped text with fixed inline width use pre-wrap. This preserves source whitespace without changing Korean word-breaking policy; it does not establish glyph or wrapping parity."),
             "textDecoration" => (vec!["textDecoration", "styledTextSegments"], "Text UNDERLINE/STRIKETHROUGH maps to underline/line-through."),
             "textTransform" => (vec!["textCase", "styledTextSegments"], "Text case projection follows push_text_props."),
             "as" | "my" => (vec!["styledTextSegments", "listOptions", "paragraphSpacing"], "Text list/paragraph projection uses the emitted semantic tag and spacing policy."),

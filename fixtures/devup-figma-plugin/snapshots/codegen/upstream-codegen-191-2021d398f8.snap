@@ -67,6 +67,7 @@ expression: actual
         fontWeight="400"
         letterSpacing="-0.04em"
         lineHeight="22px"
+        whiteSpace="pre-wrap"
         wordBreak="keep-all"
       >
         자꾸 미뤄졌던 나에 대한 고민, <br />퍼즐핏에서 구체적인 답을 찾아보세요.

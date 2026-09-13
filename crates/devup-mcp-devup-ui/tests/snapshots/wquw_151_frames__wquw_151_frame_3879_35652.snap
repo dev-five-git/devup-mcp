@@ -31,6 +31,7 @@ export function Wquw151Frame387935652() {
           textOverflow="ellipsis"
           typography="h3"
           w="100%"
+          whiteSpace="pre-wrap"
           wordBreak="keep-all"
         >
           이야기가 글로 <br />정리되었어요
@@ -187,6 +188,7 @@ export function Wquw151Frame387935652() {
               textOverflow="ellipsis"
               typography="caption"
               w="100%"
+              whiteSpace="pre-wrap"
               wordBreak="keep-all"
             >
               <Text color="$primary" fontWeight="600" typography="captionSemibold">
@@ -233,6 +235,7 @@ export function Wquw151Frame387935652() {
             overflow="hidden"
             textOverflow="ellipsis"
             typography="bodyXs"
+            whiteSpace="pre-wrap"
             wordBreak="keep-all"
           >
             각 단락을 선택해서 고유명사를 수정하거나, <br />의도와 다르게 작성된 이야기를 원하는 내용으로 직접 바꿀 수 있습니다.{" "}

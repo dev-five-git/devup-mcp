@@ -93,6 +93,9 @@ pub(super) fn push_text_props(
             string_prop(props, "display", "-webkit-box");
         }
     }
+    if preserves_hard_break_spaces(view) {
+        string_prop(props, "whiteSpace", "pre-wrap");
+    }
     // Reads the designer's own truncation setting, which Figma always
     // reports — provided it is collected. It was missing from the field
     // manifest, so this saw nothing and every text claimed an ellipsis the
@@ -615,20 +618,10 @@ fn push_edge_whitespace(run: &[char], into: &mut String) {
 pub(super) fn whitespace_collapse_diagnostic(
     view: &TypedNode<'_>,
 ) -> Option<devup_mcp_figma::Diagnostic> {
-    if view.node_type() != "TEXT" {
+    if view.node_type() != "TEXT" || preserves_hard_break_spaces(view) {
         return None;
     }
-    let characters = view
-        .string("characters")
-        .map(str::to_owned)
-        .unwrap_or_else(|| {
-            view.value("styledTextSegments")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(|segment| segment.get("characters").and_then(Value::as_str))
-                .collect()
-        });
+    let characters = source_characters(view);
     let collapses = characters
         .split(['\r', '\n', '\u{2028}', '\u{2029}'])
         .any(|line| {
@@ -655,4 +648,51 @@ pub(super) fn whitespace_collapse_diagnostic(
         })),
         ..devup_mcp_figma::Diagnostic::default()
     })
+}
+
+fn source_characters(view: &TypedNode<'_>) -> String {
+    view.string("characters")
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            view.value("styledTextSegments")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|segment| segment.get("characters").and_then(Value::as_str))
+                .collect()
+        })
+}
+
+/// Preserve spaces adjacent to explicit breaks when Figma fixes the inline
+/// width and grows only the height. HUG text needs a separate intrinsic-width
+/// treatment: pre-wrap includes trailing spaces in its max-content width.
+/// Lists, tabs and clamps retain their existing projection and loss reporting.
+pub(crate) fn preserves_hard_break_spaces(view: &TypedNode<'_>) -> bool {
+    if view.node_type() != "TEXT"
+        || view.string("textAutoResize") != Some("HEIGHT")
+        || view.number("maxLines").is_some_and(|lines| lines > 0.0)
+        || view
+            .value("styledTextSegments")
+            .and_then(Value::as_array)
+            .is_some_and(|segments| {
+                segments.iter().any(|segment| {
+                    segment
+                        .get("listOptions")
+                        .and_then(|options| options.get("type"))
+                        .and_then(Value::as_str)
+                        .is_some_and(|kind| kind != "NONE")
+                })
+            })
+    {
+        return false;
+    }
+    let characters = source_characters(view);
+    if characters.contains('\t') {
+        return false;
+    }
+    let is_break = |ch| matches!(ch, '\r' | '\n' | '\u{2028}' | '\u{2029}');
+    characters
+        .chars()
+        .zip(characters.chars().skip(1))
+        .any(|(left, right)| (left == ' ' && is_break(right)) || (is_break(left) && right == ' '))
 }

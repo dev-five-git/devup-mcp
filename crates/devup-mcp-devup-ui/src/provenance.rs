@@ -111,6 +111,7 @@ impl SourceMap {
                             .map(|end| source[at..at + 7 + end].to_owned())
                     })
                 }
+                ("derived-hard-break-whitespace", _, Some(source)) => Some(source.trim().into()),
                 (_, "characters", Some(_)) => Some("children".into()),
                 (_, _, Some(source)) if !source.trim().is_empty() => Some(source.trim().into()),
                 _ => None,
@@ -1580,7 +1581,12 @@ pub(crate) fn finalize_tsx(
                         .find_map(|(id, token)| (token == value).then(|| id.clone()))
                 })
                 .flatten();
-            let resolution = if *prop == "boxShadow"
+            let resolution = if *prop == "whiteSpace"
+                && value == "pre-wrap"
+                && crate::codegen::preserves_hard_break_spaces(&node.typed_view())
+            {
+                "derived-hard-break-whitespace"
+            } else if *prop == "boxShadow"
                 && crate::codegen::asset_kind(snapshot, node).is_none()
                 && crate::codegen::single_outside_stroke(&node.typed_view()).is_some()
             {
@@ -1609,7 +1615,16 @@ pub(crate) fn finalize_tsx(
             } else {
                 "raw-fallback"
             };
-            let source_property = if *prop == "minW"
+            let source_property = if *prop == "whiteSpace"
+                && value == "pre-wrap"
+                && crate::codegen::preserves_hard_break_spaces(&node.typed_view())
+            {
+                if node.typed_view().string("characters").is_some() {
+                    "characters"
+                } else {
+                    "styledTextSegments"
+                }
+            } else if *prop == "minW"
                 && value == "0"
                 && node.typed_view().number("minWidth").is_none()
                 && node.typed_view().string("layoutSizingHorizontal") == Some("FILL")
