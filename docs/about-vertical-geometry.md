@@ -136,6 +136,14 @@ why no threshold moved.
 
 ### The harness does not reproduce across sessions
 
+**2026-09-13 correction:** [The harness identity investigation](harness-determinism.md)
+reproduced Session A exactly from saved pre-integer-advance modules and themes.
+Both theme hashes identify the old percentage conversion, not different
+node-scope catalogs from the current binary. The earlier harness did not verify
+generated input identity; this subsection's cross-session nondeterminism
+interpretation is superseded. The before/after table above retains its stated
+`757dc4a` version context.
+
 The supplied `about` baseline of 11.24 / 6.92 / 4.37 was **not** reproduced by
 an unmodified build of the same commit. Popup's supplied `f26ad027d6de` theme
 was likewise not reproduced: isolated acquisition repeatedly produced
