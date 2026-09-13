@@ -35,13 +35,14 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload,
-    CollectionRequest, CollectionScope, CollectorSession, CollectorStep, CredentialStore,
-    DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind,
-    ExploreNode, ExploreReadOptions, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
-    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
-    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
-    SystemBrowser, TokenState, UpstreamResult,
+    AuthStatus, BridgeFigmaClient, BridgeServer, ClientCredentialSource, ClientCredentials,
+    CollectedParts, CollectedPayload, CollectionRequest, CollectionScope, CollectorSession,
+    CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode,
+    ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions, FallbackUpstream, FigmaTarget,
+    FigmaUpstream, KeyringClientCredentialStore, KeyringCredentialStore, OAuthManager,
+    ReadToolCall, RemoteFigmaClient, ResourceScope, SearchReadOptions, SecretString,
+    SectionCandidate, SectionIndex, SectionReadOptions, Snapshot, SystemBrowser, TokenState,
+    UpstreamResult,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -266,8 +267,17 @@ impl Services {
                 figma_direct.credential_source,
             );
         }
-        let upstream = RemoteFigmaClient::new(oauth.clone());
-        Ok(Self::new(Arc::new(oauth), Arc::new(upstream)))
+        let remote = RemoteFigmaClient::new(oauth.clone());
+        // 브리지가 떠 있으면 스크립트 읽기는 그쪽으로 간다. 플러그인이 열려 있지
+        // 않은 파일은 호출마다 곧장 원격으로 넘어가므로, 켜 두어도 잃는 것이 없다.
+        let upstream: Arc<dyn FigmaUpstream> = match BridgeServer::from_env() {
+            Some(bridge) => Arc::new(FallbackUpstream::new(
+                BridgeFigmaClient::new(bridge.state()),
+                remote,
+            )),
+            None => Arc::new(remote),
+        };
+        Ok(Self::new(Arc::new(oauth), upstream))
     }
 }
 
@@ -1089,7 +1099,12 @@ impl DevupServer {
             return job
                 .wait_briefly()
                 .await
-                .map(|result| tool_result(with_project_theme_validation(result, project_root.as_deref())))
+                .map(|result| {
+                    tool_result(with_project_theme_validation(
+                        result,
+                        project_root.as_deref(),
+                    ))
+                })
                 .map_err(to_mcp_error);
         }
         if workflow.job_action.is_some() {
@@ -1614,8 +1629,11 @@ fn with_project_theme_validation(mut result: Value, project_root: Option<&str>) 
     };
     let mut outputs = serde_json::Map::new();
     for (key, tsx) in generated {
-        let report =
-            devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(&tsx, lookup.theme.as_ref(), false);
+        let report = devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
+            &tsx,
+            lookup.theme.as_ref(),
+            false,
+        );
         // Only the findings a caller has to act on. The hardcoded-value
         // information is already in `fidelity`, and repeating twenty of them
         // here would bury the handful that stop the code compiling into a
