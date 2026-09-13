@@ -34,14 +34,35 @@ function serialize(value, seen = new WeakSet(), depth = 0) {
   return result;
 }
 
+// 파일에 있는 변수는 한 번에 다 받아 두고 id 로 찾는다.
+//
+// 하나씩 `getVariableByIdAsync` 로 묻는 것이 이 파일에서는 건당 21.5초를 쓰고
+// 끝내 null 을 냈다. 33개든 40개든 병렬이라 총 시간이 21.5초로 같았던 것이
+// 단서였다 ? 작업이 아니라 건당 대기였다. 같은 순간 지역 목록을 받는 호출은
+// 12ms 에 돌아온다. 그래서 그쪽을 먼저 쓴다.
+const localVariableIndex = new Map();
+let localVariableListing = "ok";
+try {
+  for (const variable of await figma.variables.getLocalVariablesAsync()) {
+    localVariableIndex.set(variable.id, variable);
+  }
+} catch (_error) {
+  localVariableListing = "unavailable";
+}
+
 const variableResults = await Promise.all(resources.variableIds.map(async (id) => {
+  const local = localVariableIndex.get(id);
+  if (local) {
+    return { value: serialize(local), collectionId: local.variableCollectionId };
+  }
+  // 목록에 없으면 이 파일 것이 아니다(라이브러리 변수). 그때만 개별로 묻는다.
   try {
     const value = await figma.variables.getVariableByIdAsync(id);
     return value
       ? { value: serialize(value), collectionId: value.variableCollectionId }
-      : { unresolved: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+      : { unresolved: { id, kind: "variable", reason: "notInFileAndLookupEmpty" } };
   } catch (_error) {
-    return { unresolved: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+    return { unresolved: { id, kind: "variable", reason: "notInFileAndLookupThrew" } };
   }
 }));
 
@@ -85,6 +106,9 @@ return {
   styles: styleResults.flatMap((result) => result.value ? [result.value] : []),
   usedVariableIds: resources.variableIds,
   usedStyleIds: resources.styles.map((style) => style.id),
+  // 아무것도 해석되지 않았을 때 목록 자체를 못 받은 것인지 구분하기 위해 남긴다.
+  localVariableListing,
+  localVariableCount: localVariableIndex.size,
   unresolved: [...variableResults, ...styleResults]
     .flatMap((result) => result.unresolved ? [result.unresolved] : [])
 };
