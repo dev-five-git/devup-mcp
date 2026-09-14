@@ -418,15 +418,39 @@ pub trait PreferredUpstream: FigmaUpstream {
     fn is_live(&self) -> bool;
 }
 
+/// 브리지 경로의 실측 상태. `devup_figma_auth doctor` 의 `paths.bridge` 가 된다.
+///
+/// 이 값이 있다는 것 자체가 "이 프로세스가 브리지를 열었다"는 뜻이다. 포트를
+/// 잡지 못했거나 `DEVUP_FIGMA_BRIDGE_PORT=off` 면 브리지 상류가 아예 만들어지지
+/// 않으므로 `None` 이 된다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgePathSnapshot {
+    /// 실제로 잡은 포트. 플러그인 manifest 의 `allowedDomains` 와 같아야 붙는다.
+    pub port: Option<u16>,
+    /// 지금 붙어 있는 플러그인이 열어 둔 파일 키. 빈 문자열은 자기 파일 키를
+    /// 보고하지 못한 플러그인이며, 혼자 붙어 있을 때만 읽기를 받는다.
+    pub attached_files: Vec<String>,
+}
+
 /// 플러그인을 통해 Figma 를 읽는 `FigmaUpstream`.
 #[derive(Clone)]
 pub struct BridgeFigmaClient {
     state: BridgeState,
+    /// 진단에만 쓴다. 읽기 경로는 포트를 알 필요가 없다.
+    port: Option<u16>,
 }
 
 impl BridgeFigmaClient {
     pub fn new(state: BridgeState) -> Self {
-        Self { state }
+        Self { state, port: None }
+    }
+
+    /// 잡은 포트를 함께 들고 있게 한다. "문이 어디에 열려 있는가"는 붙지 않는
+    /// 플러그인을 진단할 때 가장 먼저 확인할 값이다.
+    #[must_use]
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = Some(port);
+        self
     }
 }
 
@@ -455,6 +479,17 @@ impl FigmaUpstream for BridgeFigmaClient {
 
     fn batch_budget(&self) -> BatchBudget {
         bridge_batch_budget()
+    }
+
+    async fn serves_without_credentials(&self, file_key: &str) -> bool {
+        self.state.has_plugin(file_key).await
+    }
+
+    async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
+        Some(BridgePathSnapshot {
+            port: self.port,
+            attached_files: self.state.connected_files().await,
+        })
     }
 }
 
@@ -546,5 +581,15 @@ where
         } else {
             self.secondary.batch_budget()
         }
+    }
+
+    /// 이 파일을 맡은 플러그인이 있으면 원격 자격증명 없이도 수집이 성립한다.
+    /// 뒤엣것은 원격이므로 물을 것이 없다.
+    async fn serves_without_credentials(&self, file_key: &str) -> bool {
+        self.preferred.serves_without_credentials(file_key).await
+    }
+
+    async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
+        self.preferred.bridge_path_snapshot().await
     }
 }

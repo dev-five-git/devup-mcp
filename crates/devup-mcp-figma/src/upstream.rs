@@ -829,6 +829,24 @@ pub trait FigmaUpstream: Send + Sync {
     fn batch_budget(&self) -> BatchBudget {
         BatchBudget::default()
     }
+
+    /// 이 파일을 Figma 자격증명 없이 읽을 수 있는지 — 즉 이 파일을 열어 둔 브리지
+    /// 플러그인이 붙어 있는지.
+    ///
+    /// 로그인을 요구하기 전에 물어야 하는 값이다. 한도를 쓰지 않으려고 플러그인을
+    /// 띄운 사람에게 한도를 쓰는 경로부터 열라고 시키는 것은 순서가 거꾸로다.
+    /// 원격만 아는 상류는 기본값 `false` 를 그대로 쓴다.
+    async fn serves_without_credentials(&self, _file_key: &str) -> bool {
+        false
+    }
+
+    /// 브리지 경로의 실측 상태. 브리지를 열지 않은 상류는 `None` 이다.
+    ///
+    /// 진단 전용이다 — `devup_figma_auth doctor` 가 direct 말고도 경로가 있다는
+    /// 것을 말할 수 있어야 한다.
+    async fn bridge_path_snapshot(&self) -> Option<crate::bridge::BridgePathSnapshot> {
+        None
+    }
 }
 
 #[derive(Clone)]

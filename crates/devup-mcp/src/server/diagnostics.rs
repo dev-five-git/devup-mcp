@@ -1,15 +1,22 @@
-//! Self-diagnosis for the "the direct connection will not authenticate" failure mode.
+//! Self-diagnosis for the "devup-mcp will not reach Figma" failure mode.
 //!
-//! `devup-mcp` talks to Figma over the direct connection, which needs stored
-//! credentials (see `oauth.rs`). Without them `devup_figma_auth status` used to
-//! answer a one-line `{"status":"disconnected"}` and no next step. This module
-//! turns that into structured, factual guidance:
+//! Two paths reach Figma and they are not equals. The **bridge** reads through
+//! a plugin in the Figma desktop app: no login, and none of the allowance
+//! Figma meters. The **direct** path is remote OAuth (see `oauth.rs`) and is
+//! metered, which a single screen's several reads exhaust quickly. So the
+//! bridge is the path to reach for and direct is the fallback.
+//!
+//! This module reported only `direct`, which made it an instrument that could
+//! give exactly one answer — run `devup_figma_auth login` — to every question
+//! about the connection, including the ones whose real answer was "run the
+//! plugin" or "the listener never bound". Naming one path made it the only
+//! path, and the metered one at that. [`bridge_path`] is the other half.
 //!
 //! - [`doctor_report`] backs the `devup_figma_auth {"action":"doctor"}`
-//!   action and reports whether the direct connection is usable right now, plus
-//!   client-specific setup data for the constraints that were verified by
-//!   hand (client_name allowlist, redirect_uri shape, the silent callback
-//!   port collision, PAT rejection).
+//!   action and reports whether each path is usable right now, which one to
+//!   prefer, plus client-specific setup data for the constraints that were
+//!   verified by hand (client_name allowlist, redirect_uri shape, the silent
+//!   callback port collision, PAT rejection).
 //!
 //! All facts embedded here (allowlist behavior, redirect_uri constraints,
 //! the callback-port trap) were measured against the real Figma Remote MCP
@@ -26,7 +33,8 @@
 //! Naming it as a path sent agents to a dead end, so it is named nowhere.
 
 use devup_mcp_figma::{
-    AuthStatus, ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot, TokenState,
+    AuthStatus, BridgePathSnapshot, ClientCredentialSource, DEFAULT_CLIENT_NAME,
+    DirectPathSnapshot, TokenState,
 };
 use serde_json::{Value, json};
 
@@ -63,11 +71,18 @@ const CREDENTIAL_SOURCE_NOTE: &str = "Where the OAuth *client registration* cred
 /// which credential source is in play (never the secret itself), whether
 /// the stored token is fresh, and — when a fixed callback port is
 /// configured — whether it is actually free right now.
-pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Value {
+pub async fn doctor_report(
+    status: AuthStatus,
+    direct: DirectPathSnapshot,
+    bridge: Option<BridgePathSnapshot>,
+) -> Value {
     let direct_available = status == AuthStatus::Connected;
     json!({
         "status": status,
+        "preferredPath": "bridge",
+        "preferredPathNote": "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first and keep direct as the fallback for what the bridge cannot serve (currently a file-scope metadata read and referencePng's get_screenshot).",
         "paths": {
+            "bridge": bridge_path(bridge.as_ref()),
             "direct": {
                 "available": direct_available,
                 "credentialSource": direct.credential_source,
@@ -86,6 +101,52 @@ pub async fn doctor_report(status: AuthStatus, direct: DirectPathSnapshot) -> Va
             }
         },
         "clientSetup": client_setup()
+    })
+}
+
+/// Reports the path that costs nothing, so `doctor` stops answering a
+/// connection question with "log in" and nothing else.
+///
+/// This module knew only about `direct`, so every reason it could give ended
+/// at `devup_figma_auth login` — including for someone whose plugin was
+/// attached and serving, and including when the real problem was that the
+/// listener never bound. Naming only the metered path made the metered path
+/// the only answer.
+///
+/// Three states, and they are genuinely different repairs. `listening: false`
+/// means this process opened no bridge at all — the port was taken or it was
+/// switched off — and no amount of running the plugin will help until that is
+/// fixed. `listening: true` with nothing attached means the door is open and
+/// nobody walked through: run the plugin on the file. Files attached is the
+/// working state, and it names them, because a plugin open on the wrong file
+/// looks identical from the outside.
+fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
+    let Some(bridge) = bridge else {
+        return json!({
+            "available": false,
+            "listening": false,
+            "port": null,
+            "attachedFiles": [],
+            "reason": "This process is not listening for the bridge plugin. Either DEVUP_FIGMA_BRIDGE_PORT is off/0, or the port was already taken — another devup-mcp on this machine holds it, which is normal when several MCP clients run at once. Only that process can serve the bridge; this one can use the metered direct path only.",
+        });
+    };
+    let attached = !bridge.attached_files.is_empty();
+    json!({
+        // Attached is the whole test. The bridge needs no credential of any
+        // kind, so there is nothing else for it to be waiting on.
+        "available": attached,
+        "listening": true,
+        "port": bridge.port,
+        "attachedFiles": bridge.attached_files,
+        "attachedFilesNote": "File keys the attached plugins have open. An empty string is a plugin that could not report its own file key (seen in Dev Mode); it serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "reason": if attached {
+            "A plugin is attached. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login.".to_owned()
+        } else {
+            format!(
+                "The bridge is listening on 127.0.0.1:{} but no plugin is attached, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json). The bridge works only while that plugin window stays open. If the indicator stays grey, the port in the plugin's manifest allowedDomains and the port here must match.",
+                bridge.port.map_or_else(|| "<unknown>".to_owned(), |port| port.to_string()),
+            )
+        },
     })
 }
 
@@ -223,13 +284,71 @@ mod tests {
         }
     }
 
+    /// `doctor` used to answer every connection question with "log in",
+    /// because `direct` was the only path it knew. It now reports the cheaper
+    /// one first, and distinguishes the three states that need three different
+    /// repairs: no listener, a listener nobody attached to, and a working
+    /// plugin. Only the middle one is fixed by running the plugin, and none of
+    /// them is fixed by logging in.
+    #[tokio::test]
+    async fn doctor_prefers_the_bridge_and_separates_its_three_states() {
+        let absent = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot(), None).await;
+        assert_eq!(absent["preferredPath"], "bridge");
+        assert_eq!(absent["paths"]["bridge"]["listening"], false);
+        assert_eq!(absent["paths"]["bridge"]["available"], false);
+        let reason = absent["paths"]["bridge"]["reason"].as_str().unwrap();
+        assert!(reason.contains("DEVUP_FIGMA_BRIDGE_PORT"), "{reason}");
+        assert!(
+            !reason.contains("devup_figma_auth"),
+            "a bridge problem is not repaired by logging in: {reason}"
+        );
+
+        let idle = doctor_report(
+            AuthStatus::Disconnected,
+            absent_direct_snapshot(),
+            Some(BridgePathSnapshot {
+                port: Some(1993),
+                attached_files: vec![],
+            }),
+        )
+        .await;
+        assert_eq!(idle["paths"]["bridge"]["listening"], true);
+        assert_eq!(idle["paths"]["bridge"]["available"], false);
+        assert_eq!(idle["paths"]["bridge"]["port"], 1993);
+        assert!(
+            idle["paths"]["bridge"]["reason"]
+                .as_str()
+                .unwrap()
+                .contains("1993")
+        );
+
+        // Attached is the whole test: the bridge needs no credential, so a
+        // disconnected direct path takes nothing away from it.
+        let attached = doctor_report(
+            AuthStatus::Disconnected,
+            absent_direct_snapshot(),
+            Some(BridgePathSnapshot {
+                port: Some(1993),
+                attached_files: vec!["FileKey123".to_owned()],
+            }),
+        )
+        .await;
+        assert_eq!(attached["paths"]["bridge"]["available"], true);
+        assert_eq!(
+            attached["paths"]["bridge"]["attachedFiles"][0],
+            "FileKey123"
+        );
+        assert_eq!(attached["status"], "disconnected");
+    }
+
     #[tokio::test]
     async fn doctor_report_reflects_measured_auth_status_without_changing_status_shape() {
-        let connected = doctor_report(AuthStatus::Connected, absent_direct_snapshot()).await;
+        let connected = doctor_report(AuthStatus::Connected, absent_direct_snapshot(), None).await;
         assert_eq!(connected["status"], "connected");
         assert_eq!(connected["paths"]["direct"]["available"], true);
 
-        let disconnected = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
+        let disconnected =
+            doctor_report(AuthStatus::Disconnected, absent_direct_snapshot(), None).await;
         assert_eq!(disconnected["status"], "disconnected");
         assert_eq!(disconnected["paths"]["direct"]["available"], false);
         assert!(disconnected["clientSetup"]["constraints"]["clientNameAllowlist"].is_string());
@@ -242,7 +361,7 @@ mod tests {
     /// the primary route.
     #[tokio::test]
     async fn client_setup_leads_with_codex_and_demotes_the_other_hosts() {
-        let report = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
+        let report = doctor_report(AuthStatus::Disconnected, absent_direct_snapshot(), None).await;
         let setup = &report["clientSetup"];
 
         assert_eq!(setup["codex"]["primary"], true);
@@ -266,7 +385,7 @@ mod tests {
     #[tokio::test]
     async fn doctor_report_surfaces_the_registration_client_name_and_whether_it_is_default() {
         let default_report =
-            doctor_report(AuthStatus::Disconnected, absent_direct_snapshot()).await;
+            doctor_report(AuthStatus::Disconnected, absent_direct_snapshot(), None).await;
         let default_name = &default_report["paths"]["direct"]["registrationClientName"];
         assert_eq!(default_name["value"], DEFAULT_CLIENT_NAME);
         assert_eq!(default_name["isDefault"], true);
@@ -277,6 +396,7 @@ mod tests {
                 client_name: "Acme Registered Client".to_owned(),
                 ..absent_direct_snapshot()
             },
+            None,
         )
         .await;
         let overridden_name = &overridden["paths"]["direct"]["registrationClientName"];
@@ -293,7 +413,7 @@ mod tests {
             callback_port_free: Some(false),
             client_name: DEFAULT_CLIENT_NAME.to_owned(),
         };
-        let report = doctor_report(AuthStatus::Disconnected, snapshot).await;
+        let report = doctor_report(AuthStatus::Disconnected, snapshot, None).await;
         assert_eq!(report["paths"]["direct"]["credentialSource"], "cli-arg");
         assert_eq!(report["paths"]["direct"]["tokenState"], "expired");
         assert_eq!(report["paths"]["direct"]["callbackPort"]["port"], 19876);
@@ -332,6 +452,7 @@ mod tests {
                 token_state: devup_mcp_figma::TokenState::Valid,
                 ..absent_direct_snapshot()
             },
+            None,
         )
         .await;
         let direct = &report["paths"]["direct"];
@@ -374,6 +495,7 @@ mod tests {
                 token_state: devup_mcp_figma::TokenState::Absent,
                 ..absent_direct_snapshot()
             },
+            None,
         )
         .await;
         let direct = &report["paths"]["direct"];
@@ -407,6 +529,7 @@ mod tests {
                     token_state,
                     ..absent_direct_snapshot()
                 },
+                None,
             )
             .await;
             let reason = report["paths"]["direct"]["reason"]
@@ -424,7 +547,7 @@ mod tests {
     /// measurement against the real registration endpoint is still published.
     #[tokio::test]
     async fn the_measured_client_setup_constraints_survive_the_reason_rewrite() {
-        let report = doctor_report(AuthStatus::Connected, absent_direct_snapshot()).await;
+        let report = doctor_report(AuthStatus::Connected, absent_direct_snapshot(), None).await;
         let constraints = &report["clientSetup"]["constraints"];
         for key in [
             "registerEndpoint",
@@ -470,7 +593,7 @@ mod tests {
             callback_port_free: Some(true),
             client_name: DEFAULT_CLIENT_NAME.to_owned(),
         };
-        let report = doctor_report(AuthStatus::Connected, snapshot).await;
+        let report = doctor_report(AuthStatus::Connected, snapshot, None).await;
         assert!(report["paths"]["direct"].get("clientSecret").is_none());
         assert!(report["paths"]["direct"].get("secret").is_none());
         let serialized = report.to_string();

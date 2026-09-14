@@ -116,6 +116,29 @@ impl FigmaUpstream for FixtureUpstream {
     }
 }
 
+/// A bridge plugin holding this file open, answering the same collection.
+/// The one thing that separates it from `FixtureUpstream` is what it says
+/// before the first read: this file needs no Figma credential.
+#[derive(Default)]
+struct BridgedFixture {
+    inner: FixtureUpstream,
+}
+
+#[async_trait]
+impl FigmaUpstream for BridgedFixture {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        self.inner.list_tools().await
+    }
+
+    async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        self.inner.call_read_tool(call).await
+    }
+
+    async fn serves_without_credentials(&self, _file_key: &str) -> bool {
+        true
+    }
+}
+
 async fn call_tool(
     auth: Arc<dyn DevupAuth>,
     upstream: Arc<dyn FigmaUpstream>,
@@ -444,8 +467,38 @@ async fn auto_asks_to_be_logged_in_rather_than_starting_oauth() -> anyhow::Resul
         error.to_string().contains("devup_figma_auth login"),
         "the error should name the action that fixes it: {error}"
     );
+    // Logging in is the fallback, not the first thing to reach for: it is the
+    // path Figma meters. The refusal has to say so, or the reader fixes it the
+    // expensive way every time.
+    assert!(
+        error.to_string().contains("Devup Bridge"),
+        "the cheaper path has to be offered first: {error}"
+    );
     assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 0);
+    Ok(())
+}
+
+/// The bridge spends no Figma allowance and needs no login, so it is the path
+/// to try first. This was decided the other way round: the token was demanded
+/// before anything looked at the plugin, so whoever had attached one — exactly
+/// to stay off the metered path — was told to go and open the metered path,
+/// and the export never started on a file whose every read the plugin was
+/// sitting there ready to serve. A plugin holding the file is now enough.
+#[tokio::test]
+async fn an_attached_bridge_collects_without_demanding_a_direct_login() -> anyhow::Result<()> {
+    let auth = Arc::new(AuthProbe {
+        status: AuthStatus::Disconnected,
+        logins: AtomicUsize::new(0),
+    });
+    let upstream = Arc::new(BridgedFixture::default());
+    let result = call_tool(auth.clone(), upstream.clone(), input()).await?;
+    let output = result.structured_content.unwrap();
+
+    assert!(output["tsx"].as_str().unwrap().contains("SyntheticFrame"));
+    assert_eq!(upstream.inner.calls.load(Ordering::SeqCst), 3);
+    // No browser and no token: the collection never needed either.
+    assert_eq!(auth.logins.load(Ordering::SeqCst), 0);
     Ok(())
 }
 
