@@ -77,10 +77,7 @@ const EMBEDDED: &[(&str, Documents)] = &[
     (
         "devfive-frontend",
         &[
-            (
-                "SKILL.md",
-                include_str!("skills/devfive-frontend/SKILL.md"),
-            ),
+            ("SKILL.md", include_str!("skills/devfive-frontend/SKILL.md")),
             (
                 "references/critical-rules.md",
                 include_str!("skills/devfive-frontend/references/critical-rules.md"),
@@ -659,7 +656,11 @@ pub fn install(
             let target =
                 policy.resolve(&document_path(&root, name, relative).display().to_string())?;
             paths.push(target.display_path().display().to_string());
-            transaction.stage(format!("skill:{name}:{relative}"), target, contents.as_bytes())?;
+            transaction.stage(
+                format!("skill:{name}:{relative}"),
+                target,
+                contents.as_bytes(),
+            )?;
         }
         written.push(serde_json::json!({"name": name, "paths": paths}));
     }
@@ -955,10 +956,7 @@ mod tests {
     /// up to say so.
     #[test]
     fn an_installed_document_still_opens_with_its_frontmatter() {
-        for skill in all()
-            .iter()
-            .filter(|skill| skill.entry_text().is_some())
-        {
+        for skill in all().iter().filter(|skill| skill.entry_text().is_some()) {
             let document = skill.document().expect("carried");
             assert!(
                 document.starts_with("---\n") || document.starts_with("---\r\n"),
