@@ -101,18 +101,32 @@ fn guide_resource() -> Resource {
         .with_mime_type(guide::GUIDE_MIME_TYPE)
 }
 
-/// Only the embedded skills are readable here. An external one has no bytes in
-/// this binary, so publishing a URI for it would advertise a document that
-/// cannot be served.
+/// Only the skills this binary carries are readable here. An external one has
+/// no bytes in this binary, so publishing a URI for it would advertise a
+/// document that cannot be served.
+///
+/// One URI serves one document - the entry `SKILL.md`. A multi-document skill's
+/// references are not addressable here, which is the second reason installing
+/// beats reading: `devup_skills` writes the whole set, so the links inside the
+/// document it writes resolve.
 fn skill_resource(skill: &'static skills::Skill) -> Option<Resource> {
-    skill.text?;
+    skill.entry_text()?;
+    let extra = skill.record.documents.len().saturating_sub(1);
     Some(
         Resource::new(skill.uri.clone(), skill.resource_name.clone())
             .with_title(skill.record.title.clone())
             .with_description(format!(
                 "{} Installing it with devup_skills is better than reading it here: your skill \
-                 loader then applies it on its own triggers, in this session and later ones.",
-                skill.record.description
+                 loader then applies it on its own triggers, in this session and later ones{}.",
+                skill.record.description,
+                if extra == 0 {
+                    String::new()
+                } else {
+                    format!(
+                        ", and this URI serves only SKILL.md while the install also writes its \
+                         {extra} reference document(s)"
+                    )
+                }
             ))
             .with_mime_type(skills::MIME_TYPE),
     )

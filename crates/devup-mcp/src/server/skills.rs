@@ -16,12 +16,21 @@
 //! **whether each skill is installed** and hand over the one action that
 //! installs it - a concrete gap the agent can close, rather than advice.
 //!
-//! ## Two origins, and why they are handled differently
+//! ## Three origins, and why they are handled differently
 //!
-//! `embedded` skills are DevFive's own - devup-ui, vespera, vespertide. Their
-//! canonical `SKILL.md` is vendored into the binary, so installing them needs
-//! no network. That matters because the situation this exists for, a bare
-//! machine, is the one in which a download is least likely to work.
+//! `embedded` skills are DevFive's own but live in another repository -
+//! devup-ui, vespera, vespertide. Their canonical `SKILL.md` is vendored into
+//! the binary, so installing them needs no network. That matters because the
+//! situation this exists for, a bare machine, is the one in which a download is
+//! least likely to work. A vendored copy can fall behind its repository, so
+//! each one pins the commit it copied and `scripts/refresh-skills.mjs` is how
+//! that copy is moved forward.
+//!
+//! `own` skills are written here, in this repository - devfive-frontend. There
+//! is no upstream to vendor from and nothing for the refresh script to compare
+//! against, so they pin no commit; this repository's own history is their
+//! provenance. They are otherwise installed exactly like an embedded skill,
+//! which is the point of giving them an origin rather than a special case.
 //!
 //! `external` skills belong to someone else. vercel-labs/agent-skills publishes
 //! **no LICENSE file**, so its content is all-rights-reserved and devup-mcp
@@ -47,15 +56,62 @@ pub const MIME_TYPE: &str = "text/markdown";
 /// literal that can disagree about which commit is in the binary.
 pub const MANIFEST_JSON: &str = include_str!("skills/manifest.json");
 
-/// Name to text, for the embedded origin only. `include_str!` needs a literal
-/// path, so this is the one place the set is spelled out;
-/// [`tests::embedded_and_external_entries_are_each_well_formed`] holds it to the
-/// manifest in both directions.
-const EMBEDDED: &[(&str, &str)] = &[
-    ("devup-ui", include_str!("skills/devup-ui.md")),
-    ("vespera", include_str!("skills/vespera.md")),
-    ("vespertide", include_str!("skills/vespertide.md")),
+/// Skill name to its documents, for the origins that carry text. `include_str!`
+/// needs a literal path, so this is the one place the set is spelled out;
+/// [`tests::every_origin_is_well_formed`] holds it to the manifest in both
+/// directions.
+///
+/// The inner key is the document's path relative to the skill directory, and it
+/// is deliberately the same string on both sides: `references/theme-colors.md`
+/// is read from `skills/devfive-frontend/references/theme-colors.md` here and
+/// written to `<root>/devfive-frontend/references/theme-colors.md` on install.
+/// A skill whose list is one `SKILL.md` is the single-file case, not a
+/// different one.
+type Documents = &'static [(&'static str, &'static str)];
+
+const EMBEDDED: &[(&str, Documents)] = &[
+    (
+        "devup-ui",
+        &[("SKILL.md", include_str!("skills/devup-ui/SKILL.md"))],
+    ),
+    (
+        "devfive-frontend",
+        &[
+            (
+                "SKILL.md",
+                include_str!("skills/devfive-frontend/SKILL.md"),
+            ),
+            (
+                "references/critical-rules.md",
+                include_str!("skills/devfive-frontend/references/critical-rules.md"),
+            ),
+            (
+                "references/anti-patterns.md",
+                include_str!("skills/devfive-frontend/references/anti-patterns.md"),
+            ),
+            (
+                "references/common-patterns.md",
+                include_str!("skills/devfive-frontend/references/common-patterns.md"),
+            ),
+            (
+                "references/theme-colors.md",
+                include_str!("skills/devfive-frontend/references/theme-colors.md"),
+            ),
+        ],
+    ),
+    (
+        "vespera",
+        &[("SKILL.md", include_str!("skills/vespera/SKILL.md"))],
+    ),
+    (
+        "vespertide",
+        &[("SKILL.md", include_str!("skills/vespertide/SKILL.md"))],
+    ),
 ];
+
+/// The document every skill loader opens first. A skill is installed when this
+/// file is on disk; the rest are what it links to.
+pub const ENTRY_DOCUMENT: &str = "SKILL.md";
 
 /// Where agent runtimes keep project-local skills, in the order they are
 /// preferred when none exists yet.
@@ -105,10 +161,30 @@ fn frontmatter_end(text: &str) -> Option<usize> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Origin {
-    /// Vendored into this binary; installable with no network.
+    /// Copied from another DevFive repository into this binary; installable
+    /// with no network, and pins the revision it copied.
     Embedded,
+    /// Written in this repository. Installable with no network like an embedded
+    /// skill, but pins no upstream revision because it has no upstream.
+    Own,
     /// Someone else's, installed from source by the agent.
     External,
+}
+
+impl Origin {
+    /// The word used for this origin everywhere a caller can read it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Embedded => "embedded",
+            Self::Own => "own",
+            Self::External => "external",
+        }
+    }
+
+    /// Whether devup-mcp carries this skill's text and can therefore write it.
+    pub fn is_carried(self) -> bool {
+        matches!(self, Self::Embedded | Self::Own)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -126,16 +202,35 @@ pub struct SkillRecord {
     pub source_url: String,
     pub latest_url: String,
 
-    // Embedded only.
+    /// Every file this skill installs. Present for the origins devup-mcp
+    /// carries, absent for external.
+    #[serde(default)]
+    pub documents: Vec<DocumentRecord>,
+
+    // Embedded only: an `own` skill has no upstream revision to pin.
     pub commit: Option<String>,
     pub committed_at: Option<String>,
-    pub sha256: Option<String>,
-    pub bytes: Option<usize>,
 
     // External only.
     pub install_command: Option<String>,
     pub license: Option<String>,
     pub license_note: Option<String>,
+}
+
+/// One file of a skill, and the bytes it is supposed to be.
+///
+/// The digest is what makes a hand-edit of a vendored copy fail the build
+/// instead of shipping quietly, so it is recorded per file rather than once per
+/// skill: a five-document skill whose fourth reference was edited has to fail
+/// on that reference, naming it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentRecord {
+    /// Relative to the skill directory, on both sides: the path under
+    /// `skills/<name>/` here and under `<root>/<name>/` once installed.
+    pub path: String,
+    pub bytes: usize,
+    pub sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,8 +244,8 @@ pub struct Skill {
     /// The MCP resource name. Prefixed so it cannot collide with the usage
     /// guide or with a generated output manifest.
     pub resource_name: String,
-    /// `Some` for the embedded origin, `None` for external.
-    pub text: Option<&'static str>,
+    /// `Some` for the origins devup-mcp carries, `None` for external.
+    pub texts: Option<Documents>,
 }
 
 static SKILLS: LazyLock<Vec<Skill>> = LazyLock::new(|| {
@@ -160,17 +255,17 @@ static SKILLS: LazyLock<Vec<Skill>> = LazyLock::new(|| {
         .skills
         .into_iter()
         .map(|record| {
-            let text = (record.origin == Origin::Embedded).then(|| {
+            let texts = record.origin.is_carried().then(|| {
                 EMBEDDED
                     .iter()
                     .find(|(name, _)| *name == record.name)
-                    .map(|(_, text)| *text)
-                    .expect("every embedded manifest entry has a document")
+                    .map(|(_, documents)| *documents)
+                    .expect("every carried manifest entry has documents")
             });
             Skill {
                 uri: uri_for(&record.name),
                 resource_name: format!("devup-skill-{}", record.name),
-                text,
+                texts,
                 record,
             }
         })
@@ -206,9 +301,20 @@ pub fn existing_roots(project: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// Where one of a skill's documents lives under a given root.
+///
+/// `relative` is split on `/` for the same reason [`join_root`] splits: a
+/// `references/theme-colors.md` joined whole would keep its forward slash and
+/// report `...\devfive-frontend\references/theme-colors.md` on Windows.
+pub fn document_path(root: &Path, name: &str, relative: &str) -> PathBuf {
+    relative
+        .split('/')
+        .fold(root.join(name), |path, part| path.join(part))
+}
+
 /// Where a skill's `SKILL.md` lives under a given root.
 pub fn install_path(root: &Path, name: &str) -> PathBuf {
-    root.join(name).join("SKILL.md")
+    document_path(root, name, ENTRY_DOCUMENT)
 }
 
 /// The root an install would use: the first that already exists, else the
@@ -250,9 +356,72 @@ impl Skill {
     ///
     /// `None` for external skills, which have no text here to carry.
     pub fn document(&self) -> Option<String> {
-        let text = self.text?;
+        Some(self.annotated(self.entry_text()?))
+    }
+
+    /// The entry document's text exactly as it sits in the binary, with no
+    /// provenance note added. `None` for external skills.
+    pub fn entry_text(&self) -> Option<&'static str> {
+        self.texts?
+            .iter()
+            .find(|(path, _)| *path == ENTRY_DOCUMENT)
+            .map(|(_, text)| *text)
+    }
+
+    /// Every file an install writes, as `(path relative to the skill
+    /// directory, contents)`.
+    ///
+    /// Only the entry document is annotated. A reference file is written byte
+    /// for byte, which keeps the digest in the manifest true of the installed
+    /// file as well - the note is worth breaking that for on the one document a
+    /// reader opens cold, and not on the four it links to.
+    pub fn installable_documents(&self) -> Option<Vec<(&'static str, String)>> {
+        Some(
+            self.texts?
+                .iter()
+                .map(|(path, text)| {
+                    let contents = if *path == ENTRY_DOCUMENT {
+                        self.annotated(text)
+                    } else {
+                        (*text).to_owned()
+                    };
+                    (*path, contents)
+                })
+                .collect(),
+        )
+    }
+
+    /// The document with its provenance note placed after any frontmatter.
+    fn annotated(&self, text: &str) -> String {
+        let note = self.provenance_note();
+        match frontmatter_end(text) {
+            Some(end) => format!("{}\n{note}\n{}", &text[..end], &text[end..]),
+            None => format!("{note}\n\n{text}"),
+        }
+    }
+
+    /// What a reader who finds this file on disk needs in order to decide
+    /// whether to trust it over the repository.
+    ///
+    /// An `own` skill gets a different note, not a filled-in version of the
+    /// vendored one: it has no upstream commit, and printing "at unknown" would
+    /// read as a lost revision rather than as one that never existed.
+    fn provenance_note(&self) -> String {
         let r = &self.record;
-        let note = format!(
+        if r.origin == Origin::Own {
+            return format!(
+                "<!-- Authored in {repo}, at {path}.\n     \
+                 Part of this devup-mcp build - there is no separate upstream for it to fall \
+                 behind.\n     \
+                 Current revision: {latest}\n     \
+                 Why this matters here: {used} -->",
+                repo = r.repo,
+                path = r.path,
+                latest = r.latest_url,
+                used = r.used_for,
+            );
+        }
+        format!(
             "<!-- Vendored from {repo}/{path} at {commit} ({at}).\n     \
              Embedded in this devup-mcp build; no network was used to read it.\n     \
              This revision: {source}\n     \
@@ -265,11 +434,7 @@ impl Skill {
             source = r.source_url,
             latest = r.latest_url,
             used = r.used_for,
-        );
-        Some(match frontmatter_end(text) {
-            Some(end) => format!("{}\n{note}\n{}", &text[..end], &text[end..]),
-            None => format!("{note}\n\n{text}"),
-        })
+        )
     }
 
     /// The one action that closes the gap, in the imperative, with everything
@@ -290,16 +455,26 @@ impl Skill {
             });
         }
         match self.record.origin {
-            Origin::Embedded => {
+            Origin::Embedded | Origin::Own => {
                 let roots = existing_roots(project);
                 let target = target_root(project);
+                let writes = self
+                    .record
+                    .documents
+                    .iter()
+                    .map(|document| {
+                        document_path(&target, &self.record.name, &document.path)
+                            .display()
+                            .to_string()
+                    })
+                    .collect::<Vec<_>>();
                 serde_json::json!({
                     "installed": false,
                     "paths": [],
                     "action": "devup_skills",
                     "arguments": {"action": "install", "names": [self.record.name]},
-                    "writesTo": install_path(&target, &self.record.name).display().to_string(),
-                    "how": "Call devup_skills with action \"install\". The document is inside this \
+                    "writesTo": writes,
+                    "how": "Call devup_skills with action \"install\". The documents are inside this \
                             binary, so it needs no network. Then load it the way your runtime loads \
                             a project skill.",
                     "rootChoice": if roots.is_empty() {
@@ -335,23 +510,44 @@ pub fn report(project: &Path) -> serde_json::Value {
             let r = &skill.record;
             let mut entry = serde_json::json!({
                 "name": r.name,
-                "origin": match r.origin { Origin::Embedded => "embedded", Origin::External => "external" },
+                "origin": r.origin.as_str(),
                 "title": r.title,
                 "description": r.description,
                 "whyYouNeedIt": r.used_for,
                 "source": r.source_url,
                 "latest": r.latest_url,
             });
+            if r.origin.is_carried() {
+                // Every file, not just a count: a reader deciding whether the
+                // copy on disk is the one this binary carries needs the digest
+                // of the document they are looking at, and for a multi-document
+                // skill that is not the entry document.
+                entry["documents"] = serde_json::json!(
+                    r.documents
+                        .iter()
+                        .map(|document| serde_json::json!({
+                            "path": document.path,
+                            "bytes": document.bytes,
+                            "sha256": document.sha256,
+                        }))
+                        .collect::<Vec<_>>()
+                );
+                entry["offlineRead"] = serde_json::json!(skill.uri);
+            }
             if let Some(commit) = &r.commit {
                 entry["embeddedRevision"] = serde_json::json!({
                     "commit": commit,
                     "committedAt": r.committed_at,
-                    "bytes": r.bytes,
-                    "sha256": r.sha256,
                     "note": "The revision inside this binary. It does not move when the \
                              repository does; `latest` is where a newer one would be.",
                 });
-                entry["offlineRead"] = serde_json::json!(skill.uri);
+            } else if r.origin == Origin::Own {
+                entry["embeddedRevision"] = serde_json::json!({
+                    "commit": serde_json::Value::Null,
+                    "note": "Authored in devup-mcp itself, so there is no upstream revision to \
+                             pin and nothing for it to fall behind. It moves when this binary \
+                             does.",
+                });
             }
             if r.origin == Origin::External {
                 entry["license"] = serde_json::json!(r.license);
@@ -389,12 +585,17 @@ pub fn report(project: &Path) -> serde_json::Value {
     })
 }
 
-/// Writes the vendored documents for the embedded skills that are missing.
+/// Writes the documents of the carried skills that are missing.
 ///
 /// Goes through the same [`OutputPolicy`] every other file this server writes
 /// goes through, so a skill lands under an allowed write root or not at all,
 /// and through one [`OutputTransaction`], so a partial install does not leave
 /// half a set behind.
+///
+/// That last part is why a multi-document skill is staged whole rather than
+/// document by document: a `SKILL.md` that survived next to four references
+/// that did not is the failure this feature exists to avoid, because it looks
+/// installed and its links go nowhere.
 ///
 /// [`OutputPolicy`]: super::output::OutputPolicy
 /// [`OutputTransaction`]: super::output::OutputTransaction
@@ -443,20 +644,24 @@ pub fn install(
     let mut already = Vec::new();
     for skill in wanted
         .iter()
-        .filter(|skill| skill.record.origin == Origin::Embedded)
+        .filter(|skill| skill.record.origin.is_carried())
     {
         let name = &skill.record.name;
         if !installed_paths(&project, name).is_empty() {
             already.push(name.clone());
             continue;
         }
-        let target = policy.resolve(&install_path(&root, name).display().to_string())?;
-        let path = target.display_path().display().to_string();
-        let document = skill
-            .document()
-            .expect("an embedded skill always has a document");
-        transaction.stage(format!("skill:{name}"), target, document.as_bytes())?;
-        written.push(serde_json::json!({"name": name, "path": path}));
+        let documents = skill
+            .installable_documents()
+            .expect("a carried skill always has documents");
+        let mut paths = Vec::with_capacity(documents.len());
+        for (relative, contents) in documents {
+            let target =
+                policy.resolve(&document_path(&root, name, relative).display().to_string())?;
+            paths.push(target.display_path().display().to_string());
+            transaction.stage(format!("skill:{name}:{relative}"), target, contents.as_bytes())?;
+        }
+        written.push(serde_json::json!({"name": name, "paths": paths}));
     }
     transaction.commit()?;
 
@@ -493,55 +698,87 @@ mod tests {
     }
 
     /// Each origin has its own obligations, and a record that mixes them will
-    /// mislead. An embedded entry must carry the revision it embeds and match it
-    /// byte for byte; an external entry must carry no bytes at all and must say
-    /// how to install it instead.
+    /// mislead. A carried entry must list every document it writes and match
+    /// each one byte for byte; an embedded one must additionally pin the
+    /// upstream revision it copied, an `own` one must not pretend to have a
+    /// revision it cannot have, and an external one must carry no bytes at all
+    /// and must say how to install it instead.
     #[test]
-    fn embedded_and_external_entries_are_each_well_formed() {
+    fn every_origin_is_well_formed() {
         let manifest: Manifest = serde_json::from_str(MANIFEST_JSON).unwrap();
-        let embedded = manifest
+        let carried = manifest
             .skills
             .iter()
-            .filter(|record| record.origin == Origin::Embedded)
+            .filter(|record| record.origin.is_carried())
             .count();
         assert_eq!(
-            embedded,
+            carried,
             EMBEDDED.len(),
-            "manifest and embedded set disagree on how many documents are in the binary"
+            "manifest and embedded set disagree on how many skills are in the binary"
         );
 
         for record in &manifest.skills {
-            match record.origin {
-                Origin::Embedded => {
-                    let (_, text) = EMBEDDED
+            if record.origin.is_carried() {
+                let (_, documents) = EMBEDDED
+                    .iter()
+                    .find(|(name, _)| *name == record.name)
+                    .unwrap_or_else(|| panic!("{} is carried in name only", record.name));
+                assert_eq!(
+                    documents.len(),
+                    record.documents.len(),
+                    "{}: manifest and binary disagree on how many documents this skill has",
+                    record.name
+                );
+                assert!(
+                    record.documents.iter().any(|d| d.path == ENTRY_DOCUMENT),
+                    "{}: a skill with no {ENTRY_DOCUMENT} is one no loader opens",
+                    record.name
+                );
+                for document in &record.documents {
+                    let (_, text) = documents
                         .iter()
-                        .find(|(name, _)| *name == record.name)
-                        .unwrap_or_else(|| panic!("{} is embedded in name only", record.name));
+                        .find(|(path, _)| *path == document.path)
+                        .unwrap_or_else(|| {
+                            panic!("{}: {} is in the manifest only", record.name, document.path)
+                        });
                     assert_eq!(
-                        Some(text.len()),
-                        record.bytes,
-                        "{}: byte count",
-                        record.name
+                        text.len(),
+                        document.bytes,
+                        "{}: {}: byte count",
+                        record.name,
+                        document.path
                     );
                     let digest: String = Sha256::digest(text.as_bytes())
                         .iter()
                         .map(|byte| format!("{byte:02x}"))
                         .collect();
                     assert_eq!(
-                        Some(&digest),
-                        record.sha256.as_ref(),
-                        "{}: the vendored document was edited without updating its record. \
-                         The source of truth is {}, not this copy.",
-                        record.name,
-                        record.repo
+                        digest, document.sha256,
+                        "{}: {}: the document was edited without updating its record.",
+                        record.name, document.path
                     );
+                }
+            }
+
+            match record.origin {
+                Origin::Embedded => {
                     let commit = record
                         .commit
                         .as_deref()
-                        .expect("embedded entries pin a commit");
+                        .expect("embedded entries pin the revision they copied");
                     assert!(
                         record.source_url.contains(commit),
                         "{}: sourceUrl does not pin {commit}",
+                        record.name
+                    );
+                }
+                Origin::Own => {
+                    // Not an oversight to be filled in later: there is no second
+                    // repository for this document to lag behind, and a pinned
+                    // commit would invite the refresh script to try to move it.
+                    assert!(
+                        record.commit.is_none() && record.committed_at.is_none(),
+                        "{}: an own skill has no upstream revision to pin",
                         record.name
                     );
                 }
@@ -552,7 +789,7 @@ mod tests {
                         record.name
                     );
                     assert!(
-                        record.bytes.is_none() && record.sha256.is_none(),
+                        record.documents.is_empty(),
                         "{}: an external entry claims embedded bytes",
                         record.name
                     );
@@ -570,6 +807,46 @@ mod tests {
                         record.name
                     );
                 }
+            }
+        }
+    }
+
+    /// A multi-document skill installs whole or not at all, and every reference
+    /// its `SKILL.md` links to has to be one of the files that install writes.
+    /// A `SKILL.md` alone, with dead links where its rules were, is the shape
+    /// that looks installed and is not.
+    #[test]
+    fn a_multi_document_skill_writes_every_file_it_links_to() {
+        let skill = find_by_name("devfive-frontend").expect("devfive-frontend is registered");
+        assert_eq!(skill.record.origin, Origin::Own);
+
+        let documents = skill.installable_documents().expect("carried");
+        assert!(
+            documents.len() > 1,
+            "this test is about the multi-document case"
+        );
+
+        let entry = skill.entry_text().expect("carried");
+        for (path, _) in documents.iter().filter(|(path, _)| *path != ENTRY_DOCUMENT) {
+            assert!(
+                entry.contains(path),
+                "{path} is installed but SKILL.md never links to it"
+            );
+        }
+
+        // Only the entry document is annotated; the references stay byte-exact
+        // so the manifest digest is still true of what lands on disk.
+        for (path, contents) in &documents {
+            let record = skill
+                .record
+                .documents
+                .iter()
+                .find(|d| d.path == *path)
+                .expect("every installed document is recorded");
+            if *path == ENTRY_DOCUMENT {
+                assert!(contents.len() > record.bytes, "the entry carries its note");
+            } else {
+                assert_eq!(contents.len(), record.bytes, "{path} was rewritten");
             }
         }
     }
@@ -611,10 +888,11 @@ mod tests {
         let project = scratch("external");
         let skill = find_by_name("vercel-react-best-practices").expect("registered");
         assert!(
-            skill.text.is_none(),
+            skill.texts.is_none(),
             "external content is not in the binary"
         );
         assert!(skill.document().is_none());
+        assert!(skill.installable_documents().is_none());
 
         let action = skill.install_action(&project);
         assert_eq!(action["action"], "run-this-yourself");
@@ -643,7 +921,7 @@ mod tests {
 
         let skill = find_by_name("devup-ui").unwrap();
         let action = skill.install_action(&project);
-        let writes_to = action["writesTo"].as_str().unwrap();
+        let writes_to = action["writesTo"][0].as_str().unwrap().to_owned();
         assert!(
             writes_to.contains(".opencode"),
             "existing root ignored; would write to {writes_to}"
@@ -658,7 +936,7 @@ mod tests {
     fn devup_ui_is_embedded_addressable_and_carries_its_age() {
         let skill = find_by_uri("devup://skill/devup-ui").expect("addressable");
         assert_eq!(skill.resource_name, "devup-skill-devup-ui");
-        let text = skill.text.expect("embedded");
+        let text = skill.entry_text().expect("embedded");
         assert!(text.contains("Cannot run on the runtime"));
 
         let document = skill
@@ -677,8 +955,11 @@ mod tests {
     /// up to say so.
     #[test]
     fn an_installed_document_still_opens_with_its_frontmatter() {
-        for skill in all().iter().filter(|skill| skill.text.is_some()) {
-            let document = skill.document().expect("embedded");
+        for skill in all()
+            .iter()
+            .filter(|skill| skill.entry_text().is_some())
+        {
+            let document = skill.document().expect("carried");
             assert!(
                 document.starts_with("---\n") || document.starts_with("---\r\n"),
                 "{}: frontmatter no longer opens the file",
@@ -689,16 +970,27 @@ mod tests {
             let end = frontmatter_end(&document).expect("the block still closes");
             let head = &document[..end];
             assert!(head.contains("name:"), "{}: {head}", skill.record.name);
+            // Whichever note this origin gets, it belongs after the block.
+            let opener = if skill.record.origin == Origin::Own {
+                "Authored in dev-five-git/"
+            } else {
+                "Vendored from dev-five-git/"
+            };
             assert!(
-                !head.contains("Vendored from"),
+                !head.contains(opener),
                 "{}: the note must sit outside the frontmatter block",
                 skill.record.name
             );
-            assert!(document.contains("Vendored from dev-five-git/"));
+            assert!(
+                document.contains(opener),
+                "{}: no provenance note for origin {}",
+                skill.record.name,
+                skill.record.origin.as_str()
+            );
             // Nothing of the original was dropped on the way through. The note
             // splits it, so the two halves are checked rather than the whole.
-            let text = skill.text.unwrap();
-            let split = frontmatter_end(text).expect("a vendored skill has frontmatter");
+            let text = skill.entry_text().unwrap();
+            let split = frontmatter_end(text).expect("a carried skill has frontmatter");
             assert!(document.contains(&text[..split]), "{}", skill.record.name);
             assert!(document.ends_with(&text[split..]), "{}", skill.record.name);
         }
