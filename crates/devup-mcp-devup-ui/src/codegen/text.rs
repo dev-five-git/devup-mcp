@@ -68,7 +68,7 @@ pub(super) fn push_text_props(
     }
     if let Some(line_height) = line_height(
         value("lineHeight"),
-        value("fontSize").and_then(Value::as_f64),
+        line_height_font_size(value("fontSize"), value("boundVariables")),
     ) {
         string_prop(props, "lineHeight", line_height);
     }
@@ -205,6 +205,15 @@ fn letter_spacing(value: Option<&Value>) -> Option<String> {
     }
 }
 
+/// 크기가 변수에 묶인 텍스트는 해석된 px 를 행간 계산에 쓰지 않는다. 그 값은 지금
+/// 모드에서만 참이라, 다른 모드에서 조용히 어긋난 행간을 남긴다.
+fn line_height_font_size(size: Option<&Value>, bound: Option<&Value>) -> Option<f64> {
+    if bound.and_then(|value| value.get("fontSize")).is_some() {
+        return None;
+    }
+    size.and_then(Value::as_f64)
+}
+
 fn line_height(value: Option<&Value>, font_size: Option<f64>) -> Option<String> {
     let value = value?;
     if let Some(number) = value.as_f64() {
@@ -213,11 +222,18 @@ fn line_height(value: Option<&Value>, font_size: Option<f64>) -> Option<String> 
     let object = value.as_object()?;
     match object.get("unit").and_then(Value::as_str) {
         Some("AUTO") => Some("normal".to_owned()),
-        Some("PERCENT") => object
-            .get("value")
-            .and_then(Value::as_f64)
-            .zip(font_size)
-            .map(|(number, size)| px((size * number / 100.0).round())),
+        // 퍼센트 행간은 적용되는 font-size 에 비례한다는 점에서 CSS 와 뜻이 같다.
+        // 크기가 변수에 묶여 있으면 `font_size` 가 비어 오고, 그때는 px 로 굳히지
+        // 않고 비율을 남긴다 — 어느 모드에서도 맞는 유일한 표현이다.
+        Some("PERCENT") => {
+            object
+                .get("value")
+                .and_then(Value::as_f64)
+                .map(|number| match font_size {
+                    Some(size) => px((size * number / 100.0).round()),
+                    None => format!("{}%", format_number(number)),
+                })
+        }
         _ => object.get("value").and_then(Value::as_f64).map(px),
     }
 }
@@ -407,7 +423,7 @@ fn typography_props(
     }
     if let Some(value) = line_height(
         segment.get("lineHeight"),
-        segment.get("fontSize").and_then(Value::as_f64),
+        line_height_font_size(segment.get("fontSize"), segment.get("boundVariables")),
     ) {
         string_prop(&mut props, "lineHeight", value);
     }
@@ -446,12 +462,11 @@ pub(super) fn validate_line_metrics(
                     bound: Option<&Value>,
                     styled: bool| {
         let percent = height.and_then(|h| h.get("unit")).and_then(Value::as_str) == Some("PERCENT");
-        let invalid = (percent
-            && (size.and_then(Value::as_f64).is_none()
-                || bound.and_then(|v| v.get("fontSize")).is_some()))
+        let ratio = height.and_then(|h| h.get("value")).and_then(Value::as_f64);
+        let invalid = (percent && ratio.is_none())
             || (styled
                 && size.is_some()
-                && line_height(height, size.and_then(Value::as_f64)).is_none());
+                && line_height(height, line_height_font_size(size, bound)).is_none());
         if invalid {
             Err(devup_mcp_figma::DevupError::new(
                 devup_mcp_figma::ErrorCode::DevupCodegenFailed,

@@ -106,6 +106,26 @@ fn inline_text_uses_integer_advance() {
 }
 
 #[test]
+fn variable_font_size_keeps_the_percentage_advance_instead_of_a_pixel_one() {
+    let snapshot: Snapshot = serde_json::from_value(json!({
+        "fileKey":"test", "version":"1", "roots":["t"], "diagnostics":[],
+        "nodes":{"t":{"id":"t","type":"TEXT","fields":{
+            "characters":"Heading", "fontSize":18,
+            "lineHeight":{"unit":"PERCENT","value":150},
+            "boundVariables":{"fontSize":{"type":"VARIABLE_ALIAS","id":"size"}}
+        },"extra":{},"fieldErrors":{}}}
+    }))
+    .unwrap();
+    let output = generate_component(&snapshot, "t", &CodegenOptions::default()).unwrap();
+    assert!(output.tsx.contains("lineHeight=\"150%\""), "{}", output.tsx);
+    assert!(
+        !output.tsx.contains("lineHeight=\"27px\""),
+        "{}",
+        output.tsx
+    );
+}
+
+#[test]
 fn inside_stroke_without_padding_does_not_expand_hugged_content() {
     let snapshot: Snapshot = serde_json::from_value(json!({
         "fileKey":"test", "version":"1", "roots":["f"], "diagnostics":[],
