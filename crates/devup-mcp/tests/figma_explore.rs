@@ -191,7 +191,15 @@ async fn related_nodes_reuse_one_explore_projection_without_changing_the_request
     // make them two differently sized reads of the same page.
     assert_eq!(screen["cache"]["reuseKind"], "related-node");
     assert_eq!(screen["cache"]["avoidedFigmaToolCalls"], 1);
-    assert_eq!(screen["cache"]["ageSeconds"], 0);
+    // Freshness, not a stopwatch. `ageSeconds` is whole seconds off the wall
+    // clock, so two calls that happen to straddle a second boundary report 1
+    // while having done nothing different - which is how this failed on the
+    // slower CI runners and passed on the faster one.
+    assert!(
+        screen["cache"]["ageSeconds"].as_u64().unwrap() <= 1,
+        "the reused artifact should be seconds old at most: {}",
+        screen["cache"]
+    );
     assert!(screen["cache"]["remainingTtlSeconds"].as_u64().unwrap() > 0);
     assert_eq!(screen["cache"]["originCollection"]["figmaToolCalls"], 1);
     assert_eq!(screen["collection"]["figmaToolCalls"], 0);
