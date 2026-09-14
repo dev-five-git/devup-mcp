@@ -18,6 +18,7 @@ const EXPECTED = [
   'fastSnapshot',
   'fastTheme',
   'largeValue',
+  'metadata',
   'pageCatalog',
   'search',
   'sectionIndex',

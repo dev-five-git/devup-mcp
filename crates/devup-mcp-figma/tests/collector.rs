@@ -459,6 +459,43 @@ fn malformed_fast_result_restarts_legacy_from_metadata() {
 }
 
 #[test]
+fn a_split_subtree_still_snapshots_the_node_to_convert() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::Used;
+    let mut collector = CollectorSession::new(request);
+
+    let CollectorStep::Call(fast_call) = collector.advance().unwrap() else {
+        panic!("fast call expected")
+    };
+    collector
+        .accept(
+            &fast_call.id,
+            UpstreamResult {
+                raw: json!({"content": [{"type": "text", "text": "unsupported"}]}),
+            },
+        )
+        .unwrap();
+
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!("legacy metadata must restart after a malformed envelope")
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &["1:3"], 201))
+        .unwrap();
+
+    let CollectorStep::Call(child) = collector.advance().unwrap() else {
+        panic!("the split child snapshot is expected first")
+    };
+    let CollectorStep::Call(root) = collector.advance().unwrap() else {
+        panic!("the node to convert must be snapshotted as well")
+    };
+    let child_code = child.call.arguments()["code"].as_str().unwrap().to_owned();
+    let root_code = root.call.arguments()["code"].as_str().unwrap().to_owned();
+    assert!(child_code.contains("\"1:3\""), "{child_code}");
+    assert!(root_code.contains("\"1:2\""), "{root_code}");
+}
+
+#[test]
 fn rejected_fast_call_can_restart_legacy_collection() {
     let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
     request.resource_scope = ResourceScope::Used;

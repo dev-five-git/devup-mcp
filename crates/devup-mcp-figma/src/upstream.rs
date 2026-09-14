@@ -973,13 +973,23 @@ impl ReadToolCall {
     /// 값이 놓이는 자리는 [`BuiltinScript::source`] 의 치환 자리와 1:1 이다. 한쪽만
     /// 고치면 브리지 경로에서만 빈 값이 들어가 조용히 다른 결과가 나온다.
     ///
-    /// 공식 도구 이름으로 가는 읽기(`get_metadata` 등)는 `None` 이다. 플러그인이
-    /// 같은 정보를 만들 수는 있지만 응답 모양이 달라, 흉내 내면 디코더가 두 경로
-    /// 에서 다르게 동작한다.
+    /// 공식 도구 이름으로 가는 읽기는 디코더가 두 경로를 같은 타입으로 환원할 때만
+    /// 브리지가 맡는다. 그렇지 않은 것은 `None` 으로 두어 원격이 처리하게 한다.
     pub fn bridge_job(&self) -> Option<crate::bridge::BridgeJob> {
         use crate::bridge::BridgeJob;
 
         let job = match self {
+            // `metadata.js` 의 JSON 과 공식 경로의 XML 은 `find_metadata` 에서
+            // 같은 `MetadataDocument` 로 환원된다. 노드 없는 읽기는 최상위 페이지
+            // 목록이라는 다른 계약이므로 제외한다.
+            Self::Metadata {
+                node_id: Some(node_id),
+                ..
+            } => BridgeJob {
+                script: "metadata",
+                params: json!({ "nodeId": node_id }),
+            },
+
             Self::Metadata { .. }
             | Self::VariableDefs { .. }
             | Self::DesignContext { .. }
