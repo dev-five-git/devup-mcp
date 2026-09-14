@@ -1,6 +1,6 @@
 {
   "name": "Devup Bridge",
-  "id": "devup-bridge-plugin",
+  "id": "1681135151365211883",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
