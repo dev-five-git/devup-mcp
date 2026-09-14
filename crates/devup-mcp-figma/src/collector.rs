@@ -1806,11 +1806,16 @@ impl CollectorSession {
                     self.request.scope,
                     CollectionScope::Page | CollectionScope::File
                 ));
-        let targets = if split {
+        let mut targets = if split {
             root.children_ids.clone()
         } else {
             vec![root.id.clone()]
         };
+        // 노드 스코프에서 변환 대상은 루트 자신이다. 자식으로 쪼갠 뒤 루트를 빼면
+        // 투영 단계가 대상을 찾지 못한다.
+        if split && self.request.scope == CollectionScope::Node && !targets.contains(&root.id) {
+            targets.push(root.id.clone());
+        }
         for node_id in targets {
             self.enqueue(
                 ReadToolCall::snapshot(

@@ -194,11 +194,17 @@ async fn routing_is_decided_before_the_call() {
             .await
     );
 
-    // 공식 도구 이름으로 가는 읽기는 플러그인이 붙어 있어도 맡지 않는다. 응답
-    // 모양이 달라 흉내 내면 두 경로가 갈라진다.
+    // 노드가 지정된 메타데이터는 두 경로가 같은 `MetadataDocument` 로 환원되므로
+    // 플러그인이 맡는다. 노드 없는 읽기는 최상위 페이지 목록이라는 다른 계약이라
+    // 원격이 받아야 한다.
+    assert!(
+        client
+            .can_serve(&ReadToolCall::metadata(FILE_KEY, Some("1:2")))
+            .await
+    );
     assert!(
         !client
-            .can_serve(&ReadToolCall::metadata(FILE_KEY, Some("1:2")))
+            .can_serve(&ReadToolCall::metadata(FILE_KEY, None))
             .await
     );
     // 다른 파일은 그 파일의 플러그인이 필요하다.

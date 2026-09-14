@@ -439,8 +439,6 @@ impl FigmaUpstream for BridgeFigmaClient {
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         let Some(job) = call.bridge_job() else {
-            // 공식 도구 이름으로 가는 읽기(get_metadata 등)는 응답 모양이 달라
-            // 여기서 흉내 내지 않는다.
             return Err(unavailable("the bridge serves script reads only"));
         };
         let mut params = job.params;
