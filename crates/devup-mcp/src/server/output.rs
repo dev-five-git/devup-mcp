@@ -126,6 +126,14 @@ impl OutputPolicy {
         })
     }
 
+    /// The root a relative `outputPath` lands in. Named so a caller can ask
+    /// where it is allowed to work without first resolving a file inside it -
+    /// `devup_skills` reports install state for the workspace, which is this
+    /// directory and nowhere else.
+    pub fn primary_root(&self) -> &Path {
+        &self.roots[0].display_path
+    }
+
     pub fn resolve(&self, requested: &str) -> Result<OutputTarget, DevupError> {
         let path = Path::new(requested);
         if requested.trim().is_empty() {

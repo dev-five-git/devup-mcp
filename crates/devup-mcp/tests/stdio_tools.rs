@@ -103,11 +103,18 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
     assert_eq!(resources.list_changed, None);
     // This used to assert an empty list, which recorded the fact that the only
     // resources were per-artifact outputs and a fresh session had none. The
-    // usage guide is now a static resource, so a fresh session lists exactly
-    // it, and the artifact outputs still come first when they exist.
+    // usage guide and the embedded skills are static resources, so a fresh
+    // session lists exactly those, and the artifact outputs still come first
+    // when they exist.
     let listed = client.list_all_resources().await?;
-    assert_eq!(listed.len(), 1, "{listed:?}");
-    assert_eq!(listed[0].uri, "devup://guide/usage");
+    assert!(
+        listed
+            .iter()
+            .all(|r| r.uri.starts_with("devup://guide/") || r.uri.starts_with("devup://skill/")),
+        "a fresh session has no generated outputs: {listed:?}"
+    );
+    assert!(listed.iter().any(|r| r.uri == "devup://guide/usage"));
+    assert!(listed.iter().any(|r| r.uri == "devup://skill/devup-ui"));
     assert_eq!(client.list_all_resource_templates().await?.len(), 2);
     let tools = client.list_all_tools().await?;
     assert!(
@@ -166,6 +173,7 @@ async fn exposes_the_seven_read_only_devup_figma_tools() -> anyhow::Result<()> {
             "devup_figma_export",
             "devup_figma_search",
             "devup_project_context",
+            "devup_skills",
             "devup_stack_diff",
             "devup_ui_validate",
             "devup_visual_compare",

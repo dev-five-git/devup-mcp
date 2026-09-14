@@ -19,6 +19,11 @@ use super::{
 /// agent to guess `scope` and `delivery` and find out by being refused.
 pub(crate) const AUTH_ACTIONS: [&str; 5] = ["status", "login", "logout", "configure", "doctor"];
 
+/// `status` reads the workspace and writes nothing. `install` writes the
+/// vendored documents for the embedded skills; it can never install an
+/// external one, because those bytes are not devup-mcp's to ship.
+pub(crate) const SKILL_ACTIONS: [&str; 2] = ["status", "install"];
+
 pub(crate) const COLLECTION_SCOPES: [&str; 3] = ["node", "page", "file"];
 
 pub(crate) const ROOT_LAYOUTS: [&str; 2] = ["standalone", "embedded"];

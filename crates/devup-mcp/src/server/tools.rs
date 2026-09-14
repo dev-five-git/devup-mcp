@@ -8,6 +8,28 @@ use std::collections::BTreeMap;
 /// (`clientId`, optional `clientSecret`) so later `login` calls skip Dynamic
 /// Client Registration entirely; the secret is stored in the OS credential
 /// store and never echoed back. See `server::diagnostics`.
+/// `status` answers which skills the code devup-mcp emits needs and which of
+/// them this workspace actually has. `install` writes the embedded ones.
+///
+/// An external skill is never installed by this tool: its publisher ships no
+/// licence, so devup-mcp reports the command rather than the bytes, and running
+/// that command is the caller's.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsInput {
+    #[serde(default = "default_skills_action")]
+    #[schemars(extend("enum" = super::validation::SKILL_ACTIONS))]
+    pub action: String,
+    /// Which skills to install. Empty installs every embedded skill that is
+    /// missing, which is the usual case on a machine that has just been set up.
+    #[serde(default)]
+    pub names: Vec<String>,
+}
+
+fn default_skills_action() -> String {
+    "status".to_owned()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthInput {

@@ -1,0 +1,9 @@
+# The vendored agent-skill documents are byte-exact copies of their upstream
+# SKILL.md, embedded with `include_str!` and verified against a recorded
+# SHA-256. Git must therefore never translate their line endings: a Windows
+# checkout under the default `core.autocrlf=true` adds one byte per line, which
+# made the integrity check fail on that platform alone while passing on Linux
+# and macOS. `-text` is stronger than `eol=lf` on purpose - it says these bytes
+# are not git's to touch in either direction.
+crates/devup-mcp/src/server/skills/*.md -text
+crates/devup-mcp/src/server/skills/manifest.json -text

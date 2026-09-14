@@ -6,12 +6,13 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 4개, 프로젝트 쪽 5개, 모두 9개입니다.
+Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
+- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다
 - `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
 - `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
@@ -199,6 +200,35 @@ Figma MCP Catalog에 승인된 client(예: 직접 waitlist로 등록해 발급�
 - **도구**: `devup_figma_auth { "action": "configure", "clientId": "...", "clientSecret": "..." }` — OS credential store(시작 인자/환경변수와는 별도 항목)에 저장되어 프로세스를 재시작해도 유지됩니다.
 
 자격증명이 해석되면 `devup_figma_auth { "action": "login" }`은 registration 엔드포인트를 전혀 호출하지 않고 바로 authorization_code + PKCE 흐름으로 진입합니다. 자격증명이 없으면 DCR을 시도하고, 403이면 그대로 보고합니다. DCR 요청의 `client_name` 기본값은 `"Codex"`입니다(`DEFAULT_CLIENT_NAME`). allowlist는 이름을 정확히 일치시켜 판정하고 `"devup-mcp"`는 거기에 없으므로, 그 이름으로 보내면 등록이 403으로 거절되어 direct 경로 자체가 성립하지 않습니다. 이 등록은 Figma에게 devup-mcp가 아니라 Codex로 기록됩니다. 본인 client가 카탈로그에 승인되면 `--figma-client-name` 또는 `DEVUP_FIGMA_CLIENT_NAME`으로 그 이름을 넘기세요. `client_secret`은 로그, 에러, MCP 응답, `doctor` 출력 어디에도 노출되지 않으며 `doctor`는 `credentialSource`로 존재 여부만 보고합니다.
+
+## 에이전트 스킬 — 빈 PC에서 헛짓거리하지 않게
+
+devup-mcp가 돌려주는 TSX는 **devup-ui 코드**입니다. devup-mcp만 깔린 기계의 에이전트는 devup-ui를 본 적이 없습니다 — `@devup-ui/react` 컴포넌트가 빌드 타임 placeholder라는 것도, `$token`이 `devup.json`을 가리킨다는 것도, 스타일 prop이 반응형 배열을 받는다는 것도 모릅니다. 그래서 지어냅니다. **이 서버는 그 추측을 볼 수도 고칠 수도 없습니다.**
+
+응답에 규칙을 붙여 보내는 것으로는 부족합니다. 에이전트 런타임에는 이미 `SKILL.md`를 읽어 자기 트리거로 꺼내 주는 로더가 있고, **한 번 던져준 문서는 한 번 읽히지만 설치된 스킬은 그 뒤 모든 세션에 계속 적용**됩니다. 그래서 `devup_skills`는 텍스트를 던지지 않고 **설치 여부를 보고하고 설치합니다.**
+
+```json
+{ "action": "status" }
+```
+
+스킬마다 `installed`와, 아니라면 그것을 메우는 **한 가지 동작**을 돌려줍니다. 출처에 따라 동작이 다릅니다.
+
+| 스킬 | 출처 | devup-mcp가 하는 일 |
+|---|---|---|
+| `devup-ui` · `vespera` · `vespertide` | dev-five-git (우리 것) | **바이너리에 내장.** `{"action":"install"}`이 네트워크 없이 스킬 디렉터리에 씁니다 |
+| `vercel-react-best-practices` · `vercel-react-view-transitions` | vercel-labs/agent-skills | **내장하지 않음.** 설치 명령 `npx skills add vercel-labs/agent-skills`를 넘길 뿐, 실행하지 않습니다 |
+
+vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/agent-skills`에는 LICENSE 파일이 없어** 재배포할 권리가 없고, 그 스킬들은 단일 파일이 아니라 `SKILL.md` + `AGENTS.md` + 규칙 파일 수십 개(합쳐 ~350 KB)라서 애초에 던져줄 물건이 아니라 설치할 물건입니다.
+
+**devup-mcp는 그 명령을 대신 실행하지 않습니다.** 디자인→코드 서버가 패키지 설치기를 실행하면, 레지스트리 항목 하나가 오염됐을 때 화면을 export한 모든 기계에서 임의 실행이 됩니다.
+
+설치 위치는 프로젝트 안입니다 — 이미 있는 것을 우선해 `.claude/skills`, `.opencode/skill`, `.agents/skills` 순으로 고릅니다. 프로젝트 루트는 devup-mcp가 쓸 수 있는 유일한 곳이라 새 권한이 필요 없고, 스킬이 저장소를 따라다닙니다. 이미 깔려 있으면 다시 쓰지 않습니다.
+
+내장본은 각 레포의 `SKILL.md`를 그대로 복사한 것이고, 응답과 설치된 파일 모두 **어느 커밋인지와 최신본 URL**을 함께 답니다. 사본은 낡습니다 — 그게 내장의 정직한 비용이고, `node scripts/refresh-skills.mjs`가 그걸 갱신하는 방법입니다(`--check`는 쓰지 않고 드리프트만 보고). 주석은 YAML frontmatter **뒤에** 들어갑니다. `---`는 0번째 바이트에 있어야 로더가 읽습니다.
+
+설치하지 않고 읽기만 하려면 `devup://skill/devup-ui` 리소스도 있습니다. 다만 그건 fallback입니다 — 설치해야 로더가 알아서 꺼내 줍니다.
+
+유도는 두 곳에서만 합니다. 세션마다 실리는 `instructions`의 한 줄, 그리고 `devup_ui_validate`가 위반을 찾았는데 devup-ui 스킬이 **실제로 없을 때만** 붙는 `skillGap`입니다. 이미 깔려 있는 사람에게 깔라고 하는 것은 그 필드를 무시하게 만드는 소음입니다.
 
 ## Figma 연결 설정
 
