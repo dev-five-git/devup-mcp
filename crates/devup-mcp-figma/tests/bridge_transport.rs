@@ -215,6 +215,23 @@ async fn routing_is_decided_before_the_call() {
     );
 }
 
+/// 로그인을 요구할지 말지는 이 값이 정한다.
+///
+/// 브리지는 Figma 한도도 자격증명도 쓰지 않으므로, 이 파일을 맡은 플러그인이
+/// 있으면 수집은 토큰 없이 성립한다. 판정은 파일 단위여야 한다 — 다른 파일을
+/// 열어 둔 플러그인이 붙어 있다고 해서 이 파일을 읽을 수 있는 것은 아니다.
+#[tokio::test]
+async fn a_plugin_holding_the_file_makes_it_readable_without_credentials() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let client = BridgeFigmaClient::new(server.state());
+
+    assert!(!client.serves_without_credentials(FILE_KEY).await);
+
+    let _plugin = connect_plugin(&server).await;
+    assert!(client.serves_without_credentials(FILE_KEY).await);
+    assert!(!client.serves_without_credentials("OtherFile").await);
+}
+
 /// 키 없이 붙은 플러그인도 혼자면 맡는다.
 ///
 /// `figma.fileKey` 는 늘 오는 값이 아니다. 실기기에서 비어 온 적이 있고, 그때 등록을

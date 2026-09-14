@@ -147,7 +147,17 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 ```json
 {
   "status": "disconnected",
+  "preferredPath": "bridge",
+  "preferredPathNote": "Two paths reach Figma and they are not equals. ...",
   "paths": {
+    "bridge": {
+      "available": false,
+      "listening": true,
+      "port": 1993,
+      "attachedFiles": [],
+      "attachedFilesNote": "File keys the attached plugins have open. ...",
+      "reason": "The bridge is listening on 127.0.0.1:1993 but no plugin is attached. ..."
+    },
     "direct": {
       "available": false,
       "credentialSource": "none",
@@ -162,7 +172,15 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-`doctor`는 네트워크 호출을 전혀 하지 않습니다. 세 필드는 **서로 다른 것**을 말하므로 함께 읽어야 합니다.
+`doctor`는 네트워크 호출을 전혀 하지 않습니다.
+
+**경로는 둘이고 대등하지 않습니다.** `preferredPath`가 언제나 `bridge`인 이유입니다 — 브리지는 로그인도 필요 없고 Figma 한도도 쓰지 않습니다. `paths.bridge`의 세 상태는 고치는 방법이 서로 다르니 구분해서 읽어야 합니다.
+
+- `listening: false` — 이 프로세스가 브리지 포트를 아예 잡지 못했습니다. `DEVUP_FIGMA_BRIDGE_PORT`가 `off`이거나, 다른 devup-mcp가 이미 그 포트를 쥐고 있는 경우입니다(MCP 클라이언트를 여러 개 띄우면 정상입니다). 플러그인을 아무리 실행해도 이 프로세스로는 오지 않습니다.
+- `listening: true`, `attachedFiles: []` — 문은 열려 있는데 아무도 들어오지 않았습니다. 대상 파일에서 `Devup Bridge` 플러그인을 실행하세요.
+- `attachedFiles`에 파일 키가 있음 — 정상 동작입니다. **이 상태면 로그인 없이 그 파일의 수집이 그대로 됩니다.**
+
+`paths.direct`의 세 필드는 **서로 다른 것**을 말하므로 함께 읽어야 합니다.
 
 - `credentialSource` — **client 등록 자격증명**(`client_id`/`client_secret`)이 어디서 왔는지. `cli-arg`, `env`, `credential-store`, `none` 중 하나입니다.
 - `tokenState` — **사용자의 access token** 상태. `valid`, `expired`, `absent` 중 하나입니다.
@@ -184,12 +202,22 @@ Figma MCP Catalog에 승인된 client(예: 직접 waitlist로 등록해 발급�
 
 ## Figma 연결 설정
 
-devup-mcp가 Figma에 붙는 경로는 하나입니다 — **원격 OAuth (`direct`)**. `devup_figma_auth { action: "login" }`으로 브라우저 인증. Figma MCP Catalog에 승인된 client만 등록할 수 있습니다.
-현재 사용 가능한지는 `devup_figma_auth { action: "doctor" }`로 확인하세요.
+devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
+
+| 경로 | 로그인 | Figma 한도 | 언제 쓰나 |
+|---|---|---|---|
+| **브리지** (`bridge`) | 필요 없음 | **쓰지 않음** | **기본.** 데스크톱 앱에서 플러그인을 띄워 두면 그쪽으로 읽습니다 |
+| 직접 (`direct`) | `devup_figma_auth { action: "login" }` | 씁니다 | 브리지가 못 하는 읽기와, 플러그인을 띄울 수 없는 환경(CI 등) |
+
+**브리지를 먼저 쓰십시오.** direct는 Figma가 사용량을 세는 경로이고, 화면 하나가 여러 번의 읽기를 쓰므로 한도가 금방 바닥납니다.
+
+**플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 브리지가 못 하는 읽기가 있으면 **그 읽기가** 자기 이유로 거절하므로, 무엇이 왜 막혔는지가 그대로 드러납니다.
+
+지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "doctor" }`의 `paths.bridge`/`paths.direct`로 확인하세요.
+
+현재 브리지가 **못** 하는 읽기는 둘입니다 — `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록이라 계약이 다릅니다)와 `referencePng`의 `get_screenshot`. 그 밖의 tsx export 경로는 전부 브리지로 갑니다.
 
 ### 브리지 플러그인 — 한도를 쓰지 않고 읽기
-
-원격 OAuth 경로는 Figma가 **사용량을 셉니다.** devup-mcp의 수집은 화면 하나에 snapshot을 여러 번 부르므로 한도가 금방 바닥납니다.
 
 그래서 **우리가 직접 만든 Figma 플러그인**을 통해 같은 읽기를 할 수 있습니다. 이 경로는 한도를 쓰지 않습니다. 플러그인이 붙어 있으면 스크립트 읽기가 그쪽으로 가고, **안 붙어 있으면 아무 일도 일어나지 않고 그대로 원격 경로로** 갑니다. 설치하지 않은 사람의 동작은 바뀌지 않습니다.
 
@@ -548,7 +576,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집합니다.
 
-Figma 연결은 direct 하나뿐입니다. `sourcePolicy` 파라미터는 `auto`와 `direct` 둘 다 같은 동작이었으므로 제거했습니다 — 분기하지 않는 선택지는 호출자에게 틀릴 기회만 주었습니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
+`sourcePolicy` 파라미터는 `auto`와 `direct` 둘 다 같은 동작이었으므로 제거했습니다 — 분기하지 않는 선택지는 호출자에게 틀릴 기회만 주었습니다. 경로 선택은 파라미터가 아니라 **플러그인이 붙어 있는지**가 정합니다: 붙어 있으면 브리지, 아니면 direct입니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 
 정확한 node 링크의 UI 변환은 하나 이상의 공식 `use_figma` 호출 안에서 subtree와 실제 사용 리소스를 수집합니다. 수집 스크립트는 checked-in manifest(devup-ui 변환기가 실제로 읽는 필드만)만 확인하고 — 프로토타입 체인 전체를 훑거나 미분류 필드를 `extra`에 담지 않습니다 — `null`/빈 배열/미바인딩 style ID 같은 기본값은 봉투에서 생략합니다. 결과는 항상 텍스트(`devupFastSnapshotEnvelope`)이며 PNG 같은 바이너리 transport는 없습니다. 한 subtree가 15KB 텍스트 한도를 넘으면 같은 스크립트를 `offset`을 옮겨 다시 호출하는 방식으로 텍스트 페이지네이션합니다 — 각 라운드는 그 라운드가 보낸 node에서만 리소스를 스캔해 자기 완결적이며, Rust가 여러 라운드의 node와 리소스를 병합합니다. Rust는 schema·대상 ID·node graph·리소스 참조·(페이지 중이 아닐 때의) 자식 완전성을 모두 검증한 뒤에만 결과를 채택합니다. 한 항목이라도 불일치하면 fast 결과 전체를 버리고 기존 cursor 수집을 0부터 재시작합니다. Section multi-root에서는 성공한 root와 resource는 그대로 보존하고 실패하거나 상한을 넘은 root만 legacy로 다시 수집한 뒤 원래 시각 순서로 합칩니다. direct upstream은 연결과 read-only tool catalog를 한 session에서 재사용하고 30초 TTL, 연결 종료 또는 transport 오류 때만 재연결·재검증합니다. 결과의 `stats`에는 `figmaToolCalls`, `transport`(`text` | `text-paginated` | `legacy-cursor`), `fallbackUsed`, node/variable/style 수와 byte 수만 포함되며 원본 디자인이나 인증 정보는 포함되지 않습니다.
 

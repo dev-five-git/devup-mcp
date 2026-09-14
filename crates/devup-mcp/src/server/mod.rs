@@ -278,7 +278,7 @@ impl Services {
         // path, so opening the door costs nothing when nobody walks through.
         let upstream: Arc<dyn FigmaUpstream> = match BridgeServer::from_env() {
             Some(bridge) => Arc::new(FallbackUpstream::new(
-                BridgeFigmaClient::new(bridge.state()),
+                BridgeFigmaClient::new(bridge.state()).with_port(bridge.port()),
                 remote,
             )),
             None => Arc::new(remote),
@@ -413,14 +413,40 @@ impl DevupServer {
                 scope,
             ));
         }
-        let auth_status = self.services.auth.status().await?;
-        if auth_status == AuthStatus::Disconnected {
-            return Err(DevupError::with_details(
-                ErrorCode::DevupAuthRequired,
-                "Using the Figma direct connection requires devup_figma_auth login.",
-                false,
-                json!({"source": "direct"}),
-            ));
+        // The bridge is asked first, because it is the path that spends no
+        // allowance and needs no login at all. Demanding the token before
+        // looking at it inverted that: someone who had attached the plugin
+        // precisely to stay off the metered path was told to go and authorize
+        // the metered path first, and the collection never started — on a file
+        // every read of which the plugin was sitting there ready to serve.
+        //
+        // A login is required only when no plugin is holding *this* file open.
+        // A read inside the collection that the bridge cannot serve still
+        // refuses on its own, where the reason is specific to that read,
+        // rather than here where it would condemn the whole export.
+        if !self
+            .services
+            .upstream
+            .serves_without_credentials(&request.target.file_key)
+            .await
+        {
+            let auth_status = self.services.auth.status().await?;
+            if auth_status == AuthStatus::Disconnected {
+                return Err(DevupError::with_details(
+                    ErrorCode::DevupAuthRequired,
+                    "No Figma path is open for this file. Preferred: run the Devup Bridge plugin on \
+                     this file in the Figma desktop app — it needs no login and spends no Figma \
+                     allowance. Otherwise authorize the metered direct connection with \
+                     devup_figma_auth login.",
+                    false,
+                    json!({
+                        "source": "direct",
+                        "bridgeServesFile": false,
+                        "preferredPath": "bridge",
+                        "fileKey": request.target.file_key,
+                    }),
+                ));
+            }
         }
 
         // Each tracked job owns its collector. Artifact single-flight would
@@ -898,8 +924,9 @@ impl DevupServer {
                 .direct_path_snapshot()
                 .await
                 .map_err(to_mcp_error)?;
+            let bridge = self.services.upstream.bridge_path_snapshot().await;
             return Ok(tool_result(
-                diagnostics::doctor_report(status, direct).await,
+                diagnostics::doctor_report(status, direct, bridge).await,
             ));
         }
         if input.action == "configure" {
