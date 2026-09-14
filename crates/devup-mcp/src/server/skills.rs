@@ -20,7 +20,8 @@
 //!
 //! `embedded` skills are DevFive's own but live in another repository -
 //! devup-ui, vespera, vespertide. Their canonical `SKILL.md` is vendored into
-//! the binary, so installing them needs no network. That matters because the
+//! the binary as an offline fallback; install prefers current upstream documents.
+//! The fallback matters because the
 //! situation this exists for, a bare machine, is the one in which a download is
 //! least likely to work. A vendored copy can fall behind its repository, so
 //! each one pins the commit it copied and `scripts/refresh-skills.mjs` is how
@@ -47,7 +48,46 @@
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+use crate::skills::{RawGithubSkillUpstream, SkillFetchError, SkillProvenance, SkillUpstream};
 use serde::Deserialize;
+
+const FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(4);
+const OFFLINE_ENV: &str = "DEVUP_MCP_SKILLS_OFFLINE";
+
+// Read once per process. Client construction and fetching happen only on an
+// explicit install, never while constructing a server or running self-check.
+static OFFLINE: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var(OFFLINE_ENV).is_ok_and(|value| {
+        !matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "" | "0" | "false"
+        )
+    })
+});
+
+struct InstallUpstream;
+
+#[async_trait::async_trait]
+impl SkillUpstream for InstallUpstream {
+    async fn fetch(
+        &self,
+        source_url: &str,
+    ) -> Result<crate::skills::FetchedSkill, SkillFetchError> {
+        if *OFFLINE {
+            return Err(SkillFetchError::Network(format!(
+                "{OFFLINE_ENV} disables fetching"
+            )));
+        }
+        static UPSTREAM: LazyLock<Result<RawGithubSkillUpstream, String>> = LazyLock::new(|| {
+            RawGithubSkillUpstream::with_timeout(FETCH_TIMEOUT).map_err(|error| error.to_string())
+        });
+        UPSTREAM
+            .as_ref()
+            .map_err(|error| SkillFetchError::Network(error.clone()))?
+            .fetch(source_url)
+            .await
+    }
+}
 
 pub const MIME_TYPE: &str = "text/markdown";
 
@@ -336,7 +376,84 @@ pub fn installed_paths(project: &Path, name: &str) -> Vec<PathBuf> {
         .collect()
 }
 
+struct FetchedDocuments {
+    documents: Vec<(&'static str, String)>,
+    provenance: Vec<serde_json::Value>,
+}
+
 impl Skill {
+    /// The manifest's path is either the entry file or the skill directory.
+    /// References live beside that entry, even for nested upstream skills.
+    fn upstream_url(&self, relative: &str) -> String {
+        let path = self.record.path.trim_end_matches('/');
+        let directory = if path == ENTRY_DOCUMENT {
+            ""
+        } else {
+            path.strip_suffix("/SKILL.md").unwrap_or(path)
+        };
+        let document = if directory.is_empty() {
+            relative.to_owned()
+        } else {
+            format!("{directory}/{relative}")
+        };
+        format!(
+            "https://raw.githubusercontent.com/{}/HEAD/{document}",
+            self.record.repo
+        )
+    }
+
+    /// Resolve the complete set before staging any of it. One failed reference
+    /// must not leave a new entry document next to old embedded references.
+    async fn fetch_documents(
+        &self,
+        upstream: &dyn SkillUpstream,
+        deadline: tokio::time::Instant,
+    ) -> Result<FetchedDocuments, (String, SkillFetchError)> {
+        let mut documents = Vec::new();
+        let mut provenance = Vec::new();
+        for (relative, _) in self.texts.expect("only carried skills can be fetched") {
+            let url = self.upstream_url(relative);
+            let timeout_error = || {
+                SkillFetchError::Network(
+                    "the four-second skill install fetch budget elapsed".to_owned(),
+                )
+            };
+            if tokio::time::Instant::now() >= deadline {
+                return Err((url, timeout_error()));
+            }
+            let fetched = tokio::time::timeout_at(deadline, upstream.fetch(&url))
+                .await
+                .unwrap_or_else(|_| Err(timeout_error()))
+                .map_err(|error| (url.clone(), error))?;
+            let text = std::str::from_utf8(&fetched.contents).map_err(|error| {
+                (
+                    url.clone(),
+                    SkillFetchError::Network(format!("upstream document is not UTF-8: {error}")),
+                )
+            })?;
+            let record = SkillProvenance {
+                source_url: url,
+                etag: fetched.etag,
+                fetched_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                sha256: crate::skills::sha256(&fetched.contents),
+            };
+            let contents = if *relative == ENTRY_DOCUMENT {
+                self.annotated_with(text, Some(&record))
+            } else {
+                text.to_owned()
+            };
+            documents.push((*relative, contents));
+            provenance.push(serde_json::json!({"path": relative, "provenance": record}));
+        }
+        Ok(FetchedDocuments {
+            documents,
+            provenance,
+        })
+    }
+
     /// The provenance a reader needs alongside the text: which revision this
     /// is, and where the current one lives. Carried in the body rather than
     /// returned beside it, because the installed file outlives this response
@@ -390,7 +507,11 @@ impl Skill {
 
     /// The document with its provenance note placed after any frontmatter.
     fn annotated(&self, text: &str) -> String {
-        let note = self.provenance_note();
+        self.annotated_with(text, None)
+    }
+
+    fn annotated_with(&self, text: &str, fetched: Option<&SkillProvenance>) -> String {
+        let note = self.provenance_note(fetched);
         match frontmatter_end(text) {
             Some(end) => format!("{}\n{note}\n{}", &text[..end], &text[end..]),
             None => format!("{note}\n\n{text}"),
@@ -403,8 +524,18 @@ impl Skill {
     /// An `own` skill gets a different note, not a filled-in version of the
     /// vendored one: it has no upstream commit, and printing "at unknown" would
     /// read as a lost revision rather than as one that never existed.
-    fn provenance_note(&self) -> String {
+    fn provenance_note(&self, fetched: Option<&SkillProvenance>) -> String {
         let r = &self.record;
+        if let Some(p) = fetched {
+            return format!(
+                "<!-- Fetched from {} at {} (Unix seconds).\n     ETag: {}\n     SHA-256 of upstream bytes before annotation: {}\n     Why this matters here: {} -->",
+                p.source_url,
+                p.fetched_at,
+                p.etag.replace("--", "&#45;&#45;"),
+                p.sha256,
+                r.used_for,
+            );
+        }
         if r.origin == Origin::Own {
             return format!(
                 "<!-- Authored in {repo}, at {path}.\n     \
@@ -471,8 +602,7 @@ impl Skill {
                     "action": "devup_skills",
                     "arguments": {"action": "install", "names": [self.record.name]},
                     "writesTo": writes,
-                    "how": "Call devup_skills with action \"install\". The documents are inside this \
-                            binary, so it needs no network. Then load it the way your runtime loads \
+                    "how": "Call devup_skills with action \"install\". Embedded skills prefer current upstream documents with offline fallback; own skills use the binary. Then load it the way your runtime loads \
                             a project skill.",
                     "rootChoice": if roots.is_empty() {
                         format!("No skill root exists yet, so {} is created.", SKILL_ROOTS[0])
@@ -576,9 +706,7 @@ pub fn report(project: &Path) -> serde_json::Value {
                 missing ones, then let your own skill loader surface them - an installed skill \
                 keeps applying for every later session, which is the thing reading a document \
                 once does not do.",
-        "boundary": "devup-mcp installs only what it carries. It does not download anything and \
-                     does not run any install command; for an external skill the command is \
-                     yours to run.",
+        "boundary": "devup-mcp installs only carried skills: embedded skills prefer current upstream documents with offline fallback, and own skills use the binary. External skills are never fetched or written; their install command is yours to run.",
     })
 }
 
@@ -596,9 +724,17 @@ pub fn report(project: &Path) -> serde_json::Value {
 ///
 /// [`OutputPolicy`]: super::output::OutputPolicy
 /// [`OutputTransaction`]: super::output::OutputTransaction
-pub fn install(
+pub async fn install(
     policy: &super::output::OutputPolicy,
     requested: &[String],
+) -> Result<serde_json::Value, devup_mcp_figma::DevupError> {
+    install_with(policy, requested, &InstallUpstream).await
+}
+
+async fn install_with(
+    policy: &super::output::OutputPolicy,
+    requested: &[String],
+    upstream: &dyn SkillUpstream,
 ) -> Result<serde_json::Value, devup_mcp_figma::DevupError> {
     use devup_mcp_figma::{DevupError, ErrorCode};
 
@@ -639,6 +775,9 @@ pub fn install(
     let mut transaction = super::output::OutputTransaction::new();
     let mut written = Vec::new();
     let mut already = Vec::new();
+    let mut warnings = Vec::new();
+    // One budget for the call, not four seconds multiplied by the registry.
+    let deadline = tokio::time::Instant::now() + FETCH_TIMEOUT;
     for skill in wanted
         .iter()
         .filter(|skill| skill.record.origin.is_carried())
@@ -648,9 +787,32 @@ pub fn install(
             already.push(name.clone());
             continue;
         }
-        let documents = skill
+        let mut documents = skill
             .installable_documents()
             .expect("a carried skill always has documents");
+        let mut source = "embedded";
+        let mut reason = Some("authored in this repository; no upstream".to_owned());
+        let mut provenance = Vec::new();
+        if skill.record.origin == Origin::Embedded {
+            match skill.fetch_documents(upstream, deadline).await {
+                Ok(fetched) => {
+                    documents = fetched.documents;
+                    provenance = fetched.provenance;
+                    source = "fetched";
+                    reason = None;
+                }
+                Err((url, error)) => {
+                    reason = Some(format!("{url}: {error}"));
+                    if error == SkillFetchError::NotFound {
+                        warnings.push(serde_json::json!({
+                            "name": name,
+                            "sourceUrl": url,
+                            "message": "Upstream returned 404; the document may have moved. Check the skill manifest. The complete embedded copy was installed.",
+                        }));
+                    }
+                }
+            }
+        }
         let mut paths = Vec::with_capacity(documents.len());
         for (relative, contents) in documents {
             let target =
@@ -662,7 +824,7 @@ pub fn install(
                 contents.as_bytes(),
             )?;
         }
-        written.push(serde_json::json!({"name": name, "paths": paths}));
+        written.push(serde_json::json!({"name": name, "paths": paths, "source": source, "reason": reason, "documents": provenance}));
     }
     transaction.commit()?;
 
@@ -670,6 +832,7 @@ pub fn install(
         "installed": written,
         "alreadyPresent": already,
         "notInstallable": external,
+        "warnings": warnings,
         "root": root.display().to_string(),
         "nextAction": if written.is_empty() && external.is_empty() {
             serde_json::Value::Null
@@ -680,15 +843,34 @@ pub fn install(
                         devup_skills again to confirm the state changed.",
             })
         },
-        "boundary": "Only the documents devup-mcp carries were written. Nothing was downloaded \
-                     and no install command was executed.",
+        "boundary": "Only carried skills were written, using current upstream documents where available or the embedded copy. External skills were not fetched or written, and no install command was executed.",
     }))
 }
+
+#[cfg(test)]
+#[path = "skills/fetch_tests.rs"]
+mod fetch_tests;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use sha2::{Digest, Sha256};
+
+    #[tokio::test]
+    async fn an_own_install_reports_the_binary_as_its_source() {
+        let project = scratch("own-source");
+        let policy = super::super::output::OutputPolicy::from_roots(vec![project.clone()]).unwrap();
+        let report = install(&policy, &["devfive-frontend".to_owned()])
+            .await
+            .unwrap();
+        assert_eq!(report["installed"][0]["source"], "embedded");
+        assert_eq!(
+            report["installed"][0]["reason"],
+            "authored in this repository; no upstream"
+        );
+        drop(policy);
+        std::fs::remove_dir_all(project).unwrap();
+    }
 
     fn scratch(label: &str) -> PathBuf {
         let path =

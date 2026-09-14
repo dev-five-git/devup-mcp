@@ -913,7 +913,7 @@ impl DevupServer {
         description = "Report which agent skills the code devup-mcp emits depends on and whether this workspace has them, then install the ones devup-mcp carries (action: status | install). \
                        The TSX devup_figma_export returns is devup-ui code, and an agent that has never seen devup-ui does not know its components are compile-time placeholders, that $token means devup.json, or that a style prop takes a responsive array - it guesses, and this server cannot see the guesses. \
                        Call status before writing or editing that code. Anything reported missing is a gap you can close in one step. \
-                       install writes the vendored SKILL.md for devup-ui, vespera and vespertide into the workspace skill root (.claude/skills, .opencode/skill or .agents/skills - an existing one is preferred), with no network. Load them afterwards the way your runtime loads a project skill; an installed skill keeps applying to later sessions, which reading a document once does not. \
+                       install fetches current documents for embedded skills, falling back to the binary on failure, and writes own skills from the binary into the workspace skill root (.claude/skills, .opencode/skill or .agents/skills - an existing one is preferred), reporting source and any fallback reason (DEVUP_MCP_SKILLS_OFFLINE=1 disables fetching). Load them afterwards the way your runtime loads a project skill; an installed skill keeps applying to later sessions, which reading a document once does not. \
                        External skills are reported, never written: devup-mcp hands over its publisher's install command and does not run it.",
         output_schema = permissive_object_output_schema()
     )]
@@ -926,8 +926,9 @@ impl DevupServer {
                 self.output_policy.primary_root(),
             ))),
             "install" => {
-                let outcome =
-                    skills::install(&self.output_policy, &input.names).map_err(to_mcp_error)?;
+                let outcome = skills::install(&self.output_policy, &input.names)
+                    .await
+                    .map_err(to_mcp_error)?;
                 // The state after the write, from the same reader `status`
                 // uses. An install that reports what it meant to do rather than
                 // what is now on disk is the report that cannot be trusted.

@@ -6,43 +6,28 @@
 //! carries, and these tests hold that report to the disk it claims to describe.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::process::Stdio;
+use std::time::Duration;
 
-use async_trait::async_trait;
-use devup_mcp::server::{DevupAuth, DevupServer, Services};
-use devup_mcp_figma::{AuthStatus, DevupError, FigmaUpstream, ReadToolCall, UpstreamResult};
 use rmcp::{
     ServiceExt,
     model::{CallToolRequestParams, ReadResourceRequestParams},
 };
 use serde_json::{Map, Value, json};
 
-/// Nothing here reaches Figma. Installing a skill is a local write of bytes
-/// already in the binary, and a test that needed a network to prove that would
-/// be proving the wrong thing.
-struct Offline;
-
-#[async_trait]
-impl DevupAuth for Offline {
-    async fn status(&self) -> Result<AuthStatus, DevupError> {
-        Ok(AuthStatus::Disconnected)
-    }
-    async fn login(&self) -> Result<AuthStatus, DevupError> {
-        panic!("installing a skill must never authenticate")
-    }
-    async fn logout(&self) -> Result<AuthStatus, DevupError> {
-        Ok(AuthStatus::Disconnected)
-    }
-}
-
-#[async_trait]
-impl FigmaUpstream for Offline {
-    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
-        Ok(vec![])
-    }
-    async fn call_read_tool(&self, _: ReadToolCall) -> Result<UpstreamResult, DevupError> {
-        panic!("installing a skill must never read Figma")
-    }
+#[test]
+fn self_check_works_without_entering_skill_delivery() -> anyhow::Result<()> {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .arg("--self-check")
+        .env("DEVUP_MCP_SKILLS_OFFLINE", "0")
+        .env("DEVUP_MCP_NO_UPDATE_CHECK", "1")
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
+        .output()?;
+    assert!(output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(report["binary"], "ok");
+    assert_eq!(report["serverConfig"], "ok");
+    Ok(())
 }
 
 fn scratch(label: &str) -> PathBuf {
@@ -56,19 +41,24 @@ async fn session<F, T>(workspace: &Path, body: F) -> anyhow::Result<T>
 where
     F: AsyncFnOnce(&rmcp::service::RunningService<rmcp::RoleClient, ()>) -> anyhow::Result<T>,
 {
-    let server = DevupServer::with_output_roots(
-        Services::new(Arc::new(Offline), Arc::new(Offline)),
-        vec![workspace.to_path_buf()],
-    )?;
-    let (server_transport, client_transport) = tokio::io::duplex(512 * 1024);
-    let task = tokio::spawn(async move {
-        server.serve(server_transport).await?.waiting().await?;
-        anyhow::Ok(())
-    });
-    let client = ().serve(client_transport).await?;
+    // Set process configuration before startup, without racing other tests by
+    // mutating this test process's environment. No HTTP or bridge socket opens.
+    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .current_dir(workspace)
+        .env("DEVUP_MCP_SKILLS_OFFLINE", "1")
+        .env("DEVUP_MCP_NO_UPDATE_CHECK", "1")
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()?;
+    let transport = (child.stdout.take().unwrap(), child.stdin.take().unwrap());
+    let client = ().serve(transport).await?;
     let out = body(&client).await;
     client.cancel().await?;
-    let _ = task.await;
+    let status = tokio::time::timeout(Duration::from_secs(10), child.wait()).await??;
+    assert!(status.success());
     out
 }
 
@@ -135,6 +125,15 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
     let written = installed["installed"].as_array().unwrap();
     assert_eq!(written.len(), carried, "{installed}");
     for entry in written {
+        assert_eq!(entry["source"], "embedded");
+        if entry["name"] != "devfive-frontend" {
+            assert!(
+                entry["reason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("DEVUP_MCP_SKILLS_OFFLINE")
+            );
+        }
         let paths = entry["paths"]
             .as_array()
             .unwrap_or_else(|| panic!("a skill reports every file it wrote: {entry}"));

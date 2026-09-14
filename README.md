@@ -215,7 +215,7 @@ devup-mcp가 돌려주는 TSX는 **devup-ui 코드**입니다. devup-mcp만 깔�
 
 | 스킬 | 출처 | devup-mcp가 하는 일 |
 |---|---|---|
-| `devup-ui` · `vespera` · `vespertide` | dev-five-git (우리 것) | **바이너리에 내장.** `{"action":"install"}`이 네트워크 없이 스킬 디렉터리에 씁니다 |
+| `devup-ui` · `vespera` · `vespertide` | dev-five-git (우리 것) | **바이너리에 내장.** `{"action":"install"}`이 upstream 최신 문서를 우선 가져오고, 실패하면 내장본을 스킬 디렉터리에 씁니다 |
 | `vercel-react-best-practices` · `vercel-react-view-transitions` | vercel-labs/agent-skills | **내장하지 않음.** 설치 명령 `npx skills add vercel-labs/agent-skills`를 넘길 뿐, 실행하지 않습니다 |
 
 vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/agent-skills`에는 LICENSE 파일이 없어** 재배포할 권리가 없고, 그 스킬들은 단일 파일이 아니라 `SKILL.md` + `AGENTS.md` + 규칙 파일 수십 개(합쳐 ~350 KB)라서 애초에 던져줄 물건이 아니라 설치할 물건입니다.
@@ -223,6 +223,12 @@ vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/
 **devup-mcp는 그 명령을 대신 실행하지 않습니다.** 디자인→코드 서버가 패키지 설치기를 실행하면, 레지스트리 항목 하나가 오염됐을 때 화면을 export한 모든 기계에서 임의 실행이 됩니다.
 
 설치 위치는 프로젝트 안입니다 — 이미 있는 것을 우선해 `.claude/skills`, `.opencode/skill`, `.agents/skills` 순으로 고릅니다. 프로젝트 루트는 devup-mcp가 쓸 수 있는 유일한 곳이라 새 권한이 필요 없고, 스킬이 저장소를 따라다닙니다. 이미 깔려 있으면 다시 쓰지 않습니다.
+
+설치 응답의 `installed[].source`는 `fetched` 또는 `embedded`이며, 내장본을 썼다면 `reason`도 반환합니다. 가져오기는 manifest의 저장소와 문서 경로에서 만든 `https://raw.githubusercontent.com/REPO/HEAD/PATH`를 사용하며, 호출 전체의 네트워크 대기는 최대 4초입니다. 네트워크 오류, HTTP 오류, ETag 누락은 내장본으로 돌아가고, 404는 upstream 경로가 바뀌었을 수 있으므로 `warnings`에도 알립니다. 여러 문서 중 하나라도 실패하면 그 스킬 전체를 내장본으로 설치합니다.
+
+`DEVUP_MCP_SKILLS_OFFLINE=1`로 서버를 시작하면 가져오기를 생략합니다. 이 설정은 프로세스에서 한 번 읽으며 `0`, `false`, 빈 값은 가져오기를 허용합니다. `own` 스킬은 항상 바이너리에서, `external` 스킬은 여전히 설치 명령 안내만 합니다. `--self-check`와 스킬 resource 읽기, `status`는 가져오기를 실행하지 않습니다. 별도 CLI인 `--install-skills`의 devup-ui/HOME 설치 계약은 그대로입니다.
+
+가져온 문서의 주석은 고정 커밋을 주장하지 않고 URL, 가져온 시각(Unix seconds), ETag, 주석 추가 전 SHA-256을 기록합니다. 응답의 `installed[].documents[].provenance`도 같은 정보를 담습니다. 내장본을 설치하거나 resource로 읽을 때는 기존 커밋 정보를 유지합니다.
 
 내장본은 각 레포의 `SKILL.md`를 그대로 복사한 것이고, 응답과 설치된 파일 모두 **어느 커밋인지와 최신본 URL**을 함께 답니다. 사본은 낡습니다 — 그게 내장의 정직한 비용이고, `node scripts/refresh-skills.mjs`가 그걸 갱신하는 방법입니다(`--check`는 쓰지 않고 드리프트만 보고). 주석은 YAML frontmatter **뒤에** 들어갑니다. `---`는 0번째 바이트에 있어야 로더가 읽습니다.
 

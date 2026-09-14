@@ -38,11 +38,11 @@ pub struct TargetReport {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct SkillProvenance {
-    source_url: String,
-    etag: String,
-    fetched_at: u64,
-    sha256: String,
+pub(crate) struct SkillProvenance {
+    pub(crate) source_url: String,
+    pub(crate) etag: String,
+    pub(crate) fetched_at: u64,
+    pub(crate) sha256: String,
 }
 
 pub async fn install(config: &SkillCommandConfig) -> anyhow::Result<SkillReport> {
@@ -58,7 +58,7 @@ pub async fn install(config: &SkillCommandConfig) -> anyhow::Result<SkillReport>
         );
     }
     let upstream = RawGithubSkillUpstream::new()?;
-    let fetched = upstream.fetch().await?;
+    let fetched = upstream.fetch(SKILL_SOURCE_URL).await?;
     if config.skill_dirs.is_empty() {
         for target in &targets {
             if !target.is_dir() {
@@ -92,7 +92,7 @@ pub async fn install_with(
     targets: &[PathBuf],
     fetched_at: u64,
 ) -> anyhow::Result<SkillReport> {
-    let fetched = upstream.fetch().await?;
+    let fetched = upstream.fetch(SKILL_SOURCE_URL).await?;
     install_fetched(fetched, targets, fetched_at)
 }
 
@@ -149,7 +149,7 @@ pub async fn check_with(
     upstream: &dyn SkillUpstream,
     targets: &[PathBuf],
 ) -> anyhow::Result<SkillReport> {
-    let fetched = upstream.fetch().await?;
+    let fetched = upstream.fetch(SKILL_SOURCE_URL).await?;
     let upstream_hash = sha256(&fetched.contents);
     let targets = targets
         .iter()
@@ -217,7 +217,7 @@ fn target_report(path: &Path, status: &'static str) -> TargetReport {
     }
 }
 
-fn sha256(contents: &[u8]) -> String {
+pub(crate) fn sha256(contents: &[u8]) -> String {
     Sha256::digest(contents)
         .iter()
         .map(|byte| format!("{byte:02x}"))

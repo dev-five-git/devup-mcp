@@ -31,7 +31,8 @@ struct FakeUpstream(Result<FetchedSkill, SkillFetchError>);
 
 #[async_trait]
 impl SkillUpstream for FakeUpstream {
-    async fn fetch(&self) -> Result<FetchedSkill, SkillFetchError> {
+    async fn fetch(&self, source_url: &str) -> Result<FetchedSkill, SkillFetchError> {
+        assert_eq!(source_url, devup_mcp::skills::SKILL_SOURCE_URL);
         self.0.clone()
     }
 }
