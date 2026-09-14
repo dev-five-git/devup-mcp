@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use super::artifacts::{ArtifactStore, AttachedOutputManifest};
 use super::guide;
+use super::skills;
 
 const LIST_PAGE_SIZE: usize = 50;
 
@@ -76,6 +77,12 @@ pub async fn list_output_resources(
         .map(manifest_resource)
         .collect::<Vec<_>>();
     listed.push(guide_resource());
+    // The embedded skills sit beside the guide, after it, for the same reason:
+    // a caller indexing into this list by position must keep its positions.
+    // They are a fallback here, not the main road - `devup_skills` installs
+    // them into the runtime's own loader, and this is for reading one without
+    // installing it.
+    listed.extend(skills::all().iter().filter_map(skill_resource));
     if offset > listed.len() {
         return Err(invalid_request());
     }
@@ -92,6 +99,23 @@ fn guide_resource() -> Resource {
         .with_title(guide::GUIDE_TITLE)
         .with_description(guide::GUIDE_DESCRIPTION)
         .with_mime_type(guide::GUIDE_MIME_TYPE)
+}
+
+/// Only the embedded skills are readable here. An external one has no bytes in
+/// this binary, so publishing a URI for it would advertise a document that
+/// cannot be served.
+fn skill_resource(skill: &'static skills::Skill) -> Option<Resource> {
+    skill.text?;
+    Some(
+        Resource::new(skill.uri.clone(), skill.resource_name.clone())
+            .with_title(skill.record.title.clone())
+            .with_description(format!(
+                "{} Installing it with devup_skills is better than reading it here: your skill \
+                 loader then applies it on its own triggers, in this session and later ones.",
+                skill.record.description
+            ))
+            .with_mime_type(skills::MIME_TYPE),
+    )
 }
 
 pub fn resource_templates() -> ListResourceTemplatesResult {
@@ -122,6 +146,15 @@ pub async fn read_output_resource(
     if uri == guide::GUIDE_URI {
         return Ok(ReadResourceResult::new(vec![
             ResourceContents::text(guide::GUIDE, uri).with_mime_type(guide::GUIDE_MIME_TYPE),
+        ]));
+    }
+    // Same reasoning as the guide, and the same independence from artifacts: a
+    // skill is readable in a session that has exported nothing at all.
+    if let Some(skill) = skills::find_by_uri(uri)
+        && let Some(document) = skill.document()
+    {
+        return Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(document, uri).with_mime_type(skills::MIME_TYPE),
         ]));
     }
     match ResourceAddress::parse(uri)? {

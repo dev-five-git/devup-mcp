@@ -16,6 +16,7 @@ mod quality;
 mod release_check;
 pub mod resources;
 mod result_contract;
+mod skills;
 mod stack_diff;
 mod tools;
 mod validation;
@@ -64,7 +65,7 @@ use validation::{
 
 pub use tools::{
     AuthInput, FigmaAssetRequestInput, FigmaExploreInput, FigmaExportInput, FigmaSearchInput,
-    ProjectContextInput, StackDiffInput, UiValidateInput,
+    ProjectContextInput, SkillsInput, StackDiffInput, UiValidateInput,
 };
 
 /// Additive workflow options; existing input defaults remain in tools.rs.
@@ -909,6 +910,40 @@ fn file_scope_url(target: &FigmaTarget) -> String {
 #[tool_router]
 impl DevupServer {
     #[tool(
+        description = "Report which agent skills the code devup-mcp emits depends on and whether this workspace has them, then install the ones devup-mcp carries (action: status | install). \
+                       The TSX devup_figma_export returns is devup-ui code, and an agent that has never seen devup-ui does not know its components are compile-time placeholders, that $token means devup.json, or that a style prop takes a responsive array - it guesses, and this server cannot see the guesses. \
+                       Call status before writing or editing that code. Anything reported missing is a gap you can close in one step. \
+                       install writes the vendored SKILL.md for devup-ui, vespera and vespertide into the workspace skill root (.claude/skills, .opencode/skill or .agents/skills - an existing one is preferred), with no network. Load them afterwards the way your runtime loads a project skill; an installed skill keeps applying to later sessions, which reading a document once does not. \
+                       External skills are reported, never written: devup-mcp hands over its publisher's install command and does not run it.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_skills(
+        &self,
+        Parameters(input): Parameters<SkillsInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        match input.action.as_str() {
+            "status" => Ok(tool_result(skills::report(
+                self.output_policy.primary_root(),
+            ))),
+            "install" => {
+                let outcome =
+                    skills::install(&self.output_policy, &input.names).map_err(to_mcp_error)?;
+                // The state after the write, from the same reader `status`
+                // uses. An install that reports what it meant to do rather than
+                // what is now on disk is the report that cannot be trusted.
+                let mut result = outcome;
+                result["state"] = skills::report(self.output_policy.primary_root());
+                Ok(tool_result(result))
+            }
+            other => Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                format!("action must be status or install, not {other}."),
+                false,
+            ))),
+        }
+    }
+
+    #[tool(
         description = "Check, start, or clear Figma Remote MCP OAuth, or inject a pre-registered client credential to skip Dynamic Client Registration (action: status | login | logout | configure | doctor)",
         output_schema = permissive_object_output_schema()
     )]
@@ -1608,6 +1643,24 @@ impl DevupServer {
                     .unwrap()
                     .clone(),
             );
+        }
+        // A violation is a located, proven gap in devup-ui knowledge, which
+        // makes this the one moment where naming the skill is a measurement
+        // rather than a nudge. Raised only when the skill is actually absent:
+        // telling a caller who already has it to install it is the noise that
+        // teaches them to skip the field.
+        let workspace = self.output_policy.primary_root();
+        if !report.violations.is_empty()
+            && skills::installed_paths(workspace, "devup-ui").is_empty()
+            && let Some(skill) = skills::find_by_name("devup-ui")
+        {
+            result["skillGap"] = json!({
+                "skill": "devup-ui",
+                "why": "This code broke devup-ui rules, and the devup-ui skill is not installed in \
+                        this workspace. Installing it puts the rules in front of you while you \
+                        write, instead of after this tool has already refused the result.",
+                "install": skill.install_action(workspace),
+            });
         }
         Ok(tool_result(result))
     }

@@ -35,6 +35,8 @@ pub const INSTRUCTIONS: &str = concat!(
     "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n",
     "2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; ",
     "a complete response marks it with deliverable.isFinal.\n",
+    "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
+    "workspace lacks and installs the ones it carries.\n",
     "3. Request only the outputs you will read, and read the rest of the rules before your second call: ",
     "resources/read \"devup://guide/usage\" carries output sizing, verification boundaries, SECTION batching, ",
     "asset placement and delivery. It is a resource so that a caller who never touches Figma never pays for it."
@@ -139,7 +141,7 @@ mod tests {
     fn every_original_rule_number_survives_the_move() {
         let combined = format!("{INSTRUCTIONS}\n{GUIDE}");
         for number in [
-            "1.", "2.", "2a.", "3.", "4.", "5.", "6.", "7.", "8.", "10.", "11.", "12.",
+            "1.", "2.", "2a.", "2b.", "3.", "4.", "5.", "6.", "7.", "8.", "10.", "11.", "12.",
         ] {
             assert!(
                 combined.contains(number),
