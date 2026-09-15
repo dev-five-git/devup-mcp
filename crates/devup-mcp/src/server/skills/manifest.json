@@ -1,5 +1,6 @@
 {
-  "note": "The skills an agent needs for the code devup-mcp emits. Two origins. 'embedded' skills are DevFive's own: the canonical SKILL.md is vendored here so a machine with only devup-mcp installed can install them with no network, and commit/sha256 say which revision. 'external' skills belong to someone else and are NOT vendored - devup-mcp reports where they come from and the command that installs them, and never runs that command itself.",
+  "note": "The skills an agent needs for the code devup-mcp emits. Three origins. 'embedded' skills are DevFive's own but live in another repository: the canonical SKILL.md is vendored here so a machine with only devup-mcp installed can install them with no network, and commit/sha256 say which revision. 'own' skills are authored in this repository - there is nothing upstream to vendor from, so they carry no commit pin and refresh-skills.mjs skips them; this repository's history is their provenance. 'external' skills belong to someone else and are NOT vendored - devup-mcp reports where they come from and the command that installs them, and never runs that command itself.",
+  "documentNote": "Each entry's documents[] lists every file the skill installs, by path relative to the skill directory. The same relative path is used under crates/devup-mcp/src/server/skills/<name>/ in this tree, so a document's source and its install location never disagree. A skill is single-file when that list has one SKILL.md in it.",
   "skills": [
     {
       "name": "devup-ui",
@@ -11,10 +12,53 @@
       "path": "SKILL.md",
       "commit": "b0d61a2d5e21f491ed3283f858eea51794dd7df9",
       "committedAt": "2026-05-25T11:11:38Z",
-      "sha256": "0ac264b12124e093399ea2588d5b2291110db4ec9426482256eac9fdb75ac1aa",
-      "bytes": 16629,
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 16629,
+          "sha256": "0ac264b12124e093399ea2588d5b2291110db4ec9426482256eac9fdb75ac1aa"
+        }
+      ],
       "sourceUrl": "https://github.com/dev-five-git/devup-ui/blob/b0d61a2d5e21f491ed3283f858eea51794dd7df9/SKILL.md",
       "latestUrl": "https://github.com/dev-five-git/devup-ui/blob/HEAD/SKILL.md"
+    },
+    {
+      "name": "devfive-frontend",
+      "origin": "own",
+      "title": "DevFive frontend conventions",
+      "description": "Where the generated code goes in a Next App Router project: app/ holds only layout.tsx and page.tsx, components live under components/pages/<route>/, Server Components are the default, and all styling is devup-ui props rather than an authored CSS file. Multi-file: SKILL.md plus four reference documents.",
+      "usedFor": "devup_figma_export returns one screen's TSX; a project is a tree of routes. This is the skill that says which file that TSX becomes and which rules it is then judged by. Without it an agent that can already write devup-ui still puts the screen in the wrong place - most visibly by switching screens with local state instead of file routing, and by authoring a .css file next to code that has globalCss().",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/devfive-frontend",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 18354,
+          "sha256": "22753decbb1c6326d09f0733391b33ab8b033915ce78615a09dbbe0728f03919"
+        },
+        {
+          "path": "references/critical-rules.md",
+          "bytes": 56896,
+          "sha256": "068b0e51d7044c8a83049346b30da529d21e1175ab363b25e4b7ceb359087465"
+        },
+        {
+          "path": "references/anti-patterns.md",
+          "bytes": 11958,
+          "sha256": "a9952bde6b7652bfeab3cea3160402a14c3793df919b837fc4783091ef56740f"
+        },
+        {
+          "path": "references/common-patterns.md",
+          "bytes": 12110,
+          "sha256": "fe1d165394824ae0777a3f11dda5a47e0cf27e17872c1e83b70b18de8e29828c"
+        },
+        {
+          "path": "references/theme-colors.md",
+          "bytes": 4610,
+          "sha256": "1d9bb1d7bff8e3b1c0b01433fc9a1ca521d2513d2823048dde9a4fb241399cef"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend"
     },
     {
       "name": "vespera",
@@ -26,8 +70,13 @@
       "path": "SKILL.md",
       "commit": "4030b6c053896fce34477b73616216c86d4b7f85",
       "committedAt": "2026-06-24T08:21:03Z",
-      "sha256": "44db39f98cbb2520ca9a610a59753f39be2e226da7ee11a940234800cf98b27f",
-      "bytes": 23635,
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 23635,
+          "sha256": "44db39f98cbb2520ca9a610a59753f39be2e226da7ee11a940234800cf98b27f"
+        }
+      ],
       "sourceUrl": "https://github.com/dev-five-git/vespera/blob/4030b6c053896fce34477b73616216c86d4b7f85/SKILL.md",
       "latestUrl": "https://github.com/dev-five-git/vespera/blob/HEAD/SKILL.md"
     },
@@ -41,8 +90,13 @@
       "path": "SKILL.md",
       "commit": "586426bcfc388557fe9b916c941adb43ab04317e",
       "committedAt": "2026-03-06T06:11:16Z",
-      "sha256": "7d79f9814819d107038181628a370a11e095a7314a63a0a6c5b5a9bcab6fbfdf",
-      "bytes": 18057,
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 18057,
+          "sha256": "7d79f9814819d107038181628a370a11e095a7314a63a0a6c5b5a9bcab6fbfdf"
+        }
+      ],
       "sourceUrl": "https://github.com/dev-five-git/vespertide/blob/586426bcfc388557fe9b916c941adb43ab04317e/SKILL.md",
       "latestUrl": "https://github.com/dev-five-git/vespertide/blob/HEAD/SKILL.md"
     },

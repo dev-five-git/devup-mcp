@@ -6,43 +6,28 @@
 //! carries, and these tests hold that report to the disk it claims to describe.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::process::Stdio;
+use std::time::Duration;
 
-use async_trait::async_trait;
-use devup_mcp::server::{DevupAuth, DevupServer, Services};
-use devup_mcp_figma::{AuthStatus, DevupError, FigmaUpstream, ReadToolCall, UpstreamResult};
 use rmcp::{
     ServiceExt,
     model::{CallToolRequestParams, ReadResourceRequestParams},
 };
 use serde_json::{Map, Value, json};
 
-/// Nothing here reaches Figma. Installing a skill is a local write of bytes
-/// already in the binary, and a test that needed a network to prove that would
-/// be proving the wrong thing.
-struct Offline;
-
-#[async_trait]
-impl DevupAuth for Offline {
-    async fn status(&self) -> Result<AuthStatus, DevupError> {
-        Ok(AuthStatus::Disconnected)
-    }
-    async fn login(&self) -> Result<AuthStatus, DevupError> {
-        panic!("installing a skill must never authenticate")
-    }
-    async fn logout(&self) -> Result<AuthStatus, DevupError> {
-        Ok(AuthStatus::Disconnected)
-    }
-}
-
-#[async_trait]
-impl FigmaUpstream for Offline {
-    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
-        Ok(vec![])
-    }
-    async fn call_read_tool(&self, _: ReadToolCall) -> Result<UpstreamResult, DevupError> {
-        panic!("installing a skill must never read Figma")
-    }
+#[test]
+fn self_check_works_without_entering_skill_delivery() -> anyhow::Result<()> {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .arg("--self-check")
+        .env("DEVUP_MCP_SKILLS_OFFLINE", "0")
+        .env("DEVUP_MCP_NO_UPDATE_CHECK", "1")
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
+        .output()?;
+    assert!(output.status.success());
+    let report: Value = serde_json::from_slice(&output.stdout)?;
+    assert_eq!(report["binary"], "ok");
+    assert_eq!(report["serverConfig"], "ok");
+    Ok(())
 }
 
 fn scratch(label: &str) -> PathBuf {
@@ -56,19 +41,24 @@ async fn session<F, T>(workspace: &Path, body: F) -> anyhow::Result<T>
 where
     F: AsyncFnOnce(&rmcp::service::RunningService<rmcp::RoleClient, ()>) -> anyhow::Result<T>,
 {
-    let server = DevupServer::with_output_roots(
-        Services::new(Arc::new(Offline), Arc::new(Offline)),
-        vec![workspace.to_path_buf()],
-    )?;
-    let (server_transport, client_transport) = tokio::io::duplex(512 * 1024);
-    let task = tokio::spawn(async move {
-        server.serve(server_transport).await?.waiting().await?;
-        anyhow::Ok(())
-    });
-    let client = ().serve(client_transport).await?;
+    // Set process configuration before startup, without racing other tests by
+    // mutating this test process's environment. No HTTP or bridge socket opens.
+    let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .current_dir(workspace)
+        .env("DEVUP_MCP_SKILLS_OFFLINE", "1")
+        .env("DEVUP_MCP_NO_UPDATE_CHECK", "1")
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()?;
+    let transport = (child.stdout.take().unwrap(), child.stdin.take().unwrap());
+    let client = ().serve(transport).await?;
     let out = body(&client).await;
     client.cancel().await?;
-    let _ = task.await;
+    let status = tokio::time::timeout(Duration::from_secs(10), child.wait()).await??;
+    assert!(status.success());
     out
 }
 
@@ -93,6 +83,21 @@ fn skill<'a>(report: &'a Value, name: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("{name} is not in the report"))
 }
 
+/// How many skills this build carries and how many it only points at, read out
+/// of the report rather than written down here.
+///
+/// These tests are about the install cycle, not about the size of the
+/// registry. Spelling the totals out meant that adding one skill failed four
+/// tests that had nothing to say about it.
+fn carried_and_external(report: &Value) -> (usize, usize) {
+    let skills = report["skills"].as_array().expect("skills array");
+    let carried = skills
+        .iter()
+        .filter(|entry| entry["origin"] != "external")
+        .count();
+    (carried, skills.len() - carried)
+}
+
 /// The whole point, end to end: a bare workspace reports the gap, one call
 /// closes it, and the state afterwards is read from the disk rather than
 /// asserted by the call that did the writing.
@@ -101,7 +106,9 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
     let workspace = scratch("cycle");
     let result = session(&workspace, async |client| {
         let before = call(client, "devup_skills", json!({"action": "status"})).await?;
-        assert_eq!(before["missingCount"], 5, "{before}");
+        let (carried, external) = carried_and_external(&before);
+        assert!(carried > 0 && external > 0, "{before}");
+        assert_eq!(before["missingCount"], carried + external, "{before}");
         assert_eq!(before["installedCount"], 0);
         assert_eq!(skill(&before, "devup-ui")["installed"], false);
 
@@ -114,24 +121,68 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
 
     // Only what devup-mcp carries. The two vercel skills are someone else's
     // bytes and stay someone else's.
+    let (carried, external) = carried_and_external(&after);
     let written = installed["installed"].as_array().unwrap();
-    assert_eq!(written.len(), 3, "{installed}");
+    assert_eq!(written.len(), carried, "{installed}");
     for entry in written {
-        let path = Path::new(entry["path"].as_str().unwrap());
+        assert_eq!(entry["source"], "embedded");
+        if entry["name"] != "devfive-frontend" {
+            assert!(
+                entry["reason"]
+                    .as_str()
+                    .unwrap()
+                    .contains("DEVUP_MCP_SKILLS_OFFLINE")
+            );
+        }
+        let paths = entry["paths"]
+            .as_array()
+            .unwrap_or_else(|| panic!("a skill reports every file it wrote: {entry}"));
+        assert!(!paths.is_empty(), "{entry}");
+        for path in paths {
+            let path = Path::new(path.as_str().unwrap());
+            assert!(
+                path.is_file(),
+                "{} was reported but not written",
+                path.display()
+            );
+        }
+        // The document a loader opens first has to say where it came from.
+        // Which of the two notes it gets depends on the origin, and either one
+        // answers the question a reader finding rules on disk actually has.
+        let entry_document = paths
+            .iter()
+            .map(|path| Path::new(path.as_str().unwrap()))
+            .find(|path| path.file_name().is_some_and(|name| name == "SKILL.md"))
+            .unwrap_or_else(|| panic!("no SKILL.md among the written files: {entry}"));
+        let body = std::fs::read_to_string(entry_document)?;
         assert!(
-            path.is_file(),
-            "{} was reported but not written",
-            path.display()
-        );
-        let body = std::fs::read_to_string(path)?;
-        assert!(
-            body.contains("Vendored from dev-five-git/"),
-            "an installed skill must carry the revision it came from"
+            body.contains("Vendored from dev-five-git/")
+                || body.contains("Authored in dev-five-git/"),
+            "an installed skill must carry its provenance: {}",
+            entry_document.display()
         );
     }
 
-    assert_eq!(after["installedCount"], 3);
-    assert_eq!(after["missingCount"], 2, "the two external skills remain");
+    // A multi-document skill lands whole. A SKILL.md whose references are
+    // missing is the shape that looks installed and whose rules are not there.
+    let multi = written
+        .iter()
+        .find(|entry| entry["name"] == "devfive-frontend")
+        .expect("devfive-frontend is carried");
+    let paths = multi["paths"].as_array().unwrap();
+    assert!(paths.len() > 1, "{multi}");
+    assert!(
+        paths
+            .iter()
+            .any(|path| path.as_str().unwrap().contains("references")),
+        "the references have to be written too: {multi}"
+    );
+
+    assert_eq!(after["installedCount"], carried);
+    assert_eq!(
+        after["missingCount"], external,
+        "the external skills remain"
+    );
     assert_eq!(skill(&after, "devup-ui")["installed"], true);
     assert_eq!(
         skill(&after, "vercel-react-best-practices")["installed"],
@@ -207,7 +258,7 @@ async fn an_existing_skill_root_is_the_one_used() -> anyhow::Result<()> {
             json!({"action": "install", "names": ["devup-ui"]}),
         )
         .await?;
-        let path = installed["installed"][0]["path"].as_str().unwrap();
+        let path = installed["installed"][0]["paths"][0].as_str().unwrap();
         assert!(path.contains(".opencode"), "wrote to {path}");
         Ok(())
     })
@@ -274,15 +325,20 @@ async fn installing_twice_changes_nothing_the_second_time() -> anyhow::Result<()
     let workspace = scratch("twice");
     session(&workspace, async |client| {
         let first = call(client, "devup_skills", json!({"action": "install"})).await?;
-        assert_eq!(first["installed"].as_array().unwrap().len(), 3);
-
         let second = call(client, "devup_skills", json!({"action": "install"})).await?;
+        let (carried, _) = carried_and_external(&second["state"]);
+
+        assert_eq!(first["installed"].as_array().unwrap().len(), carried);
         assert!(
             second["installed"].as_array().unwrap().is_empty(),
             "{second}"
         );
-        assert_eq!(second["alreadyPresent"].as_array().unwrap().len(), 3);
-        assert_eq!(second["state"]["installedCount"], 3);
+        assert_eq!(
+            second["alreadyPresent"].as_array().unwrap().len(),
+            carried,
+            "{second}"
+        );
+        assert_eq!(second["state"]["installedCount"], carried);
         Ok(())
     })
     .await?;
@@ -313,8 +369,11 @@ async fn an_unknown_skill_name_is_refused_with_the_known_set() -> anyhow::Result
         // The set that would have worked, so the next call is a correction
         // rather than another guess.
         let known = error["details"]["known"].as_array().unwrap();
-        assert_eq!(known.len(), 5, "{known:?}");
+        let status = call(client, "devup_skills", json!({"action": "status"})).await?;
+        let (carried, external) = carried_and_external(&status);
+        assert_eq!(known.len(), carried + external, "{known:?}");
         assert!(known.iter().any(|name| name == "devup-ui"));
+        assert!(known.iter().any(|name| name == "devfive-frontend"));
         Ok(())
     })
     .await?;

@@ -1,9 +1,9 @@
 // Re-vendors the embedded SKILL.md documents from their source repositories.
 //
-// The documents under `crates/devup-mcp/src/server/skills/` are copies. The
-// repository each one names is the source of truth, and a copy goes stale the
-// moment that repository moves - which is the honest cost of shipping them in
-// the binary, and the reason this script exists rather than a note asking
+// The documents under `crates/devup-mcp/src/server/skills/<name>/` are copies.
+// The repository each one names is the source of truth, and a copy goes stale
+// the moment that repository moves - which is the honest cost of shipping them
+// in the binary, and the reason this script exists rather than a note asking
 // someone to remember.
 //
 // Run it, commit what changed, and the integrity test in `skills.rs` will
@@ -14,12 +14,18 @@
 //   node scripts/refresh-skills.mjs           # rewrite the embedded documents
 //   node scripts/refresh-skills.mjs --check   # report drift, write nothing
 //
-// External skills are listed and never fetched. vercel-labs/agent-skills ships
-// no LICENSE, so its content is not devup-mcp's to redistribute; the manifest
-// carries its install command instead.
+// `own` skills are authored in this repository, so the direction reverses:
+// nothing is fetched, the file on disk is the truth, and what this script
+// updates is the manifest's digest of it. Editing one of those documents and
+// running this is the supported cycle; editing one and not running it fails
+// the integrity test in `skills.rs`, on purpose.
+//
+// `external` skills are listed and never fetched. vercel-labs/agent-skills
+// ships no LICENSE, so its content is not devup-mcp's to redistribute; the
+// manifest carries its install command instead.
 
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -50,10 +56,48 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
 let drifted = 0
 
 for (const entry of manifest.skills) {
+  if (entry.origin === 'own') {
+    // Authored here, so the direction reverses: the file on disk is the truth
+    // and the manifest is what has to catch up. There is nothing to fetch, but
+    // the digests still have to be resealed after an edit - without this the
+    // integrity test in skills.rs fails on your own change and no tool offers
+    // to fix it, which is the trap that makes people edit the digest by hand.
+    let resealed = 0
+    for (const document of entry.documents ?? []) {
+      const text = readFileSync(join(skillDir, entry.name, document.path), 'utf8')
+      const digest = sha256(text)
+      const bytes = Buffer.byteLength(text, 'utf8')
+      if (digest === document.sha256 && bytes === document.bytes) continue
+      resealed += 1
+      drifted += 1
+      console.log(
+        `~ ${entry.name}/${document.path}: ${document.bytes} -> ${bytes} bytes`,
+      )
+      if (check) continue
+      document.sha256 = digest
+      document.bytes = bytes
+    }
+    if (resealed === 0) {
+      console.log(`. ${entry.name}: authored here (${entry.path}), digests already match`)
+    }
+    continue
+  }
   if (entry.origin !== 'embedded') {
     console.log(`- ${entry.name}: external, install with \`${entry.installCommand}\``)
     continue
   }
+
+  // An embedded skill copies one upstream file into its entry document. A
+  // multi-document embedded skill would need a per-document upstream path, and
+  // refreshing only the first one while reporting the whole skill fresh is the
+  // failure worth stopping for rather than working around.
+  if (entry.documents?.length !== 1 || entry.documents[0].path !== 'SKILL.md') {
+    throw new Error(
+      `${entry.name}: an embedded skill must have exactly one SKILL.md document; ` +
+        `give each document its own upstream path before vendoring more of them.`,
+    )
+  }
+  const document = entry.documents[0]
 
   const text = await github(`repos/${entry.repo}/contents/${entry.path}`, true)
   const [head] = await github(
@@ -61,7 +105,7 @@ for (const entry of manifest.skills) {
   )
   const digest = sha256(text)
 
-  if (digest === entry.sha256) {
+  if (digest === document.sha256) {
     console.log(`= ${entry.name}: unchanged at ${entry.commit.slice(0, 12)}`)
     continue
   }
@@ -69,24 +113,32 @@ for (const entry of manifest.skills) {
   drifted += 1
   console.log(
     `~ ${entry.name}: ${entry.commit.slice(0, 12)} -> ${head.sha.slice(0, 12)} ` +
-      `(${entry.bytes} -> ${Buffer.byteLength(text, 'utf8')} bytes)`,
+      `(${document.bytes} -> ${Buffer.byteLength(text, 'utf8')} bytes)`,
   )
   if (check) continue
 
-  writeFileSync(join(skillDir, `${entry.name}.md`), text, 'utf8')
+  const target = join(skillDir, entry.name, document.path)
+  mkdirSync(dirname(target), { recursive: true })
+  writeFileSync(target, text, 'utf8')
   entry.commit = head.sha
   entry.committedAt = head.commit.committer.date
-  entry.sha256 = digest
-  entry.bytes = Buffer.byteLength(text, 'utf8')
+  document.sha256 = digest
+  document.bytes = Buffer.byteLength(text, 'utf8')
   entry.sourceUrl = `https://github.com/${entry.repo}/blob/${head.sha}/${entry.path}`
 }
 
 if (!check && drifted > 0) {
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
-  console.log(`\nRewrote ${drifted} document(s) and the manifest. Commit both.`)
+  console.log(
+    `\nReconciled ${drifted} document(s) and rewrote the manifest. Commit both: a vendored ` +
+      `copy moved forward, an authored one had its digest resealed, or both.`,
+  )
 } else if (check && drifted > 0) {
-  console.error(`\n${drifted} vendored document(s) are behind their source.`)
+  console.error(
+    `\n${drifted} document(s) disagree with their source of truth - upstream for a vendored ` +
+      `skill, the file on disk for an authored one. Run without --check to reconcile.`,
+  )
   process.exit(1)
 } else {
-  console.log('\nEvery vendored document matches its source.')
+  console.log('\nEvery document agrees with its source of truth.')
 }

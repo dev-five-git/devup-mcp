@@ -5,5 +5,5 @@
 # made the integrity check fail on that platform alone while passing on Linux
 # and macOS. `-text` is stronger than `eol=lf` on purpose - it says these bytes
 # are not git's to touch in either direction.
-crates/devup-mcp/src/server/skills/*.md -text
+crates/devup-mcp/src/server/skills/**/*.md -text
 crates/devup-mcp/src/server/skills/manifest.json -text
