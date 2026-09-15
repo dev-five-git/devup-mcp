@@ -137,6 +137,10 @@ const EMBEDDED: &[(&str, Documents)] = &[
         ],
     ),
     (
+        "changepacks",
+        &[("SKILL.md", include_str!("skills/changepacks/SKILL.md"))],
+    ),
+    (
         "vespera",
         &[("SKILL.md", include_str!("skills/vespera/SKILL.md"))],
     ),
@@ -689,7 +693,7 @@ pub fn report(project: &Path) -> serde_json::Value {
         .iter()
         .filter(|entry| entry["installed"] == false)
         .count();
-    serde_json::json!({
+    let mut report = serde_json::json!({
         "workspace": project.display().to_string(),
         "skillRoots": {
             "known": SKILL_ROOTS,
@@ -707,7 +711,71 @@ pub fn report(project: &Path) -> serde_json::Value {
                 keeps applying for every later session, which is the thing reading a document \
                 once does not do.",
         "boundary": "devup-mcp installs only carried skills: embedded skills prefer current upstream documents with offline fallback, and own skills use the binary. External skills are never fetched or written; their install command is yours to run.",
-    })
+    });
+    if let Some(obligation) = changepacks_obligation(project) {
+        report["repoObligations"] = serde_json::json!({ "changepacks": obligation });
+    }
+    report
+}
+
+/// What a `.changepacks/` directory obliges a pull request in this workspace to
+/// carry, or `None` when the repository does not use changepacks.
+///
+/// Reported here rather than left to the skill because the skill only helps a
+/// caller who installed and loaded it, while this is in the response of a tool
+/// `instructions` already tells every session to call. The failure being
+/// addressed is a pull request that silently ships without a version bump, and
+/// an agent that never asked about changepacks is exactly the one that produces
+/// it.
+///
+/// Reads the config rather than assuming a rule: which paths are tracked is
+/// decided by `ignore` with `!` negations, and it differs per repository.
+fn changepacks_obligation(project: &Path) -> Option<serde_json::Value> {
+    let directory = project.join(".changepacks");
+    let config_path = directory.join("config.json");
+    if !config_path.is_file() {
+        return None;
+    }
+    let config: serde_json::Value = std::fs::read_to_string(&config_path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(serde_json::Value::Null);
+
+    // A pending log is one already written for an unreleased change. Its
+    // presence answers "has someone on this branch done this already", which is
+    // the question an agent about to add a second one needs answered.
+    let pending = std::fs::read_dir(&directory)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .filter(|name| name.starts_with("changepack_log_") && name.ends_with(".json"))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Some(serde_json::json!({
+        "detected": display_path(&directory),
+        "obligation": "A pull request that changes a tracked path must add a changepack log. \
+                       Without one the version never moves, so the change reaches the base branch \
+                       and is never released.",
+        "createWith": "bunx @changepacks/cli --yes --update-type <major|minor|patch> --message \"<why this change exists>\"",
+        "whyNotBare": "Running the tool with no flags opens an interactive selection UI, which \
+                       hangs or is cancelled in a non-TTY shell. That is the usual reason a pull \
+                       request arrives without the changepack it needed.",
+        "tracks": config.get("ignore").cloned().unwrap_or(serde_json::Value::Null),
+        "tracksNote": "Patterns from .changepacks/config.json. A leading `!` marks a tracked path; \
+                       everything else is ignored. Whether your change needs a changepack is decided \
+                       by this list, not by a general rule.",
+        "baseBranch": config.get("baseBranch").cloned().unwrap_or(serde_json::Value::Null),
+        "pendingLogs": pending,
+        "skill": "changepacks",
+    }))
+}
+
+/// A path as a reader would type it, with the separators their editor shows.
+fn display_path(path: &Path) -> String {
+    path.display().to_string()
 }
 
 /// Writes the documents of the carried skills that are missing.
@@ -1151,11 +1219,15 @@ mod tests {
             let head = &document[..end];
             assert!(head.contains("name:"), "{}: {head}", skill.record.name);
             // Whichever note this origin gets, it belongs after the block.
+            // The repository comes from the record rather than a literal org:
+            // a carried skill does not have to be one of ours, and hardcoding
+            // `dev-five-git/` failed the first skill vendored from elsewhere.
             let opener = if skill.record.origin == Origin::Own {
-                "Authored in dev-five-git/"
+                format!("Authored in {}", skill.record.repo)
             } else {
-                "Vendored from dev-five-git/"
+                format!("Vendored from {}", skill.record.repo)
             };
+            let opener = opener.as_str();
             assert!(
                 !head.contains(opener),
                 "{}: the note must sit outside the frontmatter block",
@@ -1185,5 +1257,52 @@ mod tests {
         // A horizontal rule further down does not close a block that never
         // opened.
         assert_eq!(frontmatter_end("intro\n\n---\n\nmore\n"), None);
+    }
+
+    /// The obligation has to reach a caller who never asked about changepacks,
+    /// because that caller is the one who opens the pull request without one.
+    /// It also has to stay absent everywhere else: a repository that does not
+    /// use changepacks must not be told to run it.
+    #[test]
+    fn a_changepacks_directory_is_reported_as_an_obligation() {
+        let project = scratch("changepacks");
+
+        assert!(
+            report(&project)["repoObligations"].is_null(),
+            "a workspace with no .changepacks must carry no obligation"
+        );
+
+        let directory = project.join(".changepacks");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join("config.json"),
+            r#"{"ignore":["**","!/crates/*/Cargo.toml"],"baseBranch":"main"}"#,
+        )
+        .unwrap();
+        std::fs::write(directory.join("changepack_log_existing.json"), "{}").unwrap();
+        // Not a changepack log; it must not be counted as one.
+        std::fs::write(directory.join("publish.tgz"), "").unwrap();
+
+        let found = report(&project)["repoObligations"]["changepacks"].clone();
+        assert!(!found.is_null(), "the directory was not detected");
+
+        // The command has to be the non-interactive one. Bare `changepacks`
+        // opens a selection UI that hangs in the shells this runs in, which is
+        // the whole reason the step gets skipped.
+        let command = found["createWith"].as_str().unwrap();
+        assert!(command.contains("--yes"), "{command}");
+        assert!(command.contains("--update-type"), "{command}");
+        assert!(command.contains("--message"), "{command}");
+
+        // Read from the config, never assumed: which paths are tracked differs
+        // per repository and deciding it here would be a guess.
+        assert_eq!(found["tracks"][1], "!/crates/*/Cargo.toml");
+        assert_eq!(found["baseBranch"], "main");
+
+        let pending = found["pendingLogs"].as_array().unwrap();
+        assert_eq!(pending.len(), 1, "{pending:?}");
+        assert_eq!(pending[0], "changepack_log_existing.json");
+
+        let _ = std::fs::remove_dir_all(&project);
     }
 }
