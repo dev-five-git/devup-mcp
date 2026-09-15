@@ -23,6 +23,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The vendored agent skills go stale when the repositories they were copied
+  # from move, which is a thing that happens on someone else's schedule and
+  # that no commit here will ever announce. `skill-drift` below is the only
+  # job these two triggers exist for.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -92,6 +99,84 @@ jobs:
             printf '  %s\n' $crate_changes
           } >&2
           exit 1
+
+  # `cargo test` already holds the manifest to the documents in this tree: a
+  # hand-edited vendored copy fails `every_origin_is_well_formed` on its digest.
+  # What nothing checked is the other direction — whether the copy still matches
+  # the repository it was taken from. That drift is caused by another project
+  # publishing, so it arrives without a commit here and no pull request notices.
+  #
+  # Deliberately NOT a pull request gate. The thing it reports is someone else's
+  # change, and failing unrelated pull requests over it is a known-bad trade:
+  # devup-ui pinned a dependency to `latest` next to a committed generated file
+  # and every pull request against main went red for a staleness none of them
+  # caused. A weekly run mails the owner and blocks nobody.
+  skill-drift:
+    name: refresh vendored skills
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Re-vendor each skill from its source repository
+        # Authenticated so the GitHub API rate limit is per-repository rather
+        # than per-runner-IP, which unauthenticated scheduled runs share.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/refresh-skills.mjs
+      # A red scheduled run is a notification nobody acts on. A pull request is
+      # the same information in a form that can be reviewed and merged, and it
+      # carries the refreshed bytes so nobody has to reproduce them by hand.
+      - name: Open a pull request when a document moved
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: skills/refresh-vendored-documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Every vendored document already matches its source."
+            exit 0
+          fi
+
+          moved="$(git diff --name-only -- crates/devup-mcp/src/server/skills \
+            | grep -E '/SKILL\.md$' | sed 's#.*/skills/##; s#/SKILL\.md##' | paste -sd', ' -)"
+          echo "Moved upstream: ${moved:-none}"
+
+          # A re-vendored document changes what `devup_skills install` writes,
+          # so it is a shipped behaviour change and needs a version. Without
+          # this the `changepack required` gate fails this pull request, and
+          # the refresh would sit unreleased.
+          jq -n --arg moved "$moved" --arg date "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)" '{
+            changes: { "crates/devup-mcp/Cargo.toml": "Patch" },
+            note: ("Re-vendored the embedded agent skill documents that moved in their source repositories: " + $moved + ". The copies in this binary are what `devup_skills install` writes on a machine with no network, so a copy that has fallen behind installs rules the upstream project no longer states. Opened automatically by the scheduled skill-drift job; the bytes here are exactly what scripts/refresh-skills.mjs produced."),
+            date: $date
+          }' > .changepacks/changepack_log_skill_refresh.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add crates/devup-mcp/src/server/skills .changepacks
+          git commit -m "chore(skills): re-vendor the documents that moved upstream" \
+            -m "Automated by the scheduled skill-drift job. Moved: ${moved:-none}."
+          # Force is safe and intended here: this branch is owned by this job
+          # and is rewritten from main on every run, so a stale refresh never
+          # accumulates on top of a newer one.
+          git push --force origin "$BRANCH"
+
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "chore(skills): re-vendor the documents that moved upstream" \
+              --body "The embedded copies of these skills fell behind their source repositories: **${moved:-none}**.
+
+          Those copies are what \`devup_skills install\` writes on a machine with no network, so a stale one installs rules the upstream project no longer states. \`cargo test\` cannot see this: it checks the manifest against the documents in this tree, which agree with each other while both are behind.
+
+          Produced by \`node scripts/refresh-skills.mjs\` in the scheduled \`skill-drift\` job. Review the diff as you would any skill change - it is upstream prose, not generated code."
+          else
+            echo "An open pull request already tracks this branch; it now carries the newer bytes."
+          fi
 
   verify:
     strategy:
