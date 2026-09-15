@@ -10,16 +10,16 @@
       "usedFor": "The TSX devup_figma_export returns is devup-ui code. Without this the agent does not know its components are compile-time placeholders, that $token means devup.json, or that a style prop takes a responsive array.",
       "repo": "dev-five-git/devup-ui",
       "path": "SKILL.md",
-      "commit": "3b1c3bfff4be9a1fe405a5cc057b1b9fb6e8968f",
-      "committedAt": "2026-09-15T01:41:55Z",
+      "commit": "601dd15cd0f5d3c5b94076155a1ba25f70007c26",
+      "committedAt": "2026-09-15T06:31:11Z",
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 20632,
-          "sha256": "475b65caf01404aab91f6a344526be7ae43237d84354de81aa4a6544de476b6f"
+          "bytes": 21253,
+          "sha256": "2ef847f01a91a7b43d38b2d1a1072e05487624c1f38f2b8f3742ad0e82fd25a2"
         }
       ],
-      "sourceUrl": "https://github.com/dev-five-git/devup-ui/blob/3b1c3bfff4be9a1fe405a5cc057b1b9fb6e8968f/SKILL.md",
+      "sourceUrl": "https://github.com/dev-five-git/devup-ui/blob/601dd15cd0f5d3c5b94076155a1ba25f70007c26/SKILL.md",
       "latestUrl": "https://github.com/dev-five-git/devup-ui/blob/HEAD/SKILL.md"
     },
     {
@@ -33,8 +33,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 18354,
-          "sha256": "22753decbb1c6326d09f0733391b33ab8b033915ce78615a09dbbe0728f03919"
+          "bytes": 18796,
+          "sha256": "3343b5a022c38c22adbb6ada50dc80b83a6a30154edc2c6594aa240b4bbbeb61"
         },
         {
           "path": "references/critical-rules.md",

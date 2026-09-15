@@ -59,7 +59,7 @@ and no `next.config.ts`. Read `package.json`, not the config filename:
 ```ts
 // apps/front/vite.config.ts -> still App Router. Both plugins belong here.
 plugins: [
-  DevupUI({ include: ['@devup-ui/reset-css'] }),
+  DevupUI(),
   vinext({ nextConfig: { output: 'export', trailingSlash: true } }),
 ]
 ```
@@ -108,15 +108,25 @@ silently competes with the classes devup-ui generated.
 The only CSS import that is allowed is a stylesheet **shipped by an installed
 package** that you do not author — an offline webfont package, for example.
 
-`@devup-ui/reset-css` has to be declared to the build plugin or its classes are
-never emitted:
+`@devup-ui/reset-css` needs **no plugin configuration**. Install it, call it in
+the root layout, and stop:
 
-```ts
-// apps/front/vite.config.ts
-plugins: [DevupUI({ include: ['@devup-ui/reset-css'] })],
-optimizeDeps: { exclude: ['@devup-ui/reset-css'] },
-ssr: { noExternal: ['@devup-ui/reset-css'] },
+```tsx
+// apps/front/src/app/layout.tsx
+import { resetCss } from '@devup-ui/reset-css'
+
+resetCss()
 ```
+
+The reset is a `globalCss()` call at the top level of that package's own module,
+and `resetCss()` is an empty function that only keeps the import from being
+tree-shaken. The one thing that has to happen is that the plugin transforms the
+package inside `node_modules`, and every devup-ui plugin already allows
+`@devup-ui` through that exclusion unconditionally.
+
+Do not add `include`, `optimizeDeps.exclude` or `ssr.noExternal` entries for it.
+They are redundant, and writing them teaches the next reader that a devup-ui
+package needs wiring when none does.
 
 ### What decides static extraction
 
