@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "devup-mcp now carries the changepacks skill and reports the obligation a .changepacks directory creates. Agents routinely opened pull requests without a changepack log, and the cause was documentation rather than the agent: the invocation the project documents is the bare interactive command, which hangs or is cancelled in a non-TTY shell, so the step was skipped and the change reached the base branch with no version bump. The non-interactive form already existed and was undocumented, so changepacks/changepacks#131 added a consumer-facing SKILL.md leading with it, and this vendors that document as an embedded skill installable with no network. Detection is the other half: devup_skills now reports a repoObligations.changepacks block whenever the workspace has a .changepacks directory, carrying the exact non-interactive command, why the bare one hangs, the tracked-path patterns read out of config.json rather than assumed, the base branch and any pending logs. That reaches a caller who never asked about changepacks, which is precisely the caller who produces the pull request that lacks one. Two tests had hardcoded dev-five-git into the provenance assertion and failed on the first skill vendored from another organisation; they now derive the repository from the record.",
-  "date": "2026-09-15T07:29:38.828557500Z"
-}
