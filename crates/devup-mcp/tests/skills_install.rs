@@ -155,9 +155,13 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
             .find(|path| path.file_name().is_some_and(|name| name == "SKILL.md"))
             .unwrap_or_else(|| panic!("no SKILL.md among the written files: {entry}"));
         let body = std::fs::read_to_string(entry_document)?;
+        // Asserted on the shape of the note, not on an organisation: a carried
+        // skill does not have to be one of ours, and spelling `dev-five-git/`
+        // here failed the first skill vendored from another org.
         assert!(
-            body.contains("Vendored from dev-five-git/")
-                || body.contains("Authored in dev-five-git/"),
+            body.contains("Vendored from ")
+                || body.contains("Authored in ")
+                || body.contains("Fetched from "),
             "an installed skill must carry its provenance: {}",
             entry_document.display()
         );

@@ -61,6 +61,26 @@
       "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend"
     },
     {
+      "name": "changepacks",
+      "origin": "embedded",
+      "title": "changepacks conventions",
+      "description": "Version and changelog management for multi-language monorepos: when a pull request needs a changepack log, how to create one without an interactive prompt, and how .changepacks/config.json decides which paths are tracked.",
+      "usedFor": "Every repository devup-mcp writes into manages its versions this way. A pull request that changes a tracked path without a changepack log never moves the version, so the change reaches the base branch and is never released - and the invocation the project documents is interactive, which hangs in the shells an agent runs in. That combination is why the step gets skipped.",
+      "repo": "changepacks/changepacks",
+      "path": "SKILL.md",
+      "commit": "ec1f4b025ed781856eb8650e880ece9935be3351",
+      "committedAt": "2026-09-15T07:25:28Z",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 4700,
+          "sha256": "5477d13f7ebaf79fdf701b7e8d5b3071e09300b9ec2e55ecd51ccd223981b071"
+        }
+      ],
+      "sourceUrl": "https://github.com/changepacks/changepacks/blob/ec1f4b025ed781856eb8650e880ece9935be3351/SKILL.md",
+      "latestUrl": "https://github.com/changepacks/changepacks/blob/HEAD/SKILL.md"
+    },
+    {
       "name": "vespera",
       "origin": "embedded",
       "title": "vespera conventions",
