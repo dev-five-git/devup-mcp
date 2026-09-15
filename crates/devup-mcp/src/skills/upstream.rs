@@ -7,6 +7,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use reqwest::header::ETAG;
 
+/// The CLI default; MCP URLs come from each manifest record.
 pub const SKILL_SOURCE_URL: &str =
     "https://raw.githubusercontent.com/dev-five-git/devup-ui/refs/heads/main/SKILL.md";
 
@@ -29,19 +30,19 @@ impl Display for SkillFetchError {
         match self {
             Self::Network(message) => write!(
                 formatter,
-                "network failure while fetching {SKILL_SOURCE_URL}: {message}. Check connectivity and retry."
+                "network failure while fetching skill: {message}. Check connectivity and retry."
             ),
             Self::NotFound => write!(
                 formatter,
-                "GitHub returned 404 for {SKILL_SOURCE_URL}. Verify that the public main-branch SKILL.md still exists."
+                "GitHub returned 404 for the skill document. Verify that the upstream path still exists."
             ),
             Self::HttpStatus(status) => write!(
                 formatter,
-                "GitHub returned HTTP {status} for {SKILL_SOURCE_URL}. Retry later or verify GitHub availability."
+                "GitHub returned HTTP {status} for the skill document. Retry later or verify GitHub availability."
             ),
             Self::MissingEtag => write!(
                 formatter,
-                "GitHub returned {SKILL_SOURCE_URL} without an ETag, so its provenance cannot be verified."
+                "GitHub returned the skill document without an ETag, so its provenance cannot be verified."
             ),
         }
     }
@@ -51,7 +52,7 @@ impl std::error::Error for SkillFetchError {}
 
 #[async_trait]
 pub trait SkillUpstream: Send + Sync {
-    async fn fetch(&self) -> Result<FetchedSkill, SkillFetchError>;
+    async fn fetch(&self, source_url: &str) -> Result<FetchedSkill, SkillFetchError>;
 }
 
 pub struct RawGithubSkillUpstream {
@@ -60,8 +61,12 @@ pub struct RawGithubSkillUpstream {
 
 impl RawGithubSkillUpstream {
     pub fn new() -> anyhow::Result<Self> {
+        Self::with_timeout(Duration::from_secs(30))
+    }
+
+    pub(crate) fn with_timeout(timeout: Duration) -> anyhow::Result<Self> {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(timeout)
             .user_agent(concat!("devup-mcp/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("Could not create the HTTPS client for skill delivery.")?;
@@ -71,10 +76,10 @@ impl RawGithubSkillUpstream {
 
 #[async_trait]
 impl SkillUpstream for RawGithubSkillUpstream {
-    async fn fetch(&self) -> Result<FetchedSkill, SkillFetchError> {
+    async fn fetch(&self, source_url: &str) -> Result<FetchedSkill, SkillFetchError> {
         let response = self
             .client
-            .get(SKILL_SOURCE_URL)
+            .get(source_url)
             .send()
             .await
             .map_err(|error| SkillFetchError::Network(error.to_string()))?;
