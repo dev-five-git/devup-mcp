@@ -34,6 +34,21 @@ pub(super) fn placement_contract(
     let parent = view
         .string("parentId")
         .and_then(|id| snapshot.nodes.get(id));
+    // The parent's own paint, when the capture holds it. A screen exported on
+    // its own showed nothing of the surface it is drawn on, so learning that
+    // the desktop frame behind an app screen was #E6EDE6 took a second export
+    // of that parent — a second Figma acquisition to read a colour this
+    // capture was already carrying.
+    let parent_background = parent.and_then(|parent| {
+        let parent = parent.typed_view();
+        let color = style::first_solid_color(parent.value("fills"))?;
+        Some(json!({
+            "color": color,
+            "layoutMode": parent.string("layoutMode"),
+            "name": parent.string("name"),
+            "note": "The surface this root is drawn on in Figma, read from the collected parent. It is reported, not emitted: the parent is not part of this component. Apply it to the host when the screen is meant to sit on it.",
+        }))
+    });
     let source = output
         .source_map
         .entries
@@ -45,7 +60,11 @@ pub(super) fn placement_contract(
     let absolute = tag.contains("pos=\"absolute\"");
     let positioned = super::layout::holds_positioned_children(snapshot, node);
     let vertical_fill = super::layout::vertical_fill_container(snapshot, node);
-    if parent.is_some() && !absolute && !positioned && !vertical_fill {
+    // An in-flow root inside a collected parent needs no placement contract —
+    // unless that parent paints the surface underneath it, which nothing else
+    // in the response would say.
+    if parent.is_some() && !absolute && !positioned && !vertical_fill && parent_background.is_none()
+    {
         return None;
     }
     let relative = tag.contains("pos=\"relative\"");
@@ -102,6 +121,7 @@ pub(super) fn placement_contract(
             "sourceSize": {"width":view.number("width"), "height":view.number("height"), "horizontal":view.string("layoutSizingHorizontal"), "vertical":view.string("layoutSizingVertical")},
             "sourcePosition": {"x":view.number("x"), "y":view.number("y"), "constraints":view.value("constraints")},
             "sourceParentSize": parent.map(|p| json!({"width":p.typed_view().number("width"), "height":p.typed_view().number("height")})),
+            "sourceParentBackground": parent_background,
             "generatedRoot": format!("{tag}>"), "hostRequirements":requirements,
             "classification":"placement-contract",
             "nextAction": if dependent { "Satisfy hostRequirements or export the containing parent in standalone mode before accepting placement." } else { "Insert in normal flow using the emitted root props. External parent placement is outside this capture." },

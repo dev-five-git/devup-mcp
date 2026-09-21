@@ -67,6 +67,16 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 
 에러는 호출 자체가 잘못된 경우(`DEVUP_INVALID_INPUT`, 없는 node/파일, 만료·부적합한 `artifactId` 등) JSON-RPC `-32602 INVALID_PARAMS`로, 그 밖의 실패는 `-32603 INTERNAL_ERROR`로 옵니다. 인자를 고쳐 다시 부를 일인지 멈추고 보고할 일인지를 메시지를 파싱하지 않고 구분할 수 있습니다. 정확한 `code`와 `retryable`은 예전처럼 `data`에 그대로 실립니다.
 
+**이 구분은 플러그인이 던진 오류에도 적용됩니다.** 스크립트가 던지는 코드는 25종인데 그중 JSON payload를 함께 싣는 것은 둘뿐이라, 나머지는 `pluginCode: null`에 일반 안내만 달려 도착했습니다. 지금은 **메시지에서 코드를 읽어** `pluginCode`에 채우고, 호출자가 고칠 수 있는 것만 그에 맞는 `code`로 올립니다.
+
+| 플러그인 코드 | `code` | JSON-RPC |
+|---|---|---|
+| `DEVUP_NODE_NOT_FOUND` · `DEVUP_PAGE_NOT_FOUND` | `DEVUP_FIGMA_NODE_NOT_FOUND` | **-32602** |
+| `DEVUP_ENVELOPE_TOO_LARGE` · `DEVUP_EXPLORE_PROJECTION_TOO_LARGE` | `DEVUP_FIGMA_RESPONSE_TOO_LARGE` | -32603 |
+| 그 밖(수집 내부 조건) | `DEVUP_SNAPSHOT_UNSUPPORTED` | -32603 |
+
+없는 node를 가리키는 링크는 **가장 흔한 실수**인데 예전에는 `-32603 INTERNAL_ERROR`로 와서, 위 문단이 약속한 구분이 바로 그 지점에서 깨졌습니다. 내부 수집 조건까지 호출자 실수로 올리지는 않습니다 — 고칠 것이 없는 사람에게 인자를 고치라고 보내는 셈이기 때문입니다.
+
 devup-mcp는 Figma Remote MCP에 직접 붙습니다 — OAuth discovery, Dynamic Client Registration, PKCE S256, 일시적인 `127.0.0.1` callback을 구현합니다. Figma는 MCP Catalog에 승인된 client의 registration만 허용하므로 등록은 allowlist에 있는 `client_name`으로 이루어집니다(기본값 `Codex`). Figma PAT나 사용자가 만든 OAuth app은 필요하지 않습니다.
 
 ## 빌드와 설치
@@ -101,6 +111,35 @@ credential backend 초기화와 server 구성을 안전한 JSON으로 확인합�
 등록된 connector가 `Transport closed`를 반환하면 MCP host가 교체 전 process의 종료된
 stdio pipe를 보유한 상태이므로 host의 MCP 연결을 재시작하거나 다시 등록해야 합니다.
 새로 실행된 server가 host가 보유한 이전 pipe를 스스로 복구할 수는 없습니다.
+
+### 최신 유지 — 다음 시작 때 바뀝니다
+
+**직접 올려 두지 않아도 최신 릴리스로 수렴합니다.** 릴리스 확인(24시간 주기, 첫 확인은 `initialize` 20초 뒤)이 새 버전을 찾으면 이 플랫폼의 에셋을 받아 `devup-mcp.exe.staged`로 두고, 그 파일이 **실제로 실행돼 `--self-check`에 답해야만** 그 자리에서 실행 파일의 이름을 넘겨받습니다.
+
+**적용은 다음 실행부터입니다. 재시작 한 번이면 됩니다.**
+
+| 시점 | 일어나는 일 | 그 세션이 도는 build |
+|---|---|---|
+| 세션 N | 감지 → 다운로드 → 검증 → **교체** | 이전 build (이미 메모리에 로드됨) |
+| 세션 N+1 | — | **새 build** |
+
+**실행 중인 프로세스는 절대 교체하지 않습니다.** 위 문단이 말한 그대로, 이미 host가 쥔 stdio pipe는 교체된 binary가 복구할 수 없기 때문입니다. 바꾸는 것은 **디스크의 파일**뿐이고, 이 프로세스가 실행 중인 image는 spawn 시점에 로드된 것이라 rename이 닿지 않습니다. 그래서 검증 직후 바로 교체해도 안전하며, 교체가 일어난 세션은 stderr에 그 사실을 적고 계속 이전 build로 돕니다.
+
+기동 시점의 승격은 이제 **복구 경로**입니다 — 검증까지 끝낸 파일을 두고 프로세스가 죽은 경우에만 쓰입니다.
+
+| 상태 | 뜻 |
+|---|---|
+| `owned` | 이 프로세스가 설치 위치의 주인이라 스테이징합니다 |
+| `package-managed` | binary가 패키지 매니저 디렉터리(`_npx`, `node_modules`, `.cargo` 등) 안에 있습니다. 그쪽이 자기 주기로 갱신하므로 건드리지 않습니다 |
+| `not-writable` | 설치 디렉터리에 쓸 수 없으므로 설치한 주체의 몫입니다 |
+| `unsupported-platform` | 이 플랫폼/아키텍처용으로 발행된 에셋이 없습니다 |
+| `disabled` | `DEVUP_MCP_NO_AUTO_UPDATE`로 껐거나, **`DEVUP_MCP_NO_UPDATE_CHECK`로 릴리스 확인 자체를 껐습니다.** 후자면 새 릴리스를 발견하는 일이 없어 스테이징이 할 일이 없으므로, 스테이징을 끄지 않았어도 결과는 꺼진 것과 같습니다. `note`가 둘 중 어느 쪽인지 알려줍니다 |
+
+`server.updateAvailable.autoUpdate`가 이 상태와 `stagedForNextStart`, 이 플랫폼의 `asset`, 그리고 **교체할 파일의 실제 경로인 `installedPath`**를 함께 보고합니다. 자동이 물러난 경우 사람이 무엇을 고쳐야 하는지가 응답 안에 있습니다.
+
+검증되지 않은 bytes는 이름을 넘겨받지 못하고 그 자리에서 삭제됩니다 — 매 시작마다 같은 파일을 다시 검사하지 않기 위해서입니다. 승격은 삭제가 아니라 rename이라 직전 binary가 `devup-mcp.exe.previous`로 남고, 되돌리는 일은 rename 한 번입니다.
+
+**런처로 설치했다면 이 기능은 필요 없습니다.** `npx ... @latest` 같은 런처는 매 실행마다 최신을 해결하므로 그쪽이 더 나은 방법이고, 두 갱신 주체가 한 경로를 두고 다투는 것이 둘 중 하나만 있는 것보다 나쁩니다. 그런 설치는 위 표의 `package-managed`로 스스로 물러나며, 아니라면 `DEVUP_MCP_NO_AUTO_UPDATE=1`로 끄십시오.
 
 서버 시작 시 OAuth 준비가 실패하면 **프로세스가 죽지 않고 진단 가능한 오류로 나옵니다.** HTTP 클라이언트 초기화가 실패하면 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`로 `Cannot start Figma OAuth: HTTP client initialization failed. Check TLS configuration and system certificate initialization, then restart devup-mcp.`와 함께 원인 체인을 붙여 돌려줍니다. endpoint URL이 잘못됐으면 `DEVUP_INVALID_INPUT`입니다. 예전에는 이 경로가 panic이라 무엇이 잘못됐는지 알 수 없었습니다 — TLS나 시스템 인증서 설정을 먼저 확인하세요.
 
@@ -554,6 +593,18 @@ SECTION 기본 응답은 화면 아티팩트가 아닌 선택 목록입니다. `
 
 긴 페이지는 높이·비율 어느 쪽으로도 화면으로 측정되지 않습니다. 그렇다고 그 안을 뜯어 조각들만 후보로 내놓으면 정작 페이지 자체는 목록에 없게 되므로, 페이지는 `explicitCandidates`에 통째로 남기고 그 **안에 있는 자동 화면 후보도 함께** 보존합니다. 둘 중 무엇을 고를지는 호출자가 정합니다. 미리보기는 보이는 텍스트만 모아 최대 120자, 전체 최대 2KB로 제한하므로 비어 있거나 짧아도 실제 화면 내용이 없다는 뜻은 아닙니다. `nextAction.example`에는 첫 후보를 선택하는 `devup_figma_export` 호출 예시가 들어 있습니다. 예시의 `frameIds`를 검토한 후보 ID로 바꿔 호출하면 선택한 화면만 수집합니다.
 
+#### 메뉴가 전송 한계를 넘을 때
+
+플러그인 응답은 19 KiB(측정된 상한 20,480바이트 아래)를 넘을 수 없습니다. 후보가 많은 Section은 이 한계를 넘는데, 예전에는 **거절**했습니다 — 호출자는 아무것도 받지 못했고, 한계가 Section 크기의 성질이라 같은 요청을 다시 보내도 결과가 같았습니다.
+
+지금은 순서대로 양보합니다.
+
+1. **텍스트 미리보기를 먼저 버립니다.** 미리보기는 힌트일 뿐이라 선택 가능한 화면과 바꿀 값어치가 없습니다(`textPreviewState: "budget-exhausted"`).
+2. 그래도 넘으면 **뒤에서부터 후보를 잘라내고 `projectionTruncated`를 세웁니다.** 이미 traversal 상한과 후보 100개 상한이 쓰던 그 플래그입니다.
+3. 후보 하나도 들어가지 않으면 그때 거절하며, `discoveredCandidates`와 `retainedCandidates`를 함께 보고합니다.
+
+**잘렸다고 조용히 넘어가지 않습니다.** 잘린 인덱스에서는 `allScreens`가 거절되고(`DEVUP_FIGMA_RESPONSE_TOO_LARGE`), 목록에 없는 ID는 `not-found-in-truncated-index`로 보고하며 "없다"고 단정하지 않습니다. 짧아도 자기가 짧다고 말하는 메뉴가 빈 응답보다 낫고, 애초에 금지된 것은 잘림이 아니라 **말 없는 잘림**이었습니다.
+
 ### 한 화면의 여러 폭 — 반응형 모듈
 
 Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이름**을 가지면, 그 frame 하나를 요청해도 같은 이름 규칙의 형제 frame이 함께 수집됩니다(Section 자체는 수집 범위 밖이며, 그 이름은 각 frame의 `parentName`으로 전달됩니다). 이때 `tsx`나 `responsiveTsx`를 요청하면 결과에 `responsiveTsx`가 추가됩니다 — 세 폭을 하나의 트리로 접고 폭마다 다른 값을 devup-ui 반응형 배열 `[mobile, sm, tablet, lg, pc]`로 쓴 모듈입니다. 각 폭이 놓이는 slot은 frame **이름이 아니라 폭**으로 정해집니다(`≤480 / ≤768 / ≤992 / ≤1280 / 그 이상`). 컴포넌트 이름은 `componentName`이 우선이고, 없으면 Section 이름의 PascalCase에 `Page`를 붙입니다(`about` → `AboutPage`).
@@ -644,7 +695,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 | 필드 | 내용 |
 |---|---|
 | `ok` | 심각도로 판정. error가 있으면 실패, `strict: true`면 warning도 실패 |
-| `okReason` | `clean` · `info-only` · `warnings-only` · `warnings-and-info` · `strict-warnings` · `error-violations` |
+| `okReason` | `clean` · `clean-unverified-tokens` · `info-only` · `warnings-only` · `warnings-and-info` · `strict-warnings` · `error-violations` |
 | `violations[]` | `rule`, `severity`(`info`\|`warning`\|`error`), `byteRange`, `message`, `suggestion` |
 | `violationCounts` | `error` / `warning` / `info` 개수 |
 | `themeNotes[]` | 비어 있는 토큰 카테고리를 종류마다 한 번씩만 요약 |
@@ -652,7 +703,30 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 | `checkedTokens` / `availableTokenCount` | 위 두 값과 같은 수를 예전 이름으로 유지 |
 | `themeAvailable` / `themeGuardrail` | 테마를 찾았는지, 못 찾았으면 왜 |
 
-규칙은 `invalid-syntax`, `unknown-token`, `hardcoded-color`, `hardcoded-length`, `unknown-prop`, `runtime-value`입니다.
+규칙은 **두 갈래**입니다. 앞의 여섯은 `tsx` 하나만 줘도 돌고, 뒤의 다섯은 `files` 번들로 줄 때만 돕니다 — 파일 경로와 파일 사이의 관계를 봐야 판정할 수 있기 때문입니다.
+
+| 갈래 | 규칙 |
+|---|---|
+| 항상 | `invalid-syntax`, `unknown-token`, `hardcoded-color`, `hardcoded-length`, `unknown-prop`, `runtime-value` |
+| `files` 번들에서만 | `file-placement`, `one-component-per-file`, `client-boundary`, `inline-style`, `react-query-states` |
+
+`file-placement`는 **프레임워크가 강제하는 파일을 면제합니다.** `app/layout.tsx`에 default export가 없으면 빌드가 깨지므로, 그걸 지적하는 것은 따를 수 없는 권고이고 warning이라 `strict: true`에서 멀쩡한 Next.js 앱을 탈락시켰습니다. 면제 대상은 App Router의 segment 파일(`page`, `layout`, `loading`, `error`, `global-error`, `not-found`, `template`, `default`)과 metadata·이미지 규약(`sitemap`, `robots`, `manifest`, `icon`, `apple-icon`, `opengraph-image`, `twitter-image`), Pages Router의 `_app`·`_document`, 그리고 `middleware`입니다. **그 이름이 예약된 디렉터리 안에서만** 면제되므로 `src/components/error.tsx`는 여전히 일반 모듈로 판정합니다.
+
+페이지 이름 규칙은 **라우트가 실제로 렌더하는 컴포넌트**, 즉 default export만 봅니다. 예전에는 파일 안의 모든 컴포넌트를 검사해서, 올바른 `export default function NoticePage`를 가진 파일이 그 안의 `PageContent` 헬퍼 때문에 경고를 받았습니다. `page`가 라우트 이름인 것도 라우터 디렉터리 안에서뿐이라, `src/components/page.tsx`는 라우트로 판정하지 않습니다.
+
+`one-component-per-file`도 **라우트 segment 파일에서는 적용하지 않습니다.** 그 파일은 컴포넌트 모듈이 아니라 프레임워크 진입점이라 안의 헬퍼를 이름으로 import할 수 있는 곳이 없고, 그래서 "각 컴포넌트를 자기 파일로 옮기라"가 소비자에게 주는 것이 없습니다. 게다가 바로 위 규칙과 충돌했습니다 — `src/app/` 아래 형제 파일은 그 자체로 위반이므로, 한 라우트만 쓰는 헬퍼를 옮길 수 있는 곳이 `src/components/`뿐이었습니다. **일반 컴포넌트 파일은 그대로이고, 비공개 헬퍼도 여전히 잡습니다.**
+
+**`tsx`도 `files`도 주지 않은 호출은 거절합니다.** 예전에는 빈 문자열을 검증해 `ok: true`, `okReason: "clean"`을 돌려줬는데, 보낸 적도 없는 코드가 통과한 것처럼 읽혔습니다.
+
+`clean`과 `clean-unverified-tokens`는 다릅니다. 앞은 검사했고 문제가 없었다는 뜻이고, **뒤는 위반이 없었지만 `devup.json`을 찾지 못해 이 코드가 쓴 `$token`을 애초에 검사하지 못했다는 뜻**입니다.
+
+#### 모노레포에서 어느 `devup.json`을 쓰는가
+
+프로젝트 루트에 `devup.json`이 있으면 그것을 씁니다. 없으면 프로젝트 안을 4단계까지 찾는데, **후보가 둘 이상이면 아무것도 고르지 않고 거절합니다.** 루트에 없는 여러 테마 중 무엇도 프로젝트 전체를 지배하지 않으므로 "그" 테마라는 것이 존재하지 않기 때문입니다.
+
+예전에는 정렬 순서상 첫 번째를 조용히 골랐고, 그 결과 모노레포 루트를 넘기면 `apps/front` 코드를 `apps/admin` 테마로 검증해 **실재하는 토큰을 `unknown-token` error로 단정하고 다른 앱의 토큰을 고치라고 제안**했습니다.
+
+지금은 `themeAvailable: false`와 함께 `themeGuardrail.candidateProjectRoots`가 후보마다 `devupJson`·`projectRoot`·`authority`·`appliesTo`를 돌려줍니다. **거기 적힌 `projectRoot` 값을 그대로 넘겨 다시 부르면 됩니다.** 후보가 하나뿐이면 예전처럼 그대로 해석하므로 단일 패키지 레이아웃의 동작은 바뀌지 않습니다.
 
 하드코딩 값의 판정 기준은 **일치하는 토큰이 실제로 있는지**입니다. 있으면 `warning`으로 올리고 토큰 이름을 알려줍니다. 없으면 `info`로 낮추고 **권고 없이 사실만** 적으며 strict 모드에서도 실패시키지 않습니다. 그래서 `length` 토큰이 하나도 없는 테마가 "토큰을 쓰라"는 권고를 받는 일은 없고, 대신 `themeNotes`가 "이 테마에는 length 토큰이 없다"고 한 번 알려줍니다.
 

@@ -465,6 +465,52 @@ fn add_declaration<'a>(components: &mut Vec<Component<'a>>, declaration: &'a Dec
     }
 }
 
+/// Next.js file conventions whose default export the framework *requires*.
+///
+/// The named-export preference below is a project convention; these files are
+/// not free to follow it. `app/layout.tsx` without a default export is a build
+/// error, so reporting one is advice that cannot be taken — and because the
+/// finding is a warning, `strict: true` failed the validation of a correct
+/// Next.js app over it. The same applies to every segment and metadata file
+/// the framework loads by name, not just the two this rule used to know about.
+///
+/// Matched on the stem, so `.js`/`.jsx`/`.ts`/`.tsx` are all covered, and on
+/// the router directory too: these names are only reserved where the
+/// framework looks for them, so `src/components/error.tsx` is still an
+/// ordinary module and still subject to the convention.
+const APP_ROUTER_DEFAULT_EXPORT_STEMS: &[&str] = &[
+    // Segment files
+    "page",
+    "layout",
+    "loading",
+    "error",
+    "global-error",
+    "not-found",
+    "template",
+    "default",
+    // Metadata and image conventions
+    "sitemap",
+    "robots",
+    "manifest",
+    "icon",
+    "apple-icon",
+    "opengraph-image",
+    "twitter-image",
+];
+const PAGES_ROUTER_DEFAULT_EXPORT_STEMS: &[&str] = &["_app", "_document"];
+const ANYWHERE_DEFAULT_EXPORT_STEMS: &[&str] = &["middleware"];
+
+fn file_stem(basename: &str) -> &str {
+    basename.rsplit_once('.').map_or(basename, |(stem, _)| stem)
+}
+
+fn framework_file(path: &str, stem: &str) -> bool {
+    let under = |directory: &str| path.split('/').any(|segment| segment == directory);
+    ANYWHERE_DEFAULT_EXPORT_STEMS.contains(&stem)
+        || (APP_ROUTER_DEFAULT_EXPORT_STEMS.contains(&stem) && under("app"))
+        || (PAGES_ROUTER_DEFAULT_EXPORT_STEMS.contains(&stem) && under("pages"))
+}
+
 fn structural(file: &SourceFile, bundle_boundary: bool) -> Vec<Violation> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, &file.content, source_type(&file.path)).parse();
@@ -476,6 +522,7 @@ fn structural(file: &SourceFile, bundle_boundary: bool) -> Vec<Violation> {
     let mut motion = false;
     let mut components = Vec::new();
     let mut defaults = Vec::new();
+    let mut default_component: Option<String> = None;
     for statement in &program.body {
         match statement {
             Statement::ImportDeclaration(import) => {
@@ -515,7 +562,17 @@ fn structural(file: &SourceFile, bundle_boundary: bool) -> Vec<Violation> {
                 if let ExportDefaultDeclarationKind::FunctionDeclaration(function) =
                     &export.declaration
                 {
+                    if let Some(id) = &function.id {
+                        default_component = Some(id.name.to_string());
+                    }
                     add_function(&mut components, function);
+                } else if let Some(Expression::Identifier(id)) = export.declaration.as_expression()
+                {
+                    // `export default NoticePage` names the route component
+                    // elsewhere in the file. The page-name rule below judges
+                    // the component the route actually renders, so it has to
+                    // know which one that is in this form too.
+                    default_component = Some(id.name.to_string());
                 }
             }
             Statement::ExportDeclaration(export) => {
@@ -540,32 +597,41 @@ fn structural(file: &SourceFile, bundle_boundary: bool) -> Vec<Violation> {
     let path = file.path.replace('\\', "/");
     let path = path.trim_start_matches("./");
     let basename = path.rsplit('/').next().unwrap_or(path);
+    let stem = file_stem(basename);
     for span in defaults {
-        if basename != "page.tsx" {
+        if !framework_file(path, stem) {
             out.push(finding(
                 file,
                 span,
                 "file-placement",
                 Severity::Warning,
-                "Default export outside page.tsx violates the named-export convention.",
-                "Use a named export; retain framework-required exports when applicable.",
+                "Default export outside a framework-required file violates the named-export convention.",
+                "Use a named export. Framework-required files (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt.",
             ));
         }
     }
     for component in &components {
         if (path.starts_with("src/app/") || path.contains("/src/app/"))
-            && !matches!(basename, "page.tsx" | "layout.tsx")
+            && !framework_file(path, stem)
         {
             out.push(finding(
                 file,
                 component.span,
                 "file-placement",
                 Severity::Warning,
-                "Component is defined under src/app/ outside page.tsx or layout.tsx.",
+                "Component is defined under src/app/ outside a framework-required segment file.",
                 "Move reusable components to src/components/.",
             ));
         }
-        if basename == "page.tsx" && !component.name.ends_with("Page") {
+        // Only the component the route renders is the page. A helper defined
+        // beside it is not one, and judging every component in the file
+        // reported a correct `export default function NoticePage` route for
+        // its own inner `PageContent`.
+        if stem == "page"
+            && framework_file(path, stem)
+            && default_component.as_deref() == Some(component.name.as_str())
+            && !component.name.ends_with("Page")
+        {
             out.push(finding(
                 file,
                 component.span,
@@ -601,15 +667,24 @@ fn structural(file: &SourceFile, bundle_boundary: bool) -> Vec<Violation> {
     sites.extend(components.iter().map(|c| (c.name.clone(), c.span)));
     sites.sort_by_key(|(_, span)| span.start);
     sites.dedup_by_key(|(_, span)| span.start);
-    for (_, span) in sites.iter().skip(1) {
-        out.push(finding(
-            file,
-            *span,
-            "one-component-per-file",
-            Severity::Warning,
-            "More than one JSX component is defined in this file.",
-            "Move each component to its own file.",
-        ));
+    // A route segment file is a framework entry point, not a component module:
+    // nothing can import its helper by name, so "move each component to its
+    // own file" buys a consumer nothing. It also collided with the rule above
+    // — the only place left to move a single-use route helper was
+    // `src/components/`, because a sibling file under `src/app/` is itself a
+    // violation. Ordinary component files are unchanged, private helpers
+    // included.
+    if !framework_file(path, stem) {
+        for (_, span) in sites.iter().skip(1) {
+            out.push(finding(
+                file,
+                *span,
+                "one-component-per-file",
+                Severity::Warning,
+                "More than one JSX component is defined in this file.",
+                "Move each component to its own file.",
+            ));
+        }
     }
     let internal_handler = facts
         .handler_refs

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use devup_mcp_figma::{
-    BatchLimits, ExploreBounds, FigmaTarget, RawNode, SectionCandidate, SectionIndex,
+    BatchLimits, ErrorCode, ExploreBounds, FigmaTarget, RawNode, SectionCandidate, SectionIndex,
     SectionSummary, Snapshot, build_section_index, plan_batches,
 };
 use serde_json::{Map, json};
@@ -335,6 +335,36 @@ fn packing_uses_two_balanced_batches_for_a_nontrivial_visual_sequence() -> anyho
             .all(|batch| batch.estimated_bytes == 10 && batch.node_count == 10)
     );
     Ok(())
+}
+
+/// The script now shortens an oversized menu instead of refusing it, so
+/// `truncated` finally arrives from that path too. What a truncated index
+/// must never do is pretend to be whole: `allScreens` cannot mean "all" over
+/// a partial list, and an ID missing from it has not been proven absent.
+#[test]
+fn a_truncated_index_refuses_all_screens_and_never_proves_absence() {
+    let mut index = packing_index(&[10, 10]);
+    index.truncated = true;
+
+    let error = index.select(&[], true).unwrap_err();
+    assert_eq!(error.code, ErrorCode::DevupFigmaResponseTooLarge);
+
+    let error = index.select(&["root-0".to_owned()], false);
+    assert!(error.is_ok(), "a retained candidate is still selectable");
+
+    let error = index
+        .select(&["dropped-root".to_owned()], false)
+        .unwrap_err();
+    assert_eq!(
+        error.details["selectionIssues"][0]["reason"],
+        "not-found-in-truncated-index"
+    );
+    assert!(
+        error.details["nextActionReason"]
+            .as_str()
+            .unwrap()
+            .contains("truncated index cannot prove absence")
+    );
 }
 
 fn packing_index(weights: &[usize]) -> SectionIndex {

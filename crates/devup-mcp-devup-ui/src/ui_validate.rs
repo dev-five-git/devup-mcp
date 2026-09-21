@@ -437,6 +437,47 @@ impl<'t> TsxVisitor<'t> {
             return;
         };
         self.check_static_object(object, callee.name.as_str());
+        self.check_object_tokens(object);
+    }
+
+    /// `$token` references inside `css()`/`globalCss()`/`keyframes()` object
+    /// literals.
+    ///
+    /// The token check used to read JSX attributes only, so
+    /// `globalCss({ body: { background: "$bg" } })` reported
+    /// `checkedTokens: 0`: a token that did not exist was accepted in
+    /// silence, and the response said `clean` about code referencing a token
+    /// nobody had verified. Only `$`-prefixed strings are inspected here —
+    /// the hardcoded-value advice stays on JSX props, so no call gains a new
+    /// warning severity from this walk.
+    fn check_object_tokens(&mut self, object: &ObjectExpression) {
+        for property in &object.properties {
+            let ObjectPropertyKind::ObjectProperty(property) = property else {
+                continue;
+            };
+            let key = property_key_name(&property.key).unwrap_or_else(|| "?".to_owned());
+            self.check_value_tokens(&key, &property.value);
+        }
+    }
+
+    /// Nested objects carry the selector/breakpoint nesting devup-ui allows,
+    /// and arrays carry responsive values; the key that decides a token's
+    /// expected category is the innermost one, which is the CSS property.
+    fn check_value_tokens(&mut self, key: &str, value: &Expression) {
+        match value {
+            Expression::StringLiteral(text) if text.value.starts_with('$') => {
+                self.check_attribute_value(key, text.value.as_str(), text.span);
+            }
+            Expression::ObjectExpression(nested) => self.check_object_tokens(nested),
+            Expression::ArrayExpression(array) => {
+                for element in &array.elements {
+                    if let Some(expression) = element.as_expression() {
+                        self.check_value_tokens(key, expression);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     fn check_static_object(&mut self, object: &ObjectExpression, call_name: &str) {

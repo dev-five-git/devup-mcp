@@ -33,6 +33,7 @@ expression: json!(output.diagnostics)
         }
       },
       "sourceParentSize": null,
+      "sourceParentBackground": null,
       "generatedRoot": "<VStack\n      bg=\"$backgroundLight\"\n      h=\"740px\"\n      overflow=\"hidden\"\n      pos=\"relative\"\n      w=\"360px\"\n    >",
       "hostRequirements": [],
       "classification": "placement-contract",

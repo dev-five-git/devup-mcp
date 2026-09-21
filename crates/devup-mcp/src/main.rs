@@ -46,5 +46,17 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
+    // Before the server exists, and therefore before the host has handed it a
+    // stdio pipe. A binary swapped after that point could not recover the pipe
+    // the host already holds, which is exactly why this runs here and why
+    // nothing replaces the running image later.
+    if let Some(version) = devup_mcp::server::self_update::promote() {
+        // stderr, because stdout carries MCP frames and nothing else.
+        eprintln!(
+            "devup-mcp: promoted staged release {version}; this process still runs {}",
+            env!("CARGO_PKG_VERSION")
+        );
+    }
+
     devup_mcp::run_stdio_with_config(config).await
 }
