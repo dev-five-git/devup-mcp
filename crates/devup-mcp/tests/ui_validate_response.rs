@@ -910,3 +910,220 @@ async fn bundle_typescript_files_use_typescript_syntax() -> anyhow::Result<()> {
     assert!(!has_rule(&output, "invalid-syntax"), "{output}");
     Ok(())
 }
+
+/// Next.js requires a default export from every segment file it loads by
+/// name. Reporting one is advice that cannot be taken, and because the
+/// finding is a warning it failed `strict: true` on a correct application.
+#[tokio::test]
+async fn bundle_framework_required_default_exports_are_exempt() -> anyhow::Result<()> {
+    for path in [
+        "src/app/layout.tsx",
+        "src/app/not-found.tsx",
+        "src/app/error.tsx",
+        "src/app/loading.tsx",
+        "src/app/template.tsx",
+        "src/app/global-error.tsx",
+        "src/app/notice/[id]/layout.tsx",
+        "app/layout.tsx",
+    ] {
+        let output = structural("export default function Segment(){return <div/>}", path).await?;
+        assert!(!has_rule(&output, "file-placement"), "{path}: {output}");
+    }
+    let output = structural(
+        "export default function sitemap(){return []}",
+        "src/app/sitemap.ts",
+    )
+    .await?;
+    assert!(!has_rule(&output, "file-placement"), "{output}");
+    Ok(())
+}
+
+/// The exemption is for the directories the framework reserves these names
+/// in. An ordinary module that happens to be called `error.tsx` is still
+/// bound by the convention, so the rule did not lose its job.
+#[tokio::test]
+async fn bundle_framework_names_outside_the_router_are_still_flagged() -> anyhow::Result<()> {
+    for path in ["src/components/error.tsx", "src/components/default.tsx"] {
+        let output = structural("export default function Thing(){return <div/>}", path).await?;
+        assert!(has_rule(&output, "file-placement"), "{path}: {output}");
+    }
+    Ok(())
+}
+
+/// Only the component the route renders is the page. Judging every
+/// component in the file reported a correct `export default function
+/// NoticePage` route for its own inner helper.
+#[tokio::test]
+async fn bundle_page_helper_is_not_judged_as_the_page() -> anyhow::Result<()> {
+    let output = structural(
+        "function PageContent(){return <div/>}\nexport default function NoticePage(){return <PageContent/>}",
+        "src/app/notice/page.tsx",
+    )
+    .await?;
+    assert!(!has_rule(&output, "file-placement"), "{output}");
+    Ok(())
+}
+
+/// A route segment file is a framework entry point, not a component module.
+/// Its helper cannot be imported by name, and the only place the rules left
+/// to move it was `src/components/` — because a sibling under `src/app/` is
+/// itself a violation — for a component used by exactly one route.
+#[tokio::test]
+async fn a_single_use_route_helper_is_not_pushed_into_shared_components() -> anyhow::Result<()> {
+    let output = structural(
+        "function PageContent(){return <div/>}\nexport default function NoticePage(){return <PageContent/>}",
+        "src/app/notice/page.tsx",
+    )
+    .await?;
+    assert!(!has_rule(&output, "one-component-per-file"), "{output}");
+    assert_eq!(output["ok"], true, "{output}");
+    Ok(())
+}
+
+/// The exemption is for route files only. An ordinary component module with
+/// a second component in it is still the thing the rule was written for,
+/// private helper included.
+#[tokio::test]
+async fn an_ordinary_module_with_two_components_is_still_flagged() -> anyhow::Result<()> {
+    let output = structural(
+        "export function Card(){return <div/>}\nfunction Other(){return <span/>}",
+        "src/components/Card.tsx",
+    )
+    .await?;
+    assert!(has_rule(&output, "one-component-per-file"), "{output}");
+    Ok(())
+}
+
+/// `page` is only a route name inside the router directory. A module that
+/// happens to be called `page.tsx` elsewhere is not a route and owes the
+/// route naming convention nothing.
+#[tokio::test]
+async fn a_page_named_module_outside_the_router_is_not_judged_as_a_route() -> anyhow::Result<()> {
+    let output = structural(
+        "export default function Paper(){return <div/>}",
+        "src/components/page.tsx",
+    )
+    .await?;
+    let messages: Vec<_> = output["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v["message"].as_str())
+        .collect();
+    assert!(
+        !messages.iter().any(|m| m.contains("does not end in Page")),
+        "{output}"
+    );
+    Ok(())
+}
+
+/// The route component still has to be named for the route, including when
+/// the default export names it rather than declaring it.
+#[tokio::test]
+async fn bundle_page_default_export_by_identifier_is_still_judged() -> anyhow::Result<()> {
+    let output = structural(
+        "function Home(){return <div/>}\nexport default Home;",
+        "src/app/page.tsx",
+    )
+    .await?;
+    assert!(has_rule(&output, "file-placement"), "{output}");
+    Ok(())
+}
+
+/// Validating nothing is not a pass. This used to check the empty string
+/// and answer `ok: true, okReason: "clean"` about code never supplied.
+#[tokio::test]
+async fn validate_refuses_a_call_with_nothing_to_check() {
+    let error = validate(json!({})).await.unwrap_err().to_string();
+    assert!(error.contains("nothing to validate"), "{error}");
+    let error = validate(json!({"tsx":"   "}))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("nothing to validate"), "{error}");
+}
+
+/// A monorepo root has no `devup.json` of its own. Taking the first one the
+/// sorted scan finds validated one package's code against another package's
+/// theme and called its real tokens `unknown-token` — an error verdict,
+/// suggesting the other package's token as the fix.
+#[tokio::test]
+async fn monorepo_root_refuses_to_pick_one_of_several_themes() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-mono-theme-{}", std::process::id()));
+    let front = root.join("apps").join("front");
+    let admin = root.join("apps").join("admin");
+    std::fs::create_dir_all(&front)?;
+    std::fs::create_dir_all(&admin)?;
+    std::fs::write(root.join("package.json"), "{}")?;
+    std::fs::write(
+        front.join("devup.json"),
+        r##"{"theme":{"colors":{"default":{"bg":"#F7F3EC"}}}}"##,
+    )?;
+    std::fs::write(
+        admin.join("devup.json"),
+        r##"{"theme":{"colors":{"default":{"adminBg":"#000000"}}}}"##,
+    )?;
+    let result =
+        validate(json!({"tsx":r##"<Box bg="$bg"/>"##,"projectRoot":root.to_string_lossy()})).await;
+    std::fs::remove_dir_all(&root)?;
+    let out = result?;
+    assert!(!has_rule(&out, "unknown-token"), "{out}");
+    assert_eq!(out["themeAvailable"], false, "{out}");
+    assert_eq!(out["okReason"], "clean-unverified-tokens", "{out}");
+    let choices = out["themeGuardrail"]["candidateProjectRoots"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(choices.len(), 2, "{out}");
+    assert!(
+        choices
+            .iter()
+            .all(|choice| choice["authority"] == "package-local"),
+        "{out}"
+    );
+    Ok(())
+}
+
+/// The token check used to read JSX attributes only, so a theme token used
+/// in a global style was never checked and an unknown one passed in silence.
+#[tokio::test]
+async fn tokens_inside_global_styles_are_checked() -> anyhow::Result<()> {
+    let out = validate(json!({
+        "tsx": r##"globalCss({ body: { background: "$definitelyNotAToken" } })"##,
+        "projectRoot": fixture_project_root(),
+    }))
+    .await?;
+    assert!(has_rule(&out, "unknown-token"), "{out}");
+    assert!(out["checkedTokens"].as_u64().unwrap_or(0) >= 1, "{out}");
+
+    // Nested selectors and responsive arrays carry tokens too.
+    let out = validate(json!({
+        "tsx": r##"css({ _hover: { color: ["$alsoNotAToken"] } })"##,
+        "projectRoot": fixture_project_root(),
+    }))
+    .await?;
+    assert!(has_rule(&out, "unknown-token"), "{out}");
+    Ok(())
+}
+
+/// One theme inside the project is still unambiguous, so the common
+/// single-package layout keeps resolving without a guardrail.
+#[tokio::test]
+async fn a_single_nested_theme_is_still_resolved() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!("devup-single-theme-{}", std::process::id()));
+    let front = root.join("apps").join("front");
+    std::fs::create_dir_all(&front)?;
+    std::fs::write(root.join("package.json"), "{}")?;
+    std::fs::write(
+        front.join("devup.json"),
+        r##"{"theme":{"colors":{"default":{"bg":"#F7F3EC"}}}}"##,
+    )?;
+    let result =
+        validate(json!({"tsx":r##"<Box bg="$bg"/>"##,"projectRoot":root.to_string_lossy()})).await;
+    std::fs::remove_dir_all(&root)?;
+    let out = result?;
+    assert_eq!(out["themeAvailable"], true, "{out}");
+    assert_eq!(out["okReason"], "clean", "{out}");
+    assert!(!has_rule(&out, "unknown-token"), "{out}");
+    Ok(())
+}

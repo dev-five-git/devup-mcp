@@ -170,6 +170,34 @@ async fn every_tool_response_reports_staleness_without_blocking() -> anyhow::Res
         "the state must explain itself: {update}"
     );
 
+    // Reporting a difference without saying whether it closes by itself left
+    // the reader to guess, and reporting one without naming the file to act
+    // on left them to find it — on a machine that had three devup-mcp
+    // binaries installed at once.
+    let auto = &update["autoUpdate"];
+    let auto_state = auto["state"].as_str().expect("an autoUpdate state");
+    assert!(
+        matches!(
+            auto_state,
+            "owned"
+                | "disabled"
+                | "not-writable"
+                | "package-managed"
+                | "unsupported-platform"
+                | "unknown"
+        ),
+        "unexpected autoUpdate state {auto_state}"
+    );
+    assert!(auto["stagedForNextStart"].is_boolean(), "{auto}");
+    assert_eq!(auto["disableWith"], "DEVUP_MCP_NO_AUTO_UPDATE", "{auto}");
+    assert!(
+        auto["note"].as_str().is_some_and(|note| !note.is_empty()),
+        "the mechanism must explain itself: {auto}"
+    );
+    // The published asset for this platform, and the file it would replace.
+    assert!(auto["asset"].is_string(), "{auto}");
+    assert!(auto["installedPath"].is_string(), "{auto}");
+
     client.cancel().await?;
     let _ = server.await;
     Ok(())

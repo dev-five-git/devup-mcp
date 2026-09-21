@@ -3980,6 +3980,49 @@ mod w1_regressions {
         assert!(contract["coordinateBasis"].is_string());
     }
 
+    /// A screen exported on its own said nothing about the surface it is
+    /// drawn on, so learning that the desktop frame behind an app screen was
+    /// `#E6EDE6` took a second export of that parent — a second Figma
+    /// acquisition to read a colour this capture was already carrying.
+    #[tokio::test]
+    async fn r4_placement_contract_reports_the_collected_parent_background() {
+        let mut data = payload();
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("parentId".into(), json!("0:1"));
+        data.snapshot.nodes.insert(
+            "0:1".into(),
+            serde_json::from_value(json!({
+                "id":"0:1", "type":"FRAME", "fields":{
+                    "name":"Desktop", "parentId":null, "childrenIds":["1:1"], "visible":true,
+                    "x":0, "y":0, "width":1920, "height":1080, "layoutMode":"NONE",
+                    "fills":[{"type":"SOLID", "visible":true, "opacity":1, "blendMode":"NORMAL",
+                        "color":{"r":230.0/255.0, "g":237.0/255.0, "b":230.0/255.0}}]}
+            }))
+            .unwrap(),
+        );
+        let mut op = operation(&["tsx"]);
+        if let PendingOperation::Export {
+            include_diagnostics,
+            ..
+        } = &mut op
+        {
+            *include_diagnostics = false;
+        }
+        let result = project(data, op).await.unwrap();
+        let details = &result["placementContracts"][0]["details"];
+        assert_eq!(details["parentCollected"], true, "{result}");
+        let background = &details["sourceParentBackground"];
+        assert_eq!(background["color"], "#E6EDE6", "{result}");
+        assert_eq!(background["name"], "Desktop", "{result}");
+        assert!(background["note"].is_string(), "{result}");
+        // Reported, never emitted: the parent is still not this component.
+        assert_eq!(details["parentIncludedInOutput"], false, "{result}");
+    }
+
     #[tokio::test]
     async fn r4_export_exposes_placement_contract_without_diagnostics() {
         let data: CollectedPayload = serde_json::from_str(include_str!(

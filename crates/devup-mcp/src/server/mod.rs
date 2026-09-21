@@ -16,6 +16,7 @@ mod quality;
 mod release_check;
 pub mod resources;
 mod result_contract;
+pub mod self_update;
 mod skills;
 mod stack_diff;
 mod tools;
@@ -1547,7 +1548,7 @@ impl DevupServer {
 
     #[tool(
         description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
-                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations. `themeNotes` summarizes each encountered empty token category once. \
+                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. `themeNotes` summarizes each encountered empty token category once. \
                        `checkedTokens` counts $token references this TSX makes and `availableTokenCount` counts tokens devup.json defines; they count different things and are not a ratio, which `tokens` restates by name.",
         output_schema = permissive_object_output_schema()
     )]
@@ -1557,6 +1558,17 @@ impl DevupServer {
     ) -> Result<CallToolResult, ErrorData> {
         use devup_mcp_devup_ui::ui_validate::{bundle_theme, check_bundle, validate_bundle};
         let invalid = |message: String| ErrorData::invalid_params(message, None);
+        // Neither source supplied. This used to validate the empty string and
+        // answer `ok: true, okReason: "clean"` — which reads as "this code
+        // passed" about code that was never sent. There is no verdict to give
+        // here, so the call is refused instead of being given a passing one.
+        if input.files.as_ref().is_none_or(|files| files.is_empty()) && input.tsx.trim().is_empty()
+        {
+            return Err(invalid(
+                "Supply either tsx or files; neither was provided, so there is nothing to validate."
+                    .into(),
+            ));
+        }
         let theme_lookup = if let Some(files) = &input.files {
             check_bundle(files).map_err(invalid)?;
             if !input.tsx.is_empty() {
@@ -1607,12 +1619,19 @@ impl DevupServer {
         let errors = count_severity(Severity::Error);
         let warnings = count_severity(Severity::Warning);
         let infos = count_severity(Severity::Info);
+        // `clean` has to mean "checked, and nothing was wrong". With no theme
+        // resolved the unknown-token check never ran, so code that references
+        // tokens is unverified rather than clean. This is the monorepo case
+        // that answered `clean` for a `$bg` reference while no devup.json had
+        // been read at all.
+        let token_check_skipped = theme_lookup.theme.is_none() && report.checked_tokens > 0;
         let ok_reason = match (errors, warnings, infos, input.strict) {
             (1.., _, _, _) => "error-violations",
             (_, 1.., _, true) => "strict-warnings",
             (_, 1.., 1.., _) => "warnings-and-info",
             (_, 1.., _, _) => "warnings-only",
             (_, _, 1.., _) => "info-only",
+            _ if token_check_skipped => "clean-unverified-tokens",
             _ => "clean",
         };
         let mut result = json!({

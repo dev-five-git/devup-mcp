@@ -283,19 +283,37 @@ const result = {
   diagnostics: [],
 };
 // The measured upstream ceiling is 20,480 UTF-8 bytes. Never hand it JSON
-// that it will silently cut; preserve the complete candidate list or refuse.
+// that it will *silently* cut; what crosses has to describe itself.
 let responseBytes = utf8ByteLength(JSON.stringify(result));
-// Previews are optional menu hints. Yield their space before refusing a
-// complete menu; never drop a selectable screen merely to fit the transport.
+// Previews are optional menu hints. Yield their space first: a hint is never
+// worth a selectable screen.
 for (let index = candidates.length - 1; index >= 0 && responseBytes > 19 * 1024; index -= 1) {
   candidates[index].fields.textPreview = "";
   candidates[index].fields.textPreviewState = "budget-exhausted";
+  responseBytes = utf8ByteLength(JSON.stringify(result));
+}
+// Still over. Refusing outright returned *nothing* for a Section whose menu
+// was merely long, and left no way forward: the ceiling is a property of the
+// Section's size, so the same request reproduces it forever. Drop from the
+// end and declare it with the same `projectionTruncated` the traversal and
+// candidate caps above already raise — the server refuses `allScreens` on a
+// truncated index and answers `not-found-in-truncated-index` instead of
+// claiming a node is absent. A short menu that admits it is short beats an
+// empty one. Silence was the thing forbidden here, not truncation.
+const retained = () => result.nodes.length - 1;
+const discoveredCandidates = candidates.length;
+while (responseBytes > 19 * 1024 && retained() > 1) {
+  const dropped = result.nodes.pop();
+  sectionNode.fields.projectionTruncated = true;
+  sectionNode.fields.childrenIds = sectionNode.fields.childrenIds
+    .filter((id) => id !== dropped.id);
   responseBytes = utf8ByteLength(JSON.stringify(result));
 }
 if (responseBytes > 19 * 1024) {
   throw new Error("DEVUP_SECTION_INDEX_TOO_LARGE " + JSON.stringify({
     pluginCode: "DEVUP_SECTION_INDEX_TOO_LARGE", stage: "section-index",
     responseBytes, maxResponseBytes: 19 * 1024,
+    discoveredCandidates, retainedCandidates: retained(),
   }));
 }
 return result;

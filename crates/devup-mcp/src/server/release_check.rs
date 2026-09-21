@@ -70,20 +70,28 @@ fn disabled() -> bool {
 /// The `updateAvailable` object for [`super::delivery::server_identity`].
 /// Synchronous, cache-only, and cheap enough to run on every response.
 pub fn snapshot() -> Value {
-    if disabled() {
-        return classify(env!("CARGO_PKG_VERSION"), None, true, None, false);
+    let mut value = if disabled() {
+        classify(env!("CARGO_PKG_VERSION"), None, true, None, false)
+    } else {
+        let cached = cache()
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default();
+        classify(
+            env!("CARGO_PKG_VERSION"),
+            cached.latest.as_deref(),
+            false,
+            cached.checked_at,
+            cached.attempted,
+        )
+    };
+    // Whether the difference this reports will close by itself, and which
+    // file to act on when it will not. Both are cached in `self_update`, so
+    // riding on every response costs no syscall.
+    if let Some(object) = value.as_object_mut() {
+        object.insert("autoUpdate".into(), super::self_update::report());
     }
-    let cached = cache()
-        .read()
-        .map(|guard| guard.clone())
-        .unwrap_or_default();
-    classify(
-        env!("CARGO_PKG_VERSION"),
-        cached.latest.as_deref(),
-        false,
-        cached.checked_at,
-        cached.attempted,
-    )
+    value
 }
 
 /// The whole decision, as a pure function, so every state is testable without a
@@ -134,8 +142,10 @@ fn classify(
             ),
             "known" => concat!(
                 "A difference between the running build and the newest release. ",
-                "devup-mcp never replaces its own binary: the MCP host owns this ",
-                "process, so update it and reconnect the client."
+                "This process is never replaced under itself: the MCP host owns it ",
+                "and the stdio pipes it already holds. Read autoUpdate for whether ",
+                "the difference closes on its own at the next start, and when it ",
+                "does not, for the file to replace."
             ),
             _ => concat!(
                 "The newest release is not known: the check has not run yet, or it ",
@@ -163,6 +173,16 @@ fn parse_version(value: &str) -> Option<(u64, u64, u64)> {
         return None;
     }
     Some((major, minor, patch))
+}
+
+/// Whether `candidate` is a later release than `current`. A pair this build
+/// cannot compare is not a difference, and that judgement lives here beside
+/// [`parse_version`] rather than being repeated by everything that needs it.
+pub(super) fn is_newer(candidate: &str, current: &str) -> bool {
+    match (parse_version(candidate), parse_version(current)) {
+        (Some(candidate), Some(current)) => candidate > current,
+        _ => false,
+    }
 }
 
 /// Pull the version out of a per-crate release tag, but only when the tag names
@@ -205,7 +225,7 @@ pub fn spawn() {
 /// One lookup. Every failure path ends the same way: the cache records that an
 /// attempt happened and keeps `latest` absent.
 async fn refresh_once() {
-    let latest = fetch_latest_version().await;
+    let fetched = fetch_latest().await;
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
@@ -213,13 +233,24 @@ async fn refresh_once() {
     if let Ok(mut guard) = cache().write() {
         guard.attempted = true;
         guard.checked_at = now;
-        if latest.is_some() {
-            guard.latest = latest;
+        if let Some((version, _)) = &fetched {
+            guard.latest = Some(version.clone());
         }
+    }
+    // Reporting is complete on its own above. Staging is a separate concern
+    // that fails quietly and changes nothing about what was just reported.
+    if let Some((version, Some(asset))) = fetched {
+        super::self_update::stage(&asset, &version).await;
     }
 }
 
-async fn fetch_latest_version() -> Option<String> {
+/// The newest release's version and, when this platform has one, the download
+/// URL of its asset.
+///
+/// The URL comes out of the release payload rather than being built from the
+/// tag. These tags carry `(`, `/` and `@`, so composing a download URL from
+/// one is a percent-encoding bug waiting for the first person to hit it.
+async fn fetch_latest() -> Option<(String, Option<String>)> {
     let client = reqwest::Client::builder()
         .timeout(REQUEST_TIMEOUT)
         .user_agent(concat!("devup-mcp/", env!("CARGO_PKG_VERSION")))
@@ -231,12 +262,55 @@ async fn fetch_latest_version() -> Option<String> {
     }
     let body = response.json::<Value>().await.ok()?;
     let tag = body.get("tag_name")?.as_str()?;
-    version_from_tag(tag).map(str::to_owned)
+    let version = version_from_tag(tag)?.to_owned();
+    let asset = super::self_update::asset_name().and_then(|name| asset_url(&body, name));
+    Some((version, asset))
+}
+
+fn asset_url(release: &Value, name: &str) -> Option<String> {
+    release
+        .get("assets")?
+        .as_array()?
+        .iter()
+        .find(|asset| asset.get("name").and_then(Value::as_str) == Some(name))
+        .and_then(|asset| asset.get("browser_download_url"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Staging acts on this, so "later" has to mean later and an
+    /// uncomparable pair has to mean no.
+    #[test]
+    fn only_a_comparably_later_version_counts_as_newer() {
+        assert!(is_newer("0.9.0", "0.8.0"));
+        assert!(is_newer("1.0.0", "0.9.9"));
+        assert!(!is_newer("0.9.0", "0.9.0"));
+        assert!(!is_newer("0.8.0", "0.9.0"));
+        // A tag this build cannot parse is never treated as an upgrade.
+        assert!(!is_newer("nightly", "0.9.0"));
+        assert!(!is_newer("0.9.0", "nightly"));
+        assert!(!is_newer("0.9", "0.8.0"));
+    }
+
+    /// The download URL is read from the release payload, never built from
+    /// the tag: these tags carry `(`, `/` and `@`.
+    #[test]
+    fn the_asset_url_comes_from_the_release_payload() {
+        let release = json!({"assets":[
+            {"name":"devup-mcp-linux-x86_64","browser_download_url":"https://example.test/linux"},
+            {"name":"devup-mcp-windows-x86_64.exe","browser_download_url":"https://example.test/win"}
+        ]});
+        assert_eq!(
+            asset_url(&release, "devup-mcp-windows-x86_64.exe").as_deref(),
+            Some("https://example.test/win")
+        );
+        assert_eq!(asset_url(&release, "devup-mcp-macos-universal"), None);
+        assert_eq!(asset_url(&json!({}), "devup-mcp-linux-x86_64"), None);
+    }
 
     #[test]
     fn a_cold_cache_is_unknown_and_never_claims_staleness() {

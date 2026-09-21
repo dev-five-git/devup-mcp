@@ -94,9 +94,41 @@ pub struct ThemeLookup {
     pub guardrail: Option<Value>,
 }
 
+/// Several `devup.json` files and none of them at the project root. Names
+/// each one and the `projectRoot` value that selects it, because the
+/// caller's next move is to pass one of them.
+fn ambiguous_theme_guardrail(root: &Path, candidates: &[PathBuf], excluded: Vec<Value>) -> Value {
+    let choices = candidates
+        .iter()
+        .map(|file| {
+            let (authority, applies_to) = file_authority(root, file);
+            json!({
+                "devupJson": display_path(file),
+                "projectRoot": display_path(file.parent().unwrap_or(root)),
+                "authority": authority,
+                "appliesTo": applies_to,
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut guardrail = guardrail_object(
+        format!(
+            "This project has {} devup.json files and none of them is at the project root, so none of them governs all of it. The unknown-token check was skipped rather than run against an arbitrarily chosen one. Call again with projectRoot set to the package whose code is being validated; candidateProjectRoots lists the value that selects each theme.",
+            candidates.len()
+        ),
+        candidates.iter().map(|file| display_path(file)).collect(),
+    );
+    if let Some(object) = guardrail.as_object_mut() {
+        object.insert("candidateProjectRoots".to_owned(), Value::Array(choices));
+        if !excluded.is_empty() {
+            object.insert("excludedPaths".to_owned(), Value::Array(excluded));
+        }
+    }
+    guardrail
+}
+
 /// Resolves the theme `devup_ui_validate` should check `$token` references
 /// against: the project root's own `devup.json` if present, otherwise the
-/// first `devup.json` found within the project (bounded search), otherwise
+/// single `devup.json` found within the project (bounded search), otherwise
 /// `None` with an explanatory guardrail. Never caches: reads fresh on every
 /// call, per this module's no-session-cache requirement.
 pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, DevupError> {
@@ -129,6 +161,19 @@ pub fn theme_for_validation(project_root: Option<&str>) -> Result<ThemeLookup, D
         (Some(root_level), Vec::new())
     } else {
         let (candidates, excluded) = find_files_named(&root, "devup.json", 4);
+        // More than one theme and none at the project root: nothing here
+        // governs the whole project, so there is no "the" theme to check
+        // against. Taking the first sorted one is how a monorepo root
+        // validated `apps/front` code against `apps/admin`'s theme and
+        // called every real token `unknown-token` — an *error* verdict that
+        // then suggested the other app's token as the fix. Skipping the
+        // check and naming the choices is the honest answer.
+        if candidates.len() > 1 {
+            return Ok(ThemeLookup {
+                theme: None,
+                guardrail: Some(ambiguous_theme_guardrail(&root, &candidates, excluded)),
+            });
+        }
         (candidates.into_iter().next(), excluded)
     };
     let Some(file) = file else {
