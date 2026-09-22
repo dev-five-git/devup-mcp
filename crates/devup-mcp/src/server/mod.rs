@@ -1146,6 +1146,7 @@ impl DevupServer {
     #[tool(
         description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
+                       This output is the design, already read. Do not rewrite it from a screenshot or from `get_design_context` - pictures and visual reasoning verify, they do not author. Do not read the node tree and write devup-ui by hand, and do not infer layout from coordinates. Never guess a colour, spacing, radius or typography value: if a value did not come back, say so and stop, because an invented one is indistinguishable from a real one in the code and is the single failure this server exists to prevent. A failed call is a fact to report, not something to route around. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
@@ -1588,7 +1589,15 @@ impl DevupServer {
         )
         .await
         .map_err(to_mcp_error)?;
-        Ok(tool_result(result))
+        Ok(tool_result(with_context_skill_gap(
+            result,
+            &input.scope,
+            &skills::Lookup::new(
+                input.project_root.as_deref(),
+                self.output_policy.primary_root(),
+                self.runtime(),
+            ),
+        )))
     }
 
     #[tool(
@@ -1797,33 +1806,109 @@ fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex
 const CODE_SKILLS: [&str; 2] = ["devup-ui", "devfive-frontend"];
 
 fn with_skill_gap(mut result: Value, lookup: &skills::Lookup) -> Value {
-    let missing = CODE_SKILLS
-        .into_iter()
-        .filter_map(skills::find_by_name)
-        .filter(|skill| lookup.installed_paths(&skill.record.name).is_empty())
-        .map(|skill| {
-            json!({
-                "skill": skill.record.name,
-                "whyYouNeedIt": skill.record.used_for,
-                "install": skill.install_action(lookup),
-            })
-        })
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return result;
+    if let Some(gap) = skill_gap(CODE_SKILLS.into_iter(), lookup, CODE_GAP_WHY) {
+        result["skillGap"] = gap;
     }
-    result["skillGap"] = json!({
+    result
+}
+
+const CODE_GAP_WHY: &str = "This response carries devup-ui code, and the conventions it is written in are not what \
+     this runtime would load. Without them the code is written from guesses - invented \
+     $tokens, an authored CSS file, components treated as runtime React - and this server can \
+     neither see nor correct that.";
+
+/// The gap between the skills a response's subject needs and what this runtime
+/// would actually load, or `None` when there is none.
+///
+/// Missing and outdated are reported apart because they need different words
+/// from the caller. One is a skill the agent has never seen. The other is one
+/// it is reading right now, and being taught rules this build no longer emits -
+/// which reads exactly like a correctly installed skill until someone compares
+/// the bytes.
+fn skill_gap<'a>(
+    names: impl Iterator<Item = &'a str>,
+    lookup: &skills::Lookup,
+    why: &str,
+) -> Option<Value> {
+    let mut missing = Vec::new();
+    let mut outdated = Vec::new();
+    for skill in names.filter_map(skills::find_by_name) {
+        let entry = json!({
+            "skill": skill.record.name,
+            "whyYouNeedIt": skill.record.used_for,
+            "install": skill.install_action(lookup),
+        });
+        match skill.installed_freshness(lookup) {
+            None => missing.push(entry),
+            Some(state) if state.should_refresh() => {
+                let mut entry = entry;
+                entry["revision"] = json!(state.as_str());
+                outdated.push(entry);
+            }
+            Some(_) => {}
+        }
+    }
+    if missing.is_empty() && outdated.is_empty() {
+        return None;
+    }
+    Some(json!({
         "missing": missing,
-        "why": "This response carries devup-ui code, and these conventions are not installed \
-                anywhere this runtime loads skills from. Without them the code is written from \
-                guesses - invented $tokens, an authored CSS file, components treated as runtime \
-                React - and this server can neither see nor correct that.",
+        "outdated": outdated,
+        "why": why,
         "how": "Call devup_skills with action \"install\" and this same projectRoot, then load \
-                the skills the way your runtime loads a project skill. Before writing the TSX, \
-                not after.",
+                the skills the way your runtime loads a project skill. Before writing the code, \
+                not after. The same call rewrites an outdated copy devup-mcp wrote and leaves a \
+                document it did not write alone.",
         "runtime": lookup.runtime.as_str(),
         "workspace": lookup.project.display().to_string(),
-    });
+    }))
+}
+
+/// Names the conventions for the files this scope just read, when this runtime
+/// would not load them.
+///
+/// The export gap covers the code devup-mcp writes; this covers the files it
+/// reads. `devup.json` is devup-ui's theme format, the `openapi.json` under
+/// scope api is generated by vespera routes, and the `models/*.json` under
+/// scope db are vespertide schemas - so an agent about to edit any of them
+/// needs the same rules, and had no way to learn it needed them.
+///
+/// Gated on the scope having found something. A project with no `openapi.json`
+/// has no use for the vespera skill, and naming it there is the noise that
+/// teaches a reader to skip the field.
+fn with_context_skill_gap(mut result: Value, scope: &str, lookup: &skills::Lookup) -> Value {
+    let found = |key: &str| {
+        // `all` nests one object per scope; a single scope answers at the top
+        // level. Both say `found`.
+        result
+            .get(key)
+            .unwrap_or(&result)
+            .get("found")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    };
+    let mut names: Vec<&str> = Vec::new();
+    if matches!(scope, "theme" | "all") && found("theme") {
+        names.push("devup-ui");
+    }
+    if matches!(scope, "api" | "all") && found("api") {
+        names.push("vespera");
+    }
+    if matches!(scope, "db" | "all") && found("db") {
+        names.push("vespertide");
+    }
+    if scope == "ui" && found("ui") {
+        names.extend(CODE_SKILLS);
+    }
+    if let Some(gap) = skill_gap(
+        names.into_iter(),
+        lookup,
+        "These are the conventions for the files this scope just read, and they are not what \
+         this runtime would load. Without them an agent edits a devup.json, an openapi.json or \
+         a Vespertide model by guessing at its shape.",
+    ) {
+        result["skillGap"] = gap;
+    }
     result
 }
 

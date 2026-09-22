@@ -154,6 +154,59 @@ const EMBEDDED: &[(&str, Documents)] = &[
 /// file is on disk; the rest are what it links to.
 pub const ENTRY_DOCUMENT: &str = "SKILL.md";
 
+/// How each provenance note opens. Named so the writer and the reader cannot
+/// drift apart: [`Skill::provenance_note`] builds them and
+/// [`Skill::freshness_at`] recognises a file by them.
+const FETCHED_MARKER: &str = "<!-- Fetched from ";
+const AUTHORED_MARKER: &str = "<!-- Authored in ";
+const VENDORED_MARKER: &str = "<!-- Vendored from ";
+
+/// How the copy on disk compares with the one this binary would write.
+///
+/// `installed` used to mean `is_file()` and nothing more, so a `SKILL.md`
+/// written by a devup-mcp from six months ago - or a one-line placeholder
+/// someone dropped there - was indistinguishable from the current document.
+/// Worse, `install` skipped anything already present, which meant there was no
+/// way to update a skill at all: the first install a machine ever did was the
+/// last one it would get.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Freshness {
+    /// Byte-identical to what an install would write now, or fetched from
+    /// upstream - which is at least as new as the copy in this binary, and
+    /// cannot be compared against it without the network.
+    Current,
+    /// Carries devup-mcp's provenance, but is not what this build writes.
+    /// Safe to replace, because devup-mcp wrote it.
+    Older,
+    /// No devup-mcp provenance note at all. Someone wrote this, or it came
+    /// from somewhere else. Never overwritten - reported instead, because
+    /// replacing it would destroy work this server did not do.
+    Foreign,
+    /// The entry document is exactly ours, but a file it links to is missing
+    /// or has different bytes. This is the shape that looks installed and is
+    /// not: a `SKILL.md` whose references go nowhere.
+    Incomplete,
+}
+
+impl Freshness {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Current => "current",
+            Self::Older => "older",
+            Self::Foreign => "foreign",
+            Self::Incomplete => "incomplete",
+        }
+    }
+
+    /// Whether an install should rewrite this copy.
+    ///
+    /// `Foreign` is excluded on purpose. Someone put their own document there
+    /// and an install is not the moment to decide it was a mistake.
+    pub fn should_refresh(self) -> bool {
+        matches!(self, Self::Older | Self::Incomplete)
+    }
+}
+
 /// Where agent runtimes keep project-local skills, in the order they are
 /// preferred when none exists yet.
 ///
@@ -182,6 +235,34 @@ pub const USER_SKILL_ROOTS: &[&str] = &[
     ".codex/skills",
     ".config/opencode/skill",
     ".agents/skills",
+    ".cursor/skills",
+    ".codeium/windsurf/skills",
+    ".copilot/skills",
+    ".gemini/skills",
+    ".cline/skills",
+    ".continue/skills",
+    ".config/agents/skills",
+    ".config/amp/skills",
+];
+
+/// Every project-local convention devup-mcp knows of, for a client that did
+/// not say which it is.
+///
+/// Read, not written. An unidentified client still has whatever someone
+/// installed before, and finding it is what stops a second copy being written
+/// beside it; [`Runtime::write_roots`] is the narrower list an install uses.
+const EVERY_PROJECT_ROOT: &[&str] = &[
+    ".claude/skills",
+    ".opencode/skill",
+    ".agents/skills",
+    ".cursor/skills",
+    ".windsurf/skills",
+    ".github/skills",
+    ".gemini/skills",
+    ".cline/skills",
+    ".continue/skills",
+    ".goose/skills",
+    ".codex/skills",
 ];
 
 /// Which agent runtime is driving this server, from the MCP `clientInfo` name.
@@ -199,24 +280,59 @@ pub enum Runtime {
     ClaudeCode,
     Codex,
     Opencode,
+    Cursor,
+    Zed,
+    Windsurf,
+    VsCode,
+    GeminiCli,
+    Cline,
+    Continue,
+    Amp,
+    Goose,
     Unknown,
 }
 
 impl Runtime {
-    /// Matched on a substring, not a fixed table: clients spell themselves
-    /// differently across versions and transports - `codex`, `codex-cli`,
-    /// `claude-code`, `claude-ai`, `opencode` - and an exact table would fall
-    /// back to `Unknown` the first time one of them was renamed.
+    /// Recognises the client from the name it sent at `initialize`.
     ///
-    /// `opencode` is tested before `codex` because it contains it.
+    /// Order matters where one name contains another: `cursor-vscode` is
+    /// Cursor and not VS Code, and `opencode` has to be tested before the
+    /// shorter editor names. Short, common words are matched exactly or with
+    /// their own prefix rather than as a bare substring - `amp` alone would
+    /// claim any client with "example" or "amplify" in its name, and `zed`
+    /// would claim anything "analyzed".
+    ///
+    /// A name this does not know is not a failure. It falls to `Unknown`,
+    /// which reads every convention and writes the three broad ones, so the
+    /// worst outcome is a spare directory rather than a skill nothing loads.
     pub fn from_client_name(name: &str) -> Self {
-        let name = name.to_ascii_lowercase();
-        if name.contains("opencode") {
+        let name = name.trim().to_ascii_lowercase();
+        let has = |needle: &str| name.contains(needle);
+        if has("opencode") {
             Self::Opencode
-        } else if name.contains("codex") {
+        } else if has("cursor") {
+            Self::Cursor
+        } else if has("codex") {
             Self::Codex
-        } else if name.contains("claude") {
+        } else if has("claude") {
             Self::ClaudeCode
+        } else if has("windsurf") {
+            Self::Windsurf
+        } else if has("gemini") {
+            Self::GeminiCli
+        } else if has("cline") {
+            Self::Cline
+        } else if has("continue") {
+            Self::Continue
+        } else if has("goose") {
+            Self::Goose
+        } else if name.starts_with("zed") {
+            // Anchored, not a substring: `analyzed-client` contains "zed-".
+            Self::Zed
+        } else if has("ampcode") || has("amp-mcp") {
+            Self::Amp
+        } else if has("visual studio code") || has("vscode") || has("code - oss") {
+            Self::VsCode
         } else {
             Self::Unknown
         }
@@ -227,37 +343,107 @@ impl Runtime {
             Self::ClaudeCode => "claude-code",
             Self::Codex => "codex",
             Self::Opencode => "opencode",
+            Self::Cursor => "cursor",
+            Self::Zed => "zed",
+            Self::Windsurf => "windsurf",
+            Self::VsCode => "vscode",
+            Self::GeminiCli => "gemini-cli",
+            Self::Cline => "cline",
+            Self::Continue => "continue",
+            Self::Amp => "amp",
+            Self::Goose => "goose",
             Self::Unknown => "unknown",
         }
     }
 
     /// The project-local roots this runtime loads from, most preferred first.
     ///
-    /// Codex walks `<dir>/.agents/skills` and does not look at
-    /// `.claude/skills`; Claude Code is the reverse; opencode reads its own
-    /// and scans the other two for compatibility.
+    /// `.agents/skills` has become the shared convention - Codex, Zed, Amp and
+    /// Goose read it as their primary, and Cursor, Windsurf, VS Code and
+    /// Gemini read it alongside their own. Cline is the exception that makes
+    /// the table worth having: it reads `.agents/skills` only at the user
+    /// level, so a project-local copy there is one nothing opens.
     ///
-    /// `Unknown` gets all of them and an install writes every one, because a
-    /// spare copy costs a few kilobytes inside a directory the project already
-    /// owns, and the alternative is the silent failure above.
+    /// `Unknown` reads every convention, so an existing install is found
+    /// whoever wrote it; what it *writes* is narrower, see [`Self::write_roots`].
     pub fn project_roots(self) -> &'static [&'static str] {
         match self {
             Self::ClaudeCode => &[".claude/skills"],
             Self::Codex => &[".agents/skills"],
             Self::Opencode => &[".opencode/skill", ".claude/skills", ".agents/skills"],
+            Self::Cursor => &[
+                ".cursor/skills",
+                ".agents/skills",
+                ".claude/skills",
+                ".codex/skills",
+            ],
+            Self::Zed => &[".agents/skills"],
+            Self::Windsurf => &[".windsurf/skills", ".agents/skills", ".claude/skills"],
+            Self::VsCode => &[".github/skills", ".claude/skills", ".agents/skills"],
+            Self::GeminiCli => &[".gemini/skills", ".agents/skills"],
+            // No project-local `.agents/skills`: Cline reads that one only
+            // from the home directory.
+            Self::Cline => &[".cline/skills"],
+            Self::Continue => &[".continue/skills", ".claude/skills"],
+            Self::Amp => &[".agents/skills", ".claude/skills"],
+            // Documented as the current convention, with `.goose/skills` kept
+            // for compatibility. Goose renamed this feature mid-release and
+            // users report the global path behaving differently across
+            // versions, so this arm is the least certain in the table.
+            Self::Goose => &[".agents/skills", ".goose/skills", ".claude/skills"],
+            Self::Unknown => EVERY_PROJECT_ROOT,
+        }
+    }
+
+    /// Where an install writes when no root exists yet.
+    ///
+    /// The same as [`Self::project_roots`] for a known client - the first
+    /// entry is its own convention. `Unknown` is the one that differs: it
+    /// reads every convention but writes only the three broad ones, because
+    /// writing a copy into each of a dozen editor-specific directories would
+    /// be worse than the problem it solves.
+    pub fn write_roots(self) -> &'static [&'static str] {
+        match self {
             Self::Unknown => SKILL_ROOTS,
+            other => other.project_roots(),
         }
     }
 
     /// The machine-wide roots this runtime loads from. Read, never written.
     ///
     /// `~/.codex/skills` is deprecated upstream but still scanned, so a skill
-    /// sitting there is loaded and must not be reported missing.
+    /// sitting there is loaded and must not be reported missing. The same
+    /// reasoning is why every client here lists its own home directory: a
+    /// Cursor user who installed once into `~/.cursor/skills` was being told
+    /// the skill was missing, and told to write a second copy.
     pub fn user_roots(self) -> &'static [&'static str] {
         match self {
             Self::ClaudeCode => &[".claude/skills"],
             Self::Codex => &[".agents/skills", ".codex/skills"],
             Self::Opencode => &[".config/opencode/skill", ".claude/skills", ".agents/skills"],
+            Self::Cursor => &[
+                ".cursor/skills",
+                ".agents/skills",
+                ".claude/skills",
+                ".codex/skills",
+            ],
+            Self::Zed => &[".agents/skills"],
+            Self::Windsurf => &[
+                ".codeium/windsurf/skills",
+                ".agents/skills",
+                ".claude/skills",
+            ],
+            Self::VsCode => &[".copilot/skills", ".claude/skills", ".agents/skills"],
+            Self::GeminiCli => &[".gemini/skills", ".agents/skills"],
+            Self::Cline => &[".cline/skills", ".agents/skills"],
+            Self::Continue => &[".continue/skills", ".claude/skills"],
+            Self::Amp => &[
+                ".config/agents/skills",
+                ".agents/skills",
+                ".config/amp/skills",
+                ".claude/skills",
+            ],
+            Self::Goose => &[".agents/skills", ".claude/skills"],
             Self::Unknown => USER_SKILL_ROOTS,
         }
     }
@@ -362,7 +548,7 @@ impl Lookup {
         if !existing.is_empty() {
             return existing.into_iter().take(1).collect();
         }
-        let conventions = self.runtime.project_roots();
+        let conventions = self.runtime.write_roots();
         let chosen = if self.runtime == Runtime::Unknown {
             conventions
         } else {
@@ -726,6 +912,59 @@ impl Skill {
         self.annotated_with(text, None)
     }
 
+    /// How the copy at `entry` compares with the one this binary would write.
+    ///
+    /// Byte comparison against exactly what an install produces, rather than
+    /// against the manifest digest: the entry document is annotated on the way
+    /// to disk, so its installed bytes were never the digest's bytes and a
+    /// digest check would call every correct install stale.
+    ///
+    /// A fetched copy is read as current without comparing anything. It came
+    /// from upstream HEAD, so it is at least as new as the copy vendored into
+    /// this binary, and deciding otherwise would need the network - which is
+    /// exactly what the machine this matters on does not have.
+    ///
+    /// References are checked only when the entry document is current. When it
+    /// is not, the references belong to whichever revision wrote the entry and
+    /// reporting them as a separate fault would name a symptom instead of the
+    /// cause.
+    pub fn freshness_at(&self, entry: &Path) -> Freshness {
+        let Some(expected) = self.entry_text() else {
+            // Nothing of ours to compare against; devup-mcp never wrote it.
+            return Freshness::Foreign;
+        };
+        let Ok(found) = std::fs::read_to_string(entry) else {
+            return Freshness::Foreign;
+        };
+        if found != self.annotated(expected) {
+            return if found.contains(FETCHED_MARKER) {
+                Freshness::Current
+            } else if found.contains(VENDORED_MARKER) || found.contains(AUTHORED_MARKER) {
+                Freshness::Older
+            } else {
+                Freshness::Foreign
+            };
+        }
+        let Some(directory) = entry.parent() else {
+            return Freshness::Current;
+        };
+        for document in &self.record.documents {
+            if document.path == ENTRY_DOCUMENT {
+                continue;
+            }
+            let path = document
+                .path
+                .split('/')
+                .fold(directory.to_path_buf(), |p, part| p.join(part));
+            let matches = std::fs::read(&path)
+                .is_ok_and(|bytes| crate::skills::sha256(&bytes) == document.sha256);
+            if !matches {
+                return Freshness::Incomplete;
+            }
+        }
+        Freshness::Current
+    }
+
     fn annotated_with(&self, text: &str, fetched: Option<&SkillProvenance>) -> String {
         let note = self.provenance_note(fetched);
         match frontmatter_end(text) {
@@ -744,7 +983,8 @@ impl Skill {
         let r = &self.record;
         if let Some(p) = fetched {
             return format!(
-                "<!-- Fetched from {} at {} (Unix seconds).\n     ETag: {}\n     SHA-256 of upstream bytes before annotation: {}\n     Why this matters here: {} -->",
+                "{}{} at {} (Unix seconds).\n     ETag: {}\n     SHA-256 of upstream bytes before annotation: {}\n     Why this matters here: {} -->",
+                FETCHED_MARKER,
                 p.source_url,
                 p.fetched_at,
                 p.etag.replace("--", "&#45;&#45;"),
@@ -754,11 +994,12 @@ impl Skill {
         }
         if r.origin == Origin::Own {
             return format!(
-                "<!-- Authored in {repo}, at {path}.\n     \
+                "{marker}{repo}, at {path}.\n     \
                  Part of this devup-mcp build - there is no separate upstream for it to fall \
                  behind.\n     \
                  Current revision: {latest}\n     \
                  Why this matters here: {used} -->",
+                marker = AUTHORED_MARKER,
                 repo = r.repo,
                 path = r.path,
                 latest = r.latest_url,
@@ -766,11 +1007,12 @@ impl Skill {
             );
         }
         format!(
-            "<!-- Vendored from {repo}/{path} at {commit} ({at}).\n     \
+            "{marker}{repo}/{path} at {commit} ({at}).\n     \
              Embedded in this devup-mcp build; no network was used to read it.\n     \
              This revision: {source}\n     \
              Newer revisions, if any: {latest}\n     \
              Why this matters here: {used} -->",
+            marker = VENDORED_MARKER,
             repo = r.repo,
             path = r.path,
             commit = r.commit.as_deref().unwrap_or("unknown"),
@@ -783,6 +1025,25 @@ impl Skill {
 
     /// The one action that closes the gap, in the imperative, with everything
     /// needed to carry it out.
+    /// The freshness of the worst copy this runtime would load, or `None` when
+    /// there is no copy at all.
+    ///
+    /// The worst one decides. A machine with a current copy in one root and a
+    /// stale copy in another is loading both, and the stale one is the one
+    /// that will be wrong.
+    pub fn installed_freshness(&self, lookup: &Lookup) -> Option<Freshness> {
+        lookup
+            .installed_paths(&self.record.name)
+            .iter()
+            .map(|path| self.freshness_at(path))
+            .max_by_key(|state| match state {
+                Freshness::Current => 0,
+                Freshness::Older => 1,
+                Freshness::Incomplete => 2,
+                Freshness::Foreign => 3,
+            })
+    }
+
     pub fn install_action(&self, lookup: &Lookup) -> serde_json::Value {
         let installed = lookup.installed_paths(&self.record.name);
         if !installed.is_empty() {
@@ -790,12 +1051,41 @@ impl Skill {
                 .iter()
                 .map(|path| path.display().to_string())
                 .collect::<Vec<_>>();
+            let revision = self
+                .installed_freshness(lookup)
+                .unwrap_or(Freshness::Current);
+            if revision.should_refresh() {
+                return serde_json::json!({
+                    "installed": true,
+                    "paths": paths,
+                    "revision": revision.as_str(),
+                    "action": "devup_skills",
+                    "arguments": {"action": "install", "names": [self.record.name]},
+                    "why": if revision == Freshness::Incomplete {
+                        "The SKILL.md on disk is this build's, but a document it links to is \
+                         missing or has different bytes. It looks installed and its links go \
+                         nowhere."
+                    } else {
+                        "The copy on disk was written by a different devup-mcp build. It still \
+                         loads, and it describes conventions this binary no longer emits."
+                    },
+                    "how": "Call devup_skills with action \"install\". A copy devup-mcp wrote is \
+                            rewritten in place; nothing else is touched.",
+                });
+            }
             return serde_json::json!({
                 "installed": true,
                 "paths": paths,
+                "revision": revision.as_str(),
                 "action": null,
-                "how": "Already installed. Your skill loader picks it up by its own triggers; \
-                        nothing to do.",
+                "how": if revision == Freshness::Foreign {
+                    "Installed, but this document is not one devup-mcp wrote - no provenance \
+                     note. It is left exactly as it is, because replacing it would destroy work \
+                     this server did not do. Delete it first if you want devup-mcp's copy."
+                } else {
+                    "Already installed and current. Your skill loader picks it up by its own \
+                     triggers; nothing to do."
+                },
             });
         }
         match self.record.origin {
@@ -916,6 +1206,16 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
         .iter()
         .filter(|entry| entry["installed"] == false)
         .count();
+    // Counted apart from `missing`, because the two need different words from
+    // the caller: one is a skill the agent has never seen, the other is one it
+    // is reading right now and getting outdated rules from.
+    let stale = entries
+        .iter()
+        .filter(|entry| {
+            entry["installState"]["action"] == "devup_skills" && entry["installed"] == true
+        })
+        .map(|entry| entry["name"].clone())
+        .collect::<Vec<_>>();
     let mut report = serde_json::json!({
         "workspace": lookup.project.display().to_string(),
         "runtime": {
@@ -943,13 +1243,26 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
             "userRootsNote": "Machine-wide roots are read to decide `installed`, never written: \
                               devup-mcp writes only inside an allowed output root. A skill found \
                               in one of these is already loaded by its runtime and needs nothing.",
-            "allKnownRoots": SKILL_ROOTS,
-            "scopeNote": "`known` is narrowed to what this runtime loads from; `allKnownRoots` is \
-                          every convention devup-mcp understands.",
+            "writeConventions": lookup.runtime.write_roots(),
+            "allKnownRoots": EVERY_PROJECT_ROOT,
+            "scopeNote": "`known` is every root this runtime *reads*, so an install someone else \
+                          made is found rather than duplicated. `writeConventions` is the \
+                          narrower list an install may create, and `wouldUse` is what this call \
+                          would actually write. For an unidentified client the first is every \
+                          convention and the second is the three broad ones, because writing a \
+                          copy into each of a dozen editor directories is worse than the problem \
+                          it solves.",
         },
         "installedCount": entries.len() - missing,
         "missingCount": missing,
+        "outdated": stale,
+        "outdatedNote": "Installed, loading, and not what this build writes. `installed` means the \
+                         file is there; `installState.revision` says whether it is current, and a \
+                         skill listed here is teaching an agent rules this binary no longer emits. \
+                         Installing again rewrites devup-mcp's own copies and leaves a `foreign` \
+                         one - a document with no devup-mcp provenance note - alone.",
         "skills": entries,
+        "machineWide": machine_wide(lookup),
         "how": "These are the conventions for the code devup-mcp emits and reads. Install the \
                 missing ones, then let your own skill loader surface them - an installed skill \
                 keeps applying for every later session, which is the thing reading a document \
@@ -960,6 +1273,37 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
         report["repoObligations"] = serde_json::json!({ "changepacks": obligation });
     }
     report
+}
+
+/// Where a once-per-machine install would go, and why devup-mcp does not do it.
+///
+/// Installing per project is correct and self-healing - every export names the
+/// gap again - but it is one install per repository, and someone setting up a
+/// machine usually wants one install for all of them. The home directory is
+/// outside the allowed write root by design, and widening that so a
+/// design-to-code server can write to `$HOME` is not a trade worth making for
+/// convenience. So the path is handed over and the person runs it.
+fn machine_wide(lookup: &Lookup) -> serde_json::Value {
+    let Some(home) = &lookup.home else {
+        return serde_json::json!({
+            "available": false,
+            "why": "No home directory is set for this process, so there is nowhere to name.",
+        });
+    };
+    let directory = join_root(home, lookup.runtime.user_roots()[0]);
+    serde_json::json!({
+        "available": true,
+        "directory": display_path(&directory),
+        "appliesTo": "Every project on this machine, not just this one.",
+        "action": "run-this-yourself",
+        "why": "devup-mcp writes only inside an allowed output root, and the home directory is \
+                not one. Widening that so a design-to-code server can write to $HOME is not a \
+                trade worth making, so the path is yours to fill.",
+        "how": "Copy the installed skill directories there, or install them with your runtime's \
+                own skill tooling. A skill found in this directory is reported as installed by \
+                every later call, for every project.",
+        "readNotWritten": true,
+    })
 }
 
 /// What a `.changepacks/` directory obliges a pull request in this workspace to
@@ -1089,6 +1433,8 @@ async fn install_with(
     let mut transaction = super::output::OutputTransaction::new();
     let mut written = Vec::new();
     let mut already = Vec::new();
+    let mut refreshed = Vec::new();
+    let mut left_alone = Vec::new();
     let mut warnings = Vec::new();
     // One budget for the call, not four seconds multiplied by the registry.
     let deadline = tokio::time::Instant::now() + FETCH_TIMEOUT;
@@ -1097,78 +1443,79 @@ async fn install_with(
         .filter(|skill| skill.record.origin.is_carried())
     {
         let name = &skill.record.name;
-        if !lookup.installed_paths(name).is_empty() {
-            already.push(name.clone());
+        // Presence alone used to end the decision here, which is why there was
+        // no way to update a skill: the first install a machine ever did was
+        // the last one it would get. What is on disk decides now.
+        let present = lookup.installed_paths(name);
+        if !present.is_empty() {
+            let states = present
+                .iter()
+                .map(|path| (path.clone(), skill.freshness_at(path)))
+                .collect::<Vec<_>>();
+            let refreshable = states
+                .iter()
+                .filter(|(_, state)| state.should_refresh())
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>();
+            for (path, state) in &states {
+                if *state == Freshness::Foreign {
+                    left_alone.push(serde_json::json!({
+                        "name": name,
+                        "path": path.display().to_string(),
+                        "revision": state.as_str(),
+                        "why": "No devup-mcp provenance note, so devup-mcp did not write it and \
+                                will not replace it. Delete it first to take devup-mcp's copy.",
+                    }));
+                }
+            }
+            if refreshable.is_empty() {
+                already.push(name.clone());
+                continue;
+            }
+            // Rewrite where the stale copies actually are, not where a fresh
+            // install would have chosen - a copy left behind in a root the
+            // chosen one is not in would keep being loaded and keep being old.
+            refreshed.push(serde_json::json!({
+                "name": name,
+                "paths": refreshable.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+            }));
+            stage_documents(
+                policy,
+                &mut transaction,
+                skill,
+                upstream,
+                deadline,
+                &refreshable
+                    .iter()
+                    .filter_map(|path| Some(path.parent()?.parent()?.to_path_buf()))
+                    .collect::<Vec<_>>(),
+                &project,
+                &mut warnings,
+                &mut written,
+            )
+            .await?;
             continue;
         }
-        let mut documents = skill
-            .installable_documents()
-            .expect("a carried skill always has documents");
-        let mut source = "embedded";
-        let mut reason = Some("authored in this repository; no upstream".to_owned());
-        let mut provenance = Vec::new();
-        if skill.record.origin == Origin::Embedded {
-            match skill.fetch_documents(upstream, deadline).await {
-                Ok(fetched) => {
-                    documents = fetched.documents;
-                    provenance = fetched.provenance;
-                    source = "fetched";
-                    reason = None;
-                }
-                Err((url, error)) => {
-                    reason = Some(format!("{url}: {error}"));
-                    if error == SkillFetchError::NotFound {
-                        warnings.push(serde_json::json!({
-                            "name": name,
-                            "sourceUrl": url,
-                            "message": "Upstream returned 404; the document may have moved. Check the skill manifest. The complete embedded copy was installed.",
-                        }));
-                    }
-                }
-            }
-        }
-        let mut paths = Vec::with_capacity(documents.len() * roots.len());
-        for root in &roots {
-            for (relative, contents) in &documents {
-                // The skill root has to sit inside an allowed write root. Said
-                // in those words, because the caller who hits this passed a
-                // `projectRoot`, not an `outputPath`, and being told an
-                // `outputPath` is out of bounds names something they never
-                // sent.
-                let target = policy
-                    .resolve(&document_path(root, name, relative).display().to_string())
-                    .map_err(|error| {
-                        DevupError::with_details(
-                            ErrorCode::DevupInvalidInput,
-                            format!(
-                                "Cannot install skills into {}: it is outside this server's allowed write roots.",
-                                root.display()
-                            ),
-                            false,
-                            serde_json::json!({
-                                "projectRoot": project.display().to_string(),
-                                "skillRoot": root.display().to_string(),
-                                "underlying": error.message,
-                                "how": "Start devup-mcp with --allow-write-root pointing at this project, \
-                                        or omit projectRoot to install into the server's own write root.",
-                            }),
-                        )
-                    })?;
-                paths.push(target.display_path().display().to_string());
-                transaction.stage(
-                    format!("skill:{name}:{}:{relative}", root.display()),
-                    target,
-                    contents.as_bytes(),
-                )?;
-            }
-        }
-        written.push(serde_json::json!({"name": name, "paths": paths, "source": source, "reason": reason, "documents": provenance}));
+        stage_documents(
+            policy,
+            &mut transaction,
+            skill,
+            upstream,
+            deadline,
+            &roots,
+            &project,
+            &mut warnings,
+            &mut written,
+        )
+        .await?;
     }
     transaction.commit()?;
 
     Ok(serde_json::json!({
         "installed": written,
+        "refreshed": refreshed,
         "alreadyPresent": already,
+        "leftAlone": left_alone,
         "notInstallable": external,
         "warnings": warnings,
         "roots": roots.iter().map(|root| root.display().to_string()).collect::<Vec<_>>(),
@@ -1184,6 +1531,96 @@ async fn install_with(
         },
         "boundary": "Only carried skills were written, using current upstream documents where available or the embedded copy. External skills were not fetched or written, and no install command was executed.",
     }))
+}
+
+/// Resolves one skill's documents and stages every one of them under `roots`.
+///
+/// Shared by the first install and by a refresh so the two cannot drift: a
+/// refresh that wrote a different set of files than an install would have is
+/// how a skill ends up half one revision and half another.
+///
+/// The whole set is staged, never a document at a time, for the reason this
+/// module exists: a `SKILL.md` that survived next to four references that did
+/// not looks installed and its links go nowhere.
+#[allow(clippy::too_many_arguments)]
+async fn stage_documents(
+    policy: &super::output::OutputPolicy,
+    transaction: &mut super::output::OutputTransaction,
+    skill: &Skill,
+    upstream: &dyn SkillUpstream,
+    deadline: tokio::time::Instant,
+    roots: &[PathBuf],
+    project: &Path,
+    warnings: &mut Vec<serde_json::Value>,
+    written: &mut Vec<serde_json::Value>,
+) -> Result<(), devup_mcp_figma::DevupError> {
+    use devup_mcp_figma::{DevupError, ErrorCode};
+
+    let name = &skill.record.name;
+    let mut documents = skill
+        .installable_documents()
+        .expect("a carried skill always has documents");
+    let mut source = "embedded";
+    let mut reason = Some("authored in this repository; no upstream".to_owned());
+    let mut provenance = Vec::new();
+    if skill.record.origin == Origin::Embedded {
+        match skill.fetch_documents(upstream, deadline).await {
+            Ok(fetched) => {
+                documents = fetched.documents;
+                provenance = fetched.provenance;
+                source = "fetched";
+                reason = None;
+            }
+            Err((url, error)) => {
+                reason = Some(format!("{url}: {error}"));
+                if error == SkillFetchError::NotFound {
+                    warnings.push(serde_json::json!({
+                        "name": name,
+                        "sourceUrl": url,
+                        "message": "Upstream returned 404; the document may have moved. Check the skill manifest. The complete embedded copy was installed.",
+                    }));
+                }
+            }
+        }
+    }
+    let mut paths = Vec::with_capacity(documents.len() * roots.len());
+    for root in roots {
+        for (relative, contents) in &documents {
+            // The skill root has to sit inside an allowed write root. Said in
+            // those words, because the caller who hits this passed a
+            // `projectRoot`, not an `outputPath`, and being told an
+            // `outputPath` is out of bounds names something they never sent.
+            let target = policy
+                .resolve(&document_path(root, name, relative).display().to_string())
+                .map_err(|error| {
+                    DevupError::with_details(
+                        ErrorCode::DevupInvalidInput,
+                        format!(
+                            "Cannot install skills into {}: it is outside this server's allowed write roots.",
+                            root.display()
+                        ),
+                        false,
+                        serde_json::json!({
+                            "projectRoot": project.display().to_string(),
+                            "skillRoot": root.display().to_string(),
+                            "underlying": error.message,
+                            "how": "Start devup-mcp with --allow-write-root pointing at this project, \
+                                    or omit projectRoot to install into the server's own write root.",
+                        }),
+                    )
+                })?;
+            paths.push(target.display_path().display().to_string());
+            transaction.stage(
+                format!("skill:{name}:{}:{relative}", root.display()),
+                target,
+                contents.as_bytes(),
+            )?;
+        }
+    }
+    written.push(
+        serde_json::json!({"name": name, "paths": paths, "source": source, "reason": reason, "documents": provenance}),
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1428,7 +1865,24 @@ mod tests {
             ("claude-code", Runtime::ClaudeCode),
             ("Claude Code", Runtime::ClaudeCode),
             ("opencode", Runtime::Opencode),
+            // `cursor-vscode` contains both names; Cursor has to win.
+            ("cursor-vscode", Runtime::Cursor),
+            ("Visual Studio Code", Runtime::VsCode),
+            ("Code - OSS", Runtime::VsCode),
+            ("Zed", Runtime::Zed),
+            ("windsurf-client", Runtime::Windsurf),
+            ("gemini-cli-mcp-client", Runtime::GeminiCli),
+            ("@cline/core", Runtime::Cline),
+            ("continue-cli-client", Runtime::Continue),
+            ("amp-mcp-client", Runtime::Amp),
+            ("goose", Runtime::Goose),
+            // No fixed auto-discovered directory, so guessing one would be
+            // worse than the fallback.
+            ("JetBrains-IU-copilot-intellij", Runtime::Unknown),
             ("some-editor", Runtime::Unknown),
+            // Short words must not be claimed out of unrelated names.
+            ("analyzed-client", Runtime::Unknown),
+            ("example-mcp", Runtime::Unknown),
         ] {
             assert_eq!(
                 Runtime::from_client_name(name),
@@ -1545,6 +1999,159 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&home);
         let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// Writes what an install would write, so the freshness check has
+    /// something honest to compare against.
+    fn install_by_hand(project: &Path, runtime: Runtime, name: &str) -> PathBuf {
+        let skill = find_by_name(name).unwrap();
+        let root = join_root(project, runtime.write_roots()[0]);
+        for (relative, contents) in skill.installable_documents().unwrap() {
+            let path = document_path(&root, name, relative);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, contents).unwrap();
+        }
+        install_path(&root, name)
+    }
+
+    /// `installed` used to mean `is_file()`, so a one-line placeholder read
+    /// exactly like the current document. These are the four states that were
+    /// all reported as one.
+    #[test]
+    fn freshness_separates_current_older_foreign_and_incomplete() {
+        let project = scratch("freshness");
+        let skill = find_by_name("devfive-frontend").unwrap();
+
+        let entry = install_by_hand(&project, Runtime::Codex, "devfive-frontend");
+        assert_eq!(
+            skill.freshness_at(&entry),
+            Freshness::Current,
+            "what an install just wrote is not current"
+        );
+
+        // A reference gone: the shape that looks installed and whose links go
+        // nowhere.
+        let reference = entry
+            .parent()
+            .unwrap()
+            .join("references")
+            .join("anti-patterns.md");
+        assert!(
+            reference.is_file(),
+            "this test needs the multi-document skill"
+        );
+        std::fs::remove_file(&reference).unwrap();
+        assert_eq!(skill.freshness_at(&entry), Freshness::Incomplete);
+        let _ = std::fs::remove_dir_all(&project);
+
+        // Our provenance note, someone else's body: a different devup-mcp.
+        let project = scratch("freshness-older");
+        let entry = install_by_hand(&project, Runtime::Codex, "devfive-frontend");
+        let body = std::fs::read_to_string(&entry).unwrap();
+        std::fs::write(
+            &entry,
+            body.replace("Server Components", "Rules from an older build"),
+        )
+        .unwrap();
+        assert_eq!(skill.freshness_at(&entry), Freshness::Older);
+
+        // No note at all: not ours, and not ours to replace.
+        std::fs::write(&entry, "# my own notes about this project\n").unwrap();
+        assert_eq!(skill.freshness_at(&entry), Freshness::Foreign);
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// The practical sting of `is_file()`: `install` skipped anything already
+    /// present, so the first install a machine did was the last one it got.
+    #[tokio::test]
+    async fn install_refreshes_an_older_copy_and_never_touches_a_foreign_one() {
+        let project = scratch("refresh");
+        let policy = super::super::output::OutputPolicy::from_roots(vec![project.clone()]).unwrap();
+        let lookup = Lookup::project_only(project.clone(), Runtime::Codex);
+
+        let entry = install_by_hand(&project, Runtime::Codex, "devfive-frontend");
+        let current = std::fs::read_to_string(&entry).unwrap();
+        std::fs::write(&entry, current.replace("Server Components", "stale")).unwrap();
+
+        let report = install(&policy, &lookup, &["devfive-frontend".to_owned()])
+            .await
+            .unwrap();
+        assert_eq!(
+            report["refreshed"][0]["name"], "devfive-frontend",
+            "an outdated copy was skipped instead of rewritten: {report}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&entry).unwrap(),
+            current,
+            "the refresh did not restore this build's document"
+        );
+
+        // Hand-written: reported, never overwritten.
+        let mine = "# my own notes\n";
+        std::fs::write(&entry, mine).unwrap();
+        let report = install(&policy, &lookup, &["devfive-frontend".to_owned()])
+            .await
+            .unwrap();
+        assert_eq!(
+            report["leftAlone"][0]["name"], "devfive-frontend",
+            "{report}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&entry).unwrap(),
+            mine,
+            "a document devup-mcp did not write was replaced"
+        );
+
+        drop(policy);
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// A skill someone installed once for the machine, in their editor's own
+    /// home directory, was being reported missing - and the fix for "missing"
+    /// is to write a second copy.
+    #[test]
+    fn every_runtime_finds_its_own_home_directory() {
+        for (runtime, root) in [
+            (Runtime::Cursor, ".cursor/skills"),
+            (Runtime::GeminiCli, ".gemini/skills"),
+            (Runtime::Cline, ".cline/skills"),
+            (Runtime::Windsurf, ".codeium/windsurf/skills"),
+            (Runtime::VsCode, ".copilot/skills"),
+        ] {
+            assert!(
+                runtime.user_roots().contains(&root),
+                "{} does not look in {root}, where its users install",
+                runtime.as_str()
+            );
+            assert!(
+                USER_SKILL_ROOTS.contains(&root),
+                "an unidentified client would miss {root}"
+            );
+        }
+    }
+
+    /// Cline is why the table is worth having: it reads `.agents/skills` only
+    /// from the home directory, so the shared project convention is one
+    /// directory it never opens.
+    #[test]
+    fn a_client_that_does_not_share_the_common_convention_is_not_given_it() {
+        assert!(!Runtime::Cline.project_roots().contains(&".agents/skills"));
+        assert!(Runtime::Cline.user_roots().contains(&".agents/skills"));
+        assert_eq!(Runtime::Cline.write_roots()[0], ".cline/skills");
+    }
+
+    /// An unidentified client reads everything and writes the three broad
+    /// conventions. Reading narrowly would duplicate someone's install;
+    /// writing broadly would litter a dozen editor directories.
+    #[test]
+    fn an_unknown_client_reads_wide_and_writes_narrow() {
+        assert_eq!(Runtime::Unknown.project_roots(), EVERY_PROJECT_ROOT);
+        assert_eq!(Runtime::Unknown.write_roots(), SKILL_ROOTS);
+        assert!(Runtime::Unknown.project_roots().len() > SKILL_ROOTS.len());
+        for convention in SKILL_ROOTS {
+            assert!(EVERY_PROJECT_ROOT.contains(convention));
+        }
     }
 
     /// An external skill is never answered with a devup-mcp call, because there
