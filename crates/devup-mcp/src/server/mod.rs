@@ -296,9 +296,29 @@ pub struct DevupServer {
     artifacts: ArtifactStore,
     output_policy: OutputPolicy,
     asset_jobs: asset_jobs::AssetJobs,
+    /// The MCP client's own name, learned at `initialize` and kept because
+    /// the tool methods never see the request context.
+    ///
+    /// `Arc` so every clone of the server reads the one that was filled in:
+    /// a per-clone copy would be empty in whichever clone the handshake did
+    /// not run through, and the skill roots would silently go back to
+    /// guessing.
+    client_name: std::sync::Arc<std::sync::OnceLock<String>>,
 }
 
 impl DevupServer {
+    /// Which agent runtime is on the other end, for choosing skill roots.
+    ///
+    /// `Unknown` before the handshake or from a client that sends no name,
+    /// and that case installs every convention rather than picking one.
+    fn runtime(&self) -> skills::Runtime {
+        self.client_name
+            .get()
+            .map_or(skills::Runtime::Unknown, |name| {
+                skills::Runtime::from_client_name(name)
+            })
+    }
+
     pub fn new(services: Services) -> Self {
         Self::with_output_roots(
             services,
@@ -317,6 +337,7 @@ impl DevupServer {
             services,
             artifacts: ArtifactStore::default(),
             output_policy: OutputPolicy::from_roots(roots)?,
+            client_name: std::sync::Arc::new(std::sync::OnceLock::new()),
         })
     }
 
@@ -922,19 +943,22 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<SkillsInput>,
     ) -> Result<CallToolResult, ErrorData> {
+        let lookup = skills::Lookup::new(
+            input.project_root.as_deref(),
+            self.output_policy.primary_root(),
+            self.runtime(),
+        );
         match input.action.as_str() {
-            "status" => Ok(tool_result(skills::report(
-                self.output_policy.primary_root(),
-            ))),
+            "status" => Ok(tool_result(skills::report(&lookup))),
             "install" => {
-                let outcome = skills::install(&self.output_policy, &input.names)
+                let outcome = skills::install(&self.output_policy, &lookup, &input.names)
                     .await
                     .map_err(to_mcp_error)?;
                 // The state after the write, from the same reader `status`
                 // uses. An install that reports what it meant to do rather than
                 // what is now on disk is the report that cannot be trusted.
                 let mut result = outcome;
-                result["state"] = skills::report(self.output_policy.primary_root());
+                result["state"] = skills::report(&lookup);
                 Ok(tool_result(result))
             }
             other => Err(to_mcp_error(DevupError::new(
@@ -1121,6 +1145,7 @@ impl DevupServer {
 
     #[tool(
         description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+                       The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
@@ -1178,9 +1203,14 @@ impl DevupServer {
                 .wait_briefly()
                 .await
                 .map(|result| {
-                    tool_result(with_project_theme_validation(
+                    tool_result(with_project_checks(
                         result,
                         project_root.as_deref(),
+                        &skills::Lookup::new(
+                            project_root.as_deref(),
+                            self.output_policy.primary_root(),
+                            self.runtime(),
+                        ),
                     ))
                 })
                 .map_err(to_mcp_error);
@@ -1417,9 +1447,14 @@ impl DevupServer {
                     )
                     .await
                     .map_err(to_mcp_error)?;
-                return Ok(tool_result(with_project_theme_validation(
+                return Ok(tool_result(with_project_checks(
                     result,
                     input.project_root.as_deref(),
+                    &skills::Lookup::new(
+                        input.project_root.as_deref(),
+                        self.output_policy.primary_root(),
+                        self.runtime(),
+                    ),
                 )));
             }
             validate_artifact_projection(
@@ -1456,9 +1491,14 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-            return Ok(tool_result(with_project_theme_validation(
+            return Ok(tool_result(with_project_checks(
                 result,
                 input.project_root.as_deref(),
+                &skills::Lookup::new(
+                    input.project_root.as_deref(),
+                    self.output_policy.primary_root(),
+                    self.runtime(),
+                ),
             )));
         }
 
@@ -1522,9 +1562,14 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
-        Ok(tool_result(with_project_theme_validation(
+        Ok(tool_result(with_project_checks(
             result,
             input.project_root.as_deref(),
+            &skills::Lookup::new(
+                input.project_root.as_deref(),
+                self.output_policy.primary_root(),
+                self.runtime(),
+            ),
         )))
     }
 
@@ -1669,9 +1714,13 @@ impl DevupServer {
         // rather than a nudge. Raised only when the skill is actually absent:
         // telling a caller who already has it to install it is the noise that
         // teaches them to skip the field.
-        let workspace = self.output_policy.primary_root();
+        let lookup = skills::Lookup::new(
+            input.project_root.as_deref(),
+            self.output_policy.primary_root(),
+            self.runtime(),
+        );
         if !report.violations.is_empty()
-            && skills::installed_paths(workspace, "devup-ui").is_empty()
+            && lookup.installed_paths("devup-ui").is_empty()
             && let Some(skill) = skills::find_by_name("devup-ui")
         {
             result["skillGap"] = json!({
@@ -1679,7 +1728,7 @@ impl DevupServer {
                 "why": "This code broke devup-ui rules, and the devup-ui skill is not installed in \
                         this workspace. Installing it puts the rules in front of you while you \
                         write, instead of after this tool has already refused the result.",
-                "install": skill.install_action(workspace),
+                "install": skill.install_action(&lookup),
             });
         }
         Ok(tool_result(result))
@@ -1732,6 +1781,52 @@ fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex
     serde_json::from_value(payload.metadata.get("sectionIndex")?.clone()).ok()
 }
 
+/// The skills the code in this response is written in, named when this runtime
+/// would not load them.
+///
+/// On the export rather than only on `devup_ui_validate`, because the agent
+/// that has never seen devup-ui does not call the validator either: the gap
+/// was only ever shown to callers who had already written the code and then
+/// chosen to check it. This is the response every implementing agent reads,
+/// and it arrives before the code is written rather than after it is refused.
+///
+/// The same sentence is in `devup_figma_export`'s own tool description,
+/// because that is the only channel that reaches an agent which never sees the
+/// server's `instructions` - a subagent handed tool schemas alone, or Codex,
+/// where `instructions` becomes one namespace blurb rather than prompt text.
+const CODE_SKILLS: [&str; 2] = ["devup-ui", "devfive-frontend"];
+
+fn with_skill_gap(mut result: Value, lookup: &skills::Lookup) -> Value {
+    let missing = CODE_SKILLS
+        .into_iter()
+        .filter_map(skills::find_by_name)
+        .filter(|skill| lookup.installed_paths(&skill.record.name).is_empty())
+        .map(|skill| {
+            json!({
+                "skill": skill.record.name,
+                "whyYouNeedIt": skill.record.used_for,
+                "install": skill.install_action(lookup),
+            })
+        })
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return result;
+    }
+    result["skillGap"] = json!({
+        "missing": missing,
+        "why": "This response carries devup-ui code, and these conventions are not installed \
+                anywhere this runtime loads skills from. Without them the code is written from \
+                guesses - invented $tokens, an authored CSS file, components treated as runtime \
+                React - and this server can neither see nor correct that.",
+        "how": "Call devup_skills with action \"install\" and this same projectRoot, then load \
+                the skills the way your runtime loads a project skill. Before writing the TSX, \
+                not after.",
+        "runtime": lookup.runtime.as_str(),
+        "workspace": lookup.project.display().to_string(),
+    });
+    result
+}
+
 /// Says whether the TSX just generated fits the project it is going into.
 ///
 /// Tokens are named after the Figma variables and text styles the screen
@@ -1750,11 +1845,14 @@ fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex
 /// name a project happens to use — and silently substituting a colour is a
 /// worse failure than naming the mismatch.
 ///
-/// Without a root nothing is read from disk and the response is unchanged.
-fn with_project_theme_validation(mut result: Value, project_root: Option<&str>) -> Value {
-    let Some(project_root) = project_root else {
-        return result;
-    };
+/// Without a root the theme half is skipped and nothing is read from disk, but
+/// the skill half still runs: see [`with_skill_gap`] for why it cannot be
+/// gated on an argument the unaware caller is the one least likely to send.
+fn with_project_checks(
+    mut result: Value,
+    project_root: Option<&str>,
+    lookup: &skills::Lookup,
+) -> Value {
     const OUTPUTS: [&str; 3] = ["tsx", "componentTsx", "responsiveTsx"];
     let mut generated: Vec<(String, String)> = OUTPUTS
         .into_iter()
@@ -1784,6 +1882,16 @@ fn with_project_theme_validation(mut result: Value, project_root: Option<&str>) 
             }
         }
     }
+    // Before the theme half, and before its `project_root` gate: a response
+    // that handed back code has to name the conventions that code is written
+    // in whether or not the caller told us where the project is.
+    let produced_code = !generated.is_empty() || result.get("deliverable").is_some();
+    if produced_code {
+        result = with_skill_gap(result, lookup);
+    }
+    let Some(project_root) = project_root else {
+        return result;
+    };
     if generated.is_empty() {
         // Resource delivery hands the code back as a link, so there is no
         // source here to check. Saying so is the point: an absent verdict
@@ -2009,6 +2117,15 @@ impl ServerHandler for DevupServer {
         request: rmcp::model::CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::CallToolResponse, ErrorData> {
+        // Read here rather than by overriding `initialize`, because the peer
+        // already recorded it there and this is the first place the value is
+        // needed. `set` after the first call is a no-op, so one session keeps
+        // one answer.
+        if self.client_name.get().is_none()
+            && let Some(peer) = context.peer.peer_info()
+        {
+            let _ = self.client_name.set(peer.client_info.name.clone());
+        }
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
         let mut response = match self.tool_router.call(call).await {
             Ok(response) => response,
@@ -2091,6 +2208,10 @@ impl ServerHandler for DevupServer {
             })
     }
 }
+
+#[cfg(test)]
+#[path = "export_skill_gap_tests.rs"]
+mod export_skill_gap_tests;
 
 #[cfg(test)]
 mod p3_error_tests {

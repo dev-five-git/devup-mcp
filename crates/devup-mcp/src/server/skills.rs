@@ -166,6 +166,253 @@ pub const ENTRY_DOCUMENT: &str = "SKILL.md";
 /// `SKILL.md` inside - the layout every one of these runtimes reads.
 pub const SKILL_ROOTS: &[&str] = &[".claude/skills", ".opencode/skill", ".agents/skills"];
 
+/// Where the same runtimes keep skills that apply to every project on the
+/// machine, relative to the user's home directory.
+///
+/// A separate list rather than `SKILL_ROOTS` joined onto the home directory,
+/// because the two disagree: opencode reads `~/.config/opencode/skill`, not
+/// `~/.opencode/skill`. Joining would have looked right and found nothing.
+///
+/// Read, never written. devup-mcp writes only inside an allowed output root
+/// and the home directory is not one - that boundary stays. But a skill
+/// already installed here *is* loaded by the runtime, and reporting it missing
+/// is what makes an agent write a second copy that then drifts from the first.
+pub const USER_SKILL_ROOTS: &[&str] = &[
+    ".claude/skills",
+    ".codex/skills",
+    ".config/opencode/skill",
+    ".agents/skills",
+];
+
+/// Which agent runtime is driving this server, from the MCP `clientInfo` name.
+///
+/// It has to be known because the runtimes do not read the same directory, and
+/// installing into one another runtime never opens is a *silent* failure: the
+/// call reports success, the file is on disk, and the skill still never loads.
+///
+/// That is the exact shape of the reports from Codex. A fresh project has no
+/// skill root at all, so the choice fell through to `SKILL_ROOTS[0]` -
+/// `.claude/skills` - and Codex reads `.agents/skills`, never that. The agent
+/// was told the skill was installed and went on writing devup-ui from guesses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Runtime {
+    ClaudeCode,
+    Codex,
+    Opencode,
+    Unknown,
+}
+
+impl Runtime {
+    /// Matched on a substring, not a fixed table: clients spell themselves
+    /// differently across versions and transports - `codex`, `codex-cli`,
+    /// `claude-code`, `claude-ai`, `opencode` - and an exact table would fall
+    /// back to `Unknown` the first time one of them was renamed.
+    ///
+    /// `opencode` is tested before `codex` because it contains it.
+    pub fn from_client_name(name: &str) -> Self {
+        let name = name.to_ascii_lowercase();
+        if name.contains("opencode") {
+            Self::Opencode
+        } else if name.contains("codex") {
+            Self::Codex
+        } else if name.contains("claude") {
+            Self::ClaudeCode
+        } else {
+            Self::Unknown
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ClaudeCode => "claude-code",
+            Self::Codex => "codex",
+            Self::Opencode => "opencode",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// The project-local roots this runtime loads from, most preferred first.
+    ///
+    /// Codex walks `<dir>/.agents/skills` and does not look at
+    /// `.claude/skills`; Claude Code is the reverse; opencode reads its own
+    /// and scans the other two for compatibility.
+    ///
+    /// `Unknown` gets all of them and an install writes every one, because a
+    /// spare copy costs a few kilobytes inside a directory the project already
+    /// owns, and the alternative is the silent failure above.
+    pub fn project_roots(self) -> &'static [&'static str] {
+        match self {
+            Self::ClaudeCode => &[".claude/skills"],
+            Self::Codex => &[".agents/skills"],
+            Self::Opencode => &[".opencode/skill", ".claude/skills", ".agents/skills"],
+            Self::Unknown => SKILL_ROOTS,
+        }
+    }
+
+    /// The machine-wide roots this runtime loads from. Read, never written.
+    ///
+    /// `~/.codex/skills` is deprecated upstream but still scanned, so a skill
+    /// sitting there is loaded and must not be reported missing.
+    pub fn user_roots(self) -> &'static [&'static str] {
+        match self {
+            Self::ClaudeCode => &[".claude/skills"],
+            Self::Codex => &[".agents/skills", ".codex/skills"],
+            Self::Opencode => &[".config/opencode/skill", ".claude/skills", ".agents/skills"],
+            Self::Unknown => USER_SKILL_ROOTS,
+        }
+    }
+}
+
+/// The user's home directory, or `None` where the platform does not say.
+///
+/// `HOME` first so a deliberate override wins on every platform; `USERPROFILE`
+/// is the Windows spelling and is the one actually set there.
+fn home() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+/// Everything it takes to answer "is this skill installed, and where would it
+/// go": the project, the machine-wide location, and which runtime reads which.
+///
+/// One value rather than three parameters threaded through every function,
+/// and `home` is a field rather than a call so a test can say `None` and get
+/// an answer that does not depend on the developer's own machine - where
+/// devup-ui is very likely already installed in `~/.claude/skills`, which is
+/// enough to turn "reports missing correctly" into a test that passes in CI
+/// and fails on the laptop of the person who wrote it.
+#[derive(Debug, Clone)]
+pub struct Lookup {
+    pub project: PathBuf,
+    pub home: Option<PathBuf>,
+    pub runtime: Runtime,
+}
+
+impl Lookup {
+    /// The project a caller named, or the server's own write root when they
+    /// named none.
+    ///
+    /// The fallback is not the project unless the two were configured to be
+    /// the same. A host that granted one shared parent - an Orca worktree
+    /// pool, a monorepo checkout - had every call reporting on that parent,
+    /// where no runtime looks for skills and an install would land somewhere
+    /// nothing reads.
+    pub fn new(project_root: Option<&str>, fallback: &Path, runtime: Runtime) -> Self {
+        Self {
+            project: project_root.map_or_else(|| fallback.to_path_buf(), PathBuf::from),
+            home: home(),
+            runtime,
+        }
+    }
+
+    /// A lookup that sees no machine-wide roots.
+    ///
+    /// Tests only: the production paths always read the real home, because a
+    /// skill installed there really is loaded and really must not be reported
+    /// missing.
+    #[cfg(test)]
+    pub fn project_only(project: PathBuf, runtime: Runtime) -> Self {
+        Self {
+            project,
+            home: None,
+            runtime,
+        }
+    }
+
+    /// Every machine-wide root this runtime reads that exists, preferred
+    /// first.
+    pub fn user_roots(&self) -> Vec<PathBuf> {
+        let Some(home) = &self.home else {
+            return Vec::new();
+        };
+        self.runtime
+            .user_roots()
+            .iter()
+            .map(|root| join_root(home, root))
+            .filter(|path| path.is_dir())
+            .collect()
+    }
+
+    /// Which project-local roots already exist, in preference order.
+    ///
+    /// Existence is the signal. A repository that already has `.claude/skills`
+    /// has answered the question of which runtime it is for, and guessing
+    /// differently would install into a directory nothing reads.
+    pub fn existing_roots(&self) -> Vec<PathBuf> {
+        self.runtime
+            .project_roots()
+            .iter()
+            .map(|root| join_root(&self.project, root))
+            .filter(|path| path.is_dir())
+            .collect()
+    }
+
+    /// The roots an install writes to: the first that already exists, else the
+    /// conventions this runtime reads.
+    ///
+    /// A list rather than one path because of the `Unknown` case. With no
+    /// client name and no existing root there is nothing to choose on, and
+    /// picking one of three is a two-in-three chance of writing where nothing
+    /// looks. Writing all three is the only answer that is right without
+    /// knowing.
+    pub fn target_roots(&self) -> Vec<PathBuf> {
+        let existing = self.existing_roots();
+        if !existing.is_empty() {
+            return existing.into_iter().take(1).collect();
+        }
+        let conventions = self.runtime.project_roots();
+        let chosen = if self.runtime == Runtime::Unknown {
+            conventions
+        } else {
+            &conventions[..1]
+        };
+        chosen
+            .iter()
+            .map(|root| join_root(&self.project, root))
+            .collect()
+    }
+
+    /// Every place this skill is installed *and this runtime would load it
+    /// from*.
+    ///
+    /// Every root that runtime reads, not just the preferred one: a skill put
+    /// by hand into `.agents/skills` is installed, and reporting it missing
+    /// would have the agent write a second copy that then drifts from the
+    /// first.
+    ///
+    /// Scoped to the runtime rather than to every known root, because the two
+    /// mistakes are symmetric and both silent. A file in a directory this
+    /// runtime never opens is not loaded, and counting it says "installed"
+    /// about a skill the agent will never see.
+    ///
+    /// The machine-wide roots are read for the same reason, and it is not a
+    /// hypothetical: on a machine with devup-ui in `~/.agents/skills`,
+    /// `~/.claude/skills`, `~/.codex/skills` and `~/.config/opencode/skill` -
+    /// all four loaded by their runtimes - this reported `installedCount: 0`.
+    /// The README calls telling someone to install what they already have the
+    /// noise that teaches them to ignore the field, and that is what it was.
+    pub fn installed_paths(&self, name: &str) -> Vec<PathBuf> {
+        let mut paths = self
+            .runtime
+            .project_roots()
+            .iter()
+            .map(|root| install_path(&join_root(&self.project, root), name))
+            .chain(
+                self.user_roots()
+                    .into_iter()
+                    .map(|root| install_path(&root, name)),
+            )
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
+        // A project that *is* the home directory reaches the same file twice.
+        paths.sort();
+        paths.dedup();
+        paths
+    }
+}
+
 /// Joins a `SKILL_ROOTS` entry onto a project directory one component at a
 /// time.
 ///
@@ -329,19 +576,6 @@ pub fn find_by_name(name: &str) -> Option<&'static Skill> {
     SKILLS.iter().find(|skill| skill.record.name == name)
 }
 
-/// Which skill roots already exist under `project`, in preference order.
-///
-/// Existence is the signal. A repository that already has `.claude/skills` has
-/// answered the question of which runtime it is for, and guessing differently
-/// would install into a directory nothing reads.
-pub fn existing_roots(project: &Path) -> Vec<PathBuf> {
-    SKILL_ROOTS
-        .iter()
-        .map(|root| join_root(project, root))
-        .filter(|path| path.is_dir())
-        .collect()
-}
-
 /// Where one of a skill's documents lives under a given root.
 ///
 /// `relative` is split on `/` for the same reason [`join_root`] splits: a
@@ -356,28 +590,6 @@ pub fn document_path(root: &Path, name: &str, relative: &str) -> PathBuf {
 /// Where a skill's `SKILL.md` lives under a given root.
 pub fn install_path(root: &Path, name: &str) -> PathBuf {
     document_path(root, name, ENTRY_DOCUMENT)
-}
-
-/// The root an install would use: the first that already exists, else the
-/// first known convention.
-pub fn target_root(project: &Path) -> PathBuf {
-    existing_roots(project)
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| join_root(project, SKILL_ROOTS[0]))
-}
-
-/// Every place this skill could already be installed under `project`.
-///
-/// All roots are checked, not just the preferred one: a skill installed by hand
-/// into `.agents/skills` is installed, and reporting it missing would have the
-/// agent write a second copy that then drifts from the first.
-pub fn installed_paths(project: &Path, name: &str) -> Vec<PathBuf> {
-    SKILL_ROOTS
-        .iter()
-        .map(|root| install_path(&join_root(project, root), name))
-        .filter(|path| path.is_file())
-        .collect()
 }
 
 struct FetchedDocuments {
@@ -571,8 +783,8 @@ impl Skill {
 
     /// The one action that closes the gap, in the imperative, with everything
     /// needed to carry it out.
-    pub fn install_action(&self, project: &Path) -> serde_json::Value {
-        let installed = installed_paths(project, &self.record.name);
+    pub fn install_action(&self, lookup: &Lookup) -> serde_json::Value {
+        let installed = lookup.installed_paths(&self.record.name);
         if !installed.is_empty() {
             let paths = installed
                 .iter()
@@ -588,16 +800,16 @@ impl Skill {
         }
         match self.record.origin {
             Origin::Embedded | Origin::Own => {
-                let roots = existing_roots(project);
-                let target = target_root(project);
-                let writes = self
-                    .record
-                    .documents
+                let roots = lookup.existing_roots();
+                let targets = lookup.target_roots();
+                let writes = targets
                     .iter()
-                    .map(|document| {
-                        document_path(&target, &self.record.name, &document.path)
-                            .display()
-                            .to_string()
+                    .flat_map(|target| {
+                        self.record.documents.iter().map(move |document| {
+                            document_path(target, &self.record.name, &document.path)
+                                .display()
+                                .to_string()
+                        })
                     })
                     .collect::<Vec<_>>();
                 serde_json::json!({
@@ -608,10 +820,21 @@ impl Skill {
                     "writesTo": writes,
                     "how": "Call devup_skills with action \"install\". Embedded skills prefer current upstream documents with offline fallback; own skills use the binary. Then load it the way your runtime loads \
                             a project skill.",
-                    "rootChoice": if roots.is_empty() {
-                        format!("No skill root exists yet, so {} is created.", SKILL_ROOTS[0])
+                    "runtime": lookup.runtime.as_str(),
+                    "rootChoice": if !roots.is_empty() {
+                        format!("Using the existing root {}.", targets[0].display())
+                    } else if lookup.runtime == Runtime::Unknown {
+                        "No skill root exists yet and the MCP client did not identify itself, \
+                         so every known convention is written. One of them is the one your \
+                         runtime reads."
+                            .to_owned()
                     } else {
-                        format!("Using the existing root {}.", target.display())
+                        format!(
+                            "No skill root exists yet, so {} is created - the convention {} \
+                             loads from.",
+                            targets[0].display(),
+                            lookup.runtime.as_str()
+                        )
                     },
                 })
             }
@@ -634,7 +857,7 @@ impl Skill {
 /// The shape is deliberately the same for `status` and after `install`, so the
 /// second call is how the agent confirms the first one worked rather than
 /// something it has to take on trust.
-pub fn report(project: &Path) -> serde_json::Value {
+pub fn report(lookup: &Lookup) -> serde_json::Value {
     let entries = all()
         .iter()
         .map(|skill| {
@@ -683,7 +906,7 @@ pub fn report(project: &Path) -> serde_json::Value {
             if r.origin == Origin::External {
                 entry["license"] = serde_json::json!(r.license);
             }
-            let action = skill.install_action(project);
+            let action = skill.install_action(lookup);
             entry["installed"] = action["installed"].clone();
             entry["installState"] = action;
             entry
@@ -694,14 +917,35 @@ pub fn report(project: &Path) -> serde_json::Value {
         .filter(|entry| entry["installed"] == false)
         .count();
     let mut report = serde_json::json!({
-        "workspace": project.display().to_string(),
+        "workspace": lookup.project.display().to_string(),
+        "runtime": {
+            "detected": lookup.runtime.as_str(),
+            "from": "The MCP clientInfo name sent at initialize.",
+            "why": "Runtimes do not read the same directory. Installing into one this runtime \
+                    never opens reports success and still never loads, which is the failure this \
+                    field exists to make visible.",
+        },
         "skillRoots": {
-            "known": SKILL_ROOTS,
-            "existing": existing_roots(project)
+            "known": lookup.runtime.project_roots(),
+            "existing": lookup.existing_roots()
                 .iter()
                 .map(|path| path.display().to_string())
                 .collect::<Vec<_>>(),
-            "wouldUse": target_root(project).display().to_string(),
+            "wouldUse": lookup.target_roots()
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>(),
+            "knownUser": lookup.runtime.user_roots(),
+            "existingUser": lookup.user_roots()
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>(),
+            "userRootsNote": "Machine-wide roots are read to decide `installed`, never written: \
+                              devup-mcp writes only inside an allowed output root. A skill found \
+                              in one of these is already loaded by its runtime and needs nothing.",
+            "allKnownRoots": SKILL_ROOTS,
+            "scopeNote": "`known` is narrowed to what this runtime loads from; `allKnownRoots` is \
+                          every convention devup-mcp understands.",
         },
         "installedCount": entries.len() - missing,
         "missingCount": missing,
@@ -712,7 +956,7 @@ pub fn report(project: &Path) -> serde_json::Value {
                 once does not do.",
         "boundary": "devup-mcp installs only carried skills: embedded skills prefer current upstream documents with offline fallback, and own skills use the binary. External skills are never fetched or written; their install command is yours to run.",
     });
-    if let Some(obligation) = changepacks_obligation(project) {
+    if let Some(obligation) = changepacks_obligation(&lookup.project) {
         report["repoObligations"] = serde_json::json!({ "changepacks": obligation });
     }
     report
@@ -794,19 +1038,21 @@ fn display_path(path: &Path) -> String {
 /// [`OutputTransaction`]: super::output::OutputTransaction
 pub async fn install(
     policy: &super::output::OutputPolicy,
+    lookup: &Lookup,
     requested: &[String],
 ) -> Result<serde_json::Value, devup_mcp_figma::DevupError> {
-    install_with(policy, requested, &InstallUpstream).await
+    install_with(policy, lookup, requested, &InstallUpstream).await
 }
 
 async fn install_with(
     policy: &super::output::OutputPolicy,
+    lookup: &Lookup,
     requested: &[String],
     upstream: &dyn SkillUpstream,
 ) -> Result<serde_json::Value, devup_mcp_figma::DevupError> {
     use devup_mcp_figma::{DevupError, ErrorCode};
 
-    let project = policy.primary_root().to_path_buf();
+    let project = lookup.project.clone();
     if let Some(unknown) = requested.iter().find(|name| find_by_name(name).is_none()) {
         return Err(DevupError::with_details(
             ErrorCode::DevupInvalidInput,
@@ -839,7 +1085,7 @@ async fn install_with(
         })
         .collect::<Vec<_>>();
 
-    let root = target_root(&project);
+    let roots = lookup.target_roots();
     let mut transaction = super::output::OutputTransaction::new();
     let mut written = Vec::new();
     let mut already = Vec::new();
@@ -851,7 +1097,7 @@ async fn install_with(
         .filter(|skill| skill.record.origin.is_carried())
     {
         let name = &skill.record.name;
-        if !installed_paths(&project, name).is_empty() {
+        if !lookup.installed_paths(name).is_empty() {
             already.push(name.clone());
             continue;
         }
@@ -881,16 +1127,40 @@ async fn install_with(
                 }
             }
         }
-        let mut paths = Vec::with_capacity(documents.len());
-        for (relative, contents) in documents {
-            let target =
-                policy.resolve(&document_path(&root, name, relative).display().to_string())?;
-            paths.push(target.display_path().display().to_string());
-            transaction.stage(
-                format!("skill:{name}:{relative}"),
-                target,
-                contents.as_bytes(),
-            )?;
+        let mut paths = Vec::with_capacity(documents.len() * roots.len());
+        for root in &roots {
+            for (relative, contents) in &documents {
+                // The skill root has to sit inside an allowed write root. Said
+                // in those words, because the caller who hits this passed a
+                // `projectRoot`, not an `outputPath`, and being told an
+                // `outputPath` is out of bounds names something they never
+                // sent.
+                let target = policy
+                    .resolve(&document_path(root, name, relative).display().to_string())
+                    .map_err(|error| {
+                        DevupError::with_details(
+                            ErrorCode::DevupInvalidInput,
+                            format!(
+                                "Cannot install skills into {}: it is outside this server's allowed write roots.",
+                                root.display()
+                            ),
+                            false,
+                            serde_json::json!({
+                                "projectRoot": project.display().to_string(),
+                                "skillRoot": root.display().to_string(),
+                                "underlying": error.message,
+                                "how": "Start devup-mcp with --allow-write-root pointing at this project, \
+                                        or omit projectRoot to install into the server's own write root.",
+                            }),
+                        )
+                    })?;
+                paths.push(target.display_path().display().to_string());
+                transaction.stage(
+                    format!("skill:{name}:{}:{relative}", root.display()),
+                    target,
+                    contents.as_bytes(),
+                )?;
+            }
         }
         written.push(serde_json::json!({"name": name, "paths": paths, "source": source, "reason": reason, "documents": provenance}));
     }
@@ -901,7 +1171,8 @@ async fn install_with(
         "alreadyPresent": already,
         "notInstallable": external,
         "warnings": warnings,
-        "root": root.display().to_string(),
+        "roots": roots.iter().map(|root| root.display().to_string()).collect::<Vec<_>>(),
+        "runtime": lookup.runtime.as_str(),
         "nextAction": if written.is_empty() && external.is_empty() {
             serde_json::Value::Null
         } else {
@@ -928,9 +1199,13 @@ mod tests {
     async fn an_own_install_reports_the_binary_as_its_source() {
         let project = scratch("own-source");
         let policy = super::super::output::OutputPolicy::from_roots(vec![project.clone()]).unwrap();
-        let report = install(&policy, &["devfive-frontend".to_owned()])
-            .await
-            .unwrap();
+        let report = install(
+            &policy,
+            &unknown_client(&project),
+            &["devfive-frontend".to_owned()],
+        )
+        .await
+        .unwrap();
         assert_eq!(report["installed"][0]["source"], "embedded");
         assert_eq!(
             report["installed"][0]["reason"],
@@ -938,6 +1213,16 @@ mod tests {
         );
         drop(policy);
         std::fs::remove_dir_all(project).unwrap();
+    }
+
+    /// A lookup for a client that never named itself, seeing no machine-wide
+    /// roots.
+    ///
+    /// `project_only` is load-bearing: reading the real home would make these
+    /// assertions depend on whether whoever runs them has devup-ui in
+    /// `~/.claude/skills`, and most people working on this repository do.
+    fn unknown_client(project: &Path) -> Lookup {
+        Lookup::project_only(project.to_path_buf(), Runtime::Unknown)
     }
 
     fn scratch(label: &str) -> PathBuf {
@@ -1110,7 +1395,9 @@ mod tests {
         let project = scratch("state");
         let skill = find_by_name("devup-ui").expect("devup-ui is registered");
 
-        let missing = skill.install_action(&project);
+        let lookup = unknown_client(&project);
+
+        let missing = skill.install_action(&lookup);
         assert_eq!(missing["installed"], false);
         assert_eq!(missing["action"], "devup_skills");
 
@@ -1120,7 +1407,7 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "# installed by hand").unwrap();
 
-        let found = skill.install_action(&project);
+        let found = skill.install_action(&lookup);
         assert_eq!(
             found["installed"], true,
             "a hand-installed skill is installed"
@@ -1128,6 +1415,135 @@ mod tests {
         assert_eq!(found["action"], serde_json::Value::Null);
         assert_eq!(found["paths"].as_array().unwrap().len(), 1);
 
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// The client names itself at `initialize`, and that name is the only
+    /// thing that says which directory to write.
+    #[test]
+    fn the_runtime_is_read_from_the_client_name() {
+        for (name, expected) in [
+            ("codex", Runtime::Codex),
+            ("Codex CLI", Runtime::Codex),
+            ("claude-code", Runtime::ClaudeCode),
+            ("Claude Code", Runtime::ClaudeCode),
+            ("opencode", Runtime::Opencode),
+            ("some-editor", Runtime::Unknown),
+        ] {
+            assert_eq!(
+                Runtime::from_client_name(name),
+                expected,
+                "{name} was read as the wrong runtime"
+            );
+        }
+        // `opencode` contains `codex` backwards-of-nowhere, but it does
+        // contain `code`; the ordering that actually matters is that the
+        // substring test for opencode runs before the one for codex.
+        assert_eq!(Runtime::from_client_name("opencode"), Runtime::Opencode);
+    }
+
+    /// The reported bug, as a test. A fresh project has no skill root at all,
+    /// so the choice used to fall through to `SKILL_ROOTS[0]` -
+    /// `.claude/skills` - which Codex never reads. The install reported
+    /// success and the skill never loaded.
+    #[test]
+    fn a_fresh_project_installs_where_this_runtime_actually_reads() {
+        let project = scratch("fresh");
+        let skill = find_by_name("devup-ui").unwrap();
+
+        let codex = Lookup::project_only(project.clone(), Runtime::Codex);
+        let writes = skill.install_action(&codex)["writesTo"][0]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(
+            writes.contains(".agents"),
+            "Codex would be given {writes}, which it does not read"
+        );
+        assert!(!writes.contains(".claude"), "{writes}");
+
+        let claude = Lookup::project_only(project.clone(), Runtime::ClaudeCode);
+        let writes = skill.install_action(&claude)["writesTo"][0]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(writes.contains(".claude"), "{writes}");
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// With no client name and no existing root there is nothing to choose on,
+    /// and picking one of three is a two-in-three chance of writing where
+    /// nothing looks.
+    #[test]
+    fn an_unnamed_client_is_given_every_convention() {
+        let project = scratch("unnamed");
+        let roots = Lookup::project_only(project.clone(), Runtime::Unknown).target_roots();
+        assert_eq!(roots.len(), SKILL_ROOTS.len());
+        for convention in SKILL_ROOTS {
+            assert!(
+                roots
+                    .iter()
+                    .any(|root| root == &join_root(&project, convention)),
+                "{convention} would not be written, so a runtime reading it gets nothing"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// The symmetric mistake, and the one that is silent: a file in a
+    /// directory this runtime never opens is not loaded, and counting it says
+    /// "installed" about a skill the agent will never see.
+    #[test]
+    fn a_skill_in_a_root_this_runtime_never_reads_is_not_installed() {
+        let project = scratch("wrong-root");
+        let path = install_path(&join_root(&project, ".claude/skills"), "devup-ui");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "# in the wrong place for Codex").unwrap();
+
+        assert!(
+            Lookup::project_only(project.clone(), Runtime::Codex)
+                .installed_paths("devup-ui")
+                .is_empty(),
+            "Codex was told a skill it cannot load is installed"
+        );
+        assert!(
+            !Lookup::project_only(project.clone(), Runtime::ClaudeCode)
+                .installed_paths("devup-ui")
+                .is_empty(),
+            "Claude Code reads exactly this directory"
+        );
+
+        let _ = std::fs::remove_dir_all(&project);
+    }
+
+    /// Most people install skills once for the machine, not per repository.
+    /// Reporting those missing is what had a workspace with devup-ui in four
+    /// loaded directories answering `installedCount: 0`.
+    #[test]
+    fn a_machine_wide_install_counts_as_installed() {
+        let home = scratch("home");
+        let project = scratch("home-project");
+        let path = install_path(&join_root(&home, ".codex/skills"), "devup-ui");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "# installed for the machine").unwrap();
+
+        let lookup = Lookup {
+            project: project.clone(),
+            home: Some(home.clone()),
+            runtime: Runtime::Codex,
+        };
+        assert_eq!(
+            lookup.installed_paths("devup-ui"),
+            vec![path],
+            "a skill Codex loads from the home directory was reported missing"
+        );
+        let action = find_by_name("devup-ui").unwrap().install_action(&lookup);
+        assert_eq!(action["installed"], true);
+        assert_eq!(action["action"], serde_json::Value::Null, "nothing to do");
+
+        let _ = std::fs::remove_dir_all(&home);
         let _ = std::fs::remove_dir_all(&project);
     }
 
@@ -1145,7 +1561,7 @@ mod tests {
         assert!(skill.document().is_none());
         assert!(skill.installable_documents().is_none());
 
-        let action = skill.install_action(&project);
+        let action = skill.install_action(&unknown_client(&project));
         assert_eq!(action["action"], "run-this-yourself");
         assert_eq!(action["command"], "npx skills add vercel-labs/agent-skills");
         assert!(
@@ -1171,7 +1587,7 @@ mod tests {
         std::fs::create_dir_all(&chosen).unwrap();
 
         let skill = find_by_name("devup-ui").unwrap();
-        let action = skill.install_action(&project);
+        let action = skill.install_action(&unknown_client(&project));
         let writes_to = action["writesTo"][0].as_str().unwrap().to_owned();
         assert!(
             writes_to.contains(".opencode"),
@@ -1268,7 +1684,7 @@ mod tests {
         let project = scratch("changepacks");
 
         assert!(
-            report(&project)["repoObligations"].is_null(),
+            report(&unknown_client(&project))["repoObligations"].is_null(),
             "a workspace with no .changepacks must carry no obligation"
         );
 
@@ -1283,7 +1699,7 @@ mod tests {
         // Not a changepack log; it must not be counted as one.
         std::fs::write(directory.join("publish.tgz"), "").unwrap();
 
-        let found = report(&project)["repoObligations"]["changepacks"].clone();
+        let found = report(&unknown_client(&project))["repoObligations"]["changepacks"].clone();
         assert!(!found.is_null(), "the directory was not detected");
 
         // The command has to be the non-interactive one. Bare `changepacks`

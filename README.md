@@ -12,7 +12,7 @@ Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
-- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다
+- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다. 어느 디렉터리인지는 `clientInfo`로 판별한 런타임이 정하고, `projectRoot`로 어느 프로젝트인지 지정합니다
 - `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
 - `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
@@ -261,7 +261,26 @@ vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/
 
 **devup-mcp는 그 명령을 대신 실행하지 않습니다.** 디자인→코드 서버가 패키지 설치기를 실행하면, 레지스트리 항목 하나가 오염됐을 때 화면을 export한 모든 기계에서 임의 실행이 됩니다.
 
-설치 위치는 프로젝트 안입니다 — 이미 있는 것을 우선해 `.claude/skills`, `.opencode/skill`, `.agents/skills` 순으로 고릅니다. 프로젝트 루트는 devup-mcp가 쓸 수 있는 유일한 곳이라 새 권한이 필요 없고, 스킬이 저장소를 따라다닙니다. 이미 깔려 있으면 다시 쓰지 않습니다.
+설치 위치는 프로젝트 안입니다. 프로젝트 루트는 devup-mcp가 쓸 수 있는 유일한 곳이라 새 권한이 필요 없고, 스킬이 저장소를 따라다닙니다. 이미 깔려 있으면 다시 쓰지 않습니다.
+
+**어느 디렉터리인지는 붙어 있는 런타임이 정합니다.** 런타임마다 읽는 곳이 다르고, 읽지 않는 곳에 설치하는 것은 **조용한 실패**이기 때문입니다 — 호출은 성공을 보고하고, 파일은 디스크에 있고, 스킬은 끝내 로드되지 않습니다. Codex에서 올라온 보고가 정확히 이 모양이었습니다. 새 프로젝트에는 스킬 루트가 아예 없으니 선택이 목록의 첫 항목인 `.claude/skills`로 떨어졌고, Codex는 그곳을 읽지 않습니다.
+
+누구인지는 MCP `initialize`가 보내는 `clientInfo` 이름으로 압니다.
+
+| 런타임 | 프로젝트 | 머신 전체(읽기만) |
+|---|---|---|
+| Claude Code | `.claude/skills` | `~/.claude/skills` |
+| **Codex** | **`.agents/skills`** | `~/.agents/skills`, `~/.codex/skills` |
+| opencode | `.opencode/skill` (+ 앞의 둘을 호환으로 읽음) | `~/.config/opencode/skill` (+ 호환) |
+| 이름을 안 밝힌 클라이언트 | **세 곳 모두에 씁니다** | 전부 읽습니다 |
+
+이름이 없고 기존 루트도 없으면 고를 근거가 없습니다. 셋 중 하나를 찍는 것은 **아무도 안 보는 곳에 쓸 확률이 3분의 2**이고, 사본 하나는 프로젝트가 이미 소유한 디렉터리 안에서 몇 KB입니다. 그래서 전부 씁니다.
+
+**머신 전체 루트는 읽기만 합니다.** devup-mcp는 허용된 write root 안에만 쓰고 홈 디렉터리는 거기에 없습니다 — 그 경계는 그대로입니다. 다만 `~/.codex/skills`에 있는 스킬은 **실제로 로드되므로** 없다고 보고하면 안 됩니다. 예전에는 devup-ui를 `~/.agents/skills`·`~/.claude/skills`·`~/.codex/skills`·`~/.config/opencode/skill` 네 곳에 (전부 각자의 런타임이 읽는 상태로) 갖고 있는 기계가 `installedCount: 0`을 받았습니다.
+
+반대 실수도 똑같이 조용합니다. 이 런타임이 열지 않는 디렉터리에 있는 파일은 로드되지 않으므로 `installed`로 세지 않습니다.
+
+**`projectRoot`를 넘기세요.** 생략하면 서버 자신의 write root로 떨어지는데, 둘을 같게 설정한 경우가 아니면 그건 프로젝트가 아닙니다. 공용 부모 하나를 write root로 준 호스트(Orca worktree 풀, 모노레포 체크아웃)에서는 모든 호출이 그 부모를 보고했고, 거기엔 어떤 런타임도 스킬을 찾으러 가지 않습니다.
 
 설치 응답의 `installed[].source`는 `fetched` 또는 `embedded`이며, 내장본을 썼다면 `reason`도 반환합니다. 가져오기는 manifest의 저장소와 문서 경로에서 만든 `https://raw.githubusercontent.com/REPO/HEAD/PATH`를 사용하며, 호출 전체의 네트워크 대기는 최대 4초입니다. 네트워크 오류, HTTP 오류, ETag 누락은 내장본으로 돌아가고, 404는 upstream 경로가 바뀌었을 수 있으므로 `warnings`에도 알립니다. 여러 문서 중 하나라도 실패하면 그 스킬 전체를 내장본으로 설치합니다.
 
@@ -273,7 +292,11 @@ vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/
 
 설치하지 않고 읽기만 하려면 `devup://skill/devup-ui` 리소스도 있습니다. 다만 그건 fallback입니다 — 설치해야 로더가 알아서 꺼내 줍니다.
 
-유도는 두 곳에서만 합니다. 세션마다 실리는 `instructions`의 한 줄, 그리고 `devup_ui_validate`가 위반을 찾았는데 devup-ui 스킬이 **실제로 없을 때만** 붙는 `skillGap`입니다. 이미 깔려 있는 사람에게 깔라고 하는 것은 그 필드를 무시하게 만드는 소음입니다.
+유도는 세 곳에서 합니다. 이미 깔려 있는 사람에게 깔라고 하는 것은 그 필드를 무시하게 만드는 소음이므로, 셋 다 **이 런타임이 실제로 로드하지 못할 때만** 뜹니다.
+
+1. **`devup_figma_export`의 tool description.** 가장 중요한 자리입니다 — **모든 에이전트에게 도달하는 유일한 채널**이기 때문입니다. `instructions`는 그렇지 않습니다: `task()`로 띄운 서브에이전트는 tool schema만 받고 서버 `instructions`는 받지 못하며, Codex에서 `instructions`는 시스템 프롬프트 텍스트가 아니라 네임스페이스 설명 한 줄이 됩니다. 실제로 코드를 쓰는 주체가 그 두 경우인데, 예전에는 가장 강한 문장이 **부를 이유가 없는 도구인 `devup_skills` 자신의 description**에만 있었습니다.
+2. **`devup_figma_export` 응답의 `skillGap`.** TSX를 돌려준 응답에 붙습니다. `projectRoot`를 안 넘겨도 붙습니다 — devup-ui를 모르는 호출자가 바로 그 인자를 안 보내는 사람이라, 거기에 걸어두면 필요한 사람에게만 정확히 안 보입니다.
+3. **`devup_ui_validate`의 `skillGap`.** 위반이 있을 때. 이건 부검입니다: devup-ui를 모르는 에이전트는 validator도 부르지 않으므로 이것만으로는 닿지 않습니다. 1·2번이 **코드를 쓰기 전**을 맡고, 3번은 이미 쓴 코드가 거절당한 순간을 맡습니다.
 
 ## Figma 연결 설정
 
