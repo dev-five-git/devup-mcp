@@ -311,12 +311,8 @@ impl DevupServer {
     ///
     /// `Unknown` before the handshake or from a client that sends no name,
     /// and that case installs every convention rather than picking one.
-    fn runtime(&self) -> skills::Runtime {
-        self.client_name
-            .get()
-            .map_or(skills::Runtime::Unknown, |name| {
-                skills::Runtime::from_client_name(name)
-            })
+    fn client_name(&self) -> Option<&str> {
+        self.client_name.get().map(String::as_str)
     }
 
     pub fn new(services: Services) -> Self {
@@ -946,7 +942,7 @@ impl DevupServer {
         let lookup = skills::Lookup::new(
             input.project_root.as_deref(),
             self.output_policy.primary_root(),
-            self.runtime(),
+            self.client_name(),
         );
         match input.action.as_str() {
             "status" => Ok(tool_result(skills::report(&lookup))),
@@ -1210,7 +1206,7 @@ impl DevupServer {
                         &skills::Lookup::new(
                             project_root.as_deref(),
                             self.output_policy.primary_root(),
-                            self.runtime(),
+                            self.client_name(),
                         ),
                     ))
                 })
@@ -1454,7 +1450,7 @@ impl DevupServer {
                     &skills::Lookup::new(
                         input.project_root.as_deref(),
                         self.output_policy.primary_root(),
-                        self.runtime(),
+                        self.client_name(),
                     ),
                 )));
             }
@@ -1498,7 +1494,7 @@ impl DevupServer {
                 &skills::Lookup::new(
                     input.project_root.as_deref(),
                     self.output_policy.primary_root(),
-                    self.runtime(),
+                    self.client_name(),
                 ),
             )));
         }
@@ -1569,7 +1565,7 @@ impl DevupServer {
             &skills::Lookup::new(
                 input.project_root.as_deref(),
                 self.output_policy.primary_root(),
-                self.runtime(),
+                self.client_name(),
             ),
         )))
     }
@@ -1595,7 +1591,7 @@ impl DevupServer {
             &skills::Lookup::new(
                 input.project_root.as_deref(),
                 self.output_policy.primary_root(),
-                self.runtime(),
+                self.client_name(),
             ),
         )))
     }
@@ -1726,7 +1722,7 @@ impl DevupServer {
         let lookup = skills::Lookup::new(
             input.project_root.as_deref(),
             self.output_policy.primary_root(),
-            self.runtime(),
+            self.client_name(),
         );
         if !report.violations.is_empty()
             && lookup.installed_paths("devup-ui").is_empty()

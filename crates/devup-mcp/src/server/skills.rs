@@ -474,6 +474,16 @@ pub struct Lookup {
     pub project: PathBuf,
     pub home: Option<PathBuf>,
     pub runtime: Runtime,
+    /// The name the client sent, kept verbatim beside the verdict drawn from
+    /// it.
+    ///
+    /// Half the table is matched against names observed in the wild rather
+    /// than read out of source, because those clients are closed. When such a
+    /// guess is wrong the match simply does not fire and the runtime reads
+    /// `unknown` - safe, and completely silent. Echoing the name is what turns
+    /// that into something a reader can see and report, and it is the only way
+    /// the table gets corrected.
+    pub client_name: Option<String>,
 }
 
 impl Lookup {
@@ -485,11 +495,12 @@ impl Lookup {
     /// pool, a monorepo checkout - had every call reporting on that parent,
     /// where no runtime looks for skills and an install would land somewhere
     /// nothing reads.
-    pub fn new(project_root: Option<&str>, fallback: &Path, runtime: Runtime) -> Self {
+    pub fn new(project_root: Option<&str>, fallback: &Path, client_name: Option<&str>) -> Self {
         Self {
             project: project_root.map_or_else(|| fallback.to_path_buf(), PathBuf::from),
             home: home(),
-            runtime,
+            runtime: client_name.map_or(Runtime::Unknown, Runtime::from_client_name),
+            client_name: client_name.map(str::to_owned),
         }
     }
 
@@ -504,6 +515,7 @@ impl Lookup {
             project,
             home: None,
             runtime,
+            client_name: None,
         }
     }
 
@@ -1220,10 +1232,29 @@ pub fn report(lookup: &Lookup) -> serde_json::Value {
         "workspace": lookup.project.display().to_string(),
         "runtime": {
             "detected": lookup.runtime.as_str(),
-            "from": "The MCP clientInfo name sent at initialize.",
+            "clientName": lookup.client_name,
+            "from": "The MCP clientInfo name sent at initialize, echoed here as `clientName`.",
             "why": "Runtimes do not read the same directory. Installing into one this runtime \
                     never opens reports success and still never loads, which is the failure this \
                     field exists to make visible.",
+            // A closed-source client's name is matched against what has been
+            // observed rather than read out of source, so a wrong guess does
+            // not fail - it just never fires, and reads exactly like a client
+            // devup-mcp has never heard of. Naming both halves is what lets a
+            // reader tell those two apart and say which it is.
+            "ifDetectedIsUnknown": if lookup.runtime == Runtime::Unknown {
+                serde_json::json!({
+                    "meaning": "No runtime matched this client name, so every convention is read \
+                                and the three broad ones are written. That is safe, not wrong.",
+                    "butAlso": "It looks identical to a client devup-mcp does know whose name has \
+                                since changed. If `clientName` above is a client with its own \
+                                skill directory, that directory is missing from devup-mcp's table \
+                                and reporting the name is how it gets added.",
+                    "reportAt": "https://github.com/dev-five-git/devup-mcp/issues",
+                })
+            } else {
+                serde_json::Value::Null
+            },
         },
         "skillRoots": {
             "known": lookup.runtime.project_roots(),
@@ -1987,6 +2018,7 @@ mod tests {
             project: project.clone(),
             home: Some(home.clone()),
             runtime: Runtime::Codex,
+            client_name: None,
         };
         assert_eq!(
             lookup.installed_paths("devup-ui"),
@@ -2139,6 +2171,45 @@ mod tests {
         assert!(!Runtime::Cline.project_roots().contains(&".agents/skills"));
         assert!(Runtime::Cline.user_roots().contains(&".agents/skills"));
         assert_eq!(Runtime::Cline.write_roots()[0], ".cline/skills");
+    }
+
+    /// Half the table is matched against names observed in the wild, because
+    /// those clients are closed source. A wrong guess does not fail - it just
+    /// never fires, and reads exactly like a client devup-mcp has never heard
+    /// of. The name has to come back with the verdict or there is no way to
+    /// tell those two apart, and no way for the table to get corrected.
+    #[test]
+    fn the_report_echoes_the_name_beside_the_verdict_it_drew_from_it() {
+        let project = scratch("echo");
+        let seen = report(&Lookup::new(
+            project.to_str(),
+            &project,
+            Some("some-editor-nobody-added-yet"),
+        ));
+        assert_eq!(seen["runtime"]["detected"], "unknown");
+        assert_eq!(
+            seen["runtime"]["clientName"], "some-editor-nobody-added-yet",
+            "the name that produced the verdict was dropped"
+        );
+        assert!(
+            !seen["runtime"]["ifDetectedIsUnknown"].is_null(),
+            "an unknown client was not told what unknown means"
+        );
+
+        // A recognised client needs no such note; saying it anyway is the
+        // noise that teaches a reader to skip the field.
+        let known = report(&Lookup::new(project.to_str(), &project, Some("codex")));
+        assert_eq!(known["runtime"]["detected"], "codex");
+        assert_eq!(known["runtime"]["clientName"], "codex");
+        assert!(known["runtime"]["ifDetectedIsUnknown"].is_null());
+
+        // Before the handshake there is no name, and claiming one would be a
+        // lie about where the verdict came from.
+        let silent = report(&Lookup::new(project.to_str(), &project, None));
+        assert_eq!(silent["runtime"]["detected"], "unknown");
+        assert!(silent["runtime"]["clientName"].is_null());
+
+        let _ = std::fs::remove_dir_all(&project);
     }
 
     /// An unidentified client reads everything and writes the three broad

@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Half the runtime table is matched against client names observed in the wild rather than read out of source, because those clients are closed. A wrong guess there does not fail: the match simply never fires, the runtime reads `unknown`, every convention is written, and the result is safe and completely silent - indistinguishable from a client devup-mcp has genuinely never heard of. The report now echoes the name verbatim as `runtime.clientName` beside the verdict drawn from it, and when nothing matched it says what `unknown` means, that it is safe rather than wrong, and that a client with its own skill directory whose name is not in the table is exactly what should be reported. That is the only path by which the table gets corrected, and it is the same class of silent failure the rest of this branch exists to remove. `Lookup::new` takes the client name and derives the runtime from it rather than being handed a verdict, so the name and the conclusion cannot disagree.",
+  "date": "2026-09-22T15:31:59.219473100Z"
+}
