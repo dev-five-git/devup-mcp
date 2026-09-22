@@ -36,6 +36,15 @@ fn policy(label: &str) -> (PathBuf, super::super::output::OutputPolicy) {
     (project, policy)
 }
 
+/// A scratch project with no machine-wide roots.
+///
+/// `project_only` is the point: reading the real home would make these
+/// assertions depend on whether the developer running them happens to have
+/// devup-ui installed in `~/.claude/skills`, which most of them do.
+fn lookup(project: &std::path::Path) -> Lookup {
+    Lookup::project_only(project.to_path_buf(), Runtime::ClaudeCode)
+}
+
 #[tokio::test]
 async fn fetched_documents_report_their_real_provenance_and_manifest_url() {
     let (project, policy) = policy("fetched");
@@ -44,9 +53,14 @@ async fn fetched_documents_report_their_real_provenance_and_manifest_url() {
         contents: text.as_bytes().to_vec(),
         etag: "\"latest\"".to_owned(),
     }));
-    let result = install_with(&policy, &["vespera".to_owned()], &upstream)
-        .await
-        .unwrap();
+    let result = install_with(
+        &policy,
+        &lookup(&project),
+        &["vespera".to_owned()],
+        &upstream,
+    )
+    .await
+    .unwrap();
     let written = &result["installed"][0];
     assert_eq!(written["source"], "fetched");
     assert!(written["reason"].is_null());
@@ -65,9 +79,14 @@ async fn fetched_documents_report_their_real_provenance_and_manifest_url() {
     assert!(body.contains(&provenance["fetchedAt"].to_string()));
     assert!(!body.contains("Vendored from"));
     assert!(body.ends_with("# Current upstream rules\n"));
-    let again = install_with(&policy, &["vespera".to_owned()], &upstream)
-        .await
-        .unwrap();
+    let again = install_with(
+        &policy,
+        &lookup(&project),
+        &["vespera".to_owned()],
+        &upstream,
+    )
+    .await
+    .unwrap();
     assert_eq!(again["alreadyPresent"][0], "vespera");
     assert_eq!(upstream.urls.lock().unwrap().len(), 1);
     drop(policy);
@@ -84,9 +103,14 @@ async fn every_fetch_failure_installs_embedded_but_only_404_warns() {
     ] {
         let (project, policy) = policy("fallback");
         let upstream = FakeUpstream::new(Err(error.clone()));
-        let result = install_with(&policy, &["devup-ui".to_owned()], &upstream)
-            .await
-            .unwrap();
+        let result = install_with(
+            &policy,
+            &lookup(&project),
+            &["devup-ui".to_owned()],
+            &upstream,
+        )
+        .await
+        .unwrap();
         let written = &result["installed"][0];
         assert_eq!(written["source"], "embedded");
         assert!(
@@ -130,6 +154,7 @@ async fn own_external_and_unknown_skills_never_fetch() {
     let upstream = FakeUpstream::new(Err(SkillFetchError::NotFound));
     let result = install_with(
         &policy,
+        &lookup(&project),
         &[
             "devfive-frontend".to_owned(),
             "vercel-react-best-practices".to_owned(),
@@ -146,9 +171,14 @@ async fn own_external_and_unknown_skills_never_fetch() {
     );
     assert!(result["warnings"].as_array().unwrap().is_empty());
     assert!(
-        install_with(&policy, &["unknown".to_owned()], &upstream)
-            .await
-            .is_err()
+        install_with(
+            &policy,
+            &lookup(&project),
+            &["unknown".to_owned()],
+            &upstream
+        )
+        .await
+        .is_err()
     );
     assert!(upstream.urls.lock().unwrap().is_empty());
     drop(policy);
@@ -166,7 +196,9 @@ async fn the_entire_install_has_one_four_second_fetch_budget() {
     }
     let (project, policy) = policy("timeout");
     let start = tokio::time::Instant::now();
-    let result = install_with(&policy, &[], &Stalled).await.unwrap();
+    let result = install_with(&policy, &lookup(&project), &[], &Stalled)
+        .await
+        .unwrap();
     assert_eq!(start.elapsed(), std::time::Duration::from_secs(4));
     for written in result["installed"].as_array().unwrap() {
         assert_eq!(written["source"], "embedded");
@@ -245,7 +277,11 @@ async fn a_failed_write_does_not_commit_any_skill() {
         contents: b"# fetched".to_vec(),
         etag: "new".to_owned(),
     }));
-    assert!(install_with(&policy, &[], &upstream).await.is_err());
+    assert!(
+        install_with(&policy, &lookup(&project), &[], &upstream)
+            .await
+            .is_err()
+    );
     assert!(!project.join(".claude/skills/devup-ui/SKILL.md").exists());
     assert!(
         !project

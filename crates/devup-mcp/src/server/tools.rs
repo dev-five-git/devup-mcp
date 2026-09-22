@@ -24,6 +24,16 @@ pub struct SkillsInput {
     /// missing, which is the usual case on a machine that has just been set up.
     #[serde(default)]
     pub names: Vec<String>,
+    /// The project whose skills are being reported on or installed into.
+    ///
+    /// Omitted, this falls back to the server's own write root, and that is
+    /// only the project when the two were configured to be the same. A host
+    /// that granted one shared parent - an Orca worktree pool, a monorepo
+    /// checkout - made every call report on that parent instead, where no
+    /// runtime looks for skills. Pass the directory the code is going into,
+    /// the same one the other tools take.
+    #[serde(default)]
+    pub project_root: Option<String>,
 }
 
 fn default_skills_action() -> String {

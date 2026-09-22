@@ -418,6 +418,16 @@ pub fn report() -> Value {
         // to left the reader to find it, and on this machine three different
         // devup-mcp binaries were installed at once.
         "installedPath": installed_path(),
+        // A host that unpacks each install into a versioned directory names it
+        // once, at install time, and never renames it - so the directory can
+        // say 0.9.0-dev while the binary inside it reports 0.10.1 after a
+        // self-update replaced the file in place. That is the mechanism
+        // working, not a mismatch, and it reads like one.
+        "installedPathNote": "The path of the file, not a statement about the version. A \
+                              directory named after a version is the host's, fixed when it \
+                              installed; self-update replaces the file inside it and never \
+                              renames the directory. Read server.commit/buildId for what is \
+                              actually running.",
         "note": ownership.note(),
         "disableWith": DISABLE_ENV,
     })

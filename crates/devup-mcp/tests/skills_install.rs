@@ -43,8 +43,19 @@ where
 {
     // Set process configuration before startup, without racing other tests by
     // mutating this test process's environment. No HTTP or bridge socket opens.
+    //
+    // The home is pointed at an empty directory inside the scratch workspace.
+    // Install state counts the machine-wide skill roots, because a skill in
+    // `~/.codex/skills` really is loaded and really must not be reported
+    // missing - but that makes the real home an input, and anyone working on
+    // this repository has devup-ui installed in theirs. Left alone, these
+    // assertions pass in CI and fail on the laptop that wrote them.
+    let home = workspace.join("home");
+    std::fs::create_dir_all(&home)?;
     let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
         .current_dir(workspace)
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
         .env("DEVUP_MCP_SKILLS_OFFLINE", "1")
         .env("DEVUP_MCP_NO_UPDATE_CHECK", "1")
         .env("DEVUP_FIGMA_BRIDGE_PORT", "off")

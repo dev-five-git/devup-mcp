@@ -12,7 +12,7 @@ Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
 - `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
-- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다
+- `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다. 어느 디렉터리인지는 `clientInfo`로 판별한 런타임이 정하고, `projectRoot`로 어느 프로젝트인지 지정합니다
 - `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
 - `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
@@ -261,7 +261,68 @@ vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/
 
 **devup-mcp는 그 명령을 대신 실행하지 않습니다.** 디자인→코드 서버가 패키지 설치기를 실행하면, 레지스트리 항목 하나가 오염됐을 때 화면을 export한 모든 기계에서 임의 실행이 됩니다.
 
-설치 위치는 프로젝트 안입니다 — 이미 있는 것을 우선해 `.claude/skills`, `.opencode/skill`, `.agents/skills` 순으로 고릅니다. 프로젝트 루트는 devup-mcp가 쓸 수 있는 유일한 곳이라 새 권한이 필요 없고, 스킬이 저장소를 따라다닙니다. 이미 깔려 있으면 다시 쓰지 않습니다.
+설치 위치는 프로젝트 안입니다. 프로젝트 루트는 devup-mcp가 쓸 수 있는 유일한 곳이라 새 권한이 필요 없고, 스킬이 저장소를 따라다닙니다. 이미 깔려 있으면 다시 쓰지 않습니다.
+
+**어느 디렉터리인지는 붙어 있는 런타임이 정합니다.** 런타임마다 읽는 곳이 다르고, 읽지 않는 곳에 설치하는 것은 **조용한 실패**이기 때문입니다 — 호출은 성공을 보고하고, 파일은 디스크에 있고, 스킬은 끝내 로드되지 않습니다. Codex에서 올라온 보고가 정확히 이 모양이었습니다. 새 프로젝트에는 스킬 루트가 아예 없으니 선택이 목록의 첫 항목인 `.claude/skills`로 떨어졌고, Codex는 그곳을 읽지 않습니다.
+
+누구인지는 MCP `initialize`가 보내는 `clientInfo` 이름으로 압니다.
+
+| 런타임 | 설치 위치 | 머신 전체(읽기만) |
+|---|---|---|
+| Claude Code | `.claude/skills` | `~/.claude/skills` |
+| **Codex** | **`.agents/skills`** | `~/.agents/skills`, `~/.codex/skills` |
+| opencode | `.opencode/skill` | `~/.config/opencode/skill` |
+| Cursor | `.cursor/skills` | `~/.cursor/skills` |
+| Zed | `.agents/skills` | `~/.agents/skills` |
+| Windsurf | `.windsurf/skills` | `~/.codeium/windsurf/skills` |
+| VS Code / Copilot | `.github/skills` | `~/.copilot/skills` |
+| Gemini CLI | `.gemini/skills` | `~/.gemini/skills` |
+| Cline | `.cline/skills` | `~/.cline/skills`, `~/.agents/skills` |
+| Continue | `.continue/skills` | `~/.continue/skills` |
+| Amp | `.agents/skills` | `~/.config/agents/skills` |
+| Goose | `.agents/skills` | `~/.agents/skills` |
+| 이름을 안 밝힌 클라이언트 | **세 곳 모두** (`.claude/skills`·`.opencode/skill`·`.agents/skills`) | 전부 읽습니다 |
+
+각 런타임은 표의 한 곳만이 아니라 **자기가 읽는 곳 전부**를 검사합니다(대부분 `.agents/skills`를 호환으로 읽습니다). 표에 적은 것은 **새로 설치할 때 고르는 자리**입니다.
+
+**Cline이 이 표가 필요한 이유입니다.** 다른 대부분은 `.agents/skills`를 읽어서 공용 규약이 통하는데, Cline은 그걸 **홈에서만** 읽습니다. 프로젝트의 `.agents/skills`는 Cline이 열지 않는 디렉터리입니다.
+
+**JetBrains AI Assistant는 일부러 넣지 않았습니다.** 자동 탐색 디렉터리가 없고 사람이 설정에서 직접 등록해야 해서, 아무 경로나 넣는 것은 안전한 fallback보다 나쁩니다.
+
+**표의 절반은 관측값입니다.** Cursor·Windsurf·VS Code·Amp는 닫힌 소스라 `clientInfo.name`을 소스로 확인할 수 없습니다. 그 추측이 틀리면 매칭이 안 되고 `unknown`으로 떨어지는데 — **안전하지만 완전히 조용합니다.** devup-mcp가 정말 모르는 클라이언트와 구별이 안 됩니다.
+
+그래서 응답의 `runtime.clientName`이 **받은 이름을 그대로 돌려줍니다.** `detected`가 `unknown`이면 `ifDetectedIsUnknown`이 그게 틀린 게 아니라 안전한 상태라는 것과, 자기 스킬 디렉터리가 있는 클라이언트라면 그 이름을 알려달라는 것을 함께 답니다. 표가 고쳐지는 유일한 경로입니다.
+
+이름이 없고 기존 루트도 없으면 고를 근거가 없습니다. 셋 중 하나를 찍는 것은 **아무도 안 보는 곳에 쓸 확률이 3분의 2**이고, 사본 하나는 프로젝트가 이미 소유한 디렉터리 안에서 몇 KB입니다. 그래서 전부 씁니다. 다만 **읽을 때는 아는 규약 전부를 봅니다** — 누가 이미 깔아둔 것을 못 찾고 그 옆에 두 번째 사본을 쓰는 것이 더 나쁘기 때문입니다.
+
+### `installed`는 더 이상 "파일이 있다"가 아닙니다
+
+예전에는 `is_file()` 하나로 판정해서, 반년 전 devup-mcp가 쓴 `SKILL.md`도, 누가 한 줄 적어둔 자리표시자도 현재 문서와 구별되지 않았습니다. 더 나빴던 건 **`install`이 이미 있으면 건너뛰어서 갱신할 방법이 아예 없었다**는 점입니다 — 기계가 처음 한 설치가 마지막 설치였습니다.
+
+지금은 디스크의 바이트를 이 빌드가 쓸 바이트와 대조해 `installState.revision`으로 답합니다.
+
+| revision | 뜻 | `install`이 하는 일 |
+|---|---|---|
+| `current` | 지금 설치하면 나올 것과 같음. 또는 upstream에서 받아온 것(내장본보다 최소한 새것이라 네트워크 없이 더 따질 수 없음) | 아무것도 안 함 |
+| `older` | devup-mcp의 provenance 주석은 있는데 이 빌드의 것이 아님 | **제자리에서 다시 씁니다** |
+| `incomplete` | `SKILL.md`는 이 빌드 것인데 링크한 문서가 없거나 다름 — 설치된 것처럼 보이고 링크는 끊긴 상태 | **다시 씁니다** |
+| `foreign` | devup-mcp provenance 주석이 없음. 누가 직접 쓴 것 | **건드리지 않고 보고만 합니다** |
+
+`foreign`을 덮어쓰지 않는 이유는 하나입니다. 이 서버가 하지 않은 작업을 지우는 일이고, 설치는 그게 실수였는지 판단할 자리가 아닙니다. devup-mcp의 사본을 받고 싶으면 먼저 지우면 됩니다.
+
+`report`의 `outdated`가 이 상태인 스킬 이름을 모아 줍니다. `missing`과 따로 세는 이유는 둘이 다른 말을 필요로 하기 때문입니다 — 하나는 에이전트가 본 적 없는 스킬이고, 다른 하나는 **지금 읽고 있으면서 낡은 규칙을 배우고 있는** 스킬입니다.
+
+**머신 전체 루트는 읽기만 합니다.** devup-mcp는 허용된 write root 안에만 쓰고 홈 디렉터리는 거기에 없습니다 — 그 경계는 그대로입니다. 다만 `~/.codex/skills`에 있는 스킬은 **실제로 로드되므로** 없다고 보고하면 안 됩니다. 예전에는 devup-ui를 `~/.agents/skills`·`~/.claude/skills`·`~/.codex/skills`·`~/.config/opencode/skill` 네 곳에 (전부 각자의 런타임이 읽는 상태로) 갖고 있는 기계가 `installedCount: 0`을 받았습니다.
+
+반대 실수도 똑같이 조용합니다. 이 런타임이 열지 않는 디렉터리에 있는 파일은 로드되지 않으므로 `installed`로 세지 않습니다.
+
+**`projectRoot`를 넘기세요.** 생략하면 서버 자신의 write root로 떨어지는데, 둘을 같게 설정한 경우가 아니면 그건 프로젝트가 아닙니다. 공용 부모 하나를 write root로 준 호스트(Orca worktree 풀, 모노레포 체크아웃)에서는 모든 호출이 그 부모를 보고했고, 거기엔 어떤 런타임도 스킬을 찾으러 가지 않습니다.
+
+### 기계에 한 번만 깔고 싶다면
+
+프로젝트마다 한 번씩 설치하는 것이 기본이고, 매 export가 빠진 것을 다시 알려주므로 스스로 복구됩니다. 그래도 기계 하나에 한 번이 낫다면 — devup-mcp는 **그 경로를 알려주기만 합니다.** 응답의 `machineWide`가 이 런타임의 홈 디렉터리와 함께 `action: "run-this-yourself"`를 돌려줍니다.
+
+홈은 허용된 write root 밖이고, 디자인→코드 서버가 `$HOME`에 쓸 수 있도록 그 경계를 넓히는 것은 편의와 바꿀 만한 거래가 아닙니다. 그래서 경로는 넘기고 실행은 사람 몫입니다. 그 디렉터리에 들어간 스킬은 이후 **모든 프로젝트에서** 설치됨으로 보고됩니다.
 
 설치 응답의 `installed[].source`는 `fetched` 또는 `embedded`이며, 내장본을 썼다면 `reason`도 반환합니다. 가져오기는 manifest의 저장소와 문서 경로에서 만든 `https://raw.githubusercontent.com/REPO/HEAD/PATH`를 사용하며, 호출 전체의 네트워크 대기는 최대 4초입니다. 네트워크 오류, HTTP 오류, ETag 누락은 내장본으로 돌아가고, 404는 upstream 경로가 바뀌었을 수 있으므로 `warnings`에도 알립니다. 여러 문서 중 하나라도 실패하면 그 스킬 전체를 내장본으로 설치합니다.
 
@@ -273,7 +334,14 @@ vercel 것을 내장하지 않는 이유는 두 가지입니다. **`vercel-labs/
 
 설치하지 않고 읽기만 하려면 `devup://skill/devup-ui` 리소스도 있습니다. 다만 그건 fallback입니다 — 설치해야 로더가 알아서 꺼내 줍니다.
 
-유도는 두 곳에서만 합니다. 세션마다 실리는 `instructions`의 한 줄, 그리고 `devup_ui_validate`가 위반을 찾았는데 devup-ui 스킬이 **실제로 없을 때만** 붙는 `skillGap`입니다. 이미 깔려 있는 사람에게 깔라고 하는 것은 그 필드를 무시하게 만드는 소음입니다.
+유도는 네 곳에서 합니다. 이미 깔려 있고 최신인 사람에게 깔라고 하는 것은 그 필드를 무시하게 만드는 소음이므로, 넷 다 **이 런타임이 실제로 로드하지 못하거나 낡은 것을 로드할 때만** 뜹니다.
+
+1. **`devup_figma_export`의 tool description.** 가장 중요한 자리입니다 — **모든 에이전트에게 도달하는 유일한 채널**이기 때문입니다. `instructions`는 그렇지 않습니다: `task()`로 띄운 서브에이전트는 tool schema만 받고 서버 `instructions`는 받지 못하며, Codex에서 `instructions`는 시스템 프롬프트 텍스트가 아니라 네임스페이스 설명 한 줄이 됩니다. 실제로 코드를 쓰는 주체가 그 두 경우인데, 예전에는 가장 강한 문장이 **부를 이유가 없는 도구인 `devup_skills` 자신의 description**에만 있었습니다.
+
+   같은 이유로 **가이드의 규칙 3·4·6도 이 description으로 옮겼습니다.** 스크린샷은 검증이지 저작이 아니라는 것, 노드 트리를 직접 읽어 손으로 쓰지 말라는 것, 값을 절대 지어내지 말라는 것 — 셋은 어기면 *응답이 나빠지는* 게 아니라 **잘못된 코드가 나오는** 규칙인데, Codex가 blurb 한 줄로 접어 버리는 리소스에만 있었습니다.
+2. **`devup_figma_export` 응답의 `skillGap`.** TSX를 돌려준 응답에 붙습니다. `projectRoot`를 안 넘겨도 붙습니다 — devup-ui를 모르는 호출자가 바로 그 인자를 안 보내는 사람이라, 거기에 걸어두면 필요한 사람에게만 정확히 안 보입니다. `missing`과 `outdated`를 나눠 담습니다.
+3. **`devup_project_context` 응답의 `skillGap`.** 2번이 devup-mcp가 *쓰는* 코드를 맡는다면 이쪽은 *읽는* 파일을 맡습니다 — `devup.json`은 devup-ui의 테마 형식이고, scope `api`의 `openapi.json`은 vespera 라우트가 만들며, scope `db`의 `models/*.json`은 vespertide 스키마입니다. **그 scope가 실제로 파일을 찾았을 때만** 뜹니다. `openapi.json`이 없는 프로젝트에 vespera를 권하는 건 소음입니다.
+4. **`devup_ui_validate`의 `skillGap`.** 위반이 있을 때. 이건 부검입니다: devup-ui를 모르는 에이전트는 validator도 부르지 않으므로 이것만으로는 닿지 않습니다. 1~3번이 **코드를 쓰기 전**을 맡고, 4번은 이미 쓴 코드가 거절당한 순간을 맡습니다.
 
 ## Figma 연결 설정
 
