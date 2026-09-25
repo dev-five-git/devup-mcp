@@ -704,6 +704,7 @@ dependencies = [
  "devup-mcp-figma",
  "devup-mcp-visual",
  "dunce",
+ "futures-util",
  "oxc_allocator",
  "oxc_ast",
  "oxc_parser",
@@ -717,6 +718,7 @@ dependencies = [
  "sha2 0.11.0",
  "syn 2.0.119",
  "tokio",
+ "tokio-tungstenite 0.28.0",
  "tracing-subscriber",
 ]
 
