@@ -707,6 +707,18 @@ impl DevupServer {
             }
         }
     }
+
+    /// Both paths to Figma as they stand right now.
+    async fn connection_report(&self) -> Result<Value, DevupError> {
+        let status = self.services.auth.status().await?;
+        let direct = self.services.auth.direct_path_snapshot().await?;
+        let bridge = self.services.upstream.bridge_path_snapshot().await;
+        Ok(diagnostics::connection_report(
+            status,
+            &direct,
+            bridge.as_ref(),
+        ))
+    }
 }
 
 /// Every `devup_figma_*` tool response is a JSON object whose exact shape
@@ -966,45 +978,70 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Check, start, or clear Figma Remote MCP OAuth, or inject a pre-registered client credential to skip Dynamic Client Registration (action: status | login | logout | configure | doctor)",
+        description = "Report how devup-mcp reaches Figma, and manage the direct path's OAuth (action: status | login | logout | configure | doctor). \
+                       Two paths reach Figma: the Devup Bridge plugin running in the Figma desktop app is preferred and needs no login, and OAuth - the metered direct path - is the fallback. \
+                       Call status before asking anyone to log in: it reports both paths, the files attached plugins have open with their current page and selection, and the next call to make. `connected` is false, and `status` reads disconnected, only when neither path can serve. \
+                       With exactly one plugin attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url. \
+                       login is needed only when no plugin is attached, or for what the bridge cannot serve (file-scope metadata, referencePng). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
         &self,
         Parameters(input): Parameters<AuthInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        if input.action == "doctor" {
-            let status = self.services.auth.status().await.map_err(to_mcp_error)?;
-            let direct = self
-                .services
-                .auth
-                .direct_path_snapshot()
-                .await
-                .map_err(to_mcp_error)?;
-            let bridge = self.services.upstream.bridge_path_snapshot().await;
-            return Ok(tool_result(
-                diagnostics::doctor_report(status, direct, bridge).await,
-            ));
-        }
-        if input.action == "configure" {
-            let client_id = input.client_id.ok_or_else(|| {
-                to_mcp_error(DevupError::new(
-                    ErrorCode::DevupInvalidInput,
-                    "configure requires clientId.",
-                    false,
-                ))
-            })?;
-            self.services
-                .auth
-                .configure_client_credentials(client_id, input.client_secret)
-                .await
-                .map_err(to_mcp_error)?;
-            return Ok(tool_result(json!({ "status": "configured" })));
-        }
-        let status = match input.action.as_str() {
-            "status" => self.services.auth.status().await,
-            "login" => self.services.auth.login().await,
-            "logout" => self.services.auth.logout().await,
+        match input.action.as_str() {
+            "status" => {}
+            "doctor" => {
+                let status = self.services.auth.status().await.map_err(to_mcp_error)?;
+                let direct = self
+                    .services
+                    .auth
+                    .direct_path_snapshot()
+                    .await
+                    .map_err(to_mcp_error)?;
+                let bridge = self.services.upstream.bridge_path_snapshot().await;
+                return Ok(tool_result(
+                    diagnostics::doctor_report(status, direct, bridge).await,
+                ));
+            }
+            "configure" => {
+                let client_id = input.client_id.ok_or_else(|| {
+                    to_mcp_error(DevupError::new(
+                        ErrorCode::DevupInvalidInput,
+                        "configure requires clientId.",
+                        false,
+                    ))
+                })?;
+                self.services
+                    .auth
+                    .configure_client_credentials(client_id, input.client_secret)
+                    .await
+                    .map_err(to_mcp_error)?;
+                return Ok(tool_result(json!({ "status": "configured" })));
+            }
+            "login" => {
+                // Warned rather than refused: the bridge cannot serve every
+                // read, and whoever asks may need one of those. But reaching
+                // for the metered path while the free one is attached is the
+                // mistake this answer exists to catch, so it says so.
+                let bridge_attached = self
+                    .services
+                    .upstream
+                    .bridge_path_snapshot()
+                    .await
+                    .is_some_and(|bridge| !bridge.attached_files.is_empty());
+                self.services.auth.login().await.map_err(to_mcp_error)?;
+                let mut report = self.connection_report().await.map_err(to_mcp_error)?;
+                if bridge_attached {
+                    report["warning"] = json!(
+                        "A bridge is attached; login is only needed for file-scope metadata or referencePng."
+                    );
+                }
+                return Ok(tool_result(report));
+            }
+            "logout" => {
+                self.services.auth.logout().await.map_err(to_mcp_error)?;
+            }
             _ => {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupAuthRequired,
@@ -1013,8 +1050,9 @@ impl DevupServer {
                 )));
             }
         }
-        .map_err(to_mcp_error)?;
-        Ok(tool_result(json!({ "status": status })))
+        Ok(tool_result(
+            self.connection_report().await.map_err(to_mcp_error)?,
+        ))
     }
 
     #[tool(

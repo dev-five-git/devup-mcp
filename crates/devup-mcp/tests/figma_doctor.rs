@@ -186,8 +186,7 @@ async fn doctor_action_reports_measured_paths_and_client_setup_data() -> anyhow:
 }
 
 #[tokio::test]
-async fn doctor_action_reflects_connected_status_without_changing_the_status_action_shape()
--> anyhow::Result<()> {
+async fn doctor_and_status_agree_on_a_connected_direct_path() -> anyhow::Result<()> {
     let doctor = call_named_tool(
         Arc::new(AuthProbe {
             status: AuthStatus::Connected,
@@ -202,8 +201,9 @@ async fn doctor_action_reflects_connected_status_without_changing_the_status_act
     assert_eq!(doctor["status"], "connected");
     assert_eq!(doctor["paths"]["direct"]["available"], true);
 
-    // The pre-existing `status` action must keep returning exactly
-    // `{"status": ...}` so existing callers stay compatible.
+    // `status` keeps its `status` field, so a caller that reads only that
+    // still gets the verdict - which now covers both paths - and gains the
+    // path-aware report beside it.
     let status = call_named_tool(
         Arc::new(AuthProbe {
             status: AuthStatus::Connected,
@@ -215,18 +215,22 @@ async fn doctor_action_reflects_connected_status_without_changing_the_status_act
     .await?
     .structured_content
     .unwrap();
-    // The tool's own payload is still pinned exactly - that is what keeps
-    // existing callers compatible. The identity block is asserted field by
-    // field instead of as one literal: it is shared by every tool and grows
-    // (it just gained `updateAvailable`), and spelling it out in full made
-    // unrelated tests fail for a change that broke nothing.
+    // The identity block is asserted field by field instead of as one
+    // literal: it is shared by every tool and grows (it just gained
+    // `updateAvailable`), and spelling it out in full made unrelated tests
+    // fail for a change that broke nothing.
     let mut status = status;
     let server = status
         .as_object_mut()
         .expect("structured content is an object")
         .remove("server")
         .expect("every response carries build identity");
-    assert_eq!(status, json!({ "status": "connected" }));
+    assert_eq!(status["status"], "connected");
+    assert_eq!(status["connected"], true);
+    assert_eq!(status["activePath"], "direct");
+    assert_eq!(status["paths"], doctor["paths"]);
+    // Reference data stays on doctor, where it was asked for.
+    assert!(status.get("clientSetup").is_none());
     assert_identity(&server);
     Ok(())
 }
