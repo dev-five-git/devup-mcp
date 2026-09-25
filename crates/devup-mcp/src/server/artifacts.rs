@@ -1160,14 +1160,12 @@ fn remove_entry(state: &mut StoreState, artifact_id: &str) {
         // Bounded tombstones retain no payload, credentials or original private URL label.
         // Canonical URL and the last selection are enough to reacquire the same capture.
         let key = &entry.request_key;
-        let mut url = if let Some(branch) = &key.branch_key {
-            format!("https://www.figma.com/branch/{}/{branch}", key.file_key)
-        } else {
-            format!("https://www.figma.com/design/{}", key.file_key)
-        };
-        if let Some(node) = &key.node_id {
-            url.push_str(&format!("?node-id={}", node.replace(':', "-")));
+        let url = devup_mcp_figma::FigmaTarget {
+            file_key: key.file_key.clone(),
+            node_id: None,
+            branch_key: key.branch_key.clone(),
         }
+        .link(key.node_id.as_deref());
         let mut args = json!({"url":url,"refresh":true});
         if let Some(selection) = &entry.capabilities.section_selection {
             args["frameIds"] = json!(selection.frame_ids);

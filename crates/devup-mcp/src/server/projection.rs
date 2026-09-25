@@ -1063,6 +1063,75 @@ fn generate_collected_component(
 }
 
 pub(super) async fn complete_operation(
+    operation: PendingOperation,
+    payload: &CollectedPayload,
+    source_kind: &str,
+    artifact: &ArtifactLookup,
+    output_policy: &OutputPolicy,
+    artifact_store: &ArtifactStore,
+) -> Result<Value, DevupError> {
+    let mut response = project_operation(
+        operation,
+        payload,
+        source_kind,
+        artifact,
+        output_policy,
+        artifact_store,
+    )
+    .await?;
+    if let Some(source) = response
+        .get_mut("source")
+        .filter(|source| source.is_object())
+    {
+        attach_bridge_source(source, payload);
+    }
+    Ok(response)
+}
+
+/// Names the Devup Bridge plugin when it carried the design, and never claims
+/// a file key the plugin did not report.
+///
+/// Every answer used to say `kind: "direct"` whatever carried it, and repeated
+/// the request's key as the file's - including a key an agent had invented to
+/// get past the url field, which the plugin served only because it was the one
+/// attached. So the agent could not tell which path had served it, and was
+/// told its own invention was the file.
+fn attach_bridge_source(source: &mut Value, payload: &CollectedPayload) {
+    let Some(served) = &payload.stats.bridge else {
+        return;
+    };
+    // A reused acquisition stays `artifact` - this call read nothing - and
+    // says where the acquisition came from.
+    if source["kind"] == "direct" {
+        source["kind"] = json!("bridge");
+    } else {
+        source["origin"] = json!("bridge");
+    }
+    source["bridgePort"] = json!(served.port);
+    source["fileKey"] = json!(served.file_key);
+    if served.file_key.is_none() {
+        source["fileKeyReason"] = json!(
+            "The Devup Bridge plugin that served this could not report its file key (figma.fileKey is empty, as in Dev Mode), so no file key is claimed."
+        );
+        if !payload.target.is_bridge_only() {
+            source["requestedFileKey"] = json!(payload.target.file_key);
+        }
+    }
+    source["fileName"] = json!(served.file_name);
+    source["pageName"] = json!(served.page_name);
+    source["bridgeReads"] = json!(served.reads);
+}
+
+/// The file key an answer may state: the plugin's own report when the bridge
+/// read the file, and the requested key when Figma itself served it.
+fn vouched_file_key(payload: &CollectedPayload) -> Option<&str> {
+    match &payload.stats.bridge {
+        Some(served) => served.file_key.as_deref(),
+        None => Some(payload.target.file_key.as_str()),
+    }
+}
+
+async fn project_operation(
     mut operation: PendingOperation,
     payload: &CollectedPayload,
     source_kind: &str,
@@ -1453,8 +1522,7 @@ pub(super) async fn complete_operation(
                 } else {
                     result.get_mut("nextAction").expect("nextAction")["example"] = json!({
                         "tool":"devup_figma_explore", "arguments":{
-                            "url":format!("https://www.figma.com/design/{}?node-id={}", payload.target.file_key,
-                                payload.target.node_id.as_deref().unwrap_or_default().replace(':', "-")),
+                            "url":payload.target.link(payload.target.node_id.as_deref()),
                             "limit":100
                         }
                     });
@@ -1666,7 +1734,7 @@ pub(super) async fn complete_operation(
                             frame["sourceMap"] = json!({"version":output.source_map.version,
                                 "designFingerprints":design_fingerprints,
                                 "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
-                                "entries":output.source_map.property_entries(),"source":{"fileKey":payload.target.file_key,
+                                "entries":output.source_map.property_entries(),"source":{"fileKey":vouched_file_key(payload),
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
                                 "generatedOutput":field,"mappingKind":"node-field-property"}});
                         }
@@ -2107,7 +2175,7 @@ pub(super) async fn complete_operation(
                         .map(|source_map| source_map.entries)
                         .unwrap_or_default(),
                     "source": {
-                        "fileKey": payload.target.file_key,
+                        "fileKey": vouched_file_key(payload),
                         "rootNodeId": payload.target.node_id,
                         "sourceVersion": payload.source_version,
                         "generatedOutput":generated_output_target,"mappingKind":"node-field-property"
@@ -2451,24 +2519,10 @@ pub(super) async fn complete_operation(
                     .filter_map(|failure| failure["nodeId"].as_str())
                     .collect::<std::collections::BTreeSet<_>>();
                 if !failed_frames.is_empty() {
-                    let mut arguments = json!({"url":format!("https://www.figma.com/design/{}/?node-id={}",
-                        payload.target.file_key, payload.target.node_id.as_deref().unwrap_or_default().replace(':', "-")),
+                    let mut arguments = json!({"url":payload.target.link(payload.target.node_id.as_deref()),
                         "frameIds":failed_frames,"outputs":outputs,"scope":scope,"delivery":delivery,
                         "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
                         "assetNamesPerNode":asset_names_per_node,"strict":strict,"includeDiagnostics":include_diagnostics});
-                    if let Some(branch) = &payload.target.branch_key {
-                        arguments["url"] = json!(format!(
-                            "https://www.figma.com/branch/{}/{}/?node-id={}",
-                            payload.target.file_key,
-                            branch,
-                            payload
-                                .target
-                                .node_id
-                                .as_deref()
-                                .unwrap_or_default()
-                                .replace(':', "-")
-                        ));
-                    }
                     if let Some(name) = &component_name_for_components {
                         arguments["componentName"] = json!(name);
                     }
