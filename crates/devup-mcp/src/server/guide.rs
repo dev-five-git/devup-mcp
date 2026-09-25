@@ -17,8 +17,7 @@
 pub const GUIDE_URI: &str = "devup://guide/usage";
 pub const GUIDE_NAME: &str = "devup-usage-guide";
 pub const GUIDE_TITLE: &str = "Using devup-mcp";
-pub const GUIDE_DESCRIPTION: &str =
-    "Output selection, verification boundaries, SECTION batching and asset rules for devup-mcp";
+pub const GUIDE_DESCRIPTION: &str = "Connection order (bridge -> direct), output selection, verification boundaries, SECTION batching and asset rules for devup-mcp";
 pub const GUIDE_MIME_TYPE: &str = "text/markdown";
 
 /// What `initialize` still says. Only the rules that change the very next
@@ -33,6 +32,8 @@ pub const INSTRUCTIONS: &str = concat!(
     "server.updateAvailable reports whether a newer release exists; state \"unknown\" means the check is disabled, ",
     "not yet run, or could not reach the network, and it never blocks a call.\n",
     "1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n",
+    "1a. Connection order: bridge -> direct. Call devup_figma_auth status before asking anyone to log in: the Devup ",
+    "Bridge plugin needs no login, and with one attached devup_figma_export takes no url.\n",
     "2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; ",
     "a complete response marks it with deliverable.isFinal.\n",
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
@@ -50,6 +51,38 @@ pub const GUIDE: &str = r#"# Using devup-mcp
 These are the rules that used to be pushed to every client in `initialize`.
 They are published here instead so a caller that never converts a Figma design
 never carries them. Rule numbers match the original list, which skipped 9.
+
+## 1a. Connection order: bridge -> direct
+
+Two paths reach Figma and they are not equals. The Devup Bridge plugin, run in
+the Figma desktop app on the file, needs no login and spends none of Figma's
+allowance. The direct path is OAuth against Figma's MCP and is metered. Use the
+bridge first; direct is the fallback for what the bridge cannot serve - a
+file-scope metadata read and `referencePng`.
+
+- Call `devup_figma_auth` with `action: "status"` before asking anyone to log
+  in. It reports both paths: `connected`, `activePath` (`bridge`, `direct` or
+  null), `paths.bridge.attachedFiles` with each plugin's file name, current
+  page and selection, and a `nextAction`. `status` reads `disconnected` only
+  when neither path can serve. Do not ask for a login while `activePath` is
+  `bridge`.
+- With exactly one plugin attached, `devup_figma_export`,
+  `devup_figma_search` and `devup_figma_explore` take no `url`. The export
+  reads the file that plugin has open and the node selected in Figma;
+  `frameIds` without `url` name frames in that file - one id is that frame,
+  several are screens of the selected Section. Explore anchors on the
+  selection, and search reads the whole file.
+- When a link is still needed, use `figma-bridge://current`, with
+  `?node-id=1-2` to name a node. Never invent a Figma file key to fill `url`:
+  a plugin that cannot report its key answers any key while it is alone, so an
+  invented one is served and then mistaken for the file's.
+- With no plugin attached, or several, a call without `url` is refused with a
+  `nextAction` that lists the ways forward: run the plugin, log in and pass a
+  link, or pick one of the attached files.
+- An answer the plugin served says so: `source.kind` is `bridge`, with
+  `bridgePort`, `fileName`, `pageName` and `bridgeReads`. `source.fileKey` is
+  the key the plugin reported, or `null` with `fileKeyReason` when it could
+  not report one.
 
 ## 2a. Ask for an output only when you will read it
 
@@ -141,7 +174,8 @@ mod tests {
     fn every_original_rule_number_survives_the_move() {
         let combined = format!("{INSTRUCTIONS}\n{GUIDE}");
         for number in [
-            "1.", "2.", "2a.", "2b.", "3.", "4.", "5.", "6.", "7.", "8.", "10.", "11.", "12.",
+            "1.", "1a.", "2.", "2a.", "2b.", "3.", "4.", "5.", "6.", "7.", "8.", "10.", "11.",
+            "12.",
         ] {
             assert!(
                 combined.contains(number),
@@ -156,10 +190,14 @@ mod tests {
 
     /// The whole point was to stop charging every session for Figma prose, so
     /// the measurement that justified the move is itself a regression test.
+    ///
+    /// The ceiling moved once, for rule 1a: the connection order has to be
+    /// read before the first Figma call, because an agent that met a plugin
+    /// attached and a `disconnected` direct path asked its user to log in.
     #[test]
     fn instructions_are_far_smaller_than_the_guidance_they_point_at() {
         assert!(
-            INSTRUCTIONS.len() < 1_200,
+            INSTRUCTIONS.len() < 1_400,
             "instructions grew back to {} bytes; the per-session cost is the thing being fixed",
             INSTRUCTIONS.len()
         );

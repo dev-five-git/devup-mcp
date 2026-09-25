@@ -42,14 +42,14 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, BridgeFigmaClient, BridgeServer, ClientCredentialSource, ClientCredentials,
-    CollectedParts, CollectedPayload, CollectionRequest, CollectionScope, CollectorSession,
-    CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError, DirectPathSnapshot, ErrorCode,
-    ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions, FallbackUpstream, FigmaTarget,
-    FigmaUpstream, KeyringClientCredentialStore, KeyringCredentialStore, OAuthManager,
-    ReadToolCall, RemoteFigmaClient, ResourceScope, SearchReadOptions, SecretString,
-    SectionCandidate, SectionIndex, SectionReadOptions, Snapshot, SystemBrowser, TokenState,
-    UpstreamResult,
+    AuthStatus, BRIDGE_CURRENT_KEY, BridgeFigmaClient, BridgeServer, ClientCredentialSource,
+    ClientCredentials, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
+    CollectorSession, CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError,
+    DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions,
+    FallbackUpstream, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
+    KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
+    SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
+    SystemBrowser, TokenState, UpstreamResult,
 };
 
 use artifacts::{ArtifactKind, ArtifactRequestKey, ArtifactStore};
@@ -670,7 +670,13 @@ impl DevupServer {
                                 if !error.details.is_object() {
                                     error.details = json!({"upstreamDetails":error.details});
                                 }
-                                error.details["fileKey"] = json!(target.file_key);
+                                // A key only the bridge routes by is not the
+                                // file's, so it is not reported as one.
+                                error.details["fileKey"] = if target.is_bridge_only() {
+                                    Value::Null
+                                } else {
+                                    json!(target.file_key)
+                                };
                                 if error.details.get("nodeId").is_none() {
                                     error.details["nodeId"] = json!(planned.expected_node_id);
                                 }
@@ -707,6 +713,201 @@ impl DevupServer {
             }
         }
     }
+
+    /// Both paths to Figma as they stand right now.
+    async fn connection_report(&self) -> Result<Value, DevupError> {
+        let status = self.services.auth.status().await?;
+        let direct = self.services.auth.direct_path_snapshot().await?;
+        let bridge = self.services.upstream.bridge_path_snapshot().await;
+        Ok(diagnostics::connection_report(
+            status,
+            &direct,
+            bridge.as_ref(),
+        ))
+    }
+
+    /// Binds a call made without url, or with `figma-bridge://current`, to the
+    /// one attached Devup Bridge plugin: its file, and the node selected in
+    /// Figma when the call names none.
+    ///
+    /// A call without url used to be refused outright as "url or artifactId
+    /// is required" while a plugin sat attached and ready, and the one agent
+    /// that met it invented `/design/bridge/bridge` to get past the field.
+    /// With no plugin, or several, there is no one file the call can mean,
+    /// and the refusal says what would make one - `retry` is the call to make
+    /// then.
+    async fn bind_to_bridge(
+        &self,
+        mut target: FigmaTarget,
+        unnamed: Unnamed,
+        retry: &Value,
+    ) -> Result<FigmaTarget, DevupError> {
+        if target.file_key != BRIDGE_CURRENT_KEY {
+            return Ok(target);
+        }
+        let bridge = self.services.upstream.bridge_path_snapshot().await;
+        let attached = bridge
+            .as_ref()
+            .map_or(&[][..], |bridge| bridge.attached_files.as_slice());
+        let file = match attached {
+            [file] => file,
+            [] => {
+                let direct_available = self.services.auth.status().await? == AuthStatus::Connected;
+                return Err(DevupError::with_details(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "No url was given and no Devup Bridge plugin is attached, so there is no open \
+                     file to read. Run the Devup Bridge plugin on the file in the Figma desktop \
+                     app (preferred: no login), or pass the frame's Figma link as url.",
+                    false,
+                    json!({
+                        "stage": "target-resolution",
+                        "bridge": {
+                            "listening": bridge.is_some(),
+                            "port": bridge.as_ref().and_then(|bridge| bridge.port),
+                            "attachedFiles": [],
+                        },
+                        "directAvailable": direct_available,
+                        "nextAction": diagnostics::ways_to_open_a_path(
+                            bridge.is_some(),
+                            direct_available,
+                            retry,
+                        ),
+                    }),
+                ));
+            }
+            several => {
+                return Err(DevupError::with_details(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "No url was given and several Devup Bridge plugins are attached, so which file \
+                     is meant is ambiguous.",
+                    false,
+                    json!({
+                        "stage": "target-resolution",
+                        "nextAction": diagnostics::several_plugins(several, retry),
+                    }),
+                ));
+            }
+        };
+        target.file_key.clone_from(&file.target_key);
+        if target.node_id.is_some() || unnamed == Unnamed::File {
+            return Ok(target);
+        }
+        let context = &file.context;
+        match (context.single_selection(), unnamed) {
+            (Some(node), Unnamed::SelectedSection)
+                if node
+                    .node_type
+                    .as_deref()
+                    .is_some_and(|node_type| node_type != "SECTION") =>
+            {
+                let mut call = retry.clone();
+                if let Some(first) = retry["arguments"]["frameIds"].get(0) {
+                    call["arguments"]["frameIds"] = json!([first]);
+                }
+                call["how"] = json!(
+                    "Select the Section in Figma and repeat the call, or export one frame per call: a single frameId and no url, once for each frame."
+                );
+                Err(selection_refusal(
+                    file,
+                    format!(
+                        "frameIds and allScreens without url choose screens inside the Section \
+                         selected in Figma, and the selection is a {}.",
+                        node.node_type.as_deref().unwrap_or("node")
+                    ),
+                    call,
+                ))
+            }
+            (Some(node), _) => {
+                target.node_id = Some(node.id.clone());
+                Ok(target)
+            }
+            (None, Unnamed::SelectionOrFile)
+                if context.selection.as_ref().is_some_and(Vec::is_empty) =>
+            {
+                Ok(target)
+            }
+            (None, _) => Err(selection_refusal(
+                file,
+                match &context.selection {
+                    None => "No url or node was given, and the attached Devup Bridge plugin does \
+                             not report the Figma selection - it predates this devup-mcp. Re-run \
+                             Devup Bridge from this devup-mcp's plugin/manifest.json, or name the \
+                             node."
+                        .to_owned(),
+                    Some(selection) if selection.is_empty() => {
+                        "No url or node was given and nothing is selected in Figma. Select the \
+                         node in Figma, or name it."
+                            .to_owned()
+                    }
+                    Some(selection) => format!(
+                        "No url or node was given and {} nodes are selected in Figma. Select \
+                         exactly one, or name the one you mean.",
+                        context.selection_count.unwrap_or(selection.len())
+                    ),
+                },
+                name_the_node(file, retry),
+            )),
+        }
+    }
+}
+
+/// The call that names the node a selection could not: the first selected
+/// one when anything is selected, a placeholder to replace otherwise.
+fn name_the_node(file: &devup_mcp_figma::AttachedFile, retry: &Value) -> Value {
+    let node = file
+        .context
+        .selection
+        .as_deref()
+        .and_then(<[_]>::first)
+        .map(|node| node.id.as_str());
+    let mut call = retry.clone();
+    call["arguments"]["url"] =
+        json!(FigmaTarget::bridge_current().link(Some(node.unwrap_or("<node-id>"))));
+    if node.is_none() {
+        call["requiredArguments"] = json!(["url"]);
+    }
+    call["how"] = json!(
+        "Select one node in Figma and repeat the call, or name the node with figma-bridge://current?node-id=<id> as url."
+    );
+    call
+}
+
+/// Which node a call bound to the bridge means when it names none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Unnamed {
+    /// No node: the whole file, as a search reads it.
+    File,
+    /// The one node selected in Figma: an export's target, explore's anchor.
+    Selection,
+    /// The selected node when exactly one is selected, else the whole file:
+    /// a file-scope export that needs no node.
+    SelectionOrFile,
+    /// The selected Section, whose screens frameIds or allScreens choose.
+    SelectedSection,
+}
+
+/// The refusal for a selection that does not name the node a call needs,
+/// carrying the call that would.
+fn selection_refusal(
+    file: &devup_mcp_figma::AttachedFile,
+    message: String,
+    call: Value,
+) -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaHandoffInvalid,
+        message,
+        false,
+        json!({
+            "stage": "target-resolution",
+            "file": {
+                "fileName": file.file_name,
+                "currentPage": file.context.current_page,
+                "selection": file.context.selection,
+                "selectionCount": file.context.selection_count,
+            },
+            "nextAction": call,
+        }),
+    )
 }
 
 /// Every `devup_figma_*` tool response is a JSON object whose exact shape
@@ -914,17 +1115,6 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
     response
 }
 
-/// The same Figma file with no node linked.
-fn file_scope_url(target: &FigmaTarget) -> String {
-    match &target.branch_key {
-        Some(branch_key) => format!(
-            "https://www.figma.com/branch/{}/{branch_key}/devup",
-            target.file_key
-        ),
-        None => format!("https://www.figma.com/design/{}/devup", target.file_key),
-    }
-}
-
 #[tool_router]
 impl DevupServer {
     #[tool(
@@ -966,45 +1156,70 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Check, start, or clear Figma Remote MCP OAuth, or inject a pre-registered client credential to skip Dynamic Client Registration (action: status | login | logout | configure | doctor)",
+        description = "Report how devup-mcp reaches Figma, and manage the direct path's OAuth (action: status | login | logout | configure | doctor). \
+                       Two paths reach Figma: the Devup Bridge plugin running in the Figma desktop app is preferred and needs no login, and OAuth - the metered direct path - is the fallback. \
+                       Call status before asking anyone to log in: it reports both paths, the files attached plugins have open with their current page and selection, and the next call to make. `connected` is false, and `status` reads disconnected, only when neither path can serve. \
+                       With exactly one plugin attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url. \
+                       login is needed only when no plugin is attached, or for what the bridge cannot serve (file-scope metadata, referencePng). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
         &self,
         Parameters(input): Parameters<AuthInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        if input.action == "doctor" {
-            let status = self.services.auth.status().await.map_err(to_mcp_error)?;
-            let direct = self
-                .services
-                .auth
-                .direct_path_snapshot()
-                .await
-                .map_err(to_mcp_error)?;
-            let bridge = self.services.upstream.bridge_path_snapshot().await;
-            return Ok(tool_result(
-                diagnostics::doctor_report(status, direct, bridge).await,
-            ));
-        }
-        if input.action == "configure" {
-            let client_id = input.client_id.ok_or_else(|| {
-                to_mcp_error(DevupError::new(
-                    ErrorCode::DevupInvalidInput,
-                    "configure requires clientId.",
-                    false,
-                ))
-            })?;
-            self.services
-                .auth
-                .configure_client_credentials(client_id, input.client_secret)
-                .await
-                .map_err(to_mcp_error)?;
-            return Ok(tool_result(json!({ "status": "configured" })));
-        }
-        let status = match input.action.as_str() {
-            "status" => self.services.auth.status().await,
-            "login" => self.services.auth.login().await,
-            "logout" => self.services.auth.logout().await,
+        match input.action.as_str() {
+            "status" => {}
+            "doctor" => {
+                let status = self.services.auth.status().await.map_err(to_mcp_error)?;
+                let direct = self
+                    .services
+                    .auth
+                    .direct_path_snapshot()
+                    .await
+                    .map_err(to_mcp_error)?;
+                let bridge = self.services.upstream.bridge_path_snapshot().await;
+                return Ok(tool_result(
+                    diagnostics::doctor_report(status, direct, bridge).await,
+                ));
+            }
+            "configure" => {
+                let client_id = input.client_id.ok_or_else(|| {
+                    to_mcp_error(DevupError::new(
+                        ErrorCode::DevupInvalidInput,
+                        "configure requires clientId.",
+                        false,
+                    ))
+                })?;
+                self.services
+                    .auth
+                    .configure_client_credentials(client_id, input.client_secret)
+                    .await
+                    .map_err(to_mcp_error)?;
+                return Ok(tool_result(json!({ "status": "configured" })));
+            }
+            "login" => {
+                // Warned rather than refused: the bridge cannot serve every
+                // read, and whoever asks may need one of those. But reaching
+                // for the metered path while the free one is attached is the
+                // mistake this answer exists to catch, so it says so.
+                let bridge_attached = self
+                    .services
+                    .upstream
+                    .bridge_path_snapshot()
+                    .await
+                    .is_some_and(|bridge| !bridge.attached_files.is_empty());
+                self.services.auth.login().await.map_err(to_mcp_error)?;
+                let mut report = self.connection_report().await.map_err(to_mcp_error)?;
+                if bridge_attached {
+                    report["warning"] = json!(
+                        "A bridge is attached; login is only needed for file-scope metadata or referencePng."
+                    );
+                }
+                return Ok(tool_result(report));
+            }
+            "logout" => {
+                self.services.auth.logout().await.map_err(to_mcp_error)?;
+            }
             _ => {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupAuthRequired,
@@ -1013,13 +1228,15 @@ impl DevupServer {
                 )));
             }
         }
-        .map_err(to_mcp_error)?;
-        Ok(tool_result(json!({ "status": status })))
+        Ok(tool_result(
+            self.connection_report().await.map_err(to_mcp_error)?,
+        ))
     }
 
     #[tool(
         description = "Search Figma pages, sections, frames, and components by name to locate the target before devup_figma_export. \
                        A node-id in the URL scopes the search to that node and everything under it; a URL without one searches the whole file. \
+                       url is optional while exactly one Devup Bridge plugin is attached: omitted, the whole file that plugin has open is searched, and figma-bridge://current?node-id=<id> scopes it. \
                        The answer says which of the two it did under `scope`, and `limit` is the number of matches returned.",
         output_schema = permissive_object_output_schema()
     )]
@@ -1038,11 +1255,18 @@ impl DevupServer {
                 false,
             )));
         }
-        let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
+        let target = self
+            .bind_to_bridge(
+                parse_link(input.url.as_deref()).map_err(to_mcp_error)?,
+                Unnamed::File,
+                &json!({ "tool": "devup_figma_search", "arguments": { "query": input.query } }),
+            )
+            .await
+            .map_err(to_mcp_error)?;
         let scope = SearchScope {
             node_id: target.node_id.clone(),
             limit: input.limit,
-            file_url: file_scope_url(&target),
+            file_url: target.link(None),
         };
         // Scope the upstream read itself to the linked subtree. Keep the ranked
         // projection above the caller's limit so ancestry filtering happens
@@ -1085,14 +1309,22 @@ impl DevupServer {
         description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export. \
                        `limit` is the number of candidates returned and nothing else - it never changes how much of the design is read, so raising it can only lengthen the answer. \
                        `truncation` reports the two cuts apart: `candidates` means limit cut the list and raising it returns the rest, `projection` means the collected snapshot was itself incomplete and no limit will bring those screens back. \
-                       `includeTextPreview` uses a separate budget; turning it on or off does not change candidate count, IDs, or `truncation.projection`.",
+                       `includeTextPreview` uses a separate budget; turning it on or off does not change candidate count, IDs, or `truncation.projection`. \
+                       url is optional while exactly one Devup Bridge plugin is attached: omitted, the anchor is the node selected in Figma in the file that plugin has open.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_explore(
         &self,
         Parameters(input): Parameters<FigmaExploreInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        let target = FigmaTarget::parse(&input.url).map_err(to_mcp_error)?;
+        let target = self
+            .bind_to_bridge(
+                parse_link(input.url.as_deref()).map_err(to_mcp_error)?,
+                Unnamed::Selection,
+                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit } }),
+            )
+            .await
+            .map_err(to_mcp_error)?;
         target.node_id.as_ref().ok_or_else(|| {
             to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
@@ -1140,7 +1372,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Export a small Figma selection; the Figma-to-code entry point. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
                        This output is the design, already read. Do not rewrite it from a screenshot or from `get_design_context` - pictures and visual reasoning verify, they do not author. Do not read the node tree and write devup-ui by hand, and do not infer layout from coordinates. Never guess a colour, spacing, radius or typography value: if a value did not come back, say so and stop, because an invented one is indistinguishable from a real one in the code and is the single failure this server exists to prevent. A failed call is a fact to report, not something to route around. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
@@ -1292,13 +1524,7 @@ impl DevupServer {
             let url = target
                 .as_ref()
                 .zip(input.frame_ids.first())
-                .map(|(target, id)| {
-                    format!(
-                        "{}?node-id={}",
-                        file_scope_url(target),
-                        id.replace(':', "-")
-                    )
-                });
+                .map(|(target, id)| target.link(Some(id)));
             let mut arguments = json!(input);
             for key in ["artifactId", "frameIds", "allScreens", "url"] {
                 arguments.as_object_mut().unwrap().remove(key);
@@ -1499,22 +1725,45 @@ impl DevupServer {
             )));
         }
 
-        let url = input.url.as_deref().ok_or_else(|| {
-            to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaHandoffInvalid,
-                "Either url or artifactId is required.",
-                false,
-            ))
-        })?;
-        let target = FigmaTarget::parse(url).map_err(to_mcp_error)?;
-        if input.outputs.iter().any(|output| output == "tsx") && target.node_id.is_none() {
+        let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
+        let mut target = parse_link(input.url.as_deref()).map_err(to_mcp_error)?;
+        let mut frame_ids = input.frame_ids;
+        // With no link, frameIds naming one frame is that frame - exactly what
+        // its own link would say. Several are screens of the selected Section.
+        if target.file_key == BRIDGE_CURRENT_KEY
+            && target.node_id.is_none()
+            && frame_ids.len() == 1
+            && !input.all_screens
+        {
+            target.node_id = frame_ids.pop();
+        }
+        let wants_tsx = input.outputs.iter().any(|output| output == "tsx");
+        let unnamed = if !frame_ids.is_empty() || input.all_screens {
+            Unnamed::SelectedSection
+        } else if collection_scope == CollectionScope::File && !wants_tsx {
+            Unnamed::SelectionOrFile
+        } else {
+            Unnamed::Selection
+        };
+        let mut retry =
+            json!({ "tool": "devup_figma_export", "arguments": { "outputs": input.outputs } });
+        if !frame_ids.is_empty() {
+            retry["arguments"]["frameIds"] = json!(frame_ids);
+        }
+        if input.all_screens {
+            retry["arguments"]["allScreens"] = json!(true);
+        }
+        let target = self
+            .bind_to_bridge(target, unnamed, &retry)
+            .await
+            .map_err(to_mcp_error)?;
+        if wants_tsx && target.node_id.is_none() {
             return Err(to_mcp_error(DevupError::new(
                 ErrorCode::DevupFigmaNodeNotFound,
                 "A TSX export link requires a node-id.",
                 false,
             )));
         }
-        let collection_scope = parse_collection_scope(&input.scope).map_err(to_mcp_error)?;
         let mut request = CollectionRequest::new(target, collection_scope);
         let (asset_selections, asset_output_paths) =
             parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
@@ -1528,9 +1777,9 @@ impl DevupServer {
         request.variables_only = collection_scope == CollectionScope::File
             && input.outputs.iter().all(|output| output == "devupJson")
             && request.asset_selections.is_empty();
-        if !input.frame_ids.is_empty() || input.all_screens {
+        if !frame_ids.is_empty() || input.all_screens {
             request.section = Some(SectionReadOptions {
-                frame_ids: input.frame_ids.clone(),
+                frame_ids: frame_ids.clone(),
                 all_screens: input.all_screens,
             });
         }
@@ -1547,7 +1796,7 @@ impl DevupServer {
                     output_paths: input.output_paths,
                     page_scaffold: input.page_scaffold,
                     previous_design_fingerprints: input.previous_design_fingerprints,
-                    frame_ids: input.frame_ids,
+                    frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
                     asset_output_paths,
@@ -1780,6 +2029,12 @@ impl DevupServer {
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))
     }
+}
+
+/// The target a tool's url names. No url is the file the attached Devup Bridge
+/// plugin has open, which [`DevupServer::bind_to_bridge`] then resolves.
+fn parse_link(url: Option<&str>) -> Result<FigmaTarget, DevupError> {
+    url.map_or_else(|| Ok(FigmaTarget::bridge_current()), FigmaTarget::parse)
 }
 
 fn section_index_from_payload(payload: &CollectedPayload) -> Option<SectionIndex> {

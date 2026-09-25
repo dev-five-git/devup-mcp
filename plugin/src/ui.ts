@@ -6,11 +6,28 @@
 // 연결은 끊어지는 것이 정상이다 — devup-mcp 는 MCP 클라이언트가 뜰 때마다 새로
 // 시작한다. 그래서 실패를 예외가 아니라 상태로 다루고 계속 재시도한다.
 
-interface StatusMessage {
+interface NodeRef {
+  id: string
+  name: string
+  type?: string
+}
+
+/** 보고 있는 페이지와 선택. 메인 스레드가 바뀔 때마다 보낸다. */
+interface Context {
+  currentPage: NodeRef
+  selection: NodeRef[]
+  selectionCount: number
+}
+
+interface StatusMessage extends Context {
   kind: 'devup-status'
   fileKey: string | null
   fileName: string
   port: number
+}
+
+interface ContextMessage extends Context {
+  kind: 'devup-context'
 }
 
 interface ResultMessage {
@@ -58,11 +75,15 @@ function connect() {
   ws.onopen = () => {
     render('on', 'devup-mcp 에 연결됨')
     // 어느 파일인지 먼저 알려야 devup-mcp 가 요청을 이 소켓으로 보낼 수 있다.
+    // 페이지와 선택도 함께 보낸다 — url 없는 요청은 그것으로 대상을 고른다.
     ws.send(
       JSON.stringify({
         kind: 'hello',
         fileKey: bridgeStatus?.fileKey ?? null,
         fileName: bridgeStatus?.fileName ?? '',
+        currentPage: bridgeStatus?.currentPage ?? null,
+        selection: bridgeStatus?.selection ?? [],
+        selectionCount: bridgeStatus?.selectionCount ?? 0,
       }),
     )
   }
@@ -96,6 +117,30 @@ window.onmessage = (event: MessageEvent) => {
     bridgeStatus = msg as StatusMessage
     render('off', 'devup-mcp 연결 대기 중…')
     connect()
+    return
+  }
+
+  if (msg.kind === 'devup-context') {
+    const context = msg as ContextMessage
+    // 상태를 받기 전이면 버린다 — 상태가 그때의 값을 싣고 온다. 연결 전이면
+    // 보관만 해서 hello 가 싣고 가게 한다.
+    if (!bridgeStatus) return
+    bridgeStatus = {
+      ...bridgeStatus,
+      currentPage: context.currentPage,
+      selection: context.selection,
+      selectionCount: context.selectionCount,
+    }
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          kind: 'context',
+          currentPage: context.currentPage,
+          selection: context.selection,
+          selectionCount: context.selectionCount,
+        }),
+      )
+    }
     return
   }
 

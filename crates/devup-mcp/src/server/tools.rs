@@ -54,6 +54,9 @@ pub struct AuthInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaExportInput {
+    /// The Figma link to export. Optional while exactly one Devup Bridge
+    /// plugin is attached: omitted, or `figma-bridge://current`, it is the
+    /// file that plugin has open and the node selected in Figma.
     #[serde(default)]
     pub url: Option<String>,
     #[serde(default)]
@@ -170,7 +173,10 @@ pub struct FigmaAssetRequestInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaSearchInput {
-    pub url: String,
+    /// The Figma link to search in. Optional while exactly one Devup Bridge
+    /// plugin is attached: omitted, the whole file that plugin has open.
+    #[serde(default)]
+    pub url: Option<String>,
     pub query: String,
     #[serde(default)]
     pub node_types: Vec<String>,
@@ -184,7 +190,10 @@ pub struct FigmaSearchInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaExploreInput {
-    pub url: String,
+    /// The Figma link of the anchor node. Optional while exactly one Devup
+    /// Bridge plugin is attached: omitted, the node selected in Figma.
+    #[serde(default)]
+    pub url: Option<String>,
     #[serde(default = "default_explore_limit")]
     pub limit: usize,
     #[serde(default = "default_true")]

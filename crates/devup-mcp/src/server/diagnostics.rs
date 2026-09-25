@@ -12,11 +12,14 @@
 //! plugin" or "the listener never bound". Naming one path made it the only
 //! path, and the metered one at that. [`bridge_path`] is the other half.
 //!
-//! - [`doctor_report`] backs the `devup_figma_auth {"action":"doctor"}`
-//!   action and reports whether each path is usable right now, which one to
-//!   prefer, plus client-specific setup data for the constraints that were
-//!   verified by hand (client_name allowlist, redirect_uri shape, the silent
-//!   callback port collision, PAT rejection).
+//! - [`connection_report`] backs `devup_figma_auth`'s `status` (and the
+//!   answers to `login` and `logout`): whether each path is usable right now,
+//!   which one a read would take, what the attached plugins have open, and
+//!   the next call to make.
+//! - [`doctor_report`] backs `{"action":"doctor"}`: the same report plus
+//!   client-specific setup data for the constraints that were verified by
+//!   hand (client_name allowlist, redirect_uri shape, the silent callback port
+//!   collision, PAT rejection).
 //!
 //! All facts embedded here (allowlist behavior, redirect_uri constraints,
 //! the callback-port trap) were measured against the real Figma Remote MCP
@@ -33,10 +36,175 @@
 //! Naming it as a path sent agents to a dead end, so it is named nowhere.
 
 use devup_mcp_figma::{
-    AuthStatus, BridgePathSnapshot, ClientCredentialSource, DEFAULT_CLIENT_NAME,
+    AttachedFile, AuthStatus, BridgePathSnapshot, ClientCredentialSource, DEFAULT_CLIENT_NAME,
     DirectPathSnapshot, TokenState,
 };
+use serde::Serialize;
 use serde_json::{Value, json};
+
+/// The path a read would take right now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ActivePath {
+    Bridge,
+    Direct,
+}
+
+/// Stands in for the link an agent has to supply itself. Nothing reads it as a
+/// link; `requiredArguments` says it must be replaced.
+const FIGMA_LINK_PLACEHOLDER: &str = "<the frame's Figma link>";
+
+/// What `fileKey: null` on an attached file means, said where it is read.
+const KEYLESS_NOTE: &str = "This plugin could not report its file key (figma.fileKey is empty, as in Dev Mode), so no key is claimed for its file. It serves reads only while it is the only plugin attached; address it by omitting url, or with figma-bridge://current.";
+
+/// Backs `devup_figma_auth`'s `status`, `login` and `logout` answers, and is
+/// the first half of `doctor`.
+///
+/// `status` used to be the direct path's word alone. With a plugin attached
+/// and serving it still answered `disconnected`, and an agent asked for one
+/// screen concluded Figma was unreachable and asked its user to log in. Both
+/// paths are reported now, and the verdict is `disconnected` only when neither
+/// can serve.
+pub fn connection_report(
+    status: AuthStatus,
+    direct: &DirectPathSnapshot,
+    bridge: Option<&BridgePathSnapshot>,
+) -> Value {
+    let attached = bridge.map_or(&[][..], |bridge| bridge.attached_files.as_slice());
+    let direct_available = status == AuthStatus::Connected;
+    let active_path = if !attached.is_empty() {
+        Some(ActivePath::Bridge)
+    } else if direct_available {
+        Some(ActivePath::Direct)
+    } else {
+        None
+    };
+    json!({
+        "connected": active_path.is_some(),
+        "status": if active_path.is_some() { "connected" } else { "disconnected" },
+        "activePath": active_path,
+        "preferredPath": "bridge",
+        "paths": {
+            "bridge": bridge_path(bridge),
+            "direct": direct_path(status, direct, !attached.is_empty()),
+        },
+        "nextAction": match active_path {
+            Some(ActivePath::Bridge) => bridge_next_action(attached),
+            Some(ActivePath::Direct) => json!({
+                "tool": "devup_figma_export",
+                "arguments": { "url": FIGMA_LINK_PLACEHOLDER, "outputs": ["tsx"] },
+                "requiredArguments": ["url"],
+                "note": "Only the metered direct path is open, so an export needs the frame's Figma link. Running the Devup Bridge plugin on the file instead spends no allowance and makes url optional.",
+            }),
+            None => ways_to_open_a_path(
+                bridge.is_some(),
+                false,
+                &json!({ "tool": "devup_figma_export", "arguments": { "outputs": ["tsx"] } }),
+            ),
+        },
+    })
+}
+
+/// With plugins attached: the call to make, and whether it needs a url.
+fn bridge_next_action(attached: &[AttachedFile]) -> Value {
+    let [file] = attached else {
+        return several_plugins(
+            attached,
+            &json!({ "tool": "devup_figma_export", "arguments": { "outputs": ["tsx"] } }),
+        );
+    };
+    let selection = match (&file.context.selection, file.context.single_selection()) {
+        (_, Some(node)) => format!(
+            "the node selected in Figma ({:?}, {})",
+            node.name,
+            node.node_type.as_deref().unwrap_or("node")
+        ),
+        (Some(_), None) => format!(
+            "the node selected in Figma - select exactly one frame first ({} selected now), or pass frameIds with that frame's node id",
+            file.context.selection_count.unwrap_or_default()
+        ),
+        (None, None) => {
+            "the node you name in frameIds - this plugin build does not report the Figma selection"
+                .to_owned()
+        }
+    };
+    json!({
+        "tool": "devup_figma_export",
+        "arguments": { "outputs": ["tsx"] },
+        "note": format!(
+            "One Devup Bridge plugin is attached, so no url is needed: the export reads the file it has open and {selection}. devup_figma_search and devup_figma_explore take no url either."
+        ),
+    })
+}
+
+/// Several plugins attached: a call without url cannot say which file it
+/// means, so each file is offered as `retry` with the link that names it.
+pub(super) fn several_plugins(attached: &[AttachedFile], retry: &Value) -> Value {
+    let files = attached
+        .iter()
+        .map(|file| match &file.file_key {
+            Some(key) => {
+                let target = devup_mcp_figma::FigmaTarget {
+                    file_key: key.clone(),
+                    node_id: None,
+                    branch_key: None,
+                };
+                let node = file.context.single_selection().map(|node| node.id.as_str());
+                let mut call = retry.clone();
+                call["arguments"]["url"] = json!(target.link(node));
+                call["fileName"] = json!(file.file_name);
+                call
+            }
+            None => json!({ "fileName": file.file_name, "note": KEYLESS_NOTE }),
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "how": format!(
+            "{} Devup Bridge plugins are attached, so a call without url cannot say which file it means. Pass the url of the file you mean, or close the other plugin windows so one remains.",
+            attached.len()
+        ),
+        "options": files,
+    })
+}
+
+/// The ways to open a path to Figma, preferred first.
+///
+/// Shared by `status` and by the refusal of a call made without a url, so the
+/// two cannot recommend different things. `retry` is the call to make once a
+/// path is open, without url; the direct option adds the url it then needs.
+pub(super) fn ways_to_open_a_path(listening: bool, direct_available: bool, retry: &Value) -> Value {
+    let mut with_url = retry.clone();
+    with_url["arguments"]["url"] = json!(FIGMA_LINK_PLACEHOLDER);
+    with_url["requiredArguments"] = json!(["url"]);
+    let mut options = Vec::new();
+    if listening {
+        options.push(json!({
+            "path": "bridge",
+            "action": "In the Figma desktop app, open the file and run Plugins -> Development -> Devup Bridge (imported once from plugin/manifest.json), keeping its window open. No login is needed and no Figma allowance is spent.",
+            "then": retry,
+        }));
+    }
+    options.push(if direct_available {
+        let mut call = with_url;
+        call["path"] = json!("direct");
+        call
+    } else {
+        json!({
+            "path": "direct",
+            "tool": "devup_figma_auth",
+            "arguments": { "action": "login" },
+            "then": with_url,
+        })
+    });
+    json!({
+        "how": if listening {
+            "Open a path to Figma: run the Devup Bridge plugin (preferred - no login), or use the metered direct path with the frame's Figma link."
+        } else {
+            "This devup-mcp is not listening for the Devup Bridge plugin (see paths.bridge.reason), so only the metered direct path can open here: it needs the frame's Figma link."
+        },
+        "options": options,
+    })
+}
 
 /// What `credentialSource` counts, said in the response rather than only in
 /// the README.
@@ -56,51 +224,59 @@ use serde_json::{Value, json};
 /// anything, so the field now carries what it counts next to the value.
 const CREDENTIAL_SOURCE_NOTE: &str = "Where the OAuth *client registration* credential (client_id/client_secret) came from: cli-arg, env, credential-store, or none. This is not the user's access token — that is tokenState, and whether the direct path is usable right now is available. \"none\" only means no pre-registered client is injected, so login registers dynamically under registrationClientName; a signed-in session that registered that way reads credentialSource \"none\" with tokenState \"valid\", which is normal.";
 
-/// Builds the response for `devup_figma_auth {"action":"doctor"}`.
+/// Builds the response for `devup_figma_auth {"action":"doctor"}`: the same
+/// path-aware report `status` gives, plus the reference data behind it.
 ///
-/// `status` mirrors the existing `status` action's value so a caller that
-/// only reads `status` sees no behavior change. Everything under `paths`
-/// and `clientSetup` is new: `paths` reports what was actually measured
-/// (stored-credential presence, a live local-TCP probe, and the structural
-/// process), and `clientSetup` is static, verified reference data — never
-/// an instruction to register under a specific product name. Registration
-/// is allowlisted by Figma outside devup-mcp's control; this only reports
-/// the constraint and points at the public waitlist.
-///
-/// `direct` supplies the richer, measured detail behind `paths.direct`:
-/// which credential source is in play (never the secret itself), whether
-/// the stored token is fresh, and — when a fixed callback port is
-/// configured — whether it is actually free right now.
+/// `paths` reports what was actually measured (stored-credential presence, a
+/// live local-TCP probe, the attached plugins), and `clientSetup` is static,
+/// verified reference data — never an instruction to register under a
+/// specific product name. Registration is allowlisted by Figma outside
+/// devup-mcp's control; this only reports the constraint and points at the
+/// public waitlist.
 pub async fn doctor_report(
     status: AuthStatus,
     direct: DirectPathSnapshot,
     bridge: Option<BridgePathSnapshot>,
 ) -> Value {
+    let mut report = connection_report(status, &direct, bridge.as_ref());
+    report["preferredPathNote"] = json!(
+        "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first and keep direct as the fallback for what the bridge cannot serve (currently a file-scope metadata read and referencePng's get_screenshot)."
+    );
+    report["clientSetup"] = client_setup();
+    report
+}
+
+/// The measured detail behind `paths.direct`: which credential source is in
+/// play (never the secret itself), whether the stored token is fresh, and —
+/// when a fixed callback port is configured — whether it is free right now.
+fn direct_path(status: AuthStatus, direct: &DirectPathSnapshot, bridge_available: bool) -> Value {
     let direct_available = status == AuthStatus::Connected;
+    let mut reason = direct_reason(
+        direct_available,
+        direct.token_state,
+        direct.credential_source,
+    );
+    if bridge_available {
+        reason.push_str(
+            " While a bridge plugin is attached this path is needed only for what the bridge \
+             cannot serve: a file-scope metadata read and referencePng.",
+        );
+    }
     json!({
-        "status": status,
-        "preferredPath": "bridge",
-        "preferredPathNote": "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first and keep direct as the fallback for what the bridge cannot serve (currently a file-scope metadata read and referencePng's get_screenshot).",
-        "paths": {
-            "bridge": bridge_path(bridge.as_ref()),
-            "direct": {
-                "available": direct_available,
-                "credentialSource": direct.credential_source,
-                "credentialSourceNote": CREDENTIAL_SOURCE_NOTE,
-                "tokenState": direct.token_state,
-                "callbackPort": {
-                    "port": direct.callback_port,
-                    "free": direct.callback_port_free
-                },
-                "registrationClientName": {
-                    "value": direct.client_name,
-                    "isDefault": direct.client_name == DEFAULT_CLIENT_NAME,
-                    "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
-                },
-                "reason": direct_reason(direct_available, direct.token_state, direct.credential_source)
-            }
+        "available": direct_available,
+        "credentialSource": direct.credential_source,
+        "credentialSourceNote": CREDENTIAL_SOURCE_NOTE,
+        "tokenState": direct.token_state,
+        "callbackPort": {
+            "port": direct.callback_port,
+            "free": direct.callback_port_free
         },
-        "clientSetup": client_setup()
+        "registrationClientName": {
+            "value": direct.client_name,
+            "isDefault": direct.client_name == DEFAULT_CLIENT_NAME,
+            "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
+        },
+        "reason": reason
     })
 }
 
@@ -137,10 +313,10 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
         "available": attached,
         "listening": true,
         "port": bridge.port,
-        "attachedFiles": bridge.attached_files,
-        "attachedFilesNote": "File keys the attached plugins have open. An empty string is a plugin that could not report its own file key (seen in Dev Mode); it serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "attachedFiles": bridge.attached_files.iter().map(attached_file).collect::<Vec<_>>(),
+        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it. fileKey is null for a plugin that could not report it (seen in Dev Mode); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
         "reason": if attached {
-            "A plugin is attached. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login.".to_owned()
+            "A plugin is attached. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login. With exactly one attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url: they read the file it has open, and export and explore start from the node selected in Figma.".to_owned()
         } else {
             format!(
                 "The bridge is listening on 127.0.0.1:{} but no plugin is attached, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json). The bridge works only while that plugin window stays open. If the indicator stays grey, the port in the plugin's manifest allowedDomains and the port here must match.",
@@ -148,6 +324,28 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
             )
         },
     })
+}
+
+/// One attached plugin as the caller reads it. The key a read is routed by
+/// stays internal: a plugin that could not report its file key has no key to
+/// show, and the one standing in for it is not the file's.
+fn attached_file(file: &AttachedFile) -> Value {
+    let mut entry = json!({
+        "fileKey": file.file_key,
+        "fileName": file.file_name,
+        "currentPage": file.context.current_page,
+        "selection": file.context.selection,
+        "selectionCount": file.context.selection_count,
+    });
+    if file.file_key.is_none() {
+        entry["fileKeyNote"] = json!(KEYLESS_NOTE);
+    }
+    if file.context.selection.is_none() {
+        entry["selectionNote"] = json!(
+            "This plugin build does not report its page or selection. Re-run Devup Bridge from this devup-mcp's plugin/manifest.json to have them reported, or name the node with frameIds."
+        );
+    }
+    entry
 }
 
 /// Says which of the two credentials is present, and never lets one of them
@@ -323,22 +521,132 @@ mod tests {
         );
 
         // Attached is the whole test: the bridge needs no credential, so a
-        // disconnected direct path takes nothing away from it.
+        // disconnected direct path takes nothing away from it - and the
+        // verdict follows the bridge rather than the direct path.
         let attached = doctor_report(
             AuthStatus::Disconnected,
             absent_direct_snapshot(),
-            Some(BridgePathSnapshot {
-                port: Some(1993),
-                attached_files: vec!["FileKey123".to_owned()],
-            }),
+            Some(bridge_with(vec![attached(Some("FileKey123"), Some(1))])),
         )
         .await;
         assert_eq!(attached["paths"]["bridge"]["available"], true);
         assert_eq!(
-            attached["paths"]["bridge"]["attachedFiles"][0],
+            attached["paths"]["bridge"]["attachedFiles"][0]["fileKey"],
             "FileKey123"
         );
-        assert_eq!(attached["status"], "disconnected");
+        assert_eq!(attached["status"], "connected");
+        assert_eq!(attached["activePath"], "bridge");
+    }
+
+    fn attached(file_key: Option<&str>, selected: Option<usize>) -> AttachedFile {
+        let node = |index: usize| devup_mcp_figma::NodeRef {
+            id: format!("1:{index}"),
+            name: format!("Frame {index}"),
+            node_type: Some("FRAME".to_owned()),
+        };
+        AttachedFile {
+            target_key: file_key.map_or_else(|| "bridge:7".to_owned(), str::to_owned),
+            file_key: file_key.map(str::to_owned),
+            file_name: Some("Landing".to_owned()),
+            context: devup_mcp_figma::PluginContext {
+                current_page: Some(devup_mcp_figma::NodeRef {
+                    id: "0:1".to_owned(),
+                    name: "Page 1".to_owned(),
+                    node_type: None,
+                }),
+                selection: selected.map(|count| (1..=count).map(node).collect()),
+                selection_count: selected,
+            },
+        }
+    }
+
+    fn bridge_with(attached_files: Vec<AttachedFile>) -> BridgePathSnapshot {
+        BridgePathSnapshot {
+            port: Some(1993),
+            attached_files,
+        }
+    }
+
+    /// The three states `status` has to tell apart. `disconnected` is the
+    /// verdict only when neither path can serve, and each state names the
+    /// call that moves it forward.
+    #[test]
+    fn the_verdict_follows_whichever_path_can_serve() {
+        let valid = DirectPathSnapshot {
+            token_state: devup_mcp_figma::TokenState::Valid,
+            ..absent_direct_snapshot()
+        };
+
+        let bridge_only = connection_report(
+            AuthStatus::Disconnected,
+            &absent_direct_snapshot(),
+            Some(&bridge_with(vec![attached(None, Some(1))])),
+        );
+        assert_eq!(bridge_only["connected"], true);
+        assert_eq!(bridge_only["status"], "connected");
+        assert_eq!(bridge_only["activePath"], "bridge");
+        assert_eq!(bridge_only["paths"]["bridge"]["available"], true);
+        assert_eq!(bridge_only["paths"]["direct"]["available"], false);
+        assert!(
+            !bridge_only.to_string().contains("disconnected"),
+            "nothing may say disconnected while the bridge serves: {bridge_only}"
+        );
+        let file = &bridge_only["paths"]["bridge"]["attachedFiles"][0];
+        assert!(file["fileKey"].is_null(), "no key is claimed: {file}");
+        assert!(
+            file.get("targetKey").is_none(),
+            "the routing key stays internal"
+        );
+        assert_eq!(file["currentPage"]["name"], "Page 1");
+        assert_eq!(file["selection"][0]["id"], "1:1");
+        assert_eq!(file["selection"][0]["type"], "FRAME");
+        // One plugin, one selected frame: the next call needs no url.
+        assert_eq!(bridge_only["nextAction"]["tool"], "devup_figma_export");
+        assert!(bridge_only["nextAction"]["arguments"].get("url").is_none());
+
+        let direct_only =
+            connection_report(AuthStatus::Connected, &valid, Some(&bridge_with(vec![])));
+        assert_eq!(direct_only["connected"], true);
+        assert_eq!(direct_only["activePath"], "direct");
+        assert_eq!(direct_only["paths"]["bridge"]["available"], false);
+        assert_eq!(
+            direct_only["nextAction"]["requiredArguments"],
+            json!(["url"])
+        );
+
+        let neither = connection_report(
+            AuthStatus::Disconnected,
+            &absent_direct_snapshot(),
+            Some(&bridge_with(vec![])),
+        );
+        assert_eq!(neither["connected"], false);
+        assert_eq!(neither["status"], "disconnected");
+        assert!(neither["activePath"].is_null());
+        let options = neither["nextAction"]["options"].as_array().unwrap();
+        assert_eq!(options[0]["path"], "bridge");
+        assert_eq!(options[1]["path"], "direct");
+        assert_eq!(options[1]["arguments"]["action"], "login");
+    }
+
+    /// With two plugins attached a call without url could mean either file,
+    /// so the next action names each one - with its own link where the plugin
+    /// reported a key, and without inventing one where it did not.
+    #[test]
+    fn several_plugins_are_offered_one_by_one() {
+        let report = connection_report(
+            AuthStatus::Disconnected,
+            &absent_direct_snapshot(),
+            Some(&bridge_with(vec![
+                attached(Some("FileKey123"), Some(1)),
+                attached(None, Some(0)),
+            ])),
+        );
+        let options = report["nextAction"]["options"].as_array().unwrap();
+        assert_eq!(
+            options[0]["arguments"]["url"],
+            "https://www.figma.com/design/FileKey123/devup?node-id=1-1"
+        );
+        assert!(options[1].get("arguments").is_none(), "{}", options[1]);
     }
 
     #[tokio::test]

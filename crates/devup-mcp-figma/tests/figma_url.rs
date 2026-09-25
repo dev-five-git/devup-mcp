@@ -64,6 +64,61 @@ fn serializes_the_stable_public_error_code() {
     );
 }
 
+/// The placeholder is the file the attached bridge plugin has open, so it
+/// parses to a key only the bridge can serve and keeps the node it names.
+#[test]
+fn the_bridge_link_parses_to_a_bridge_only_target() {
+    let current = FigmaTarget::parse("figma-bridge://current").expect("bare bridge link");
+    assert!(current.is_bridge_only());
+    assert_eq!(current, FigmaTarget::bridge_current());
+
+    let node = FigmaTarget::parse("figma-bridge://current?node-id=1-2").expect("with a node");
+    assert!(node.is_bridge_only());
+    assert_eq!(node.node_id.as_deref(), Some("1:2"));
+
+    for url in [
+        "figma-bridge://other",
+        "figma-bridge://current/path",
+        "figma-bridge://current?node-id=abc",
+    ] {
+        let error = FigmaTarget::parse(url).expect_err("only figma-bridge://current is a link");
+        assert_eq!(error.code, ErrorCode::DevupFigmaUnsupportedFile, "{url}");
+    }
+}
+
+/// A link back to a target has to route to the same place. A Figma file keeps
+/// its Figma URL; a file only the bridge can read keeps the bridge link, never
+/// a Figma URL around a key no Figma file has.
+#[test]
+fn a_link_routes_back_to_its_own_target() {
+    let figma = FigmaTarget::parse("https://www.figma.com/design/FileKey123/Name?node-id=1-2")
+        .expect("Figma link");
+    assert!(!figma.is_bridge_only());
+    assert_eq!(
+        figma.link(Some("3:4")),
+        "https://www.figma.com/design/FileKey123/devup?node-id=3-4"
+    );
+    assert_eq!(
+        FigmaTarget::parse(&figma.link(Some("3:4"))).expect("round trip"),
+        FigmaTarget {
+            node_id: Some("3:4".to_owned()),
+            ..figma
+        }
+    );
+
+    let bridge = FigmaTarget {
+        file_key: "bridge:7".to_owned(),
+        node_id: None,
+        branch_key: None,
+    };
+    assert!(bridge.is_bridge_only());
+    assert_eq!(bridge.link(None), "figma-bridge://current");
+    assert_eq!(
+        bridge.link(Some("3:4")),
+        "figma-bridge://current?node-id=3-4"
+    );
+}
+
 #[test]
 fn errors_do_not_echo_query_secrets() {
     let error = FigmaTarget::parse(

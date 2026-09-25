@@ -23,8 +23,8 @@ pub use collector::{
 };
 
 pub use bridge::{
-    BridgeFigmaClient, BridgeJob, BridgePathSnapshot, BridgeServer, BridgeState,
-    DEFAULT_BRIDGE_PORT, FallbackUpstream, PreferredUpstream,
+    AttachedFile, BridgeFigmaClient, BridgeJob, BridgePathSnapshot, BridgeServed, BridgeServer,
+    BridgeState, DEFAULT_BRIDGE_PORT, FallbackUpstream, NodeRef, PluginContext, PreferredUpstream,
 };
 pub use credentials::{
     ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,
@@ -75,7 +75,7 @@ pub use upstream::{
     BatchBudget, BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,
     SearchReadOptions, SnapshotReadOptions, UpstreamResult,
 };
-pub use url::FigmaTarget;
+pub use url::{BRIDGE_CURRENT_KEY, BRIDGE_CURRENT_URL, FigmaTarget, is_bridge_only_key};
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 mod original_image;

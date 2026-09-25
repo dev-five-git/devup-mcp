@@ -357,7 +357,7 @@ pub fn explore_snapshot(
                 notes: String::new(),
             }),
             candidates: vec![ExploreCandidate {
-                canonical_url: canonical_url(target, &anchor.node_id),
+                canonical_url: target.link(Some(&anchor.node_id)),
                 node: anchor.clone(),
                 score: 1_000,
                 selection_reasons: vec!["exact-screen-anchor".to_owned()],
@@ -405,7 +405,7 @@ pub fn explore_snapshot(
         let candidates = nodes
             .into_iter()
             .map(|node| ExploreCandidate {
-                canonical_url: canonical_url(target, &node.node_id),
+                canonical_url: target.link(Some(&node.node_id)),
                 node,
                 score: 900,
                 selection_reasons: vec!["screen-like".to_owned(), "inside-section".to_owned()],
@@ -484,7 +484,7 @@ pub fn explore_snapshot(
                 reasons.push("before-next-heading".to_owned());
             }
             ExploreCandidate {
-                canonical_url: canonical_url(target, &node.node_id),
+                canonical_url: target.link(Some(&node.node_id)),
                 score: 400 + (overlap_ratio.clamp(0.0, 1.0) * 100.0).round() as u32,
                 node,
                 selection_reasons: reasons,
@@ -657,19 +657,4 @@ fn looks_like_requirement_heading(name: &str) -> bool {
         && prefix.bytes().all(|byte| byte.is_ascii_uppercase())
         && !number.is_empty()
         && number.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-fn canonical_url(target: &FigmaTarget, node_id: &str) -> String {
-    let node_id = node_id.replace(':', "-");
-    if let Some(branch_key) = &target.branch_key {
-        format!(
-            "https://www.figma.com/branch/{}/{branch_key}/devup?node-id={node_id}",
-            target.file_key
-        )
-    } else {
-        format!(
-            "https://www.figma.com/design/{}/devup?node-id={node_id}",
-            target.file_key
-        )
-    }
 }

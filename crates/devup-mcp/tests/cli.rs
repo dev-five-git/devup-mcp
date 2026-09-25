@@ -544,6 +544,24 @@ fn r5_batch_summary_without_asset_identities_cannot_claim_complete() {
     assert_eq!(result["inventoryComplete"], false);
 }
 
+/// A batch the Devup Bridge served from a plugin that could not report its
+/// file key says `fileKey: null` rather than a stand-in. Such batches still
+/// merge, compared by the file name the plugin gave - and a different name is
+/// still a different file.
+#[test]
+fn bridge_batches_without_a_file_key_merge_by_the_plugins_file_name() {
+    let batch = |name: &str| {
+        serde_json::json!({
+            "source":{"kind":"bridge","fileKey":null,"fileName":name,"version":null},
+            "assetSummary":{"discovery":"complete","discoveredCount":0,"collectedCount":0,"unavailable":[]}
+        })
+    };
+    let result = devup_mcp::asset_batches::merge(&[batch("Landing"), batch("Landing")]).unwrap();
+    assert!(result["source"]["fileKey"].is_null());
+    assert_eq!(result["source"]["fileName"], "Landing");
+    assert!(devup_mcp::asset_batches::merge(&[batch("Landing"), batch("Other")]).is_err());
+}
+
 #[test]
 fn r5_batch_summary_without_discovery_counts_is_incomplete() {
     let result = devup_mcp::asset_batches::merge(&[serde_json::json!({

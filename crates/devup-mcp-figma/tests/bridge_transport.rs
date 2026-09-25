@@ -5,7 +5,8 @@
 //! 모든 것 — 등록, 이름·값 매핑, 상관, 봉투 모양, 라우팅 판정 — 을 확인한다.
 
 use devup_mcp_figma::{
-    BridgeFigmaClient, BridgeServer, FigmaUpstream, PreferredUpstream, ReadToolCall,
+    BridgeFigmaClient, BridgeServed, BridgeServer, DevupError, FallbackUpstream, FigmaUpstream,
+    PreferredUpstream, ReadToolCall, UpstreamResult,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -289,8 +290,8 @@ async fn two_keyless_plugins_are_ambiguous_and_neither_serves() {
     let client = BridgeFigmaClient::new(server.state());
 
     let _first = connect_plugin_as(&server, None).await;
-    // 둘 다 키가 없으면 같은 자리에 들어가므로, 서로 다른 파일의 플러그인을 하나
-    // 더 붙여 "여럿"을 만든다.
+    // 다른 파일을 연 플러그인이 하나 더 붙으면 키 없는 쪽은 더는 혼자가 아니다.
+    // 둘 다 키가 없는 경우는 `two_keyless_plugins_are_counted_apart` 가 본다.
     let _second = connect_plugin_as(&server, Some("AnotherFile")).await;
 
     assert!(
@@ -298,6 +299,199 @@ async fn two_keyless_plugins_are_ambiguous_and_neither_serves() {
             .can_serve(&ReadToolCall::fast_snapshot(FILE_KEY, "1:2"))
             .await
     );
+}
+
+/// 플러그인 흉내: `hello` 를 그대로 보내고, 붙은 플러그인이 `count` 개가 될
+/// 때까지 기다린다. 키 없는 플러그인이 둘이면 `connected_files` 로는 둘째의
+/// 등록을 가릴 수 없어서 수로 기다린다.
+async fn attach(server: &BridgeServer, hello: Value, count: usize) -> Plugin {
+    let (mut socket, _) = connect_async(format!("ws://127.0.0.1:{}/plugin", server.port()))
+        .await
+        .expect("bridge accepts a plugin");
+    socket
+        .send(Message::Text(hello.to_string().into()))
+        .await
+        .expect("hello is sent");
+    let state = server.state();
+    for _ in 0..200 {
+        if state.attached_files().await.len() == count {
+            return socket;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("plugin never registered");
+}
+
+async fn answer(plugin: &mut Plugin, job: &Value, data: Value) {
+    plugin
+        .send(Message::Text(
+            json!({ "kind": "devup-result", "requestId": job["requestId"], "data": data })
+                .to_string()
+                .into(),
+        ))
+        .await
+        .expect("the result is sent");
+}
+
+/// 플러그인이 보고하는 페이지와 선택은 `status` 가 그대로 보여 주고, url 없는
+/// 요청은 그것으로 대상을 고른다. 키를 보고하지 못한 플러그인에는 그 연결만
+/// 가리키는 키가 주어지고, 그 키로 보낸 읽기는 그 플러그인에 닿으며, 답에는
+/// 파일 키를 지어내지 않은 출처가 실린다.
+#[tokio::test]
+async fn a_keyless_plugin_reports_where_it_is_and_answers_its_own_connection() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = attach(
+        &server,
+        json!({
+            "kind": "hello", "fileKey": null, "fileName": "Landing",
+            "currentPage": { "id": "0:1", "name": "Page 1" },
+            "selection": [{ "id": "1:2", "name": "Hero", "type": "FRAME" }],
+            "selectionCount": 1,
+        }),
+        1,
+    )
+    .await;
+    let state = server.state();
+    let attached = state.attached_files().await;
+    let file = &attached[0];
+    assert_eq!(file.file_key, None);
+    assert_eq!(file.file_name.as_deref(), Some("Landing"));
+    assert_eq!(
+        file.context.single_selection().map(|node| node.id.as_str()),
+        Some("1:2")
+    );
+    assert!(devup_mcp_figma::is_bridge_only_key(&file.target_key));
+
+    let client = BridgeFigmaClient::new(state.clone()).with_port(server.port());
+    let call = ReadToolCall::fast_snapshot(file.target_key.clone(), "1:2");
+    let reading = tokio::spawn(async move { client.call_read_tool(call).await });
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["params"]["nodeId"], "1:2");
+    answer(&mut plugin, &job, json!({ "fileKey": "", "nodes": [] })).await;
+    let result = reading.await.unwrap().expect("the plugin answers");
+    let served =
+        serde_json::from_value::<BridgeServed>(result.raw["_meta"]["devup/bridge"].clone())
+            .expect("a bridge answer names the plugin that gave it");
+    assert_eq!(served.reads, 1);
+    assert_eq!(served.port, Some(server.port()));
+    assert_eq!(
+        served.file_key, None,
+        "no key is claimed for a keyless plugin"
+    );
+    assert_eq!(served.file_name.as_deref(), Some("Landing"));
+    assert_eq!(served.page_name.as_deref(), Some("Page 1"));
+
+    // A new selection reaches the server without a reconnect.
+    plugin
+        .send(Message::Text(
+            json!({
+                "kind": "context",
+                "currentPage": { "id": "0:2", "name": "Page 2" },
+                "selection": [],
+                "selectionCount": 0,
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .expect("the context is sent");
+    for _ in 0..200 {
+        let context = state.attached_files().await[0].context.clone();
+        if context.current_page.map(|page| page.name).as_deref() == Some("Page 2") {
+            assert_eq!(context.selection, Some(vec![]));
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("the context update never arrived");
+}
+
+/// 키 없는 플러그인 둘은 두 개로 센다. 한 자리에 묶이면 "정확히 하나"를 셀 수
+/// 없고, 먼저 붙은 쪽이 끊길 때 나중 쪽의 등록까지 지워진다. 둘이면 아무 키도
+/// 맡지 않지만, 각 연결의 키는 여전히 제 플러그인에만 닿는다.
+#[tokio::test]
+async fn two_keyless_plugins_are_counted_apart() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let hello = json!({ "kind": "hello", "fileKey": null });
+    let first = attach(&server, hello.clone(), 1).await;
+    let _second = attach(&server, hello, 2).await;
+    let state = server.state();
+    let client = BridgeFigmaClient::new(state.clone());
+    assert!(
+        !client
+            .can_serve(&ReadToolCall::fast_snapshot(FILE_KEY, "1:2"))
+            .await
+    );
+    let attached = state.attached_files().await;
+    assert_eq!(attached.len(), 2);
+    for file in &attached {
+        assert!(
+            client
+                .can_serve(&ReadToolCall::fast_snapshot(file.target_key.clone(), "1:2"))
+                .await
+        );
+    }
+
+    drop(first);
+    for _ in 0..200 {
+        if state.attached_files().await.len() == 1 {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("the first plugin's disconnect must leave the second attached");
+}
+
+/// 원격만 아는 상류. 몇 번 불렸는지만 센다.
+struct CountingRemote {
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl FigmaUpstream for CountingRemote {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(UpstreamResult { raw: json!({}) })
+    }
+}
+
+/// 브리지만 읽을 수 있는 키는 원격으로 넘어가지 않는다. Figma 에 없는 키를
+/// 물어 봐야 원인과 무관한 거절만 돌아오고, 로그인이 필요 없는 요청에 로그인이
+/// 요구된다.
+#[tokio::test]
+async fn a_bridge_only_key_never_reaches_the_remote_path() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let remote_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let upstream = FallbackUpstream::new(
+        BridgeFigmaClient::new(server.state()),
+        CountingRemote {
+            calls: remote_calls.clone(),
+        },
+    );
+    assert!(upstream.serves_without_credentials("bridge:41").await);
+    let error = upstream
+        .call_read_tool(ReadToolCall::fast_snapshot("bridge:41", "1:2"))
+        .await
+        .expect_err("no plugin holds this connection");
+    assert_eq!(error.details["stage"], "bridge-routing");
+    let error = upstream
+        .call_read_tool(ReadToolCall::screenshot("bridge:41", "1:2"))
+        .await
+        .expect_err("the bridge cannot take a screenshot, and direct has no key");
+    assert_eq!(error.details["tool"], "get_screenshot");
+
+    assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+    // An ordinary key still falls through when no plugin holds it.
+    upstream
+        .call_read_tool(ReadToolCall::fast_snapshot(FILE_KEY, "1:2"))
+        .await
+        .expect("the remote path answers");
+    assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

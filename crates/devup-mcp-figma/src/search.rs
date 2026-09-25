@@ -92,7 +92,7 @@ pub fn search_snapshot(
                 node_type: node.node_type.clone(),
                 page_name,
                 breadcrumb,
-                canonical_url: canonical_url(target, &node.id),
+                canonical_url: target.link(Some(&node.id)),
                 match_kind: kind.to_owned(),
                 score,
             })
@@ -203,21 +203,6 @@ fn ancestor_page(
         current = parents.get(id).map(String::as_str);
     }
     None
-}
-
-fn canonical_url(target: &FigmaTarget, node_id: &str) -> String {
-    let node_id = node_id.replace(':', "-");
-    if let Some(branch_key) = &target.branch_key {
-        format!(
-            "https://www.figma.com/branch/{}/{branch_key}/devup?node-id={node_id}",
-            target.file_key
-        )
-    } else {
-        format!(
-            "https://www.figma.com/design/{}/devup?node-id={node_id}",
-            target.file_key
-        )
-    }
 }
 
 fn levenshtein(left: &str, right: &str) -> usize {

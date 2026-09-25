@@ -4,7 +4,7 @@
   "display_name": "Devup MCP",
   "version": "0.0.0",
   "description": "Read Figma designs and generate DevupUI TSX, devup.json theme tokens and exported assets",
-  "long_description": "devup-mcp is a Rust-native stdio MCP server and a read-only client of Figma Remote MCP. It converts a Figma node link into deterministic @devup-ui/react TSX, projects Figma variables and local styles into devup.json, exports the assets a screen actually paints, and reports how much of the source it reproduced exactly. Connecting to Figma is a browser OAuth login run once from the devup_figma_auth tool; no Figma personal access token is involved and credentials live only in the operating system credential store. This bundle carries a self-contained binary for Linux, Windows and macOS (universal), so no Rust toolchain, Node runtime or cargo install is needed.",
+  "long_description": "devup-mcp is a Rust-native stdio MCP server and a read-only client of Figma Remote MCP. It converts a Figma node link into deterministic @devup-ui/react TSX, projects Figma variables and local styles into devup.json, exports the assets a screen actually paints, and reports how much of the source it reproduced exactly. Two paths reach Figma, bridge first: the Devup Bridge plugin running in the Figma desktop app needs no login, spends none of Figma's allowance, and lets an export take the file and node selected in Figma with no link at all; otherwise a browser OAuth login run once from the devup_figma_auth tool opens the metered direct path. No Figma personal access token is involved and credentials live only in the operating system credential store. This bundle carries a self-contained binary for Linux, Windows and macOS (universal), so no Rust toolchain, Node runtime or cargo install is needed.",
   "author": {
     "name": "dev-five-git",
     "url": "https://github.com/dev-five-git"
@@ -49,19 +49,19 @@
   "tools": [
     {
       "name": "devup_figma_auth",
-      "description": "Check, start or clear the Figma connection, or diagnose why it is not connecting"
+      "description": "Report both paths to Figma - the Devup Bridge plugin (preferred, no login) and the OAuth direct path - with what attached plugins have open; call status before asking anyone to log in, then log in, out or diagnose"
     },
     {
       "name": "devup_figma_export",
-      "description": "Acquire a Figma design once and project TSX, component TSX, responsive TSX, devup.json, source map and assets from it; raw snapshot and raw payload are diagnosis-only and need debug: true"
+      "description": "Acquire a Figma design once and project TSX, component TSX, responsive TSX, devup.json, source map and assets from it; with one Devup Bridge plugin attached url is optional and the Figma selection is exported; raw snapshot and raw payload are diagnosis-only and need debug: true"
     },
     {
       "name": "devup_figma_search",
-      "description": "Find pages, sections, frames and components in a Figma file by name"
+      "description": "Find pages, sections, frames and components in a Figma file by name; with one Devup Bridge plugin attached url is optional"
     },
     {
       "name": "devup_figma_explore",
-      "description": "List the screen candidates spatially related to a linked Figma node"
+      "description": "List the screen candidates spatially related to a linked Figma node, or to the node selected in Figma when one Devup Bridge plugin is attached"
     },
     {
       "name": "devup_project_context",

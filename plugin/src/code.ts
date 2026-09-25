@@ -25,14 +25,61 @@ interface ResultMessage {
   error?: string
 }
 
-interface StatusMessage {
+/** 페이지나 선택한 노드 하나. */
+interface NodeRef {
+  id: string
+  name: string
+  type?: string
+}
+
+/**
+ * 지금 보고 있는 페이지와 거기서 선택한 것.
+ *
+ * devup-mcp 는 url 없는 요청을 이 값으로 해석한다 — 연 파일의, 선택한 노드.
+ * 선택이 바뀔 때마다 보내므로 늦게 도착해도 최신이다.
+ */
+interface Context {
+  currentPage: NodeRef
+  selection: NodeRef[]
+  selectionCount: number
+}
+
+interface StatusMessage extends Context {
   kind: 'devup-status'
   fileKey: string | null
   fileName: string
   port: number
 }
 
+interface ContextMessage extends Context {
+  kind: 'devup-context'
+}
+
 const PORT = 1993
+
+/**
+ * 선택은 앞의 이만큼만 보낸다. 레이어 수천 개를 한꺼번에 고르면 메시지가
+ * 그만큼 커지는데, 요청을 해석하는 데 필요한 것은 "정확히 하나인가"와 그 하나다.
+ * 전체 수는 selectionCount 로 따로 간다.
+ */
+const SELECTION_LIMIT = 20
+
+function context(): Context {
+  const page = figma.currentPage
+  const selection = page.selection
+  return {
+    currentPage: { id: page.id, name: page.name },
+    selection: selection
+      .slice(0, SELECTION_LIMIT)
+      .map((node) => ({ id: node.id, name: node.name, type: node.type })),
+    selectionCount: selection.length,
+  }
+}
+
+function postContext() {
+  const message: ContextMessage = { kind: 'devup-context', ...context() }
+  figma.ui.postMessage(message)
+}
 
 /**
  * 스크립트가 읽는 자리를 모두 채운 파라미터.
@@ -118,6 +165,10 @@ async function drain() {
 
 figma.showUI(__html__, { width: 320, height: 220 })
 
+// 읽기 스크립트도 페이지를 옮기므로 사람이 옮긴 것과 함께 이 이벤트로 온다.
+figma.on('selectionchange', postContext)
+figma.on('currentpagechange', postContext)
+
 figma.ui.onmessage = (message: unknown) => {
   if (typeof message !== 'object' || message === null) return
   const msg = message as { kind?: string }
@@ -128,6 +179,7 @@ figma.ui.onmessage = (message: unknown) => {
       fileKey: figma.fileKey ?? null,
       fileName: figma.root.name,
       port: PORT,
+      ...context(),
     }
     figma.ui.postMessage(status)
     return

@@ -40,6 +40,7 @@ use tokio::{
 use crate::{
     errors::{DevupError, ErrorCode},
     upstream::{BatchBudget, FigmaUpstream, ReadToolCall, UpstreamResult},
+    url::{BRIDGE_KEY_PREFIX, is_bridge_only_key},
 };
 
 /// 플러그인 manifest 의 `allowedDomains` 와 같은 값이어야 한다. 바꾸려면 양쪽을
@@ -50,12 +51,83 @@ pub const DEFAULT_BRIDGE_PORT: u16 = 1993;
 /// 훨씬 짧아도 되지만, 아주 큰 페이지의 첫 스냅샷은 몇 초가 걸린다.
 const JOB_TIMEOUT: Duration = Duration::from_secs(90);
 
-/// 플러그인이 붙을 때 보내는 첫 메시지.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Hello {
+/// 브리지가 답한 결과의 `_meta` 에서 어느 플러그인이 답했는지를 싣는 자리.
+const SERVED_META_KEY: &str = "devup/bridge";
+
+/// 플러그인이 가리키는 노드 하나 — 보고 있는 페이지, 또는 거기서 선택한 것.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRef {
+    pub id: String,
     #[serde(default)]
-    file_key: Option<String>,
+    pub name: String,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub node_type: Option<String>,
+}
+
+/// Figma 를 쓰는 사람이 지금 있는 곳: 보고 있는 페이지와 거기서 선택한 것.
+///
+/// 모두 선택 사항이다. 이것을 보고하기 전에 빌드된 플러그인은 아무것도 보내지
+/// 않고, "이 플러그인은 말하지 않는다"와 "아무것도 선택하지 않았다"는 계속
+/// 구분되어야 한다 — 앞의 것은 플러그인을 다시 띄울 일이고, 뒤의 것은 Figma 에서
+/// 고를 일이다.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginContext {
+    #[serde(default)]
+    pub current_page: Option<NodeRef>,
+    /// 선택한 노드의 앞부분. 플러그인이 보내는 만큼만 있고, 전체 수는
+    /// `selection_count` 다.
+    #[serde(default)]
+    pub selection: Option<Vec<NodeRef>>,
+    #[serde(default)]
+    pub selection_count: Option<usize>,
+}
+
+impl PluginContext {
+    /// 정확히 하나가 선택돼 있으면 그 노드.
+    pub fn single_selection(&self) -> Option<&NodeRef> {
+        match self.selection.as_deref()? {
+            [node] if self.selection_count.is_none_or(|count| count == 1) => Some(node),
+            _ => None,
+        }
+    }
+}
+
+/// 붙어 있는 플러그인 하나. `status` 가 보고하는 것이자, url 없는 요청이
+/// 가리키게 되는 것이다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachedFile {
+    /// 읽기가 이 플러그인에 닿으려면 부를 이름. 플러그인이 보고한 파일 키이고,
+    /// 보고하지 못했으면 이 연결만 가리키는 브리지 전용 키다. 호출자에게는
+    /// 보이지 않는다 — 플러그인이 보고하지 않은 키는 그 파일의 키가 아니다.
+    pub target_key: String,
+    /// 플러그인이 보고한 파일 키. 보고하지 못했으면 `None`.
+    pub file_key: Option<String>,
+    pub file_name: Option<String>,
+    pub context: PluginContext,
+}
+
+/// 수집의 읽기를 어느 플러그인이 답했는지.
+///
+/// 수집 결과와 함께 보관되어, 새로 투영하든 재사용하든 같은 출처를 말한다.
+/// 파일 키는 플러그인이 보고한 것뿐이다 — 보고하지 못했으면 키를 말하지 않으며,
+/// 요청에 실려 온 키를 그 파일의 키로 내세우지 않는다.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeServed {
+    /// 수집의 읽기 가운데 플러그인이 답한 수.
+    pub reads: usize,
+    pub port: Option<u16>,
+    pub file_key: Option<String>,
+    pub file_name: Option<String>,
+    pub page_name: Option<String>,
+}
+
+impl BridgeServed {
+    /// 브리지가 답한 결과면 그 출처, 아니면 `None`.
+    pub(crate) fn from_result(raw: &Value) -> Option<Self> {
+        serde_json::from_value(raw.get("_meta")?.get(SERVED_META_KEY)?.clone()).ok()
+    }
 }
 
 /// 플러그인이 작업을 마치고 보내는 메시지.
@@ -90,13 +162,49 @@ pub struct BridgeJob {
 
 struct Connected {
     outbox: mpsc::UnboundedSender<String>,
+    /// 플러그인이 보고한 파일 키. 보고하지 못했으면 빈 문자열이다.
+    file_key: String,
+    file_name: Option<String>,
+    context: PluginContext,
+}
+
+impl Connected {
+    fn reported_key(&self) -> Option<String> {
+        (!self.file_key.is_empty()).then(|| self.file_key.clone())
+    }
+
+    fn attached(&self, id: u64) -> AttachedFile {
+        AttachedFile {
+            target_key: self.reported_key().unwrap_or_else(|| connection_key(id)),
+            file_key: self.reported_key(),
+            file_name: self.file_name.clone(),
+            context: self.context.clone(),
+        }
+    }
+
+    fn served(&self) -> BridgeServed {
+        BridgeServed {
+            reads: 1,
+            port: None,
+            file_key: self.reported_key(),
+            file_name: self.file_name.clone(),
+            page_name: self
+                .context
+                .current_page
+                .as_ref()
+                .map(|page| page.name.clone()),
+        }
+    }
 }
 
 #[derive(Default)]
 struct Inner {
-    /// fileKey → 그 파일을 열어 둔 플러그인. 같은 파일을 두 창에서 열면 나중에
-    /// 붙은 쪽이 이긴다. 둘 다 같은 문서를 보므로 어느 쪽이든 답은 같다.
-    plugins: HashMap<String, Connected>,
+    /// 연결 번호 → 플러그인.
+    ///
+    /// 파일 키로 묶지 않는다. 키를 보고하지 못한 플러그인들은 모두 빈 키라서,
+    /// 그렇게 묶으면 둘째가 첫째를 덮어쓰고 첫째가 끊길 때 둘째의 등록까지
+    /// 지운다. 그러면 "플러그인이 정확히 하나"를 셀 수도 없다.
+    plugins: HashMap<u64, Connected>,
     /// requestId → 결과를 기다리는 쪽.
     pending: HashMap<String, oneshot::Sender<PluginResult>>,
 }
@@ -105,6 +213,7 @@ struct Inner {
 #[derive(Clone, Default)]
 pub struct BridgeState {
     inner: Arc<Mutex<Inner>>,
+    /// 요청 번호와 연결 번호를 함께 매긴다. 둘 다 유일하기만 하면 된다.
     counter: Arc<AtomicU64>,
     /// 붙어 있는 플러그인 수. 배치 크기를 정할 때는 잠금을 기다릴 수 없어
     /// (그 자리가 async 가 아니다) 따로 센다.
@@ -115,26 +224,54 @@ fn unavailable(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, message, false)
 }
 
-/// 어느 플러그인이 이 파일을 맡을지 고른다.
-///
-/// 보통은 파일 키가 그대로 맞는다. 다만 `figma.fileKey` 는 늘 있는 값이 아니어서
-/// (Dev Mode 에서 비어 오는 것을 실제로 봤다) 키 없이 붙는 플러그인이 생긴다.
-/// 그때 등록을 건너뛰면 창은 "연결됨"이라고 하는데 어떤 읽기도 오지 않는 —
-/// 원인을 찾기 가장 어려운 — 상태가 된다.
-///
-/// 그래서 키 없는 플러그인은 **혼자 붙어 있을 때만** 맡는다. 여럿이면 어느 파일을
-/// 보고 있는지 알 수 없고, 엉뚱한 파일을 읽어 주는 것보다 원격으로 넘기는 편이 낫다.
-fn resolve_key(plugins: &HashMap<String, Connected>, file_key: &str) -> Option<String> {
-    if plugins.contains_key(file_key) {
-        return Some(file_key.to_owned());
+/// 이 연결 하나만 가리키는 브리지 전용 키.
+fn connection_key(id: u64) -> String {
+    format!("{BRIDGE_KEY_PREFIX}{id}")
+}
+
+fn connection_id(file_key: &str) -> Option<u64> {
+    file_key.strip_prefix(BRIDGE_KEY_PREFIX)?.parse().ok()
+}
+
+/// 오류 문구에 쓸 파일 이름. 브리지 전용 키는 파일의 키가 아니므로 드러내지 않는다.
+fn describe_file(file_key: &str) -> String {
+    if is_bridge_only_key(file_key) {
+        "the file this request was addressed to".to_owned()
+    } else {
+        format!("file {file_key}")
     }
-    if plugins.len() == 1
-        && let Some(key) = plugins.keys().next()
-        && key.is_empty()
-    {
-        return Some(key.clone());
+}
+
+/// 어느 연결이 이 파일을 맡을지 고른다.
+///
+/// 보통은 파일 키가 그대로 맞는다. 같은 파일을 두 창에서 열었으면 나중에 붙은
+/// 쪽이 맡는다 — 둘 다 같은 문서를 보므로 어느 쪽이든 답은 같다.
+///
+/// 다만 `figma.fileKey` 는 늘 있는 값이 아니어서 (Dev Mode 에서 비어 오는 것을
+/// 실제로 봤다) 키 없이 붙는 플러그인이 생긴다. 그때 등록을 건너뛰면 창은
+/// "연결됨"이라고 하는데 어떤 읽기도 오지 않는 — 원인을 찾기 가장 어려운 — 상태가
+/// 된다. 그래서 키 없는 플러그인은 **혼자 붙어 있을 때만** 아무 키나 맡는다.
+/// 여럿이면 어느 파일을 보고 있는지 알 수 없고, 엉뚱한 파일을 읽어 주는 것보다
+/// 원격으로 넘기는 편이 낫다.
+///
+/// 연결 키는 그 연결 하나만 가리킨다. 몇 개가 붙어 있든 모호하지 않고, 그 연결이
+/// 끊기면 아무도 맡지 않는다 — 다른 파일의 플러그인이 대신 답하면 안 된다.
+fn resolve(plugins: &HashMap<u64, Connected>, file_key: &str) -> Option<u64> {
+    if is_bridge_only_key(file_key) {
+        return connection_id(file_key).filter(|id| plugins.contains_key(id));
     }
-    None
+    let holding = plugins
+        .iter()
+        .filter(|(_, plugin)| plugin.file_key == file_key)
+        .map(|(id, _)| *id)
+        .max();
+    if holding.is_some() {
+        return holding;
+    }
+    match plugins.iter().next() {
+        Some((id, plugin)) if plugins.len() == 1 && plugin.file_key.is_empty() => Some(*id),
+        _ => None,
+    }
 }
 
 impl BridgeState {
@@ -144,14 +281,32 @@ impl BridgeState {
 
     /// 이 파일을 열어 둔 플러그인이 있는지.
     pub async fn has_plugin(&self, file_key: &str) -> bool {
-        resolve_key(&self.inner.lock().await.plugins, file_key).is_some()
+        resolve(&self.inner.lock().await.plugins, file_key).is_some()
     }
 
-    /// 붙어 있는 파일 키 목록. 진단용.
+    /// 붙어 있는 플러그인이 보고한 파일 키. 보고하지 못한 플러그인은 빈 문자열이다.
     pub async fn connected_files(&self) -> Vec<String> {
-        let mut keys: Vec<String> = self.inner.lock().await.plugins.keys().cloned().collect();
+        let mut keys: Vec<String> = self
+            .inner
+            .lock()
+            .await
+            .plugins
+            .values()
+            .map(|plugin| plugin.file_key.clone())
+            .collect();
         keys.sort();
         keys
+    }
+
+    /// 붙어 있는 플러그인 전부를 붙은 순서대로.
+    pub async fn attached_files(&self) -> Vec<AttachedFile> {
+        let inner = self.inner.lock().await;
+        let mut plugins: Vec<_> = inner.plugins.iter().collect();
+        plugins.sort_unstable_by_key(|(id, _)| **id);
+        plugins
+            .into_iter()
+            .map(|(id, plugin)| plugin.attached(*id))
+            .collect()
     }
 
     async fn dispatch(
@@ -159,21 +314,18 @@ impl BridgeState {
         file_key: &str,
         script: &'static str,
         params: Value,
-    ) -> Result<Value, DevupError> {
+    ) -> Result<(Value, BridgeServed), DevupError> {
         let request_id = self.next_request_id();
         let (tx, rx) = oneshot::channel();
 
-        {
+        let served = {
             let mut inner = self.inner.lock().await;
-            let Some(resolved) = resolve_key(&inner.plugins, file_key) else {
+            let Some((id, plugin)) = resolve(&inner.plugins, file_key)
+                .and_then(|id| inner.plugins.get(&id).map(|plugin| (id, plugin)))
+            else {
                 return Err(unavailable(format!(
-                    "no Devup Bridge plugin is open for file {file_key}"
-                )));
-            };
-            let file_key = resolved.as_str();
-            let Some(plugin) = inner.plugins.get(file_key) else {
-                return Err(unavailable(format!(
-                    "no Devup Bridge plugin is open for file {file_key}"
+                    "no Devup Bridge plugin is open for {}",
+                    describe_file(file_key)
                 )));
             };
             let job = Job {
@@ -184,15 +336,20 @@ impl BridgeState {
             };
             let encoded = serde_json::to_string(&job)
                 .map_err(|error| unavailable(format!("bridge job encode failed: {error}")))?;
-            if plugin.outbox.send(encoded).is_err() {
+            let sent = plugin.outbox.send(encoded).is_ok();
+            let served = plugin.served();
+            if !sent {
                 // 소켓이 막 닫혔다. 등록을 지워 다음 호출이 곧장 폴백하도록 한다.
-                inner.plugins.remove(file_key);
+                inner.plugins.remove(&id);
+                self.connected.store(inner.plugins.len(), Ordering::Relaxed);
                 return Err(unavailable(format!(
-                    "the Devup Bridge plugin for file {file_key} disconnected"
+                    "the Devup Bridge plugin for {} disconnected",
+                    describe_file(file_key)
                 )));
             }
             inner.pending.insert(request_id.clone(), tx);
-        }
+            served
+        };
 
         let received = timeout(JOB_TIMEOUT, rx).await;
         // 성공이든 실패든 대기표는 반드시 걷는다. 남겨 두면 연결이 오래 살아 있는
@@ -208,7 +365,7 @@ impl BridgeState {
                     message,
                     false,
                 )),
-                (Some(data), None) => Ok(data),
+                (Some(data), None) => Ok((data, served)),
                 (None, None) => Err(unavailable("bridge returned neither data nor error")),
             },
             // 플러그인 창이 닫혔다.
@@ -252,7 +409,9 @@ fn widen_budgets(params: &mut Value) {
 /// 그대로 두면 노드를 다 받고도 "스냅샷을 찾지 못했다"며 버린다.
 ///
 /// 지어내는 값이 아니다. 이 읽기가 어느 파일을 향했는지는 호출자가 알고 있고,
-/// 그 파일을 이 플러그인이 맡는다는 판단은 이미 `resolve_key` 가 내렸다.
+/// 그 파일을 이 플러그인이 맡는다는 판단은 이미 `resolve` 가 내렸다. 이 값은
+/// 디코더의 대조에만 쓰이고, 파일 키로 보고되는 것은 [`BridgeServed`] 가 싣는
+/// 플러그인 자신의 보고뿐이다.
 fn stamp_file_key(data: &mut Value, file_key: &str) {
     let Some(object) = data.as_object_mut() else {
         return;
@@ -270,10 +429,20 @@ fn stamp_file_key(data: &mut Value, file_key: &str) {
 ///
 /// 디코더들은 `content[].text` 안의 JSON 문자열을 찾도록 쓰여 있다. 값을 그대로
 /// 올리면 일부 디코더는 통과하고 일부는 실패해, 두 경로가 화면 단위로 갈라진다.
-fn wrap_as_tool_result(data: &Value) -> Result<Value, DevupError> {
-    let text = serde_json::to_string(data)
-        .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
-    Ok(json!({ "content": [{ "type": "text", "text": text }], "isError": false }))
+///
+/// 어느 플러그인이 답했는지는 `_meta` 에 싣는다. 디코더는 그 자리를 읽지 않으므로
+/// 두 경로의 모양은 그대로이고, 수집기는 이것으로 응답의 출처를 브리지로 적는다.
+fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
+    let encode =
+        |error: serde_json::Error| unavailable(format!("bridge result encode failed: {error}"));
+    let text = serde_json::to_string(data).map_err(encode)?;
+    let mut result = json!({
+        "content": [{ "type": "text", "text": text }],
+        "isError": false,
+        "_meta": {},
+    });
+    result["_meta"][SERVED_META_KEY] = serde_json::to_value(served).map_err(encode)?;
+    Ok(result)
 }
 
 async fn plugin_socket(State(state): State<BridgeState>, upgrade: WebSocketUpgrade) -> Response {
@@ -282,7 +451,7 @@ async fn plugin_socket(State(state): State<BridgeState>, upgrade: WebSocketUpgra
 
 async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
     let (outbox, mut outbox_rx) = mpsc::unbounded_channel::<String>();
-    let mut registered: Option<String> = None;
+    let id = state.counter.fetch_add(1, Ordering::Relaxed);
 
     // 보내기와 받기를 한 루프에서 번갈아 본다. 소켓을 쪼개려면 Stream/Sink 트레이트
     // 의존성이 필요한데, 그것을 들이는 것보다 select 가 싸다.
@@ -303,20 +472,37 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                     Some("hello") => {
                         // 키가 없어도 등록한다. 건너뛰면 창은 "연결됨"이라고 하는데
                         // 어떤 읽기도 오지 않아 원인을 찾을 수 없다. 키 없는 연결을
-                        // 어디까지 믿을지는 resolve_key 가 정한다.
-                        let key = serde_json::from_value::<Hello>(value)
-                            .ok()
-                            .and_then(|hello| hello.file_key)
-                            .unwrap_or_default();
-                        state.inner.lock().await.plugins.insert(
-                            key.clone(),
-                            Connected { outbox: outbox.clone() },
-                        );
-                        state.connected.store(
-                            state.inner.lock().await.plugins.len(),
-                            Ordering::Relaxed,
-                        );
-                        registered = Some(key);
+                        // 어디까지 믿을지는 resolve 가 정한다.
+                        //
+                        // 필드마다 따로 읽는다. 페이지나 선택이 어긋난 모양으로 와도
+                        // 파일 키까지 잃으면 안 된다.
+                        let plugin = Connected {
+                            outbox: outbox.clone(),
+                            file_key: value
+                                .get("fileKey")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_owned(),
+                            file_name: value
+                                .get("fileName")
+                                .and_then(Value::as_str)
+                                .filter(|name| !name.is_empty())
+                                .map(str::to_owned),
+                            context: serde_json::from_value(value).unwrap_or_default(),
+                        };
+                        let mut inner = state.inner.lock().await;
+                        inner.plugins.insert(id, plugin);
+                        state.connected.store(inner.plugins.len(), Ordering::Relaxed);
+                    }
+                    // 페이지를 옮기거나 선택을 바꿀 때마다 온다. url 없는 요청은
+                    // 이 값으로 대상을 고르므로, 늦게라도 최신이어야 한다.
+                    Some("context") => {
+                        let Ok(context) = serde_json::from_value::<PluginContext>(value) else {
+                            continue;
+                        };
+                        if let Some(plugin) = state.inner.lock().await.plugins.get_mut(&id) {
+                            plugin.context = context;
+                        }
                     }
                     Some("devup-result") => {
                         let Ok(result) = serde_json::from_value::<PluginResult>(value) else {
@@ -334,12 +520,11 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
         }
     }
 
-    if let Some(key) = registered {
-        state.inner.lock().await.plugins.remove(&key);
-    }
+    let mut inner = state.inner.lock().await;
+    inner.plugins.remove(&id);
     state
         .connected
-        .store(state.inner.lock().await.plugins.len(), Ordering::Relaxed);
+        .store(inner.plugins.len(), Ordering::Relaxed);
 }
 
 /// 브리지 서버. 포트를 잡지 못하면 열지 않으며, 그 경우 호출자는 원격 경로만 쓴다.
@@ -427,9 +612,9 @@ pub trait PreferredUpstream: FigmaUpstream {
 pub struct BridgePathSnapshot {
     /// 실제로 잡은 포트. 플러그인 manifest 의 `allowedDomains` 와 같아야 붙는다.
     pub port: Option<u16>,
-    /// 지금 붙어 있는 플러그인이 열어 둔 파일 키. 빈 문자열은 자기 파일 키를
-    /// 보고하지 못한 플러그인이며, 혼자 붙어 있을 때만 읽기를 받는다.
-    pub attached_files: Vec<String>,
+    /// 지금 붙어 있는 플러그인, 붙은 순서대로. 파일 키를 보고하지 못한
+    /// 플러그인은 혼자 붙어 있을 때만 다른 키의 읽기를 받는다.
+    pub attached_files: Vec<AttachedFile>,
 }
 
 /// 플러그인을 통해 Figma 를 읽는 `FigmaUpstream`.
@@ -467,13 +652,17 @@ impl FigmaUpstream for BridgeFigmaClient {
         };
         let mut params = job.params;
         widen_budgets(&mut params);
-        let mut data = self
+        let (mut data, served) = self
             .state
             .dispatch(call.file_key(), job.script, params)
             .await?;
         stamp_file_key(&mut data, call.file_key());
+        let served = BridgeServed {
+            port: self.port,
+            ..served
+        };
         Ok(UpstreamResult {
-            raw: wrap_as_tool_result(&data)?,
+            raw: wrap_as_tool_result(&data, &served)?,
         })
     }
 
@@ -488,7 +677,7 @@ impl FigmaUpstream for BridgeFigmaClient {
     async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
         Some(BridgePathSnapshot {
             port: self.port,
-            attached_files: self.state.connected_files().await,
+            attached_files: self.state.attached_files().await,
         })
     }
 }
@@ -565,6 +754,11 @@ where
         if self.preferred.can_serve(&call).await {
             return self.preferred.call_read_tool(call).await;
         }
+        // 브리지만 읽을 수 있는 키다. 원격으로 넘기면 Figma 에 없는 키를 묻게 되고,
+        // 돌아오는 것은 원인과 무관한 거절 — 로그인하라거나 파일이 없다는 — 뿐이다.
+        if is_bridge_only_key(call.file_key()) {
+            return Err(bridge_only_refusal(&call));
+        }
         self.secondary.call_read_tool(call).await
     }
 
@@ -585,11 +779,37 @@ where
 
     /// 이 파일을 맡은 플러그인이 있으면 원격 자격증명 없이도 수집이 성립한다.
     /// 뒤엣것은 원격이므로 물을 것이 없다.
+    ///
+    /// 브리지만 읽을 수 있는 키는 로그인을 기다리지 않는다. direct 경로는 그 키로는
+    /// 무엇을 치러도 읽을 수 없으므로, 로그인을 요구하는 것은 엉뚱한 처방이다.
+    /// 플러그인이 그새 끊겼다면 그 거절은 첫 읽기가 제 이유와 함께 한다.
     async fn serves_without_credentials(&self, file_key: &str) -> bool {
-        self.preferred.serves_without_credentials(file_key).await
+        is_bridge_only_key(file_key) || self.preferred.serves_without_credentials(file_key).await
     }
 
     async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
         self.preferred.bridge_path_snapshot().await
     }
+}
+
+/// 브리지만 읽을 수 있는 키의 읽기를 브리지가 맡지 못할 때의 거절.
+///
+/// 두 경우는 고치는 방법이 다르다. 스크립트 읽기면 플러그인이 끊긴 것이니 다시
+/// 띄우면 되고, 그 밖의 읽기(`get_screenshot` 등)는 브리지가 애초에 못 하는 일이라
+/// 그 파일의 진짜 Figma 링크가 있어야 direct 경로로 읽을 수 있다.
+fn bridge_only_refusal(call: &ReadToolCall) -> DevupError {
+    let message = if call.bridge_job().is_some() {
+        "The Devup Bridge plugin this request was addressed to is no longer attached. Run it \
+         again on the file in the Figma desktop app, then repeat the call."
+    } else {
+        "This read cannot go through the Devup Bridge plugin, and the plugin could not report \
+         the file's Figma key, so the direct path cannot make it either. Repeat the call with the \
+         file's own Figma link (Share -> Copy link) to read it through the direct path."
+    };
+    DevupError::with_details(
+        ErrorCode::DevupFigmaDirectUnavailable,
+        message,
+        false,
+        json!({ "source": "bridge", "stage": "bridge-routing", "tool": call.tool_name() }),
+    )
 }

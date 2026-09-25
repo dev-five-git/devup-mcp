@@ -4,6 +4,30 @@ use serde::{Deserialize, Serialize};
 
 use super::DevupError;
 
+/// The link for the file the one attached Devup Bridge plugin has open.
+///
+/// A plugin often cannot say which file that is - `figma.fileKey` comes back
+/// empty in Dev Mode - so there is no Figma link to hand an agent. The agent
+/// that needed one invented `/design/bridge/bridge` to get past the url field
+/// and was then told the invented key was the file's. This is the link to use
+/// instead: it routes to the plugin rather than to Figma, `?node-id=` narrows
+/// it as on any Figma link, and without one the node selected in Figma is
+/// meant.
+pub const BRIDGE_CURRENT_URL: &str = "figma-bridge://current";
+
+/// Figma file keys never contain `:`, so a key that starts with this can only
+/// ever name a bridge plugin - never a file the direct path could fetch.
+pub(crate) const BRIDGE_KEY_PREFIX: &str = "bridge:";
+
+/// What `figma-bridge://current` parses to: a placeholder the server binds to
+/// the attached plugin before anything is read.
+pub const BRIDGE_CURRENT_KEY: &str = "bridge:current";
+
+/// Whether only a bridge plugin can serve `file_key`.
+pub fn is_bridge_only_key(file_key: &str) -> bool {
+    file_key.starts_with(BRIDGE_KEY_PREFIX)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaTarget {
@@ -13,9 +37,30 @@ pub struct FigmaTarget {
 }
 
 impl FigmaTarget {
+    /// The file the one attached bridge plugin has open, which is what a
+    /// request made with no url means.
+    pub fn bridge_current() -> Self {
+        Self {
+            file_key: BRIDGE_CURRENT_KEY.to_owned(),
+            node_id: None,
+            branch_key: None,
+        }
+    }
+
     pub fn parse(input: &str) -> Result<Self, DevupError> {
         let url = Url::parse(input)
             .map_err(|_| DevupError::unsupported_file("Not a valid Figma link."))?;
+        if url.scheme() == "figma-bridge" {
+            if url.host_str() != Some("current") || !matches!(url.path(), "" | "/") {
+                return Err(DevupError::unsupported_file(
+                    "The only bridge link is figma-bridge://current, optionally with ?node-id=.",
+                ));
+            }
+            return Ok(Self {
+                node_id: node_id_param(&url)?,
+                ..Self::bridge_current()
+            });
+        }
         if url.scheme() != "https" || !matches!(url.host_str(), Some("figma.com" | "www.figma.com"))
         {
             return Err(DevupError::unsupported_file(
@@ -44,18 +89,48 @@ impl FigmaTarget {
             validate_key(branch_key)?;
         }
 
-        let node_id = url
-            .query_pairs()
-            .find_map(|(name, value)| (name == "node-id").then(|| value.into_owned()))
-            .map(|node_id| normalize_node_id(&node_id))
-            .transpose()?;
-
         Ok(Self {
             file_key,
-            node_id,
+            node_id: node_id_param(&url)?,
             branch_key,
         })
     }
+
+    /// Whether this names the file a bridge plugin has open rather than a
+    /// file Figma itself can serve.
+    pub fn is_bridge_only(&self) -> bool {
+        is_bridge_only_key(&self.file_key)
+    }
+
+    /// A link that routes back to this target, narrowed to `node_id` when one
+    /// is given.
+    ///
+    /// A bridge-only target links as `figma-bridge://current`. Wrapping its key
+    /// in a Figma URL would hand the caller a link to a file that does not
+    /// exist, under a key it would then take for the file's own.
+    pub fn link(&self, node_id: Option<&str>) -> String {
+        let base = if self.is_bridge_only() {
+            BRIDGE_CURRENT_URL.to_owned()
+        } else if let Some(branch_key) = &self.branch_key {
+            format!(
+                "https://www.figma.com/branch/{}/{branch_key}/devup",
+                self.file_key
+            )
+        } else {
+            format!("https://www.figma.com/design/{}/devup", self.file_key)
+        };
+        match node_id {
+            Some(node_id) => format!("{base}?node-id={}", node_id.replace(':', "-")),
+            None => base,
+        }
+    }
+}
+
+fn node_id_param(url: &Url) -> Result<Option<String>, DevupError> {
+    url.query_pairs()
+        .find_map(|(name, value)| (name == "node-id").then(|| value.into_owned()))
+        .map(|node_id| normalize_node_id(&node_id))
+        .transpose()
 }
 
 fn validate_key(key: &str) -> Result<(), DevupError> {
