@@ -41,14 +41,33 @@ fn unwrap_response(value: &Value) -> anyhow::Result<Value> {
         anyhow::bail!("Response content contains no export JSON");
     }
     anyhow::ensure!(
-        value["source"]["fileKey"].as_str().is_some(),
-        "Each batch must contain its export source.fileKey; pending jobs and bare manifests cannot establish source identity"
+        batch_file(value).is_some(),
+        "Each batch must contain its export source.fileKey (or, from a Devup Bridge plugin that could not report one, source.fileName); pending jobs and bare manifests cannot establish source identity"
     );
     anyhow::ensure!(
         value["assetSummary"].is_object(),
         "Each batch must contain assetSummary discovery evidence"
     );
     Ok(value.clone())
+}
+
+/// Which file a batch came from, as its source can say it: the field that
+/// said it, and what it said.
+///
+/// A key when there is one. A batch the Devup Bridge served from a plugin that
+/// could not report its key carries `fileKey: null` rather than a stand-in, so
+/// the file name that plugin gave is compared instead - a weaker identity,
+/// which the merged source names by keeping it under `fileName`.
+fn batch_file(value: &Value) -> Option<(&'static str, String)> {
+    let source = &value["source"];
+    if let Some(key) = source["fileKey"].as_str() {
+        return Some(("fileKey", key.to_owned()));
+    }
+    let bridge = source["kind"] == "bridge" || source["origin"] == "bridge";
+    source["fileName"]
+        .as_str()
+        .filter(|_| bridge)
+        .map(|name| ("fileName", name.to_owned()))
 }
 
 #[derive(Default)]
@@ -63,7 +82,7 @@ struct Asset {
 pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
     anyhow::ensure!(!values.is_empty(), "No batch responses supplied");
     let mut assets: BTreeMap<String, Asset> = BTreeMap::new();
-    let mut file_key = None;
+    let mut identity = None;
     let mut versions = BTreeSet::new();
     let mut unknown_version = false;
     let mut roots = BTreeSet::new();
@@ -71,12 +90,13 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
     let mut incomplete_inventory_batches = 0;
     for value in values {
         let value = unwrap_response(value)?;
-        let file = value["source"]["fileKey"].as_str().unwrap().to_owned();
+        let file = batch_file(&value)
+            .ok_or_else(|| anyhow::anyhow!("A batch lost its source identity"))?;
         anyhow::ensure!(
-            file_key.as_ref().is_none_or(|key| key == &file),
+            identity.as_ref().is_none_or(|known| known == &file),
             "Cannot merge different Figma files"
         );
-        file_key = Some(file);
+        identity = Some(file);
         if let Some(version) = value["source"]["version"].as_str() {
             versions.insert(version.to_owned());
         } else {
@@ -175,10 +195,14 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
     let complete = !incomplete
         && incomplete_inventory_batches == 0
         && failed + unrequested + pending + conflicts == 0;
+    let mut source = json!({"fileKey":null,"versions":versions,"versionVerified":!unknown_version});
+    if let Some((field, file)) = identity {
+        source[field] = json!(file);
+    }
     Ok(json!({"status":if complete {"complete"} else {"partial"},
         "description":"Cumulative binary collection across the supplied batches only. Per-batch partial can mean assets were not requested in that batch; it is not an export failure. Projection quality is not merged. File writes are historical reports, not reverified files.",
         "scope":"union-of-supplied-batches", "inventoryComplete":incomplete_inventory_batches == 0,
-        "incompleteInventoryBatchCount":incomplete_inventory_batches, "source":{"fileKey":file_key,"versions":versions,"versionVerified":!unknown_version},
+        "incompleteInventoryBatchCount":incomplete_inventory_batches, "source":source,
         "scopeRootIds":roots,"batchCount":values.len(),"discovery":if incomplete {"incomplete"} else {"complete"},
         "discoveredCount":manifest.len(),"collectedCount":collected,"failedCount":failed,
         "unrequestedCount":unrequested,"pendingCount":pending,"excludedCount":excluded,"conflictCount":conflicts,
