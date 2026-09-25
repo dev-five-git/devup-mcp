@@ -40,10 +40,16 @@ async fn initialize_instructions_are_small_and_name_the_guide() -> anyhow::Resul
         .as_deref()
         .expect("the server still publishes instructions");
 
+    // The ceiling moved once, for the connection order: it has to be read
+    // before the first Figma call, not fetched after the wrong one.
     assert!(
-        instructions.len() < 1_200,
+        instructions.len() < 1_400,
         "instructions are {} bytes; every client pays this on every session",
         instructions.len()
+    );
+    assert!(
+        instructions.contains("devup_figma_auth"),
+        "the connection order names the tool that reports both paths"
     );
     assert!(
         instructions.contains("devup://guide/usage"),
