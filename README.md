@@ -11,7 +11,7 @@ Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
 - `devup_figma_explore`: 링크된 요구사항/라벨 주변의 실제 화면 후보를 공간 순서로 탐색
-- `devup_figma_auth`: 연결 상태 확인, 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 연결 실패 원인을 실측해 보고하는 `doctor`
+- `devup_figma_auth`: Figma에 닿는 **두 경로**(브리지 플러그인·direct OAuth)를 함께 보고(`status`) — 붙어 있는 플러그인의 파일·현재 페이지·선택까지. 그 밖에 브라우저 OAuth 로그인, 로그아웃, 사전 등록 자격증명 주입(`configure`), 참조 데이터까지 붙인 `doctor`. **로그인을 요청하기 전에 `status`부터 부르세요** — 플러그인이 붙어 있으면 로그인은 필요 없습니다
 - `devup_skills`: devup-mcp가 내놓는 코드에 필요한 에이전트 스킬이 이 워크스페이스에 있는지 보고(`status`)하고, devup-mcp가 품고 있는 것을 설치(`install`). **텍스트를 응답에 실어 보내는 게 아니라 스킬 디렉터리에 설치해서 에이전트 자신의 로더가 읽게 합니다** — 한 번 읽은 문서는 한 번 쓰이지만, 설치된 스킬은 이후 모든 세션에 계속 적용됩니다. 어느 디렉터리인지는 `clientInfo`로 판별한 런타임이 정하고, `projectRoot`로 어느 프로젝트인지 지정합니다
 - `devup_project_context`: 프로젝트의 실제 `devup.json` 토큰, `openapi.json` 엔드포인트, Vespertide 모델을 읽음. 중첩 체크아웃과 빌드 산출물 디렉터리는 스캔에서 제외하고 무엇을 제외했는지 보고
 - `devup_ui_validate`: 생성한 TSX를 프로젝트의 실제 `devup.json`에 대조해 검증. `ok`는 개수가 아니라 심각도로 판정
@@ -172,31 +172,35 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 시스템 브라우저는 `devup_figma_auth`의 `login`을 명시적으로 호출할 때만 열립니다. 변환 도구는 자격증명이 없으면 브라우저를 열지 않고 로그인이 필요하다는 오류를 반환합니다. 인증 정보는 운영체제 credential store에만 저장되며 `logout`은 해당 정보만 삭제합니다.
 
-### 인증
+### 연결 상태와 인증
 
 ```json
 { "action": "status" }
 ```
 
-`action`은 `status`, `login`, `logout`, `configure`, `doctor` 중 하나이며, 스키마가 이 목록을 그대로 게시합니다. `status`/`login`/`logout`의 응답 형태는 항상 `{ "status": "connected" | "disconnected" }`입니다. Figma에 붙지 못하는 이유를 알고 싶으면 `doctor`를 호출하세요.
-
-```json
-{ "action": "doctor" }
-```
+`action`은 `status`, `login`, `logout`, `configure`, `doctor` 중 하나이며, 스키마가 이 목록을 그대로 게시합니다. **`status`는 OAuth 상태가 아니라 Figma에 닿는 경로 전체를 보고합니다.** `login`/`logout`도 동작을 마친 뒤 같은 보고를 돌려줍니다.
 
 ```json
 {
-  "status": "disconnected",
+  "connected": true,
+  "status": "connected",
+  "activePath": "bridge",
   "preferredPath": "bridge",
-  "preferredPathNote": "Two paths reach Figma and they are not equals. ...",
   "paths": {
     "bridge": {
-      "available": false,
+      "available": true,
       "listening": true,
       "port": 1993,
-      "attachedFiles": [],
-      "attachedFilesNote": "File keys the attached plugins have open. ...",
-      "reason": "The bridge is listening on 127.0.0.1:1993 but no plugin is attached. ..."
+      "attachedFiles": [{
+        "fileKey": null,
+        "fileName": "Landing",
+        "currentPage": { "id": "0:1", "name": "Page 1" },
+        "selection": [{ "id": "1:2", "name": "Hero", "type": "FRAME" }],
+        "selectionCount": 1,
+        "fileKeyNote": "This plugin could not report its file key ..."
+      }],
+      "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it. ...",
+      "reason": "A plugin is attached. ..."
     },
     "direct": {
       "available": false,
@@ -205,14 +209,31 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
       "tokenState": "absent",
       "callbackPort": { "port": null, "free": null },
       "registrationClientName": { "value": "Codex", "isDefault": true },
-      "reason": "저장된 자격증명 없음. ..."
+      "reason": "No access token is stored. ... While a bridge plugin is attached this path is needed only for ..."
     }
   },
-  "clientSetup": { "constraints": { ... }, "opencode": { ... }, "claudeCode": "...", "codex": "..." }
+  "nextAction": {
+    "tool": "devup_figma_export",
+    "arguments": { "outputs": ["tsx"] },
+    "note": "One Devup Bridge plugin is attached, so no url is needed: ..."
+  }
 }
 ```
 
-`doctor`는 네트워크 호출을 전혀 하지 않습니다.
+- `connected`/`activePath` — 지금 읽기가 실제로 어느 경로로 가는지. 플러그인이 붙어 있으면 `bridge`, 아니면 토큰이 있을 때 `direct`, 둘 다 없으면 `null`입니다.
+- **최상위 `status`가 `disconnected`인 것은 두 경로가 모두 막혔을 때뿐입니다.** 예전에는 direct(OAuth) 하나만 보고 `disconnected`라고 답해서, 플러그인이 붙어 있는데도 에이전트가 사용자에게 로그인을 요청했습니다. `status` 키는 그대로라 그 값만 읽는 호출자도 깨지지 않습니다.
+- `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(Dev Mode 등)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다.
+- `nextAction` — 지금 상태에서 할 다음 호출. 플러그인 하나면 url 없는 `devup_figma_export`, direct만 열려 있으면 frame 링크가 필요한 export, 둘 다 막혔으면 `options`에 플러그인 실행(권장)과 로그인을 차례로 담습니다.
+
+`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning: "A bridge is attached; login is only needed for file-scope metadata or referencePng."`이 붙습니다.
+
+```json
+{ "action": "doctor" }
+```
+
+`doctor`는 같은 보고에 `preferredPathNote`와 클라이언트 설정 참조 데이터(`clientSetup`)를 더합니다. `status`와 `doctor` 모두 네트워크 호출을 전혀 하지 않습니다.
+
+연결을 "인증"과 떼어 놓으려고 별도 도구(`devup_figma_connection` 등)를 두는 방안도 검토했지만 두지 않았습니다. 도구가 하나 늘면 모든 클라이언트가 매 세션 그 스키마를 싣고, 이름을 바꾸면 기존 호출이 깨집니다. 대신 `devup_figma_auth`의 설명과 `status`의 응답이 두 경로를 먼저 말합니다.
 
 **경로는 둘이고 대등하지 않습니다.** `preferredPath`가 언제나 `bridge`인 이유입니다 — 브리지는 로그인도 필요 없고 Figma 한도도 쓰지 않습니다. `paths.bridge`의 세 상태는 고치는 방법이 서로 다르니 구분해서 읽어야 합니다.
 
@@ -356,9 +377,48 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 **플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 브리지가 못 하는 읽기가 있으면 **그 읽기가** 자기 이유로 거절하므로, 무엇이 왜 막혔는지가 그대로 드러납니다.
 
-지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "doctor" }`의 `paths.bridge`/`paths.direct`로 확인하세요.
+지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "status" }`의 `activePath`와 `paths.bridge`/`paths.direct`로 확인하세요. **연결 순서는 bridge → direct입니다** — 로그인을 요청하기 전에 이것부터 부르세요.
 
 현재 브리지가 **못** 하는 읽기는 둘입니다 — `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록이라 계약이 다릅니다)와 `referencePng`의 `get_screenshot`. 그 밖의 tsx export 경로는 전부 브리지로 갑니다.
+
+### 링크 없이 쓰기 — 플러그인이 연 파일과 Figma 선택
+
+플러그인이 **정확히 하나** 붙어 있으면 `url`을 주지 않아도 됩니다.
+
+| 도구 | `url` 없이 부르면 |
+|---|---|
+| `devup_figma_export` | 플러그인이 연 파일의, **Figma에서 선택한 노드**. `frameIds`를 하나 주면 그 프레임이고, 여럿이면 선택한 Section 안의 화면들입니다 |
+| `devup_figma_search` | 플러그인이 연 파일 전체 |
+| `devup_figma_explore` | Figma에서 선택한 노드를 기준으로 |
+
+```json
+{ "outputs": ["tsx"] }
+```
+
+링크 자리가 꼭 필요하면 공식 자리표시자 **`figma-bridge://current`**를 쓰세요. `?node-id=1-2`로 노드를 지정할 수 있고, 파일 키를 모를 때 응답이 돌려주는 링크(`canonicalUrl`, `nextAction`)도 이 형태로 옵니다. **Figma 파일 키를 지어내지 마세요.** 키를 보고하지 못한 플러그인은 혼자 붙어 있을 때 아무 키나 받아 주므로 지어낸 키로도 읽기는 성공하고, 그 키가 파일의 키로 오인됩니다. 실제 세션에서 에이전트가 `/design/bridge/bridge`를 지어낸 경위가 이것입니다.
+
+플러그인이 없거나 여럿이면 url 없는 호출은 거절되고, 거절의 `details.nextAction`이 다음 걸음을 담습니다. 없으면 `options`에 플러그인 실행(권장, 로그인 불필요)과 direct 경로(토큰이 없으면 로그인 후 링크)를, 여럿이면 붙어 있는 파일마다 그 파일을 가리키는 예시 인자를 줍니다. 선택이 비었거나 여럿이거나 플러그인이 선택을 보고하지 않으면, 노드를 지정하는 예시(`figma-bridge://current?node-id=...`)를 줍니다.
+
+#### 어느 경로가 답했는지 — `source`
+
+브리지가 답한 응답은 그렇다고 말합니다.
+
+```json
+"source": {
+  "kind": "bridge",
+  "bridgePort": 1993,
+  "fileKey": null,
+  "fileKeyReason": "The Devup Bridge plugin that served this could not report its file key ...",
+  "fileName": "Landing",
+  "pageName": "Page 1",
+  "nodeId": "1:2",
+  "bridgeReads": 3
+}
+```
+
+- `fileKey`는 **플러그인이 보고한 키**뿐입니다. 보고하지 못했으면 `null`과 `fileKeyReason`이 오고, 요청에 실려 온 키가 있었다면 `requestedFileKey`로 따로 보고합니다 — 그 키를 파일의 키로 내세우지 않습니다. `sourceMap.source.fileKey`도 같은 규칙을 따릅니다.
+- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지(예: `referencePng`)는 direct 경로가 답했습니다.
+- 캐시된 수집을 다시 투영한 응답은 `kind: "artifact"`를 유지하고 `origin: "bridge"`와 같은 출처 정보를 답니다.
 
 ### 브리지 플러그인 — 한도를 쓰지 않고 읽기
 
