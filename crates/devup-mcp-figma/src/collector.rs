@@ -161,6 +161,10 @@ pub struct CollectionStats {
     pub raw_bytes: usize,
     pub wire_bytes: usize,
     pub envelope_chunks: usize,
+    /// Set when the Devup Bridge plugin answered any of `figma_tool_calls`,
+    /// naming the plugin; the rest went to Figma's metered MCP.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bridge: Option<crate::BridgeServed>,
 }
 
 impl Default for CollectionStats {
@@ -179,6 +183,7 @@ impl Default for CollectionStats {
             raw_bytes: 0,
             wire_bytes: 0,
             envelope_chunks: 0,
+            bridge: None,
         }
     }
 }
@@ -604,6 +609,10 @@ impl CollectorSession {
             .remove(call_id)
             .ok_or_else(|| invalid_call("Unknown or already-handled Figma call ID."))?;
         self.consumed.insert(call_id.to_owned());
+        if let Some(served) = crate::BridgeServed::from_result(&result.raw) {
+            let reads = self.stats.bridge.as_ref().map_or(0, |bridge| bridge.reads) + served.reads;
+            self.stats.bridge = Some(crate::BridgeServed { reads, ..served });
+        }
         match pending.kind {
             CallKind::FastSnapshot => {
                 self.accept_fast_snapshot(&pending.planned, pending.order, result)
