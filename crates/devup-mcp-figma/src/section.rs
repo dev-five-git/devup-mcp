@@ -144,7 +144,14 @@ impl SectionIndex {
                         .unwrap_or(&c.canonical_url)
                         .to_owned()
                 })
-                .unwrap_or_else(|| format!("https://www.figma.com/design/{}", self.file_key));
+                .unwrap_or_else(|| {
+                    FigmaTarget {
+                        file_key: self.file_key.clone(),
+                        node_id: None,
+                        branch_key: None,
+                    }
+                    .link(None)
+                });
             let next = correctable.then(|| serde_json::json!({"tool":"devup_figma_export",
                 "arguments":{"url":format!("{base}?node-id={}", self.section.node_id.replace(':', "-")),"frameIds":corrected},
                 "how":"The requested node IDs are descendants, not screen IDs. Retry with the containing screens listed here; no selection was changed or exported."}));
@@ -311,7 +318,7 @@ pub fn build_section_index(
                 ]
             };
             Ok(SectionCandidate {
-                canonical_url: canonical_url(target, &node.node_id),
+                canonical_url: target.link(Some(&node.node_id)),
                 node_id: node.node_id,
                 name: node.name,
                 node_type: node.node_type,
@@ -568,21 +575,6 @@ fn breadcrumb(snapshot: &Snapshot, node_id: &str) -> Vec<String> {
         .filter_map(|node| node.typed_view().name())
         .map(str::to_owned)
         .collect()
-}
-
-fn canonical_url(target: &FigmaTarget, node_id: &str) -> String {
-    let node_id = node_id.replace(':', "-");
-    if let Some(branch_key) = &target.branch_key {
-        format!(
-            "https://www.figma.com/branch/{}/{branch_key}/devup?node-id={node_id}",
-            target.file_key
-        )
-    } else {
-        format!(
-            "https://www.figma.com/design/{}/devup?node-id={node_id}",
-            target.file_key
-        )
-    }
 }
 
 fn invalid_selection(message: impl Into<String>) -> DevupError {

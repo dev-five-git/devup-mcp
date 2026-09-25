@@ -75,7 +75,7 @@ pub use upstream::{
     BatchBudget, BuiltinScript, ExploreReadOptions, FigmaUpstream, ReadToolCall, RemoteFigmaClient,
     SearchReadOptions, SnapshotReadOptions, UpstreamResult,
 };
-pub use url::FigmaTarget;
+pub use url::{BRIDGE_CURRENT_KEY, BRIDGE_CURRENT_URL, FigmaTarget, is_bridge_only_key};
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 mod original_image;
