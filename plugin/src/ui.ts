@@ -39,6 +39,19 @@ interface ResultMessage {
 
 const RETRY_MS = 2000
 
+/**
+ * 이 플러그인 창 하나를 가리키는 이름. 창이 열려 있는 동안 바뀌지 않는다.
+ *
+ * devup-mcp 는 파일 키를 보고하지 못하는 플러그인(Dev Mode)을 이 이름으로 부른다.
+ * 소켓이 끊겨 다시 붙어도 — 포트를 쥔 devup-mcp 가 바뀌었어도 — 같은 창이면 같은
+ * 이름이라, 수집 도중에 연결이 바뀌어도 남은 읽기가 이 창을 다시 찾는다.
+ */
+const SESSION_ID = (() => {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+})()
+
 let socket: WebSocket | null = null
 // `status` 는 window 전역(문자열)과 겹친다.
 let bridgeStatus: StatusMessage | null = null
@@ -79,6 +92,7 @@ function connect() {
     ws.send(
       JSON.stringify({
         kind: 'hello',
+        sessionId: SESSION_ID,
         fileKey: bridgeStatus?.fileKey ?? null,
         fileName: bridgeStatus?.fileName ?? '',
         currentPage: bridgeStatus?.currentPage ?? null,

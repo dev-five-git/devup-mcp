@@ -18,14 +18,12 @@ use serde_json::Value;
 
 #[tokio::main]
 async fn main() {
-    let server = match BridgeServer::start(DEFAULT_BRIDGE_PORT) {
-        Some(server) => server,
-        None => {
-            eprintln!("PROBE_FAIL: port {DEFAULT_BRIDGE_PORT} is already taken");
-            std::process::exit(1);
-        }
+    // 포트를 다른 devup-mcp 가 쥐고 있으면 그쪽을 통해 읽는다. 이 프로브도 그렇다.
+    let Some(server) = BridgeServer::start(DEFAULT_BRIDGE_PORT) else {
+        eprintln!("PROBE_FAIL: the bridge could not start");
+        std::process::exit(1);
     };
-    println!("listening on ws://127.0.0.1:{}/plugin", server.port());
+    println!("bridge on ws://127.0.0.1:{}/plugin", server.port());
     println!("waiting for the Devup Bridge plugin in Figma...");
 
     // 플러그인을 가져오고 파일을 여는 데 시간이 걸리므로 넉넉히 기다린다.

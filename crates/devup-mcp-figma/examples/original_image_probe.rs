@@ -17,9 +17,12 @@ async fn main() -> anyhow::Result<()> {
         "usage: original_image_probe FILE_KEY NODE_ID FILL_INDEX IMAGE_HASH OUTPUT_PATH"
     );
     let fill_index = args[2].parse::<usize>()?;
-    let server = BridgeServer::from_env().ok_or_else(|| anyhow::anyhow!(
-        "bridge port unavailable or disabled; stop its current owner or configure the same free port in both plugin and DEVUP_FIGMA_BRIDGE_PORT"
-    ))?;
+    // A devup-mcp already holding the port is read through, not fought over.
+    let server = BridgeServer::from_env().ok_or_else(|| {
+        anyhow::anyhow!(
+            "the bridge is disabled; unset DEVUP_FIGMA_BRIDGE_PORT or set it to the plugin's port"
+        )
+    })?;
     eprintln!(
         "Waiting up to 60 seconds for the updated plugin on port {}",
         server.port()

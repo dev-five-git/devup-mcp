@@ -45,5 +45,5 @@ dunce.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 # A real socket standing in for the Devup Bridge plugin, the same client the
 # figma crate's transport tests use, so the tool surface is driven end to end.
-tokio-tungstenite = "0.28"
-futures-util = "0.3"
+tokio-tungstenite.workspace = true
+futures-util.workspace = true

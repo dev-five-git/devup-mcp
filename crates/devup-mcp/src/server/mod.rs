@@ -42,11 +42,11 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, BRIDGE_CURRENT_KEY, BridgeFigmaClient, BridgeServer, ClientCredentialSource,
-    ClientCredentials, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError,
-    DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions,
-    FallbackUpstream, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
+    AuthStatus, BRIDGE_CURRENT_KEY, BridgeFigmaClient, BridgeOptions, BridgeRole, BridgeServer,
+    ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload, CollectionRequest,
+    CollectionScope, CollectorSession, CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME,
+    DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode,
+    ExploreReadOptions, FallbackUpstream, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
     KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
     SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
     SystemBrowser, TokenState, UpstreamResult,
@@ -243,7 +243,10 @@ impl Services {
         }
     }
 
-    fn production(figma_direct: crate::FigmaDirectConfig) -> Result<Self, DevupError> {
+    fn production(
+        figma_direct: crate::FigmaDirectConfig,
+        bridge: Bridge,
+    ) -> Result<Self, DevupError> {
         let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, KeyringCredentialStore)?
             .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
         if figma_direct.callback_port.is_some() {
@@ -275,10 +278,18 @@ impl Services {
             );
         }
         let remote = RemoteFigmaClient::new(oauth.clone());
-        // A script read goes to the bridge when one is listening. With no
-        // plugin attached every call falls straight through to the remote
+        // A script read goes to the bridge when a plugin is reachable - through
+        // this process's own port, or through the devup-mcp that holds it. With
+        // no plugin attached every call falls straight through to the remote
         // path, so opening the door costs nothing when nobody walks through.
-        let upstream: Arc<dyn FigmaUpstream> = match BridgeServer::from_env() {
+        let bridge = match bridge {
+            Bridge::FromEnvironment => BridgeServer::from_env_with(BridgeOptions {
+                build_id: Some(crate::build_id().to_owned()),
+                secret_path: None,
+            }),
+            Bridge::Off => None,
+        };
+        let upstream: Arc<dyn FigmaUpstream> = match bridge {
             Some(bridge) => Arc::new(FallbackUpstream::new(
                 BridgeFigmaClient::new(bridge.state()).with_port(bridge.port()),
                 remote,
@@ -341,14 +352,40 @@ impl DevupServer {
         roots: Vec<std::path::PathBuf>,
         figma_direct: crate::FigmaDirectConfig,
     ) -> Result<Self, DevupError> {
-        Self::with_output_roots(Services::production(figma_direct)?, roots)
+        Self::production_with_bridge(roots, figma_direct, Bridge::FromEnvironment)
     }
 
+    /// The production stack, with the Devup Bridge opened as `bridge` says.
+    pub fn production_with_bridge(
+        roots: Vec<std::path::PathBuf>,
+        figma_direct: crate::FigmaDirectConfig,
+        bridge: Bridge,
+    ) -> Result<Self, DevupError> {
+        Self::with_output_roots(Services::production(figma_direct, bridge)?, roots)
+    }
+
+    /// The production stack for use inside another process - a test, an
+    /// embedder - so the Devup Bridge stays shut: the plugin's port belongs
+    /// to the devup-mcp sessions the machine is running.
     pub fn production_with_output_roots(
         roots: Vec<std::path::PathBuf>,
     ) -> Result<Self, DevupError> {
-        Self::production_with_config(roots, crate::FigmaDirectConfig::default())
+        Self::production_with_bridge(roots, crate::FigmaDirectConfig::default(), Bridge::Off)
     }
+}
+
+/// Whether a production server opens the Devup Bridge.
+///
+/// Opening it binds the plugin's port, or reads through the devup-mcp that
+/// holds it - which is what a serving process should do, and exactly what a
+/// process that only checks its own configuration (`--self-check`) or a test
+/// building the stack in-process should not: port 1993 belongs to whatever
+/// sessions the machine runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bridge {
+    /// `DEVUP_FIGMA_BRIDGE_PORT` decides, as in a serving process.
+    FromEnvironment,
+    Off,
 }
 
 impl DevupServer {
@@ -542,11 +579,18 @@ impl DevupServer {
             return Ok(UpstreamResult { raw });
         }
 
+        // Only a read bound for the metered path is paced. One the Devup Bridge
+        // plugin answers spends none of Figma's allowance, and holding it to
+        // that pace made a second export on the same server sit out most of a
+        // minute for an allowance it was not using.
+        let metered = self.services.upstream.is_metered(&call).await;
         let mut attempt = 1;
         loop {
             // Before the call, not after the refusal: a collection that paces
             // itself under the ceiling rarely has to be waited out at all.
-            self.services.pacer.acquire().await;
+            if metered {
+                self.services.pacer.acquire().await;
+            }
             // Rate-limit pacing is deliberate waiting, not a stalled upstream
             // read. Bound each actual attempt without cancelling the retry policy.
             let read = self.services.upstream.call_read_tool(call.clone());
@@ -762,13 +806,25 @@ impl DevupServer {
                     json!({
                         "stage": "target-resolution",
                         "bridge": {
-                            "listening": bridge.is_some(),
+                            "listening": bridge
+                                .as_ref()
+                                .is_some_and(|bridge| bridge.role == BridgeRole::Host),
+                            "role": bridge.as_ref().map(|bridge| match bridge.role {
+                                BridgeRole::Host => "host",
+                                BridgeRole::Relay => "relay",
+                                BridgeRole::Connecting => "connecting",
+                                BridgeRole::Unavailable => "unavailable",
+                            }),
+                            "issue": bridge
+                                .as_ref()
+                                .and_then(|bridge| bridge.issue.as_ref())
+                                .map(|issue| issue.code()),
                             "port": bridge.as_ref().and_then(|bridge| bridge.port),
                             "attachedFiles": [],
                         },
                         "directAvailable": direct_available,
                         "nextAction": diagnostics::ways_to_open_a_path(
-                            bridge.is_some(),
+                            bridge.as_ref(),
                             direct_available,
                             retry,
                         ),
@@ -1207,7 +1263,7 @@ impl DevupServer {
                     .upstream
                     .bridge_path_snapshot()
                     .await
-                    .is_some_and(|bridge| !bridge.attached_files.is_empty());
+                    .is_some_and(|bridge| bridge.available());
                 self.services.auth.login().await.map_err(to_mcp_error)?;
                 let mut report = self.connection_report().await.map_err(to_mcp_error)?;
                 if bridge_attached {
