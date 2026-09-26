@@ -189,8 +189,10 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
   "paths": {
     "bridge": {
       "available": true,
-      "listening": true,
+      "role": "relay",
+      "listening": false,
       "port": 1993,
+      "host": { "pid": 32536, "version": "0.12.0", "buildId": "f1962d5", "thisProcess": false },
       "attachedFiles": [{
         "fileKey": null,
         "fileName": "Landing",
@@ -199,8 +201,8 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
         "selectionCount": 1,
         "fileKeyNote": "This plugin could not report its file key ..."
       }],
-      "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it. ...",
-      "reason": "A plugin is attached. ..."
+      "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them ...",
+      "reason": "Another devup-mcp on this machine (pid 32536, ...) holds the bridge port 1993 and the plugins attach to it; this process reads through it. ..."
     },
     "direct": {
       "available": false,
@@ -235,11 +237,21 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 연결을 "인증"과 떼어 놓으려고 별도 도구(`devup_figma_connection` 등)를 두는 방안도 검토했지만 두지 않았습니다. 도구가 하나 늘면 모든 클라이언트가 매 세션 그 스키마를 싣고, 이름을 바꾸면 기존 호출이 깨집니다. 대신 `devup_figma_auth`의 설명과 `status`의 응답이 두 경로를 먼저 말합니다.
 
-**경로는 둘이고 대등하지 않습니다.** `preferredPath`가 언제나 `bridge`인 이유입니다 — 브리지는 로그인도 필요 없고 Figma 한도도 쓰지 않습니다. `paths.bridge`의 세 상태는 고치는 방법이 서로 다르니 구분해서 읽어야 합니다.
+**경로는 둘이고 대등하지 않습니다.** `preferredPath`가 언제나 `bridge`인 이유입니다 — 브리지는 로그인도 필요 없고 Figma 한도도 쓰지 않습니다.
 
-- `listening: false` — 이 프로세스가 브리지 포트를 아예 잡지 못했습니다. `DEVUP_FIGMA_BRIDGE_PORT`가 `off`이거나, 다른 devup-mcp가 이미 그 포트를 쥐고 있는 경우입니다(MCP 클라이언트를 여러 개 띄우면 정상입니다). 플러그인을 아무리 실행해도 이 프로세스로는 오지 않습니다.
-- `listening: true`, `attachedFiles: []` — 문은 열려 있는데 아무도 들어오지 않았습니다. 대상 파일에서 `Devup Bridge` 플러그인을 실행하세요.
-- `attachedFiles`에 파일 키가 있음 — 정상 동작입니다. **이 상태면 로그인 없이 그 파일의 수집이 그대로 됩니다.**
+한 기기에 devup-mcp가 여럿 떠 있어도(MCP 클라이언트·세션마다 하나씩 뜨는 것이 정상입니다) **모두가 같은 플러그인을 씁니다.** 플러그인이 붙는 포트를 잡은 프로세스가 호스트가 되고, 나머지는 호스트를 통해 읽습니다. `paths.bridge.role`이 이 프로세스가 무엇을 하는지 말하고, 상태마다 고치는 방법이 다르니 구분해서 읽어야 합니다.
+
+| `role` | 뜻 | 할 일 |
+|---|---|---|
+| `host` | 이 프로세스가 포트를 쥐었고(`listening: true`) 플러그인이 여기에 붙습니다 | `attachedFiles`가 비어 있으면 대상 파일에서 `Devup Bridge` 플러그인을 실행하세요 |
+| `relay` | 다른 devup-mcp가 쥔 포트를 통해 읽습니다. `host`가 그 프로세스의 pid·버전·buildId입니다 | 호스트와 같습니다. `attachedFiles`는 어느 프로세스에서 보든 같습니다 |
+| `connecting` | 포트를 쥔 프로세스가 방금 떠나 이어받거나 다시 붙는 중입니다(`handoverFrom`이 떠난 프로세스) | 몇 초 뒤 `status`를 다시 부르세요. 플러그인은 2초마다 스스로 다시 붙습니다 |
+| `unavailable` | 이 프로세스는 지금 브리지를 쓸 수 없습니다. `issue`가 이유입니다 | `reason`과 `nextAction`의 첫 항목이 고치는 방법입니다 |
+| `off` | `DEVUP_FIGMA_BRIDGE_PORT`가 `off`/`0`이거나 포트 번호가 아닙니다 | 브리지를 쓰려면 그 값을 지우세요 |
+
+`issue`는 다음 중 하나입니다 — `legacy-host`(이 기능 이전의 devup-mcp가 포트를 쥐었습니다. 그 클라이언트를 재시작·갱신하면 이 프로세스가 스스로 이어받습니다), `foreign-program`(devup-mcp가 아닌 프로그램), `incompatible-protocol`(중계 규약의 판이 다른 devup-mcp — 틀린 답을 내느니 잇지 않습니다), `authentication-failed`(같은 사용자의 devup-mcp임을 증명하지 못함), `secret-unavailable`, `bind-failed`. 어느 경우든 `status`는 몇 초 안에 답하고 기다리지 않습니다.
+
+**`available: true`는 지금 실제로 읽기를 보낼 수 있을 때만입니다** — 플러그인이 보이고, 그것에 닿는 길(이 프로세스의 포트, 또는 포트를 쥔 프로세스와의 연결)이 있을 때. 이 상태면 로그인 없이 그 파일의 수집이 그대로 되고, 중계 프로세스에서도 로그인하라는 안내를 하지 않습니다.
 
 `paths.direct`의 세 필드는 **서로 다른 것**을 말하므로 함께 읽어야 합니다.
 
@@ -457,7 +469,8 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 
 #### 알아 두어야 할 것
 
-- **기본으로 켜져 있습니다.** devup-mcp는 시작할 때 `127.0.0.1:1993`에 대기하고, 그 포트를 잡지 못하면 조용히 원격 경로만 씁니다. 끄려면 `DEVUP_FIGMA_BRIDGE_PORT=off`.
+- **기본으로 켜져 있습니다.** devup-mcp는 시작할 때 `127.0.0.1:1993`에 대기합니다. 그 포트를 다른 devup-mcp가 이미 쥐고 있으면 그 프로세스를 통해 같은 플러그인을 읽고, 그 프로세스가 끝나면 남은 devup-mcp 가운데 하나가 포트를 이어받습니다(플러그인은 2초 안에 새 호스트에 다시 붙습니다). 끄려면 `DEVUP_FIGMA_BRIDGE_PORT=off`.
+- **여러 devup-mcp가 나눠 쓰는 것은 같은 사용자의 것끼리입니다.** 중계는 그 사용자만 읽을 수 있는 파일(Windows `%USERPROFILE%\AppData\Local\devup-mcp\bridge-relay.key`, macOS `~/Library/Application Support/devup-mcp/`, Linux `~/.local/state/devup-mcp/`)의 비밀값으로 서로를 증명해야 이어지고, 비밀값 자체는 연결로 오가지 않습니다. 브라우저 페이지처럼 `Origin`이 붙은 요청은 중계 문에서 거절됩니다.
 - **읽기 전용입니다.** 플러그인이 실행하는 스크립트는 **빌드 시점에 플러그인 안에 박혀 있고**, devup-mcp는 그중 어느 것을 실행할지 **이름만** 보냅니다. 소켓으로 코드가 오가지 않으며 Figma 문서를 바꾸는 호출은 존재하지 않습니다.
 - **이 기기에서만 됩니다.** 대기 주소는 `127.0.0.1`이라 다른 기기에서는 붙을 수 없고, 원격 CI에서는 브리지가 없으니 자동으로 원격 경로를 씁니다.
 - **파일은 한 번에 하나입니다.** 플러그인이 자기 파일 키를 보고하지 못하는 경우가 있어(Dev Mode 등), 키 없는 플러그인은 **혼자 붙어 있을 때만** 읽기를 받습니다. 두 개 이상이면 어느 파일인지 알 수 없으므로 원격 경로로 넘어갑니다.

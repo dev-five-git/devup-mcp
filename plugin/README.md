@@ -87,8 +87,30 @@ devup-mcp 쪽은 아무 설정도 필요 없습니다. 플러그인이 붙어 �
 문서를 바꾸는 호출을 포함하지 않습니다. 데이터는 같은 기기의 devup-mcp 로만
 나갑니다(`127.0.0.1`).
 
-**한 기기에서 devup-mcp 를 여러 개 띄우면** 먼저 뜬 쪽이 포트를 잡고, 나머지는
-브리지 없이 공식 MCP 로 동작합니다. 오류가 아니라 정상 동작입니다.
+**한 기기에서 devup-mcp 를 여러 개 띄우면** 모두가 같은 플러그인을 씁니다.
+MCP 클라이언트나 세션마다 devup-mcp 가 하나씩 뜨는 것은 정상입니다. 플러그인이
+붙을 수 있는 포트는 manifest 에 적힌 하나뿐이라 먼저 뜬 쪽(호스트)이 포트를 잡고
+플러그인을 받으며, 나머지는 호스트를 통해 읽습니다(중계). 플러그인 창은 하나면
+됩니다. `devup_figma_auth { "action": "status" }` 의 `paths.bridge.role` 이 이
+프로세스가 `host` 인지 `relay` 인지, `host` 가 포트를 쥔 프로세스(pid·버전·빌드)를
+알려 주며, `attachedFiles` 는 어느 프로세스에서 보든 같습니다.
+
+호스트를 띄운 세션이 끝나면 남은 devup-mcp 가운데 하나가 곧바로 포트를 이어받고,
+플러그인은 2초마다 다시 붙기를 시도하므로 그 새 호스트에 저절로 붙습니다. 사람이
+프로세스를 죽이거나 세션을 다시 띄울 필요가 없습니다. 이어받는 동안 status 는
+`role: "connecting"` 으로 그 상태를 그대로 보고합니다.
+
+중계는 같은 사용자의 devup-mcp 끼리만 이어집니다. 두 프로세스는 그 사용자만 읽을
+수 있는 파일(Windows `%USERPROFILE%\AppData\Local\devup-mcp\bridge-relay.key`,
+macOS `~/Library/Application Support/devup-mcp/`, Linux `~/.local/state/devup-mcp/`)
+의 비밀값으로 서로를 증명하고, 브라우저 페이지(`Origin` 이 붙은 요청)는 중계에
+붙을 수 없습니다.
+
+이 기능 **이전의 devup-mcp 가 포트를 잡고 있으면** 그 프로세스만 플러그인을 씁니다.
+나중에 뜬 새 devup-mcp 는 그 사실을 알아보고 status 의 `paths.bridge` 에
+`issue: "legacy-host"` 와 할 일 — 그 devup-mcp 를 띄운 클라이언트를 재시작하거나
+갱신하기 — 을 적으며, 그 프로세스가 끝나면 스스로 포트를 이어받습니다. devup-mcp
+가 아닌 프로그램이 포트를 잡은 경우는 `issue: "foreign-program"` 으로 따로 알립니다.
 
 **`ws://127.0.0.1` 은 쓸 수 없습니다.** Figma 는 `allowedDomains` 에 그 주소를 적으면
 "유효한 URL 이 아니다"라며 **매니페스트 자체를 거부**해 플러그인이 실행되지 않습니다.

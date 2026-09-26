@@ -42,11 +42,11 @@ use serde_json::{Value, json};
 
 use devup_mcp_devup_ui::theme::ThemeScope;
 use devup_mcp_figma::{
-    AuthStatus, BRIDGE_CURRENT_KEY, BridgeFigmaClient, BridgeServer, ClientCredentialSource,
-    ClientCredentials, CollectedParts, CollectedPayload, CollectionRequest, CollectionScope,
-    CollectorSession, CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME, DevupError,
-    DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode, ExploreReadOptions,
-    FallbackUpstream, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
+    AuthStatus, BRIDGE_CURRENT_KEY, BridgeFigmaClient, BridgeOptions, BridgeRole, BridgeServer,
+    ClientCredentialSource, ClientCredentials, CollectedParts, CollectedPayload, CollectionRequest,
+    CollectionScope, CollectorSession, CollectorStep, CredentialStore, DEFAULT_CLIENT_NAME,
+    DevupError, DirectPathSnapshot, ErrorCode, ExploreCandidate, ExploreKind, ExploreNode,
+    ExploreReadOptions, FallbackUpstream, FigmaTarget, FigmaUpstream, KeyringClientCredentialStore,
     KeyringCredentialStore, OAuthManager, ReadToolCall, RemoteFigmaClient, ResourceScope,
     SearchReadOptions, SecretString, SectionCandidate, SectionIndex, SectionReadOptions, Snapshot,
     SystemBrowser, TokenState, UpstreamResult,
@@ -275,10 +275,15 @@ impl Services {
             );
         }
         let remote = RemoteFigmaClient::new(oauth.clone());
-        // A script read goes to the bridge when one is listening. With no
-        // plugin attached every call falls straight through to the remote
+        // A script read goes to the bridge when a plugin is reachable - through
+        // this process's own port, or through the devup-mcp that holds it. With
+        // no plugin attached every call falls straight through to the remote
         // path, so opening the door costs nothing when nobody walks through.
-        let upstream: Arc<dyn FigmaUpstream> = match BridgeServer::from_env() {
+        let bridge = BridgeServer::from_env_with(BridgeOptions {
+            build_id: Some(crate::build_id().to_owned()),
+            secret_path: None,
+        });
+        let upstream: Arc<dyn FigmaUpstream> = match bridge {
             Some(bridge) => Arc::new(FallbackUpstream::new(
                 BridgeFigmaClient::new(bridge.state()).with_port(bridge.port()),
                 remote,
@@ -762,13 +767,25 @@ impl DevupServer {
                     json!({
                         "stage": "target-resolution",
                         "bridge": {
-                            "listening": bridge.is_some(),
+                            "listening": bridge
+                                .as_ref()
+                                .is_some_and(|bridge| bridge.role == BridgeRole::Host),
+                            "role": bridge.as_ref().map(|bridge| match bridge.role {
+                                BridgeRole::Host => "host",
+                                BridgeRole::Relay => "relay",
+                                BridgeRole::Connecting => "connecting",
+                                BridgeRole::Unavailable => "unavailable",
+                            }),
+                            "issue": bridge
+                                .as_ref()
+                                .and_then(|bridge| bridge.issue.as_ref())
+                                .map(|issue| issue.code()),
                             "port": bridge.as_ref().and_then(|bridge| bridge.port),
                             "attachedFiles": [],
                         },
                         "directAvailable": direct_available,
                         "nextAction": diagnostics::ways_to_open_a_path(
-                            bridge.is_some(),
+                            bridge.as_ref(),
                             direct_available,
                             retry,
                         ),
@@ -1207,7 +1224,7 @@ impl DevupServer {
                     .upstream
                     .bridge_path_snapshot()
                     .await
-                    .is_some_and(|bridge| !bridge.attached_files.is_empty());
+                    .is_some_and(|bridge| bridge.available());
                 self.services.auth.login().await.map_err(to_mcp_error)?;
                 let mut report = self.connection_report().await.map_err(to_mcp_error)?;
                 if bridge_attached {

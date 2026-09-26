@@ -106,6 +106,8 @@ struct RawStdioClient {
 impl RawStdioClient {
     fn spawn() -> anyhow::Result<Self> {
         let mut child = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+            // Port 1993 belongs to whatever sessions this machine runs.
+            .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())

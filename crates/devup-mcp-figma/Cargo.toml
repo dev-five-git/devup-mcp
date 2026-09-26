@@ -12,6 +12,10 @@ async-trait.workspace = true
 # `ws` 는 기본 기능이 아니다. 브리지가 플러그인을 받는 데 쓴다.
 axum = { workspace = true, features = ["ws"] }
 base64.workspace = true
+# 중계 연결의 WebSocket 클라이언트가 스트림으로 읽고 쓴다.
+futures-util.workspace = true
+# 중계 연결의 증명(HMAC-SHA256). sha2 와 같은 digest 세대다.
+hmac.workspace = true
 image.workspace = true
 keyring.workspace = true
 rand.workspace = true
@@ -23,6 +27,9 @@ serde_json.workspace = true
 sha2.workspace = true
 subtle.workspace = true
 tokio.workspace = true
+# 포트를 잡지 못한 프로세스가 잡은 프로세스에 붙는 클라이언트. 테스트의 가짜
+# 플러그인도 이것을 쓴다.
+tokio-tungstenite.workspace = true
 url.workspace = true
 unicode-normalization.workspace = true
 webbrowser.workspace = true
@@ -30,7 +37,3 @@ webbrowser.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 tempfile = "3"
-# 브리지 서버에 붙는 가짜 플러그인 역할. axum 의 `ws` 가 이미 끌어오는 것과 같은
-# 구현이라 의존성 트리가 늘지 않는다.
-tokio-tungstenite = "0.28"
-futures-util = "0.3"

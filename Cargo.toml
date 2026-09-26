@@ -21,6 +21,8 @@ axum = "0.8"
 base64 = "0.23"
 cap-std = "4.0.3"
 dunce = "1.0.5"
+futures-util = "0.3"
+hmac = "0.13"
 keyring = "4.2"
 insta = { version = "1.48.0", features = ["glob", "json"] }
 image = { version = "=0.25.10", default-features = false, features = ["png"] }
@@ -40,6 +42,9 @@ sha2 = "0.11"
 subtle = "2"
 syn = { version = "2.0.119", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
+# The version axum's `ws` feature already builds, so the bridge relay's client
+# and the tests' stand-in plugin add no second WebSocket implementation.
+tokio-tungstenite = "0.29"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 url = "2"

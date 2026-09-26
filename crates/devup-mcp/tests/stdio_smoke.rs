@@ -29,6 +29,9 @@ async fn send(stdin: &mut tokio::process::ChildStdin, value: Value) -> anyhow::R
 #[tokio::test]
 async fn fresh_binary_initializes_lists_tools_and_reports_auth_status() -> anyhow::Result<()> {
     let mut child = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        // Port 1993 belongs to whatever sessions this machine runs; a test
+        // binary must neither take it over nor read through its holder.
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -107,6 +110,7 @@ async fn fresh_binary_initializes_lists_tools_and_reports_auth_status() -> anyho
 #[tokio::test]
 async fn r7_local_binary_errors_all_carry_identity() -> anyhow::Result<()> {
     let mut child = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

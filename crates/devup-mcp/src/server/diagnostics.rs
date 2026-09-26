@@ -36,8 +36,8 @@
 //! Naming it as a path sent agents to a dead end, so it is named nowhere.
 
 use devup_mcp_figma::{
-    AttachedFile, AuthStatus, BridgePathSnapshot, ClientCredentialSource, DEFAULT_CLIENT_NAME,
-    DirectPathSnapshot, TokenState,
+    AttachedFile, AuthStatus, BridgeIssue, BridgePathSnapshot, BridgePeer, BridgeRole,
+    ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot, TokenState,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -70,15 +70,25 @@ pub fn connection_report(
     direct: &DirectPathSnapshot,
     bridge: Option<&BridgePathSnapshot>,
 ) -> Value {
-    let attached = bridge.map_or(&[][..], |bridge| bridge.attached_files.as_slice());
+    // Usable means a read can be sent now: a plugin is visible and there is a
+    // way to it - this process holds the port, or reads through the one that
+    // does. A relay whose host went away sees no plugin until it reconnects.
+    let usable = bridge.filter(|bridge| bridge.available());
+    let attached = usable.map_or(&[][..], |bridge| bridge.attached_files.as_slice());
     let direct_available = status == AuthStatus::Connected;
-    let active_path = if !attached.is_empty() {
+    let active_path = if usable.is_some() {
         Some(ActivePath::Bridge)
     } else if direct_available {
         Some(ActivePath::Direct)
     } else {
         None
     };
+    let bridge_blocked = bridge.is_some_and(|bridge| {
+        matches!(
+            bridge.role,
+            BridgeRole::Connecting | BridgeRole::Unavailable
+        )
+    });
     json!({
         "connected": active_path.is_some(),
         "status": if active_path.is_some() { "connected" } else { "disconnected" },
@@ -86,7 +96,7 @@ pub fn connection_report(
         "preferredPath": "bridge",
         "paths": {
             "bridge": bridge_path(bridge),
-            "direct": direct_path(status, direct, !attached.is_empty()),
+            "direct": direct_path(status, direct, usable.is_some()),
         },
         "nextAction": match active_path {
             Some(ActivePath::Bridge) => bridge_next_action(attached),
@@ -94,10 +104,14 @@ pub fn connection_report(
                 "tool": "devup_figma_export",
                 "arguments": { "url": FIGMA_LINK_PLACEHOLDER, "outputs": ["tsx"] },
                 "requiredArguments": ["url"],
-                "note": "Only the metered direct path is open, so an export needs the frame's Figma link. Running the Devup Bridge plugin on the file instead spends no allowance and makes url optional.",
+                "note": if bridge_blocked {
+                    "Only the metered direct path is open, so an export needs the frame's Figma link. The Devup Bridge cannot be used from this process right now; paths.bridge.reason says why and what would change it."
+                } else {
+                    "Only the metered direct path is open, so an export needs the frame's Figma link. Running the Devup Bridge plugin on the file instead spends no allowance and makes url optional."
+                },
             }),
             None => ways_to_open_a_path(
-                bridge.is_some(),
+                bridge,
                 false,
                 &json!({ "tool": "devup_figma_export", "arguments": { "outputs": ["tsx"] } }),
             ),
@@ -172,17 +186,23 @@ pub(super) fn several_plugins(attached: &[AttachedFile], retry: &Value) -> Value
 /// Shared by `status` and by the refusal of a call made without a url, so the
 /// two cannot recommend different things. `retry` is the call to make once a
 /// path is open, without url; the direct option adds the url it then needs.
-pub(super) fn ways_to_open_a_path(listening: bool, direct_available: bool, retry: &Value) -> Value {
+///
+/// The bridge option is whatever would open the bridge for *this* process.
+/// Running the plugin is that only while a way to the plugin exists - this
+/// process holds the port, or reads through the one that does. While the port
+/// is changing hands it is waiting a moment, and while something else holds
+/// the port it is the repair that names that holder.
+pub(super) fn ways_to_open_a_path(
+    bridge: Option<&BridgePathSnapshot>,
+    direct_available: bool,
+    retry: &Value,
+) -> Value {
     let mut with_url = retry.clone();
     with_url["arguments"]["url"] = json!(FIGMA_LINK_PLACEHOLDER);
     with_url["requiredArguments"] = json!(["url"]);
     let mut options = Vec::new();
-    if listening {
-        options.push(json!({
-            "path": "bridge",
-            "action": "In the Figma desktop app, open the file and run Plugins -> Development -> Devup Bridge (imported once from plugin/manifest.json), keeping its window open. No login is needed and no Figma allowance is spent.",
-            "then": retry,
-        }));
+    if let Some(bridge) = bridge {
+        options.push(bridge_option(bridge, retry));
     }
     options.push(if direct_available {
         let mut call = with_url;
@@ -197,13 +217,115 @@ pub(super) fn ways_to_open_a_path(listening: bool, direct_available: bool, retry
         })
     });
     json!({
-        "how": if listening {
-            "Open a path to Figma: run the Devup Bridge plugin (preferred - no login), or use the metered direct path with the frame's Figma link."
-        } else {
-            "This devup-mcp is not listening for the Devup Bridge plugin (see paths.bridge.reason), so only the metered direct path can open here: it needs the frame's Figma link."
+        "how": match bridge.map(|bridge| bridge.role) {
+            Some(BridgeRole::Host | BridgeRole::Relay) => {
+                "Open a path to Figma: run the Devup Bridge plugin (preferred - no login), or use the metered direct path with the frame's Figma link."
+            }
+            Some(BridgeRole::Connecting) => {
+                "The Devup Bridge port is changing hands (see paths.bridge.reason): call status again in a few seconds, or use the metered direct path with the frame's Figma link."
+            }
+            Some(BridgeRole::Unavailable) => {
+                "This devup-mcp cannot use the Devup Bridge right now (see paths.bridge.reason). The first option is what would change that; the metered direct path needs the frame's Figma link."
+            }
+            None => {
+                "This devup-mcp is not listening for the Devup Bridge plugin (see paths.bridge.reason), so only the metered direct path can open here: it needs the frame's Figma link."
+            }
         },
         "options": options,
     })
+}
+
+const RUN_THE_PLUGIN: &str = "In the Figma desktop app, open the file and run Plugins -> Development -> Devup Bridge (imported once from plugin/manifest.json), keeping its window open. No login is needed and no Figma allowance is spent.";
+
+/// How long the plugin waits before it connects again after its socket closed
+/// (`RETRY_MS` in plugin/src/ui.ts), said where a reader waits on it.
+const PLUGIN_REATTACH: &str = "about 2 seconds";
+
+fn status_again() -> Value {
+    json!({ "tool": "devup_figma_auth", "arguments": { "action": "status" } })
+}
+
+/// What would open the bridge for this process.
+fn bridge_option(bridge: &BridgePathSnapshot, retry: &Value) -> Value {
+    let port = port_text(bridge);
+    match bridge.role {
+        BridgeRole::Host | BridgeRole::Relay if bridge.handover_from.is_some() => json!({
+            "path": "bridge",
+            "action": format!("Wait a moment: the bridge port just changed hands, and the plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}. If no plugin appears, run Devup Bridge again on the file."),
+            "then": status_again(),
+        }),
+        BridgeRole::Host | BridgeRole::Relay => json!({
+            "path": "bridge",
+            "action": RUN_THE_PLUGIN,
+            "then": retry,
+        }),
+        BridgeRole::Connecting => json!({
+            "path": "bridge",
+            "action": format!("Wait a few seconds: the devup-mcp that held port {port} went away, this process is taking the port over or reconnecting, and the plugin reconnects on its own within {PLUGIN_REATTACH} of the new holder appearing."),
+            "then": status_again(),
+        }),
+        BridgeRole::Unavailable => json!({
+            "path": "bridge",
+            "action": repair(bridge),
+            "then": status_again(),
+        }),
+    }
+}
+
+fn port_text(bridge: &BridgePathSnapshot) -> String {
+    bridge
+        .port
+        .map_or_else(|| "<unknown>".to_owned(), |port| port.to_string())
+}
+
+/// How to find what holds the port, on each platform.
+fn find_the_holder(port: &str) -> String {
+    format!(
+        "find it with `netstat -ano | findstr :{port}` on Windows or `lsof -nP -iTCP:{port} -sTCP:LISTEN` on macOS and Linux"
+    )
+}
+
+/// Names a devup-mcp the way a person finds it in a process list.
+fn describe_peer(peer: &BridgePeer) -> String {
+    match &peer.build_id {
+        Some(build) => format!("pid {}, version {}, build {build}", peer.pid, peer.version),
+        None => format!("pid {}, version {}", peer.pid, peer.version),
+    }
+}
+
+fn holder_text(bridge: &BridgePathSnapshot) -> String {
+    bridge
+        .host
+        .as_ref()
+        .map_or_else(String::new, |host| format!(" ({})", describe_peer(host)))
+}
+
+/// The one step that would let this process use the bridge again.
+fn repair(bridge: &BridgePathSnapshot) -> String {
+    let port = port_text(bridge);
+    let holder = holder_text(bridge);
+    match &bridge.issue {
+        Some(BridgeIssue::LegacyHost) => format!(
+            "The devup-mcp holding port {port} predates bridge sharing, so this process cannot read through it: restart (or update) the MCP client session that started it - {}. Once it exits, this process takes the port over by itself and the plugin reconnects to it.",
+            find_the_holder(&port)
+        ),
+        Some(BridgeIssue::ForeignProgram { .. }) => format!(
+            "Stop the program holding port {port} - {}. The plugin's port is fixed by its manifest; once the port is free this process takes it over by itself.",
+            find_the_holder(&port)
+        ),
+        Some(BridgeIssue::IncompatibleProtocol { .. }) => format!(
+            "The devup-mcp holding port {port}{holder} and this one are different releases that cannot relay to each other: restart the MCP client session whose devup-mcp is older so both run the same release."
+        ),
+        Some(BridgeIssue::AuthenticationFailed { .. }) => format!(
+            "Run every devup-mcp on this machine as the same user with the same home directory (they prove themselves to each other with a per-user secret kept there), or restart the MCP client session holding port {port}{holder}."
+        ),
+        Some(BridgeIssue::SecretUnavailable { .. }) => format!(
+            "Make the per-user relay secret readable and writable for this user (see paths.bridge.reason), or restart the MCP client session holding port {port}{holder} so this process can take the port over."
+        ),
+        Some(BridgeIssue::BindFailed { .. }) | None => format!(
+            "Free port {port}, or change it in all three places the plugin's README names (the manifest's allowedDomains, src/code.ts and DEVUP_FIGMA_BRIDGE_PORT)."
+        ),
+    }
 }
 
 /// What `credentialSource` counts, said in the response rather than only in
@@ -289,41 +411,135 @@ fn direct_path(status: AuthStatus, direct: &DirectPathSnapshot, bridge_available
 /// listener never bound. Naming only the metered path made the metered path
 /// the only answer.
 ///
-/// Three states, and they are genuinely different repairs. `listening: false`
-/// means this process opened no bridge at all — the port was taken or it was
-/// switched off — and no amount of running the plugin will help until that is
-/// fixed. `listening: true` with nothing attached means the door is open and
-/// nobody walked through: run the plugin on the file. Files attached is the
-/// working state, and it names them, because a plugin open on the wrong file
-/// looks identical from the outside.
+/// The states are genuinely different repairs, so each says its own.
+///
+/// Only one devup-mcp on a machine can hold the port the plugin knows, and
+/// several run at once as a matter of course - one per MCP client session.
+/// The one holding it is the `host`; the others are `relay`s that read through
+/// it, and they see the same `attachedFiles`. A `relay` whose host just left
+/// is `connecting` while it takes the port over or finds whoever did. And
+/// `unavailable` names what holds the port when that cannot be read through:
+/// a devup-mcp from before sharing, another program, or a devup-mcp that
+/// cannot prove it runs for the same user - each with the step that would
+/// change it, rather than the generic "not listening" that left a session with
+/// no remedy but killing another session's process.
+///
+/// `listening` keeps its meaning: this process holds the port. `available` is
+/// the test for sending a read now: a plugin is visible and there is a way to
+/// it. The bridge needs no credential of any kind, so there is nothing else
+/// for it to be waiting on.
 fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
     let Some(bridge) = bridge else {
         return json!({
             "available": false,
+            "role": "off",
             "listening": false,
             "port": null,
+            "host": null,
             "attachedFiles": [],
-            "reason": "This process is not listening for the bridge plugin. Either DEVUP_FIGMA_BRIDGE_PORT is off/0, or the port was already taken — another devup-mcp on this machine holds it, which is normal when several MCP clients run at once. Only that process can serve the bridge; this one can use the metered direct path only.",
+            "reason": "This process is not using the bridge plugin: DEVUP_FIGMA_BRIDGE_PORT is off or 0, or is not a port number. Unset it, or set it to the port in the plugin's manifest, to use the bridge; this process can use the metered direct path only.",
         });
     };
-    let attached = !bridge.attached_files.is_empty();
-    json!({
-        // Attached is the whole test. The bridge needs no credential of any
-        // kind, so there is nothing else for it to be waiting on.
-        "available": attached,
-        "listening": true,
+    let mut path = json!({
+        "available": bridge.available(),
+        "role": role_name(bridge.role),
+        "listening": bridge.role == BridgeRole::Host,
         "port": bridge.port,
+        "host": bridge.host.as_ref().map(|host| peer(host, bridge.role == BridgeRole::Host)),
         "attachedFiles": bridge.attached_files.iter().map(attached_file).collect::<Vec<_>>(),
-        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it. fileKey is null for a plugin that could not report it (seen in Dev Mode); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
-        "reason": if attached {
-            "A plugin is attached. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login. With exactly one attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url: they read the file it has open, and export and explore start from the node selected in Figma.".to_owned()
-        } else {
-            format!(
-                "The bridge is listening on 127.0.0.1:{} but no plugin is attached, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json). The bridge works only while that plugin window stays open. If the indicator stays grey, the port in the plugin's manifest allowedDomains and the port here must match.",
-                bridge.port.map_or_else(|| "<unknown>".to_owned(), |port| port.to_string()),
-            )
-        },
+        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (seen in Dev Mode); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "reason": bridge_reason(bridge),
+    });
+    if let Some(issue) = &bridge.issue {
+        path["issue"] = json!(issue.code());
+    }
+    if let Some(previous) = &bridge.handover_from {
+        path["handoverFrom"] = peer(previous, false);
+    }
+    path
+}
+
+fn role_name(role: BridgeRole) -> &'static str {
+    match role {
+        BridgeRole::Host => "host",
+        BridgeRole::Relay => "relay",
+        BridgeRole::Connecting => "connecting",
+        BridgeRole::Unavailable => "unavailable",
+    }
+}
+
+fn peer(peer: &BridgePeer, this_process: bool) -> Value {
+    json!({
+        "pid": peer.pid,
+        "version": peer.version,
+        "buildId": peer.build_id,
+        "thisProcess": this_process,
     })
+}
+
+const SERVED_WITH_ONE_PLUGIN: &str = "With exactly one attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url: they read the file it has open, and export and explore start from the node selected in Figma.";
+
+fn bridge_reason(bridge: &BridgePathSnapshot) -> String {
+    let port = port_text(bridge);
+    let holder = holder_text(bridge);
+    let attached = !bridge.attached_files.is_empty();
+    let left = bridge
+        .handover_from
+        .as_ref()
+        .map(|previous| format!(" (pid {})", previous.pid))
+        .unwrap_or_default();
+    match (bridge.role, &bridge.issue) {
+        (BridgeRole::Host, _) if attached => format!(
+            "A plugin is attached to this process, which holds the bridge port {port}. Reads for the files listed in attachedFiles are served through it, spending no Figma allowance and needing no login; other devup-mcp processes on this machine read through this one. {SERVED_WITH_ONE_PLUGIN}"
+        ),
+        (BridgeRole::Relay, _) if attached => format!(
+            "Another devup-mcp on this machine{holder} holds the bridge port {port} and the plugins attach to it; this process reads through it. Reads for the files listed in attachedFiles spend no Figma allowance and need no login. {SERVED_WITH_ONE_PLUGIN}"
+        ),
+        (BridgeRole::Host, _) if bridge.handover_from.is_some() => format!(
+            "This process took the bridge port {port} over moments ago from the devup-mcp that held it{left}, which exited. The plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}; call status again shortly. If no plugin appears, run Devup Bridge again on the file."
+        ),
+        (BridgeRole::Relay, _) if bridge.handover_from.is_some() => format!(
+            "The devup-mcp that held the bridge port {port}{left} exited, and another{holder} took the port over; this process now reads through it. The plugin window that was attached reconnects on its own within {PLUGIN_REATTACH}; call status again shortly. If no plugin appears, run Devup Bridge again on the file."
+        ),
+        (BridgeRole::Host, _) => format!(
+            "The bridge is listening on 127.0.0.1:{port} but no plugin is attached, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json). The bridge works only while that plugin window stays open. If the indicator stays grey, the port in the plugin's manifest allowedDomains and the port here must match."
+        ),
+        (BridgeRole::Relay, _) => format!(
+            "Another devup-mcp on this machine{holder} holds the bridge port {port}, and this process reads through it, but no plugin is attached there, so every read falls through to the metered direct path. Open the target file in the Figma desktop app and run the Devup Bridge plugin (Plugins -> Development -> Import plugin from manifest... once, using plugin/manifest.json); it attaches to that process, and every devup-mcp on this machine can then read through it."
+        ),
+        (BridgeRole::Connecting, _) if bridge.handover_from.is_some() => format!(
+            "The devup-mcp that held the bridge port {port}{left} went away. This process is taking the port over, or reconnecting to whichever process did; the plugin reconnects on its own within {PLUGIN_REATTACH} of the new holder appearing. Nothing can be read through the bridge until then - call status again in a few seconds."
+        ),
+        (BridgeRole::Connecting, _) => format!(
+            "This process is still finding out which devup-mcp holds the bridge port {port}. Call status again in a moment."
+        ),
+        (BridgeRole::Unavailable, Some(BridgeIssue::LegacyHost)) => format!(
+            "Port {port} is held by a devup-mcp built before the bridge could be shared: it serves the plugin on /plugin but has no relay endpoint, so only that process can use the plugin and this one cannot read through it. It cannot say which process it is; {}. To use the bridge here, restart (or update) the MCP client session that started it. This process keeps checking, and takes the port over by itself once that process exits.",
+            find_the_holder(&port)
+        ),
+        (BridgeRole::Unavailable, Some(BridgeIssue::ForeignProgram { detail })) => format!(
+            "Port {port} is held by a program that is not a devup-mcp ({detail}), so the plugin cannot reach any devup-mcp on this machine. Stop that program - {}. This process keeps checking, and takes the port over by itself once it is free.",
+            find_the_holder(&port)
+        ),
+        (BridgeRole::Unavailable, Some(BridgeIssue::IncompatibleProtocol { theirs, ours })) => {
+            format!(
+                "Port {port} is held by a devup-mcp{holder} that speaks bridge relay protocol {}, and this one speaks {ours}. Rather than risk a wrong answer, this process does not read through it. Restart the MCP client session whose devup-mcp is older so both run the same release.",
+                theirs.map_or_else(|| "<unstated>".to_owned(), |version| version.to_string())
+            )
+        }
+        (BridgeRole::Unavailable, Some(BridgeIssue::AuthenticationFailed { detail })) => format!(
+            "Port {port} is held by a process{holder} that could not be verified as this user's devup-mcp ({detail}). Relaying needs both processes to read the same per-user secret file, so a devup-mcp run as another user or with another home directory cannot share the bridge, and this process does not read through it."
+        ),
+        (BridgeRole::Unavailable, Some(BridgeIssue::SecretUnavailable { detail })) => format!(
+            "Another process{holder} holds the bridge port {port}, but this process could not read or create the per-user relay secret it proves itself with ({detail}), so it cannot read through it."
+        ),
+        (BridgeRole::Unavailable, Some(BridgeIssue::BindFailed { detail })) => format!(
+            "This process cannot open the bridge port {port} ({detail}), and nothing is listening on it."
+        ),
+        (BridgeRole::Unavailable, None) => {
+            format!("This process cannot use the bridge port {port} right now.")
+        }
+    }
 }
 
 /// One attached plugin as the caller reads it. The key a read is routed by
@@ -504,10 +720,7 @@ mod tests {
         let idle = doctor_report(
             AuthStatus::Disconnected,
             absent_direct_snapshot(),
-            Some(BridgePathSnapshot {
-                port: Some(1993),
-                attached_files: vec![],
-            }),
+            Some(bridge_with(vec![])),
         )
         .await;
         assert_eq!(idle["paths"]["bridge"]["listening"], true);
@@ -560,11 +773,96 @@ mod tests {
         }
     }
 
+    fn this_process() -> BridgePeer {
+        BridgePeer {
+            pid: 4242,
+            version: "0.12.0".to_owned(),
+            build_id: Some("abc1234".to_owned()),
+        }
+    }
+
+    /// This process holds the port.
     fn bridge_with(attached_files: Vec<AttachedFile>) -> BridgePathSnapshot {
         BridgePathSnapshot {
             port: Some(1993),
             attached_files,
+            role: BridgeRole::Host,
+            host: Some(this_process()),
+            issue: None,
+            handover_from: None,
         }
+    }
+
+    /// The states a process that did not get the port has to report as they
+    /// are: reading through the holder, finding out who took over, or unable
+    /// to use the bridge - and none of them may be answered with "log in"
+    /// ahead of the step that repairs the bridge.
+    #[test]
+    fn a_process_without_the_port_says_what_it_is_doing_about_it() {
+        let holder = BridgePeer {
+            pid: 32536,
+            ..this_process()
+        };
+        let relay = connection_report(
+            AuthStatus::Disconnected,
+            &absent_direct_snapshot(),
+            Some(&BridgePathSnapshot {
+                role: BridgeRole::Relay,
+                host: Some(holder.clone()),
+                ..bridge_with(vec![attached(None, Some(1))])
+            }),
+        );
+        let bridge = &relay["paths"]["bridge"];
+        assert_eq!(relay["activePath"], "bridge");
+        assert_eq!(bridge["role"], "relay");
+        assert_eq!(bridge["available"], true);
+        assert_eq!(bridge["listening"], false);
+        assert_eq!(bridge["host"]["pid"], 32536);
+        assert_eq!(bridge["host"]["buildId"], "abc1234");
+        assert_eq!(bridge["host"]["thisProcess"], false);
+        assert!(!relay.to_string().contains("disconnected"), "{relay}");
+        assert!(relay["nextAction"]["arguments"].get("url").is_none());
+
+        let handing_over = connection_report(
+            AuthStatus::Disconnected,
+            &absent_direct_snapshot(),
+            Some(&BridgePathSnapshot {
+                role: BridgeRole::Connecting,
+                host: None,
+                handover_from: Some(holder.clone()),
+                ..bridge_with(vec![])
+            }),
+        );
+        let bridge = &handing_over["paths"]["bridge"];
+        assert_eq!(bridge["role"], "connecting");
+        assert_eq!(bridge["available"], false);
+        assert_eq!(bridge["handoverFrom"]["pid"], 32536);
+        assert!(bridge["reason"].as_str().unwrap().contains("32536"));
+        let options = handing_over["nextAction"]["options"].as_array().unwrap();
+        assert_eq!(options[0]["path"], "bridge");
+        assert_eq!(options[0]["then"]["arguments"]["action"], "status");
+        assert_eq!(options[1]["path"], "direct");
+
+        let legacy = connection_report(
+            AuthStatus::Disconnected,
+            &absent_direct_snapshot(),
+            Some(&BridgePathSnapshot {
+                role: BridgeRole::Unavailable,
+                host: None,
+                issue: Some(BridgeIssue::LegacyHost),
+                ..bridge_with(vec![])
+            }),
+        );
+        let bridge = &legacy["paths"]["bridge"];
+        assert_eq!(bridge["issue"], "legacy-host");
+        assert!(bridge["host"].is_null());
+        assert!(bridge["reason"].as_str().unwrap().contains("restart"));
+        let options = legacy["nextAction"]["options"].as_array().unwrap();
+        assert!(
+            options[0]["action"].as_str().unwrap().contains(":1993"),
+            "the repair says how to find the holder: {}",
+            options[0]
+        );
     }
 
     /// The three states `status` has to tell apart. `disconnected` is the

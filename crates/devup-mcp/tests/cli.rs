@@ -120,6 +120,8 @@ fn version_build_id_reports_the_repository_dirty_state() {
 fn self_check_is_local_safe_json() -> anyhow::Result<()> {
     let output = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
         .arg("--self-check")
+        // Port 1993 belongs to whatever sessions this machine runs.
+        .env("DEVUP_FIGMA_BRIDGE_PORT", "off")
         .output()
         .expect("run devup-mcp --self-check");
 
