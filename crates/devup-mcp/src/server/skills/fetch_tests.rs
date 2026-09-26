@@ -208,6 +208,31 @@ async fn the_entire_install_has_one_four_second_fetch_budget() {
     std::fs::remove_dir_all(project).unwrap();
 }
 
+/// The budget is for waiting on upstream. Writing what was fetched is local
+/// work, and a slow disk used to spend the budget on it: on a slow Windows
+/// runner the later skills of an install reported the budget elapsed - never
+/// having asked upstream - instead of why they really could not be fetched.
+#[tokio::test(start_paused = true)]
+async fn time_spent_between_fetches_is_not_charged_to_the_fetch_budget() {
+    let skill = find_by_name("devup-ui").unwrap();
+    let offline = SkillFetchError::Network("DEVUP_MCP_SKILLS_OFFLINE disables fetching".to_owned());
+    let upstream = FakeUpstream::new(Err(offline.clone()));
+    let mut budget = FETCH_TIMEOUT;
+    // Staging the skills before this one took longer than the whole budget.
+    tokio::time::advance(FETCH_TIMEOUT * 2).await;
+    let (_, error) = skill
+        .fetch_documents(&upstream, &mut budget)
+        .await
+        .err()
+        .unwrap();
+    assert_eq!(error, offline);
+    assert_eq!(upstream.urls.lock().unwrap().len(), 1, "upstream was asked");
+    assert_eq!(
+        budget, FETCH_TIMEOUT,
+        "an answer that came at once cost nothing"
+    );
+}
+
 #[tokio::test]
 async fn nested_upstream_documents_are_fetched_whole_and_references_stay_byte_exact() {
     let mut record = find_by_name("devup-ui").unwrap().record.clone();
@@ -225,10 +250,8 @@ async fn nested_upstream_documents_are_fetched_whole_and_references_stay_byte_ex
         contents: b"# current\n".to_vec(),
         etag: "current".to_owned(),
     }));
-    let result = skill
-        .fetch_documents(&upstream, tokio::time::Instant::now() + FETCH_TIMEOUT)
-        .await
-        .unwrap();
+    let mut budget = FETCH_TIMEOUT;
+    let result = skill.fetch_documents(&upstream, &mut budget).await.unwrap();
     assert_eq!(result.documents.len(), 2);
     assert!(result.documents[0].1.contains("Fetched from"));
     assert_eq!(result.documents[1].1, "# current\n");
@@ -255,11 +278,9 @@ async fn nested_upstream_documents_are_fetched_whole_and_references_stay_byte_ex
         }
     }
     // The caller receives an error, never a partial set to mix with the binary.
+    let mut budget = FETCH_TIMEOUT;
     let failure = skill
-        .fetch_documents(
-            &MissingReference,
-            tokio::time::Instant::now() + FETCH_TIMEOUT,
-        )
+        .fetch_documents(&MissingReference, &mut budget)
         .await
         .err()
         .unwrap();
