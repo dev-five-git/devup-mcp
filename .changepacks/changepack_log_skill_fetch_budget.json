@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "devup_skills install could report that its four-second fetch budget had elapsed for skills whose upstream it never asked. The budget was one deadline for the whole install, so the time spent writing each skill's files counted against it: on a slow disk the later skills gave up before fetching and fell back to the embedded copy with a misleading reason - even with DEVUP_MCP_SKILLS_OFFLINE set, where the real reason is that fetching is disabled. The budget now covers only the time spent waiting on upstream, as documented, so every skill is still offered to upstream and each one reports why it was or was not fetched. The same timing made the skills install test fail intermittently on slow Windows runners.",
-  "date": "2026-09-26T18:40:19.654660Z"
-}
