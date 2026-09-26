@@ -177,6 +177,14 @@ impl Server {
         anyhow::ensure!(!failed, "{output}");
         Ok(output)
     }
+
+    /// Ends this devup-mcp and waits until it has exited. Dropping it only
+    /// starts the kill, and Windows will not remove a directory that a
+    /// running process has as its current one - every run used to leave its
+    /// scratch directories behind.
+    async fn stop(mut self) {
+        let _ = self.child.kill().await;
+    }
 }
 
 fn scratch_home() -> PathBuf {
@@ -460,7 +468,8 @@ async fn every_process_reads_through_the_bridge_and_the_port_passes_on_when_its_
         "the handover must finish within {DEADLINE:?}"
     );
 
-    drop((second, third));
+    second.stop().await;
+    third.stop().await;
     for directory in homes.iter().chain([&profile]) {
         let _ = std::fs::remove_dir_all(directory);
     }
@@ -510,7 +519,7 @@ async fn a_collection_under_way_when_the_holder_exits_finishes_through_the_next_
          the port over (the stand-in plugin retries every {PLUGIN_RETRY:?})"
     );
 
-    drop(reader);
+    reader.stop().await;
     for directory in homes.iter().chain([&profile]) {
         let _ = std::fs::remove_dir_all(directory);
     }

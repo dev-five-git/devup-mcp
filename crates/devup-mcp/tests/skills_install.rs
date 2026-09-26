@@ -142,7 +142,8 @@ async fn a_bare_workspace_reports_the_gap_and_one_call_closes_it() -> anyhow::Re
                 entry["reason"]
                     .as_str()
                     .unwrap()
-                    .contains("DEVUP_MCP_SKILLS_OFFLINE")
+                    .contains("DEVUP_MCP_SKILLS_OFFLINE"),
+                "{entry}"
             );
         }
         let paths = entry["paths"]

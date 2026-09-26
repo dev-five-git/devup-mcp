@@ -818,10 +818,13 @@ impl Skill {
 
     /// Resolve the complete set before staging any of it. One failed reference
     /// must not leave a new entry document next to old embedded references.
+    ///
+    /// `budget` is what is left of the install's time for waiting on
+    /// upstream, and only that waiting is taken from it.
     async fn fetch_documents(
         &self,
         upstream: &dyn SkillUpstream,
-        deadline: tokio::time::Instant,
+        budget: &mut std::time::Duration,
     ) -> Result<FetchedDocuments, (String, SkillFetchError)> {
         let mut documents = Vec::new();
         let mut provenance = Vec::new();
@@ -832,11 +835,13 @@ impl Skill {
                     "the four-second skill install fetch budget elapsed".to_owned(),
                 )
             };
-            if tokio::time::Instant::now() >= deadline {
+            if budget.is_zero() {
                 return Err((url, timeout_error()));
             }
-            let fetched = tokio::time::timeout_at(deadline, upstream.fetch(&url))
-                .await
+            let asked = tokio::time::Instant::now();
+            let answer = tokio::time::timeout(*budget, upstream.fetch(&url)).await;
+            *budget = budget.saturating_sub(asked.elapsed());
+            let fetched = answer
                 .unwrap_or_else(|_| Err(timeout_error()))
                 .map_err(|error| (url.clone(), error))?;
             let text = std::str::from_utf8(&fetched.contents).map_err(|error| {
@@ -1467,8 +1472,12 @@ async fn install_with(
     let mut refreshed = Vec::new();
     let mut left_alone = Vec::new();
     let mut warnings = Vec::new();
-    // One budget for the call, not four seconds multiplied by the registry.
-    let deadline = tokio::time::Instant::now() + FETCH_TIMEOUT;
+    // One budget for the call, not four seconds multiplied by the registry -
+    // and for waiting on upstream only. Writing what was fetched is local
+    // work: charged too, a slow disk spent the budget, and the later skills
+    // reported it elapsed without ever asking upstream, instead of why they
+    // really could not be fetched.
+    let mut budget = FETCH_TIMEOUT;
     for skill in wanted
         .iter()
         .filter(|skill| skill.record.origin.is_carried())
@@ -1515,7 +1524,7 @@ async fn install_with(
                 &mut transaction,
                 skill,
                 upstream,
-                deadline,
+                &mut budget,
                 &refreshable
                     .iter()
                     .filter_map(|path| Some(path.parent()?.parent()?.to_path_buf()))
@@ -1532,7 +1541,7 @@ async fn install_with(
             &mut transaction,
             skill,
             upstream,
-            deadline,
+            &mut budget,
             &roots,
             &project,
             &mut warnings,
@@ -1579,7 +1588,7 @@ async fn stage_documents(
     transaction: &mut super::output::OutputTransaction,
     skill: &Skill,
     upstream: &dyn SkillUpstream,
-    deadline: tokio::time::Instant,
+    budget: &mut std::time::Duration,
     roots: &[PathBuf],
     project: &Path,
     warnings: &mut Vec<serde_json::Value>,
@@ -1595,7 +1604,7 @@ async fn stage_documents(
     let mut reason = Some("authored in this repository; no upstream".to_owned());
     let mut provenance = Vec::new();
     if skill.record.origin == Origin::Embedded {
-        match skill.fetch_documents(upstream, deadline).await {
+        match skill.fetch_documents(upstream, budget).await {
             Ok(fetched) => {
                 documents = fetched.documents;
                 provenance = fetched.provenance;
