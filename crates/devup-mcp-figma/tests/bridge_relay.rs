@@ -342,48 +342,71 @@ async fn a_held_port_is_never_bound_twice() {
     );
 }
 
+fn keyed_hello() -> Value {
+    json!({
+        "kind": "hello", "fileKey": FILE_KEY, "fileName": "Landing",
+        "currentPage": { "id": "0:1", "name": "Page 1" },
+        "selection": [], "selectionCount": 0,
+    })
+}
+
 /// `plugin/src/ui.ts` 처럼 소켓이 닫히면 다시 붙는 플러그인. 받은 작업마다 물은
 /// 노드를 담아 곧장 답한다. 테스트가 빨리 끝나도록 재시도 간격만 줄였다.
-fn reconnecting_plugin(port: u16) {
+///
+/// `hold_first` 면 처음 붙은 연결에서 받은 첫 작업에는 답하지 않고 붙들고 있다가,
+/// 그 사실을 알린다 — 호스트가 떠날 때 진행 중이던 읽기를 흉내 낸다.
+fn plugin_saying(
+    port: u16,
+    hello: Value,
+    hold_first: bool,
+) -> tokio::sync::oneshot::Receiver<Value> {
+    let (held, holding) = tokio::sync::oneshot::channel();
     tokio::spawn(async move {
+        let mut held = hold_first.then_some(held);
         loop {
             if let Ok((mut socket, _)) =
                 connect_async(format!("ws://127.0.0.1:{port}/plugin")).await
-            {
-                let hello = json!({
-                    "kind": "hello", "fileKey": FILE_KEY, "fileName": "Landing",
-                    "currentPage": { "id": "0:1", "name": "Page 1" },
-                    "selection": [], "selectionCount": 0,
-                });
-                if socket
+                && socket
                     .send(Message::Text(hello.to_string().into()))
                     .await
                     .is_ok()
-                {
-                    while let Some(Ok(message)) = socket.next().await {
-                        let Message::Text(text) = message else {
-                            continue;
-                        };
-                        let job: Value = serde_json::from_str(&text).expect("a job is JSON");
-                        let data = json!({
-                            "fileKey": FILE_KEY, "nodes": [{ "id": job["params"]["nodeId"] }]
-                        });
-                        let result = json!({
-                            "kind": "devup-result", "requestId": job["requestId"], "data": data
-                        });
-                        if socket
-                            .send(Message::Text(result.to_string().into()))
-                            .await
-                            .is_err()
-                        {
-                            break;
-                        }
+            {
+                while let Some(Ok(message)) = socket.next().await {
+                    let Message::Text(text) = message else {
+                        continue;
+                    };
+                    let job: Value = serde_json::from_str(&text).expect("a job is JSON");
+                    if job["kind"] != "devup-job" {
+                        continue;
+                    }
+                    if let Some(held) = held.take() {
+                        let _ = held.send(job);
+                        continue;
+                    }
+                    let data = json!({
+                        "fileKey": FILE_KEY, "nodes": [{ "id": job["params"]["nodeId"] }]
+                    });
+                    let result = json!({
+                        "kind": "devup-result", "requestId": job["requestId"], "data": data
+                    });
+                    if socket
+                        .send(Message::Text(result.to_string().into()))
+                        .await
+                        .is_err()
+                    {
+                        break;
                     }
                 }
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     });
+    holding
+}
+
+fn reconnecting_plugin(port: u16) {
+    // Nothing is held, so there is nothing to wait for.
+    drop(plugin_saying(port, keyed_hello(), false));
 }
 
 async fn role_of(client: &BridgeFigmaClient) -> (BridgeRole, bool) {
@@ -443,14 +466,16 @@ async fn when_the_holder_goes_away_exactly_one_remaining_process_takes_the_port_
     }
 }
 
-/// 호스트가 떠날 때 진행 중이던 읽기는 90초를 기다리지 않고 곧장 실패한다. 이유를
-/// 말하고, 다시 부르면 된다는 것도 말한다.
+/// 호스트가 떠날 때 진행 중이던 읽기는 실패로 끝나지 않는다. 읽기는 문서를 바꾸지
+/// 않으므로 다시 보내도 된다 — 포트를 이어받은 쪽에 플러그인이 다시 붙으면 그리로
+/// 다시 보내고, 호출자는 인계가 있었는지 모른 채 답을 받는다. 수집 한가운데서
+/// 호스트 세션이 끝나도 그 수집은 이어진다.
 #[tokio::test]
-async fn a_read_in_flight_when_the_holder_leaves_fails_at_once() {
+async fn a_read_in_flight_when_the_holder_leaves_is_answered_through_the_next_holder() {
     let host = BridgeServer::start(0).expect("an ephemeral port is free");
     let port = host.port();
     let relay = second_process_on(port);
-    let mut plugin = plugin(port).await;
+    let holding = plugin_saying(port, keyed_hello(), true);
     sees_the_plugin(&relay).await;
 
     let client = BridgeFigmaClient::new(relay.state()).with_port(port);
@@ -459,20 +484,146 @@ async fn a_read_in_flight_when_the_holder_leaves_fails_at_once() {
             .call_read_tool(ReadToolCall::fast_snapshot(FILE_KEY, "1:2"))
             .await
     });
-    let _job = next_text(&mut plugin).await;
+    let held = tokio::time::timeout(DEADLINE, holding)
+        .await
+        .expect("the read reaches the plugin")
+        .expect("the plugin reports the read it holds");
+    assert_eq!(held["params"]["nodeId"], "1:2");
     host.shutdown();
+
+    let result = tokio::time::timeout(DEADLINE, reading)
+        .await
+        .expect("the read ends well within its 90 seconds")
+        .expect("the read task finishes")
+        .expect("the read is answered through the process that took the port over");
+    let text = result.raw["content"][0]["text"].as_str().unwrap();
+    let payload: Value = serde_json::from_str(text).unwrap();
+    assert_eq!(payload["nodes"][0]["id"], "1:2");
+}
+
+/// 파일 키를 보고하지 못한 플러그인(Dev Mode)은 연결마다 매긴 키로 불린다. 호스트가
+/// 바뀌면 그 키도 바뀌어, 수집 도중에 호스트가 떠나면 남은 읽기가 갈 곳을 잃었다.
+/// 플러그인이 창마다 한 번 정한 `sessionId` 를 보내면, 키가 그것에서 나와 인계를
+/// 건너서도 같다.
+#[tokio::test]
+async fn a_keyless_plugin_that_names_its_session_keeps_its_key_across_a_handover() {
+    let host = BridgeServer::start(0).expect("an ephemeral port is free");
+    let port = host.port();
+    let relay = second_process_on(port);
+    drop(plugin_saying(
+        port,
+        json!({
+            "kind": "hello", "fileKey": null, "fileName": "Landing",
+            "sessionId": "5a3c0f6e2d9b41c7a8e1f0b2c3d4e5f6",
+            "currentPage": { "id": "0:1", "name": "Page 1" },
+            "selection": [], "selectionCount": 0,
+        }),
+        false,
+    ));
+    let state = relay.state();
+    eventually("the keyless plugin to show up through the holder", || {
+        let state = state.clone();
+        async move { state.attached_files().await.len() == 1 }
+    })
+    .await;
+    let before = state.attached_files().await[0].target_key.clone();
+    assert!(devup_mcp_figma::is_bridge_only_key(&before), "{before}");
+
+    host.shutdown();
+    let client = BridgeFigmaClient::new(relay.state()).with_port(port);
+    eventually(
+        "the plugin to re-attach to the process that took over",
+        || {
+            let client = &client;
+            async move { role_of(client).await == (BridgeRole::Host, true) }
+        },
+    )
+    .await;
+    let after = state.attached_files().await[0].target_key.clone();
+    assert_eq!(
+        after, before,
+        "the key a collection holds survives the handover"
+    );
+
+    let result = client
+        .call_read_tool(ReadToolCall::fast_snapshot(before, "1:2"))
+        .await
+        .expect("a read addressed before the handover still arrives");
+    let text = result.raw["content"][0]["text"].as_str().unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(text).unwrap()["nodes"][0]["id"],
+        "1:2"
+    );
+}
+
+/// 플러그인이 읽기 도중 끊겼다가 돌아오지 않으면, 그 읽기는 90초를 기다리지 않고
+/// 곧 실패한다. 돌아올 틈은 준다 — 플러그인은 2초마다 다시 붙는다.
+#[tokio::test]
+async fn a_read_whose_plugin_leaves_and_does_not_return_fails_well_before_its_timeout() {
+    let host = BridgeServer::start(0).expect("an ephemeral port is free");
+    let port = host.port();
+    let mut plugin = plugin(port).await;
+    sees_the_plugin(&host).await;
+
+    let client = BridgeFigmaClient::new(host.state()).with_port(port);
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::fast_snapshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let _job = next_text(&mut plugin).await;
+    drop(plugin);
 
     let error = tokio::time::timeout(DEADLINE, reading)
         .await
         .expect("the read ends without waiting out its 90 seconds")
         .expect("the read task finishes")
-        .expect_err("the process that held the port is gone");
-    assert!(error.message.contains("went away"), "{}", error.message);
+        .expect_err("no plugin came back to answer it");
+    assert!(error.message.contains("disconnected"), "{}", error.message);
 }
 
-/// 읽기를 맡긴 프로세스가 사라지면 호스트는 그 읽기를 거둔다. 플러그인에는 취소를
-/// 보낼 길이 없어 작업은 끝까지 돌지만, 늦게 온 답은 누구에게도 가지 않고 대기표도
-/// 남지 않는다.
+/// 플러그인이 붙는 문은 Figma 플러그인 창의 요청만 받는다. 플러그인 UI 는 origin 이
+/// `null` 인 iframe 에서 돈다(Figma 문서 "Making Network Requests"). 여느 웹 페이지는
+/// 제 origin 을 실어 보내므로, 플러그인인 척 읽기 요청을 받아 가짜 답을 돌려줄 수 없다.
+#[tokio::test]
+async fn the_plugin_door_admits_the_plugin_and_turns_away_web_pages() {
+    let host = BridgeServer::start(0).expect("an ephemeral port is free");
+    let port = host.port();
+    let request = |origin: Option<&str>| {
+        let mut request = format!("ws://127.0.0.1:{port}/plugin")
+            .into_client_request()
+            .unwrap();
+        if let Some(origin) = origin {
+            request
+                .headers_mut()
+                .insert("Origin", HeaderValue::from_str(origin).unwrap());
+        }
+        request
+    };
+    for page in ["https://example.com", "http://localhost:3000"] {
+        assert_eq!(
+            refused_status(request(Some(page))).await,
+            Some(403),
+            "a web page at {page} must not pose as the plugin"
+        );
+    }
+    for plugin in [
+        Some("null"),
+        Some("https://www.figma.com"),
+        Some("https://figma.com"),
+        None,
+    ] {
+        assert_eq!(
+            refused_status(request(plugin)).await,
+            None,
+            "{plugin:?} is how the plugin (or a native client) arrives"
+        );
+    }
+}
+
+/// 읽기를 맡긴 프로세스가 사라지면 호스트는 그 읽기를 거두고, 플러그인에도 그 작업을
+/// 거두라고 알린다(`devup-cancel`). 아직 차례를 기다리던 작업이면 플러그인은 돌리지
+/// 않는다. 늦게 온 답은 누구에게도 가지 않고 대기표도 남지 않는다.
 #[tokio::test]
 async fn a_read_is_cleared_from_the_holder_when_the_process_that_asked_goes_away() {
     let host = BridgeServer::start(0).expect("an ephemeral port is free");
@@ -497,6 +648,9 @@ async fn a_read_is_cleared_from_the_holder_when_the_process_that_asked_goes_away
         .expect("the read ends promptly in the process that is leaving")
         .expect("the read task finishes");
     assert!(error.is_err());
+    let withdrawn = next_text(&mut plugin).await;
+    assert_eq!(withdrawn["kind"], "devup-cancel", "{withdrawn}");
+    assert_eq!(withdrawn["requestId"], job["requestId"]);
     eventually("the holder to drop the read nobody waits for", || {
         let state = state.clone();
         async move { state.pending_reads() == 0 }

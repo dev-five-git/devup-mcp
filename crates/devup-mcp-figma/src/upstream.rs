@@ -847,6 +847,15 @@ pub trait FigmaUpstream: Send + Sync {
     async fn bridge_path_snapshot(&self) -> Option<crate::bridge::BridgePathSnapshot> {
         None
     }
+
+    /// 이 읽기가 Figma 가 세는 경로로 가는지 — 분당 한도에 맞춰 늦춰야 하는지.
+    ///
+    /// 플러그인이 답하는 읽기는 한도를 쓰지 않는다. 그런데도 모든 읽기를 한도의
+    /// 속도(분당 여덟)로 늦췄더니, 같은 서버의 두 번째 export 가 쓰지도 않는 한도를
+    /// 1분 가까이 기다렸다. 원격만 아는 상류는 모든 읽기가 그 경로로 간다.
+    async fn is_metered(&self, _call: &ReadToolCall) -> bool {
+        true
+    }
 }
 
 #[derive(Clone)]

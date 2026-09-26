@@ -25,7 +25,7 @@ pub use collector::{
 pub use bridge::{
     AttachedFile, BridgeFigmaClient, BridgeIssue, BridgeJob, BridgeOptions, BridgePathSnapshot,
     BridgePeer, BridgeRole, BridgeServed, BridgeServer, BridgeState, DEFAULT_BRIDGE_PORT,
-    FallbackUpstream, NodeRef, PluginContext, PreferredUpstream,
+    FallbackUpstream, NodeRef, PluginContext, PortOwner, PreferredUpstream,
 };
 pub use credentials::{
     ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,

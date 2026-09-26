@@ -147,7 +147,7 @@ stdio pipe를 보유한 상태이므로 host의 MCP 연결을 재시작하거나
 
 ```bash
 cargo fmt --all -- --check
-node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs
+node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo test -p devup-mcp --test stdio_smoke
@@ -250,6 +250,8 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 | `off` | `DEVUP_FIGMA_BRIDGE_PORT`가 `off`/`0`이거나 포트 번호가 아닙니다 | 브리지를 쓰려면 그 값을 지우세요 |
 
 `issue`는 다음 중 하나입니다 — `legacy-host`(이 기능 이전의 devup-mcp가 포트를 쥐었습니다. 그 클라이언트를 재시작·갱신하면 이 프로세스가 스스로 이어받습니다), `foreign-program`(devup-mcp가 아닌 프로그램), `incompatible-protocol`(중계 규약의 판이 다른 devup-mcp — 틀린 답을 내느니 잇지 않습니다), `authentication-failed`(같은 사용자의 devup-mcp임을 증명하지 못함), `secret-unavailable`, `bind-failed`. 어느 경우든 `status`는 몇 초 안에 답하고 기다리지 않습니다.
+
+`legacy-host`와 `foreign-program`은 포트를 쥔 쪽이 자신을 밝히지 않으므로, 운영체제에 그 포트에서 듣는 프로세스를 물어 **pid·이름·실행 파일 경로**를 붙입니다 — 예전 devup-mcp면 `host`에(버전은 알 수 없어 `null`), 다른 프로그램이면 `holder`에 싣고 `reason`에도 적습니다. 실행 파일 경로를 보면 어느 클라이언트가 설치한 것인지 드러납니다. 묻는 데는 외부 명령(Windows `netstat`·`tasklist`·PowerShell, macOS `lsof`·`ps`, Linux `/proc`)이 들어서, `status`는 그것을 기다리지 않고 먼저 답한 뒤 알게 되는 대로 덧붙입니다. 포트를 쥔 프로그램을 이 사용자 권한으로 실행해 보지는 않습니다.
 
 **`available: true`는 지금 실제로 읽기를 보낼 수 있을 때만입니다** — 플러그인이 보이고, 그것에 닿는 길(이 프로세스의 포트, 또는 포트를 쥔 프로세스와의 연결)이 있을 때. 이 상태면 로그인 없이 그 파일의 수집이 그대로 되고, 중계 프로세스에서도 로그인하라는 안내를 하지 않습니다.
 
@@ -385,7 +387,7 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 | **브리지** (`bridge`) | 필요 없음 | **쓰지 않음** | **기본.** 데스크톱 앱에서 플러그인을 띄워 두면 그쪽으로 읽습니다 |
 | 직접 (`direct`) | `devup_figma_auth { action: "login" }` | 씁니다 | 브리지가 못 하는 읽기와, 플러그인을 띄울 수 없는 환경(CI 등) |
 
-**브리지를 먼저 쓰십시오.** direct는 Figma가 사용량을 세는 경로이고, 화면 하나가 여러 번의 읽기를 쓰므로 한도가 금방 바닥납니다.
+**브리지를 먼저 쓰십시오.** direct는 Figma가 사용량을 세는 경로이고, 화면 하나가 여러 번의 읽기를 쓰므로 한도가 금방 바닥납니다. 그래서 direct로 가는 읽기는 한도에 맞춘 속도(`DEVUP_FIGMA_CALLS_PER_MINUTE`, 기본 분당 8회)로 늦춰 보내지만, 브리지로 가는 읽기는 늦추지 않습니다. 예전에는 브리지 읽기까지 같은 속도로 묶여, 같은 서버의 두 번째 export가 쓰지도 않는 한도를 1분 가까이 기다렸습니다.
 
 **플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 브리지가 못 하는 읽기가 있으면 **그 읽기가** 자기 이유로 거절하므로, 무엇이 왜 막혔는지가 그대로 드러납니다.
 
@@ -470,7 +472,9 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 #### 알아 두어야 할 것
 
 - **기본으로 켜져 있습니다.** devup-mcp는 시작할 때 `127.0.0.1:1993`에 대기합니다. 그 포트를 다른 devup-mcp가 이미 쥐고 있으면 그 프로세스를 통해 같은 플러그인을 읽고, 그 프로세스가 끝나면 남은 devup-mcp 가운데 하나가 포트를 이어받습니다(플러그인은 2초 안에 새 호스트에 다시 붙습니다). 끄려면 `DEVUP_FIGMA_BRIDGE_PORT=off`.
-- **여러 devup-mcp가 나눠 쓰는 것은 같은 사용자의 것끼리입니다.** 중계는 그 사용자만 읽을 수 있는 파일(Windows `%USERPROFILE%\AppData\Local\devup-mcp\bridge-relay.key`, macOS `~/Library/Application Support/devup-mcp/`, Linux `~/.local/state/devup-mcp/`)의 비밀값으로 서로를 증명해야 이어지고, 비밀값 자체는 연결로 오가지 않습니다. 브라우저 페이지처럼 `Origin`이 붙은 요청은 중계 문에서 거절됩니다.
+- **포트가 넘어가도 수집은 이어집니다.** 그때 진행 중이던 읽기는 실패로 끝나지 않고, 플러그인이 새 호스트에 다시 붙는 대로 다시 보냅니다(읽기는 문서를 바꾸지 않아 두 번 돌아도 해가 없습니다). 플러그인이 10초 안에 돌아오지 않으면 그때 실패합니다. 요청한 쪽이 떠나거나 시간이 다 된 읽기는 플러그인에 취소를 보내, 차례를 기다리던 작업은 돌리지 않습니다.
+- **여러 devup-mcp가 나눠 쓰는 것은 같은 사용자의 것끼리입니다.** 중계는 그 사용자만 읽을 수 있는 비밀값으로 서로를 증명해야 이어지고, 비밀값 자체는 연결로 오가지 않습니다. 비밀값은 Windows `%USERPROFILE%\AppData\Local\devup-mcp\bridge-relay.key`, macOS·Linux `/tmp/devup-mcp-<uid>/bridge-relay.key`에 있습니다. Unix에서 환경 변수(`HOME`)가 아니라 사용자 번호로 자리를 정하는 것은 MCP 클라이언트마다 서버에 넘기는 `HOME`이 달라(샌드박스로 바꿔 띄우는 클라이언트도 있습니다) 같은 사용자의 프로세스가 서로를 알아보지 못했기 때문입니다. `/tmp`는 누구나 쓰는 곳이라, 그 디렉터리가 이 사용자의 것이고 다른 사용자가 들어올 수 없는지 쓸 때마다 확인합니다 — 열려 있었으면 닫고 비밀값을 새로 만들며, 다른 사용자의 것이거나 링크면 쓰지 않습니다(그때는 `secret-unavailable`). 재부팅하면 지워지지만 그때는 그 비밀값을 알던 프로세스도 모두 끝난 뒤입니다.
+- **브라우저 페이지는 붙지 못합니다.** 중계 문은 `Origin`이 붙은 요청을 모두 거절하고, 플러그인 문(`/plugin`)은 Figma 플러그인 창(`Origin: null`)과 `figma.com`만 받습니다. 흔한 웹 페이지가 플러그인인 척 읽기를 가로채지 못하게 하려는 것인데, 샌드박스 iframe이나 `file://` 페이지도 `null`을 실으므로 그런 페이지까지 막지는 못합니다.
 - **읽기 전용입니다.** 플러그인이 실행하는 스크립트는 **빌드 시점에 플러그인 안에 박혀 있고**, devup-mcp는 그중 어느 것을 실행할지 **이름만** 보냅니다. 소켓으로 코드가 오가지 않으며 Figma 문서를 바꾸는 호출은 존재하지 않습니다.
 - **이 기기에서만 됩니다.** 대기 주소는 `127.0.0.1`이라 다른 기기에서는 붙을 수 없고, 원격 CI에서는 브리지가 없으니 자동으로 원격 경로를 씁니다.
 - **파일은 한 번에 하나입니다.** 플러그인이 자기 파일 키를 보고하지 못하는 경우가 있어(Dev Mode 등), 키 없는 플러그인은 **혼자 붙어 있을 때만** 읽기를 받습니다. 두 개 이상이면 어느 파일인지 알 수 없으므로 원격 경로로 넘어갑니다.

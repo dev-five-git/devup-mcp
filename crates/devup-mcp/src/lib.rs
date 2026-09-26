@@ -337,9 +337,18 @@ pub fn self_check() -> SelfCheckReport {
         env_client_secret,
         env_client_name,
     );
+    // The bridge stays shut: a self-check touches no network, and opening it
+    // would bind the plugin's port or reach into the process holding it.
     let server_ok = std::env::current_dir()
         .ok()
-        .and_then(|root| server::DevupServer::production_with_config(vec![root], figma_direct).ok())
+        .and_then(|root| {
+            server::DevupServer::production_with_bridge(
+                vec![root],
+                figma_direct,
+                server::Bridge::Off,
+            )
+            .ok()
+        })
         .is_some();
     SelfCheckReport {
         status: if credential_ok && server_ok {

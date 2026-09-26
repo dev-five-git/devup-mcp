@@ -17,6 +17,15 @@ interface JobMessage {
   params: Partial<ScriptParams>
 }
 
+/**
+ * UI → 메인. devup-mcp 가 더는 기다리지 않는 작업 — 요청한 쪽이 떠났거나 시간이
+ * 다 됐다. 이 메시지를 모르는 예전 빌드는 그냥 무시한다.
+ */
+interface CancelMessage {
+  kind: 'devup-cancel'
+  requestId: string
+}
+
 /** 메인 → UI. 성공이면 data, 실패면 error 중 하나만 채운다. */
 interface ResultMessage {
   kind: 'devup-result'
@@ -141,6 +150,10 @@ async function runJob(job: JobMessage): Promise<ResultMessage> {
 const queue: JobMessage[] = []
 let draining = false
 
+/** 지금 돌고 있는 작업, 그리고 돌던 중에 거둬진 작업. */
+let running: string | null = null
+const withdrawn = new Set<string>()
+
 async function drain() {
   if (draining) return
   draining = true
@@ -148,6 +161,7 @@ async function drain() {
     while (queue.length > 0) {
       // biome-ignore lint/style/noNonNullAssertion: length 를 확인하고 꺼낸다
       const job = queue.shift()!
+      running = job.requestId
       const result = await runJob(job).catch(
         (error: unknown) =>
           ({
@@ -156,11 +170,27 @@ async function drain() {
             error: error instanceof Error ? error.message : String(error),
           }) satisfies ResultMessage,
       )
+      running = null
+      // 기다리는 쪽이 없는 답은 보내지 않는다. 큰 스냅샷이면 그만큼 소켓이 빈다.
+      if (withdrawn.delete(job.requestId)) continue
       figma.ui.postMessage(result)
     }
   } finally {
     draining = false
   }
+}
+
+/**
+ * 거둬진 작업을 뺀다. 아직 차례를 기다리던 것이면 돌리지 않는다. 이미 돌고 있는
+ * 것은 스크립트를 멈출 수 없으니 답만 보내지 않는다.
+ */
+function withdraw(requestId: string) {
+  const waiting = queue.findIndex((job) => job.requestId === requestId)
+  if (waiting >= 0) {
+    queue.splice(waiting, 1)
+    return
+  }
+  if (running === requestId) withdrawn.add(requestId)
 }
 
 figma.showUI(__html__, { width: 320, height: 220 })
@@ -190,5 +220,10 @@ figma.ui.onmessage = (message: unknown) => {
     // onmessage 를 async 로 만들면 Figma 가 반환값을 기다리지 않아 예외가 조용히
     // 사라진다. 큐에 넣고 배수는 따로 돌린다.
     void drain()
+    return
+  }
+
+  if (msg.kind === 'devup-cancel') {
+    withdraw((message as CancelMessage).requestId)
   }
 }

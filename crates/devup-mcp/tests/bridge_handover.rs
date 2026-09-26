@@ -1,19 +1,27 @@
 //! Real devup-mcp processes sharing one bridge port, and passing it on.
 //!
-//! Three stdio servers built from this target run on a port picked for the
-//! test - never 1993, which belongs to whatever sessions this machine runs -
-//! with their home directory pointed at a scratch one, so whatever they keep
-//! per user is the test's own. A stand-in plugin attaches the way the real one
-//! does: after its socket closes it waits two seconds and connects again
-//! (`RETRY_MS` in plugin/src/ui.ts).
+//! Stdio servers built from this target run on a port picked for the test -
+//! never 1993, which belongs to whatever sessions this machine runs. Each has
+//! a `HOME` of its own, the way MCP clients hand their servers different ones
+//! (some point it at a sandbox), and they still have to find each other. The
+//! Windows user profile, which the system sets per user, is one scratch
+//! directory they share, so the relay secret kept there is the test's own; on
+//! Unix the secret follows the user id rather than the environment. A stand-in
+//! plugin attaches the way the real one does: it names its window with a
+//! session id, and after its socket closes it waits two seconds and connects
+//! again (`RETRY_MS` in plugin/src/ui.ts).
 //!
 //! Only url-less reads are made. They go to the attached plugin or nowhere, so
-//! nothing here can reach the metered direct path or need a credential store.
+//! nothing here can reach the metered direct path or need a credential store -
+//! and nothing is held to the metered pace, which only that path's reads are.
 
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -40,18 +48,16 @@ struct Server {
 }
 
 impl Server {
-    async fn spawn(port: u16, home: &Path) -> anyhow::Result<Self> {
+    /// A devup-mcp the way an MCP client starts one: `home` is its own,
+    /// `profile` the user's.
+    async fn spawn(port: u16, home: &Path, profile: &Path) -> anyhow::Result<Self> {
         let mut child = Command::new(env!("CARGO_BIN_EXE_devup-mcp"))
             .current_dir(home)
             .env("DEVUP_FIGMA_BRIDGE_PORT", port.to_string())
             .env("HOME", home)
-            .env("USERPROFILE", home)
+            .env("USERPROFILE", profile)
             .env("DEVUP_MCP_NO_UPDATE_CHECK", "1")
             .env("DEVUP_MCP_SKILLS_OFFLINE", "1")
-            // Every read is paced to Figma's metered allowance, bridge reads
-            // included, which would make this test wait out a minute between
-            // exports. It measures relaying, not pacing.
-            .env("DEVUP_FIGMA_CALLS_PER_MINUTE", "1000")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -137,7 +143,10 @@ impl Server {
     }
 
     /// A url-less search, answered only if this process reads the attached
-    /// plugin - through its own port or through the process holding it.
+    /// plugin - through its own port or through the process holding it. A
+    /// search has no `refresh`, so only a process's first one is sure to reach
+    /// the plugin: the plugin keeps its key across reconnects, and a later one
+    /// may be answered from this process's cache.
     async fn searches_through_the_bridge(&mut self) -> anyhow::Result<bool> {
         let (failed, output) = self
             .tool("devup_figma_search", json!({ "query": "syntheticframe" }))
@@ -147,10 +156,24 @@ impl Server {
             && output["matches"][0]["nodeId"] == "1:2")
     }
 
+    /// A url-less export that goes all the way to the plugin, whatever this
+    /// process has cached.
+    async fn export(&mut self) -> anyhow::Result<(bool, Value)> {
+        self.tool(
+            "devup_figma_export",
+            json!({ "outputs": ["tsx"], "refresh": true }),
+        )
+        .await
+    }
+
+    /// Whether this process reads the attached plugin right now.
+    async fn reads_through_the_bridge(&mut self) -> anyhow::Result<bool> {
+        let (failed, output) = self.export().await?;
+        Ok(!failed && output["source"]["kind"] == "bridge")
+    }
+
     async fn exports_through_the_bridge(&mut self) -> anyhow::Result<Value> {
-        let (failed, output) = self
-            .tool("devup_figma_export", json!({ "outputs": ["tsx"] }))
-            .await?;
+        let (failed, output) = self.export().await?;
         anyhow::ensure!(!failed, "{output}");
         Ok(output)
     }
@@ -226,59 +249,109 @@ fn script_answer(script: &str) -> Result<Value, &'static str> {
     }
 }
 
-/// The plugin as plugin/src/ui.ts behaves: connect, say hello, answer jobs,
-/// and after the socket closes wait `RETRY_MS` before connecting again. Every
-/// time a connection opens is recorded.
-fn stand_in_plugin(port: u16) -> Arc<Mutex<Vec<Instant>>> {
-    let attached = Arc::new(Mutex::new(Vec::new()));
-    let log = attached.clone();
-    tokio::spawn(async move {
-        loop {
-            if let Ok((mut socket, _)) =
-                connect_async(format!("ws://localhost:{port}/plugin")).await
-            {
-                log.lock().unwrap().push(Instant::now());
-                let hello = json!({
-                    "kind": "hello", "fileKey": null, "fileName": "Landing",
-                    "currentPage": { "id": "0:1", "name": "Page 1" },
-                    "selection": [{ "id": "1:2", "name": "Synthetic Frame", "type": "FRAME" }],
-                    "selectionCount": 1,
-                });
-                if socket
-                    .send(Message::Text(hello.to_string().into()))
-                    .await
-                    .is_ok()
+/// The plugin as plugin/src/ui.ts behaves: connect, say hello naming its
+/// window, answer jobs, and after the socket closes wait `RETRY_MS` before
+/// connecting again. Keyless, as in Dev Mode.
+#[derive(Clone)]
+struct StandIn {
+    /// When each connection opened.
+    attached: Arc<Mutex<Vec<Instant>>>,
+    /// Leave the next job unanswered - a read the plugin is still working on.
+    hold_next: Arc<AtomicBool>,
+    held: Arc<AtomicBool>,
+}
+
+impl StandIn {
+    fn attach(port: u16) -> Self {
+        let plugin = Self {
+            attached: Arc::default(),
+            hold_next: Arc::default(),
+            held: Arc::default(),
+        };
+        // One plugin window: the same name on every connection it makes.
+        let session = format!("{:032x}", rand::random::<u128>());
+        let this = plugin.clone();
+        tokio::spawn(async move {
+            loop {
+                // The real plugin has to say `localhost` (Figma refuses 127.0.0.1
+                // in `allowedDomains`), and a browser tries both address families
+                // at once. A plain connect tries ::1 first, and Windows spends two
+                // seconds being refused there before trying 127.0.0.1 - time the
+                // plugin never loses, so it is left out of what this measures.
+                if let Ok((mut socket, _)) =
+                    connect_async(format!("ws://127.0.0.1:{port}/plugin")).await
                 {
-                    while let Some(Ok(message)) = socket.next().await {
-                        let Message::Text(text) = message else {
-                            continue;
-                        };
-                        let Ok(job) = serde_json::from_str::<Value>(&text) else {
-                            continue;
-                        };
-                        let answer = match script_answer(job["script"].as_str().unwrap_or_default())
-                        {
-                            Ok(data) => json!({
-                                "kind": "devup-result", "requestId": job["requestId"], "data": data
-                            }),
-                            Err(error) => json!({
-                                "kind": "devup-result", "requestId": job["requestId"], "error": error
-                            }),
-                        };
-                        if socket
-                            .send(Message::Text(answer.to_string().into()))
-                            .await
-                            .is_err()
-                        {
-                            break;
+                    this.attached.lock().unwrap().push(Instant::now());
+                    let hello = json!({
+                        "kind": "hello", "sessionId": session, "fileKey": null,
+                        "fileName": "Landing",
+                        "currentPage": { "id": "0:1", "name": "Page 1" },
+                        "selection": [{ "id": "1:2", "name": "Synthetic Frame", "type": "FRAME" }],
+                        "selectionCount": 1,
+                    });
+                    if socket
+                        .send(Message::Text(hello.to_string().into()))
+                        .await
+                        .is_ok()
+                    {
+                        while let Some(Ok(message)) = socket.next().await {
+                            let Message::Text(text) = message else {
+                                continue;
+                            };
+                            let Ok(job) = serde_json::from_str::<Value>(&text) else {
+                                continue;
+                            };
+                            if job["kind"] != "devup-job" {
+                                continue;
+                            }
+                            if this.hold_next.swap(false, Ordering::SeqCst) {
+                                this.held.store(true, Ordering::SeqCst);
+                                continue;
+                            }
+                            let answer =
+                                match script_answer(job["script"].as_str().unwrap_or_default()) {
+                                    Ok(data) => json!({
+                                        "kind": "devup-result", "requestId": job["requestId"],
+                                        "data": data
+                                    }),
+                                    Err(error) => json!({
+                                        "kind": "devup-result", "requestId": job["requestId"],
+                                        "error": error
+                                    }),
+                                };
+                            if socket
+                                .send(Message::Text(answer.to_string().into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
                         }
                     }
                 }
+                tokio::time::sleep(PLUGIN_RETRY).await;
             }
-            tokio::time::sleep(PLUGIN_RETRY).await;
+        });
+        plugin
+    }
+
+    /// Keep the next read waiting, as a slow script does.
+    fn hold_next_read(&self) {
+        self.hold_next.store(true, Ordering::SeqCst);
+    }
+
+    /// Until the held read has arrived.
+    async fn until_holding(&self) -> anyhow::Result<()> {
+        let started = Instant::now();
+        while !self.held.load(Ordering::SeqCst) {
+            anyhow::ensure!(
+                started.elapsed() < DEADLINE,
+                "no read reached the plugin within {DEADLINE:?}"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
-    });
-    attached
+        Ok(())
+    }
 }
 
 /// How long until the port accepts connections again.
@@ -302,7 +375,7 @@ async fn until_all_read_through_the_bridge(
     let started = Instant::now();
     'retry: while started.elapsed() < DEADLINE {
         for server in servers.iter_mut() {
-            if !server.searches_through_the_bridge().await? {
+            if !server.reads_through_the_bridge().await? {
                 tokio::time::sleep(Duration::from_millis(50)).await;
                 continue 'retry;
             }
@@ -315,14 +388,15 @@ async fn until_all_read_through_the_bridge(
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_process_reads_through_the_bridge_and_the_port_passes_on_when_its_holder_exits()
 -> anyhow::Result<()> {
-    let home = scratch_home();
+    let profile = scratch_home();
+    let homes = [scratch_home(), scratch_home(), scratch_home()];
     let port = free_port();
 
-    let mut first = Server::spawn(port, &home).await?;
+    let mut first = Server::spawn(port, &homes[0], &profile).await?;
     until_listening(port).await?;
-    let mut second = Server::spawn(port, &home).await?;
-    let mut third = Server::spawn(port, &home).await?;
-    let plugin = stand_in_plugin(port);
+    let mut second = Server::spawn(port, &homes[1], &profile).await?;
+    let mut third = Server::spawn(port, &homes[2], &profile).await?;
+    let plugin = StandIn::attach(port);
 
     for (name, server) in [
         ("the port's holder", &mut first),
@@ -330,6 +404,10 @@ async fn every_process_reads_through_the_bridge_and_the_port_passes_on_when_its_
         ("the third process", &mut third),
     ] {
         until_all_read_through_the_bridge(name, &mut [&mut *server]).await?;
+        assert!(
+            server.searches_through_the_bridge().await?,
+            "{name} searches through the bridge"
+        );
         let output = server.exports_through_the_bridge().await?;
         assert_eq!(output["source"]["kind"], "bridge", "{name}: {output}");
         assert_eq!(output["source"]["bridgePort"], port, "{name}: {output}");
@@ -342,7 +420,7 @@ async fn every_process_reads_through_the_bridge_and_the_port_passes_on_when_its_
     }
 
     // The session that held the port ends.
-    let attached_before = plugin.lock().unwrap().len();
+    let attached_before = plugin.attached.lock().unwrap().len();
     let ended = Instant::now();
     first.child.kill().await?;
 
@@ -353,6 +431,7 @@ async fn every_process_reads_through_the_bridge_and_the_port_passes_on_when_its_
     )
     .await?;
     let reattached = plugin
+        .attached
         .lock()
         .unwrap()
         .get(attached_before)
@@ -382,6 +461,58 @@ async fn every_process_reads_through_the_bridge_and_the_port_passes_on_when_its_
     );
 
     drop((second, third));
-    let _ = std::fs::remove_dir_all(&home);
+    for directory in homes.iter().chain([&profile]) {
+        let _ = std::fs::remove_dir_all(directory);
+    }
+    Ok(())
+}
+
+/// A collection is under way through the port's holder when that session
+/// ends, with the plugin still working on one of its reads. That read is
+/// sent again once the plugin is back - here through the process that took
+/// the port over - and the export finishes. It used to fail on the spot, and
+/// the caller had to start the collection over.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_collection_under_way_when_the_holder_exits_finishes_through_the_next_holder()
+-> anyhow::Result<()> {
+    let profile = scratch_home();
+    let homes = [scratch_home(), scratch_home()];
+    let port = free_port();
+
+    let mut holder = Server::spawn(port, &homes[0], &profile).await?;
+    until_listening(port).await?;
+    let mut reader = Server::spawn(port, &homes[1], &profile).await?;
+    let plugin = StandIn::attach(port);
+    until_all_read_through_the_bridge("the reading process", &mut [&mut reader]).await?;
+
+    plugin.hold_next_read();
+    let export = tokio::spawn(async move {
+        let output = reader.exports_through_the_bridge().await;
+        (reader, output)
+    });
+    plugin.until_holding().await?;
+    let ended = Instant::now();
+    holder.child.kill().await?;
+
+    let (reader, output) = timeout(DEADLINE, export).await??;
+    let output = output?;
+    let finished = ended.elapsed();
+    assert_eq!(output["source"]["kind"], "bridge", "{output}");
+    assert!(
+        output["tsx"]
+            .as_str()
+            .is_some_and(|tsx| tsx.contains("SyntheticFrame")),
+        "{output}"
+    );
+    eprintln!(
+        "collection across a handover measured: the export whose read was in flight when the \
+         port's holder was killed finished {finished:?} later, through the process that took \
+         the port over (the stand-in plugin retries every {PLUGIN_RETRY:?})"
+    );
+
+    drop(reader);
+    for directory in homes.iter().chain([&profile]) {
+        let _ = std::fs::remove_dir_all(directory);
+    }
     Ok(())
 }

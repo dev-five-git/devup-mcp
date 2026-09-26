@@ -377,16 +377,32 @@ async fn legacy_devup_mcp() -> u16 {
     port
 }
 
-async fn status_of_a_process_on(port: u16) -> anyhow::Result<Value> {
+/// A process that finds `port` held, once its first `status` has come back -
+/// which has to be prompt, whoever holds the port.
+async fn process_on(port: u16) -> anyhow::Result<BridgeServer> {
     let relay = second_process_on(port);
     let started = Instant::now();
-    let status = status(&relay).await?;
+    status(&relay).await?;
     assert!(
         started.elapsed() < STATUS_LIMIT,
         "status took {:?}: it must not wait on the port's holder indefinitely",
         started.elapsed()
     );
-    Ok(status)
+    Ok(relay)
+}
+
+/// A holder that does not say who it is gets looked up in the operating
+/// system after `status` has answered - that takes an external command - so
+/// its name arrives a moment later. The status that names it, at `pid`.
+async fn status_naming_the_holder(relay: &BridgeServer, pid: &str) -> anyhow::Result<Value> {
+    let deadline = Instant::now() + DEADLINE;
+    loop {
+        let status = status(relay).await?;
+        if status.pointer(pid).is_some_and(|pid| !pid.is_null()) || Instant::now() > deadline {
+            return Ok(status);
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 /// An older devup-mcp holds the port. It cannot be fixed from here, so the
@@ -396,19 +412,27 @@ async fn status_of_a_process_on(port: u16) -> anyhow::Result<Value> {
 #[tokio::test]
 async fn a_devup_mcp_from_before_sharing_is_named_with_its_repair() -> anyhow::Result<()> {
     let port = legacy_devup_mcp().await;
-    let status = status_of_a_process_on(port).await?;
+    let relay = process_on(port).await?;
+    let status = status_naming_the_holder(&relay, "/paths/bridge/host/pid").await?;
 
     let bridge = &status["paths"]["bridge"];
     assert_eq!(bridge["available"], false, "{bridge}");
     assert_eq!(bridge["role"], "unavailable", "{bridge}");
     assert_eq!(bridge["issue"], "legacy-host", "{bridge}");
-    assert!(
-        bridge["host"].is_null(),
-        "its identity cannot be known: {bridge}"
+    // The holder cannot say who it is, so the operating system is asked
+    // which process listens on the port. Here that is this test process.
+    assert_eq!(
+        bridge["host"]["pid"],
+        std::process::id(),
+        "the process holding the port is named: {bridge}"
     );
     let reason = bridge["reason"].as_str().expect("a reason");
     assert!(reason.contains(&port.to_string()), "{reason}");
     assert!(reason.contains("restart"), "{reason}");
+    assert!(
+        reason.contains(&format!("pid {}", std::process::id())),
+        "{reason}"
+    );
 
     let options = status["nextAction"]["options"]
         .as_array()
@@ -443,13 +467,106 @@ async fn another_program_on_the_port_is_told_apart_from_devup_mcp() -> anyhow::R
     });
 
     for port in [web_port, silent_port] {
-        let status = status_of_a_process_on(port).await?;
+        let relay = process_on(port).await?;
+        let status = status_naming_the_holder(&relay, "/paths/bridge/holder/pid").await?;
         let bridge = &status["paths"]["bridge"];
         assert_eq!(bridge["available"], false, "{bridge}");
         assert_eq!(bridge["role"], "unavailable", "{bridge}");
         assert_eq!(bridge["issue"], "foreign-program", "{bridge}");
+        assert!(bridge["host"].is_null(), "it is not a devup-mcp: {bridge}");
+        assert_eq!(
+            bridge["holder"]["pid"],
+            std::process::id(),
+            "the program holding the port is named: {bridge}"
+        );
         let reason = bridge["reason"].as_str().expect("a reason");
         assert!(reason.contains("not a devup-mcp"), "{reason}");
     }
+    Ok(())
+}
+
+/// One server, many calls: the pacer belongs to the server, so the calls that
+/// share it have to share a session.
+struct Session {
+    client: rmcp::service::RunningService<rmcp::RoleClient, ()>,
+    task: tokio::task::JoinHandle<anyhow::Result<()>>,
+}
+
+impl Session {
+    async fn open(upstream: Arc<dyn FigmaUpstream>) -> anyhow::Result<Self> {
+        let server = DevupServer::new(Services::new(Arc::new(Auth), upstream));
+        let (server_transport, client_transport) = tokio::io::duplex(256 * 1024);
+        let task = tokio::spawn(async move {
+            server.serve(server_transport).await?.waiting().await?;
+            anyhow::Ok(())
+        });
+        let client = ().serve(client_transport).await?;
+        Ok(Self { client, task })
+    }
+
+    async fn export(&self) -> anyhow::Result<Value> {
+        let arguments = json!({ "outputs": ["tsx"], "refresh": true });
+        let mut result = self
+            .client
+            .call_tool(
+                CallToolRequestParams::new("devup_figma_export")
+                    .with_arguments(arguments.as_object().cloned().unwrap()),
+            )
+            .await?;
+        for _ in 0..500 {
+            let Some(id) = result
+                .structured_content
+                .as_ref()
+                .filter(|value| value["exportJob"]["state"] == "running")
+                .and_then(|value| value["exportJob"]["jobId"].as_str())
+                .map(str::to_owned)
+            else {
+                break;
+            };
+            result = self
+                .client
+                .call_tool(
+                    CallToolRequestParams::new("devup_figma_export")
+                        .with_arguments(json!({ "jobId": id }).as_object().cloned().unwrap()),
+                )
+                .await?;
+        }
+        anyhow::ensure!(result.is_error != Some(true), "{result:?}");
+        Ok(result.structured_content.unwrap_or_default())
+    }
+
+    async fn close(self) -> anyhow::Result<()> {
+        self.client.cancel().await?;
+        self.task.await??;
+        Ok(())
+    }
+}
+
+/// Figma meters reads made through its remote MCP, and every read used to be
+/// held to that pace - eight a minute - including the ones the plugin
+/// answers, which cost nothing. A second export on the same server then sat
+/// out most of a minute for an allowance it was not spending. Only reads
+/// bound for the metered path are paced now.
+#[tokio::test]
+async fn reads_through_the_bridge_are_not_held_to_the_metered_pace() -> anyhow::Result<()> {
+    let host = BridgeServer::start(0).expect("an ephemeral port is free");
+    serve(attach(host.port()).await);
+    sees_one_plugin(&host).await;
+    let remote_calls = Arc::new(AtomicUsize::new(0));
+    let session = Session::open(upstream(&host, &remote_calls)).await?;
+
+    let started = Instant::now();
+    // Well past the metered ceiling of eight reads a minute.
+    for _ in 0..10 {
+        let output = session.export().await?;
+        assert_eq!(output["source"]["kind"], "bridge", "{output}");
+    }
+    let elapsed = started.elapsed();
+    session.close().await?;
+    assert!(
+        elapsed < Duration::from_secs(40),
+        "ten bridge exports took {elapsed:?}: they were paced as if metered"
+    );
+    assert_eq!(remote_calls.load(Ordering::SeqCst), 0);
     Ok(())
 }

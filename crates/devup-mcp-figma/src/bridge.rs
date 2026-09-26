@@ -17,8 +17,11 @@
 //! 을 찾도록 쓰여 있으므로, 여기서 모양을 바꾸면 두 경로가 조용히 갈라진다. 중계를
 //! 거친 답도 이 모양이다 — 감싸는 일은 요청한 프로세스가 한다.
 
+mod holder;
 mod relay;
 mod secret;
+
+pub use holder::PortOwner;
 
 use std::{
     collections::HashMap,
@@ -39,7 +42,8 @@ use axum::{
         State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    response::Response,
+    http::{HeaderMap, StatusCode, header::ORIGIN},
+    response::{IntoResponse, Response},
     routing::any,
 };
 use serde::{Deserialize, Serialize};
@@ -192,6 +196,8 @@ struct Connected {
     outbox: mpsc::UnboundedSender<String>,
     /// 플러그인이 보고한 파일 키. 보고하지 못했으면 빈 문자열이다.
     file_key: String,
+    /// 읽기가 이 플러그인에 닿으려면 부를 이름. [`routing_key`] 가 정한다.
+    routing_key: String,
     file_name: Option<String>,
     context: PluginContext,
 }
@@ -201,13 +207,13 @@ impl Connected {
         (!self.file_key.is_empty()).then(|| self.file_key.clone())
     }
 
-    fn attached(&self, id: u64) -> AttachedFile {
-        attached_file(
-            id,
-            self.reported_key(),
-            self.file_name.clone(),
-            self.context.clone(),
-        )
+    fn attached(&self) -> AttachedFile {
+        AttachedFile {
+            target_key: self.routing_key.clone(),
+            file_key: self.reported_key(),
+            file_name: self.file_name.clone(),
+            context: self.context.clone(),
+        }
     }
 
     fn served(&self) -> BridgeServed {
@@ -225,22 +231,69 @@ impl Connected {
     }
 }
 
-/// 붙어 있는 플러그인 하나를, 어느 프로세스에서 보든 같은 모양으로.
+/// 읽기가 이 플러그인에 닿으려면 부를 이름.
 ///
-/// 호스트는 제 연결에서 만들고, 중계는 호스트가 보낸 목록에서 같은 함수로 만든다.
-/// 그래서 `attachedFiles` 가 모든 프로세스에서 같고, 키 없는 플러그인의 라우팅 키도
-/// 호스트가 매긴 연결 번호 그대로다.
-fn attached_file(
-    id: u64,
-    file_key: Option<String>,
-    file_name: Option<String>,
-    context: PluginContext,
-) -> AttachedFile {
-    AttachedFile {
-        target_key: file_key.clone().unwrap_or_else(|| connection_key(id)),
-        file_key,
-        file_name,
-        context,
+/// 파일 키를 보고했으면 그 키다. 보고하지 못했으면(Dev Mode) 브리지 전용 키인데,
+/// 플러그인이 창마다 한 번 정해 `hello` 에 싣는 `sessionId` 가 있으면 그것에서
+/// 만든다 — 소켓이 끊겨 다시 붙어도, 포트를 쥔 devup-mcp 가 바뀌어도 같은 창이면
+/// 같은 이름이라, 수집 도중에 연결이 바뀌어도 남은 읽기가 그 창을 다시 찾는다.
+/// `sessionId` 를 보내지 않는 예전 빌드는 연결마다 매긴 번호로 부른다.
+fn routing_key(file_key: &str, session: Option<&str>, connection: u64) -> String {
+    if !file_key.is_empty() {
+        return file_key.to_owned();
+    }
+    match session {
+        Some(session) => format!("{BRIDGE_KEY_PREFIX}{session}"),
+        None => connection_key(connection),
+    }
+}
+
+/// 플러그인이 보낸 `sessionId` 를 이름에 쓸 수 있을 때만 받는다. 브리지 전용 키의
+/// 모양을 지키고(`bridge:current` 같은 예약된 이름과 겹치지 않게) 길이를 묶는다.
+fn session_of(hello: &Value) -> Option<String> {
+    hello
+        .get("sessionId")
+        .and_then(Value::as_str)
+        .filter(|session| {
+            (16..=64).contains(&session.len())
+                && session
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+        })
+        .map(|session| format!("s-{session}"))
+}
+
+/// 플러그인이 답하기를 기다리는 읽기 하나.
+struct Pending {
+    /// 작업을 받은 플러그인의 연결 번호. 그 연결이 끊기면 이 읽기도 끝난다.
+    plugin: u64,
+    /// 그 플러그인에 보낼 곳. 기다리는 쪽이 떠나면 여기로 거둬 달라고 알린다.
+    outbox: mpsc::UnboundedSender<String>,
+    waiter: oneshot::Sender<PluginResult>,
+}
+
+type PendingTable = StdMutex<HashMap<String, Pending>>;
+
+/// 플러그인의 답을 기다리는 동안 쥐고 있는 대기표.
+///
+/// 답이 오면 받는 쪽이 대기표를 이미 걷었으므로 아무 일도 하지 않는다. 답을 받지
+/// 못한 채 버려지면 — 시간이 다 됐거나, 읽기를 맡긴 프로세스가 떠나 호스트가 그
+/// 읽기를 취소했거나 — 대기표를 걷고 플러그인에 `devup-cancel` 을 보낸다. 아직
+/// 차례를 기다리던 작업이면 플러그인은 돌리지 않는다.
+struct Awaiting<'a> {
+    pending: &'a PendingTable,
+    request_id: String,
+}
+
+impl Drop for Awaiting<'_> {
+    fn drop(&mut self) {
+        let Ok(mut pending) = self.pending.lock() else {
+            return;
+        };
+        if let Some(abandoned) = pending.remove(&self.request_id) {
+            let cancel = json!({ "kind": "devup-cancel", "requestId": self.request_id });
+            let _ = abandoned.outbox.send(cancel.to_string());
+        }
     }
 }
 
@@ -343,8 +396,8 @@ async fn shut_down(signal: &mut watch::Receiver<bool>) {
 pub struct BridgeState {
     inner: Arc<Mutex<Inner>>,
     /// requestId → 결과를 기다리는 쪽. 잠금을 쥔 채 기다리지 않으므로 동기 잠금이면
-    /// 되고, 그래야 기다리던 쪽이 사라질 때 [`Waiting`] 이 곧바로 걷을 수 있다.
-    pending: Arc<StdMutex<HashMap<String, oneshot::Sender<PluginResult>>>>,
+    /// 되고, 그래야 기다리던 쪽이 사라질 때 [`Awaiting`] 이 곧바로 걷을 수 있다.
+    pending: Arc<PendingTable>,
     /// 요청 번호와 연결 번호를 함께 매긴다. 둘 다 유일하기만 하면 된다.
     counter: Arc<AtomicU64>,
     /// 이 프로세스에서 보이는 플러그인 수. 배치 크기를 정할 때는 잠금을 기다릴 수 없어
@@ -360,10 +413,6 @@ fn unavailable(message: impl Into<String>) -> DevupError {
 /// 이 연결 하나만 가리키는 브리지 전용 키.
 fn connection_key(id: u64) -> String {
     format!("{BRIDGE_KEY_PREFIX}{id}")
-}
-
-fn connection_id(file_key: &str) -> Option<u64> {
-    file_key.strip_prefix(BRIDGE_KEY_PREFIX)?.parse().ok()
 }
 
 /// 오류 문구에 쓸 파일 이름. 브리지 전용 키는 파일의 키가 아니므로 드러내지 않는다.
@@ -387,35 +436,70 @@ fn describe_file(file_key: &str) -> String {
 /// 여럿이면 어느 파일을 보고 있는지 알 수 없고, 엉뚱한 파일을 읽어 주는 것보다
 /// 원격으로 넘기는 편이 낫다.
 ///
-/// 연결 키는 그 연결 하나만 가리킨다. 몇 개가 붙어 있든 모호하지 않고, 그 연결이
-/// 끊기면 아무도 맡지 않는다 — 다른 파일의 플러그인이 대신 답하면 안 된다.
+/// 브리지 전용 키는 그 창 하나만 가리킨다. 몇 개가 붙어 있든 모호하지 않고, 그
+/// 창이 끊기면 아무도 맡지 않는다 — 다른 파일의 플러그인이 대신 답하면 안 된다.
+/// 같은 창이 다시 붙으면(같은 `sessionId`) 나중 연결이 맡는다.
 ///
-/// `plugins` 는 (연결 번호, 보고한 파일 키 — 없으면 빈 문자열) 이다. 호스트는 제
-/// 연결로, 중계는 호스트가 보낸 목록으로 같은 규칙을 쓴다.
-fn resolve<'a>(plugins: impl IntoIterator<Item = (u64, &'a str)>, file_key: &str) -> Option<u64> {
-    let plugins: Vec<(u64, &str)> = plugins.into_iter().collect();
+/// `plugins` 는 (연결 번호, 부를 이름, 보고한 파일 키 — 없으면 빈 문자열) 이다.
+/// 호스트는 제 연결로, 중계는 호스트가 보낸 목록으로 같은 규칙을 쓴다.
+fn resolve<'a>(
+    plugins: impl IntoIterator<Item = (u64, &'a str, &'a str)>,
+    file_key: &str,
+) -> Option<u64> {
+    let plugins: Vec<(u64, &str, &str)> = plugins.into_iter().collect();
     if is_bridge_only_key(file_key) {
-        return connection_id(file_key).filter(|id| plugins.iter().any(|(held, _)| held == id));
+        return plugins
+            .iter()
+            .filter(|(_, routing, _)| *routing == file_key)
+            .map(|(id, ..)| *id)
+            .max();
     }
     let holding = plugins
         .iter()
-        .filter(|(_, key)| *key == file_key)
-        .map(|(id, _)| *id)
+        .filter(|(_, _, reported)| *reported == file_key)
+        .map(|(id, ..)| *id)
         .max();
     if holding.is_some() {
         return holding;
     }
     match plugins.as_slice() {
-        [(id, "")] => Some(*id),
+        [(id, _, "")] => Some(*id),
         _ => None,
     }
 }
 
-fn keys_of(plugins: &HashMap<u64, Connected>) -> impl Iterator<Item = (u64, &str)> {
+fn keys_of(plugins: &HashMap<u64, Connected>) -> impl Iterator<Item = (u64, &str, &str)> {
     plugins
         .iter()
-        .map(|(id, plugin)| (*id, plugin.file_key.as_str()))
+        .map(|(id, plugin)| (*id, plugin.routing_key.as_str(), plugin.file_key.as_str()))
 }
+
+fn keys_in(files: &[(u64, AttachedFile)]) -> impl Iterator<Item = (u64, &str, &str)> {
+    files.iter().map(|(id, file)| {
+        (
+            *id,
+            file.target_key.as_str(),
+            file.file_key.as_deref().unwrap_or_default(),
+        )
+    })
+}
+
+/// 읽기 한 번이 끝난 모양. 중간에 끊긴 것은 다시 보낼 수 있다 — 읽기는 문서를
+/// 바꾸지 않는다.
+pub(crate) enum Failure {
+    /// 플러그인에 닿는 길이 도중에 끊겼다: 플러그인이 떠났거나, 포트를 쥔 호스트가
+    /// 떠났다. 플러그인이 돌아오면 다시 보낸다.
+    Interrupted(DevupError),
+    /// 답이 왔거나(스크립트 오류 포함) 더 기다릴 수 없다. 그대로 올린다.
+    Final(DevupError),
+}
+
+/// 끊긴 읽기를 다시 보내는 횟수의 한도.
+const INTERRUPTIONS: usize = 3;
+
+/// 끊긴 읽기가 플러그인이 돌아오기를 기다리는 한도. 호스트가 바뀌어도 이 안에
+/// 포트가 넘어가고, 플러그인은 2초마다 다시 붙는다.
+const RETURN_WAIT: Duration = Duration::from_secs(10);
 
 /// 중계가 다룰 수 없는 상태에서 읽기가 왔을 때의 거절.
 fn not_reachable(link: &LinkState) -> DevupError {
@@ -542,7 +626,7 @@ impl BridgeState {
                 plugins.sort_unstable_by_key(|(id, _)| **id);
                 plugins
                     .into_iter()
-                    .map(|(id, plugin)| (*id, plugin.attached(*id)))
+                    .map(|(id, plugin)| (*id, plugin.attached()))
                     .collect()
             }
             LinkState::Relay { files, .. } => files.clone(),
@@ -550,17 +634,35 @@ impl BridgeState {
         }
     }
 
+    /// 지금 이 파일을 맡을 플러그인이 보이는지. 기다리지 않는다.
+    async fn sees(&self, file_key: &str) -> bool {
+        let link = self.link.current();
+        let view = self.view(&link).await;
+        resolve(keys_in(&view), file_key).is_some()
+    }
+
     /// 이 파일을 열어 둔 플러그인이 있는지. 포트를 쥔 프로세스를 통해 보이는 것도 센다.
     pub async fn has_plugin(&self, file_key: &str) -> bool {
         self.settle().await;
-        let link = self.link.current();
-        let view = self.view(&link).await;
-        resolve(
-            view.iter()
-                .map(|(id, file)| (*id, file.file_key.as_deref().unwrap_or_default())),
-            file_key,
-        )
-        .is_some()
+        self.sees(file_key).await
+    }
+
+    /// 끊긴 읽기의 플러그인이 돌아오기를 기다린다. 돌아왔으면 `true`.
+    async fn plugin_returns(&self, file_key: &str) -> bool {
+        let until = tokio::time::Instant::now() + RETURN_WAIT;
+        let mut changes = self.link.state.subscribe();
+        loop {
+            changes.borrow_and_update();
+            if self.sees(file_key).await {
+                return true;
+            }
+            if !matches!(
+                tokio::time::timeout_at(until, changes.changed()).await,
+                Ok(Ok(()))
+            ) {
+                return self.sees(file_key).await;
+            }
+        }
     }
 
     /// 붙어 있는 플러그인이 보고한 파일 키. 보고하지 못한 플러그인은 빈 문자열이다.
@@ -645,28 +747,50 @@ impl BridgeState {
     }
 
     /// 읽기 하나를 플러그인에 보낸다. 포트를 쥐었으면 곧장, 아니면 쥔 프로세스를 통해.
+    ///
+    /// 도중에 길이 끊기면 — 플러그인 창이 다시 붙었거나, 포트를 쥔 호스트가 떠나
+    /// 다른 프로세스가 이어받았으면 — 플러그인이 돌아오기를 잠깐 기다렸다가 다시
+    /// 보낸다. 읽기는 문서를 바꾸지 않으므로 두 번 돌아도 해가 없고, 호출자는 인계가
+    /// 있었는지 모른 채 답을 받는다. 수집 한가운데서 호스트 세션이 끝나도 그 수집은
+    /// 이어진다.
     async fn dispatch(
         &self,
         file_key: &str,
         script: &str,
         params: Value,
     ) -> Result<(Value, BridgeServed), DevupError> {
-        match self.link.current() {
-            LinkState::Host { .. } => self.dispatch_local(file_key, script, params).await,
-            LinkState::Relay { connection, .. } => {
-                connection.dispatch(file_key, script, params).await
+        let mut interruptions = 0;
+        loop {
+            self.settle().await;
+            let attempt = match self.link.current() {
+                LinkState::Host { .. } => {
+                    self.dispatch_local(file_key, script, params.clone()).await
+                }
+                LinkState::Relay { connection, .. } => {
+                    connection.dispatch(file_key, script, params.clone()).await
+                }
+                other => return Err(not_reachable(&other)),
+            };
+            match attempt {
+                Ok(done) => return Ok(done),
+                Err(Failure::Final(error)) => return Err(error),
+                Err(Failure::Interrupted(error)) => {
+                    interruptions += 1;
+                    if interruptions > INTERRUPTIONS || !self.plugin_returns(file_key).await {
+                        return Err(error);
+                    }
+                }
             }
-            other => Err(not_reachable(&other)),
         }
     }
 
-    /// 이 프로세스에 붙은 플러그인으로 보낸다. 중계로 온 읽기도 여기로 온다.
+    /// 이 프로세스에 붙은 플러그인으로 한 번 보낸다.
     async fn dispatch_local(
         &self,
         file_key: &str,
         script: &str,
         params: Value,
-    ) -> Result<(Value, BridgeServed), DevupError> {
+    ) -> Result<(Value, BridgeServed), Failure> {
         let request_id = self.next_request_id();
         let (tx, rx) = oneshot::channel();
 
@@ -675,10 +799,10 @@ impl BridgeState {
             let Some((id, plugin)) = resolve(keys_of(&inner.plugins), file_key)
                 .and_then(|id| inner.plugins.get(&id).map(|plugin| (id, plugin)))
             else {
-                return Err(unavailable(format!(
+                return Err(Failure::Final(unavailable(format!(
                     "no Devup Bridge plugin is open for {}",
                     describe_file(file_key)
-                )));
+                ))));
             };
             let job = Job {
                 kind: "devup-job",
@@ -686,57 +810,72 @@ impl BridgeState {
                 script,
                 params,
             };
-            let encoded = serde_json::to_string(&job)
-                .map_err(|error| unavailable(format!("bridge job encode failed: {error}")))?;
+            let encoded = serde_json::to_string(&job).map_err(|error| {
+                Failure::Final(unavailable(format!("bridge job encode failed: {error}")))
+            })?;
             // 답이 보내기보다 먼저 올 수는 없지만, 대기표는 보내기 전에 둔다.
             self.pending
                 .lock()
                 .expect("the pending table is never poisoned")
-                .insert(request_id.clone(), tx);
+                .insert(
+                    request_id.clone(),
+                    Pending {
+                        plugin: id,
+                        outbox: plugin.outbox.clone(),
+                        waiter: tx,
+                    },
+                );
             let sent = plugin.outbox.send(encoded).is_ok();
             let served = plugin.served();
             if !sent {
-                self.pending
-                    .lock()
-                    .expect("the pending table is never poisoned")
-                    .remove(&request_id);
                 // 소켓이 막 닫혔다. 등록을 지워 다음 호출이 곧장 폴백하도록 한다.
                 inner.plugins.remove(&id);
-                self.plugins_changed(&mut inner);
-                return Err(unavailable(format!(
+                self.plugin_left(&mut inner, id);
+                return Err(Failure::Interrupted(unavailable(format!(
                     "the Devup Bridge plugin for {} disconnected",
                     describe_file(file_key)
-                )));
+                ))));
             }
             served
         };
 
         // 성공이든 실패든, 기다리던 쪽이 도중에 사라지든 대기표는 반드시 걷는다.
-        // 남겨 두면 연결이 오래 살아 있는 동안 계속 쌓인다.
-        let _waiting = Waiting {
+        // 답을 받지 못한 채 걷으면 플러그인에도 그 작업을 거두라고 알린다.
+        let _awaiting = Awaiting {
             pending: &self.pending,
-            key: request_id,
+            request_id,
         };
-        let received = timeout(JOB_TIMEOUT, rx).await;
-
-        match received {
+        match timeout(JOB_TIMEOUT, rx).await {
             Ok(Ok(result)) => match (result.data, result.error) {
                 // 스크립트가 던진 DEVUP_* 코드는 그대로 올린다. 원격 경로와 같은
                 // 문자열이어야 위쪽 분기가 동일하게 동작한다.
-                (_, Some(message)) => Err(DevupError::new(
+                (_, Some(message)) => Err(Failure::Final(DevupError::new(
                     ErrorCode::DevupFigmaDirectUnavailable,
                     message,
                     false,
-                )),
+                ))),
                 (Some(data), None) => Ok((data, served)),
-                (None, None) => Err(unavailable("bridge returned neither data nor error")),
+                (None, None) => Err(Failure::Final(unavailable(
+                    "bridge returned neither data nor error",
+                ))),
             },
-            // 플러그인 창이 닫혔다.
-            Ok(Err(_)) => Err(unavailable("the Devup Bridge plugin disconnected mid-read")),
-            Err(_) => Err(unavailable(
+            // 작업을 받은 플러그인 창이 끊겼다.
+            Ok(Err(_)) => Err(Failure::Interrupted(unavailable(
+                "the Devup Bridge plugin disconnected mid-read",
+            ))),
+            Err(_) => Err(Failure::Final(unavailable(
                 "the Devup Bridge plugin did not answer in time",
-            )),
+            ))),
         }
+    }
+
+    /// 플러그인 하나가 떠났다(등록은 이미 지웠다). 그 플러그인이 받아 둔 읽기는 더
+    /// 답이 오지 않으니 곧장 끝낸다 — 90초를 기다리게 하지 않는다.
+    fn plugin_left(&self, inner: &mut Inner, id: u64) {
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.retain(|_, waiting| waiting.plugin != id);
+        }
+        self.plugins_changed(inner);
     }
 }
 
@@ -808,14 +947,40 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
     Ok(result)
 }
 
-/// 플러그인이 붙는 문.
+/// 플러그인이 붙는 문에 들이는 `Origin`.
 ///
-/// `Origin` 을 보지 않는다 — 이 문은 이번에도 그대로다. 브라우저 페이지도
-/// `ws://localhost` 에 붙을 수 있으므로, 여기서 `hello` 를 보내 플러그인인 척하면
-/// 읽기 요청을 받고 지어낸 답을 돌려줄 수 있다. 막으려면 실제 플러그인 iframe 이
-/// 보내는 `Origin` 을 먼저 재야 한다. 재지 않고 막으면 진짜 플러그인이 끊긴다.
-/// 중계 문(`/relay`)은 처음부터 `Origin` 이 붙은 요청을 거절한다.
-async fn plugin_socket(State(state): State<BridgeState>, upgrade: WebSocketUpgrade) -> Response {
+/// 브라우저 페이지도 `ws://localhost` 에 붙을 수 있다. 그 페이지가 여기서 `hello`
+/// 를 보내 플러그인인 척하면 읽기 요청을 받고 지어낸 디자인을 돌려줄 수 있다 — 같은
+/// 파일 키로 나중에 붙은 연결이 그 파일의 읽기를 맡으므로 진짜 플러그인을 가로챌
+/// 수도 있다. 브라우저는 WebSocket 핸드셰이크에 늘 `Origin` 을 싣고 페이지는 그것을
+/// 바꾸지 못한다.
+///
+/// Figma 플러그인의 UI 는 origin 이 `null` 인 iframe 에서 돈다(Figma 개발자 문서
+/// "Making Network Requests": "Plugin iframes have a null origin"). 이 플러그인은
+/// iframe 을 다른 주소로 옮기지 않는다. 혹시 Figma 가 제 origin 을 싣는 판이 있어도
+/// 끊기지 않도록 figma.com 도 들인다 — 다른 페이지는 그 값을 지어낼 수 없다.
+/// `Origin` 이 없는 요청은 브라우저가 아닌 프로그램(테스트, 프로브)이다.
+///
+/// 한계가 있다: 샌드박스 iframe 이나 `file://` 페이지도 `null` 을 싣는다. 흔한 웹
+/// 페이지는 막지만 그런 페이지까지 막지는 못한다.
+fn a_plugin_origin(headers: &HeaderMap) -> bool {
+    headers.get(ORIGIN).is_none_or(|origin| {
+        matches!(
+            origin.as_bytes(),
+            b"null" | b"https://www.figma.com" | b"https://figma.com"
+        )
+    })
+}
+
+/// 플러그인이 붙는 문.
+async fn plugin_socket(
+    State(state): State<BridgeState>,
+    headers: HeaderMap,
+    upgrade: WebSocketUpgrade,
+) -> Response {
+    if !a_plugin_origin(&headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
     upgrade.on_upgrade(move |socket| handle_plugin(state, socket))
 }
 
@@ -849,13 +1014,15 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                         //
                         // 필드마다 따로 읽는다. 페이지나 선택이 어긋난 모양으로 와도
                         // 파일 키까지 잃으면 안 된다.
+                        let file_key = value
+                            .get("fileKey")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned();
                         let plugin = Connected {
                             outbox: outbox.clone(),
-                            file_key: value
-                                .get("fileKey")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_owned(),
+                            routing_key: routing_key(&file_key, session_of(&value).as_deref(), id),
+                            file_key,
                             file_name: value
                                 .get("fileName")
                                 .and_then(Value::as_str)
@@ -891,7 +1058,7 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
                             .remove(&result.request_id);
                         // 받는 쪽이 이미 타임아웃했거나 떠났으면 버린다.
                         if let Some(waiting) = waiting {
-                            let _ = waiting.send(result);
+                            let _ = waiting.waiter.send(result);
                         }
                     }
                     _ => {}
@@ -902,7 +1069,7 @@ async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {
 
     let mut inner = state.inner.lock().await;
     if inner.plugins.remove(&id).is_some() {
-        state.plugins_changed(&mut inner);
+        state.plugin_left(&mut inner, id);
     }
 }
 
@@ -943,9 +1110,13 @@ pub enum BridgeRole {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BridgeIssue {
     /// 중계를 모르는 예전 devup-mcp 가 포트를 쥐었다. `/plugin` 만 있고 `/relay` 가 없다.
-    LegacyHost,
-    /// devup-mcp 가 아닌 프로그램이 포트를 쥐었다.
-    ForeignProgram { detail: String },
+    /// 자신을 밝히지 않으므로 `owner` 는 OS 에 물어 안 것이다.
+    LegacyHost { owner: Option<PortOwner> },
+    /// devup-mcp 가 아닌 프로그램이 포트를 쥐었다. `owner` 는 OS 에 물어 안 것이다.
+    ForeignProgram {
+        detail: String,
+        owner: Option<PortOwner>,
+    },
     /// 다른 판의 중계 규약을 쓰는 devup-mcp 가 쥐었다. 틀린 답을 내느니 잇지 않는다.
     IncompatibleProtocol { theirs: Option<u64>, ours: u64 },
     /// 서로 같은 사용자의 devup-mcp 임을 증명하지 못했다.
@@ -960,7 +1131,7 @@ impl BridgeIssue {
     /// status 가 싣는 짧은 이름.
     pub fn code(&self) -> &'static str {
         match self {
-            Self::LegacyHost => "legacy-host",
+            Self::LegacyHost { .. } => "legacy-host",
             Self::ForeignProgram { .. } => "foreign-program",
             Self::IncompatibleProtocol { .. } => "incompatible-protocol",
             Self::AuthenticationFailed { .. } => "authentication-failed",
@@ -1159,6 +1330,10 @@ impl FigmaUpstream for BridgeFigmaClient {
     async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
         Some(self.state.path_snapshot(self.port).await)
     }
+
+    async fn is_metered(&self, _call: &ReadToolCall) -> bool {
+        false
+    }
 }
 
 #[async_trait]
@@ -1268,6 +1443,12 @@ where
 
     async fn bridge_path_snapshot(&self) -> Option<BridgePathSnapshot> {
         self.preferred.bridge_path_snapshot().await
+    }
+
+    /// 브리지가 맡는 읽기는 한도를 쓰지 않는다. 브리지만 읽을 수 있는 키는 원격으로
+    /// 가지 않으므로(거절된다) 역시 세지 않는다.
+    async fn is_metered(&self, call: &ReadToolCall) -> bool {
+        !(is_bridge_only_key(call.file_key()) || self.preferred.can_serve(call).await)
     }
 }
 

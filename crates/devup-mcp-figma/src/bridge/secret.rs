@@ -127,38 +127,64 @@ pub(crate) fn nonce() -> String {
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
-/// 비밀값 파일의 기본 자리. 그 사용자만 쓰는 디렉터리 아래다.
+/// 비밀값 파일의 기본 자리. 그 사용자만 들어갈 수 있는 디렉터리 아래다.
 ///
 /// 같은 사용자의 devup-mcp 는 어느 클라이언트가 띄웠든 같은 자리를 봐야 한다.
-/// 클라이언트마다 넘기는 환경 변수가 달라서, 누구에게나 있는 값 하나만 쓴다 —
-/// Windows 는 `USERPROFILE`(Git Bash 가 넣는 `HOME` 은 셸마다 다르다), 그 밖은
-/// `HOME`. `XDG_STATE_HOME` 처럼 어떤 클라이언트는 넘기고 어떤 클라이언트는
-/// 지우는 값을 따르면, 같은 사용자의 두 프로세스가 서로를 알아보지 못한다.
+/// 그런데 클라이언트마다 넘기는 환경이 다르다 — `HOME` 을 제 샌드박스로 바꿔 띄우는
+/// 클라이언트가 있고, `XDG_STATE_HOME` 은 넘기는 쪽과 지우는 쪽이 있다. 환경을
+/// 따르면 같은 사용자의 두 프로세스가 서로 다른 비밀값을 읽어 서로를 알아보지 못한다.
 ///
-/// Windows 에서는 따로 권한을 좁히지 않는다. `%USERPROFILE%\AppData\Local` 아래의
-/// 파일은 사용자 프로필의 ACL(그 사용자, SYSTEM, Administrators)을 물려받는다.
+/// 그래서 Unix 에서는 환경이 아니라 사용자 번호가 자리를 정한다:
+/// `/tmp/devup-mcp-<uid>/`. `/tmp` 는 누구나 쓰는 곳이라, 그 디렉터리가 이 사용자의
+/// 것이고 다른 사용자가 들어올 수 없는지를 쓸 때마다 확인한다([`secure_directory`]).
+/// 재부팅하면 지워지지만, 그때는 그 비밀값을 알던 프로세스도 모두 끝났다.
+///
+/// Windows 는 `USERPROFILE` 이다. 시스템이 사용자마다 정하는 값이라 클라이언트가
+/// 바꾸지 않는다(Git Bash 가 넣는 `HOME` 은 셸마다 다르다). 따로 권한을 좁히지
+/// 않는다 — `%USERPROFILE%\AppData\Local` 아래의 파일은 사용자 프로필의 ACL(그
+/// 사용자, SYSTEM, Administrators)을 물려받는다.
 pub(crate) fn default_path() -> Option<PathBuf> {
     #[cfg(windows)]
-    let base = std::env::var_os("USERPROFILE")
+    let directory = std::env::var_os("USERPROFILE")
         .filter(|home| !home.is_empty())
         .map(|home| PathBuf::from(home).join("AppData").join("Local"))
         .or_else(|| {
             std::env::var_os("LOCALAPPDATA")
                 .filter(|path| !path.is_empty())
                 .map(PathBuf::from)
-        });
-    #[cfg(target_os = "macos")]
-    let base = home().map(|home| home.join("Library").join("Application Support"));
-    #[cfg(all(not(windows), not(target_os = "macos")))]
-    let base = home().map(|home| home.join(".local").join("state"));
-    base.map(|base| base.join("devup-mcp").join(FILE_NAME))
+        })
+        .map(|base| base.join("devup-mcp"));
+    #[cfg(unix)]
+    let directory = user_id().map(|uid| Path::new("/tmp").join(format!("devup-mcp-{uid}")));
+    #[cfg(not(any(windows, unix)))]
+    let directory: Option<PathBuf> = None;
+    directory.map(|directory| directory.join(FILE_NAME))
 }
 
-#[cfg(not(windows))]
-fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .filter(|home| !home.is_empty())
-        .map(PathBuf::from)
+/// 이 프로세스의 사용자 번호.
+///
+/// 표준 라이브러리에는 `getuid` 가 없고 libc 의 것은 `unsafe` 로만 부를 수 있어서,
+/// 방금 만든 파일의 주인을 읽는다 — 파일은 그것을 만든 프로세스의 사용자 것이 된다.
+/// 비밀값을 둘 `/tmp` 에 만들어 본다. 거기에 쓸 수 없으면 어차피 둘 곳이 없다.
+#[cfg(unix)]
+fn user_id() -> Option<u32> {
+    use std::os::unix::fs::MetadataExt;
+    static USER_ID: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    *USER_ID.get_or_init(|| {
+        let probe = Path::new("/tmp").join(format!(
+            ".devup-mcp-uid-{}-{:016x}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        let uid = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&probe)
+            .and_then(|file| file.metadata())
+            .map(|metadata| metadata.uid());
+        let _ = std::fs::remove_file(&probe);
+        uid.ok()
+    })
 }
 
 enum Stored {
@@ -184,6 +210,13 @@ fn stored(path: &Path) -> io::Result<Stored> {
 
 /// 비밀값을 읽는다. 없으면 만든다.
 pub(crate) async fn load_or_create(path: &Path) -> io::Result<RelaySecret> {
+    if let Some(directory) = path.parent() {
+        // 다른 사용자가 들어올 수 있던 디렉터리라면, 거기 있던 비밀값은 이미 새어
+        // 나갔다고 본다.
+        if secure_directory(directory)? {
+            return replace(path);
+        }
+    }
     for _ in 0..READ_ATTEMPTS {
         match stored(path)? {
             Stored::Secret(secret) => return Ok(secret),
@@ -202,9 +235,6 @@ pub(crate) async fn load_or_create(path: &Path) -> io::Result<RelaySecret> {
 }
 
 fn create(path: &Path) -> io::Result<RelaySecret> {
-    if let Some(directory) = path.parent() {
-        create_private_directory(directory)?;
-    }
     let secret = RelaySecret::generate();
     let mut file = private_file().write(true).create_new(true).open(path)?;
     file.write_all(secret.encoded().as_bytes())?;
@@ -213,18 +243,19 @@ fn create(path: &Path) -> io::Result<RelaySecret> {
 }
 
 /// 새 값을 옆에 다 쓴 뒤 이름을 바꿔 넣는다. 읽는 쪽은 옛 값이나 새 값 하나만 본다.
+///
+/// 옆 파일은 매번 새 이름으로 새로 만든다(`create_new`). 디렉터리가 열려 있던 사이에
+/// 누가 그 이름으로 링크를 심어 두었더라도 따라가 쓰지 않고, 한 프로세스 안에서 둘이
+/// 동시에 바꿔 넣어도 서로의 파일을 덮지 않는다.
 fn replace(path: &Path) -> io::Result<RelaySecret> {
-    if let Some(directory) = path.parent() {
-        create_private_directory(directory)?;
-    }
     let secret = RelaySecret::generate();
-    let staged = path.with_extension(format!("key.{}.tmp", std::process::id()));
+    let staged = path.with_extension(format!(
+        "key.{}.{:016x}.tmp",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
     let written = (|| {
-        let mut file = private_file()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&staged)?;
+        let mut file = private_file().write(true).create_new(true).open(&staged)?;
         file.write_all(secret.encoded().as_bytes())?;
         file.sync_all()?;
         std::fs::rename(&staged, path)
@@ -248,25 +279,47 @@ fn private_file() -> OpenOptions {
     OpenOptions::new()
 }
 
+/// 비밀값을 둘 디렉터리를 만들거나 확인한다. 다른 사용자가 들어올 수 있게 열려
+/// 있었는지를 돌려준다 — 그랬다면 닫고, 거기 있던 비밀값은 버려야 한다.
+///
+/// `/tmp` 에서는 다른 사용자가 같은 이름을 먼저 만들어 둘 수 있다. 그 디렉터리나 그
+/// 이름의 심볼릭 링크에 비밀값을 두면 그 사용자가 가져가므로, 이 사용자의 진짜
+/// 디렉터리가 아니면 거절한다.
 #[cfg(unix)]
-fn create_private_directory(directory: &Path) -> io::Result<()> {
-    use std::os::unix::fs::DirBuilderExt;
+fn secure_directory(directory: &Path) -> io::Result<bool> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
     std::fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
-        .create(directory)
+        .create(directory)?;
+    let metadata = std::fs::symlink_metadata(directory)?;
+    if !metadata.is_dir() || Some(metadata.uid()) != user_id() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "{} is not a directory this user owns, so the secret is not kept there",
+                directory.display()
+            ),
+        ));
+    }
+    if metadata.permissions().mode() & 0o077 == 0 {
+        return Ok(false);
+    }
+    std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))?;
+    Ok(true)
 }
 
 #[cfg(not(unix))]
-fn create_private_directory(directory: &Path) -> io::Result<()> {
-    std::fs::create_dir_all(directory)
+fn secure_directory(directory: &Path) -> io::Result<bool> {
+    std::fs::create_dir_all(directory).map(|()| false)
 }
 
-/// 그룹이나 다른 사용자가 읽을 수 없는지.
+/// 이 사용자의 것이고, 그룹이나 다른 사용자가 읽을 수 없는지.
 #[cfg(unix)]
 fn private(path: &Path) -> io::Result<bool> {
-    use std::os::unix::fs::PermissionsExt;
-    Ok(std::fs::metadata(path)?.permissions().mode() & 0o077 == 0)
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let metadata = std::fs::metadata(path)?;
+    Ok(metadata.permissions().mode() & 0o077 == 0 && Some(metadata.uid()) == user_id())
 }
 
 #[cfg(not(unix))]
@@ -325,7 +378,52 @@ mod tests {
             "a secret others could read is not reused"
         );
         assert_eq!(mode(&path) & 0o777, 0o600);
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+
+        // A directory others could enter: they could have read the file, or put
+        // their own in its place. It is closed and its secret replaced.
+        let directory = path.parent().unwrap();
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let replaced = load_or_create(&path).await.unwrap();
+        assert_ne!(
+            replaced.0, rotated.0,
+            "a secret others could reach is not reused"
+        );
+        assert_eq!(mode(directory) & 0o777, 0o700);
+        assert_eq!(load_or_create(&path).await.unwrap().0, replaced.0);
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    /// Where the secret lives on Unix follows who the process runs as, not
+    /// its environment: clients hand their servers different `HOME`s.
+    #[cfg(unix)]
+    #[test]
+    fn the_default_place_is_this_users_own_under_tmp() {
+        use std::os::unix::fs::MetadataExt;
+        let mine = scratch();
+        std::fs::create_dir_all(mine.parent().unwrap()).unwrap();
+        let uid = std::fs::metadata(mine.parent().unwrap()).unwrap().uid();
+        assert_eq!(
+            default_path(),
+            Some(PathBuf::from(format!("/tmp/devup-mcp-{uid}/{FILE_NAME}")))
+        );
+        let _ = std::fs::remove_dir_all(mine.parent().unwrap());
+    }
+
+    /// A name under `/tmp` that is not this user's directory - here a link to
+    /// one - is refused rather than used.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_directory_that_is_not_this_users_own_is_refused() {
+        let real = scratch();
+        let real_directory = real.parent().unwrap().to_path_buf();
+        std::fs::create_dir_all(&real_directory).unwrap();
+        let link = real_directory.with_extension("link");
+        std::os::unix::fs::symlink(&real_directory, &link).unwrap();
+        let error = load_or_create(&link.join(FILE_NAME)).await.unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied, "{error}");
+        assert!(!real_directory.join(FILE_NAME).exists());
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir_all(&real_directory);
     }
 
     #[test]

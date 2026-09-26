@@ -37,7 +37,7 @@
 
 use devup_mcp_figma::{
     AttachedFile, AuthStatus, BridgeIssue, BridgePathSnapshot, BridgePeer, BridgeRole,
-    ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot, TokenState,
+    ClientCredentialSource, DEFAULT_CLIENT_NAME, DirectPathSnapshot, PortOwner, TokenState,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -300,24 +300,41 @@ fn holder_text(bridge: &BridgePathSnapshot) -> String {
         .map_or_else(String::new, |host| format!(" ({})", describe_peer(host)))
 }
 
+/// The process the operating system says holds the port, the way a person
+/// finds it: its pid, and the executable, whose path shows which MCP client
+/// installed it. Without that, how to look it up.
+fn owner_text(owner: Option<&PortOwner>, port: &str) -> String {
+    match owner {
+        Some(owner) => {
+            let what = match (&owner.executable, &owner.name) {
+                (Some(executable), _) => format!(", {executable}"),
+                (None, Some(name)) => format!(", {name}"),
+                (None, None) => String::new(),
+            };
+            format!("pid {}{what}", owner.pid)
+        }
+        None => find_the_holder(port),
+    }
+}
+
 /// The one step that would let this process use the bridge again.
 fn repair(bridge: &BridgePathSnapshot) -> String {
     let port = port_text(bridge);
     let holder = holder_text(bridge);
     match &bridge.issue {
-        Some(BridgeIssue::LegacyHost) => format!(
-            "The devup-mcp holding port {port} predates bridge sharing, so this process cannot read through it: restart (or update) the MCP client session that started it - {}. Once it exits, this process takes the port over by itself and the plugin reconnects to it.",
-            find_the_holder(&port)
+        Some(BridgeIssue::LegacyHost { owner }) => format!(
+            "The devup-mcp holding port {port} ({}) predates bridge sharing, so this process cannot read through it: restart (or update) the MCP client session that started it. Once it exits, this process takes the port over by itself and the plugin reconnects to it.",
+            owner_text(owner.as_ref(), &port)
         ),
-        Some(BridgeIssue::ForeignProgram { .. }) => format!(
-            "Stop the program holding port {port} - {}. The plugin's port is fixed by its manifest; once the port is free this process takes it over by itself.",
-            find_the_holder(&port)
+        Some(BridgeIssue::ForeignProgram { owner, .. }) => format!(
+            "Stop the program holding port {port} ({}). The plugin's port is fixed by its manifest; once the port is free this process takes it over by itself.",
+            owner_text(owner.as_ref(), &port)
         ),
         Some(BridgeIssue::IncompatibleProtocol { .. }) => format!(
             "The devup-mcp holding port {port}{holder} and this one are different releases that cannot relay to each other: restart the MCP client session whose devup-mcp is older so both run the same release."
         ),
         Some(BridgeIssue::AuthenticationFailed { .. }) => format!(
-            "Run every devup-mcp on this machine as the same user with the same home directory (they prove themselves to each other with a per-user secret kept there), or restart the MCP client session holding port {port}{holder}."
+            "Run every devup-mcp on this machine as the same user (they prove themselves to each other with a secret only that user can read), or restart the MCP client session holding port {port}{holder}."
         ),
         Some(BridgeIssue::SecretUnavailable { .. }) => format!(
             "Make the per-user relay secret readable and writable for this user (see paths.bridge.reason), or restart the MCP client session holding port {port}{holder} so this process can take the port over."
@@ -453,6 +470,32 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
     if let Some(issue) = &bridge.issue {
         path["issue"] = json!(issue.code());
     }
+    match &bridge.issue {
+        // A devup-mcp from before sharing is still the port's devup-mcp, so it
+        // is the `host` - named by the operating system, since it cannot say
+        // its own version.
+        Some(BridgeIssue::LegacyHost { owner: Some(owner) }) => {
+            path["host"] = json!({
+                "pid": owner.pid,
+                "version": null,
+                "buildId": null,
+                "name": owner.name,
+                "executable": owner.executable,
+                "thisProcess": false,
+            });
+        }
+        // Something that is not a devup-mcp is no host; it is only in the way.
+        Some(BridgeIssue::ForeignProgram {
+            owner: Some(owner), ..
+        }) => {
+            path["holder"] = json!({
+                "pid": owner.pid,
+                "name": owner.name,
+                "executable": owner.executable,
+            });
+        }
+        _ => {}
+    }
     if let Some(previous) = &bridge.handover_from {
         path["handoverFrom"] = peer(previous, false);
     }
@@ -513,13 +556,13 @@ fn bridge_reason(bridge: &BridgePathSnapshot) -> String {
         (BridgeRole::Connecting, _) => format!(
             "This process is still finding out which devup-mcp holds the bridge port {port}. Call status again in a moment."
         ),
-        (BridgeRole::Unavailable, Some(BridgeIssue::LegacyHost)) => format!(
-            "Port {port} is held by a devup-mcp built before the bridge could be shared: it serves the plugin on /plugin but has no relay endpoint, so only that process can use the plugin and this one cannot read through it. It cannot say which process it is; {}. To use the bridge here, restart (or update) the MCP client session that started it. This process keeps checking, and takes the port over by itself once that process exits.",
-            find_the_holder(&port)
+        (BridgeRole::Unavailable, Some(BridgeIssue::LegacyHost { owner })) => format!(
+            "Port {port} is held by a devup-mcp built before the bridge could be shared ({}): it serves the plugin on /plugin but has no relay endpoint, so only that process can use the plugin and this one cannot read through it. To use the bridge here, restart (or update) the MCP client session that started it. This process keeps checking, and takes the port over by itself once that process exits.",
+            owner_text(owner.as_ref(), &port)
         ),
-        (BridgeRole::Unavailable, Some(BridgeIssue::ForeignProgram { detail })) => format!(
-            "Port {port} is held by a program that is not a devup-mcp ({detail}), so the plugin cannot reach any devup-mcp on this machine. Stop that program - {}. This process keeps checking, and takes the port over by itself once it is free.",
-            find_the_holder(&port)
+        (BridgeRole::Unavailable, Some(BridgeIssue::ForeignProgram { detail, owner })) => format!(
+            "Port {port} is held by a program that is not a devup-mcp ({}; {detail}), so the plugin cannot reach any devup-mcp on this machine. Stop that program. This process keeps checking, and takes the port over by itself once it is free.",
+            owner_text(owner.as_ref(), &port)
         ),
         (BridgeRole::Unavailable, Some(BridgeIssue::IncompatibleProtocol { theirs, ours })) => {
             format!(
@@ -528,7 +571,7 @@ fn bridge_reason(bridge: &BridgePathSnapshot) -> String {
             )
         }
         (BridgeRole::Unavailable, Some(BridgeIssue::AuthenticationFailed { detail })) => format!(
-            "Port {port} is held by a process{holder} that could not be verified as this user's devup-mcp ({detail}). Relaying needs both processes to read the same per-user secret file, so a devup-mcp run as another user or with another home directory cannot share the bridge, and this process does not read through it."
+            "Port {port} is held by a process{holder} that could not be verified as this user's devup-mcp ({detail}). Relaying needs both processes to read the same secret, which only this user can read, so a devup-mcp run as another user - or sandboxed away from that secret - cannot share the bridge, and this process does not read through it."
         ),
         (BridgeRole::Unavailable, Some(BridgeIssue::SecretUnavailable { detail })) => format!(
             "Another process{holder} holds the bridge port {port}, but this process could not read or create the per-user relay secret it proves itself with ({detail}), so it cannot read through it."
@@ -849,7 +892,7 @@ mod tests {
             Some(&BridgePathSnapshot {
                 role: BridgeRole::Unavailable,
                 host: None,
-                issue: Some(BridgeIssue::LegacyHost),
+                issue: Some(BridgeIssue::LegacyHost { owner: None }),
                 ..bridge_with(vec![])
             }),
         );

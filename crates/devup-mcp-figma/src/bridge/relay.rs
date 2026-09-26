@@ -2,11 +2,14 @@
 //!
 //! # 왜 이렇게 하나
 //!
-//! 플러그인은 바꿀 수 없다. 이미 설치된 플러그인은 manifest 의 `allowedDomains`
-//! 에 적힌 `ws://localhost:1993` 하나에만 붙고, Figma 는 그 목록을 실행 중에 바꾸지
-//! 못한다. 붙으면 `hello` 로 파일·페이지·선택을 알리고, 선택이 바뀔 때마다
-//! `context` 를 보내고, 받은 `devup-job` 을 하나씩 순서대로 실행해 `devup-result`
-//! 로 답한다. 소켓이 닫히면 2초 뒤 같은 주소로 다시 붙는다(`plugin/src/ui.ts`).
+//! 설치된 플러그인에 기댈 수 있는 것은 적다 — 사용자가 다시 불러오기 전까지는 예전
+//! 빌드가 돈다. 어느 빌드든 manifest 의 `allowedDomains` 에 적힌
+//! `ws://localhost:1993` 하나에만 붙고, Figma 는 그 목록을 실행 중에 바꾸지 못한다.
+//! 붙으면 `hello` 로 파일·페이지·선택을 알리고, 선택이 바뀔 때마다 `context` 를
+//! 보내고, 받은 `devup-job` 을 하나씩 순서대로 실행해 `devup-result` 로 답한다.
+//! 소켓이 닫히면 2초 뒤 같은 주소로 다시 붙는다(`plugin/src/ui.ts`). 새 빌드는
+//! 여기에 창마다 정한 `sessionId` 를 `hello` 에 싣고 `devup-cancel` 을 알아듣는다.
+//! 둘 다 없는 예전 빌드도 그대로 동작해야 한다.
 //!
 //! 그래서 포트를 잡은 프로세스(호스트)가 플러그인을 받고, 나머지는 호스트에 붙어
 //! 읽기를 맡긴다(중계). 호스트가 떠나면 남은 프로세스 가운데 하나가 포트를
@@ -39,11 +42,16 @@
 //! 붙거나 떠나거나 선택이 바뀌면 호스트가 `relay-files` 로 모두에게 같은 목록을
 //! 보낸다.
 //!
-//! 중계가 끊기면 호스트는 그 중계의 읽기를 거둔다. 플러그인에는 취소를 보낼 길이
-//! 없어(플러그인은 바꾸지 않는다) 이미 넘긴 작업은 끝까지 돌지만, 그 답은 버려진다.
-//! 호스트가 끊기면 중계의 읽기는 기다리지 않고 곧장 실패하고, 중계는 곧바로 포트를
-//! 잡아 본다. OS 가 포트를 한 소켓에만 주므로 둘이 동시에 호스트가 되지 않는다 —
-//! 진 쪽은 이긴 쪽에 중계로 붙는다.
+//! 중계가 끊기면 호스트는 그 중계의 읽기를 거두고 플러그인에 `devup-cancel` 을
+//! 보낸다. 플러그인은 차례를 기다리던 작업이면 돌리지 않고, 이미 돌고 있던 작업이면
+//! 답을 보내지 않는다. 그 말을 모르는 예전 빌드는 끝까지 돌리고, 그 답은 버려진다.
+//!
+//! 호스트가 끊기면 중계는 곧바로 포트를 잡아 본다. OS 가 포트를 한 소켓에만 주므로
+//! 둘이 동시에 호스트가 되지 않는다 — 진 쪽은 이긴 쪽에 중계로 붙는다. 그때 진행
+//! 중이던 읽기는 실패로 끝나지 않는다. 플러그인이 새 호스트에 다시 붙으면 다시
+//! 보낸다([`BridgeState::dispatch`]) — 읽기는 문서를 바꾸지 않으므로 두 번 돌아도
+//! 해가 없고, 수집을 처음부터 다시 하는 것보다 낫다. 파일 키가 없는 플러그인도
+//! `sessionId` 로 불리므로 다시 붙은 뒤에 같은 창을 찾는다.
 //!
 //! # 누가 쥐었는지
 //!
@@ -58,6 +66,11 @@
 //!
 //! 어느 쪽이든 답을 기다리는 데 한도가 있다. 대답하지 않는 상대도 몇 초 안에
 //! 판정되고, 그 뒤로는 주기적으로 다시 확인한다.
+//!
+//! 뒤의 둘은 자신을 밝히지 않으므로 그 포트에서 듣는 프로세스를 OS 에 물어 pid·이름·
+//! 실행 파일을 붙인다([`super::holder`]). 사람이 그것을 보고 어느 세션인지 찾는다.
+//! 묻는 데는 외부 명령이 들어서 status 는 그것을 기다리지 않는다 — 먼저 답하고,
+//! 알게 되는 대로 덧붙인다.
 
 use std::{
     collections::HashMap,
@@ -92,8 +105,9 @@ use tokio_tungstenite::{
 };
 
 use super::{
-    AttachedFile, BridgeIssue, BridgePeer, BridgeServed, BridgeState, Connected, JOB_TIMEOUT,
-    LinkState, PluginContext, Waiting, attached_file,
+    AttachedFile, BridgeIssue, BridgePeer, BridgeServed, BridgeState, Connected, Failure,
+    JOB_TIMEOUT, LinkState, PluginContext, Waiting,
+    holder::{self, PortOwner},
     secret::{self, RelaySecret, Side},
     shut_down, unavailable,
 };
@@ -126,11 +140,13 @@ const RELAY_SLACK: Duration = Duration::from_secs(5);
 
 type ClientSocket = WebSocketStream<TcpStream>;
 
-/// 호스트가 중계에 보내는 플러그인 하나.
+/// 호스트가 중계에 보내는 플러그인 하나. 부를 이름(`targetKey`)도 호스트가 정한
+/// 그대로 보낸다 — 그래야 어느 프로세스가 읽기를 보내도 같은 창에 닿는다.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WireFile {
     connection: u64,
+    target_key: String,
     #[serde(default)]
     file_key: Option<String>,
     #[serde(default)]
@@ -147,6 +163,7 @@ fn wire_files(plugins: &HashMap<u64, Connected>) -> Vec<WireFile> {
             let plugin = &plugins[&id];
             WireFile {
                 connection: id,
+                target_key: plugin.routing_key.clone(),
                 file_key: plugin.reported_key(),
                 file_name: plugin.file_name.clone(),
                 context: plugin.context.clone(),
@@ -169,7 +186,12 @@ fn files_from(message: &Value) -> Vec<(u64, AttachedFile)> {
         .map(|file| {
             (
                 file.connection,
-                attached_file(file.connection, file.file_key, file.file_name, file.context),
+                AttachedFile {
+                    target_key: file.target_key,
+                    file_key: file.file_key,
+                    file_name: file.file_name,
+                    context: file.context,
+                },
             )
         })
         .collect()
@@ -322,7 +344,9 @@ async fn serve_relay(state: BridgeState, mut socket: WebSocket) {
                 let Ok(job) = serde_json::from_value::<RelayJob>(message) else { continue };
                 let (state, outbox) = (state.clone(), outbox.clone());
                 reads.spawn(async move {
-                    let answer = match state.dispatch_local(&job.file_key, &job.script, job.params).await {
+                    // 호스트 자신의 읽기와 같은 길이다. 플러그인이 도중에 다시 붙으면
+                    // 돌아오기를 기다렸다가 다시 보낸다.
+                    let answer = match state.dispatch(&job.file_key, &job.script, job.params).await {
                         Ok((data, served)) => json!({
                             "kind": "relay-result", "id": job.id, "data": data, "served": served,
                         }),
@@ -372,12 +396,13 @@ pub(crate) struct RelayConnection {
 }
 
 impl RelayConnection {
-    fn gone(&self) -> DevupError {
-        unavailable(format!(
-            "the devup-mcp holding the Devup Bridge port (pid {}) went away mid-read. Another \
-             process takes the port over and the plugin reconnects within seconds; repeat the call.",
+    /// 호스트가 읽기 도중에 떠났다. 이어받은 쪽에 플러그인이 돌아오면 다시 보낸다.
+    fn gone(&self) -> Failure {
+        Failure::Interrupted(unavailable(format!(
+            "the devup-mcp holding the Devup Bridge port (pid {}) went away mid-read, and the \
+             plugin did not come back through whichever process took the port over.",
             self.host.pid
-        ))
+        )))
     }
 
     pub(crate) async fn dispatch(
@@ -385,7 +410,7 @@ impl RelayConnection {
         file_key: &str,
         script: &str,
         params: Value,
-    ) -> Result<(Value, BridgeServed), DevupError> {
+    ) -> Result<(Value, BridgeServed), Failure> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         self.pending
@@ -405,16 +430,17 @@ impl RelayConnection {
         match timeout(JOB_TIMEOUT + RELAY_SLACK, rx).await {
             Ok(Ok(Answer::Data(data, served))) => Ok((data, served)),
             // 호스트가 붙인 문구를 그대로 올린다. 스크립트가 던진 DEVUP_* 코드도
-            // 그 안에 있고, 위쪽 분기는 그 문자열로 판정한다.
-            Ok(Ok(Answer::Failed(message))) => Err(DevupError::new(
+            // 그 안에 있고, 위쪽 분기는 그 문자열로 판정한다. 호스트가 이미 다시
+            // 보내 볼 만큼 보냈으므로 여기서 또 보내지 않는다.
+            Ok(Ok(Answer::Failed(message))) => Err(Failure::Final(DevupError::new(
                 ErrorCode::DevupFigmaDirectUnavailable,
                 message,
                 false,
-            )),
+            ))),
             Ok(Err(_)) => Err(self.gone()),
-            Err(_) => Err(unavailable(
+            Err(_) => Err(Failure::Final(unavailable(
                 "the Devup Bridge plugin did not answer in time",
-            )),
+            ))),
         }
     }
 
@@ -458,6 +484,7 @@ fn foreign(detail: impl Into<String>) -> Probe {
     Probe::Refused {
         issue: BridgeIssue::ForeignProgram {
             detail: detail.into(),
+            owner: None,
         },
         holder: None,
     }
@@ -535,7 +562,7 @@ async fn legacy_or_foreign(port: u16) -> Probe {
         Ok(mut socket) => {
             let _ = socket.close(None).await;
             Probe::Refused {
-                issue: BridgeIssue::LegacyHost,
+                issue: BridgeIssue::LegacyHost { owner: None },
                 holder: None,
             }
         }
@@ -669,10 +696,12 @@ async fn join(state: &BridgeState, port: u16) -> Probe {
 
 async fn load_secret(state: &BridgeState) -> Result<RelaySecret, String> {
     let Some(path) = state.link.secret_path.as_deref() else {
-        return Err(
-            "there is no per-user directory to keep it in (USERPROFILE or HOME is not set)"
-                .to_owned(),
-        );
+        return Err(if cfg!(windows) {
+            "there is no per-user directory to keep it in (USERPROFILE is not set)"
+        } else {
+            "there is no per-user directory to keep it in (/tmp cannot be written)"
+        }
+        .to_owned());
     };
     secret::load_or_create(path)
         .await
@@ -739,13 +768,61 @@ async fn drive(state: &BridgeState, joined: Joined, expecting: Option<BridgePeer
     state.link.set(LinkState::Connecting {
         after: Some(connection.host.clone()),
     });
-    // 기다리던 읽기는 모두 "호스트가 떠났다"로 곧장 끝난다. 90초를 기다리지 않는다.
+    // 기다리던 읽기는 모두 "호스트가 떠났다"로 곧장 끝난다 — 90초를 기다리지 않는다.
+    // 다시 보낼지는 그 읽기를 보낸 dispatch 가 플러그인이 돌아오는지 보고 정한다.
     connection
         .pending
         .lock()
         .expect("the pending table is never poisoned")
         .clear();
     had_plugins
+}
+
+/// 포트를 쥔 프로세스를 OS 에 다시 묻는 간격. 브리지를 쓸 수 없는 동안에는 2초마다
+/// 포트를 확인하지만, 쥔 프로세스를 묻는 데는 외부 명령이 들어서 그만큼 자주 하지
+/// 않는다.
+const OWNER_TTL: Duration = Duration::from_secs(30);
+
+/// 자신을 밝히지 않는 쪽이 포트를 쥐었으면, 그 프로세스를 OS 에 물어 붙인다.
+struct Owners {
+    port: u16,
+    known: Option<(Instant, Option<PortOwner>)>,
+}
+
+impl Owners {
+    /// 이미 아는 만큼 붙인다. 묻지는 않는다.
+    fn attach(&self, issue: BridgeIssue) -> BridgeIssue {
+        let owner = self.known.as_ref().and_then(|(_, owner)| owner.clone());
+        match issue {
+            BridgeIssue::LegacyHost { .. } => BridgeIssue::LegacyHost { owner },
+            BridgeIssue::ForeignProgram { detail, .. } => {
+                BridgeIssue::ForeignProgram { detail, owner }
+            }
+            other => other,
+        }
+    }
+
+    /// 물을 때가 됐는지 — 자신을 밝히지 않는 쪽이고, 마지막으로 물은 지 오래됐다.
+    fn due(&self, issue: &BridgeIssue) -> bool {
+        let silent = matches!(
+            issue,
+            BridgeIssue::LegacyHost { .. } | BridgeIssue::ForeignProgram { .. }
+        );
+        silent
+            && !self
+                .known
+                .as_ref()
+                .is_some_and(|(at, _)| at.elapsed() < OWNER_TTL)
+    }
+
+    async fn ask(&mut self) {
+        self.known = Some((Instant::now(), holder::owner_of(self.port).await));
+    }
+
+    /// 포트를 쥔 쪽이 바뀌었을 수 있다. 다음에는 다시 묻는다.
+    fn forget(&mut self) {
+        self.known = None;
+    }
 }
 
 /// 포트를 잡지 못한 프로세스의 일: 포트를 쥔 쪽을 통해 읽고, 그가 떠나면 이어받는다.
@@ -755,6 +832,7 @@ pub(super) async fn supervise(state: BridgeState, port: u16) {
     let mut expecting: Option<BridgePeer> = None;
     let mut takeover_until: Option<Instant> = None;
     let mut vacant = 0_u32;
+    let mut owners = Owners { port, known: None };
     loop {
         if state.link.is_shut_down() {
             return;
@@ -775,6 +853,7 @@ pub(super) async fn supervise(state: BridgeState, port: u16) {
         let pause = match probe {
             Probe::Joined(joined) => {
                 vacant = 0;
+                owners.forget();
                 let host = joined.connection.host.clone();
                 let had_plugins = drive(&state, *joined, expecting.take()).await;
                 expecting = had_plugins.then_some(host);
@@ -783,9 +862,11 @@ pub(super) async fn supervise(state: BridgeState, port: u16) {
             }
             Probe::Vacant if taking_over || vacant < VACANT_RETRIES => {
                 vacant += 1;
+                owners.forget();
                 QUICK_RETRY
             }
             Probe::Vacant => {
+                owners.forget();
                 state.link.set(LinkState::Unavailable {
                     issue: BridgeIssue::BindFailed {
                         detail: bind_error.to_string(),
@@ -797,7 +878,23 @@ pub(super) async fn supervise(state: BridgeState, port: u16) {
             Probe::Refused { .. } if taking_over => QUICK_RETRY,
             Probe::Refused { issue, holder } => {
                 vacant = 0;
-                state.link.set(LinkState::Unavailable { issue, holder });
+                // 아는 만큼 곧장 알린다. 쥔 프로세스를 OS 에 묻는 데는 외부 명령이
+                // 들어서(Windows 에서는 PowerShell 이 뜨기까지 몇 초) status 가 그것을
+                // 기다리면 안 된다. 이름은 알게 되는 대로 덧붙인다.
+                state.link.set(LinkState::Unavailable {
+                    issue: owners.attach(issue.clone()),
+                    holder: holder.clone(),
+                });
+                if owners.due(&issue) {
+                    tokio::select! {
+                        () = owners.ask() => {}
+                        () = shut_down(&mut shutdown) => return,
+                    }
+                    state.link.set(LinkState::Unavailable {
+                        issue: owners.attach(issue),
+                        holder,
+                    });
+                }
                 RETRY_INTERVAL
             }
         };

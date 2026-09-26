@@ -199,7 +199,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-insta --version 1.48.0 --locked
       - run: cargo fmt --all -- --check
-      - run: node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs
+      - run: node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs
       # `plugin/dist/` is committed so a user can import the plugin into Figma
       # without running a build. That only stays true if the committed bundle
       # is the one this source produces, so rebuild it and refuse a difference.
