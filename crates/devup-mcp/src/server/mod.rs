@@ -5,6 +5,7 @@ pub mod delivery;
 mod design_drift;
 mod diagnostics;
 mod feature_trace;
+mod field_select;
 mod guide;
 pub mod operation;
 pub mod output;
@@ -16,6 +17,7 @@ mod quality;
 mod release_check;
 pub mod resources;
 mod result_contract;
+mod review;
 pub mod self_update;
 mod skills;
 mod stack_diff;
@@ -80,6 +82,7 @@ pub struct FigmaExportWorkflowInput {
     /// URL path segments are percent-encoded. Omit to keep placeholder paths.
     #[serde(default)]
     pub asset_public_root: Option<String>,
+
     /// Poll a server-local asset job. Omit url/artifactId/assetRequests when polling.
     #[serde(default)]
     pub job_id: Option<String>,
@@ -1609,10 +1612,14 @@ impl DevupServer {
 
         if let Some(artifact_id) = input.artifact_id.as_deref() {
             if input.url.is_some() || input.refresh {
-                return Err(to_mcp_error(DevupError::new(
+                return Err(to_mcp_error(DevupError::with_details(
                     ErrorCode::DevupFigmaHandoffInvalid,
                     "artifactId cannot be used together with url or refresh.",
                     false,
+                    json!({"stage":"preflight","reason":"invalid-argument-combination",
+                        "distinctFrom":"DEVUP_FIGMA_HANDOFF_EXPIRED means the artifactId itself is gone; this means the call mixed incompatible arguments.",
+                        "nextAction":{"tool":"devup_figma_export",
+                            "how":"Send either artifactId (reuse, no Figma call) or url (+ refresh:true to recollect), never both."}}),
                 )));
             }
             let artifact = self
@@ -1719,6 +1726,7 @@ impl DevupServer {
                             asset_captures: asset_selections,
                             asset_output_paths,
                             asset_public_root: asset_public_root.clone(),
+                            fields: input.fields.clone(),
                             delivery,
                         },
                         request,
@@ -1760,6 +1768,7 @@ impl DevupServer {
                     asset_captures: asset_selections,
                     asset_output_paths,
                     asset_public_root: asset_public_root.clone(),
+                    fields: input.fields.clone(),
                     delivery,
                 },
                 &artifact.payload,
@@ -1839,31 +1848,48 @@ impl DevupServer {
                 all_screens: input.all_screens,
             });
         }
-        let result = self
-            .start_operation(
-                PendingOperation::Export {
-                    outputs: input.outputs,
-                    component_name: input.component_name,
-                    include_diagnostics: input.include_diagnostics,
-                    root_layout,
-                    asset_names_per_node: input.asset_names_per_node,
-                    scope: input.scope,
-                    strict: input.strict,
-                    output_paths: input.output_paths,
-                    page_scaffold: input.page_scaffold,
-                    previous_design_fingerprints: input.previous_design_fingerprints,
-                    frame_ids,
-                    all_screens: input.all_screens,
-                    asset_captures: asset_selections,
-                    asset_output_paths,
-                    asset_public_root: asset_public_root.clone(),
-                    delivery,
-                },
-                request,
-                input.refresh,
-            )
+        let operation = PendingOperation::Export {
+            outputs: input.outputs,
+            component_name: input.component_name,
+            include_diagnostics: input.include_diagnostics,
+            root_layout,
+            asset_names_per_node: input.asset_names_per_node,
+            scope: input.scope,
+            strict: input.strict,
+            output_paths: input.output_paths,
+            page_scaffold: input.page_scaffold,
+            previous_design_fingerprints: input.previous_design_fingerprints,
+            frame_ids,
+            all_screens: input.all_screens,
+            asset_captures: asset_selections,
+            asset_output_paths,
+            asset_public_root: asset_public_root.clone(),
+            fields: input.fields.clone(),
+            delivery,
+        };
+        // A frame link plus frameIds is a precise request; refusing it because
+        // the plugin wants the parent Section only makes the caller repeat
+        // the ancestor lookup the plugin already did. Retry once, there.
+        let retry_with = |error: &DevupError| section_retry(error, &operation, &request);
+        let result = match self
+            .start_operation(operation.clone(), request.clone(), input.refresh)
             .await
-            .map_err(to_mcp_error)?;
+        {
+            Err(error) => match retry_with(&error) {
+                Some((operation, request, resolved)) => self
+                    .start_operation(operation, request, input.refresh)
+                    .await
+                    .map(|mut value| {
+                        if let Some(object) = value.as_object_mut() {
+                            object.insert("autoResolvedSection".into(), resolved);
+                        }
+                        value
+                    }),
+                None => Err(error),
+            },
+            ok => ok,
+        }
+        .map_err(to_mcp_error)?;
         Ok(tool_result(with_project_checks(
             result,
             input.project_root.as_deref(),
@@ -2245,6 +2271,7 @@ fn with_project_checks(
     project_root: Option<&str>,
     lookup: &skills::Lookup,
 ) -> Value {
+    review::attach(&mut result);
     const OUTPUTS: [&str; 3] = ["tsx", "componentTsx", "responsiveTsx"];
     let mut generated: Vec<(String, String)> = OUTPUTS
         .into_iter()
@@ -2424,6 +2451,50 @@ fn with_error_identity(mut error: ErrorData) -> ErrorData {
     data["server"] = delivery::server_identity();
     error.data = Some(data);
     error
+}
+
+/// The one automatic recovery for `DEVUP_SECTION_REQUIRED`: re-aim the same
+/// request at the ancestor Section the plugin reported, keeping the requested
+/// frame as the selection. Returns `None` when the plugin named no Section.
+fn section_retry(
+    error: &DevupError,
+    operation: &PendingOperation,
+    request: &CollectionRequest,
+) -> Option<(PendingOperation, CollectionRequest, Value)> {
+    if error.details["pluginCode"] != "DEVUP_SECTION_REQUIRED" {
+        return None;
+    }
+    let section_id = error.details["sectionId"].as_str()?;
+    let requested = request.target.node_id.clone()?;
+    let PendingOperation::Export {
+        frame_ids,
+        all_screens,
+        ..
+    } = operation
+    else {
+        return None;
+    };
+    let mut operation = operation.clone();
+    let mut request = request.clone();
+    let selection = if frame_ids.is_empty() && !all_screens {
+        vec![requested.clone()]
+    } else {
+        frame_ids.clone()
+    };
+    if let PendingOperation::Export { frame_ids, .. } = &mut operation {
+        frame_ids.clone_from(&selection);
+    }
+    request.target.node_id = Some(section_id.to_owned());
+    request.section = Some(SectionReadOptions {
+        frame_ids: selection.clone(),
+        all_screens: *all_screens,
+    });
+    Some((
+        operation,
+        request,
+        json!({"requestedNodeId":requested,"sectionId":section_id,"frameIds":selection,
+            "note":"The url named a node inside a SECTION; the export was re-run against that SECTION with the node selected."}),
+    ))
 }
 
 /// Maps a [`DevupError`] onto the JSON-RPC error the caller actually sees.
@@ -2702,6 +2773,73 @@ mod r8_recovery_tests {
                 assert_eq!(d["artifactState"], "unknown");
                 assert_eq!(d["recoveryState"], "unrecoverable");
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod section_retry_tests {
+    use super::*;
+    use devup_mcp_devup_ui::codegen::RootLayout;
+
+    fn export(frame_ids: Vec<String>) -> PendingOperation {
+        PendingOperation::Export {
+            outputs: vec!["tsx".into()],
+            previous_design_fingerprints: None,
+            component_name: None,
+            include_diagnostics: false,
+            root_layout: RootLayout::Standalone,
+            asset_names_per_node: true,
+            scope: "node".into(),
+            strict: false,
+            output_paths: Default::default(),
+            page_scaffold: None,
+            frame_ids,
+            all_screens: false,
+            asset_captures: vec![],
+            asset_output_paths: Default::default(),
+            asset_public_root: None,
+            fields: vec![],
+            delivery: DeliveryMode::Auto,
+        }
+    }
+
+    fn target() -> FigmaTarget {
+        FigmaTarget {
+            file_key: "abc".into(),
+            node_id: Some("1:2".into()),
+            branch_key: None,
+        }
+    }
+
+    #[test]
+    fn frame_link_is_retried_against_its_section_with_the_frame_selected() {
+        let error = DevupError::with_details(
+            ErrorCode::DevupSnapshotUnsupported,
+            "DEVUP_SECTION_REQUIRED",
+            false,
+            json!({"pluginCode":"DEVUP_SECTION_REQUIRED","sectionId":"9:9","nodeId":"1:2"}),
+        );
+        let request = CollectionRequest::new(target(), CollectionScope::Node);
+        let (operation, request, note) = section_retry(&error, &export(vec![]), &request).unwrap();
+        assert_eq!(request.target.node_id.as_deref(), Some("9:9"));
+        assert_eq!(request.section.unwrap().frame_ids, vec!["1:2".to_owned()]);
+        assert!(
+            matches!(operation, PendingOperation::Export { frame_ids, .. } if frame_ids == ["1:2"])
+        );
+        assert_eq!(note["sectionId"], "9:9");
+    }
+
+    #[test]
+    fn no_section_or_other_codes_are_not_retried() {
+        let request = CollectionRequest::new(target(), CollectionScope::Node);
+        for details in [
+            json!({"pluginCode":"DEVUP_SECTION_REQUIRED","sectionId":null}),
+            json!({"pluginCode":"DEVUP_NODE_NOT_FOUND","sectionId":"9:9"}),
+        ] {
+            let error =
+                DevupError::with_details(ErrorCode::DevupSnapshotUnsupported, "x", false, details);
+            assert!(section_retry(&error, &export(vec![]), &request).is_none());
         }
     }
 }

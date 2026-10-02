@@ -533,7 +533,7 @@ fn bound(mut value: Value, max_items: usize) -> Value {
             .as_object()
             .unwrap()
             .iter()
-            .filter(|(k, _)| !matches!(k.as_str(), "truncation" | "limits" | "status"))
+            .filter(|(k, _)| !matches!(k.as_str(), "truncation" | "limits" | "status" | "summary"))
             .max_by_key(|(_, v)| v.to_string().len())
             .map(|(k, _)| k.clone());
         let Some(key) = key else {
@@ -645,16 +645,44 @@ pub(super) async fn run(
             }
         }
     }
-    if supplied(&input.component_path)
-        && !selected_files.contains(input.component_path.as_deref().unwrap())
+    // Anchor-first: an explicit componentPath is read directly. The capped UI
+    // inventory only enriches it (import sites, reuse ranking); it never gates it.
+    let mut anchor_status = Value::Null;
+    if let Some(requested) = input
+        .component_path
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
     {
-        chain.push(hop(
-            "screen-component",
-            json!(input.component_path),
-            Value::Null,
-            json!({}),
-            Some("Component path is absent from the bounded authoritative UI inventory."),
-        ));
+        let normalized = anchor_path(requested);
+        let in_inventory = selected_files.contains(&normalized);
+        match resolve_anchor(&root, &normalized) {
+            Ok(()) => {
+                selected_files.insert(normalized.clone());
+                anchor_status = json!({"path":normalized,"read":"direct","inInventory":in_inventory,
+                    "inventoryTruncated":ui["truncation"]["truncated"]});
+                if !in_inventory {
+                    chain.push(hop(
+                        "screen-component",
+                        json!(requested),
+                        json!(normalized),
+                        json!({"declaration":"Explicit componentPath anchor read directly from disk","inventoryNote":"Not present in the capped UI inventory; import sites and reuse ranking for this file are unavailable."}),
+                        None,
+                    ));
+                }
+            }
+            Err(reason) => {
+                anchor_status = json!({"path":normalized,"read":"failed","reason":reason});
+                chain.push(hop(
+                    "screen-component",
+                    json!(requested),
+                    Value::Null,
+                    json!({}),
+                    Some(&format!(
+                        "Explicit componentPath could not be read: {reason}"
+                    )),
+                ));
+            }
+        }
     }
     for (i, op) in operations.iter().enumerate() {
         let id = supplied(&input.operation_id)
@@ -966,8 +994,13 @@ pub(super) async fn run(
         "implementedEvidence":implemented.get(*state),
         "reason":"Presence records explicit state declarations or App Router boundary components only. Missing evidence is unknown, never assumed absent; runtime coverage requires tests."})).collect::<Vec<_>>();
     let acceptance=input.acceptance_criteria.iter().map(|criterion|json!({"criterion":criterion,"status":"UNVERIFIED","reason":"Caller acceptance text is preserved without semantic interpretation; supply tests or inspect the linked evidence."})).collect::<Vec<_>>();
+    let summary = summarize(
+        &chain,
+        &anchor_status,
+        ui["truncation"]["truncated"] == true,
+    );
     Ok(bound(
-        json!({"status":"OK","projectRoot":root,"anchors":{"routePath":input.route_path,"figmaNodeId":input.figma_node_id,"artifactId":input.artifact_id,"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method,"componentPath":input.component_path,"tableName":input.table_name},"requirement":input.requirement,"acceptanceMatrix":acceptance,
+        json!({"status":"OK","summary":summary,"projectRoot":root,"anchors":{"routePath":input.route_path,"figmaNodeId":input.figma_node_id,"artifactId":input.artifact_id,"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method,"componentPath":input.component_path,"tableName":input.table_name},"requirement":input.requirement,"acceptanceMatrix":acceptance,
         "chain":chain,"artifacts":traced_artifacts.into_values().collect::<Vec<_>>(),"sourceOwnership":ownership,"reuseCandidates":reuse,"designContract":comparisons,"requiredStates":states,
         "designEvidence":design.evidence,"designDiagnostics":design.diagnostics,"diagnostics":diagnostics,
         "inventoryEvidence":{"uiTruncation":ui["truncation"],"uiLimits":ui["limits"],"uiDiagnostics":ui["diagnostics"],"uiExcludedPaths":ui["excludedPaths"],"unparsedFiles":ui["unparsedFiles"],"api":{"found":api["found"],"excludedPaths":api["excludedPaths"],"authorityNote":api["authorityNote"],"issues":array(&api["specs"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()},
@@ -976,6 +1009,60 @@ pub(super) async fn run(
         "limitations":["Read-only static evidence, never runtime execution proof. Shared parser findings retain low/medium confidence.","Missing results do not prove absence: scan depth, UI inventory caps, unreadable files, dynamic imports/calls, wrappers and macro expansion can hide links.","Source ownership comes unchanged from stack_diff; edit authored models/routes/frontend and regenerate generated artifacts."]}),
         max_items,
     ))
+}
+/// Normalise a caller-supplied component path to the inventory's `a/b/c.tsx` form.
+fn anchor_path(path: &str) -> String {
+    let unified = path.trim().replace('\\', "/");
+    unified.trim_start_matches("./").to_owned()
+}
+/// An anchor must be a regular file strictly inside the project root.
+fn resolve_anchor(root: &Path, relative_path: &str) -> Result<(), String> {
+    let candidate = Path::new(relative_path);
+    if candidate.is_absolute()
+        || candidate
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("path must be relative to the project root and may not contain '..'".into());
+    }
+    let full = root.join(candidate);
+    let canonical = full.canonicalize().map_err(|e| format!("{e}"))?;
+    let canonical_root = root.canonicalize().map_err(|e| format!("{e}"))?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err("path resolves outside the project root".into());
+    }
+    if !canonical.is_file() {
+        return Err("path is not a regular file".into());
+    }
+    Ok(())
+}
+
+/// Summary-first digest: what is resolved, what is not, and what a human must
+/// still check. Everything else in the response is detail behind it.
+fn summarize(chain: &[Value], anchor: &Value, truncated_inventory: bool) -> Value {
+    let unresolved = chain
+        .iter()
+        .filter(|h| h["status"] == "UNVERIFIED")
+        .map(|h| json!({"kind":h["kind"],"from":h["from"],"reason":h["reason"]}))
+        .collect::<Vec<_>>();
+    let resolved = chain.iter().filter(|h| h["status"] == "RESOLVED").count();
+    let mut required = vec![];
+    if anchor["read"] == "failed" {
+        required.push(json!(
+            "Fix componentPath: the explicit anchor could not be read."
+        ));
+    }
+    let mut recommended = vec![];
+    if truncated_inventory {
+        recommended.push(json!("UI inventory was capped; import sites and reuse ranking may be incomplete. Anchor files were still read directly."));
+    }
+    if !unresolved.is_empty() {
+        recommended.push(json!(
+            "Verify each UNVERIFIED hop manually; absence of a link is not proof of absence."
+        ));
+    }
+    json!({"hopsResolved":resolved,"hopsUnverified":unresolved.len(),"anchor":anchor,
+        "required":required,"recommended":recommended,"unverified":unresolved})
 }
 fn handler_matches(handler: &Handler, operation: &Operation, root: &Path) -> bool {
     let authority = root.join(&operation.file).parent().unwrap().to_path_buf();

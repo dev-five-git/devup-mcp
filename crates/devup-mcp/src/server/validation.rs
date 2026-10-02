@@ -192,7 +192,7 @@ pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), De
             ));
         }
         if !debug && DIAGNOSIS_OUTPUTS.contains(&output.as_str()) {
-            return Err(DevupError::new(
+            return Err(DevupError::with_details(
                 ErrorCode::DevupInvalidInput,
                 format!(
                     "{output} is the collected design in raw form, for deciding whether a \
@@ -202,6 +202,9 @@ pub(super) fn validate_outputs(outputs: &[String], debug: bool) -> Result<(), De
                      debug: true to read it."
                 ),
                 false,
+                json!({"stage":"preflight","nextAction":{"tool":"devup_figma_export",
+                    "arguments":{"debug":true},
+                    "how":"Repeat the same call with debug: true. Pair rawSnapshot with sourceMap, and reuse cache.artifactId for later projections instead of re-collecting."}}),
             ));
         }
     }
