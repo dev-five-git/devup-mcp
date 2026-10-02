@@ -40,6 +40,7 @@ pub enum PendingOperation {
         asset_captures: Vec<devup_mcp_figma::AssetSelection>,
         asset_output_paths: BTreeMap<String, String>,
         asset_public_root: Option<std::path::PathBuf>,
+        fields: Vec<String>,
         delivery: DeliveryMode,
     },
     Search {

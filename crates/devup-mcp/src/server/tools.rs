@@ -108,6 +108,13 @@ pub struct FigmaExportInput {
     /// asking for them by habit spent about eight bytes for every one of code.
     #[serde(default)]
     pub debug: bool,
+    /// Narrow rawSnapshot, rawPayload and sourceMap to these raw Figma property
+    /// names (e.g. "fills", "fontSize", "itemSpacing") or groups: "colors",
+    /// "spacing", "typography", "shadow", "radius", "size". Node identity and
+    /// tree links are always kept. Use it so a diagnostic answer fits in one
+    /// response instead of being cut off.
+    #[serde(default)]
+    pub fields: Vec<String>,
     #[serde(default)]
     pub strict: bool,
     #[serde(default)]

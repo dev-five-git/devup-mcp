@@ -1247,8 +1247,10 @@ async fn project_operation(
             asset_captures,
             mut asset_output_paths,
             mut asset_public_root,
+            fields,
             delivery,
         } => {
+            let selected_fields = super::field_select::expand(&fields);
             page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
             let previous_fingerprints = super::design_drift::validate_request(
                 &outputs,
@@ -1731,10 +1733,20 @@ async fn project_operation(
                         frame[field] = json!(output.tsx);
                         attach_fidelity(&mut frame, &output.fidelity_report, include_diagnostics);
                         if outputs.iter().any(|output| output == "sourceMap") {
+                            let mut frame_entries: Vec<Value> = output
+                                .source_map
+                                .property_entries()
+                                .into_iter()
+                                .filter_map(|entry| serde_json::to_value(entry).ok())
+                                .collect();
+                            super::field_select::filter_entries(
+                                &mut frame_entries,
+                                &selected_fields,
+                            );
                             frame["sourceMap"] = json!({"version":output.source_map.version,
                                 "designFingerprints":design_fingerprints,
                                 "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
-                                "entries":output.source_map.property_entries(),"source":{"fileKey":vouched_file_key(payload),
+                                "entries":frame_entries,"source":{"fileKey":vouched_file_key(payload),
                                 "rootNodeId":candidate.node.node_id,"sourceVersion":payload.source_version,
                                 "generatedOutput":field,"mappingKind":"node-field-property"}});
                         }
@@ -2129,6 +2141,8 @@ async fn project_operation(
                         false,
                     )
                 })?;
+                let mut raw = raw;
+                super::field_select::prune_nodes(&mut raw, &selected_fields);
                 if output_paths.contains_key("rawSnapshot") {
                     pending_text_outputs.insert(
                         "rawSnapshot".to_owned(),
@@ -2156,6 +2170,8 @@ async fn project_operation(
                         false,
                     )
                 })?;
+                let mut raw = raw;
+                super::field_select::prune_nodes(&mut raw, &selected_fields);
                 if output_paths.contains_key("rawPayload") {
                     pending_text_outputs.insert(
                         "rawPayload".to_owned(),
@@ -2166,11 +2182,18 @@ async fn project_operation(
             }
 
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
+                let mut tsx_entries: Vec<Value> = tsx_source_map
+                    .map(|source_map| source_map.property_entries())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|entry| serde_json::to_value(entry).ok())
+                    .collect();
+                super::field_select::filter_entries(&mut tsx_entries, &selected_fields);
                 let source_map = json!({
                     "version": 2,
                     "designFingerprints":design_fingerprints,
                     "resolutionSemantics":devup_mcp_devup_ui::provenance::resolution_semantics(),
-                    "tsx": tsx_source_map.map(|source_map| source_map.property_entries()).unwrap_or_default(),
+                    "tsx": tsx_entries,
                     "devupJson": devup_json_source_map
                         .map(|source_map| source_map.entries)
                         .unwrap_or_default(),
@@ -5136,6 +5159,7 @@ mod w1_regressions {
             asset_captures: vec![],
             asset_output_paths: BTreeMap::new(),
             asset_public_root: None,
+            fields: vec![],
             delivery: DeliveryMode::Inline,
         }
     }
@@ -5724,6 +5748,41 @@ mod w1_regressions {
         }
     }
 
+    #[tokio::test]
+    async fn fields_narrow_raw_snapshot_and_source_map() {
+        let mut op = operation(&["tsx", "rawSnapshot", "sourceMap"]);
+        if let PendingOperation::Export { fields, .. } = &mut op {
+            *fields = vec!["typography".into()];
+        }
+        let result = project(payload(), op).await.unwrap();
+        for node in result["rawSnapshot"]["nodes"].as_object().unwrap().values() {
+            for key in node["fields"].as_object().unwrap().keys() {
+                assert!(
+                    [
+                        "fontSize",
+                        "fontName",
+                        "fontWeight",
+                        "lineHeight",
+                        "letterSpacing",
+                        "textStyleId",
+                        "styledTextSegments",
+                        "textAlignHorizontal",
+                        "characters",
+                        "childrenIds",
+                        "parentId",
+                        "name",
+                        "visible",
+                        "isAsset"
+                    ]
+                    .contains(&key.as_str()),
+                    "unselected field survived: {key}"
+                );
+            }
+        }
+        for entry in result["sourceMap"]["tsx"].as_array().into_iter().flatten() {
+            assert!(entry["property"] != "width", "{entry}");
+        }
+    }
     #[tokio::test]
     async fn r16_non_projection_partial_has_its_own_status_cause() {
         let mut data = payload();

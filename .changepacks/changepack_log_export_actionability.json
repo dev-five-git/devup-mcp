@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor"
+  },
+  "note": "Make export and feature_trace answers easier to act on: feature_trace reads an explicit componentPath first; a frame link with frameIds retries against its parent Section; add summary and reviewChecklist; add `fields` to narrow rawSnapshot/rawPayload/sourceMap; large debug outputs travel as resources under auto delivery; sourceMap entries carry the line-height calculation",
+  "date": "2026-10-02T12:41:10.3830670Z"
+}

@@ -328,6 +328,7 @@ pub fn generate_devup_json(
         }
         let category = if kind == "color" { "colors" } else { "length" };
         source_entries.push(ProvenanceEntry {
+            calculation: None,
             generated_property: None,
             generated_range: None,
             json_pointer: Some(format!(
@@ -450,6 +451,7 @@ pub fn generate_devup_json(
                     slots[level] = Some(typography_value(&style.value, &variable_names));
                 }
                 source_entries.push(ProvenanceEntry {
+                    calculation: None,
                     generated_property: None,
                     generated_range: None,
                     json_pointer: Some(format!(
@@ -473,6 +475,7 @@ pub fn generate_devup_json(
                     slots[level] = Some(shadow);
                 }
                 source_entries.push(ProvenanceEntry {
+                    calculation: None,
                     generated_property: None,
                     generated_range: None,
                     json_pointer: Some(format!(

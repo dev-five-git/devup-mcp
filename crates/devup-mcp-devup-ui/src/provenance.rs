@@ -35,6 +35,10 @@ pub struct ProvenanceEntry {
     /// Internal renderer/validator bookkeeping; never a consumer-facing offset.
     #[serde(skip)]
     pub generated_range: Option<GeneratedRange>,
+    /// How a generated value was computed from the raw one, when that is not a
+    /// plain copy (e.g. a percent line-height written as px).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calculation: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generated_property: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -119,6 +123,49 @@ impl SourceMap {
             if entry.generated_property.is_none() && entry.resolution == "exact" {
                 entry.resolution = "unverified-property-mapping".into();
             }
+        }
+    }
+
+    /// Explain unit conversions the generator performs, so a reader can
+    /// reproduce `lineHeight="26px"` from the raw `{unit: PERCENT, value: 160}`.
+    pub(crate) fn describe_conversions(&mut self, snapshot: &devup_mcp_figma::Snapshot) {
+        for entry in &mut self.entries {
+            if entry.property.as_deref() != Some("lineHeight") {
+                continue;
+            }
+            let Some(node) = entry
+                .node_id
+                .as_deref()
+                .and_then(|id| snapshot.nodes.get(id))
+            else {
+                continue;
+            };
+            let view = node.typed_view();
+            let Some(line_height) = view.value("lineHeight") else {
+                continue;
+            };
+            if line_height["unit"] != "PERCENT" {
+                continue;
+            }
+            let percent = line_height["value"].as_f64().unwrap_or_default();
+            let bound = view
+                .value("boundVariables")
+                .and_then(|b| b.get("fontSize"))
+                .is_some();
+            entry.calculation = Some(
+                match (
+                    view.value("fontSize").and_then(serde_json::Value::as_f64),
+                    bound,
+                ) {
+                    (Some(size), false) => format!(
+                        "round(fontSize * percent / 100) = round({size} * {percent} / 100) = {}px",
+                        (size * percent / 100.0).round()
+                    ),
+                    _ => format!(
+                        "{percent}% kept as a percentage because fontSize is variable-bound or unknown"
+                    ),
+                },
+            );
         }
     }
 
@@ -1452,6 +1499,7 @@ pub(crate) fn finalize_tsx(
             continue;
         };
         entries.push(ProvenanceEntry {
+            calculation: None,
             generated_property: None,
             generated_range: Some(range.clone()),
             json_pointer: None,
@@ -1698,6 +1746,7 @@ pub(crate) fn finalize_tsx(
             && let Some((start, end)) = asset_prop_range(opening)
         {
             entries.push(ProvenanceEntry {
+                calculation: None,
                 generated_property: None,
                 generated_range: Some(GeneratedRange {
                     start: range.start + open_relative + start,
@@ -1827,6 +1876,7 @@ fn add_flattened_resource_entries(
                     let source = &tsx[range.start..range.end];
                     if let Some((start, end)) = asset_range_in_node_source(source) {
                         entries.push(ProvenanceEntry {
+                            calculation: None,
                             generated_property: None,
                             generated_range: Some(GeneratedRange {
                                 start: range.start + start,
@@ -2268,6 +2318,7 @@ fn generated_entry(
     resolution: &str,
 ) -> ProvenanceEntry {
     ProvenanceEntry {
+        calculation: None,
         generated_property: None,
         generated_range: Some(GeneratedRange { start, end }),
         json_pointer: None,
@@ -2334,4 +2385,52 @@ fn strip_markers(marked: &str) -> (String, Vec<(String, GeneratedRange)>) {
 
 pub(crate) fn json_pointer_segment(value: &str) -> String {
     value.replace('~', "~0").replace('/', "~1")
+}
+
+#[cfg(test)]
+mod line_height_calculation_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn entry(node: &str) -> ProvenanceEntry {
+        ProvenanceEntry {
+            calculation: None,
+            generated_property: Some("lineHeight=\"26px\"".into()),
+            generated_range: None,
+            json_pointer: None,
+            node_id: Some(node.into()),
+            property: Some("lineHeight".into()),
+            variable_id: None,
+            style_id: None,
+            asset_id: None,
+            resolution: "raw-fallback".into(),
+        }
+    }
+
+    #[test]
+    fn percent_line_height_records_how_px_was_derived() {
+        let snapshot: devup_mcp_figma::Snapshot = serde_json::from_value(json!({
+            "fileKey":"k","roots":["t","b"],"diagnostics":[],"nodes":{
+                "t":{"id":"t","type":"TEXT","fields":{"fontSize":16.25,"lineHeight":{"unit":"PERCENT","value":160}}},
+                "b":{"id":"b","type":"TEXT","fields":{"fontSize":16,"lineHeight":{"unit":"PERCENT","value":150},
+                    "boundVariables":{"fontSize":{"id":"v"}}}}}
+        })).unwrap();
+        let mut map = SourceMap::empty();
+        map.entries = vec![entry("t"), entry("b")];
+        map.describe_conversions(&snapshot);
+        assert!(
+            map.entries[0]
+                .calculation
+                .as_deref()
+                .unwrap()
+                .ends_with("= 26px")
+        );
+        assert!(
+            map.entries[1]
+                .calculation
+                .as_deref()
+                .unwrap()
+                .contains("kept as a percentage")
+        );
+    }
 }

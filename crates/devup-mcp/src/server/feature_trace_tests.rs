@@ -381,3 +381,33 @@ async fn database_parse_failure_is_preserved_as_unverified_evidence() {
             .any(|h| h["kind"] == "model-columns" && h["status"] == "UNVERIFIED")
     );
 }
+
+#[tokio::test]
+async fn explicit_component_anchor_is_read_even_when_absent_from_inventory() {
+    let f = Fixture::new();
+    // `.hidden-dir` is not scanned by the UI inventory, so only the direct read can find it.
+    f.write(
+        "lib/Standalone.tsx",
+        "export function Standalone() { api.post('createUser'); return <input name=\"email\" />; }",
+    );
+    let v = f
+        .trace(json!({"componentPath":"lib\\Standalone.tsx"}))
+        .await;
+    assert_eq!(v["summary"]["anchor"]["read"], "direct", "{v}");
+    let hops = v["chain"].as_array().unwrap();
+    assert!(
+        hops.iter()
+            .any(|h| h["kind"] == "component-api" && h["status"] == "RESOLVED"),
+        "anchor file must be parsed for API references: {v}"
+    );
+}
+
+#[tokio::test]
+async fn unreadable_or_escaping_component_anchor_is_a_required_fix() {
+    let f = Fixture::new();
+    for path in ["components/Missing.tsx", "../outside.tsx"] {
+        let v = f.trace(json!({"componentPath":path})).await;
+        assert_eq!(v["summary"]["anchor"]["read"], "failed", "{path}: {v}");
+        assert!(!v["summary"]["required"].as_array().unwrap().is_empty());
+    }
+}

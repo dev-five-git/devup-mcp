@@ -13,6 +13,15 @@ use serde_json::Value;
 pub const MAX_INLINE_OUTPUT_BYTES: usize = 256 * 1024;
 pub const MAX_INLINE_TOTAL_BYTES: usize = 1024 * 1024;
 pub const RESOURCE_CHUNK_BYTES: usize = 256 * 1024;
+/// Debug outputs (rawSnapshot/rawPayload) describe the design, not the screen,
+/// and dwarf the code. Under `auto` they travel as resources past this size so
+/// the warnings and checklist are not buried under them; `inline` still forces
+/// them into the response.
+pub const MAX_INLINE_DEBUG_BYTES: usize = 32 * 1024;
+
+fn is_debug_output(output: &ProjectedOutput) -> bool {
+    output.name.starts_with("raw-")
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -121,7 +130,11 @@ pub fn choose_delivery(
     })?;
     match mode {
         DeliveryMode::Auto => Ok(DeliveryDecision {
-            inline: every_output_inline && total_bytes <= MAX_INLINE_TOTAL_BYTES,
+            inline: every_output_inline
+                && total_bytes <= MAX_INLINE_TOTAL_BYTES
+                && !outputs
+                    .iter()
+                    .any(|o| is_debug_output(o) && o.bytes.len() > MAX_INLINE_DEBUG_BYTES),
         }),
         DeliveryMode::Inline if total_bytes > MAX_INLINE_TOTAL_BYTES => {
             Err(inline_size_error(outputs, total_bytes, None))
@@ -361,6 +374,32 @@ mod r12_tests {
                 .as_str()
                 .unwrap()
                 .contains("asset")
+        );
+    }
+}
+
+#[cfg(test)]
+mod debug_delivery_tests {
+    use super::*;
+
+    #[test]
+    fn large_debug_output_goes_to_resource_under_auto_but_inline_forces_it() {
+        let big = ProjectedOutput::text(
+            "raw-snapshot.json",
+            "application/json",
+            vec![b'a'; 40 * 1024],
+        );
+        let code = ProjectedOutput::text("Screen.tsx", "text/plain", vec![b'a'; 40 * 1024]);
+        assert!(
+            !choose_delivery(DeliveryMode::Auto, std::slice::from_ref(&big))
+                .unwrap()
+                .inline
+        );
+        assert!(choose_delivery(DeliveryMode::Auto, &[code]).unwrap().inline);
+        assert!(
+            choose_delivery(DeliveryMode::Inline, &[big])
+                .unwrap()
+                .inline
         );
     }
 }
