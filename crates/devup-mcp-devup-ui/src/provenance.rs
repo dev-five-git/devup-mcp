@@ -147,7 +147,8 @@ impl SourceMap {
             if line_height["unit"] != "PERCENT" {
                 continue;
             }
-            let percent = line_height["value"].as_f64().unwrap_or_default();
+            let percent =
+                (line_height["value"].as_f64().unwrap_or_default() * 100.0).round() / 100.0;
             let bound = view
                 .value("boundVariables")
                 .and_then(|b| b.get("fontSize"))

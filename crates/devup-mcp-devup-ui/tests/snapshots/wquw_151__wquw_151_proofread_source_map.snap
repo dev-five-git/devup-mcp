@@ -136,6 +136,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(28 * 140 / 100) = 39px",
       "generatedProperty": "lineHeight=\"39px\"",
       "nodeId": "3879:35520",
       "property": "lineHeight",
@@ -290,6 +291,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35523",
       "property": "lineHeight",
@@ -354,6 +356,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(17 * 170 / 100) = 29px",
       "generatedProperty": "lineHeight=\"29px\"",
       "nodeId": "3879:35524",
       "property": "lineHeight",
@@ -528,6 +531,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35528",
       "property": "lineHeight",
@@ -592,6 +596,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(17 * 170 / 100) = 29px",
       "generatedProperty": "lineHeight=\"29px\"",
       "nodeId": "3879:35529",
       "property": "lineHeight",
@@ -844,6 +849,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(15 * 160 / 100) = 24px",
       "generatedProperty": "lineHeight=\"24px\"",
       "nodeId": "3879:35535",
       "property": "lineHeight",
@@ -952,6 +958,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "3879:35536",
       "property": "lineHeight",
@@ -1083,6 +1090,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35538",
       "property": "lineHeight",
@@ -1141,6 +1149,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35539",
       "property": "lineHeight",
@@ -1407,6 +1416,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "lineHeight",
@@ -1526,6 +1536,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "lineHeight",
@@ -1639,6 +1650,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(22 * 140 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35547",
       "property": "lineHeight",
@@ -1776,6 +1788,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "lineHeight",
@@ -1895,6 +1908,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "lineHeight",
@@ -2008,6 +2022,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(18 * 180 / 100) = 32px",
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35551",
       "property": "lineHeight",
@@ -2151,6 +2166,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "lineHeight",
@@ -2270,6 +2286,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "lineHeight",
@@ -2602,6 +2619,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "lineHeight",
@@ -2721,6 +2739,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "lineHeight",
@@ -2834,6 +2853,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(18 * 180 / 100) = 32px",
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35559",
       "property": "lineHeight",
@@ -2977,6 +2997,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "lineHeight",
@@ -3096,6 +3117,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "lineHeight",
@@ -3209,6 +3231,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(18 * 180 / 100) = 32px",
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35563",
       "property": "lineHeight",
@@ -3427,6 +3450,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(18 * 170 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35566",
       "property": "lineHeight",
@@ -3532,6 +3556,7 @@ expression: output.source_map
       "resolution": "raw-fallback"
     },
     {
+      "calculation": "round(fontSize * percent / 100) = round(18 * 170 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35568",
       "property": "lineHeight",
