@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Re-vendored the embedded agent skill documents that moved in their source repositories: devup-ui. The copies in this binary are what `devup_skills install` writes on a machine with no network, so a copy that has fallen behind installs rules the upstream project no longer states. Opened automatically by the scheduled skill-drift job; the bytes here are exactly what scripts/refresh-skills.mjs produced.",
+  "date": "2026-10-05T06:24:50+00:00"
+}

@@ -10,16 +10,16 @@
       "usedFor": "The TSX devup_figma_export returns is devup-ui code. Without this the agent does not know its components are compile-time placeholders, that $token means devup.json, or that a style prop takes a responsive array.",
       "repo": "dev-five-git/devup-ui",
       "path": "SKILL.md",
-      "commit": "c7295916e43657ee357e35f2682b78900c5232c2",
-      "committedAt": "2026-09-21T14:05:45Z",
+      "commit": "cebcfb2a3f94649f297315e702dd468026474ff6",
+      "committedAt": "2026-09-30T02:49:17Z",
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 23101,
-          "sha256": "12787e610016e90ef9e483bd2b82e3c9312aec4b106fed29f07c816e5b0c7fba"
+          "bytes": 29525,
+          "sha256": "cd750ecb6b49340a2cf4c386ef7c69eeff4d495d115f58223b963430da9f87a2"
         }
       ],
-      "sourceUrl": "https://github.com/dev-five-git/devup-ui/blob/c7295916e43657ee357e35f2682b78900c5232c2/SKILL.md",
+      "sourceUrl": "https://github.com/dev-five-git/devup-ui/blob/cebcfb2a3f94649f297315e702dd468026474ff6/SKILL.md",
       "latestUrl": "https://github.com/dev-five-git/devup-ui/blob/HEAD/SKILL.md"
     },
     {
