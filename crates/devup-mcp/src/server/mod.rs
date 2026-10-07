@@ -2229,11 +2229,17 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
             "reason": "A sourceMap describes the one TSX it was exported with, and files numbers the elements of each file from 0, so a violation cannot be tied to it. Pass the sourceMap with tsx."});
         return;
     }
-    if !source_map
+    let entries = source_map
         .entries
         .iter()
-        .any(|entry| entry.element_index.is_some())
-    {
+        .chain(&source_map.tsx)
+        .collect::<Vec<_>>();
+    if entries.is_empty() {
+        result["sourceMapLink"] = json!({"state": "unavailable",
+            "reason": "The sourceMap holds no entries: pass the sourceMap devup_figma_export returned with this tsx, whose entries are under tsx (a screen) or entries (a Section frame)."});
+        return;
+    }
+    if !entries.iter().any(|entry| entry.element_index.is_some()) {
         result["sourceMapLink"] = json!({"state": "unavailable",
             "reason": "No sourceMap entry carries elementIndex; it was produced by a build before elementIndex existed. Export again to link violations."});
         return;
@@ -2246,8 +2252,7 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
         ) else {
             continue;
         };
-        let matches = source_map
-            .entries
+        let matches = entries
             .iter()
             .filter(|entry| entry.element_index == usize::try_from(element).ok())
             .filter(|entry| {

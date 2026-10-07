@@ -296,8 +296,12 @@ pub struct UiValidateInput {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceMapInput {
+    /// A Section frame's map (`frames[].sourceMap`).
     #[serde(default)]
     pub entries: Vec<SourceMapEntryInput>,
+    /// A single screen's map (`sourceMap`), or `sourceMap.byOutput.tsx`.
+    #[serde(default)]
+    pub tsx: Vec<SourceMapEntryInput>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]

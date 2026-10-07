@@ -31,6 +31,9 @@ struct Element {
     start: usize,
     attrs: BTreeMap<String, String>,
     has_children: bool,
+    /// Its width is the viewport's: a fluid root, or an in-flow child that a
+    /// column stretches across a parent that is.
+    follows_viewport: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +74,7 @@ pub fn layout_risks(tsx: &str, reference_width: Option<f64>) -> Value {
         reference_width,
         next: 0,
         stack: Vec::new(),
+        ancestors: Vec::new(),
         risks: Vec::new(),
         unmeasured_groups: 0,
     };
@@ -78,7 +82,7 @@ pub fn layout_risks(tsx: &str, reference_width: Option<f64>) -> Value {
     json!({
         "risks": collector.risks,
         "groupsWithoutReferenceWidth": collector.unmeasured_groups,
-        "checked": ["positioned siblings drawn inside a painted sibling, by the edge each is held by", "straight rules drawn as a mask in a box that stretches"],
+        "checked": ["positioned siblings drawn inside a painted sibling, by the edge each is held by", "positioned boxes held by their left edge but drawn against the right edge or centred, in a container whose width follows the viewport", "straight rules drawn as a mask in a box that stretches"],
         "runtimeUnverified": ["rendered geometry", "text wrapping and line breaks", "overlap between text and shapes", "font metrics"],
     })
 }
@@ -88,28 +92,37 @@ struct Collector<'s> {
     reference_width: Option<f64>,
     next: usize,
     stack: Vec<Vec<Element>>,
+    ancestors: Vec<Element>,
     risks: Vec<Value>,
     unmeasured_groups: usize,
 }
 
 impl<'a> Visit<'a> for Collector<'_> {
     fn visit_jsx_element(&mut self, element: &JSXElement<'a>) {
+        let attrs = string_attributes(&element.opening_element);
+        let follows_viewport = match self.ancestors.last() {
+            None => fluid_width(&attrs),
+            Some(parent) => parent.follows_viewport && stretches_across(parent, &attrs),
+        };
         let info = Element {
             ordinal: self.next,
             tag: self.source[element.opening_element.name.span().start as usize
                 ..element.opening_element.name.span().end as usize]
                 .to_owned(),
             start: element.opening_element.span.start as usize,
-            attrs: string_attributes(&element.opening_element),
+            attrs,
             has_children: element.children.iter().any(
                 |child| !matches!(child, JSXChild::Text(text) if text.value.trim().is_empty()),
             ),
+            follows_viewport,
         };
         if let Some(siblings) = self.stack.last_mut() {
             siblings.push(info.clone());
         }
         self.stack.push(Vec::new());
+        self.ancestors.push(info.clone());
         walk::walk_jsx_element(self, element);
+        self.ancestors.pop();
         let children = self.stack.pop().unwrap_or_default();
         self.analyze(&info, &children);
     }
@@ -156,6 +169,41 @@ fn pixels(value: Option<&String>) -> Option<f64> {
         .ok()
 }
 
+fn fluid_width(attrs: &BTreeMap<String, String>) -> bool {
+    !attrs.contains_key("boxSize") && attrs.get("w").is_none_or(|w| w == "100%")
+}
+
+/// Whether an in-flow child takes its whole parent's width: a block `Box`, or
+/// a column that stretches, with no horizontal padding on the parent and no
+/// horizontal margin or own width on the child.
+fn stretches_across(parent: &Element, child: &BTreeMap<String, String>) -> bool {
+    let any = |attrs: &BTreeMap<String, String>, names: &[&str]| {
+        names.iter().any(|name| attrs.contains_key(*name))
+    };
+    let column = match parent.tag.as_str() {
+        "Box" => !parent
+            .attrs
+            .get("display")
+            .is_some_and(|display| display.contains("flex") || display.contains("grid")),
+        "VStack" => true,
+        "Flex" => parent
+            .attrs
+            .get("flexDir")
+            .or_else(|| parent.attrs.get("flexDirection"))
+            .is_some_and(|direction| direction == "column"),
+        _ => false,
+    };
+    column
+        && parent
+            .attrs
+            .get("alignItems")
+            .is_none_or(|align| align == "stretch")
+        && !any(&parent.attrs, &["p", "px", "pl", "pr"])
+        && !any(child, &["m", "mx", "ml", "mr", "maxW"])
+        && child.get("pos").is_none_or(|pos| pos != "absolute")
+        && fluid_width(child)
+}
+
 fn center_offset(left: &str) -> Option<f64> {
     let left = left.trim();
     if left == "50%" {
@@ -185,6 +233,7 @@ impl Collector<'_> {
             self.check_line_mask(child, placement);
         }
         let mut unmeasured = false;
+        let mut drawn_inside_a_sibling = Vec::new();
         for (index, (node, node_place)) in placed.iter().enumerate() {
             let container = placed[..index]
                 .iter()
@@ -206,6 +255,7 @@ impl Collector<'_> {
                 }
                 continue;
             };
+            drawn_inside_a_sibling.push(node.ordinal);
             if container_place.anchor == node_place.anchor
                 || container_place.anchor == Anchor::Stretch
             {
@@ -226,9 +276,62 @@ impl Collector<'_> {
                 ),
             }));
         }
+        if parent.follows_viewport {
+            let held_left = placed
+                .iter()
+                .filter(|(node, place)| {
+                    place.anchor == Anchor::Left
+                        && place.right.is_some()
+                        && !drawn_inside_a_sibling.contains(&node.ordinal)
+                })
+                .collect::<Vec<_>>();
+            match self.reference_width {
+                Some(width) => {
+                    for (node, place) in held_left {
+                        self.check_held_left(node, place, width);
+                    }
+                }
+                None => unmeasured |= !held_left.is_empty(),
+            }
+        }
         if unmeasured {
             self.unmeasured_groups += 1;
         }
+    }
+
+    fn check_held_left(&mut self, node: &Element, place: &Placement, width: f64) {
+        let (Some(left_gap), Some(right_edge)) = (place.left, place.right) else {
+            return;
+        };
+        let right_gap = width - right_edge;
+        let (rule, message) = if right_gap + EDGE_TOLERANCE < left_gap && right_gap <= width / 4.0 {
+            (
+                "right-aligned-but-held-left",
+                format!(
+                    "{} is drawn {}px from the right edge of a container that follows the viewport, but held by its left edge, so at any other width it stays where it was drawn. If it belongs to the right edge, hold it there (right=\"{}px\").",
+                    describe_short(node),
+                    round(right_gap),
+                    round(right_gap),
+                ),
+            )
+        } else if (left_gap - right_gap).abs() <= 1.0 {
+            (
+                "centered-but-held-left",
+                format!(
+                    "{} is drawn with equal gaps on both sides of a container that follows the viewport, but held by its left edge, so it drifts off-centre at any other width. Centre it (left=\"50%\" with transform=\"translateX(-50%)\") or stretch it between the gaps (left and right).",
+                    describe_short(node),
+                ),
+            )
+        } else {
+            return;
+        };
+        self.risks.push(json!({
+            "rule": rule,
+            "confidence": "medium",
+            "referenceWidth": width,
+            "elements": [self.describe(node, place)],
+            "message": message,
+        }));
     }
 
     fn place(&self, element: &Element, width: Option<f64>) -> Option<Placement> {
@@ -311,6 +414,10 @@ impl Collector<'_> {
             "column": prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1,
         })
     }
+}
+
+fn round(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
 }
 
 fn describe_short(element: &Element) -> String {
@@ -399,7 +506,74 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0]["rule"], "fixed-length-line-mask");
         let fixed = tsx.replace("w=\"calc(100% - 71px)\"", "w=\"289px\"");
-        assert!(risks(&fixed, Some(360.0)).is_empty());
+        let rules = risks(&fixed, Some(360.0))
+            .iter()
+            .map(|risk| risk["rule"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rules,
+            ["centered-but-held-left"],
+            "a fixed rule keeps its length, and only drifts off-centre in a widening box"
+        );
+    }
+
+    /// A banner from a real notice screen, its root widened by hand: the
+    /// decorations kept their left offsets and parted from the right edge and
+    /// the centre they were drawn on (408px off at 768).
+    #[test]
+    fn boxes_held_left_in_a_widened_container_are_reported_by_where_they_were_drawn() {
+        let widened = r##"<VStack bg="$containerBackground" pos="relative" w="100%">
+  <Box bg="$primary" h="240px" overflow="hidden" pos="relative">
+    <VStack bottom="20px" left="20px" pos="absolute"><Text>Notice</Text></VStack>
+    <Box bg="#FFF" h="50px" left="41.57px" maskImage="url(/a.svg)" pos="absolute" top="167px" w="318.43px" />
+    <Box bg="#FFF" h="46px" left="0px" maskImage="url(/b.svg)" pos="absolute" top="112px" w="360px" />
+  </Box>
+</VStack>"##;
+        let found = risks(widened, Some(360.0));
+        let rules = found
+            .iter()
+            .map(|risk| {
+                (
+                    risk["rule"].as_str().unwrap(),
+                    risk["elements"][0]["elementIndex"].as_u64().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rules,
+            [
+                ("right-aligned-but-held-left", 4),
+                ("centered-but-held-left", 5)
+            ],
+            "{found:?}"
+        );
+
+        let drawn_width = widened.replace(r#"w="100%""#, r#"w="360px""#);
+        assert!(
+            risks(&drawn_width, Some(360.0)).is_empty(),
+            "a root at its drawn width does not move"
+        );
+
+        let anchored = widened
+            .replace(r#"left="41.57px" "#, r#"right="0px" "#)
+            .replace(
+                r#"left="0px" maskImage="url(/b.svg)""#,
+                r#"left="50%" maskImage="url(/b.svg)" transform="translateX(-50%)""#,
+            );
+        assert!(risks(&anchored, Some(360.0)).is_empty(), "{anchored}");
+
+        let padded = widened.replace(
+            r#"<VStack bg="$containerBackground""#,
+            r#"<VStack px="20px" bg="$containerBackground""#,
+        );
+        assert!(
+            risks(&padded, Some(360.0)).is_empty(),
+            "a padded parent is not the reference width"
+        );
+
+        let report = layout_risks(widened, None);
+        assert!(report["risks"].as_array().unwrap().is_empty());
+        assert_eq!(report["groupsWithoutReferenceWidth"], 1);
     }
 
     #[test]

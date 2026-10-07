@@ -109,6 +109,53 @@ async fn export(arguments: Value) -> anyhow::Result<(bool, Value)> {
 
 const URL: &str = "https://www.figma.com/design/WidthKey/Screen?node-id=2-0";
 
+/// The validator joins its violations to the sourceMap exactly as the export
+/// returns it - a screen's entries sit under `tsx`, not `entries`. A map
+/// rebuilt by hand in a test proved nothing about that shape.
+#[tokio::test]
+async fn violations_link_to_the_sourcemap_the_export_returns() -> anyhow::Result<()> {
+    let server = DevupServer::new(Services::new(Arc::new(Auth), Arc::new(Fixture)));
+    let (server_transport, client_transport) = tokio::io::duplex(1024 * 1024);
+    let task = tokio::spawn(async move {
+        server.serve(server_transport).await?.waiting().await?;
+        anyhow::Ok(())
+    });
+    let client = ().serve(client_transport).await?;
+    let call = |name: &'static str, arguments: Value| {
+        let client = &client;
+        async move {
+            let arguments: Map<String, Value> = arguments.as_object().cloned().unwrap();
+            let result = client
+                .call_tool(CallToolRequestParams::new(name).with_arguments(arguments))
+                .await?;
+            anyhow::Ok(result.structured_content.unwrap_or_default())
+        }
+    };
+    let exported = call(
+        "devup_figma_export",
+        json!({"url": URL, "outputs": ["tsx", "sourceMap"]}),
+    )
+    .await?;
+    let validated = call(
+        "devup_ui_validate",
+        json!({"tsx": exported["tsx"], "sourceMap": exported["sourceMap"]}),
+    )
+    .await?;
+    let link = &validated["sourceMapLink"];
+    assert_eq!(link["state"], "linked", "{validated}");
+    assert!(link["linkedViolations"].as_u64().unwrap() > 0, "{link}");
+    let colour = validated["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|violation| violation["rule"] == "hardcoded-color")
+        .expect("a hardcoded fill");
+    assert_eq!(colour["source"][0]["property"], "fills", "{colour}");
+    client.cancel().await?;
+    task.await??;
+    Ok(())
+}
+
 #[tokio::test]
 async fn the_default_export_reports_width_behavior_and_reuse() -> anyhow::Result<()> {
     let (failed, output) = export(json!({"url": URL})).await?;

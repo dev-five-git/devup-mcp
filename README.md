@@ -894,7 +894,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 | `tokens` | `referencedByTsx`, `definedByTheme`, `unknownTokenCheckRan` |
 | `checkedTokens` / `availableTokenCount` | 위 두 값과 같은 수를 예전 이름으로 유지 |
 | `themeAvailable` / `themeGuardrail` | 테마를 찾았는지, 못 찾았으면 왜 |
-| `layoutRisks[]` | 폭이 바뀌면 드러나는 정적 레이아웃 위험(`anchor-mismatch`, `fixed-length-line-mask`) |
+| `layoutRisks[]` | 폭이 바뀌면 드러나는 정적 레이아웃 위험(`anchor-mismatch`, `right-aligned-but-held-left`, `centered-but-held-left`, `fixed-length-line-mask`) |
 | `verificationScope` | 정적으로 검사한 것(`static`: 실행한 규칙, 토큰 검사 여부, layout 검사와 `referenceWidth`)과 렌더하지 않은 것(`runtime.state: "not-performed"`) |
 | `sourceMapLink` | `sourceMap`을 넘겼을 때만. `linked`(`linkedViolations`, `unlinkedViolations`) 또는 `unavailable` |
 
@@ -929,11 +929,17 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 #### 위반을 Figma 노드에 잇기 — `sourceMap`과 `layoutRisks`
 
-`devup_figma_export`가 돌려준 `sourceMap`을 그대로 `sourceMap`으로 넘기면, 각 위반에 그 속성을 만든 Figma 노드와 필드가 `source[]`(최대 3개: `nodeId`, `property`, `generatedProperty`, `resolution`)로 붙습니다. 바이트 오프셋 없이 `elementIndex`와 속성 이름으로 잇습니다 — sourceMap 항목도 같은 번호의 `elementIndex`를 갖습니다. `elementIndex`가 없는 예전 sourceMap이면 `sourceMapLink.state`가 `unavailable`입니다. `files` 번들과 함께 넘겨도 `unavailable`입니다 — 번들은 파일마다 요소를 0부터 세므로, 한 TSX의 sourceMap을 어느 파일의 위반에 이을지 정할 수 없습니다.
+`devup_figma_export`가 돌려준 `sourceMap`을 그대로 `sourceMap`으로 넘기면, 각 위반에 그 속성을 만든 Figma 노드와 필드가 `source[]`(최대 3개: `nodeId`, `property`, `generatedProperty`, `resolution`)로 붙습니다. 항목은 화면 하나면 `tsx`, Section 프레임이면 `entries` 아래에 있고 둘 다 받습니다. `tsx`와 `componentTsx`를 함께 요청했다면 검증하는 코드의 `sourceMap.byOutput.<output>`을 `{"tsx": [...]}`로 넘기세요. 바이트 오프셋 없이 `elementIndex`와 속성 이름으로 잇습니다 — sourceMap 항목도 같은 번호의 `elementIndex`를 갖습니다. `elementIndex`가 없는 예전 sourceMap이면 `sourceMapLink.state`가 `unavailable`입니다. `files` 번들과 함께 넘겨도 `unavailable`입니다 — 번들은 파일마다 요소를 0부터 세므로, 한 TSX의 sourceMap을 어느 파일의 위반에 이을지 정할 수 없습니다.
 
 이어지지 않은 위반은 `unlinkedViolations`로 세고 이유를 붙입니다. sourceMap이 그 속성을 매핑하지 않은 경우이고, export는 그런 속성을 `projectionIssues`(`DEVUP_CODEGEN_PROPERTY_UNMAPPED`)에 같은 `elementIndex`로 보고합니다. WQUW-151 실제 화면에서는 161건 중 158건, 300건 중 296건이 이어졌고, 나머지는 여러 스타일 구간을 가진 텍스트 안쪽 `<Text>`의 `color`였습니다.
 
-`layoutRisks`는 위치 지정된 형제들이 각각 어느 가장자리에 고정됐는지 읽어, 칠해진 형제 안에 그려졌는데 다른 가장자리에 고정된 상자(`anchor-mismatch`)와 늘어나는 상자 안에서 그린 길이를 지키는 mask 직선(`fixed-length-line-mask`)을 보고합니다. 부모가 px 폭을 말하지 않으면 `referenceWidth`로 계산하고, 그것도 없으면 추측하지 않고 `verificationScope.static.groupsWithoutReferenceWidth`로 셉니다.
+`layoutRisks`는 위치 지정된 형제들이 각각 어느 가장자리에 고정됐는지 읽어 세 가지를 보고합니다.
+
+- `anchor-mismatch`: 칠해진 형제 안에 그려졌는데 다른 가장자리에 고정된 상자
+- `fixed-length-line-mask`: 늘어나는 상자 안에서 그린 길이를 지키는 mask 직선
+- `right-aligned-but-held-left`·`centered-but-held-left`: 폭이 viewport를 따라가는 컨테이너 안에서 왼쪽에 고정됐지만 오른쪽 가장자리나 가운데에 그려진 상자. 손으로 넓힌 실제 공지 화면에서 Chromium이 408px 어긋남을 잰 바로 그 경우입니다. 따라간다고 보는 컨테이너는 보수적으로 고릅니다: px 폭이 없는 루트, 그리고 가로 여백·padding 없이 그 안을 꽉 채우는 in-flow 자식뿐입니다. 실제 화면 17개를 export 그대로 검사했을 때는 하나도 보고되지 않았습니다.
+
+부모가 px 폭을 말하지 않으면 `referenceWidth`로 계산하고, 그것도 없으면 추측하지 않고 `verificationScope.static.groupsWithoutReferenceWidth`로 셉니다.
 
 **새 검사는 `ok`, `okReason`, strict 판정을 바꾸지 않습니다.** 기존 info가 error로 바뀌는 일도 없습니다 — 결과는 `violations` 밖의 별도 키에만 실립니다.
 
