@@ -199,6 +199,13 @@ pub fn compare_png_bytes(
     ))
 }
 
+/// Width and height of a PNG, after decoding it under the same limits as a
+/// comparison - so a file that merely starts like a PNG is not accepted.
+pub fn png_dimensions(bytes: &[u8]) -> Result<[u32; 2], VisualError> {
+    let image = decode_png(bytes)?;
+    Ok([image.width(), image.height()])
+}
+
 fn decode_png(bytes: &[u8]) -> Result<image::RgbaImage, VisualError> {
     use image::{ImageDecoder, Limits, codecs::png::PngDecoder};
     let invalid = || {

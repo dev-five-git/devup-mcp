@@ -9,6 +9,7 @@ pub mod responsive;
 mod style;
 mod text;
 mod variant;
+pub mod width;
 
 pub use compat::{
     extract_custom_component_imports, extract_devup_imports, generate_import_statements,

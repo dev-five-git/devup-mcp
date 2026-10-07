@@ -2,7 +2,7 @@ use std::{
     cmp::Reverse,
     collections::BTreeMap,
     future::Future,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -641,11 +641,7 @@ impl ArtifactStore {
                 ErrorCode::DevupFigmaHandoffExpired,
                 "The Figma artifact is missing or expired.",
                 true,
-                state
-                    .recovery
-                    .get(artifact_id)
-                    .cloned()
-                    .unwrap_or_else(|| json!({"artifactState":"unknown"})),
+                missing_artifact_details(&state, artifact_id),
             )
         })
     }
@@ -911,15 +907,17 @@ impl ArtifactStore {
     ) -> Result<(AttachedOutputManifest, Vec<u8>), DevupError> {
         let mut state = self.state.lock().await;
         let now = self.clock.now_epoch_seconds();
-        let entry = state
-            .entries
-            .get(artifact_id)
-            .ok_or_else(|| resource_missing("artifact"))?;
+        let Some(entry) = state.entries.get(artifact_id) else {
+            let mut error = resource_missing("artifact");
+            merge_details(&mut error, missing_artifact_details(&state, artifact_id));
+            return Err(error);
+        };
         if entry.expires_at <= now {
-            return Err(DevupError::new(
+            return Err(DevupError::with_details(
                 ErrorCode::DevupFigmaHandoffExpired,
                 "The resource artifact has expired. Re-collect it from the original URL.",
                 true,
+                json!({"artifactState":"expired","recoveryArguments":recovery_arguments(entry)}),
             ));
         }
         state.access_sequence = state.access_sequence.saturating_add(1);
@@ -928,16 +926,25 @@ impl ArtifactStore {
             .entries
             .get_mut(artifact_id)
             .ok_or_else(|| resource_missing("artifact"))?;
-        let output = entry
-            .outputs
-            .get(output_id)
-            .ok_or_else(|| resource_missing("output"))?;
+        let remaining_ttl_seconds = entry.expires_at.saturating_sub(now);
+        let Some(output) = entry.outputs.get(output_id) else {
+            let mut error = resource_missing("output");
+            merge_details(
+                &mut error,
+                json!({"artifactState":"live","remainingTtlSeconds":remaining_ttl_seconds}),
+            );
+            return Err(error);
+        };
         let bytes = if let Some(index) = index {
-            let (start, end) = output
-                .ranges
-                .get(index)
-                .copied()
-                .ok_or_else(|| resource_missing("chunk"))?;
+            let Some((start, end)) = output.ranges.get(index).copied() else {
+                let mut error = resource_missing("chunk");
+                merge_details(
+                    &mut error,
+                    json!({"artifactState":"live","chunkIndex":index,
+                        "chunkCount":output.ranges.len(),"manifestUri":output.manifest.manifest_uri}),
+                );
+                return Err(error);
+            };
             output.bytes[start..end].to_vec()
         } else {
             Vec::new()
@@ -1155,22 +1162,48 @@ fn touch_entry(
     })
 }
 
+/// Canonical URL and the last selection: enough to reacquire the same capture,
+/// with no payload, credential or original private URL label retained.
+fn recovery_arguments(entry: &Entry) -> serde_json::Value {
+    let key = &entry.request_key;
+    let url = devup_mcp_figma::FigmaTarget {
+        file_key: key.file_key.clone(),
+        node_id: None,
+        branch_key: key.branch_key.clone(),
+    }
+    .link(key.node_id.as_deref());
+    let mut args = json!({"url":url,"refresh":true});
+    if let Some(selection) = &entry.capabilities.section_selection {
+        args["frameIds"] = json!(selection.frame_ids);
+        args["allScreens"] = json!(selection.all_screens);
+    }
+    args
+}
+
+/// What this process can say about an id it does not hold: its tombstone if
+/// it once held it, and otherwise whether the id was even issued here.
+fn missing_artifact_details(state: &StoreState, artifact_id: &str) -> serde_json::Value {
+    if let Some(tombstone) = state.recovery.get(artifact_id) {
+        return tombstone.clone();
+    }
+    if issued_by_another_process(artifact_id) {
+        json!({"artifactState":"issued-by-another-process"})
+    } else {
+        json!({"artifactState":"unknown"})
+    }
+}
+
+fn merge_details(error: &mut DevupError, extra: serde_json::Value) {
+    if let (Some(details), serde_json::Value::Object(extra)) =
+        (error.details.as_object_mut(), extra)
+    {
+        details.extend(extra);
+    }
+}
+
 fn remove_entry(state: &mut StoreState, artifact_id: &str) {
     if let Some(entry) = state.entries.remove(artifact_id) {
-        // Bounded tombstones retain no payload, credentials or original private URL label.
-        // Canonical URL and the last selection are enough to reacquire the same capture.
-        let key = &entry.request_key;
-        let url = devup_mcp_figma::FigmaTarget {
-            file_key: key.file_key.clone(),
-            node_id: None,
-            branch_key: key.branch_key.clone(),
-        }
-        .link(key.node_id.as_deref());
-        let mut args = json!({"url":url,"refresh":true});
-        if let Some(selection) = &entry.capabilities.section_selection {
-            args["frameIds"] = json!(selection.frame_ids);
-            args["allScreens"] = json!(selection.all_screens);
-        }
+        let args = recovery_arguments(&entry);
         if state.recovery.len() >= 64 {
             let oldest = state
                 .recovery
@@ -1189,10 +1222,40 @@ fn remove_entry(state: &mut StoreState, artifact_id: &str) {
     }
 }
 
+/// How many leading bytes of every artifactId name the process that issued it.
+///
+/// Artifacts live only in the memory of the process that collected them, so an
+/// id this store does not hold is either one it forgot or one another process
+/// issued: the server that ran before a restart, or a second devup-mcp session.
+/// Only the first is this process's to explain, and the stamp tells them apart
+/// without writing anything to disk. The id keeps its 32-byte, 43-character
+/// shape, so resource URIs do not change.
+const PROCESS_TAG_BYTES: usize = 6;
+
+fn process_tag() -> &'static [u8; PROCESS_TAG_BYTES] {
+    static TAG: OnceLock<[u8; PROCESS_TAG_BYTES]> = OnceLock::new();
+    TAG.get_or_init(|| {
+        let mut tag = [0_u8; PROCESS_TAG_BYTES];
+        rand::rng().fill_bytes(&mut tag);
+        tag
+    })
+}
+
+/// True only for a well-formed id stamped by a different process. A malformed
+/// id is not claimed to come from anywhere.
+pub(crate) fn issued_by_another_process(artifact_id: &str) -> bool {
+    URL_SAFE_NO_PAD
+        .decode(artifact_id)
+        .ok()
+        .filter(|bytes| bytes.len() == 32)
+        .is_some_and(|bytes| bytes[..PROCESS_TAG_BYTES] != process_tag()[..])
+}
+
 fn unique_id(entries: &BTreeMap<String, Entry>) -> String {
     loop {
         let mut bytes = [0_u8; 32];
         rand::rng().fill_bytes(&mut bytes);
+        bytes[..PROCESS_TAG_BYTES].copy_from_slice(process_tag());
         let id = URL_SAFE_NO_PAD.encode(bytes);
         if !entries.contains_key(&id) {
             return id;
@@ -1719,5 +1782,64 @@ pub(crate) mod w3_tests {
             error.details["missingAssetCaptures"][0]["assetId"],
             "2:2:node"
         );
+    }
+
+    #[tokio::test]
+    async fn p2_an_id_from_another_process_is_named_as_such_not_as_unknown() {
+        let store = ArtifactStore::default();
+        let ours = store
+            .insert(ArtifactRequestKey::from_collection(&request()), payload())
+            .await
+            .unwrap();
+        assert!(!issued_by_another_process(&ours.artifact_id));
+        assert_eq!(ours.artifact_id.len(), 43);
+
+        let mut bytes = URL_SAFE_NO_PAD.decode(&ours.artifact_id).unwrap();
+        bytes[0] ^= 0xff;
+        let foreign = URL_SAFE_NO_PAD.encode(bytes);
+        let error = store.get_for_export(&foreign).await.unwrap_err();
+        assert_eq!(error.code, ErrorCode::DevupFigmaHandoffExpired);
+        assert_eq!(error.details["artifactState"], "issued-by-another-process");
+        // A different store in this same process is still this process.
+        let unknown = ArtifactStore::default()
+            .get_for_export(&ours.artifact_id)
+            .await
+            .unwrap_err();
+        assert_eq!(unknown.details["artifactState"], "unknown");
+        assert!(!issued_by_another_process("not-an-artifact-id"));
+    }
+
+    #[tokio::test]
+    async fn p2_resource_misses_say_whether_the_artifact_is_still_alive() {
+        let store = ArtifactStore::default();
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request()), payload())
+            .await
+            .unwrap();
+        let manifests = store
+            .attach_outputs(
+                &artifact.artifact_id,
+                "projection",
+                vec![super::super::delivery::ProjectedOutput::text(
+                    "tsx",
+                    "text/plain",
+                    b"hello".to_vec(),
+                )],
+            )
+            .await
+            .unwrap();
+        let output = store
+            .read_resource_output(&artifact.artifact_id, &"z".repeat(22), None)
+            .await
+            .unwrap_err();
+        assert_eq!(output.details["resourceKind"], "output");
+        assert_eq!(output.details["artifactState"], "live");
+        let chunk = store
+            .read_resource_output(&artifact.artifact_id, &manifests[0].output_id, Some(7))
+            .await
+            .unwrap_err();
+        assert_eq!(chunk.details["resourceKind"], "chunk");
+        assert_eq!(chunk.details["chunkCount"], 1);
+        assert_eq!(chunk.details["manifestUri"], manifests[0].manifest_uri);
     }
 }

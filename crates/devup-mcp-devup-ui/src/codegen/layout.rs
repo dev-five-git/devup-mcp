@@ -2,6 +2,7 @@ use devup_mcp_figma::{RawNode, Snapshot, TypedNode};
 use serde_json::Value;
 
 use super::component::{Prop, PropValue, RootLayout};
+use super::width::{Anchor, WidthPolicy};
 
 /// A box in a parent's coordinates: left, top, width, height.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -81,6 +82,7 @@ pub(super) fn push_layout_props(
     props: &mut Vec<Prop>,
     root_layout: RootLayout,
     is_render_root: bool,
+    policy: Option<&WidthPolicy>,
 ) {
     let view = node.typed_view();
     let parent = snapshot.nodes.values().find(|candidate| {
@@ -109,6 +111,7 @@ pub(super) fn push_layout_props(
     let containing_block = holds_positioned_children(snapshot, node);
     let mut width = None;
     let mut height = None;
+    let mut policy_sizing = None;
 
     if embedded_root {
         // The selected frame is being inserted into an existing page layout.
@@ -121,7 +124,7 @@ pub(super) fn push_layout_props(
         // report section's rotated illustration landed 120px low, squeezed
         // into 686x735 where its export is 759x585.
         let export = is_asset.then(|| export_box(snapshot, node)).flatten();
-        push_absolute(snapshot, node, parent, props, export);
+        let anchor = push_absolute(snapshot, node, parent, props, export, policy);
         // Figma paints children in order, so a pinned picture drawn before
         // its siblings sits behind them. CSS paints a positioned element
         // after every in-flow sibling whatever the order, so the landing
@@ -269,6 +272,16 @@ pub(super) fn push_layout_props(
             // constraint. HUG content can change without changing this FIXED box.
             height = view.number("height").map(px);
         }
+        policy_sizing = anchor.zip(parent).map(|(anchor, parent)| {
+            let parent_view = parent.typed_view();
+            (
+                anchor,
+                super::width::placed_box(node, parent, export),
+                parent_view.number("width").unwrap_or(0.0),
+                parent_view.number("height").unwrap_or(0.0),
+                is_asset,
+            )
+        });
     } else if is_page_root {
         // Figma page roots define the component canvas; their editor dimensions
         // are not emitted as runtime constraints: a root's width is the
@@ -475,6 +488,34 @@ pub(super) fn push_layout_props(
         string_prop(props, "alignSelf", "stretch");
     }
 
+    // Under a width policy the horizontal anchor decides the width, after
+    // every other rule: a stretch is its two edges, a scale its share of the
+    // parent, and any other anchor holds a childless shape at its own drawn
+    // size, which the plugin's `h="100%"` and no width does not - except on an
+    // axis where it spans its whole parent, which keeps following it as the
+    // default export already writes it.
+    if let Some((anchor, placed, parent_width, parent_height, is_asset)) = policy_sizing {
+        let shape = component != "Text" && !is_asset && view.child_ids().next().is_none();
+        match anchor {
+            Anchor::Stretch => width = None,
+            Anchor::Scale => width = Some(super::width::percent(placed.w, parent_width)),
+            _ if shape && placed.w + 0.5 < parent_width => width = view.number("width").map(px),
+            _ => {}
+        }
+        if shape && placed.h + 0.5 < parent_height {
+            height = view.number("height").map(px);
+        }
+    }
+    // A root under a width policy takes its container's width; the drawn
+    // width stays the coordinate basis its positioned children were placed
+    // in, and the widthBehavior report says what that leaves unproven.
+    if policy.is_some()
+        && is_render_root
+        && !embedded_root
+        && width.as_deref().is_some_and(|width| width.ends_with("px"))
+    {
+        width = Some("100%".to_owned());
+    }
     // Whether the height was said outright, which decides below whether the
     // node still needs to be told to take the space its parent leaves.
     let wrote_height = height.is_some();
@@ -1476,49 +1517,29 @@ pub(crate) fn placed_by_a_free_layout(
         && !centres_its_only_child(snapshot, parent)
 }
 
+/// Places a positioned node, and returns the anchor a width policy chose for
+/// it, if one was given.
 fn push_absolute(
     snapshot: &Snapshot,
     node: &RawNode,
     parent: Option<&RawNode>,
     props: &mut Vec<Prop>,
     placed_by: Option<Box4>,
-) {
+    policy: Option<&WidthPolicy>,
+) -> Option<Anchor> {
     string_prop(props, "pos", "absolute");
     let view = node.typed_view();
-    let Some(parent) = parent else {
-        return;
-    };
+    let parent_node = parent?;
     // The box to place: the node's own, or the one handed in - an asset's
-    // export.
-    let mut own = Box4 {
-        x: view.number("x").unwrap_or(0.0),
-        y: view.number("y").unwrap_or(0.0),
-        w: view.number("width").unwrap_or(0.0),
-        h: view.number("height").unwrap_or(0.0),
-    };
-    // A group's children carry their `x` and `y` in the group's parent's
-    // space, not the group's: the join-us panel's outermost circle, which is
-    // exactly the group, reads `-277,-187` - the group's own place in the
-    // card - where the group's own space would say `0,0`. Placed as read,
+    // export. A group's children carry their `x` and `y` in the group's
+    // parent's space, not the group's: the join-us panel's outermost circle,
+    // which is exactly the group, reads `-277,-187` - the group's own place in
+    // the card - where the group's own space would say `0,0`. Placed as read,
     // every circle sat 277px left and 187px high of where Figma draws it.
-    // The absolute boxes settle it without depending on whose space a
-    // number is in; an asset's export already went through them and landed
-    // right.
-    if parent.typed_view().node_type() == "GROUP" {
-        match (layout_box(node), layout_box(parent)) {
-            (Some(child), Some(group)) => {
-                own.x = child.x - group.x;
-                own.y = child.y - group.y;
-            }
-            _ => {
-                let group = parent.typed_view();
-                own.x -= group.number("x").unwrap_or(0.0);
-                own.y -= group.number("y").unwrap_or(0.0);
-            }
-        }
-    }
-    let placed = placed_by.unwrap_or(own);
-    let parent = parent.typed_view();
+    // `placed_box` settles it from the absolute boxes, without depending on
+    // whose space a number is in.
+    let placed = super::width::placed_box(node, parent_node, placed_by);
+    let parent = parent_node.typed_view();
     // A group has no constraints of its own; the plugin's `getPositionProps`
     // reads its first child's, and so does this. The report section's
     // illustration is a group pinned to the bottom of its frame through its
@@ -1544,17 +1565,25 @@ fn push_absolute(
         .and_then(Value::as_str)
         .unwrap_or("MIN");
     let (x, y) = (placed.x, placed.y);
-    match horizontal {
-        "MAX" => string_prop(
+    let anchor =
+        policy.map(|policy| super::width::effective_anchor(snapshot, node, parent_node, policy).0);
+    match (anchor, horizontal) {
+        (Some(anchor), _) => super::width::push_horizontal(
+            props,
+            anchor,
+            placed,
+            parent.number("width").unwrap_or(0.0),
+        ),
+        (None, "MAX") => string_prop(
             props,
             "right",
             px(parent.number("width").unwrap_or(0.0) - x - placed.w),
         ),
-        "CENTER" => {
+        (None, "CENTER") => {
             string_prop(props, "left", "50%");
             string_prop(props, "transform", "translateX(-50%)");
         }
-        _ => string_prop(props, "left", px(x)),
+        (None, _) => string_prop(props, "left", px(x)),
     }
     match vertical {
         "MAX" => string_prop(
@@ -1574,6 +1603,7 @@ fn push_absolute(
         }
         _ => string_prop(props, "top", px(y)),
     }
+    anchor
 }
 
 pub(super) fn string_prop(props: &mut Vec<Prop>, name: &str, value: impl Into<String>) {

@@ -162,6 +162,32 @@ pub struct FigmaExportInput {
     /// `jobId` poll, so that poll needs the root too.
     #[serde(default)]
     pub project_root: Option<String>,
+    /// Opt in to output that keeps anchors when the screen is not at its drawn
+    /// width. Omitted, the export is unchanged and exact at the drawn width
+    /// only; `widthBehavior` then reports what would move. With it the root
+    /// takes its container's width and each positioned node keeps the anchor
+    /// named in `anchors` (from `widthBehavior` candidates), else the anchor of
+    /// an anchored container it is drawn inside, else its Figma constraint.
+    /// Single-width screens only: a capture with several widths uses
+    /// responsiveTsx.
+    #[serde(default)]
+    pub width_policy: Option<WidthPolicyInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct WidthPolicyInput {
+    /// "fluid": the root takes its container's width.
+    #[schemars(extend("enum" = ["fluid"]))]
+    pub root: String,
+    /// nodeId -> left | right | center | stretch | scale.
+    #[serde(default)]
+    #[schemars(extend("additionalProperties" = serde_json::json!({
+        "type": "string",
+        "enum": ["left", "right", "center", "stretch", "scale"],
+    })))]
+    pub anchors: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -255,6 +281,38 @@ pub struct UiValidateInput {
     pub project_root: Option<String>,
     #[serde(default)]
     pub strict: bool,
+    /// The `sourceMap` devup_figma_export returned with this tsx. Violations
+    /// are joined to its entries on `elementIndex`, naming the Figma node and
+    /// field the offending attribute was generated from. Not joined with
+    /// files, which number elements per file.
+    #[serde(default)]
+    pub source_map: Option<SourceMapInput>,
+    /// The width in px the tsx was written for, used by `layoutRisks` where a
+    /// parent states no px width of its own.
+    #[serde(default)]
+    pub reference_width: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceMapInput {
+    #[serde(default)]
+    pub entries: Vec<SourceMapEntryInput>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceMapEntryInput {
+    #[serde(default)]
+    pub node_id: Option<String>,
+    #[serde(default)]
+    pub property: Option<String>,
+    #[serde(default)]
+    pub generated_property: Option<String>,
+    #[serde(default)]
+    pub resolution: Option<String>,
+    #[serde(default)]
+    pub element_index: Option<usize>,
 }
 
 /// `layers` selects which cross-layer drift checks to run

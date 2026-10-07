@@ -9,176 +9,204 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35518",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35518",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35518",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "h=\"740px\"",
       "nodeId": "3879:35518",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "overflow=\"hidden\"",
       "nodeId": "3879:35518",
       "property": "clipsContent",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "pos=\"relative\"",
       "nodeId": "3879:35518",
       "property": "layoutPositioning",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35518",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 0
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35519",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35519",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35519",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35519",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "gap=\"30px\"",
       "nodeId": "3879:35519",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "pb=\"40px\"",
       "nodeId": "3879:35519",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "pt=\"50px\"",
       "nodeId": "3879:35519",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "px=\"16px\"",
       "nodeId": "3879:35519",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "px=\"16px\"",
       "nodeId": "3879:35519",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 1
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35520",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35520",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35520",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "fontSize=\"28px\"",
       "nodeId": "3879:35520",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "fontWeight=\"700\"",
       "nodeId": "3879:35520",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 2
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(28 * 140 / 100) = 39px",
       "generatedProperty": "lineHeight=\"39px\"",
       "nodeId": "3879:35520",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "textAlign=\"center\"",
       "nodeId": "3879:35520",
       "property": "textAlignHorizontal",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "typography=\"h3\"",
       "nodeId": "3879:35520",
       "property": "styledTextSegments",
       "styleId": "S:b2c215baee1a675e5d0bbe9e39c21bf78a39eabc,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "typography=\"h3\"",
       "nodeId": "3879:35520",
       "property": "textStyleId",
       "styleId": "S:b2c215baee1a675e5d0bbe9e39c21bf78a39eabc,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35520",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "whiteSpace=\"pre-wrap\"",
       "nodeId": "3879:35520",
       "property": "characters",
-      "resolution": "derived-hard-break-whitespace"
+      "resolution": "derived-hard-break-whitespace",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35520",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "children",
@@ -190,132 +218,153 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35521",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 4
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35521",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 4
     },
     {
       "generatedProperty": "gap=\"8px\"",
       "nodeId": "3879:35521",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 4
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35521",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 4
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35522",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35522",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35522",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "gap=\"12px\"",
       "nodeId": "3879:35522",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "p=\"12px\"",
       "nodeId": "3879:35522",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 5
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35523",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35523",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35523",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "3879:35523",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35523",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 6
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35523",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35523",
       "property": "styledTextSegments",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35523",
       "property": "textStyleId",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35523",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 6
     },
     {
       "generatedProperty": "children",
@@ -327,60 +376,69 @@ expression: output.source_map
       "generatedProperty": "Text",
       "nodeId": "3879:35524",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35524",
       "property": "fills",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35524",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "fontSize=\"17px\"",
       "nodeId": "3879:35524",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35524",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 7
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(17 * 170 / 100) = 29px",
       "generatedProperty": "lineHeight=\"29px\"",
       "nodeId": "3879:35524",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35524",
       "property": "styledTextSegments",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35524",
       "property": "textStyleId",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35524",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 7
     },
     {
       "generatedProperty": "children",
@@ -392,170 +450,197 @@ expression: output.source_map
       "generatedProperty": "Image",
       "nodeId": "3879:35525",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 8
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35525",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 8
     },
     {
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35525",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 8
     },
     {
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35525",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 8
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "3879:35525",
       "property": "node",
       "assetId": "3879:35525:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 8
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35526",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35526",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "border=\"solid 1px $border\"",
       "nodeId": "3879:35526",
       "property": "strokes",
       "variableId": "VariableID:1:1001",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35526",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35526",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "p=\"11px\"",
       "nodeId": "3879:35526",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 9
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35527",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 10
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35527",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 10
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35527",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 10
     },
     {
       "generatedProperty": "gap=\"12px\"",
       "nodeId": "3879:35527",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 10
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35528",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35528",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35528",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "3879:35528",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35528",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 11
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35528",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35528",
       "property": "styledTextSegments",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35528",
       "property": "textStyleId",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35528",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 11
     },
     {
       "generatedProperty": "children",
@@ -567,60 +652,69 @@ expression: output.source_map
       "generatedProperty": "Text",
       "nodeId": "3879:35529",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35529",
       "property": "fills",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35529",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "fontSize=\"17px\"",
       "nodeId": "3879:35529",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35529",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 12
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(17 * 170 / 100) = 29px",
       "generatedProperty": "lineHeight=\"29px\"",
       "nodeId": "3879:35529",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35529",
       "property": "styledTextSegments",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "typography=\"bodySmSemibold\"",
       "nodeId": "3879:35529",
       "property": "textStyleId",
       "styleId": "S:b0ec2fec2239b9ee92dddb29cac074b93e2f98fa,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35529",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 12
     },
     {
       "generatedProperty": "children",
@@ -632,286 +726,331 @@ expression: output.source_map
       "generatedProperty": "Box",
       "nodeId": "3879:35530",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35530",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "bg=\"$caption\"",
       "nodeId": "3879:35530",
       "property": "fills",
       "variableId": "VariableID:1:1009",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "bg=\"$caption\"",
       "nodeId": "3879:35531",
       "property": "fills",
       "variableId": "VariableID:1:1009",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "3879:35530",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "3879:35530",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
       "nodeId": "3879:35530",
       "property": "node",
       "assetId": "3879:35530:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 13
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35532",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 14
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35532",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 14
     },
     {
       "generatedProperty": "gap=\"12px\"",
       "nodeId": "3879:35532",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 14
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35532",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 14
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35533",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35533",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35533",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "border=\"dashed 2px $gray300\"",
       "nodeId": "3879:35533",
       "property": "strokes",
       "variableId": "VariableID:63:1981",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35533",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35533",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "gap=\"8px\"",
       "nodeId": "3879:35533",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "h=\"185px\"",
       "nodeId": "3879:35533",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "px=\"14px\"",
       "nodeId": "3879:35533",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "px=\"14px\"",
       "nodeId": "3879:35533",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "py=\"22px\"",
       "nodeId": "3879:35533",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "py=\"22px\"",
       "nodeId": "3879:35533",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 15
     },
     {
       "generatedProperty": "Box",
       "nodeId": "3879:35534",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35534",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "bg=\"$captionLight\"",
       "nodeId": "3879:35534",
       "property": "fills",
       "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "bg=\"$captionLight\"",
       "nodeId": "I3879:35534;20:3849",
       "property": "fills",
       "variableId": "VariableID:63:2093",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "boxSize=\"40px\"",
       "nodeId": "3879:35534",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "boxSize=\"40px\"",
       "nodeId": "3879:35534",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "maskImage=\"url(/icons/icons.svg)\"",
       "nodeId": "3879:35534",
       "property": "node",
       "assetId": "3879:35534:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 16
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35535",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35535",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "fontSize=\"15px\"",
       "nodeId": "3879:35535",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 17
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(15 * 160 / 100) = 24px",
       "generatedProperty": "lineHeight=\"24px\"",
       "nodeId": "3879:35535",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "textAlign=\"center\"",
       "nodeId": "3879:35535",
       "property": "textAlignHorizontal",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "typography=\"caption\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "styleId": "S:0e215484a78b7be9bbbfa4c6ada772650e82023b,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "typography=\"caption\"",
       "nodeId": "3879:35535",
       "property": "textStyleId",
       "styleId": "S:0e215484a78b7be9bbbfa4c6ada772650e82023b,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35535",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "whiteSpace=\"pre-wrap\"",
       "nodeId": "3879:35535",
       "property": "characters",
-      "resolution": "derived-hard-break-whitespace"
+      "resolution": "derived-hard-break-whitespace",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35535",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 18
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 18
     },
     {
       "generatedProperty": "typography=\"captionSemibold\"",
       "nodeId": "3879:35535",
       "property": "styledTextSegments",
       "styleId": "S:0a76ff5553bb722fb68fd9b379ca5f85f913cadb,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 18
     },
     {
       "generatedProperty": "children",
@@ -929,60 +1068,69 @@ expression: output.source_map
       "generatedProperty": "Text",
       "nodeId": "3879:35536",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35536",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "fontSize=\"14px\"",
       "nodeId": "3879:35536",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35536",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 22
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "3879:35536",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "typography=\"captionSm\"",
       "nodeId": "3879:35536",
       "property": "styledTextSegments",
       "styleId": "S:ddba35e8431e5a8140cb2a918793e8682b58ba39,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "typography=\"captionSm\"",
       "nodeId": "3879:35536",
       "property": "textStyleId",
       "styleId": "S:ddba35e8431e5a8140cb2a918793e8682b58ba39,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35536",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 22
     },
     {
       "generatedProperty": "children",
@@ -994,121 +1142,140 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35537",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35537",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "bg=\"$background\"",
       "nodeId": "3879:35537",
       "property": "fills",
       "variableId": "VariableID:1:999",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "borderRadius=\"12px\"",
       "nodeId": "3879:35537",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "gap=\"8px\"",
       "nodeId": "3879:35537",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "p=\"16px\"",
       "nodeId": "3879:35537",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "pos=\"relative\"",
       "nodeId": "3879:35537",
       "property": "layoutPositioning",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35537",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35538",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35538",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "3879:35538",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35538",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 24
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35538",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "3879:35538",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "3879:35538",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 24
     },
     {
       "generatedProperty": "children",
@@ -1120,66 +1287,76 @@ expression: output.source_map
       "generatedProperty": "Text",
       "nodeId": "3879:35539",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35539",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35539",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "3879:35539",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35539",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 25
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "3879:35539",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35539",
       "property": "styledTextSegments",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "typography=\"bodyXs\"",
       "nodeId": "3879:35539",
       "property": "textStyleId",
       "styleId": "S:d9dd5a9bed529cda847dd9aab216e2e34b570b37,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "whiteSpace=\"pre-wrap\"",
       "nodeId": "3879:35539",
       "property": "characters",
-      "resolution": "derived-hard-break-whitespace"
+      "resolution": "derived-hard-break-whitespace",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35539",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 25
     },
     {
       "generatedProperty": "children",
@@ -1191,256 +1368,297 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "3879:35540",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35540",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35540",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "borderRadius=\"1000px\"",
       "nodeId": "3879:35540",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "p=\"10px\"",
       "nodeId": "3879:35540",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "pos=\"absolute\"",
       "nodeId": "3879:35540",
       "property": "layoutPositioning",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "right=\"8px\"",
       "nodeId": "3879:35540",
       "property": "x",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "top=\"8px\"",
       "nodeId": "3879:35540",
       "property": "y",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 27
     },
     {
       "generatedProperty": "Box",
       "nodeId": "3879:35541",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "3879:35541",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "bg=\"$text\"",
       "nodeId": "3879:35541",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "bg=\"$text\"",
       "nodeId": "3879:35542",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35541",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "boxSize=\"20px\"",
       "nodeId": "3879:35541",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "maskImage=\"url(/icons/Icons.svg)\"",
       "nodeId": "3879:35541",
       "property": "node",
       "assetId": "3879:35541:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 28
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35543",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 29
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35543",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 29
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35544",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 30
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35544",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 30
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35545",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35545",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35545",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35545",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35545",
       "property": "primaryAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35545",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35545",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35545",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35545",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35545",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 31
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35545;1690:32933",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 32
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35545;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35545;1690:32933",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 32
     },
     {
       "generatedProperty": "children",
@@ -1452,115 +1670,133 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "I3879:35545;1690:32948",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 33
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "I3879:35545;1690:32948",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 33
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35545;1690:32948",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 33
     },
     {
       "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35545;1690:32948",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 33
     },
     {
       "generatedProperty": "Image",
       "nodeId": "I3879:35545;1690:32934",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 34
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 34
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 34
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 34
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35545;1690:32934",
       "property": "node",
       "assetId": "I3879:35545;1690:32934:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 34
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35545;1690:32947",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "fontSize=\"14px\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 35
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35545;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35545;1690:32947",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 35
     },
     {
       "generatedProperty": "children",
@@ -1572,109 +1808,126 @@ expression: output.source_map
       "generatedProperty": "Center",
       "nodeId": "3879:35546",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35546",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35546",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35546",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35546",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35546",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35546",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 36
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35547",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35547",
       "property": "fills",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "color=\"$primary\"",
       "nodeId": "3879:35547",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "flex=\"1\"",
       "nodeId": "3879:35547",
       "property": "layoutGrow",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "fontSize=\"22px\"",
       "nodeId": "3879:35547",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "fontWeight=\"700\"",
       "nodeId": "3879:35547",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 37
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(22 * 140 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35547",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "typography=\"h5\"",
       "nodeId": "3879:35547",
       "property": "styledTextSegments",
       "styleId": "S:93f063a4fce3179ba5079044a05b56a3d9fa60f5,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "typography=\"h5\"",
       "nodeId": "3879:35547",
       "property": "textStyleId",
       "styleId": "S:93f063a4fce3179ba5079044a05b56a3d9fa60f5,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35547",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 37
     },
     {
       "generatedProperty": "children",
@@ -1686,133 +1939,154 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35548",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 38
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35548",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 38
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35549",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35549",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35549",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35549",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35549",
       "property": "primaryAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35549",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35549",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35549",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35549",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35549",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 39
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35549;1690:32933",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 40
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35549;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35549;1690:32933",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 40
     },
     {
       "generatedProperty": "children",
@@ -1824,115 +2098,133 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "I3879:35549;1690:32948",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 41
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "I3879:35549;1690:32948",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 41
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35549;1690:32948",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 41
     },
     {
       "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35549;1690:32948",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 41
     },
     {
       "generatedProperty": "Image",
       "nodeId": "I3879:35549;1690:32934",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 42
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 42
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 42
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 42
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35549;1690:32934",
       "property": "node",
       "assetId": "I3879:35549;1690:32934:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 42
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35549;1690:32947",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "fontSize=\"14px\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 43
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35549;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35549;1690:32947",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 43
     },
     {
       "generatedProperty": "children",
@@ -1944,115 +2236,133 @@ expression: output.source_map
       "generatedProperty": "Center",
       "nodeId": "3879:35550",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35550",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35550",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35550",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35550",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35550",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35550",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35550",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 44
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35551",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35551",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35551",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "fontSize=\"18px\"",
       "nodeId": "3879:35551",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35551",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 45
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(18 * 180 / 100) = 32px",
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35551",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35551",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35551",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35551",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35551",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "children",
@@ -2064,133 +2374,154 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35552",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 48
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35552",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 48
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35553",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35553",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35553",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35553",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35553",
       "property": "primaryAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35553",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35553",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35553",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35553",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35553",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 49
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35553;1690:32933",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 50
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35553;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35553;1690:32933",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 50
     },
     {
       "generatedProperty": "children",
@@ -2202,115 +2533,133 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "I3879:35553;1690:32948",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 51
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "I3879:35553;1690:32948",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 51
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35553;1690:32948",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 51
     },
     {
       "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35553;1690:32948",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 51
     },
     {
       "generatedProperty": "Image",
       "nodeId": "I3879:35553;1690:32934",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 52
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 52
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 52
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 52
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35553;1690:32934",
       "property": "node",
       "assetId": "I3879:35553;1690:32934:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 52
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35553;1690:32947",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "fontSize=\"14px\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 53
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35553;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35553;1690:32947",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 53
     },
     {
       "generatedProperty": "children",
@@ -2322,152 +2671,132 @@ expression: output.source_map
       "generatedProperty": "Center",
       "nodeId": "3879:35554",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35554",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35554",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35554",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35554",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35554",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35554",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35554",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 54
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35555",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35555",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "fontSize=\"18px\"",
       "nodeId": "3879:35555",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35555",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35555",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35555",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35555",
       "property": "characters",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedProperty": "children",
-      "nodeId": "3879:35555",
-      "property": "characters",
-      "resolution": "exact"
-    },
-    {
-      "generatedProperty": "color=\"$primaryLight\"",
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
-      "variableId": "VariableID:98:3276",
-      "resolution": "variable-token"
-    },
-    {
-      "generatedProperty": "fontWeight=\"600\"",
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedProperty": "lineHeight=\"31px\"",
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
-      "resolution": "raw-fallback"
-    },
-    {
-      "generatedProperty": "typography=\"bodySemibold\"",
-      "nodeId": "3879:35555",
-      "property": "styledTextSegments",
-      "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
-    },
-    {
-      "generatedProperty": "children",
-      "nodeId": "3879:35555",
-      "property": "characters",
-      "resolution": "exact"
+      "resolution": "raw-fallback",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "children",
@@ -2480,26 +2809,72 @@ expression: output.source_map
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "variableId": "VariableID:98:3276",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 60
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 60
     },
     {
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 60
     },
     {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35555",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 60
+    },
+    {
+      "generatedProperty": "children",
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedProperty": "children",
+      "nodeId": "3879:35555",
+      "property": "characters",
+      "resolution": "exact"
+    },
+    {
+      "generatedProperty": "color=\"$primaryLight\"",
+      "nodeId": "3879:35555",
+      "property": "styledTextSegments",
+      "variableId": "VariableID:98:3276",
+      "resolution": "variable-token",
+      "elementIndex": 65
+    },
+    {
+      "generatedProperty": "fontWeight=\"600\"",
+      "nodeId": "3879:35555",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 65
+    },
+    {
+      "generatedProperty": "lineHeight=\"31px\"",
+      "nodeId": "3879:35555",
+      "property": "styledTextSegments",
+      "resolution": "raw-fallback",
+      "elementIndex": 65
+    },
+    {
+      "generatedProperty": "typography=\"bodySemibold\"",
+      "nodeId": "3879:35555",
+      "property": "styledTextSegments",
+      "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
+      "resolution": "style-token",
+      "elementIndex": 65
     },
     {
       "generatedProperty": "children",
@@ -2517,133 +2892,154 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35556",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 66
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35556",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 66
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35557",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35557",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35557",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35557",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35557",
       "property": "primaryAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35557",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35557",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35557",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35557",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35557",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 67
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35557;1690:32933",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 68
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35557;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35557;1690:32933",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 68
     },
     {
       "generatedProperty": "children",
@@ -2655,115 +3051,133 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "I3879:35557;1690:32948",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 69
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "I3879:35557;1690:32948",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 69
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35557;1690:32948",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 69
     },
     {
       "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35557;1690:32948",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 69
     },
     {
       "generatedProperty": "Image",
       "nodeId": "I3879:35557;1690:32934",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 70
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 70
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 70
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 70
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35557;1690:32934",
       "property": "node",
       "assetId": "I3879:35557;1690:32934:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 70
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35557;1690:32947",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "fontSize=\"14px\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 71
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35557;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35557;1690:32947",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 71
     },
     {
       "generatedProperty": "children",
@@ -2775,115 +3189,133 @@ expression: output.source_map
       "generatedProperty": "Center",
       "nodeId": "3879:35558",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35558",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35558",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35558",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35558",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35558",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35558",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35558",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 72
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35559",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35559",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35559",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "fontSize=\"18px\"",
       "nodeId": "3879:35559",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35559",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 73
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(18 * 180 / 100) = 32px",
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35559",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35559",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35559",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35559",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35559",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "children",
@@ -2895,133 +3327,154 @@ expression: output.source_map
       "generatedProperty": "VStack",
       "nodeId": "3879:35560",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 82
     },
     {
       "generatedProperty": "VStack",
       "nodeId": "3879:35560",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 82
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35561",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35561",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35561",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "bg=\"$backgroundLight\"",
       "nodeId": "3879:35561",
       "property": "fills",
       "variableId": "VariableID:17:1548",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35561",
       "property": "primaryAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35561",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35561",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35561",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35561",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "w=\"360px\"",
       "nodeId": "3879:35561",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 83
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35561;1690:32933",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "fontSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 84
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(16 * 160 / 100) = 26px",
       "generatedProperty": "lineHeight=\"26px\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "styledTextSegments",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "typography=\"bodyXsSemibold\"",
       "nodeId": "I3879:35561;1690:32933",
       "property": "textStyleId",
       "styleId": "S:750268e778c58f7acf839269cb2e1fb140e113d7,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35561;1690:32933",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 84
     },
     {
       "generatedProperty": "children",
@@ -3033,115 +3486,133 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "I3879:35561;1690:32948",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 85
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "I3879:35561;1690:32948",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 85
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "I3879:35561;1690:32948",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 85
     },
     {
       "generatedProperty": "gap=\"6px\"",
       "nodeId": "I3879:35561;1690:32948",
       "property": "itemSpacing",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 85
     },
     {
       "generatedProperty": "Image",
       "nodeId": "I3879:35561;1690:32934",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 86
     },
     {
       "generatedProperty": "aspectRatio=\"1\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "targetAspectRatio",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 86
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "height",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 86
     },
     {
       "generatedProperty": "boxSize=\"16px\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "width",
-      "resolution": "verified-explicit-dimension"
+      "resolution": "verified-explicit-dimension",
+      "elementIndex": 86
     },
     {
       "generatedProperty": "src=\"/icons/write.svg\"",
       "nodeId": "I3879:35561;1690:32934",
       "property": "node",
       "assetId": "I3879:35561;1690:32934:node",
-      "resolution": "asset"
+      "resolution": "asset",
+      "elementIndex": 86
     },
     {
       "generatedProperty": "Text",
       "nodeId": "I3879:35561;1690:32947",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "fills",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "color=\"$textLight\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
       "variableId": "VariableID:17:1554",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "fontSize=\"14px\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 87
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(14 * 160 / 100) = 22px",
       "generatedProperty": "lineHeight=\"22px\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "styledTextSegments",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "typography=\"captionSmSemibold\"",
       "nodeId": "I3879:35561;1690:32947",
       "property": "textStyleId",
       "styleId": "S:7cad4f3244d4a2f4e94f753af8b0ba320b846b4d,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "children",
       "nodeId": "I3879:35561;1690:32947",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 87
     },
     {
       "generatedProperty": "children",
@@ -3153,115 +3624,133 @@ expression: output.source_map
       "generatedProperty": "Center",
       "nodeId": "3879:35562",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35562",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35562",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "flexDir=\"column\"",
       "nodeId": "3879:35562",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35562",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35562",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35562",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "py=\"24px\"",
       "nodeId": "3879:35562",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 88
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35563",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35563",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35563",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "fontSize=\"18px\"",
       "nodeId": "3879:35563",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "fontWeight=\"400\"",
       "nodeId": "3879:35563",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 89
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(18 * 180 / 100) = 32px",
       "generatedProperty": "lineHeight=\"32px\"",
       "nodeId": "3879:35563",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35563",
       "property": "styledTextSegments",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "typography=\"body\"",
       "nodeId": "3879:35563",
       "property": "textStyleId",
       "styleId": "S:3dbbcdf26742b272a0f23eae240c9bbebd5089b8,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35563",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35563",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 89
     },
     {
       "generatedProperty": "children",
@@ -3273,208 +3762,241 @@ expression: output.source_map
       "generatedProperty": "Flex",
       "nodeId": "3879:35564",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "Flex",
       "nodeId": "3879:35564",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "alignItems=\"center\"",
       "nodeId": "3879:35564",
       "property": "counterAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "bg=\"$containerBackground\"",
       "nodeId": "3879:35564",
       "property": "fills",
       "variableId": "VariableID:1:1000",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "borderTop=\"solid 1px $border\"",
       "nodeId": "3879:35564",
       "property": "strokes",
       "variableId": "VariableID:1:1001",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "bottom=\"0px\"",
       "nodeId": "3879:35564",
       "property": "y",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "justifyContent=\"space-between\"",
       "nodeId": "3879:35564",
       "property": "primaryAxisAlignItems",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "left=\"0px\"",
       "nodeId": "3879:35564",
       "property": "x",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "overflow=\"hidden\"",
       "nodeId": "3879:35564",
       "property": "clipsContent",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "pos=\"absolute\"",
       "nodeId": "3879:35564",
       "property": "layoutPositioning",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "px=\"10px\"",
       "nodeId": "3879:35564",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "px=\"10px\"",
       "nodeId": "3879:35564",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "py=\"8px\"",
       "nodeId": "3879:35564",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "py=\"8px\"",
       "nodeId": "3879:35564",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35564",
       "property": "width",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 96
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35565",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35565",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "bg=\"$innerBg\"",
       "nodeId": "3879:35565",
       "property": "fills",
       "variableId": "VariableID:68:6122",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "border=\"solid 1px $borderBold\"",
       "nodeId": "3879:35565",
       "property": "strokes",
       "variableId": "VariableID:320:9071",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "borderRadius=\"10px\"",
       "nodeId": "3879:35565",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "px=\"19px\"",
       "nodeId": "3879:35565",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "px=\"19px\"",
       "nodeId": "3879:35565",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "py=\"9px\"",
       "nodeId": "3879:35565",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "py=\"9px\"",
       "nodeId": "3879:35565",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 97
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35566",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35566",
       "property": "fills",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "color=\"$text\"",
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
       "variableId": "VariableID:1:998",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "fontSize=\"18px\"",
       "nodeId": "3879:35566",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35566",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 98
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(18 * 170 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35566",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35566",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35566",
       "property": "textStyleId",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35566",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 98
     },
     {
       "generatedProperty": "children",
@@ -3486,101 +4008,117 @@ expression: output.source_map
       "generatedProperty": "Center",
       "nodeId": "3879:35567",
       "property": "layoutMode",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "Center",
       "nodeId": "3879:35567",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "bg=\"$primary\"",
       "nodeId": "3879:35567",
       "property": "fills",
       "variableId": "VariableID:1:995",
-      "resolution": "variable-token"
+      "resolution": "variable-token",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "borderRadius=\"10px\"",
       "nodeId": "3879:35567",
       "property": "cornerRadius",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35567",
       "property": "paddingLeft",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "px=\"20px\"",
       "nodeId": "3879:35567",
       "property": "paddingRight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35567",
       "property": "paddingBottom",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "py=\"10px\"",
       "nodeId": "3879:35567",
       "property": "paddingTop",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 99
     },
     {
       "generatedProperty": "Text",
       "nodeId": "3879:35568",
       "property": "type",
-      "resolution": "exact"
+      "resolution": "exact",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "color=\"#FFF\"",
       "nodeId": "3879:35568",
       "property": "fills",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "fontSize=\"18px\"",
       "nodeId": "3879:35568",
       "property": "fontSize",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "fontWeight=\"600\"",
       "nodeId": "3879:35568",
       "property": "fontWeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 100
     },
     {
       "calculation": "round(fontSize * percent / 100) = round(18 * 170 / 100) = 31px",
       "generatedProperty": "lineHeight=\"31px\"",
       "nodeId": "3879:35568",
       "property": "lineHeight",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35568",
       "property": "styledTextSegments",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "typography=\"bodySemibold\"",
       "nodeId": "3879:35568",
       "property": "textStyleId",
       "styleId": "S:c5bf8fa1fe5f6bffe79f76cae556417528687add,",
-      "resolution": "style-token"
+      "resolution": "style-token",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "children",
       "nodeId": "3879:35568",
       "property": "characters",
-      "resolution": "raw-fallback"
+      "resolution": "raw-fallback",
+      "elementIndex": 100
     },
     {
       "generatedProperty": "children",
@@ -3598,13 +4136,15 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35520",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 2
     },
     {
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35521",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 4
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3622,7 +4162,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35532",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 14
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3634,7 +4175,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35535",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 17
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3646,7 +4188,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35537",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 23
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3688,7 +4231,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35551",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 45
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3706,7 +4250,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35555",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 55
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3724,7 +4269,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35559",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 73
     },
     {
       "generatedProperty": "implicit:align-self:stretch",
@@ -3742,7 +4288,8 @@ expression: output.source_map
       "generatedProperty": "w=\"100%\"",
       "nodeId": "3879:35563",
       "property": "layoutSizingHorizontal",
-      "resolution": "verified-layout-sizing"
+      "resolution": "verified-layout-sizing",
+      "elementIndex": 89
     }
   ],
   "resolutionSemantics": {

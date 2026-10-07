@@ -1106,6 +1106,126 @@ async fn tokens_inside_global_styles_are_checked() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A violation names the element and attribute it sits in, and with the
+/// export's sourceMap the Figma node and field that attribute came from.
+#[tokio::test]
+async fn violations_link_to_the_source_map_on_element_index() -> anyhow::Result<()> {
+    let tsx = r##"<Box w="100%"><Text color="#123456">Hi</Text></Box>"##;
+    let out = validate(json!({
+        "tsx": tsx,
+        "projectRoot": fixture_project_root(),
+        "sourceMap": {"version": 2, "entries": [
+            {"nodeId": "1:2", "property": "fills", "generatedProperty": "color=\"#123456\"",
+             "resolution": "exact", "elementIndex": 1},
+            {"nodeId": "1:1", "property": "width", "generatedProperty": "w=\"100%\"",
+             "resolution": "raw-fallback", "elementIndex": 0}
+        ]},
+    }))
+    .await?;
+    let violation = out["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["rule"] == "hardcoded-color")
+        .expect("hardcoded colour");
+    assert_eq!(violation["elementIndex"], 1, "{violation}");
+    assert_eq!(violation["element"], "Text");
+    assert_eq!(violation["attribute"], "color");
+    assert_eq!(violation["source"][0]["nodeId"], "1:2", "{violation}");
+    assert_eq!(violation["source"][0]["property"], "fills");
+    assert_eq!(out["sourceMapLink"]["state"], "linked");
+    let violations = out["violations"].as_array().unwrap();
+    let total = violations.len();
+    let linked = violations
+        .iter()
+        .filter(|v| v.get("source").is_some())
+        .count();
+    assert_eq!(out["sourceMapLink"]["linkedViolations"], linked, "{out}");
+    assert_eq!(
+        out["sourceMapLink"]["unlinkedViolations"],
+        total - linked,
+        "{out}"
+    );
+
+    let only_an_unrelated_entry = validate(json!({
+        "tsx": tsx,
+        "projectRoot": fixture_project_root(),
+        "sourceMap": {"entries": [
+            {"nodeId": "9:9", "property": "fills", "generatedProperty": "bg=\"#000\"",
+             "resolution": "exact", "elementIndex": 7}
+        ]},
+    }))
+    .await?;
+    let link = &only_an_unrelated_entry["sourceMapLink"];
+    assert_eq!(link["linkedViolations"], 0, "{link}");
+    assert_eq!(link["unlinkedViolations"], total, "{link}");
+    assert!(link["unlinkedReason"].is_string(), "{link}");
+
+    let stale = validate(json!({
+        "tsx": tsx,
+        "sourceMap": {"entries": [{"nodeId": "1:2", "generatedProperty": "color=\"#123456\""}]},
+    }))
+    .await?;
+    assert_eq!(stale["sourceMapLink"]["state"], "unavailable", "{stale}");
+
+    let bundled = validate(json!({
+        "files": [{"path": "src/components/Badge.tsx",
+            "content": format!("export function Badge() {{ return {tsx} }}")}],
+        "sourceMap": {"entries": [
+            {"nodeId": "1:2", "property": "fills", "generatedProperty": "color=\"#123456\"",
+             "resolution": "exact", "elementIndex": 1}
+        ]},
+    }))
+    .await?;
+    assert_eq!(
+        bundled["sourceMapLink"]["state"], "unavailable",
+        "{bundled}"
+    );
+    assert!(
+        bundled["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|v| v.get("source").is_none()),
+        "{bundled}"
+    );
+    Ok(())
+}
+
+/// Layout risks and what was never rendered are reported beside the rules,
+/// and do not move `ok` or `okReason`.
+#[tokio::test]
+async fn layout_risks_are_reported_without_changing_the_verdict() -> anyhow::Result<()> {
+    let tsx = r##"<Box h="760px" pos="relative" w="100%">
+  <Box bg="$primaryColor" h="22px" pos="absolute" right="36px" top="210px" w="64px" />
+  <Text left="269px" pos="absolute" top="214px" typography="body1">x</Text>
+</Box>"##;
+    let without_width =
+        validate(json!({"tsx": tsx, "projectRoot": fixture_project_root()})).await?;
+    let with_width = validate(json!({
+        "tsx": tsx, "projectRoot": fixture_project_root(), "referenceWidth": 360
+    }))
+    .await?;
+    assert_eq!(without_width["okReason"], with_width["okReason"]);
+    assert_eq!(with_width["ok"], without_width["ok"]);
+    assert!(
+        without_width["layoutRisks"].as_array().unwrap().is_empty(),
+        "{without_width}"
+    );
+    assert_eq!(
+        without_width["verificationScope"]["static"]["groupsWithoutReferenceWidth"],
+        1
+    );
+    let risks = with_width["layoutRisks"].as_array().unwrap();
+    assert_eq!(risks.len(), 1, "{with_width}");
+    assert_eq!(risks[0]["rule"], "anchor-mismatch");
+    assert_eq!(
+        with_width["verificationScope"]["runtime"]["state"],
+        "not-performed"
+    );
+    Ok(())
+}
+
 /// One theme inside the project is still unambiguous, so the common
 /// single-package layout keeps resolving without a guardrail.
 #[tokio::test]

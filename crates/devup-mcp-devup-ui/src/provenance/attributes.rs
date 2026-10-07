@@ -65,6 +65,39 @@ pub fn generated_attributes(source: &str) -> Vec<GeneratedAttribute> {
     visitor.attributes
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct OpeningElement {
+    pub ordinal: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Every JSX opening element with its document-order ordinal: the same
+/// numbering [`generated_attributes`] gives its attributes.
+pub fn opening_elements(source: &str) -> Vec<OpeningElement> {
+    struct Openings {
+        elements: Vec<OpeningElement>,
+    }
+    impl<'a> Visit<'a> for Openings {
+        fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
+            let span = element.span();
+            self.elements.push(OpeningElement {
+                ordinal: self.elements.len(),
+                start: span.start as usize,
+                end: span.end as usize,
+            });
+            walk::walk_jsx_opening_element(self, element);
+        }
+    }
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+    let mut visitor = Openings {
+        elements: Vec::new(),
+    };
+    visitor.visit_program(&parsed.program);
+    visitor.elements
+}
+
 fn owner<'a>(output: &'a CodegenOutput, attr: &GeneratedAttribute) -> Option<&'a str> {
     output
         .source_map

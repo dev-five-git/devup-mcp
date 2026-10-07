@@ -306,11 +306,17 @@ pub(crate) fn absolute_component_verification(
     let mut components = json!({"height":height,"width":width,
         "horizontal":axis(horizontal,"x","width","left","right"),"vertical":axis(vertical,"y","height","top","bottom"),
         "containingBlock":{"parentId":owner.map(|p|&p.id),"generatedParent":parent_tag,"generatedChild":tag}});
+    if let Some(proof) = crate::codegen::width::policy_horizontal_proof(snapshot, output, id) {
+        components["horizontal"] = proof;
+    }
+    if let Some(proof) = crate::codegen::width::policy_width_proof(snapshot, output, id) {
+        components["width"] = proof;
+    }
     super::absolute_bounds::annotate(snapshot, node, owner, tag, parent_tag, &mut components);
     components
 }
 
-pub(super) fn prop<'a>(opening: &'a str, name: &str) -> Option<&'a str> {
+pub(crate) fn prop<'a>(opening: &'a str, name: &str) -> Option<&'a str> {
     let needle = format!("{name}=\"");
     let start = find_prop(opening, &needle)? + needle.len();
     opening[start..].split_once('"').map(|(v, _)| v)

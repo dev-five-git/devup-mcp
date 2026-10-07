@@ -40,6 +40,8 @@ pub struct CodegenOptions {
     /// them the file is the wrong size for the box and the picture is
     /// stretched into it. Named per node, each gets a file of its own.
     pub asset_names_per_node: bool,
+    /// Opt-in width-change anchors; `None` keeps the drawn-width output.
+    pub width_policy: Option<super::width::WidthPolicy>,
 }
 
 impl CodegenOptions {
@@ -71,6 +73,9 @@ pub struct CodegenOutput {
     pub source_map: SourceMap,
     pub projection_trace: ProjectionTrace,
     pub fidelity_report: FidelityReport,
+    /// The policy the output was generated under, so verification and the
+    /// width report judge the anchors it actually wrote.
+    pub width_policy: Option<super::width::WidthPolicy>,
 }
 
 pub fn generate_component(
@@ -1015,6 +1020,7 @@ fn generate_node_marked(
         text_style_tokens: options.text_style_tokens.clone(),
         variable_tokens: options.variable_tokens.clone(),
         root_layout: options.root_layout,
+        width_policy: options.width_policy.clone(),
         ..Context::default()
     };
     let jsx = render_node(snapshot, render_root, 0, &mut context, &mut HashSet::new())?;
@@ -1027,6 +1033,7 @@ fn generate_node_marked(
         source_map: SourceMap::empty(),
         projection_trace: ProjectionTrace::default(),
         fidelity_report: FidelityReport::default(),
+        width_policy: options.width_policy.clone(),
     })
 }
 
@@ -1358,6 +1365,7 @@ struct Context {
     text_style_tokens: std::collections::BTreeMap<String, String>,
     variable_tokens: std::collections::BTreeMap<String, String>,
     root_layout: RootLayout,
+    width_policy: Option<super::width::WidthPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1465,6 +1473,7 @@ fn render_node(
                 &mut props,
                 context.root_layout,
                 depth == 0,
+                context.width_policy.as_ref(),
             );
             props.retain(|(name, value)| {
                 matches!(
@@ -1510,6 +1519,7 @@ fn render_node(
             &mut props,
             context.root_layout,
             depth == 0,
+            context.width_policy.as_ref(),
         );
         layout::string_prop(&mut props, "visibility", "hidden");
         let (opening, multiline) = render_props(&props, depth);
@@ -1574,6 +1584,7 @@ fn render_node(
         &mut props,
         context.root_layout,
         depth == 0,
+        context.width_policy.as_ref(),
     );
     // A frame with no auto-layout places its children itself, and this keeps
     // them resolvable. Once the gap around them is measurable it is emitted as
@@ -1621,6 +1632,7 @@ fn render_node(
         style::StyleOptions {
             variable_tokens: &context.variable_tokens,
             asset_names_per_node: context.asset_names_per_node,
+            width_policy: context.width_policy.as_ref(),
         },
     );
     text::validate_line_metrics(&view, &context.text_style_tokens)?;

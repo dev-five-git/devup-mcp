@@ -16,6 +16,7 @@ mod sizing;
 pub use fingerprint::design_fingerprints;
 pub use resolution::resolution_semantics;
 pub(crate) use sizing::absolute_component_verification;
+pub(crate) use sizing::prop as opening_prop;
 pub(crate) use sizing::{account_for_sizing, implicit_css_verification};
 
 const START: &str = "\u{e000}DEVUP_PROVENANCE_START:";
@@ -54,6 +55,12 @@ pub struct ProvenanceEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<String>,
     pub resolution: String,
+    /// Ordinal of the JSX opening element (document order, from 0) whose tag
+    /// or attribute this entry maps, in the TSX it was generated with. The
+    /// same ordinal `devup_ui_validate` reports for a violation, so the two
+    /// can be joined without byte offsets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub element_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -93,7 +100,15 @@ impl SourceMap {
     /// positions still refer to its own code. Delivery rewrites the property
     /// strings together with TSX; no positions cross the public boundary.
     pub(crate) fn describe_properties(&mut self, tsx: &str) {
+        let elements = attributes::opening_elements(tsx);
         for entry in &mut self.entries {
+            entry.element_index = entry.generated_range.as_ref().and_then(|range| {
+                elements
+                    .iter()
+                    .filter(|element| element.start <= range.start && range.end <= element.end)
+                    .min_by_key(|element| element.end - element.start)
+                    .map(|element| element.ordinal)
+            });
             let Some(property) = entry.property.as_deref() else {
                 continue;
             };
@@ -640,51 +655,57 @@ pub fn validate_fidelity(
         // act on or even to triage.
         let mut uncovered = Vec::new();
         for (node_id, property) in &layout {
-            let represented = output.source_map.entries.iter().any(|entry| {
-                entry.node_id.as_deref() == Some(node_id.as_str())
-                    && entry.property.as_deref() == Some(property.as_str())
-                    && entry_range(entry, &output.tsx).is_some_and(|source| {
-                        if entry.resolution == "accounted-for-content-sizing" {
-                            return sizing::content_sizing_accounted(
-                                snapshot, output, node_id, property,
-                            );
-                        }
-                        if entry.resolution == "verified-explicit-dimension" {
-                            return layout_source_matches(property, source)
+            let policy_width = property == "width"
+                && crate::codegen::width::policy_width_proof(snapshot, output, node_id).is_some();
+            let represented = policy_width
+                || output.source_map.entries.iter().any(|entry| {
+                    entry.node_id.as_deref() == Some(node_id.as_str())
+                        && entry.property.as_deref() == Some(property.as_str())
+                        && entry_range(entry, &output.tsx).is_some_and(|source| {
+                            if entry.resolution == "accounted-for-content-sizing" {
+                                return sizing::content_sizing_accounted(
+                                    snapshot, output, node_id, property,
+                                );
+                            }
+                            if entry.resolution == "verified-explicit-dimension" {
+                                return layout_source_matches(property, source)
+                                    && dimension_value_matches(
+                                        snapshot, output, node_id, property, source,
+                                    )
+                                    && snapshot.nodes.get(node_id).is_some_and(|node| {
+                                        !node.field_errors.contains_key(property)
+                                            && source
+                                                .split_once("=\"")
+                                                .and_then(|(_, v)| v.strip_suffix("px\""))
+                                                .and_then(|v| v.parse::<f64>().ok())
+                                                .zip(node.typed_view().number(property))
+                                                .is_some_and(|(a, b)| b.is_finite() && a == b)
+                                    });
+                            }
+                            if matches!(
+                                entry.resolution.as_str(),
+                                "accounted-for-implicit-flex-stretch"
+                                    | "accounted-for-implicit-flex-grow"
+                            ) {
+                                return implicit_css_verification(
+                                    snapshot, output, node_id, property,
+                                )["state"]
+                                    == "accounted-for";
+                            }
+                            if matches!(
+                                property.as_str(),
+                                "layoutSizingHorizontal" | "layoutSizingVertical" | "layoutGrow"
+                            ) {
+                                return sizing::sizing_mapping_matches(
+                                    snapshot, output, node_id, property, source,
+                                );
+                            }
+                            layout_source_matches(property, source)
                                 && dimension_value_matches(
                                     snapshot, output, node_id, property, source,
                                 )
-                                && snapshot.nodes.get(node_id).is_some_and(|node| {
-                                    !node.field_errors.contains_key(property)
-                                        && source
-                                            .split_once("=\"")
-                                            .and_then(|(_, v)| v.strip_suffix("px\""))
-                                            .and_then(|v| v.parse::<f64>().ok())
-                                            .zip(node.typed_view().number(property))
-                                            .is_some_and(|(a, b)| b.is_finite() && a == b)
-                                });
-                        }
-                        if matches!(
-                            entry.resolution.as_str(),
-                            "accounted-for-implicit-flex-stretch"
-                                | "accounted-for-implicit-flex-grow"
-                        ) {
-                            return implicit_css_verification(snapshot, output, node_id, property)
-                                ["state"]
-                                == "accounted-for";
-                        }
-                        if matches!(
-                            property.as_str(),
-                            "layoutSizingHorizontal" | "layoutSizingVertical" | "layoutGrow"
-                        ) {
-                            return sizing::sizing_mapping_matches(
-                                snapshot, output, node_id, property, source,
-                            );
-                        }
-                        layout_source_matches(property, source)
-                            && dimension_value_matches(snapshot, output, node_id, property, source)
-                    })
-            });
+                        })
+                });
             if represented {
                 covered += 1;
             } else if uncovered.len() < MAX_REPORTED_UNCOVERED {
@@ -1181,7 +1202,7 @@ fn asset_reference_matches(
 }
 
 // A property name or a source-map range alone does not prove size preservation.
-fn node_opening<'a>(output: &'a CodegenOutput, node_id: &str) -> Option<&'a str> {
+pub(crate) fn node_opening<'a>(output: &'a CodegenOutput, node_id: &str) -> Option<&'a str> {
     output.source_map.entries.iter().find_map(|entry| {
         if entry.node_id.as_deref() != Some(node_id) || entry.property.is_some() {
             return None;
@@ -1500,6 +1521,7 @@ pub(crate) fn finalize_tsx(
             continue;
         };
         entries.push(ProvenanceEntry {
+            element_index: None,
             calculation: None,
             generated_property: None,
             generated_range: Some(range.clone()),
@@ -1747,6 +1769,7 @@ pub(crate) fn finalize_tsx(
             && let Some((start, end)) = asset_prop_range(opening)
         {
             entries.push(ProvenanceEntry {
+                element_index: None,
                 calculation: None,
                 generated_property: None,
                 generated_range: Some(GeneratedRange {
@@ -1877,6 +1900,7 @@ fn add_flattened_resource_entries(
                     let source = &tsx[range.start..range.end];
                     if let Some((start, end)) = asset_range_in_node_source(source) {
                         entries.push(ProvenanceEntry {
+                            element_index: None,
                             calculation: None,
                             generated_property: None,
                             generated_range: Some(GeneratedRange {
@@ -2319,6 +2343,7 @@ fn generated_entry(
     resolution: &str,
 ) -> ProvenanceEntry {
     ProvenanceEntry {
+        element_index: None,
         calculation: None,
         generated_property: None,
         generated_range: Some(GeneratedRange { start, end }),
@@ -2395,6 +2420,7 @@ mod line_height_calculation_tests {
 
     fn entry(node: &str) -> ProvenanceEntry {
         ProvenanceEntry {
+            element_index: None,
             calculation: None,
             generated_property: Some("lineHeight=\"26px\"".into()),
             generated_range: None,

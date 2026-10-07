@@ -42,6 +42,7 @@ pub enum PendingOperation {
         asset_public_root: Option<std::path::PathBuf>,
         fields: Vec<String>,
         delivery: DeliveryMode,
+        width_policy: Option<devup_mcp_devup_ui::codegen::width::WidthPolicy>,
     },
     Search {
         query: String,

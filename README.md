@@ -6,7 +6,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
+Figma 쪽 4개, 프로젝트 쪽 6개, 스킬 1개, 모두 11개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
@@ -18,6 +18,7 @@ Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
 - `devup_visual_compare`: 소비자가 만든 `actual.png`를 reference PNG 하나와 비교. **스스로 렌더하지 않고 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 경로는 allowlist 안이어야 합니다. 기본 threshold는 0.005(0.5%). renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면 `visual.passed`가 true여도 판정은 `inconclusive`입니다
 - `devup_feature_trace`: 명시적 anchor(`routePath`, `figmaNodeId`/`artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`)에서 출발해 화면→API→라우트→모델→컬럼 슬라이스와 acceptance matrix를 읽어냄. **요구사항 산문만 주면 거절합니다.** 각 hop은 근거가 있거나 `UNVERIFIED`로 표시되고, 생성 산출물 소유권·UI 재사용 순위·잘림 상한을 함께 보고합니다
+- `devup_runtime_audit`: 생성한 화면을 여러 viewport 폭에서 재 볼 **브라우저 실행 계획**을 검증해 쓰고(`plan`), 소비자 프로젝트의 실행기(`harness/runtime-audit`)가 쓴 보고서를 그 계획에 묶어 검증합니다(`ingest`). **서버는 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 계획은 선언형 데이터뿐이고, 계획 id와 파일 해시에 묶이지 않은 보고서는 거절하며 모든 개수를 항목에서 다시 셉니다
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
 
@@ -49,6 +50,8 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 | `warnings` | 숨김 노드처럼 실패가 아닌 자산 문제가 있을 때 |
 | `frames` | Section에서 여러 화면을 한 번에 export했을 때 |
 | `selection` / `nextAction` | `status`가 `selection_required`일 때 |
+| `widthBehavior` | `tsx`(Section 배치에서는 `componentTsx`도)를 만들었을 때. 단일 화면은 최상위, Section 배치는 `frames[]` 각 항목 ([그린 폭이 아닌 폭](#그린-폭이-아닌-폭--widthbehavior와-widthpolicy)) |
+| `verificationScope` | 생성 TSX의 폭(`widthBehavior.designWidth`, 반응형이면 수집한 폭들)을 알 때 |
 
 `fidelity`와 `completenessReport`를 기본에서 뺀 이유는 깨끗한 결과에서 `quality`가 이미 한 말을 되풀이할 뿐이기 때문이고, 그만큼(측정값 797 B) 매 응답이 가벼워집니다.
 
@@ -147,7 +150,7 @@ stdio pipe를 보유한 상태이므로 host의 MCP 연결을 재시작하거나
 
 ```bash
 cargo fmt --all -- --check
-node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs
+node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs harness/runtime-audit/test/checks.test.mjs
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo test -p devup-mcp --test stdio_smoke
@@ -758,6 +761,49 @@ Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이�
 
 `rawPayload`는 `rawSnapshot`이 node 트리만 쓰는 것과 달리 수집 전체(variables, styles, stats, assets 포함, `referencePng` 제외)를 씁니다. 캡처를 fixture로 보관해 오프라인에서 서버와 같은 토큰 이름(`$gray200`, `typography="h4"`)으로 변환하려면 이것이 필요합니다.
 
+### 그린 폭이 아닌 폭 — `widthBehavior`와 `widthPolicy`
+
+`quality.projection`의 `exact`는 **그린 폭에서** 매핑이 정확하다는 뜻이지, 다른 viewport에서도 같다는 뜻이 아닙니다. absolute 자식이 있는 루트는 그린 폭을 px로 유지하므로 기본 출력은 어떤 viewport에서도 그 폭으로 그려집니다. 루트를 `w="100%"`로 넓히면 각 노드는 자기 constraint가 붙드는 가장자리에 남습니다 — Figma 기본값 MIN이면 왼쪽입니다. 그래서 오른쪽에 그린 배지의 배경과 글자가 넓은 화면에서 서로 다른 자리에 남는 식의 일이 생깁니다.
+
+**`widthBehavior`** 는 `tsx`를 만든 응답마다(Section 배치는 `componentTsx`를 만든 `frames[]` 각 항목에도) 붙습니다. 정적 판정입니다 — constraint, auto-layout sizing, 그린 좌표를 생성된 prop과 대조할 뿐 렌더하지 않습니다(`verification.runtime: "not-performed"`). 기본 출력의 TSX는 바뀌지 않습니다.
+
+- `designWidth`, `root.generatedWidth` / `root.fluid` — 루트가 px 폭을 유지하는지
+- `findings[]`(최대 40개) — 노드마다 `kind`, `status`, `confidence`, `evidence`(constraint, 양쪽 여백, 생성된 prop), 해당하면 `candidates`, `drawnInside`, `carries`
+- `summary`, 그리고 `shapeSizeOmitted` — 위치 지정된 자식 없는 도형을 플러그인처럼 `h="100%"`에 폭 없이 쓴 노드들. 기본 출력은 그대로 두고 여기와 `projectionIssues`에서 보고합니다
+
+| status | 누가 답하나 |
+|---|---|
+| `generator-approximation` | 디자인이 정한 것(STRETCH·SCALE·CENTER constraint, 직선)을 기본 출력이 표현하지 못함. `widthPolicy`가 그대로 씁니다 |
+| `consumer-policy-required` | 디자인이 답하지 않는 질문 — 오른쪽에 그렸지만 왼쪽에 고정된 배지가 넓은 화면에서 어디 있어야 하는지. `candidates`에서 고릅니다 |
+| `design-defined` | 디자인이 FIXED 폭으로 정한 것. 알림일 뿐입니다 |
+
+| kind | 상황 |
+|---|---|
+| `right-aligned-but-held-left` | 오른쪽 가장자리 가까이 그렸지만 constraint가 왼쪽에 고정. `carries`는 그 안에 그려져 함께 옮겨질 노드 |
+| `centered-but-held-left` | 양쪽 여백이 같게 그렸지만 왼쪽 고정. 후보는 left·center·stretch |
+| `group-anchor-mismatch` | 그려진 컨테이너와 다른 가장자리에 고정돼, 폭이 바뀌면 둘이 갈라짐 |
+| `constraint-not-expressed` | STRETCH·SCALE constraint를 기본 출력이 px 위치·폭으로 씀 |
+| `center-offset-dropped` | CENTER constraint인데 중심에서 벗어나 그렸고, 기본 출력은 정확히 가운데에 둠 — 그린 폭에서도 옮겨짐 |
+| `fixed-length-line-mask` | 직선을 mask로 그려, 상자가 늘어나도 선은 그린 길이에 머묾 |
+| `fixed-width-in-fluid-parent` | 디자인이 FIXED로 정한 폭 |
+
+**`widthPolicy`** 는 옵트인입니다. 주지 않으면 출력은 예전과 같습니다.
+
+```json
+{ "url": "...", "widthPolicy": { "root": "fluid", "anchors": { "2:4": "stretch", "2:6": "right", "2:12": "center" } } }
+```
+
+- 루트는 컨테이너의 폭을 받습니다(`w="100%"`, 높이는 유지. `rootLayout: "embedded"`면 원래대로 생략).
+- 위치 지정된 노드의 가장자리는 이 순서로 정합니다: `anchors`에 적은 것 → 그 노드가 그려진 컨테이너를 호출자가 `right`·`center`로 고정했다면 그것 → 노드 자신의 Figma constraint. 그래서 배지 배경만 `right`로 주면 그 안의 글자도 따라갑니다.
+- `right` → `right`, `stretch` → `left`+`right`(폭 없음), `scale` → `%` 폭, `center` → `left="50%"` 또는 `calc(50% ± Npx)`와 `translateX(-50%)`. 늘어나는 직선의 mask는 `maskSize="100% 100%"`, 자식 없는 도형은 자기 px 크기로 씁니다.
+- 이 prop들이 그린 폭에서 원래 위치·폭을 정확히 재현한다는 것은 검증합니다(ABSOLUTE 진단의 `components.horizontal`·`width`와 `anchorSource`). 다른 폭에서 어디 놓이는지는 **호출자의 정책**이지 디자인에 대한 주장이 아닙니다.
+- 캡처에 없는 node id는 거절합니다(`DEVUP_INVALID_INPUT`, `details.unknownNodeIds`) — 오타가 조용히 적용되지 않는 앵커가 되지 않도록. `jobId` 폴링에는 보낼 수 없고 원래 호출에 넣어야 합니다.
+- 한 폭짜리 화면용입니다. 여러 폭을 수집한 `responsiveTsx`에는 적용되지 않습니다.
+
+`verificationScope`는 이 응답이 무엇을 어떤 폭에서 확인했는지 따로 말합니다 — `collectedWidths`, 정적으로 확인한 것(`staticallyChecked`), 그리고 `rendered.state: "not-performed"`. 다른 폭에서 실제로 어떻게 그려지는지는 [`devup_runtime_audit`](#devup_runtime_audit--계획하고-검증할-뿐-실행하지-않는다)로 소비자 프로젝트에서 잽니다.
+
+비용(WQUW-151 실제 화면 10개): `widthBehavior`는 0.8~2.8 KB, 계산 0.02~0.3 ms(같은 화면의 codegen 1.6~1,440 ms). 기본 출력의 TSX는 변경 전과 같습니다 — 플러그인 golden 268쌍이 통과하고, 실제 화면 10개와 합성 화면 1개의 TSX SHA-256이 변경 전 빌드와 같습니다.
+
 ### 시간 트리거 Smart Animate — CSS keyframes
 
 frame에 `After delay` 트리거로 다른 frame에 **Smart animate**하는 reaction이 있고, 그 frame이 다시 다음 frame으로 이어지면 하나의 체인입니다(처음 frame으로 돌아오면 루프). 체인의 frame들은 요청한 node의 subtree 밖에 있는 형제 frame이므로, 요청 루트가 하나일 때 snapshot 스크립트가 체인을 따라가며 추가 루트로 함께 수집합니다(다중 루트 요청은 루트 목록을 그대로 둡니다).
@@ -841,12 +887,15 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 |---|---|
 | `ok` | 심각도로 판정. error가 있으면 실패, `strict: true`면 warning도 실패 |
 | `okReason` | `clean` · `clean-unverified-tokens` · `info-only` · `warnings-only` · `warnings-and-info` · `strict-warnings` · `error-violations` |
-| `violations[]` | `rule`, `severity`(`info`\|`warning`\|`error`), `byteRange`, `message`, `suggestion` |
+| `violations[]` | `rule`, `severity`(`info`\|`warning`\|`error`), `byteRange`, `message`, `suggestion`, 그리고 위반이 놓인 JSX 여는 태그의 문서 순서 번호 `elementIndex`(0부터)와 `element`·`attribute` |
 | `violationCounts` | `error` / `warning` / `info` 개수 |
 | `themeNotes[]` | 비어 있는 토큰 카테고리를 종류마다 한 번씩만 요약 |
 | `tokens` | `referencedByTsx`, `definedByTheme`, `unknownTokenCheckRan` |
 | `checkedTokens` / `availableTokenCount` | 위 두 값과 같은 수를 예전 이름으로 유지 |
 | `themeAvailable` / `themeGuardrail` | 테마를 찾았는지, 못 찾았으면 왜 |
+| `layoutRisks[]` | 폭이 바뀌면 드러나는 정적 레이아웃 위험(`anchor-mismatch`, `fixed-length-line-mask`) |
+| `verificationScope` | 정적으로 검사한 것(`static`: 실행한 규칙, 토큰 검사 여부, layout 검사와 `referenceWidth`)과 렌더하지 않은 것(`runtime.state: "not-performed"`) |
+| `sourceMapLink` | `sourceMap`을 넘겼을 때만. `linked`(`linkedViolations`, `unlinkedViolations`) 또는 `unavailable` |
 
 규칙은 **두 갈래**입니다. 앞의 여섯은 `tsx` 하나만 줘도 돌고, 뒤의 다섯은 `files` 번들로 줄 때만 돕니다 — 파일 경로와 파일 사이의 관계를 봐야 판정할 수 있기 때문입니다.
 
@@ -877,6 +926,18 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 `checkedTokens`와 `availableTokenCount`는 **서로 다른 것을 셉니다** — 앞은 이 TSX가 참조한 `$token` 수, 뒤는 `devup.json`이 정의한 토큰 수입니다. 비율이 아닙니다. `tokens`가 그 사실을 이름으로 다시 말해 줍니다.
 
+#### 위반을 Figma 노드에 잇기 — `sourceMap`과 `layoutRisks`
+
+`devup_figma_export`가 돌려준 `sourceMap`을 그대로 `sourceMap`으로 넘기면, 각 위반에 그 속성을 만든 Figma 노드와 필드가 `source[]`(최대 3개: `nodeId`, `property`, `generatedProperty`, `resolution`)로 붙습니다. 바이트 오프셋 없이 `elementIndex`와 속성 이름으로 잇습니다 — sourceMap 항목도 같은 번호의 `elementIndex`를 갖습니다. `elementIndex`가 없는 예전 sourceMap이면 `sourceMapLink.state`가 `unavailable`입니다. `files` 번들과 함께 넘겨도 `unavailable`입니다 — 번들은 파일마다 요소를 0부터 세므로, 한 TSX의 sourceMap을 어느 파일의 위반에 이을지 정할 수 없습니다.
+
+이어지지 않은 위반은 `unlinkedViolations`로 세고 이유를 붙입니다. sourceMap이 그 속성을 매핑하지 않은 경우이고, export는 그런 속성을 `projectionIssues`(`DEVUP_CODEGEN_PROPERTY_UNMAPPED`)에 같은 `elementIndex`로 보고합니다. WQUW-151 실제 화면에서는 161건 중 158건, 300건 중 296건이 이어졌고, 나머지는 여러 스타일 구간을 가진 텍스트 안쪽 `<Text>`의 `color`였습니다.
+
+`layoutRisks`는 위치 지정된 형제들이 각각 어느 가장자리에 고정됐는지 읽어, 칠해진 형제 안에 그려졌는데 다른 가장자리에 고정된 상자(`anchor-mismatch`)와 늘어나는 상자 안에서 그린 길이를 지키는 mask 직선(`fixed-length-line-mask`)을 보고합니다. 부모가 px 폭을 말하지 않으면 `referenceWidth`로 계산하고, 그것도 없으면 추측하지 않고 `verificationScope.static.groupsWithoutReferenceWidth`로 셉니다.
+
+**새 검사는 `ok`, `okReason`, strict 판정을 바꾸지 않습니다.** 기존 info가 error로 바뀌는 일도 없습니다 — 결과는 `violations` 밖의 별도 키에만 실립니다.
+
+비용: 위반마다 `elementIndex`·`element`·`attribute`가 붙어 기본 응답의 `violations`가 약 19% 커지고(WQUW-151의 300건 화면에서 88.6 → 105.5 KB), 검증 시간은 1.12 → 1.36 ms가 됐습니다. `sourceMap` 연결은 넘길 때만 일어나며, 같은 화면에서 요청 176 KB·응답 155 KB·stdio 왕복 12.6 ms(넘기지 않으면 5.2 ms)였습니다.
+
 ### `devup_stack_diff` — 휴리스틱이고, 그렇게 말한다
 
 레이어는 `db-entity`, `entity-route`, `route-openapi`, `openapi-client` 넷이며 생략하면 전부 실행합니다. 컴파일러가 아니라 텍스트/JSON 휴리스틱이므로 모든 발견은 `confidence`를 달고 나오고, 그 값은 `low` 또는 `medium`입니다 — **`high`는 없습니다.**
@@ -901,6 +962,18 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 정적 파싱은 런타임 동작을 증명하지 않습니다. 이 도구가 "연결돼 있다"고 말하는 것은 코드가 그렇게 적혀 있다는 뜻이지, 실행했을 때 그렇게 동작한다는 뜻이 아닙니다.
 
+### `devup_runtime_audit` — 계획하고 검증할 뿐, 실행하지 않는다
+
+생성한 화면이 그린 폭이 아닌 폭에서 어떻게 그려지는지는 렌더해 봐야 압니다. 이 도구는 그 실행을 **계획하고 검증**하며, 실행은 소비자 프로젝트가 합니다. 서버는 브라우저를 띄우지도, 명령을 실행하지도, URL을 가져오지도 않습니다. Playwright는 MCP 서버의 의존성이 아니라 소비자가 설치하는 실행기 `harness/runtime-audit`의 의존성입니다.
+
+1. `plan` — viewport, 화면(`routePath`, 또는 role과 접근 가능한 이름·testId·텍스트로 요소를 찾는 `click`·`fill` 단계), 기하 검사(`no-horizontal-overflow`, `contained`, `aligned`, `spans`, `visible`)를 담은 선언형 계획을 검증해 허용된 root 아래 `outputPath`에 씁니다. 모든 객체가 모르는 필드를 거절하므로 명령이나 스크립트를 실을 자리가 없고, URL은 자격증명 없는 http(s)여야 하며, 실행 중 `allowedOrigins` 밖으로 가는 요청은 막힙니다. `planId`는 정규화한 계획의 SHA-256입니다.
+2. 실행 — 소비자 프로젝트에서 `node run.mjs --plan plan.json --out out`. viewport마다 프로필·쿠키·저장소 없는 새 브라우저 context를 쓰고 `report.json`과 스크린샷을 씁니다. 시간 상한에 걸리거나 중단되면 끝낸 만큼을 `partial`·`aborted`로 쓰며, 이어서 실행하지는 않습니다.
+3. `ingest` — 보고서를 그대로 믿지 않습니다. 계획 id와 계획 파일 해시에 묶이지 않은 보고서나 바뀐 스크린샷은 `rejected`(`plan-edited`, `report-for-another-plan`, `plan-file-differs`, `artifact-changed`)이고, 모든 개수를 항목에서 다시 셉니다. 없는 항목은 `not-run`이지 통과가 아니며, 환경 오류(콘솔·네트워크 오류, 빠진 폰트, 다른 viewport 폭)가 있으면 실패도 `inconclusive`입니다. 응답의 `evidence`가 서버가 직접 확인한 것과 실행기가 신고만 한 것을 나눕니다.
+
+시각 원본은 Figma 프레임을 그린 폭에만 있습니다(`figmaReferences[].visualOriginalAt`). 그 폭의 스크린샷은 `devup_visual_compare`로 비교하고, 나머지 폭에서는 레이아웃 검사만 의미가 있습니다.
+
+360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다. 계약 전체는 [`docs/runtime-audit-contract.md`](docs/runtime-audit-contract.md)에 있습니다.
+
 ## 읽기 전용·개인정보 보호
 
 - upstream 호출은 `get_metadata`, `get_variable_defs`, `get_design_context`, `get_code_connect_map`, `get_screenshot`과 내장된 read-only `use_figma` script로 닫혀 있습니다.
@@ -908,6 +981,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
+- `devup_runtime_audit`는 브라우저를 띄우거나 명령을 실행하지 않습니다. 계획은 실행되지 않는 데이터이고, 실행기의 스크린샷은 소비자의 보고서 디렉터리에만 남으며 응답에는 해시와 검증 상태만 실립니다.
 - screenshot, asset, TSX resource는 bounded memory artifact와 같은 TTL을 가지며 resource manifest에는 이름·MIME·크기·hash만 노출됩니다.
 - 호환성 fixture는 고정한 JavaScript 플러그인의 268개 synthetic 입력입니다. 별도의 WQUW-151 회귀 fixture는 공식 MCP에서 read-only로 수집한 디자인 node/텍스트/token 이름만 포함하며 OAuth token, header, callback parameter, 사용자 계정·email은 포함하지 않습니다.
 
@@ -973,12 +1047,14 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 
 일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 호환 별칭). `jobId`로 상태를 조회하고 paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
 
-artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
+artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `issued-by-another-process`(다른 devup-mcp 프로세스가 발급한 id — 재시작 전의 서버나 다른 세션의 서버), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. artifactId의 앞 6바이트가 발급한 프로세스의 표식이라 디스크에 아무것도 쓰지 않고 구분하며, id는 그대로 43자입니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
+
+오류의 `details.recovery`는 `mode`(`recollect` | `reproject` | `reread-manifest` | `fix-uri`), `cause`, `reprojectable`, `requiresOriginalUrl`을 줍니다. resource 읽기 실패는 계속 `resource not found`이지만 data에 같은 `recovery`가 실립니다 — artifact가 살아 있는데 output이 없으면 `reproject`, 청크 번호가 범위 밖이면 `chunkCount`·`manifestUri`와 함께 `reread-manifest`입니다. artifact의 capability가 요청한 output을 덮지 못해 거절할 때는 `recovery.missing`이 빠진 것(`referencePng`, `asset-captures` 등)을, `nextAction`이 `artifactId` 대신 원래 url로 다시 부르는 인자를 담습니다. 성공 응답의 `cache.reuse`는 이 artifactId로 Figma 호출 없이 더 투영할 수 있는 output(`withArtifactId`)과 원래 url이 필요한 것(`needsUrl`)을 미리 나열합니다.
 
 
 ### R9 sourceMap 필드와 resolution
 
-TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
+TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. `elementIndex`는 그 항목이 매핑한 JSX 여는 태그의 문서 순서 번호(0부터)이고, `devup_ui_validate`가 위반에 붙이는 번호와 같습니다 — 오프셋 없이 둘을 잇는 키입니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
 
 | resolution | 의미와 검증 범위 |
 | --- | --- |

@@ -229,6 +229,7 @@ pub(super) fn generate_variant_component_set(
         source_map: crate::provenance::SourceMap::empty(),
         projection_trace: crate::provenance::ProjectionTrace::default(),
         fidelity_report: crate::provenance::FidelityReport::default(),
+        width_policy: None,
     }))
 }
 
@@ -488,6 +489,7 @@ fn project_tree_inner(
                 &mut placement,
                 options.root_layout,
                 is_render_root,
+                None,
             );
             for (name, PropValue::String(value)) in placement {
                 if POSITION_PROPS.contains(&name.as_str()) || (name == "w" && value == "100%") {
@@ -556,6 +558,7 @@ fn project_tree_inner(
         &mut props,
         options.root_layout,
         is_render_root,
+        None,
     );
     let mut used_tokens = BTreeSet::new();
     style::push_style_props(
@@ -568,6 +571,7 @@ fn project_tree_inner(
         style::StyleOptions {
             variable_tokens: &options.variable_tokens,
             asset_names_per_node: options.asset_names_per_node,
+            width_policy: None,
         },
     );
     text::push_text_props(

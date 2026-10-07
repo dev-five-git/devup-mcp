@@ -31,6 +31,7 @@ pub(crate) fn property_derivations(
                 &mut props,
                 options.root_layout,
                 is_root,
+                options.width_policy.as_ref(),
             ),
             "style" => {
                 style_derivations = style::push_style_props(
@@ -43,6 +44,7 @@ pub(crate) fn property_derivations(
                     style::StyleOptions {
                         variable_tokens: &options.variable_tokens,
                         asset_names_per_node: options.asset_names_per_node,
+                        width_policy: options.width_policy.as_ref(),
                     },
                 );
             }

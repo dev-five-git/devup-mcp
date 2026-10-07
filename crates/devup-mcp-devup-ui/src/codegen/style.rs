@@ -431,6 +431,7 @@ fn same_color(
 pub(super) struct StyleOptions<'a> {
     pub variable_tokens: &'a std::collections::BTreeMap<String, String>,
     pub asset_names_per_node: bool,
+    pub width_policy: Option<&'a super::width::WidthPolicy>,
 }
 
 // Record the route at the property writer; available geometry alone is not
@@ -440,6 +441,7 @@ pub(super) enum StyleDerivation {
     SvgMaskPolicy,
     InFlowExportBoundary,
     ImagePaintScale,
+    WidthPolicyLine,
 }
 
 impl StyleDerivation {
@@ -448,6 +450,7 @@ impl StyleDerivation {
             Self::SvgMaskPolicy => "svg-mask-policy",
             Self::InFlowExportBoundary => "in-flow-export-boundary",
             Self::ImagePaintScale => "image-paint-scale",
+            Self::WidthPolicyLine => "width-policy-straight-line",
         }
     }
 
@@ -476,6 +479,16 @@ impl StyleDerivation {
             Self::ImagePaintScale => (
                 vec!["isAsset", "fills"],
                 "push_object_fit: first visible IMAGE paint scaleMode FIT -> contain; CROP -> cover.",
+            ),
+            Self::WidthPolicyLine => (
+                vec![
+                    "absoluteBoundingBox",
+                    "strokes",
+                    "strokeWeight",
+                    "rotation",
+                    "constraints",
+                ],
+                "widthPolicy: a vector with a zero-height bounding box and a solid stroke is a straight rule; its box follows the parent's width under a stretch or scale anchor, so the mask is sized to the box (100% 100%) instead of keeping its drawn length. Stroke caps, if any, scale along the line.",
             ),
         }
     }
@@ -517,6 +530,7 @@ pub(super) fn push_style_props(
     let StyleOptions {
         variable_tokens,
         asset_names_per_node: per_node,
+        width_policy,
     } = style;
     let view = node.typed_view();
     if view.bool("visible") == Some(false) {
@@ -563,6 +577,16 @@ pub(super) fn push_style_props(
             );
             derivations.push(props, "maskSize", "contain", StyleDerivation::SvgMaskPolicy);
             derivations.push(props, "maskPos", "center", StyleDerivation::SvgMaskPolicy);
+            if width_policy
+                .is_some_and(|policy| super::width::line_follows_width(snapshot, node, policy))
+            {
+                derivations.push(
+                    props,
+                    "maskSize",
+                    "100% 100%",
+                    StyleDerivation::WidthPolicyLine,
+                );
+            }
         } else {
             string_prop(props, "src", source);
         }
@@ -1003,6 +1027,7 @@ fn paint_css(
     let StyleOptions {
         variable_tokens,
         asset_names_per_node: per_node,
+        ..
     } = style;
     let kind = paint.get("type")?.as_str()?;
     match kind {

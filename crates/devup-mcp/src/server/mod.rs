@@ -18,6 +18,7 @@ mod release_check;
 pub mod resources;
 mod result_contract;
 mod review;
+mod runtime_audit;
 pub mod self_update;
 mod skills;
 mod stack_diff;
@@ -1463,6 +1464,7 @@ impl DevupServer {
                 || input.refresh
                 || !input.frame_ids.is_empty()
                 || input.all_screens
+                || input.width_policy.is_some()
             {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupInvalidInput,
@@ -1604,6 +1606,8 @@ impl DevupServer {
             )));
         }
         let root_layout = parse_root_layout(&input.root_layout).map_err(to_mcp_error)?;
+        let width_policy =
+            validation::parse_width_policy(input.width_policy.as_ref()).map_err(to_mcp_error)?;
         parse_scope(&input.scope).map_err(to_mcp_error)?;
         let delivery = input
             .delivery
@@ -1728,6 +1732,7 @@ impl DevupServer {
                             asset_public_root: asset_public_root.clone(),
                             fields: input.fields.clone(),
                             delivery,
+                            width_policy: width_policy.clone(),
                         },
                         request,
                         false,
@@ -1770,6 +1775,7 @@ impl DevupServer {
                     asset_public_root: asset_public_root.clone(),
                     fields: input.fields.clone(),
                     delivery,
+                    width_policy: width_policy.clone(),
                 },
                 &artifact.payload,
                 "artifact",
@@ -1866,6 +1872,7 @@ impl DevupServer {
             asset_public_root: asset_public_root.clone(),
             fields: input.fields.clone(),
             delivery,
+            width_policy: width_policy.clone(),
         };
         // A frame link plus frameIds is a precise request; refusing it because
         // the plugin wants the parent Section only makes the caller repeat
@@ -2037,6 +2044,7 @@ impl DevupServer {
                 finding["sourceName"] = json!(name);
             }
         }
+        attach_layout_and_source_links(&mut result, &input);
         if !report.ok {
             result.as_object_mut().unwrap().extend(
                 validation_guidance::guidance(&input, &report, theme_lookup.theme.as_ref())
@@ -2110,6 +2118,164 @@ impl DevupServer {
             .await
             .map_err(to_mcp_error)?;
         Ok(tool_result(result))
+    }
+
+    #[tool(
+        description = "Plan, then verify, a browser run of generated screens at several viewport widths that the consumer project executes (action: plan | ingest). This server never launches a browser or runs a command. \
+                       plan validates a declarative plan - baseUrl and allowedOrigins, viewports, screens by routePath or by steps that find elements by role and accessible name, testId or text, and geometry checks (no-horizontal-overflow, contained, aligned, spans, visible) - gives it a content id, and writes it under an allowed root with outputPath. Unknown fields, shell strings, other origins and URLs carrying credentials are refused. \
+                       The consumer runs harness/runtime-audit against it in fresh isolated browser contexts. ingest reads the plan and the report.json it wrote, rejects a report not bound to that plan by id and file hash, recomputes every count from the items, verifies each screenshot's SHA-256, length and decoded width, and separates what it verified from what the executor only declared. A missing item is not-run, never a pass; a viewport with an environment error makes the verdict inconclusive. A visual original exists only at the widths a screen's Figma frame was drawn at.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_runtime_audit(
+        &self,
+        Parameters(input): Parameters<runtime_audit::RuntimeAuditInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let invalid = |message: &str| {
+            to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                message,
+                false,
+            ))
+        };
+        let result = match input.action.as_str() {
+            "plan" => {
+                let plan = input
+                    .plan
+                    .ok_or_else(|| invalid("action plan needs plan."))?;
+                runtime_audit::plan(plan, &self.output_policy, input.output_path.as_deref())
+            }
+            "ingest" => {
+                let (Some(plan_path), Some(report_path)) = (input.plan_path, input.report_path)
+                else {
+                    return Err(invalid("action ingest needs planPath and reportPath."));
+                };
+                let policy = self.output_policy.clone();
+                tokio::task::spawn_blocking(move || {
+                    runtime_audit::ingest(&policy, &plan_path, &report_path)
+                })
+                .await
+                .map_err(|_| invalid("The report could not be read to the end."))?
+            }
+            _ => return Err(invalid("action must be plan or ingest.")),
+        }
+        .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+}
+
+/// Adds what `devup_ui_validate` checked beyond its rules, kept apart from
+/// `violations` so `ok`, `okReason` and `strict` mean what they meant: the
+/// static layout risks, the export node behind each violation when the caller
+/// passed the export's `sourceMap`, and which part was static and which was
+/// never rendered.
+fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
+    let sources: Vec<(Option<&str>, &str)> = match &input.files {
+        Some(files) => files
+            .iter()
+            .filter(|file| {
+                [".tsx", ".jsx"]
+                    .iter()
+                    .any(|extension| file.path.ends_with(extension))
+            })
+            .map(|file| (Some(file.path.as_str()), file.content.as_str()))
+            .collect(),
+        None => vec![(None, input.tsx.as_str())],
+    };
+    let mut risks = Vec::new();
+    let mut unmeasured = 0;
+    let mut layout = Value::Null;
+    for (path, source) in sources {
+        layout = devup_mcp_devup_ui::ui_layout::layout_risks(source, input.reference_width);
+        unmeasured += layout["groupsWithoutReferenceWidth"].as_u64().unwrap_or(0);
+        for mut risk in layout["risks"].as_array().cloned().unwrap_or_default() {
+            if let Some(path) = path {
+                risk["path"] = json!(path);
+            }
+            risks.push(risk);
+        }
+    }
+    result["layoutRisks"] = json!(risks);
+    let mut rules = devup_mcp_devup_ui::ui_validate::rule_names()
+        .into_iter()
+        .collect::<Vec<_>>();
+    if input.files.is_some() {
+        rules.extend([
+            "file-placement",
+            "one-component-per-file",
+            "client-boundary",
+            "inline-style",
+            "react-query-states",
+        ]);
+    }
+    result["verificationScope"] = json!({
+        "static": {
+            "rules": rules,
+            "unknownTokenCheckRan": result["tokens"]["unknownTokenCheckRan"],
+            "layout": layout["checked"],
+            "referenceWidth": input.reference_width,
+            "groupsWithoutReferenceWidth": unmeasured,
+        },
+        "runtime": {
+            "state": "not-performed",
+            "unverified": layout["runtimeUnverified"],
+            "note": "Nothing was rendered. devup_runtime_audit plans a consumer-side browser run whose report this server can ingest.",
+        },
+    });
+    let Some(source_map) = &input.source_map else {
+        return;
+    };
+    if input.files.is_some() {
+        result["sourceMapLink"] = json!({"state": "unavailable",
+            "reason": "A sourceMap describes the one TSX it was exported with, and files numbers the elements of each file from 0, so a violation cannot be tied to it. Pass the sourceMap with tsx."});
+        return;
+    }
+    if !source_map
+        .entries
+        .iter()
+        .any(|entry| entry.element_index.is_some())
+    {
+        result["sourceMapLink"] = json!({"state": "unavailable",
+            "reason": "No sourceMap entry carries elementIndex; it was produced by a build before elementIndex existed. Export again to link violations."});
+        return;
+    }
+    let mut linked = 0;
+    for violation in result["violations"].as_array_mut().into_iter().flatten() {
+        let (Some(element), Some(attribute)) = (
+            violation["elementIndex"].as_u64(),
+            violation["attribute"].as_str().map(str::to_owned),
+        ) else {
+            continue;
+        };
+        let matches = source_map
+            .entries
+            .iter()
+            .filter(|entry| entry.element_index == usize::try_from(element).ok())
+            .filter(|entry| {
+                entry
+                    .generated_property
+                    .as_deref()
+                    .is_some_and(|generated| {
+                        generated == attribute || generated.starts_with(&format!("{attribute}="))
+                    })
+            })
+            .take(3)
+            .map(|entry| {
+                json!({"nodeId": entry.node_id, "property": entry.property,
+                    "generatedProperty": entry.generated_property, "resolution": entry.resolution})
+            })
+            .collect::<Vec<_>>();
+        if !matches.is_empty() {
+            linked += 1;
+            violation["source"] = json!(matches);
+        }
+    }
+    let unlinked = result["violations"].as_array().map_or(0, Vec::len) - linked;
+    result["sourceMapLink"] = json!({"state": "linked", "linkedViolations": linked,
+        "unlinkedViolations": unlinked, "joinedOn": "elementIndex + attribute name"});
+    if unlinked > 0 {
+        result["sourceMapLink"]["unlinkedReason"] = json!(
+            "No sourceMap entry generated the attribute these sit on, or they sit on no attribute. The export names each attribute its sourceMap does not map in projectionIssues (DEVUP_CODEGEN_PROPERTY_UNMAPPED) or projectionEvidence, at the same elementIndex."
+        );
     }
 }
 
@@ -2525,11 +2691,25 @@ fn to_mcp_error(mut error: DevupError) -> ErrorData {
         } else {
             "unrecoverable"
         });
+        let another_process = error.details["artifactState"] == "issued-by-another-process";
         if recovery.is_none() {
-            error.details["recoveryReason"] = json!(
+            error.details["recoveryReason"] = json!(if another_process {
+                "This artifactId was issued by a different devup-mcp process: the server restarted, or another session's server collected it. Artifacts are held only in the memory of the process that collected them and are never shared, so this process cannot serve or recover it."
+            } else {
                 "Original URL/selection cannot be recovered from this server. The ID may be unknown, evicted beyond metadata retention, or lost on restart; the cause cannot be determined."
-            );
+            });
         }
+        error.details["recovery"] = json!({
+            "mode": "recollect",
+            "cause": match error.details["artifactState"].as_str() {
+                Some("expired") => "artifact-expired",
+                Some("evicted") => "artifact-evicted",
+                Some("issued-by-another-process") => "issued-by-another-process",
+                _ => "artifact-unknown",
+            },
+            "reprojectable": false,
+            "requiresOriginalUrl": recovery.is_none(),
+        });
         error.details["nextAction"] = json!({"tool":"devup_figma_export",
             "arguments":{"refresh":true},"requiredArguments":["url"],"omitArguments":["artifactId"],
             "how":"Use the original Figma SECTION URL and frameIds (or allScreens) with refresh:true to collect a new artifact. Then reuse the new cache.artifactId; do not send the expired artifactId with url or refresh."});
@@ -2666,10 +2846,47 @@ impl ServerHandler for DevupServer {
         resources::read_output_resource(&self.artifacts, &request.uri)
             .await
             .map(Into::into)
-            .map_err(|_| {
-                with_error_identity(ErrorData::resource_not_found("resource not found", None))
-            })
+            .map_err(|error| with_error_identity(resource_read_error(error)))
     }
+}
+
+/// A failed resource read, still `resource not found` on the wire, carrying
+/// which part was missing and whether the artifact behind it is alive: a live
+/// artifact can project the output again, a gone one has to be recollected.
+fn resource_read_error(error: DevupError) -> ErrorData {
+    let details = &error.details;
+    let live = details["artifactState"] == "live";
+    let (mode, cause) = match details["resourceKind"].as_str() {
+        Some("chunk") => ("reread-manifest", "chunk-out-of-range"),
+        Some("output") => ("reproject", "output-not-attached"),
+        None if error.code == ErrorCode::DevupFigmaHandoffInvalid => ("fix-uri", "invalid-uri"),
+        _ => (
+            "recollect",
+            match details["artifactState"].as_str() {
+                Some("expired") => "artifact-expired",
+                Some("evicted") => "artifact-evicted",
+                Some("issued-by-another-process") => "issued-by-another-process",
+                _ => "artifact-unknown",
+            },
+        ),
+    };
+    let recovery = json!({
+        "mode": mode,
+        "cause": cause,
+        "reprojectable": live,
+        "requiresOriginalUrl": !live && details.get("recoveryArguments").is_none(),
+        "recoveryArguments": details.get("recoveryArguments"),
+    });
+    ErrorData::resource_not_found(
+        "resource not found",
+        Some(json!({
+            "code": error.code,
+            "retryable": error.retryable,
+            "message": error.message,
+            "details": error.details,
+            "recovery": recovery,
+        })),
+    )
 }
 
 #[cfg(test)]
@@ -2778,6 +2995,65 @@ mod r8_recovery_tests {
 }
 
 #[cfg(test)]
+mod p2_recovery_tests {
+    use super::*;
+
+    #[test]
+    fn an_id_from_another_process_says_so_and_cannot_be_reprojected() {
+        let error = to_mcp_error(DevupError::with_details(
+            ErrorCode::DevupFigmaHandoffExpired,
+            "The Figma artifact is missing or expired.",
+            true,
+            json!({"artifactState":"issued-by-another-process"}),
+        ));
+        let details = &error.data.unwrap()["details"];
+        assert_eq!(details["recovery"]["cause"], "issued-by-another-process");
+        assert_eq!(details["recovery"]["reprojectable"], false);
+        assert_eq!(details["recoveryState"], "unrecoverable");
+        assert!(
+            details["recoveryReason"]
+                .as_str()
+                .unwrap()
+                .contains("different devup-mcp process")
+        );
+    }
+
+    #[test]
+    fn resource_misses_distinguish_reproject_reread_and_recollect() {
+        let read = |details: Value, code| {
+            let mut error = DevupError::new(code, "missing", false);
+            error.details = details;
+            resource_read_error(error).data.unwrap()["recovery"].clone()
+        };
+        let output = read(
+            json!({"resourceKind":"output","artifactState":"live"}),
+            ErrorCode::DevupFigmaHandoffInvalid,
+        );
+        assert_eq!(output["mode"], "reproject");
+        assert_eq!(output["reprojectable"], true);
+        let chunk = read(
+            json!({"resourceKind":"chunk","artifactState":"live","chunkCount":2}),
+            ErrorCode::DevupFigmaHandoffInvalid,
+        );
+        assert_eq!(chunk["mode"], "reread-manifest");
+        let expired = read(
+            json!({"artifactState":"expired","recoveryArguments":{"url":"u","refresh":true}}),
+            ErrorCode::DevupFigmaHandoffExpired,
+        );
+        assert_eq!(expired["mode"], "recollect");
+        assert_eq!(expired["requiresOriginalUrl"], false);
+        let foreign = read(
+            json!({"resourceKind":"artifact","artifactState":"issued-by-another-process"}),
+            ErrorCode::DevupFigmaHandoffInvalid,
+        );
+        assert_eq!(foreign["cause"], "issued-by-another-process");
+        assert_eq!(foreign["requiresOriginalUrl"], true);
+        let invalid = read(json!(null), ErrorCode::DevupFigmaHandoffInvalid);
+        assert_eq!(invalid["mode"], "fix-uri");
+    }
+}
+
+#[cfg(test)]
 mod section_retry_tests {
     use super::*;
     use devup_mcp_devup_ui::codegen::RootLayout;
@@ -2801,6 +3077,7 @@ mod section_retry_tests {
             asset_public_root: None,
             fields: vec![],
             delivery: DeliveryMode::Auto,
+            width_policy: None,
         }
     }
 

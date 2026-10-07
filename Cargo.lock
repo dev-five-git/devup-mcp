@@ -705,6 +705,7 @@ dependencies = [
  "devup-mcp-visual",
  "dunce",
  "futures-util",
+ "image",
  "oxc_allocator",
  "oxc_ast",
  "oxc_parser",
@@ -720,6 +721,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
