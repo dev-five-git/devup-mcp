@@ -884,7 +884,7 @@ impl BridgeState {
 /// 기본값(봉투 19KB · 필드 4KB)은 공식 MCP 가 텍스트 결과를 20,480 바이트에서
 /// 자르기 때문에 생긴 것이다. 그 탓에 화면 하나가 30번 넘는 왕복으로 쪼개지고,
 /// 창이 뒤로 가 있으면 왕복 하나가 60초까지 걸린다 — 실측한 값이다.
-const BRIDGE_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const BRIDGE_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
 const BRIDGE_FIELD_BYTES: usize = 4 * 1024 * 1024;
 
 /// 스냅샷 읽기의 한도를 브리지 전송에 맞게 올린다.
@@ -914,6 +914,10 @@ fn widen_budgets(params: &mut Value) {
 /// 그 파일을 이 플러그인이 맡는다는 판단은 이미 `resolve` 가 내렸다. 이 값은
 /// 디코더의 대조에만 쓰이고, 파일 키로 보고되는 것은 [`BridgeServed`] 가 싣는
 /// 플러그인 자신의 보고뿐이다.
+///
+/// 빠른 스냅샷·테마 봉투는 이 키를 `source` 와 `snapshot` 안에 싣는다. 거기가 빈
+/// 채로 가면 디코더가 대상 불일치로 보고 빠른 경로를 통째로 버린다 — 실기기에서
+/// 화면마다 그렇게 노드마다 읽는 예전 경로로 떨어졌고, breakpoint 형제 폭도 잃었다.
 fn stamp_file_key(data: &mut Value, file_key: &str) {
     let Some(object) = data.as_object_mut() else {
         return;
@@ -924,6 +928,15 @@ fn stamp_file_key(data: &mut Value, file_key: &str) {
         .is_none_or(str::is_empty);
     if empty {
         object.insert("fileKey".to_owned(), Value::String(file_key.to_owned()));
+    }
+    for nested in ["source", "snapshot"] {
+        if let Some(inner) = object.get_mut(nested).and_then(Value::as_object_mut)
+            && inner
+                .get("fileKey")
+                .is_some_and(|key| key.as_str().is_none_or(str::is_empty))
+        {
+            inner.insert("fileKey".to_owned(), Value::String(file_key.to_owned()));
+        }
     }
 }
 

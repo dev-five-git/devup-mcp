@@ -60,21 +60,32 @@ fn oversized_stringified_upstream_result_is_rejected_before_json_decode() {
     assert_eq!(error.details["category"], "upstreamResultJson");
 }
 
-/// The decoder's ceiling sits above the 19 KiB the producing script budgets
-/// itself to, so a relay that re-serializes the JSON (pretty-printing,
-/// different escaping) cannot inflate a valid envelope into a rejection.
-/// A bound still exists, and this pins both halves of that: comfortably over
-/// the producer's budget is accepted, far over the decoder's ceiling is not.
+/// The decoder's ceiling sits above the largest budget a producing script is
+/// given. Over the bridge that is a whole screen in one envelope - 8 MiB -
+/// and a 64 KiB ceiling threw every real screen above it back to the legacy
+/// walk, losing its breakpoint siblings. A bound still exists, and this pins
+/// both halves of that: a bridge-sized screen is accepted, far over the
+/// decoder's ceiling is not.
 #[test]
 fn a_text_envelope_is_bounded_but_leaves_headroom_above_the_producer_budget() {
     let inflated_by_a_relay = mutate_envelope(|value| {
         value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(20 * 1024));
     });
     decode_fast_snapshot(&text_upstream_result(&inflated_by_a_relay), &target())
-        .expect("20 KiB is over the producer budget but within the decoder's headroom");
+        .expect("20 KiB is over the direct producer budget but within the decoder's headroom");
+
+    let whole_screen_over_the_bridge = mutate_envelope(|value| {
+        value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(1024 * 1024));
+    });
+    decode_fast_snapshot(
+        &text_upstream_result(&whole_screen_over_the_bridge),
+        &target(),
+    )
+    .expect("a screen the bridge sends in one envelope is not too large");
 
     let oversized = mutate_envelope(|value| {
-        value["snapshot"]["nodes"][1]["fields"]["characters"] = json!("x".repeat(96 * 1024));
+        value["snapshot"]["nodes"][1]["fields"]["characters"] =
+            json!("x".repeat(16 * 1024 * 1024 + 1));
     });
     let error = decode_fast_snapshot(&text_upstream_result(&oversized), &target())
         .expect_err("oversized text envelope");

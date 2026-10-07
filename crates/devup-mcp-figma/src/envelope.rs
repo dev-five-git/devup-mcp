@@ -9,12 +9,16 @@ use crate::{
 };
 
 /// Decoder-side ceiling on a single text envelope. Deliberately larger than
-/// the 19 KiB the producing script budgets itself to: a relay that
-/// re-serializes the JSON (pretty-printing, different escaping) inflates the
-/// payload without changing its content, and rejecting that as `too_large`
-/// would fail a perfectly valid envelope. Still bounded, so a hostile or
-/// runaway response cannot be buffered without limit.
-const MAX_TEXT_ENVELOPE_BYTES: usize = 64 * 1024;
+/// the largest budget a producing script is given - 19 KiB on the direct
+/// path, [`crate::bridge::BRIDGE_ENVELOPE_BYTES`] over the bridge, which asks
+/// for a whole screen in one envelope: a relay that re-serializes the JSON
+/// (pretty-printing, different escaping) inflates the payload without
+/// changing its content, and rejecting that as `too_large` would fail a
+/// perfectly valid envelope. Still bounded, so a hostile or runaway response
+/// cannot be buffered without limit. Held at 64 KiB below the bridge budget,
+/// every screen over it fell back to the legacy walk: a read per subtree, and
+/// a breakpoint frame's sibling widths dropped.
+const MAX_TEXT_ENVELOPE_BYTES: usize = 2 * crate::bridge::BRIDGE_ENVELOPE_BYTES;
 const MAX_STRINGIFIED_RESULT_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

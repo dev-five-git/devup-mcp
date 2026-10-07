@@ -280,6 +280,73 @@ async fn a_plugin_without_a_file_key_serves_when_it_is_the_only_one() {
         .expect("a keyless plugin still answers");
 }
 
+/// 키 없는 플러그인이 보낸 빠른 봉투는 물은 파일의 것으로 디코딩된다.
+///
+/// 빠른 스냅샷과 테마 봉투는 키를 `source`·`snapshot` 안에 싣는다. 그 자리가 빈
+/// 채로 디코더에 가면 대상 불일치로 빠른 경로를 버리는데, 실기기에서 화면마다 그랬다.
+#[tokio::test]
+async fn a_keyless_plugins_fast_envelopes_decode_as_the_file_asked_for() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let client = BridgeFigmaClient::new(server.state());
+    let mut plugin = connect_plugin_as(&server, None).await;
+    let target = devup_mcp_figma::FigmaTarget::parse(&format!(
+        "https://www.figma.com/design/{FILE_KEY}/x?node-id=1-1"
+    ))
+    .expect("a design link");
+
+    let reading = {
+        let client = client.clone();
+        tokio::spawn(async move {
+            client
+                .call_read_tool(ReadToolCall::fast_snapshot(FILE_KEY, "1:1"))
+                .await
+        })
+    };
+    let job = next_job(&mut plugin).await;
+    let envelope = json!({
+        "kind": "devupFastSnapshotEnvelope", "schemaVersion": 1,
+        "source": { "fileKey": "", "rootId": "1:1" },
+        "snapshot": { "fileKey": "", "version": null, "rootIds": ["1:1"],
+            "nodes": [{ "id": "1:1", "type": "FRAME", "fields": { "childrenIds": [] } }],
+            "diagnostics": [] },
+        "resources": { "collections": [], "variables": [], "styles": [],
+            "usedRemoteVariables": [], "localComplete": false, "usedRemoteComplete": true,
+            "unresolved": [] },
+        "integrity": { "nodeCount": 1, "variableRefCount": 0, "styleRefCount": 0, "utf8Bytes": 0 }
+    });
+    answer(&mut plugin, &job, envelope).await;
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the bridge answers");
+    let decoded = devup_mcp_figma::decode_fast_snapshot(&result, &target)
+        .expect("a keyless plugin's envelope is the asked-for file's");
+    assert_eq!(decoded.snapshot.root_ids, ["1:1"]);
+
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::fast_theme(FILE_KEY))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    let theme = json!({
+        "kind": "devupFastThemeEnvelope", "schemaVersion": 1,
+        "source": { "fileKey": "", "version": null },
+        "resources": { "collections": [], "variables": [], "styles": [],
+            "usedRemoteVariables": [], "usedVariableIds": [], "usedStyleIds": [],
+            "localComplete": true, "usedRemoteComplete": true, "unresolved": [] },
+        "integrity": { "collectionCount": 0, "variableCount": 0, "styleCount": 0,
+            "unresolvedCount": 0, "utf8Bytes": 0 }
+    });
+    answer(&mut plugin, &job, theme).await;
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the bridge answers");
+    devup_mcp_figma::decode_fast_theme(&result, FILE_KEY)
+        .expect("a keyless plugin's theme envelope is the asked-for file's");
+}
+
 /// 키 없는 플러그인이 둘이면 아무도 맡지 않는다.
 ///
 /// 어느 쪽이 대상 파일을 열고 있는지 가릴 수 없다. 엉뚱한 문서를 읽어 주느니 요금을
