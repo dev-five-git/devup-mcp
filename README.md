@@ -63,8 +63,11 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 - `discovery`: `complete` | `incomplete`, `discoveryReason`: `index-only` | `snapshot-incomplete`
 - `discoveredCount` / `collectedCount` / `manifestIncluded`
 - `unavailable[]`: 항목마다 `assetId`, `nodeId`, `errorCode`와 **`reason`** — `hidden-node`(숨김 노드) · `export-failed`(export 실패) · `not-requested`(애초에 요청하지 않음) · `capture-not-in-artifact`(요청했지만 이 artifact엔 그 format/scale이 없음)
+- `export-failed`에는 **`errorDetail`** 이 붙습니다 — 실패한 단계, 걸린 시간, Figma나 전송이 한 말 그대로(최대 500자). 예전에는 플러그인 스크립트가 예외를 버려서 코드만 남았고, 인스턴스 안쪽 레이어 여섯 개가 각각 11초씩 걸려 실패한 이유를 아무도 알 수 없었습니다. `failures[]`의 같은 항목에도 `errorDetail`이 실리고, Figma가 페이지를 불러오지 못한 경우면 `hint`가 할 일을 말합니다
 
 숨김 노드 실패는 `failures[]`가 아니라 `warnings[]`로 갑니다. 구현을 막는 실패가 아니기 때문입니다.
+
+인스턴스 안쪽 레이어(`I…` id)의 export가 실패하면 플러그인은 **파일의 페이지를 불러온 뒤 한 번 더** export합니다. 그런 레이어는 다른 페이지에 있는 메인 컴포넌트로 그려지는데, Figma 런타임은 불러오지 않은 페이지가 필요한 읽기를 "Unable to establish connection to Figma after 10 seconds"로 거절합니다. 두 번째에 받았으면 manifest 항목에 `exportNote`가 첫 시도의 실패와 함께 남고, 그래도 실패하면 `errorDetail`이 두 시도를 모두 말합니다. 다른 노드는 예전처럼 한 번만 시도합니다.
 
 `rawSnapshot`과 `rawPayload`는 수집한 디자인을 raw로 담은 것이라 `debug: true` 없이는 거절됩니다. 화면을 구현하는 데는 필요 없습니다 — 실제 캡처 10개 화면에서 tsx가 node·text·typography·asset·layout 기대치를 100% 담고 있습니다. 쓰는 자리는 하나입니다: **화면이 이상해 보일 때 생성기 탓인지 디자인이 원래 그런지 판정하는 것.** 그때는 디자인을 코드 옆에 놓고 읽어야 하고, 그게 이 플래그입니다.
 
@@ -485,6 +488,7 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 - **`ws://127.0.0.1`은 쓸 수 없습니다.** Figma의 `allowedDomains`가 그 주소를 거부해 manifest 전체가 무효가 되고 플러그인이 아예 로드되지 않습니다. `localhost`여야 합니다.
 - **한 화면은 한 번의 읽기로 옵니다.** 브리지는 플러그인에게 화면 하나를 봉투 하나(최대 8 MiB)에 담아 달라고 하고, 디코더도 그 크기까지 받습니다. 플러그인이 파일 키를 보고하지 못하면 봉투 안의 키 자리(`source`·`snapshot`)를 요청한 파일로 채웁니다. 예전에는 둘 다 맞지 않아 64 KiB가 넘는 화면이나 키 없는 플러그인의 봉투가 모두 버려지고, 노드마다 읽는 예전 경로로 떨어졌습니다. 그 경로는 breakpoint 형제 폭을 모으지 않아 `responsiveTsx`도 나오지 않았습니다. 실제 공지 화면은 4번 읽던 것이 1번이 되고, 세 폭이 함께 수집됩니다.
 - **Figma 창을 뒤로 보내면 느려집니다.** 브라우저가 백그라운드 플러그인을 분당 한 번꼴로 깨우기 때문에, 앞에서 160ms인 snapshot이 뒤에서는 11초가 됩니다. 수집 중에는 Figma를 앞에 두세요.
+- **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 다른 페이지를 불러오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
 
 자세한 내부 구조와 스크립트 생성 방식은 [`plugin/README.md`](plugin/README.md)에 있습니다.
 
@@ -769,6 +773,7 @@ Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이�
 **`widthBehavior`** 는 `tsx`를 만든 응답마다(Section 배치는 `componentTsx`를 만든 `frames[]` 각 항목에도) 붙습니다. 정적 판정입니다 — constraint, auto-layout sizing, 그린 좌표를 생성된 prop과 대조할 뿐 렌더하지 않습니다(`verification.runtime: "not-performed"`). 기본 출력의 TSX는 바뀌지 않습니다.
 
 - `designWidth`, `root.generatedWidth` / `root.fluid` — 루트가 px 폭을 유지하는지
+- `root.componentSized` — 루트를 어떤 화면보다 좁게(320px 미만) 그렸는지. 그러면 화면이 아니라 호스트가 놓고 크기를 정하는 컴포넌트(64px 로딩 표시, 아이콘)라서, "넓은 화면에서 이 부분은 어디로 가나"를 묻는 `consumer-policy-required` 발견은 내지 않고 `summary.componentRootSuppressed`로 셉니다. 실제 64px 로딩 표시에 붙던 발견 5건이 그런 소음이었습니다. 생성기가 표현하지 못한 것(`generator-approximation`)과 디자인이 정한 것은 그대로 보고합니다
 - `findings[]`(최대 40개) — 노드마다 `kind`, `status`, `confidence`, `evidence`(constraint, 양쪽 여백, 생성된 prop), 해당하면 `candidates`, `drawnInside`, `carries`
 - `summary`, 그리고 `shapeSizeOmitted` — 위치 지정된 자식 없는 도형을 플러그인처럼 `h="100%"`에 폭 없이 쓴 노드들. 기본 출력은 그대로 두고 여기와 `projectionIssues`에서 보고합니다
 
@@ -803,7 +808,9 @@ Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이�
 
 `verificationScope`는 이 응답이 무엇을 어떤 폭에서 확인했는지 따로 말합니다 — `collectedWidths`, 정적으로 확인한 것(`staticallyChecked`), 그리고 `rendered.state: "not-performed"`. 다른 폭에서 실제로 어떻게 그려지는지는 [`devup_runtime_audit`](#devup_runtime_audit--계획하고-검증할-뿐-실행하지-않는다)로 소비자 프로젝트에서 잽니다.
 
-비용(WQUW-151 실제 화면 10개): `widthBehavior`는 0.8~2.8 KB, 계산 0.02~0.3 ms(같은 화면의 codegen 1.6~1,440 ms). 기본 출력의 TSX는 변경 전과 같습니다 — 플러그인 golden 268쌍이 통과하고, 실제 화면 10개와 합성 화면 1개의 TSX SHA-256이 변경 전 빌드와 같습니다.
+비용(WQUW-151 실제 화면 10개): `widthBehavior`는 0.8~2.8 KB, 계산 0.02~0.3 ms(같은 화면의 codegen 3~33 ms). 기본 출력의 TSX는 변경 전과 같습니다 — 플러그인 golden 268쌍이 통과하고, 실제 화면 10개와 합성 화면 1개의 TSX SHA-256이 변경 전 빌드와 같습니다.
+
+**codegen이 화면 크기의 제곱으로 느려지던 것을 고쳤습니다.** 생성된 속성마다 그 속성이 sourceMap에 매핑됐는지 확인하는 감사가, 항목 하나를 볼 때마다 그 속성의 주인 노드를 sourceMap 전체에서 다시 찾았습니다(속성 수 × 항목 수²). 주인을 속성마다 한 번만 찾게 했고, 출력은 같습니다 — about 화면 세 폭의 `CodegenOutput` 전체(TSX, sourceMap, 진단, fidelity)가 변경 전과 같은 해시입니다. 실제 화면에서 폭 하나의 codegen이 약 1 s에서 70~100 ms로, 브리지로 받은 about(790 node, 세 폭) export의 투영이 15.3 s에서 0.58 s로 줄었습니다.
 
 ### 시간 트리거 Smart Animate — CSS keyframes
 
@@ -959,6 +966,8 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 그래서 **통과 여부보다 판정 근거가 중요합니다.** renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면, 픽셀이 일치해 `visual.passed`가 `true`여도 최종 판정은 `inconclusive`입니다 — 무엇으로 그린 그림인지 모르는 채 "같다"고 말하는 것은 보증이 아니기 때문입니다. renderer pinning과 환경 manifest 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
+서버가 스스로 증명할 수 있는 것은 서버가 채웁니다. reference를 `artifactId`로 주고 manifest에 `referenceResource`를 빠뜨리면, 이 서버가 Figma에서 받아 들고 있는 그 PNG의 해시로 채우고 `environment.filledByServer`에 적습니다. 경로로 준 reference는 소비자의 파일이라 채우지 않습니다. 나머지 manifest 항목은 여전히 소비자가 말해야 합니다.
+
 ### `devup_feature_trace` — anchor가 없으면 거절한다
 
 화면부터 컬럼까지 한 기능의 슬라이스를 읽어 acceptance matrix로 돌려줍니다. 출발점은 **명시적 anchor**여야 합니다 — `routePath`, `figmaNodeId` 또는 `artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`.
@@ -978,6 +987,8 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 3. `ingest` — 보고서를 그대로 믿지 않습니다. 계획 id와 계획 파일 해시에 묶이지 않은 보고서나 바뀐 스크린샷은 `rejected`(`plan-edited`, `report-for-another-plan`, `plan-file-differs`, `artifact-changed`)이고, 모든 개수를 항목에서 다시 셉니다. 없는 항목은 `not-run`이지 통과가 아니며, 환경 오류(콘솔·네트워크 오류, 빠진 폰트, 다른 viewport 폭)가 있으면 실패도 `inconclusive`입니다. 응답의 `evidence`가 서버가 직접 확인한 것과 실행기가 신고만 한 것을 나눕니다.
 
 시각 원본은 Figma 프레임을 그린 폭에만 있습니다(`figmaReferences[].visualOriginalAt`). 그 폭의 스크린샷은 `devup_visual_compare`로 비교하고, 나머지 폭에서는 레이아웃 검사만 의미가 있습니다.
+
+`ingest`는 그린 폭에서 찍혀 검증된 스크린샷마다 **바로 부를 수 있는 `devup_visual_compare` 호출**을 `visualComparisons[]`로 돌려줍니다. audit이 아는 것 — 스크린샷 경로(`actual`·`actualPng`), viewport, 실행기가 신고한 브라우저 버전(`renderer`), OS·locale·timezone, 그 run에 환경 오류가 있었는지(`environmentStatus`) — 은 채워져 있고, 소비자만 말할 수 있는 것(reference의 `artifactId`, `tsxResource`, `themePath`, `assetDirectory`, `devupUiVersion`, `fontManifest`)은 `consumerMustAdd`가 이름으로 댑니다. 그대로 불러도 `inconclusive`가 될 사정 — scale 1이 아닌 캡처, viewport보다 긴 페이지의 full-page 캡처, 환경 오류 — 은 `blockers`가 미리 말합니다. 예전에는 audit 스크린샷을 비교기에 넣으면 이 항목들이 비어 언제나 `inconclusive`였습니다.
 
 360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다. 계약 전체는 [`docs/runtime-audit-contract.md`](docs/runtime-audit-contract.md)에 있습니다.
 

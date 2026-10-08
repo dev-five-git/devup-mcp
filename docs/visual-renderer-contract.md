@@ -38,6 +38,8 @@ The consumer should persist a content-free run manifest next to `actual.png`:
 
 Paths are consumer-local examples; hashes and pinned versions are required for reproducibility. A missing font/asset, renderer version mismatch, failed readiness signal, console/runtime error, or viewport mismatch MUST set `environmentStatus` to `environment-invalid` and stop before pixel metrics are treated as a product pass.
 
+When the reference is given by `artifactId` and the manifest omits `referenceResource`, the server pins it itself: the reference is the PNG it captured and holds, so it records that PNG's SHA-256 and reports `environment.filledByServer: ["referenceResource"]`. A reference given by path is the consumer's file and is not filled. A `devup_runtime_audit` ingest hands back these calls ready to run for every screenshot taken at a drawn width (`visualComparisons`), with the fields the audit verified filled in.
+
 The repository-owned renderer MUST:
 
 - render the generated TSX using the repository's real DevupUI configuration, fonts, assets, and CSS reset;

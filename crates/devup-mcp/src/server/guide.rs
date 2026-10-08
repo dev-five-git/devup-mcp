@@ -173,7 +173,9 @@ design does not answer. Choose an anchor from its `candidates` and pass it in
 `widthPolicy` (`{"root": "fluid", "anchors": {"<nodeId>": "right"}}`) rather
 than re-anchoring the generated code by hand. How the screen renders at other
 widths is checked in the consumer project: `devup_runtime_audit` writes the
-plan and verifies the report, and never runs the browser itself.
+plan and verifies the report, and never runs the browser itself. Its ingest
+returns a ready `devup_visual_compare` call for each screenshot taken at a
+drawn width.
 "#;
 
 #[cfg(test)]

@@ -107,7 +107,7 @@ Both files are read through the server's allowed write roots, with the plan capp
 | `pass` | Every planned item passed, every environment is valid, and the report's status is `completed` |
 | `inconclusive` | Anything else: a missing viewport, an environment error, an unverifiable screenshot, an item that is skipped, not run or inconclusive, or a partial or aborted run. A failure seen in an invalid environment is also inconclusive |
 
-The response carries `verdict`, `planId`, `integrity`, `coverage` (`plannedCheckItems`, `notRun`, `reportStatus`), `summary` and `declaredSummaryMatches`. `failures` lists the first 50 failures, each with viewport, screen, check index, kind, label, reason and measured boxes. `runs` gives each viewport's environment errors, `environmentValid` and screenshot verification. The response also echoes `figmaReferences`, `executor` and `environment`. `evidence` separates what ingest verified itself from what the executor only declared:
+The response carries `verdict`, `planId`, `integrity`, `coverage` (`plannedCheckItems`, `notRun`, `reportStatus`), `summary` and `declaredSummaryMatches`. `failures` lists the first 50 failures, each with viewport, screen, check index, kind, label, reason and measured boxes. `runs` gives each viewport's environment errors, `environmentValid` and screenshot verification. The response also echoes `figmaReferences`, `executor` and `environment`, and adds `visualComparisons` (see [Figma references](#figma-references)). `evidence` separates what ingest verified itself from what the executor only declared:
 
 - Ingest verifies the plan's content id and SHA-256, the report's binding to that plan, every count, and each screenshot's hash, length, PNG decoding and width.
 - The executor declares the element geometry and each check's outcome; page, console and network errors; and the browser and environment versions.
@@ -116,6 +116,18 @@ The response carries `verdict`, `planId`, `integrity`, `coverage` (`plannedCheck
 ## Figma references
 
 A screen has a visual original only at the widths its Figma frame was drawn at. `figmaReferences` lists those per screen as `visualOriginalAt`; compare screenshots at them with `devup_visual_compare` and its renderer manifest. At every other width (`layoutChecksOnlyAt`) only the layout checks apply.
+
+`visualComparisons` holds one entry per screenshot ingest verified at such a width: `screen`, `nodeId`, `viewport`, the `screenshot` (path, SHA-256, decoded size) and a `call` to `devup_visual_compare` with its arguments filled from what the audit holds:
+
+| Filled | From |
+|---|---|
+| `actual`, `environment.actualPng` | The verified screenshot's path |
+| `environment.viewport` | The planned viewport |
+| `environment.renderer` | `playwright-<browser>` and the browser version the executor declared |
+| `environment.os`, `locale`, `timezone` | The report's `environment`, when the executor recorded them |
+| `environment.environmentStatus` | `valid` only when that run reported no environment error and every screenshot in it verified |
+
+`consumerMustAdd` names what only the consumer can state: the reference's `artifactId` (export the frame with `outputs: ["referencePng"]`), `tsxResource`, `themePath`, `assetDirectory`, `devupUiVersion` and `fontManifest`, plus any of the fields above the report did not carry. `devup_visual_compare` pins a reference given by `artifactId` itself. `blockers` says up front what would still make the comparison inconclusive: a capture at a `deviceScaleFactor` other than 1, a page taller than its viewport (the full-page capture is then not the reference's size - plan the drawn width at the frame's drawn height), or a run with environment errors.
 
 ## Not implemented
 
