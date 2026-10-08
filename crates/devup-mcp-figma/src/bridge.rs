@@ -985,6 +985,26 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
     Ok(result)
 }
 
+/// 플러그인이 export 한 참조 PNG 를 공식 `get_screenshot` 이 주는 모양 — 이미지
+/// 블록 하나 — 으로 쓴다. 수집기는 두 경로의 답을 같은 디코더로 받는다.
+fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
+    let png = data
+        .get("data")
+        .and_then(Value::as_str)
+        .filter(|_| data["kind"] == "devupReferencePng" && data["mimeType"] == "image/png")
+        .ok_or_else(|| {
+            unavailable("the plugin's reference PNG answer is not a devupReferencePng")
+        })?;
+    let mut result = json!({
+        "content": [{ "type": "image", "data": png, "mimeType": "image/png" }],
+        "isError": false,
+        "_meta": {},
+    });
+    result["_meta"][SERVED_META_KEY] = serde_json::to_value(served)
+        .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
+    Ok(result)
+}
+
 /// 플러그인이 붙는 문에 들이는 `Origin`.
 ///
 /// 브라우저 페이지도 `ws://localhost` 에 붙을 수 있다. 그 페이지가 여기서 `hello`
@@ -1354,11 +1374,16 @@ impl FigmaUpstream for BridgeFigmaClient {
             }
             Err(error) => return Err(error),
         };
-        stamp_file_key(&mut data, call.file_key());
         let served = BridgeServed {
             port: self.port,
             ..served
         };
+        if matches!(call, ReadToolCall::Screenshot { .. }) {
+            return Ok(UpstreamResult {
+                raw: wrap_as_image_result(&data, &served)?,
+            });
+        }
+        stamp_file_key(&mut data, call.file_key());
         Ok(UpstreamResult {
             raw: wrap_as_tool_result(&data, &served)?,
         })
@@ -1423,7 +1448,10 @@ fn bridge_batch_budget() -> BatchBudget {
 ///
 /// 판정은 부르기 전에 끝난다. 브리지가 맡은 요청이 실패하면 그 실패를 그대로
 /// 올린다 — 노드가 없거나 봉투가 너무 큰 것은 원격에서도 같은 결과이고, 다시
-/// 물으면 아낀 요금을 도로 쓰게 된다.
+/// 물으면 아낀 요금을 도로 쓰게 된다. 예외는 원격이라면 해낼 수 있는 거절
+/// (`remote_may_answer`)이다. 원격이 읽을 수 있는 키면 원격에 묻되, 원격도 다시 해 볼
+/// 여지 없이 거절하면(로그인이 없다 등) 플러그인의 거절을 올린다 — 한도를 쓰지 않는
+/// 처방(플러그인 갱신)을 말하는 쪽이 그것이다.
 pub struct FallbackUpstream<P, S> {
     preferred: P,
     secondary: S,
@@ -1451,7 +1479,14 @@ where
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         if self.preferred.can_serve(&call).await {
-            return self.preferred.call_read_tool(call).await;
+            let answered = self.preferred.call_read_tool(call.clone()).await?;
+            if is_bridge_only_key(call.file_key()) || !remote_may_answer(&answered.raw) {
+                return Ok(answered);
+            }
+            return match self.secondary.call_read_tool(call).await {
+                Err(error) if !error.retryable => Ok(answered),
+                other => other,
+            };
         }
         // 브리지만 읽을 수 있는 키다. 원격으로 넘기면 Figma 에 없는 키를 묻게 되고,
         // 돌아오는 것은 원인과 무관한 거절 — 로그인하라거나 파일이 없다는 — 뿐이다.
@@ -1497,10 +1532,21 @@ where
     }
 }
 
+/// 원격 경로라면 해낼 수 있는 플러그인의 거절: 이 devup-mcp 보다 먼저 빌드돼
+/// 스크립트를 모른다(읽기는 시도되지 않았다), 또는 참조 PNG 가 브리지 답 하나(8 MiB)를
+/// 넘는다(원격은 16 MiB 까지 받는다).
+fn remote_may_answer(raw: &Value) -> bool {
+    raw["isError"] == true
+        && raw["content"][0]["text"].as_str().is_some_and(|text| {
+            text.contains("DEVUP_BRIDGE_UNKNOWN_SCRIPT")
+                || text.contains("DEVUP_REFERENCE_PNG_TOO_LARGE")
+        })
+}
+
 /// 브리지만 읽을 수 있는 키의 읽기를 브리지가 맡지 못할 때의 거절.
 ///
 /// 두 경우는 고치는 방법이 다르다. 스크립트 읽기면 플러그인이 끊긴 것이니 다시
-/// 띄우면 되고, 그 밖의 읽기(`get_screenshot` 등)는 브리지가 애초에 못 하는 일이라
+/// 띄우면 되고, 그 밖의 읽기(노드 없는 metadata 등)는 브리지가 애초에 못 하는 일이라
 /// 그 파일의 진짜 Figma 링크가 있어야 direct 경로로 읽을 수 있다.
 fn bridge_only_refusal(call: &ReadToolCall) -> DevupError {
     let message = if call.bridge_job().is_some() {

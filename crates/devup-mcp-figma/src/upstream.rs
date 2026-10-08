@@ -1017,11 +1017,17 @@ impl ReadToolCall {
                 params: json!({ "nodeId": node_id }),
             },
 
+            // 공식 `get_screenshot` 대신 플러그인이 노드를 PNG 로 export 한다.
+            // 브리지 클라이언트가 그 답을 공식 도구와 같은 이미지 블록으로 감싼다.
+            Self::Screenshot { node_id, .. } => BridgeJob {
+                script: "referencePng",
+                params: json!({ "nodeId": node_id }),
+            },
+
             Self::Metadata { .. }
             | Self::VariableDefs { .. }
             | Self::DesignContext { .. }
-            | Self::CodeConnectMap { .. }
-            | Self::Screenshot { .. } => return None,
+            | Self::CodeConnectMap { .. } => return None,
 
             Self::Snapshot {
                 node_id,

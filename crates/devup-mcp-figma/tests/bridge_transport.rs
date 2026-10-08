@@ -5,8 +5,8 @@
 //! 모든 것 — 등록, 이름·값 매핑, 상관, 봉투 모양, 라우팅 판정 — 을 확인한다.
 
 use devup_mcp_figma::{
-    BridgeFigmaClient, BridgeServed, BridgeServer, DevupError, FallbackUpstream, FigmaUpstream,
-    PreferredUpstream, ReadToolCall, UpstreamResult,
+    BridgeFigmaClient, BridgeServed, BridgeServer, DevupError, ErrorCode, FallbackUpstream,
+    FigmaUpstream, PreferredUpstream, ReadToolCall, UpstreamResult,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -551,10 +551,10 @@ async fn a_bridge_only_key_never_reaches_the_remote_path() {
         .expect_err("no plugin holds this connection");
     assert_eq!(error.details["stage"], "bridge-routing");
     let error = upstream
-        .call_read_tool(ReadToolCall::screenshot("bridge:41", "1:2"))
+        .call_read_tool(ReadToolCall::metadata("bridge:41", None))
         .await
-        .expect_err("the bridge cannot take a screenshot, and direct has no key");
-    assert_eq!(error.details["tool"], "get_screenshot");
+        .expect_err("the bridge cannot list a file's pages, and direct has no key");
+    assert_eq!(error.details["tool"], "get_metadata");
 
     assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
 
@@ -564,6 +564,163 @@ async fn a_bridge_only_key_never_reaches_the_remote_path() {
         .await
         .expect("the remote path answers");
     assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+/// referencePng 도 플러그인이 맡는다. 플러그인은 노드를 PNG 로 export 하고, 브리지는
+/// 그것을 공식 `get_screenshot` 처럼 이미지 블록 하나로 돌려준다 — 수집기가 두 경로를
+/// 같은 디코더로 받는다.
+#[tokio::test]
+async fn a_reference_png_is_exported_by_the_plugin_and_comes_back_as_one_image() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let client = BridgeFigmaClient::new(server.state());
+    let call = ReadToolCall::screenshot(FILE_KEY, "1:2");
+    assert!(client.can_serve(&call).await);
+    let reading = tokio::spawn(async move { client.call_read_tool(call).await });
+
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "referencePng");
+    assert_eq!(job["params"]["nodeId"], "1:2");
+    answer(
+        &mut plugin,
+        &job,
+        json!({ "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png",
+            "byteLength": 4, "data": "iVBORw==" }),
+    )
+    .await;
+
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the bridge answers");
+    assert_eq!(result.raw["isError"], false);
+    assert_eq!(
+        result.raw["content"],
+        json!([{ "type": "image", "data": "iVBORw==", "mimeType": "image/png" }])
+    );
+    assert!(result.raw["_meta"]["devup/bridge"].is_object());
+}
+
+/// devup-mcp 보다 먼저 빌드된 플러그인은 새 스크립트를 모른다고 답한다. 읽기는
+/// 시도되지 않았으므로 원격이 읽을 수 있는 키면 원격이 대신 답하고, 플러그인만 아는
+/// 키면 그 답이 할 일과 함께 올라간다.
+#[tokio::test]
+async fn a_plugin_older_than_the_server_leaves_a_keyed_read_to_the_remote_path() {
+    let older = "DEVUP_BRIDGE_UNKNOWN_SCRIPT: referencePng (아는 스크립트: assets, snapshot)";
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let remote_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let upstream = std::sync::Arc::new(FallbackUpstream::new(
+        BridgeFigmaClient::new(server.state()),
+        CountingRemote {
+            calls: remote_calls.clone(),
+        },
+    ));
+
+    let reading = {
+        let upstream = upstream.clone();
+        tokio::spawn(async move {
+            upstream
+                .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+                .await
+        })
+    };
+    let job = next_job(&mut plugin).await;
+    plugin
+        .send(Message::Text(
+            json!({ "kind": "devup-result", "requestId": job["requestId"], "error": older })
+                .to_string()
+                .into(),
+        ))
+        .await
+        .expect("the refusal is sent");
+    reading
+        .await
+        .expect("the read task finishes")
+        .expect("the remote path answers in the plugin's place");
+    assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+    let keyless = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut lone = connect_plugin_as(&keyless, None).await;
+    let target = keyless.state().attached_files().await[0].target_key.clone();
+    let upstream = std::sync::Arc::new(FallbackUpstream::new(
+        BridgeFigmaClient::new(keyless.state()),
+        CountingRemote {
+            calls: remote_calls.clone(),
+        },
+    ));
+    let reading = tokio::spawn(async move {
+        upstream
+            .call_read_tool(ReadToolCall::screenshot(target, "1:2"))
+            .await
+    });
+    let job = next_job(&mut lone).await;
+    lone.send(Message::Text(
+        json!({ "kind": "devup-result", "requestId": job["requestId"], "error": older })
+            .to_string()
+            .into(),
+    ))
+    .await
+    .expect("the refusal is sent");
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the plugin's refusal is its answer");
+    assert_eq!(result.raw["isError"], true);
+    assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+struct SignedOutRemote;
+
+#[async_trait::async_trait]
+impl FigmaUpstream for SignedOutRemote {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(Vec::new())
+    }
+
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        Err(DevupError::new(
+            ErrorCode::DevupAuthRequired,
+            "Figma login is required.",
+            false,
+        ))
+    }
+}
+
+/// 브리지 답 하나에 실리지 않는 참조 PNG 는 원격에 묻는다. 원격이 로그인 없이 거절하면
+/// 답은 로그인 요구가 아니라 플러그인의 거절이다.
+#[tokio::test]
+async fn a_signed_out_remote_leaves_the_plugins_refusal_standing() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let upstream = FallbackUpstream::new(BridgeFigmaClient::new(server.state()), SignedOutRemote);
+    let reading = tokio::spawn(async move {
+        upstream
+            .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    plugin
+        .send(Message::Text(
+            json!({ "kind": "devup-result", "requestId": job["requestId"],
+                "error": "DEVUP_REFERENCE_PNG_TOO_LARGE 9000000 bytes, over the 8388608 one answer carries" })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .expect("the refusal is sent");
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the plugin's refusal is the answer");
+    assert_eq!(result.raw["isError"], true);
+    assert!(
+        result.raw["content"][0]["text"]
+            .as_str()
+            .is_some_and(|text| text.contains("DEVUP_REFERENCE_PNG_TOO_LARGE")),
+        "{}",
+        result.raw
+    );
 }
 
 #[tokio::test]

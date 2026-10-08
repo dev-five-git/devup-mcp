@@ -269,9 +269,9 @@ fn plugin_code(message: &str) -> Option<&str> {
 fn plugin_error_code(code: &str) -> Option<ErrorCode> {
     match code {
         "DEVUP_NODE_NOT_FOUND" | "DEVUP_PAGE_NOT_FOUND" => Some(ErrorCode::DevupFigmaNodeNotFound),
-        "DEVUP_ENVELOPE_TOO_LARGE" | "DEVUP_EXPLORE_PROJECTION_TOO_LARGE" => {
-            Some(ErrorCode::DevupFigmaResponseTooLarge)
-        }
+        "DEVUP_ENVELOPE_TOO_LARGE"
+        | "DEVUP_EXPLORE_PROJECTION_TOO_LARGE"
+        | "DEVUP_REFERENCE_PNG_TOO_LARGE" => Some(ErrorCode::DevupFigmaResponseTooLarge),
         _ => None,
     }
 }
@@ -294,6 +294,12 @@ fn plugin_next_action(code: &str) -> Option<Value> {
             "tool": "devup_figma_export",
             "how": "The selection produced more than the plugin transport carries. Narrow it: export one frame at a time rather than a Section or a whole page, and leave debug outputs off.",
             "doNot": "Do not raise limit to recover this; limit bounds the answer, not the collection."
+        })),
+        "DEVUP_BRIDGE_UNKNOWN_SCRIPT" => Some(json!({
+            "how": "The Devup Bridge plugin running in Figma was built before this devup-mcp and does not know this read. Update the checkout it was imported from, or import plugin/manifest.json from a current one (Plugins -> Development -> Import plugin from manifest...), run the plugin again on the file, then retry. Until then this read goes to the metered direct path only when the plugin reported the file's Figma key and devup_figma_auth login has been done."
+        })),
+        "DEVUP_REFERENCE_PNG_TOO_LARGE" => Some(json!({
+            "how": "This node's PNG is larger than the 8 MiB one Devup Bridge answer carries. The direct path takes up to 16 MiB once the file's Figma key is known: run devup_figma_auth login, and if this export had no Figma link, repeat it with the file's own link (Share -> Copy link). Otherwise export a smaller frame."
         })),
         "DEVUP_SECTION_INDEX_TOO_LARGE" => Some(json!({
             "tool": "devup_figma_search",
@@ -462,6 +468,10 @@ mod r7_tests {
         assert_eq!(
             bridge("DEVUP_NODE_NOT_FOUND").code,
             ErrorCode::DevupFigmaNodeNotFound
+        );
+        assert_eq!(
+            bridge("DEVUP_REFERENCE_PNG_TOO_LARGE 9000000 bytes").code,
+            ErrorCode::DevupFigmaResponseTooLarge
         );
         let error = bridge(
             "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.",

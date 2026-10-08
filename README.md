@@ -233,7 +233,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 - `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(Dev Mode 등)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다.
 - `nextAction` — 지금 상태에서 할 다음 호출. 플러그인 하나면 url 없는 `devup_figma_export`, direct만 열려 있으면 frame 링크가 필요한 export, 둘 다 막혔으면 `options`에 플러그인 실행(권장)과 로그인을 차례로 담습니다.
 
-`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning: "A bridge is attached; login is only needed for file-scope metadata or referencePng."`이 붙습니다.
+`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning: "A bridge is attached; login is only needed for a file-scope metadata read."`이 붙습니다.
 
 ```json
 { "action": "doctor" }
@@ -399,7 +399,7 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "status" }`의 `activePath`와 `paths.bridge`/`paths.direct`로 확인하세요. **연결 순서는 bridge → direct입니다** — 로그인을 요청하기 전에 이것부터 부르세요.
 
-현재 브리지가 **못** 하는 읽기는 둘입니다 — `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록이라 계약이 다릅니다)와 `referencePng`의 `get_screenshot`. 그 밖의 tsx export 경로는 전부 브리지로 갑니다.
+현재 브리지가 **못** 하는 읽기는 하나입니다 — `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록이라 계약이 다릅니다). `referencePng`를 포함한 그 밖의 export 경로는 전부 브리지로 갑니다.
 
 ### 링크 없이 쓰기 — 플러그인이 연 파일과 Figma 선택
 
@@ -437,7 +437,7 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 ```
 
 - `fileKey`는 **플러그인이 보고한 키**뿐입니다. 보고하지 못했으면 `null`과 `fileKeyReason`이 오고, 요청에 실려 온 키가 있었다면 `requestedFileKey`로 따로 보고합니다 — 그 키를 파일의 키로 내세우지 않습니다. `sourceMap.source.fileKey`도 같은 규칙을 따릅니다.
-- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지(예: `referencePng`)는 direct 경로가 답했습니다.
+- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지는 direct 경로가 답했습니다 — 예컨대 devup-mcp보다 오래된 플러그인이 모르는 읽기(아래 "알아 두어야 할 것").
 - 캐시된 수집을 다시 투영한 응답은 `kind: "artifact"`를 유지하고 `origin: "bridge"`와 같은 출처 정보를 답니다.
 
 ### 브리지 플러그인 — 한도를 쓰지 않고 읽기
@@ -483,12 +483,14 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 - **브라우저 페이지는 붙지 못합니다.** 중계 문은 `Origin`이 붙은 요청을 모두 거절하고, 플러그인 문(`/plugin`)은 Figma 플러그인 창(`Origin: null`)과 `figma.com`만 받습니다. 흔한 웹 페이지가 플러그인인 척 읽기를 가로채지 못하게 하려는 것인데, 샌드박스 iframe이나 `file://` 페이지도 `null`을 실으므로 그런 페이지까지 막지는 못합니다.
 - **읽기 전용입니다.** 플러그인이 실행하는 스크립트는 **빌드 시점에 플러그인 안에 박혀 있고**, devup-mcp는 그중 어느 것을 실행할지 **이름만** 보냅니다. 소켓으로 코드가 오가지 않으며 Figma 문서를 바꾸는 호출은 존재하지 않습니다.
 - **이 기기에서만 됩니다.** 대기 주소는 `127.0.0.1`이라 다른 기기에서는 붙을 수 없고, 원격 CI에서는 브리지가 없으니 자동으로 원격 경로를 씁니다.
-- **파일은 한 번에 하나입니다.** 플러그인이 자기 파일 키를 보고하지 못하는 경우가 있어(Dev Mode 등), 키 없는 플러그인은 **혼자 붙어 있을 때만** 읽기를 받습니다. 두 개 이상이면 어느 파일인지 알 수 없으므로 원격 경로로 넘어갑니다.
+- **파일은 한 번에 하나입니다.** 플러그인은 `figma.fileKey`로 자기 파일을 알리는데, Figma는 이 값을 private plugin에만 줍니다. 그래서 manifest에 `enablePrivatePluginApi`를 적어 두었고, 이 줄이 없던 예전 빌드는 키를 보고하지 못했습니다(`fileKey: null`). 키 없는 플러그인은 **혼자 붙어 있을 때만** 읽기를 받습니다. 두 개 이상이면 어느 파일인지 알 수 없으므로 원격 경로로 넘어갑니다.
 - **포트를 바꾸려면 세 곳을 같이 고쳐야 합니다.** Figma는 플러그인이 접속할 수 있는 주소를 manifest에 미리 적어 두게 하고 실행 중에는 바꿀 수 없습니다. `manifest.json`의 `allowedDomains`, `src/code.ts`의 `PORT`, 그리고 환경 변수를 모두 고친 뒤 플러그인을 다시 빌드·설치해야 합니다. 하나만 바꾸면 **아무 말 없이 원격 경로로 돌아가** 한도를 그대로 씁니다.
 - **`ws://127.0.0.1`은 쓸 수 없습니다.** Figma의 `allowedDomains`가 그 주소를 거부해 manifest 전체가 무효가 되고 플러그인이 아예 로드되지 않습니다. `localhost`여야 합니다.
 - **한 화면은 한 번의 읽기로 옵니다.** 브리지는 플러그인에게 화면 하나를 봉투 하나(최대 8 MiB)에 담아 달라고 하고, 디코더도 그 크기까지 받습니다. 플러그인이 파일 키를 보고하지 못하면 봉투 안의 키 자리(`source`·`snapshot`)를 요청한 파일로 채웁니다. 예전에는 둘 다 맞지 않아 64 KiB가 넘는 화면이나 키 없는 플러그인의 봉투가 모두 버려지고, 노드마다 읽는 예전 경로로 떨어졌습니다. 그 경로는 breakpoint 형제 폭을 모으지 않아 `responsiveTsx`도 나오지 않았습니다. 실제 공지 화면은 4번 읽던 것이 1번이 되고, 세 폭이 함께 수집됩니다.
 - **Figma 창을 뒤로 보내면 느려집니다.** 브라우저가 백그라운드 플러그인을 분당 한 번꼴로 깨우기 때문에, 앞에서 160ms인 snapshot이 뒤에서는 11초가 됩니다. 수집 중에는 Figma를 앞에 두세요.
 - **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일(플러그인 다시 실행)을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
+- **`referencePng`도 플러그인이 그립니다.** 노드를 PNG로 export해(scale 1이되 긴 변은 direct의 `maxDimension`과 같은 8192px까지, sRGB, 효과가 번지는 영역이 아니라 노드 자신의 상자) 공식 `get_screenshot`과 같은 이미지 블록 하나로 돌려주므로, 수집기는 두 경로의 답을 같은 검증으로 받습니다.
+- **devup-mcp보다 오래된 플러그인은 새 읽기를 모른다고 답합니다**(`DEVUP_BRIDGE_UNKNOWN_SCRIPT`). 시도조차 되지 않은 읽기라, 플러그인이 파일 키를 보고했으면 그 읽기만 direct 경로가 대신 읽습니다(한도를 씁니다). direct도 로그인이 없어 거절하면 로그인 요구가 아니라 플러그인의 답과 할 일 — 플러그인을 불러온 저장소를 갱신하고 다시 실행 — 이 옵니다. 참조 PNG가 브리지 답 하나(8 MiB)를 넘을 때(`DEVUP_REFERENCE_PNG_TOO_LARGE`, direct는 16 MiB까지 받습니다)도 같은 길을 갑니다.
 
 자세한 내부 구조와 스크립트 생성 방식은 [`plugin/README.md`](plugin/README.md)에 있습니다.
 
@@ -630,7 +632,7 @@ devup://artifact/{artifactId}/outputs/{outputId}/manifest
 devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
 ``` `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
-`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
+`referencePng`는 선택했을 때만 읽기를 정확히 한 번 더 합니다. 브리지가 맡은 파일이면 플러그인이 노드를 PNG로 export하고(위 "브리지 플러그인"), 아니면 공식 read-only `get_screenshot`을 부릅니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 

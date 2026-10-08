@@ -173,6 +173,10 @@ fn script_answer(script: &str) -> Result<Value, &'static str> {
         "fastSnapshot" | "snapshot" => Ok(json!({
             "fileKey": "", "version": null, "rootIds": ["1:2"], "nodes": [frame_node()]
         })),
+        "referencePng" => Ok(json!({
+            "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png", "byteLength": 68,
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        })),
         _ => Err("DEVUP_TEST_SCRIPT_NOT_SIMULATED"),
     }
 }
@@ -374,6 +378,37 @@ async fn an_export_without_url_reads_the_selection_through_the_bridge() -> anyho
             .filter(|job| job["script"] != "pageCatalog")
             .all(|job| job["params"]["nodeId"] == "1:2"),
         "every read targets the selected frame: {jobs:?}"
+    );
+    Ok(())
+}
+
+/// The reference image is the plugin's export too, so a screen and its
+/// referencePng spend nothing on the metered path.
+#[tokio::test]
+async fn a_reference_png_comes_from_the_plugin() -> anyhow::Result<()> {
+    let setup = setup();
+    let jobs = serve(attach(&setup.bridge, keyless_hello("Landing")).await);
+
+    let (failed, output) = call(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+        "devup_figma_export",
+        json!({ "outputs": ["tsx", "referencePng"] }),
+    )
+    .await?;
+    assert!(!failed, "{output}");
+    assert_eq!(output["referencePng"]["mimeType"], "image/png", "{output}");
+    assert_eq!(output["cache"]["capabilities"]["referencePng"], true);
+    assert_eq!(
+        output["source"]["bridgeReads"],
+        output["collection"]["figmaToolCalls"]
+    );
+    assert_eq!(setup.remote_calls.load(Ordering::SeqCst), 0);
+    let jobs = jobs.lock().await;
+    assert!(
+        jobs.iter()
+            .any(|job| job["script"] == "referencePng" && job["params"]["nodeId"] == "1:2"),
+        "{jobs:?}"
     );
     Ok(())
 }

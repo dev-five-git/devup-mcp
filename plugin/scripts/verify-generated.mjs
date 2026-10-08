@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 
-const { SCRIPTS, pageCatalog } = await import('../src/generated/scripts.js')
+const { SCRIPTS, pageCatalog, referencePng } = await import('../src/generated/scripts.js')
 
 /** Rust 의 `BuiltinScript::plugin_name` 이 내놓는 이름. 어긋나면 런타임에야 안다. */
 const EXPECTED = [
@@ -20,6 +20,7 @@ const EXPECTED = [
   'largeValue',
   'metadata',
   'pageCatalog',
+  'referencePng',
   'search',
   'sectionIndex',
   'snapshot',
@@ -62,4 +63,37 @@ assert.equal(catalog.nodes.length, 2)
 assert.equal(catalog.nodes[0].fields.name, 'Page 1')
 assert.equal(catalog.nodes[1].type, 'PAGE')
 
-console.log(`verified ${EXPECTED.length} generated scripts (pageCatalog executed)`)
+// 참조 PNG 는 수집기가 공식 `get_screenshot` 과 같은 그림으로 받으므로, 어떤
+// 설정으로 export 하는지가 계약이다.
+let exported
+const drawn = (width, height) => ({
+  absoluteBoundingBox: { x: 0, y: 0, width, height },
+  exportAsync: async (settings) => {
+    exported = settings
+    return new Uint8Array([137, 80, 78, 71])
+  },
+})
+const nodes = { '1:2': drawn(360, 740), '1:3': drawn(1920, 9000) }
+globalThis.figma = {
+  getNodeByIdAsync: async (id) => nodes[id] ?? null,
+  base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
+}
+const reference = await referencePng({ nodeId: '1:2' })
+assert.deepEqual(exported, {
+  format: 'PNG',
+  constraint: { type: 'SCALE', value: 1 },
+  useAbsoluteBounds: true,
+  colorProfile: 'SRGB',
+})
+assert.deepEqual(reference, {
+  kind: 'devupReferencePng',
+  nodeId: '1:2',
+  mimeType: 'image/png',
+  byteLength: 4,
+  data: 'iVBORw==',
+})
+await referencePng({ nodeId: '1:3' })
+assert.deepEqual(exported.constraint, { type: 'HEIGHT', value: 8192 })
+await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
+
+console.log(`verified ${EXPECTED.length} generated scripts (pageCatalog and referencePng executed)`)

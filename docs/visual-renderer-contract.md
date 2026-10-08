@@ -16,6 +16,8 @@ Request `referencePng` together with the desired projection:
 
 The collector makes one `get_screenshot` call for the linked node, asking for the PNG inline (`enableBase64Response`) at the node's own size (`maxDimension` raised from the tool's 1024px default to 8192px), takes the one `image/png` block beside the URL text the tool also writes, validates its signature and SHA-256, and records `capabilities.referencePng=true` on the artifact. `referencePng` currently applies to one linked node; Section multi-frame selection must acquire each frame by its canonical URL.
 
+When a Devup Bridge plugin serves the file, the plugin exports the node instead - PNG at scale 1 with the longer edge held to 8192px as `maxDimension` holds it, sRGB, over the node's own bounds rather than where its effects reach - and the bridge hands it back as the same single image block, so both paths pass the same validation. A plugin built before this answers that it does not know the read; the read then goes to `get_screenshot` when the plugin reported the file's key and the direct path is logged in.
+
 ## 2. Render the generated component
 
 The consumer should persist a content-free run manifest next to `actual.png`:

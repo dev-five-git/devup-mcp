@@ -60,7 +60,7 @@ try {
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
     const bytes = await image.getBytesAsync();
     if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
+      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 8388608`);
     }
     const starts = values => values.every((value, index) => bytes[index] === value);
     const mimeType = starts([137,80,78,71,13,10,26,10]) ? "image/png"
@@ -105,7 +105,7 @@ try {
         : new Uint8Array(exported)
       : devupUtf8Encode(svgText);
   if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
+    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${format} at scale ${scale} is ${bytes.length} bytes; one answer carries 1 to 8388608`);
   }
   const sha256 = devupSha256(bytes);
   // figma.io is an extension of the remote MCP, not the native Plugin API.
