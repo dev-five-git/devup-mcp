@@ -352,6 +352,7 @@ async fn serve_relay(state: BridgeState, mut socket: WebSocket) {
                         }),
                         Err(error) => json!({
                             "kind": "relay-result", "id": job.id, "error": error.message,
+                            "scriptError": super::is_script_failure(&error),
                         }),
                     };
                     let _ = outbox.send(answer.to_string());
@@ -373,7 +374,7 @@ async fn serve_relay(state: BridgeState, mut socket: WebSocket) {
 
 enum Answer {
     Data(Value, BridgeServed),
-    Failed(String),
+    Failed { message: String, script: bool },
 }
 
 #[derive(Deserialize)]
@@ -385,6 +386,25 @@ struct RelayResult {
     error: Option<String>,
     #[serde(default)]
     served: Option<BridgeServed>,
+    /// `error` 를 플러그인이 답했는지 — 호스트가 플러그인에 닿지 못한 것이 아니라.
+    /// 이 표시보다 오래된 호스트는 보내지 않는다.
+    #[serde(default, rename = "scriptError")]
+    script_error: Option<bool>,
+}
+
+/// 호스트가 스스로 쓴 문구인지. 호스트가 플러그인에 닿으려다 쓰는 문구는 모두 이렇게
+/// 시작한다. 나머지는 플러그인이 답한 것이다 — 스크립트의 `DEVUP_*` 코드거나 Figma
+/// 자신의 말. `scriptError` 를 보내지 않는 호스트에만 쓴다.
+fn written_by_a_host(message: &str) -> bool {
+    [
+        "no Devup Bridge plugin",
+        "the Devup Bridge",
+        "bridge ",
+        "this devup-mcp",
+        "the devup-mcp",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
 }
 
 /// 이 프로세스가 통해 읽는 호스트 하나와의 연결.
@@ -432,11 +452,11 @@ impl RelayConnection {
             // 호스트가 붙인 문구를 그대로 올린다. 스크립트가 던진 DEVUP_* 코드도
             // 그 안에 있고, 위쪽 분기는 그 문자열로 판정한다. 호스트가 이미 다시
             // 보내 볼 만큼 보냈으므로 여기서 또 보내지 않는다.
-            Ok(Ok(Answer::Failed(message))) => Err(Failure::Final(DevupError::new(
-                ErrorCode::DevupFigmaDirectUnavailable,
-                message,
-                false,
-            ))),
+            Ok(Ok(Answer::Failed { message, script })) => Err(Failure::Final(if script {
+                super::script_failure(message)
+            } else {
+                DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, message, false)
+            })),
             Ok(Err(_)) => Err(self.gone()),
             Err(_) => Err(Failure::Final(unavailable(
                 "the Devup Bridge plugin did not answer in time",
@@ -454,9 +474,17 @@ impl RelayConnection {
             return;
         };
         let answer = match (result.data, result.error) {
-            (_, Some(error)) => Answer::Failed(error),
+            (_, Some(error)) => Answer::Failed {
+                script: result
+                    .script_error
+                    .unwrap_or_else(|| !written_by_a_host(&error)),
+                message: error,
+            },
             (Some(data), None) => Answer::Data(data, result.served.unwrap_or_default()),
-            (None, None) => Answer::Failed("bridge returned neither data nor error".to_owned()),
+            (None, None) => Answer::Failed {
+                message: "bridge returned neither data nor error".to_owned(),
+                script: false,
+            },
         };
         let _ = waiting.send(answer);
     }
@@ -901,6 +929,34 @@ pub(super) async fn supervise(state: BridgeState, port: u16) {
         tokio::select! {
             () = tokio::time::sleep(pause) => {}
             () = shut_down(&mut shutdown) => return,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::written_by_a_host;
+
+    #[test]
+    fn a_hosts_own_words_are_told_apart_from_the_plugins() {
+        for host in [
+            "no Devup Bridge plugin is open for the file this request was addressed to",
+            "the Devup Bridge plugin did not answer in time",
+            "the Devup Bridge plugin disconnected mid-read",
+            "the Devup Bridge port is changing hands: the devup-mcp that held it went away",
+            "bridge returned neither data nor error",
+            "bridge job encode failed: key must be a string",
+            "this devup-mcp cannot use the Devup Bridge right now (legacy-host)",
+            "the devup-mcp holding the Devup Bridge port (pid 7) went away mid-read",
+        ] {
+            assert!(written_by_a_host(host), "{host}");
+        }
+        for plugin in [
+            "DEVUP_NODE_NOT_FOUND",
+            "DEVUP_BRIDGE_UNKNOWN_SCRIPT: assets (아는 스크립트: snapshot)",
+            "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.",
+        ] {
+            assert!(!written_by_a_host(plugin), "{plugin}");
         }
     }
 }

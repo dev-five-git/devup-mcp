@@ -96,6 +96,14 @@ pub struct AssetManifestEntry {
     pub output_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
+    /// What failed, in the exporter's words: the step, the time it took and
+    /// the message Figma or the transport gave. Bounded to 500 characters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_detail: Option<String>,
+    /// Set when the bytes came only after a recovery step, naming it and the
+    /// first attempt's failure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub export_note: Option<String>,
     /// Where the generated code refers to this asset, `/icons/x.svg` or
     /// `/images/x.png`, filled in by the server from the code generator's
     /// naming so the bytes can be written where the code will look.
@@ -452,6 +460,8 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
         data_base64: None,
         output_path: None,
         error_code,
+        error_detail: None,
+        export_note: None,
         path: None,
     }
 }
@@ -589,7 +599,7 @@ pub fn asset_export_from_result(
         return Ok(AssetExportOutcome::Chunked(descriptor));
     }
     if descriptor.status == AssetStatus::Failed {
-        return Ok(AssetExportOutcome::Entry(AssetManifestEntry {
+        return Ok(AssetExportOutcome::Entry(Box::new(AssetManifestEntry {
             asset_id: request.asset_id.clone(),
             node_id: request.node_id.clone(),
             field: request.field.clone(),
@@ -604,8 +614,10 @@ pub fn asset_export_from_result(
             data_base64: None,
             output_path: None,
             error_code: descriptor.error_code,
+            error_detail: bounded(descriptor.error_detail),
+            export_note: None,
             path: None,
-        }));
+        })));
     }
     let payload = find_payload(&result.raw, request.format.mime_type()).ok_or_else(|| {
         // Which shapes the response *did* carry. Without this the failure is
@@ -651,7 +663,7 @@ pub fn asset_export_from_result(
             "asset export binary length or hash does not match.",
         ));
     }
-    Ok(AssetExportOutcome::Entry(AssetManifestEntry {
+    Ok(AssetExportOutcome::Entry(Box::new(AssetManifestEntry {
         asset_id: request.asset_id.clone(),
         node_id: request.node_id.clone(),
         field: request.field.clone(),
@@ -666,8 +678,10 @@ pub fn asset_export_from_result(
         data_base64: Some(data),
         output_path: None,
         error_code: None,
+        error_detail: None,
+        export_note: bounded(descriptor.export_note),
         path: None,
-    }))
+    })))
 }
 
 /// The virtual field a fragmented SVG export is read under: the large-value
@@ -701,7 +715,7 @@ pub const PNG_EXPORT_FIELD: &str = "$export:png";
 /// in fragments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssetExportOutcome {
-    Entry(AssetManifestEntry),
+    Entry(Box<AssetManifestEntry>),
     Chunked(LargeValueDescriptor),
 }
 
@@ -730,6 +744,8 @@ pub fn exported_asset_from_bytes(
         data_base64: Some(STANDARD.encode(bytes)),
         output_path: None,
         error_code: None,
+        error_detail: None,
+        export_note: None,
         path: None,
     })
 }
@@ -751,7 +767,17 @@ struct AssetExportDescriptor {
     sha256: Option<String>,
     error_code: Option<String>,
     #[serde(default)]
+    error_detail: Option<String>,
+    #[serde(default)]
+    export_note: Option<String>,
+    #[serde(default)]
     cursor: Option<LargeValueCursor>,
+}
+
+/// The exporter's own words, kept short: it runs in the plugin, so its length
+/// is not ours to trust.
+fn bounded(text: Option<String>) -> Option<String> {
+    text.map(|text| text.chars().take(500).collect())
 }
 
 fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {

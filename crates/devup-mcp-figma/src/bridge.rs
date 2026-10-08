@@ -410,6 +410,35 @@ fn unavailable(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, message, false)
 }
 
+/// 플러그인이 답한 실패 — 스크립트가 던진 `DEVUP_*` 코드나 Figma 런타임의 문구.
+/// 전송이 끊긴 것과 달리 읽기는 플러그인에 닿았으므로, [`BridgeFigmaClient`] 가
+/// 원격 `use_figma` 와 같은 `isError` 결과로 바꿔 올린다. 그러지 않으면 Figma 가
+/// 페이지를 불러오지 못했다는 말까지 "direct 경로를 쓸 수 없다"로 읽혔다.
+fn script_failure(message: impl Into<String>) -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaDirectUnavailable,
+        message,
+        false,
+        json!({ "source": "bridge", "stage": "plugin-execution" }),
+    )
+}
+
+pub(crate) fn is_script_failure(error: &DevupError) -> bool {
+    error.details["source"] == "bridge" && error.details["stage"] == "plugin-execution"
+}
+
+/// 플러그인이 답한 실패를 원격 `use_figma` 가 주는 모양으로 쓴다. 위쪽은 두 경로의
+/// 실패를 한 가지로 분류한다 — 없는 노드는 호출자 오류로, 나머지는 플러그인 실행
+/// 오류로.
+fn script_failure_result(message: &str) -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "content": [{ "type": "text", "text": format!("Error: {message}") }],
+            "isError": true,
+        }),
+    }
+}
+
 /// 이 연결 하나만 가리키는 브리지 전용 키.
 fn connection_key(id: u64) -> String {
     format!("{BRIDGE_KEY_PREFIX}{id}")
@@ -849,11 +878,7 @@ impl BridgeState {
             Ok(Ok(result)) => match (result.data, result.error) {
                 // 스크립트가 던진 DEVUP_* 코드는 그대로 올린다. 원격 경로와 같은
                 // 문자열이어야 위쪽 분기가 동일하게 동작한다.
-                (_, Some(message)) => Err(Failure::Final(DevupError::new(
-                    ErrorCode::DevupFigmaDirectUnavailable,
-                    message,
-                    false,
-                ))),
+                (_, Some(message)) => Err(Failure::Final(script_failure(message))),
                 (Some(data), None) => Ok((data, served)),
                 (None, None) => Err(Failure::Final(unavailable(
                     "bridge returned neither data nor error",
@@ -1318,10 +1343,17 @@ impl FigmaUpstream for BridgeFigmaClient {
         };
         let mut params = job.params;
         widen_budgets(&mut params);
-        let (mut data, served) = self
+        let (mut data, served) = match self
             .state
             .dispatch(call.file_key(), job.script, params)
-            .await?;
+            .await
+        {
+            Ok(answered) => answered,
+            Err(error) if is_script_failure(&error) => {
+                return Ok(script_failure_result(&error.message));
+            }
+            Err(error) => return Err(error),
+        };
         stamp_file_key(&mut data, call.file_key());
         let served = BridgeServed {
             port: self.port,

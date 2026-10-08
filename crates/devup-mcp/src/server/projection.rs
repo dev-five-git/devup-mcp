@@ -852,7 +852,11 @@ fn asset_summary(
             None if artifact.capabilities.asset_capture_count == 0 => "not-requested",
             None => "capture-not-in-artifact",
         };
-        json!({"assetId":asset.asset_id,"nodeId":asset.node_id,"reason":reason,"errorCode":asset.error_code})
+        let mut entry = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,"reason":reason,"errorCode":asset.error_code});
+        if let Some(detail) = &asset.error_detail {
+            entry["errorDetail"] = json!(detail);
+        }
+        entry
     }).collect::<Vec<_>>();
     let excluded = assets
         .iter()
@@ -1429,9 +1433,15 @@ async fn project_operation(
                 .iter()
                 .filter(|asset| asset.status == AssetStatus::Failed)
             {
-                let failure = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,
+                let mut failure = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,
                     "errorCode":asset.error_code,"message":"Asset export failed. Re-collect this asset from its URL.",
                     "retryable":true});
+                if let Some(detail) = &asset.error_detail {
+                    failure["errorDetail"] = json!(detail);
+                    if let Some(hint) = super::operation::figma_page_load_hint(detail) {
+                        failure["hint"] = json!(hint);
+                    }
+                }
                 if asset.error_code.as_deref() == Some("DEVUP_ASSET_NODE_HIDDEN") {
                     warnings.push(failure);
                 } else {

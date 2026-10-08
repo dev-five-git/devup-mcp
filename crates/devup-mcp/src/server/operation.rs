@@ -179,7 +179,8 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
         ));
     }
     let mut details = json!({"stage":"plugin-execution","pluginCode":null,
-        "nextAction":{"how":"Inspect the original upstream message and retry the original URL after correcting the reported plugin error."}});
+        "nextAction":{"how":figma_page_load_hint(&message).unwrap_or(
+            "Inspect the original upstream message and retry the original URL after correcting the reported plugin error.")}});
     // The plugin serializes its own structured payload after the code.
     // Reading it for every code, rather than only for DEVUP_SECTION_REQUIRED,
     // is what lets a caller act on the others. DEVUP_SECTION_INDEX_TOO_LARGE
@@ -232,6 +233,19 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
         false,
         details,
     ))
+}
+
+/// Figma's plugin runtime, not the direct path, says this when a read needs a
+/// page it has not loaded; it was mistaken for a direct-path outage once.
+pub(crate) fn figma_page_load_hint(message: &str) -> Option<&'static str> {
+    message
+        .contains("Unable to establish connection to Figma")
+        .then_some(
+            "Figma's plugin runtime gave up waiting for data from a page it had not loaded - here, \
+             typically the main component a layer inside an instance is drawn from. Keep the Figma \
+             window in front while the plugin works and retry; if it repeats, open the page that \
+             holds that component in Figma once, then retry.",
+        )
 }
 
 /// The `DEVUP_…` token the script threw, read out of the message text.
@@ -431,6 +445,35 @@ mod r7_tests {
                 .as_str()
                 .unwrap()
                 .contains("retry")
+        );
+    }
+
+    /// The bridge hands back what the plugin said in the remote path's shape,
+    /// so a node that is not there is still the caller's mistake, and Figma
+    /// giving up on an unloaded page says so instead of blaming the direct
+    /// path.
+    #[test]
+    fn a_plugin_failure_over_the_bridge_is_classified_like_the_remote_one() {
+        let bridge = |text: &str| {
+            upstream_error(&json!({"isError":true,"content":[{"type":"text","text":format!("Error: {text}")}]}))
+                .unwrap()
+        };
+        assert_eq!(
+            bridge("DEVUP_NODE_NOT_FOUND").code,
+            ErrorCode::DevupFigmaNodeNotFound
+        );
+        let error = bridge(
+            "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.",
+        );
+        assert_eq!(error.code, ErrorCode::DevupSnapshotUnsupported);
+        assert_eq!(error.details["stage"], "plugin-execution");
+        assert!(
+            error.details["nextAction"]["how"]
+                .as_str()
+                .unwrap()
+                .contains("a page it had not loaded"),
+            "{}",
+            error.details
         );
     }
 

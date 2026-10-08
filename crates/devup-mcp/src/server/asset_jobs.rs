@@ -269,6 +269,8 @@ impl AssetJob {
                         "byteLength",
                         "sha256",
                         "errorCode",
+                        "errorDetail",
+                        "exportNote",
                         "outputPath",
                         "path",
                     ] {

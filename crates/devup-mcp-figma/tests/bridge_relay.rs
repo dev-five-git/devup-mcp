@@ -179,6 +179,42 @@ async fn a_process_that_found_the_port_held_reads_through_the_holder() {
     assert_eq!(served["pageName"], "Page 1");
 }
 
+/// 플러그인이 답한 실패는 중계를 거쳐도 플러그인의 답이다. 예전에는 호스트를
+/// 거친 모든 실패가 "direct 경로를 쓸 수 없다"가 되어, Figma 가 페이지를 불러오지
+/// 못했다는 말이 direct 경로의 장애로 읽혔다.
+#[tokio::test]
+async fn a_plugin_failure_read_through_the_holder_stays_the_plugins_answer() {
+    let host = BridgeServer::start(0).expect("an ephemeral port is free");
+    let port = host.port();
+    let relay = second_process_on(port);
+    let mut plugin = plugin(port).await;
+    sees_the_plugin(&relay).await;
+
+    let client = BridgeFigmaClient::new(relay.state()).with_port(port);
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::fast_snapshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let job = next_text(&mut plugin).await;
+    let said = "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.";
+    plugin
+        .send(Message::Text(
+            json!({ "kind": "devup-result", "requestId": job["requestId"], "error": said })
+                .to_string()
+                .into(),
+        ))
+        .await
+        .expect("the failure is sent");
+
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the plugin answered, so the read did not fail to reach it");
+    assert_eq!(result.raw["isError"], true);
+    assert_eq!(result.raw["content"][0]["text"], format!("Error: {said}"));
+}
+
 /// 요청 번호는 프로세스마다 따로 센다. 여러 프로세스의 읽기가 한 호스트로
 /// 모여도 플러그인이 보는 번호는 겹치지 않아야 하고, 답은 물은 프로세스에게만
 /// 가야 한다. 도착 순서의 반대로 답해, 순서로 짝을 맞추는 구현이면 드러나게 한다.

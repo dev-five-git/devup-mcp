@@ -168,12 +168,17 @@ async fn a_failing_script_surfaces_its_own_code() {
         .await
         .expect("the failure is sent");
 
-    let error = reading
+    let result = reading
         .await
         .expect("the read task finishes")
-        .expect_err("a script failure is an error");
-    // 원격 경로와 같은 문자열이어야 위쪽 분기가 동일하게 동작한다.
-    assert_eq!(error.message, "DEVUP_NODE_NOT_FOUND");
+        .expect("the plugin answered; its failure is the answer");
+    // 원격 `use_figma` 와 같은 모양이어야 위쪽 분기가 동일하게 동작한다 — 없는
+    // 노드는 호출자 오류로, Figma 런타임의 말은 플러그인 실행 오류로.
+    assert_eq!(result.raw["isError"], true);
+    assert_eq!(
+        result.raw["content"][0]["text"],
+        "Error: DEVUP_NODE_NOT_FOUND"
+    );
 }
 
 #[tokio::test]

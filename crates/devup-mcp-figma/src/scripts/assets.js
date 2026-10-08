@@ -1,7 +1,16 @@
 const options = "__DEVUP_ASSET__";
 "__DEVUP_LARGE_VALUE_HELPERS__";
 
-function failed(errorCode) {
+const started = Date.now();
+let stage = "lookup";
+
+function describe(error) {
+  const message = error && typeof error.message === "string" ? error.message : String(error);
+  const editor = typeof figma.editorType === "string" ? ` (editor: ${figma.editorType})` : "";
+  return `${stage} failed after ${Date.now() - started} ms${editor}: ${message}`.slice(0, 500);
+}
+
+function failed(errorCode, errorDetail) {
   return {
     kind: "devupAssetExport",
     fileKey: figma.fileKey || "",
@@ -16,6 +25,7 @@ function failed(errorCode) {
     byteLength: null,
     sha256: null,
     errorCode,
+    ...(errorDetail ? { errorDetail } : {}),
   };
 }
 
@@ -45,6 +55,7 @@ try {
   }
 
   if (original) {
+    stage = "reading the original image";
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
     const bytes = await image.getBytesAsync();
@@ -83,7 +94,34 @@ try {
   if (format === "PNG" || format === "JPG") {
     settings.constraint = { type: "SCALE", value: scale };
   }
-  const exported = await node.exportAsync(settings);
+  stage = "export";
+  let exported;
+  let exportNote = null;
+  try {
+    exported = await node.exportAsync(settings);
+  } catch (error) {
+    // Measured over the bridge: every layer inside an instance (an `I...`
+    // id) took about eleven seconds and failed, while the instances
+    // themselves exported at once. Figma's runtime answers a read that needs
+    // a page it has not loaded with "Unable to establish connection to Figma
+    // after 10 seconds", and an instance's layers are drawn from a main
+    // component that usually lives on another page. Loading the pages is the
+    // documented way to read across them under dynamic page access.
+    if (!String(options.nodeId).startsWith("I") || typeof figma.loadAllPagesAsync !== "function") {
+      throw error;
+    }
+    const first = describe(error);
+    try {
+      stage = "loading the file's pages";
+      await figma.loadAllPagesAsync();
+      stage = "export after loading the file's pages";
+      exported = await node.exportAsync(settings);
+    } catch (retried) {
+      return failed("DEVUP_ASSET_EXPORT_FAILED", `${first}; then ${describe(retried)}`.slice(0, 500));
+    }
+    exportNote = `Exported after loading the file's pages; the first attempt: ${first}`.slice(0, 500);
+  }
+  stage = "encode";
   const svgText = inlineSvg && typeof exported === "string" ? exported : null;
   const bytes =
     svgText === null
@@ -153,7 +191,8 @@ try {
     ...(!hasFileWriter && svgText === null ? { data: figma.base64Encode(bytes) } : {}),
     text: svgText,
     errorCode: null,
+    ...(exportNote ? { exportNote } : {}),
   };
-} catch (_) {
-  return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED");
+} catch (error) {
+  return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
 }

@@ -682,7 +682,11 @@ impl CollectorSession {
             let ReadToolCall::AssetExport { request, .. } = pending.planned.call else {
                 return Err(invalid_call("asset call format is invalid."));
             };
-            self.record_asset_failure(*request, "DEVUP_ASSET_EXPORT_FAILED");
+            self.record_asset_failure(
+                *request,
+                "DEVUP_ASSET_EXPORT_FAILED",
+                Some(error.message.clone()),
+            );
             return Ok(true);
         }
         if pending.kind == CallKind::LargeValue {
@@ -1526,7 +1530,13 @@ impl CollectorSession {
             .remove(&key)
             .ok_or_else(|| invalid_call("large value assembler is missing."))?;
         if let Some(request) = self.chunked_assets.remove(&key) {
-            self.record_asset_failure(request, "DEVUP_ASSET_EXPORT_FAILED");
+            self.record_asset_failure(
+                request,
+                "DEVUP_ASSET_EXPORT_FAILED",
+                Some(format!(
+                    "reading the export back in fragments failed: {error_code}"
+                )),
+            );
             return Ok(());
         }
         let descriptor = assembler.descriptor().clone();
@@ -1582,7 +1592,7 @@ impl CollectorSession {
             version.as_deref(),
             request,
         )? {
-            AssetExportOutcome::Entry(entry) => entry,
+            AssetExportOutcome::Entry(entry) => *entry,
             AssetExportOutcome::Chunked(descriptor) => {
                 let key = (descriptor.node_id.clone(), descriptor.field.clone());
                 if self.large_values.contains_key(&key) {
@@ -1617,7 +1627,7 @@ impl CollectorSession {
                 .error_code
                 .clone()
                 .unwrap_or_else(|| "DEVUP_ASSET_EXPORT_FAILED".to_owned());
-            self.record_asset_diagnostic(request, &error_code);
+            self.record_asset_diagnostic(request, &error_code, exported.error_detail.as_deref());
         }
         self.asset_results.push(exported);
         Ok(())
@@ -1667,8 +1677,14 @@ impl CollectorSession {
         Ok(())
     }
 
-    fn record_asset_failure(&mut self, request: AssetRequest, error_code: &str) {
-        self.record_asset_diagnostic(&request, error_code);
+    fn record_asset_failure(
+        &mut self,
+        request: AssetRequest,
+        error_code: &str,
+        error_detail: Option<String>,
+    ) {
+        let error_detail = error_detail.map(|detail| detail.chars().take(500).collect::<String>());
+        self.record_asset_diagnostic(&request, error_code, error_detail.as_deref());
         let source_kind = crate::assets::source_kind_of(&request).to_owned();
         self.asset_results.push(AssetManifestEntry {
             asset_id: request.asset_id,
@@ -1685,11 +1701,18 @@ impl CollectorSession {
             data_base64: None,
             output_path: None,
             error_code: Some(error_code.to_owned()),
+            error_detail,
+            export_note: None,
             path: None,
         });
     }
 
-    fn record_asset_diagnostic(&mut self, request: &AssetRequest, error_code: &str) {
+    fn record_asset_diagnostic(
+        &mut self,
+        request: &AssetRequest,
+        error_code: &str,
+        error_detail: Option<&str>,
+    ) {
         if let Some(chunk) = self
             .snapshot_chunks
             .values_mut()
@@ -1697,8 +1720,13 @@ impl CollectorSession {
         {
             chunk.diagnostics.push(crate::Diagnostic {
                 code: error_code.to_owned(),
-                message: "Failed to export the requested Figma asset; layout output was kept."
-                    .to_owned(),
+                message: match error_detail {
+                    Some(detail) => format!(
+                        "Failed to export the requested Figma asset; layout output was kept. {detail}"
+                    ),
+                    None => "Failed to export the requested Figma asset; layout output was kept."
+                        .to_owned(),
+                },
                 node_id: Some(request.node_id.clone()),
                 severity: Some(crate::DiagnosticSeverity::Warning),
                 property: Some(request.field.clone()),
