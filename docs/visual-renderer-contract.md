@@ -18,6 +18,8 @@ The collector makes one `get_screenshot` call for the linked node, asking for th
 
 When a Devup Bridge plugin serves the file, the plugin exports the node instead - PNG at scale 1 with the longer edge held to 8192px as `maxDimension` holds it, sRGB, over the node's own bounds rather than where its effects reach - and the bridge hands it back as the same single image block, so both paths pass the same validation. A plugin built before this answers that it does not know the read; the read then goes to `get_screenshot` when the plugin reported the file's key and the direct path is logged in.
 
+The two paths agree in size, not in every pixel. On one 360×1215 screen the plugin's export matched `get_screenshot` exactly on 94.1% of pixels; the rest - nearly all by 1/255, along glyph and shape edges and across one flat fill - differed by at most 16/255. `devup-mcp-visual compare` at its defaults (no channel tolerance, 0.5% threshold) therefore reports a mismatch between them; with `--channel-tolerance 8`, 13 pixels differ. Keep every reference of a baseline from the same path: the bridge answered every read, the PNG included, when `source.bridgeReads` equals `collection.figmaToolCalls`.
+
 ## 2. Render the generated component
 
 The consumer should persist a content-free run manifest next to `actual.png`:
