@@ -642,6 +642,7 @@ pub(crate) fn ingest(
     let mut screenshot_budget = MAX_SCREENSHOTS;
     let mut integrity_problems = Vec::new();
     let mut environment_invalid = false;
+    let mut visual_comparisons = Vec::new();
     for viewport in &plan.viewports {
         let run = report["runs"].as_array().into_iter().flatten().find(|run| {
             run["viewport"]["width"] == viewport.width
@@ -663,6 +664,7 @@ pub(crate) fn ingest(
         }
         let mut screenshots_verified = 0;
         let mut screenshot_issues = Vec::new();
+        let mut drawn_width_shots = Vec::new();
         for screen in &plan.screens {
             let reported = run.and_then(|run| {
                 run["screens"]
@@ -709,7 +711,16 @@ pub(crate) fn ingest(
             }
             screenshot_budget -= 1;
             match verify_screenshot(policy, &report_dir, shot, viewport) {
-                Ok(()) => screenshots_verified += 1,
+                Ok(verified) => {
+                    screenshots_verified += 1;
+                    if let Some(figma) = screen
+                        .figma
+                        .as_ref()
+                        .filter(|figma| figma.drawn_widths.contains(&viewport.width))
+                    {
+                        drawn_width_shots.push((screen, figma.node_id.as_str(), verified));
+                    }
+                }
                 Err(Integrity::Tampered(issue)) => {
                     integrity_problems.push(json!({"screen": screen.id, "issue": issue}));
                 }
@@ -720,6 +731,13 @@ pub(crate) fn ingest(
         }
         if !screenshot_issues.is_empty() {
             environment_invalid = true;
+        }
+        let run_valid =
+            run.is_some() && environment_errors.is_empty() && screenshot_issues.is_empty();
+        for (screen, node_id, shot) in &drawn_width_shots {
+            visual_comparisons.push(visual_comparison(
+                screen, node_id, viewport, shot, &report, run_valid,
+            ));
         }
         runs.push(json!({
             "viewport": viewport,
@@ -762,7 +780,7 @@ pub(crate) fn ingest(
                 .partition(|width| figma.drawn_widths.contains(width));
             Some(json!({"screen": screen.id, "nodeId": figma.node_id,
                 "visualOriginalAt": visual, "layoutChecksOnlyAt": layout_only,
-                "note": "Compare screenshots with devup_visual_compare only at the drawn widths; elsewhere there is no visual original and only the layout checks above apply."}))
+                "note": "Compare screenshots with devup_visual_compare only at the drawn widths - visualComparisons holds the call for each one; elsewhere there is no visual original and only the layout checks above apply."}))
         })
         .collect::<Vec<_>>();
     Ok(json!({
@@ -778,6 +796,7 @@ pub(crate) fn ingest(
         "failures": failures,
         "runs": runs,
         "figmaReferences": figma,
+        "visualComparisons": visual_comparisons,
         "executor": report["executor"],
         "environment": report["environment"],
         "evidence": {
@@ -802,12 +821,19 @@ enum Integrity {
     Unverified(String),
 }
 
+struct VerifiedShot {
+    path: String,
+    sha256: String,
+    width: u32,
+    height: u32,
+}
+
 fn verify_screenshot(
     policy: &OutputPolicy,
     report_dir: &Path,
     shot: &Value,
     viewport: &ViewportInput,
-) -> Result<(), Integrity> {
+) -> Result<VerifiedShot, Integrity> {
     let path = shot["path"]
         .as_str()
         .ok_or_else(|| Integrity::Unverified("no path".into()))?;
@@ -828,7 +854,8 @@ fn verify_screenshot(
     let bytes = target
         .read_bounded(MAX_SCREENSHOT_BYTES)
         .map_err(|error| Integrity::Unverified(format!("{path}: {}", error.message)))?;
-    if shot["sha256"].as_str() != Some(sha256(&bytes).as_str())
+    let digest = sha256(&bytes);
+    if shot["sha256"].as_str() != Some(digest.as_str())
         || shot["bytes"].as_u64() != Some(bytes.len() as u64)
     {
         return Err(Integrity::Tampered(format!(
@@ -847,7 +874,99 @@ fn verify_screenshot(
             "{path}: {width}x{height} is not {expected} wide and at least {minimum} tall; the capture does not show this viewport"
         )));
     }
-    Ok(())
+    Ok(VerifiedShot {
+        path: target.display_path().display().to_string(),
+        sha256: digest,
+        width,
+        height,
+    })
+}
+
+/// The `devup_visual_compare` call for one screenshot taken at a width its
+/// Figma frame was drawn at, with every field the audit itself knows filled
+/// in, the ones only the consumer can state named, and what would still make
+/// it inconclusive said up front.
+fn visual_comparison(
+    screen: &ScreenInput,
+    node_id: &str,
+    viewport: &ViewportInput,
+    shot: &VerifiedShot,
+    report: &Value,
+    environment_valid: bool,
+) -> Value {
+    let mut environment = json!({
+        "schemaVersion": 1,
+        "actualPng": shot.path,
+        "viewport": {"width": viewport.width, "height": viewport.height,
+            "deviceScaleFactor": viewport.device_scale_factor},
+        "environmentStatus": if environment_valid { "valid" } else { "environment-invalid" },
+    });
+    let mut must_add = vec![
+        "reference.artifactId",
+        "environment.tsxResource",
+        "environment.themePath",
+        "environment.assetDirectory",
+        "environment.devupUiVersion",
+        "environment.fontManifest",
+    ];
+    let browser = &report["executor"]["browser"];
+    match (browser["name"].as_str(), browser["version"].as_str()) {
+        (Some(name), Some(version)) => {
+            environment["renderer"] =
+                json!({"name": format!("playwright-{name}"), "version": version});
+        }
+        _ => must_add.push("environment.renderer"),
+    }
+    for (field, value) in [
+        ("os", &report["environment"]["os"]),
+        ("locale", &report["environment"]["locale"]),
+        ("timezone", &report["environment"]["timezone"]),
+    ] {
+        match value.as_str() {
+            Some(text) => environment[field] = json!(text),
+            None => must_add.push(match field {
+                "os" => "environment.os",
+                "locale" => "environment.locale",
+                _ => "environment.timezone",
+            }),
+        }
+    }
+    let mut blockers = Vec::new();
+    if (viewport.device_scale_factor - 1.0).abs() > f64::EPSILON {
+        blockers.push(format!(
+            "Captured at deviceScaleFactor {}; the Figma reference is at scale 1, so plan this width at 1.",
+            viewport.device_scale_factor
+        ));
+    }
+    if shot.height != viewport.height {
+        blockers.push(format!(
+            "The page is {}px tall in a {}px viewport, so the full-page capture is {}x{}. devup_visual_compare needs the viewport to be the reference's size: plan this width at the frame's drawn height.",
+            shot.height, viewport.height, shot.width, shot.height
+        ));
+    }
+    if !environment_valid {
+        blockers.push(
+            "This run reported environment errors or an unverified screenshot; the comparison stays inconclusive."
+                .to_owned(),
+        );
+    }
+    json!({
+        "screen": screen.id,
+        "nodeId": node_id,
+        "viewport": viewport,
+        "screenshot": {"path": shot.path, "sha256": shot.sha256, "width": shot.width, "height": shot.height},
+        "call": {
+            "tool": "devup_visual_compare",
+            "arguments": {
+                "actual": shot.path,
+                "reference": {"artifactId": format!("<artifactId of devup_figma_export for node {node_id} with outputs [\"referencePng\"]>")},
+                "environment": environment,
+            },
+        },
+        "consumerMustAdd": must_add,
+        "blockers": blockers,
+        "note": "Filled from the plan, the verified screenshot and the executor's report. Export the frame with outputs [\"referencePng\"] first and put its artifactId in reference; devup_visual_compare pins that reference itself. The fields in consumerMustAdd are the consumer's to state.",
+    })
 }
 
 #[cfg(test)]
@@ -1012,6 +1131,60 @@ mod tests {
             result["figmaReferences"][0]["layoutChecksOnlyAt"],
             json!([1200])
         );
+        drop(policy);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Only the screen's drawn width has a visual original, and its verified
+    /// screenshot comes back as a ready comparison: what the audit knows is
+    /// filled in, what only the consumer knows is named.
+    #[test]
+    fn a_drawn_width_screenshot_comes_back_as_a_ready_visual_comparison() {
+        let (dir, policy) = root();
+        let (id, plan_file) = write_plan(&dir, &policy);
+        let mut report = report_for(&dir, &plan_file, &id, "pass", 800);
+        report["executor"] = json!({"browser": {"name": "chromium", "version": "131.0.1"}});
+        report["environment"] = json!({"os": "linux 6.1", "locale": null, "timezone": "UTC"});
+        std::fs::write(
+            dir.join("report.json"),
+            serde_json::to_vec(&report).unwrap(),
+        )
+        .unwrap();
+        let result = ingest(
+            &policy,
+            &dir.join("plan.json").to_string_lossy(),
+            &dir.join("report.json").to_string_lossy(),
+        )
+        .unwrap();
+        let comparisons = result["visualComparisons"].as_array().unwrap();
+        assert_eq!(
+            comparisons.len(),
+            1,
+            "only today at 360 was drawn: {result}"
+        );
+        let comparison = &comparisons[0];
+        assert_eq!(comparison["screen"], "today");
+        assert_eq!(comparison["nodeId"], "1:138");
+        let arguments = &comparison["call"]["arguments"];
+        assert_eq!(comparison["call"]["tool"], "devup_visual_compare");
+        assert!(
+            arguments["actual"]
+                .as_str()
+                .unwrap()
+                .ends_with("360-today.png")
+        );
+        let environment = &arguments["environment"];
+        assert_eq!(environment["actualPng"], arguments["actual"]);
+        assert_eq!(environment["environmentStatus"], "valid");
+        assert_eq!(
+            environment["renderer"],
+            json!({"name": "playwright-chromium", "version": "131.0.1"})
+        );
+        assert_eq!(environment["timezone"], "UTC");
+        let must_add = comparison["consumerMustAdd"].as_array().unwrap();
+        assert!(must_add.contains(&json!("environment.locale")));
+        assert!(must_add.contains(&json!("environment.tsxResource")));
+        assert_eq!(comparison["blockers"], json!([]), "{comparison}");
         drop(policy);
         std::fs::remove_dir_all(dir).unwrap();
     }

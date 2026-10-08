@@ -175,7 +175,7 @@ fn assess_environment(
 }
 
 pub(super) async fn compare(
-    input: VisualCompareInput,
+    mut input: VisualCompareInput,
     policy: &OutputPolicy,
     store: &ArtifactStore,
 ) -> Result<Value, DevupError> {
@@ -242,7 +242,23 @@ pub(super) async fn compare(
                 "referenceDimensions":report.reference_dimensions,"actualDimensions":report.actual_dimensions,"reference":provenance}),
         ));
     }
-    let environment = assess_environment(&input, report.reference_dimensions, &reference_hash);
+    // A reference this server captured from Figma and still holds is pinned
+    // by what the server read, so a consumer need not restate its hash.
+    let mut filled = Vec::new();
+    if let (VisualReference::Artifact(reference), Some(declared)) =
+        (&input.reference, input.environment.as_mut())
+        && declared.reference_resource.is_none()
+    {
+        declared.reference_resource = Some(ResourcePin {
+            uri: format!("devup://artifact/{}", reference.artifact_id),
+            sha256: reference_hash.clone(),
+        });
+        filled.push("referenceResource");
+    }
+    let mut environment = assess_environment(&input, report.reference_dimensions, &reference_hash);
+    if !filled.is_empty() {
+        environment["filledByServer"] = json!(filled);
+    }
     let passed = report.passed();
     let verdict = if environment["status"] != "valid" {
         "inconclusive"
@@ -593,6 +609,49 @@ mod tests {
         assert_eq!(result["reference"]["referenceSha256"], reference_hash());
         assert_eq!(result["visual"]["maxChangedRatio"], 0.005);
     }
+    /// The server holds the reference it captured, so it pins it itself; a
+    /// reference path is the consumer's file and still needs their pin.
+    #[tokio::test]
+    async fn a_held_reference_is_pinned_by_the_server() {
+        let f = fixture();
+        let store = ArtifactStore::default();
+        let mut payload = super::super::artifacts::w3_tests::payload();
+        payload.reference_png = Some(devup_mcp_figma::ReferencePng {
+            mime_type: "image/png".into(),
+            data_base64: WHITE.into(),
+            byte_length: STANDARD.decode(WHITE).unwrap().len(),
+            sha256: reference_hash(),
+        });
+        let artifact = store
+            .insert(
+                ArtifactRequestKey::from_collection(&super::super::artifacts::w3_tests::request()),
+                payload,
+            )
+            .await
+            .unwrap();
+        let mut i = input();
+        i["reference"] = json!({"artifactId":artifact.artifact_id});
+        i["environment"]
+            .as_object_mut()
+            .unwrap()
+            .remove("referenceResource");
+        let result = run(i, &f.policy(), &store).await.unwrap();
+        assert_eq!(result["verdict"], "pass", "{result}");
+        assert_eq!(
+            result["environment"]["filledByServer"],
+            json!(["referenceResource"])
+        );
+
+        let mut by_path = input();
+        by_path["environment"]
+            .as_object_mut()
+            .unwrap()
+            .remove("referenceResource");
+        let result = run(by_path, &f.policy(), &store).await.unwrap();
+        assert_eq!(result["verdict"], "inconclusive");
+        assert!(result["environment"].get("filledByServer").is_none());
+    }
+
     #[tokio::test]
     async fn renderer_and_reference_hash_mismatch_override_pass() {
         let f = fixture();
