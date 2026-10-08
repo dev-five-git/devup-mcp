@@ -61,8 +61,8 @@ const variableResults = await Promise.all(resources.variableIds.map(async (id) =
     return value
       ? { value: serialize(value), collectionId: value.variableCollectionId }
       : { unresolved: { id, kind: "variable", reason: "notInFileAndLookupEmpty" } };
-  } catch (_error) {
-    return { unresolved: { id, kind: "variable", reason: "notInFileAndLookupThrew" } };
+  } catch (error) {
+    return { unresolved: { id, kind: "variable", reason: "notInFileAndLookupThrew", error: String((error && error.message) || error).slice(0, 300) } };
   }
 }));
 
@@ -95,8 +95,8 @@ const styleResults = await Promise.all(resources.styles.map(async (styleRef) => 
         )
       }
     };
-  } catch (_error) {
-    return { unresolved: { id: styleRef.id, kind: "style", reason: "notFoundOrUnavailable" } };
+  } catch (error) {
+    return { unresolved: { id: styleRef.id, kind: "style", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) } };
   }
 }));
 

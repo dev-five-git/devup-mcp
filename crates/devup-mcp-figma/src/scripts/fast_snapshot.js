@@ -425,8 +425,8 @@ async function collectResources(nodes) {
               collectionId: variable.variableCollectionId,
             }
           : { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
-      } catch (_) {
-        return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+      } catch (error) {
+        return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) } };
       }
     }),
     ...sortedStyles.map(async ({ id, styleType }) => {
@@ -452,8 +452,8 @@ async function collectResources(nodes) {
             ),
           },
         };
-      } catch (_) {
-        return { kind: "unresolved", value: { id, kind: "style", reason: "notFoundOrUnavailable" } };
+      } catch (error) {
+        return { kind: "unresolved", value: { id, kind: "style", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) } };
       }
     }),
   ]);

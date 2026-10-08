@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use devup_mcp_devup_ui::codegen::RootLayout;
-use devup_mcp_figma::{DevupError, ErrorCode};
+use devup_mcp_figma::{DevupError, ErrorCode, figma_unreachable_hint};
 use serde_json::{Value, json};
 
 use super::{artifacts::ArtifactRequestKey, delivery::DeliveryMode};
@@ -179,7 +179,7 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
         ));
     }
     let mut details = json!({"stage":"plugin-execution","pluginCode":null,
-        "nextAction":{"how":figma_page_load_hint(&message).unwrap_or(
+        "nextAction":{"how":figma_unreachable_hint(&message).unwrap_or(
             "Inspect the original upstream message and retry the original URL after correcting the reported plugin error.")}});
     // The plugin serializes its own structured payload after the code.
     // Reading it for every code, rather than only for DEVUP_SECTION_REQUIRED,
@@ -233,20 +233,6 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
         false,
         details,
     ))
-}
-
-/// Figma's plugin runtime, not the direct path, says this when it cannot
-/// fetch data from outside the page in view; it was once mistaken for a
-/// direct-path outage.
-pub(crate) fn figma_page_load_hint(message: &str) -> Option<&'static str> {
-    message
-        .contains("Unable to establish connection to Figma")
-        .then_some(
-            "Figma's plugin runtime could not fetch data from outside the page in view within 10 \
-             seconds. A Devup Bridge window left open for hours answered this to every such read - \
-             layers inside instances, main components - and running the plugin again cleared it at \
-             once. Close the Devup Bridge window, run the plugin again, then retry.",
-        )
 }
 
 /// The `DEVUP_…` token the script threw, read out of the message text.
@@ -482,7 +468,7 @@ mod r7_tests {
             error.details["nextAction"]["how"]
                 .as_str()
                 .unwrap()
-                .contains("run the plugin again"),
+                .contains("Click the file's tab"),
             "{}",
             error.details
         );

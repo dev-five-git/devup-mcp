@@ -57,6 +57,8 @@ pub struct UnresolvedResource {
     pub id: String,
     pub kind: ResourceKind,
     pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 pub(crate) struct UsedResourceMerge {
@@ -197,6 +199,7 @@ pub(crate) fn merge_used_resource_results(
                     id: id.clone(),
                     kind: ResourceKind::Variable,
                     reason: "notFoundOrUnavailable".to_owned(),
+                    error: None,
                 });
         }
     }
@@ -212,6 +215,7 @@ pub(crate) fn merge_used_resource_results(
                     id: style_ref.id.clone(),
                     kind: ResourceKind::Style,
                     reason: "notFoundOrUnavailable".to_owned(),
+                    error: None,
                 });
         }
     }

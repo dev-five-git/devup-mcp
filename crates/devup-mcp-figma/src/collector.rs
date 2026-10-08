@@ -2435,9 +2435,13 @@ fn merge_fast_resources(
                 .into_iter()
                 .flatten(),
         )
-        .map(|value| serde_json::to_string(value).map(|key| (key, value.clone())))
-        .collect::<Result<BTreeMap<_, _>, _>>()
-        .map_err(|_| invalid_call("Could not serialize the multi-root unresolved resource."))?;
+        .map(|value| {
+            (
+                (value["id"].to_string(), value["kind"].to_string()),
+                value.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     current.insert(
         "unresolved".to_owned(),
         Value::Array(unresolved.into_values().collect()),

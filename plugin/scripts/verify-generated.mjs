@@ -9,7 +9,9 @@
 
 import assert from 'node:assert/strict'
 
-const { SCRIPTS, pageCatalog, referencePng } = await import('../src/generated/scripts.js')
+const { SCRIPTS, pageCatalog, referencePng, usedResources } = await import(
+  '../src/generated/scripts.js'
+)
 
 /** Rust 의 `BuiltinScript::plugin_name` 이 내놓는 이름. 어긋나면 런타임에야 안다. */
 const EXPECTED = [
@@ -96,4 +98,26 @@ await referencePng({ nodeId: '1:3' })
 assert.deepEqual(exported.constraint, { type: 'HEIGHT', value: 8192 })
 await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
 
-console.log(`verified ${EXPECTED.length} generated scripts (pageCatalog and referencePng executed)`)
+const unreachable = 'Unable to establish connection to Figma after 10 seconds.'
+const refuse = async () => {
+  throw new Error(unreachable)
+}
+globalThis.figma = {
+  variables: {
+    getLocalVariablesAsync: async () => [],
+    getVariableByIdAsync: refuse,
+    getVariableCollectionByIdAsync: async () => null,
+  },
+  getStyleByIdAsync: refuse,
+}
+const used = await usedResources({
+  resources: { variableIds: ['VariableID:1:2'], styles: [{ id: 'S:1,', styleType: 'PAINT' }] },
+})
+assert.deepEqual(
+  used.unresolved.map((entry) => entry.error),
+  [unreachable, unreachable],
+)
+
+console.log(
+  `verified ${EXPECTED.length} generated scripts (pageCatalog, referencePng and usedResources executed)`,
+)

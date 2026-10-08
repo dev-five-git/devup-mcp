@@ -141,8 +141,8 @@ const remoteVariableJobs = [...usedVariableIds]
     try {
       const variable = await figma.variables.getVariableByIdAsync(id);
       return variable || null;
-    } catch (_) {
-      unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable" });
+    } catch (error) {
+      unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) });
       return null;
     }
   });
@@ -153,8 +153,8 @@ const remoteStyleJobs = [...usedStyleTypes.entries()]
     try {
       const style = await figma.getStyleByIdAsync(id);
       return style ? { style, styleType } : null;
-    } catch (_) {
-      unresolved.push({ id, kind: "style", reason: "notFoundOrUnavailable" });
+    } catch (error) {
+      unresolved.push({ id, kind: "style", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) });
       return null;
     }
   });

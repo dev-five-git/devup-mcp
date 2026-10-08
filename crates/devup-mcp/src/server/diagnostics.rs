@@ -464,7 +464,7 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
         "port": bridge.port,
         "host": bridge.host.as_ref().map(|host| peer(host, bridge.role == BridgeRole::Host)),
         "attachedFiles": bridge.attached_files.iter().map(attached_file).collect::<Vec<_>>(),
-        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (seen in Dev Mode); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (Figma fills figma.fileKey only for a manifest declaring enablePrivatePluginApi, which older builds lack); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
         "reason": bridge_reason(bridge),
     });
     if let Some(issue) = &bridge.issue {

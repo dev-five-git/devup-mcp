@@ -36,7 +36,7 @@ pub use envelope::{
     FastSnapshotPayload, FastThemePayload, FastTransportStats, ThemePage,
     decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme,
 };
-pub use errors::{DevupError, ErrorCode};
+pub use errors::{DevupError, ErrorCode, figma_unreachable_hint};
 pub use explore::{
     ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,
     ExploreResult, TargetKind, classify_explore_node, classify_target, collect_section_notes,

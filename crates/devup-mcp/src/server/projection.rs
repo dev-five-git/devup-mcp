@@ -1438,7 +1438,7 @@ async fn project_operation(
                     "retryable":true});
                 if let Some(detail) = &asset.error_detail {
                     failure["errorDetail"] = json!(detail);
-                    if let Some(hint) = super::operation::figma_page_load_hint(detail) {
+                    if let Some(hint) = devup_mcp_figma::figma_unreachable_hint(detail) {
                         failure["hint"] = json!(hint);
                     }
                 }

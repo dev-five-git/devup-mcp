@@ -67,7 +67,7 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 
 숨김 노드 실패는 `failures[]`가 아니라 `warnings[]`로 갑니다. 구현을 막는 실패가 아니기 때문입니다.
 
-그 여섯 개의 원인은 플러그인 창이었습니다. 몇 시간 열어 둔 Devup Bridge 창에서는 보고 있는 페이지 밖의 데이터가 필요한 읽기 — 인스턴스 안쪽 레이어의 export, 다른 페이지의 메인 컴포넌트 — 마다 Figma 런타임이 10초를 기다린 뒤 "Unable to establish connection to Figma after 10 seconds"로 답했고, 플러그인을 다시 실행하자 같은 여섯 개가 각각 2~12 ms에 export됐습니다. 이 문구가 오면 `hint`(자산)와 `nextAction.how`(읽기)가 플러그인을 다시 실행하라고 말합니다.
+그 여섯 개의 원인은 Figma 데스크톱 앱의 탭이었습니다. 플러그인이 도는 파일의 탭이 다른 파일의 탭 뒤에 한동안 놓여 있는 동안, Figma 런타임은 아직 불러오지 않은 데이터가 필요한 읽기 — 인스턴스 안쪽 레이어의 export, 다른 페이지의 메인 컴포넌트, id로 찾는 변수와 스타일 — 마다 10초를 기다린 뒤 "Unable to establish connection to Figma after 10 seconds"로 답했습니다. 그 탭을 누르자 같은 읽기가 곧바로 답했습니다 — 그 문구로 10.4 s 만에 실패하던 검색이 0.2 s에 답했고, 공지 화면이 쓰는 변수·스타일이 0/14·0/23에서 14·23으로 돌아왔습니다. 탭을 다시 뒤로 보낸 직후에도 답했고, 한 시간 남짓 뒤 다시 확인했을 때는 또 같은 문구로 답했습니다. 처음에는 몇 시간 열어 둔 플러그인 창을 원인으로 보았습니다. 플러그인은 그 파일의 탭에서만 실행되므로, 다시 실행하는 처방이 통한 것도 탭이 앞으로 왔기 때문으로 보입니다. 이 문구가 오면 `hint`(자산)와 `nextAction.how`(읽기)가 그 파일의 탭을 누르라고 말하고, 해석하지 못한 변수·스타일이 있으면 `completenessReport.resources`에 Figma가 한 말(`lookupError`)과 같은 `hint`가 실립니다.
 
 `rawSnapshot`과 `rawPayload`는 수집한 디자인을 raw로 담은 것이라 `debug: true` 없이는 거절됩니다. 화면을 구현하는 데는 필요 없습니다 — 실제 캡처 10개 화면에서 tsx가 node·text·typography·asset·layout 기대치를 100% 담고 있습니다. 쓰는 자리는 하나입니다: **화면이 이상해 보일 때 생성기 탓인지 디자인이 원래 그런지 판정하는 것.** 그때는 디자인을 코드 옆에 놓고 읽어야 하고, 그게 이 플래그입니다.
 
@@ -230,7 +230,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 - `connected`/`activePath` — 지금 읽기가 실제로 어느 경로로 가는지. 플러그인이 붙어 있으면 `bridge`, 아니면 토큰이 있을 때 `direct`, 둘 다 없으면 `null`입니다.
 - **최상위 `status`가 `disconnected`인 것은 두 경로가 모두 막혔을 때뿐입니다.** 예전에는 direct(OAuth) 하나만 보고 `disconnected`라고 답해서, 플러그인이 붙어 있는데도 에이전트가 사용자에게 로그인을 요청했습니다. `status` 키는 그대로라 그 값만 읽는 호출자도 깨지지 않습니다.
-- `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(Dev Mode 등)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다.
+- `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(예: manifest에 `enablePrivatePluginApi`가 없던 예전 빌드)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다.
 - `nextAction` — 지금 상태에서 할 다음 호출. 플러그인 하나면 url 없는 `devup_figma_export`, direct만 열려 있으면 frame 링크가 필요한 export, 둘 다 막혔으면 `options`에 플러그인 실행(권장)과 로그인을 차례로 담습니다.
 
 `login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning: "A bridge is attached; login is only needed for a file-scope metadata read."`이 붙습니다.
@@ -488,7 +488,8 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 - **`ws://127.0.0.1`은 쓸 수 없습니다.** Figma의 `allowedDomains`가 그 주소를 거부해 manifest 전체가 무효가 되고 플러그인이 아예 로드되지 않습니다. `localhost`여야 합니다.
 - **한 화면은 한 번의 읽기로 옵니다.** 브리지는 플러그인에게 화면 하나를 봉투 하나(최대 8 MiB)에 담아 달라고 하고, 디코더도 그 크기까지 받습니다. 플러그인이 파일 키를 보고하지 못하면 봉투 안의 키 자리(`source`·`snapshot`)를 요청한 파일로 채웁니다. 예전에는 둘 다 맞지 않아 64 KiB가 넘는 화면이나 키 없는 플러그인의 봉투가 모두 버려지고, 노드마다 읽는 예전 경로로 떨어졌습니다. 그 경로는 breakpoint 형제 폭을 모으지 않아 `responsiveTsx`도 나오지 않았습니다. 실제 공지 화면은 4번 읽던 것이 1번이 되고, 세 폭이 함께 수집됩니다.
 - **Figma 창을 뒤로 보내면 느려집니다.** 브라우저가 백그라운드 플러그인을 분당 한 번꼴로 깨우기 때문에, 앞에서 160ms인 snapshot이 뒤에서는 11초가 됩니다. 수집 중에는 Figma를 앞에 두세요.
-- **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일(플러그인 다시 실행)을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
+- **그 파일의 탭도 앞에 두세요.** 플러그인이 도는 파일의 탭이 다른 파일의 탭 뒤에 한동안 놓여 있으면, Figma 런타임은 아직 불러오지 않은 데이터를 읽을 때마다 10초 뒤 "Unable to establish connection to Figma"로 답합니다. 화면은 받아지지만 변수·스타일이 모두 빠져 토큰 대신 값이 들어갑니다(공지 화면: 37개 중 0개 해석). 탭을 누르면 곧바로 풀리며, 응답의 `hint`·`nextAction.how`가 그렇게 말합니다.
+- **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일(그 파일의 탭 누르기)을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
 - **`referencePng`도 플러그인이 그립니다.** 노드를 PNG로 export해(scale 1이되 긴 변은 direct의 `maxDimension`과 같은 8192px까지, sRGB, 효과가 번지는 영역이 아니라 노드 자신의 상자) 공식 `get_screenshot`과 같은 이미지 블록 하나로 돌려주므로, 수집기는 두 경로의 답을 같은 검증으로 받습니다.
 - **devup-mcp보다 오래된 플러그인은 새 읽기를 모른다고 답합니다**(`DEVUP_BRIDGE_UNKNOWN_SCRIPT`). 시도조차 되지 않은 읽기라, 플러그인이 파일 키를 보고했으면 그 읽기만 direct 경로가 대신 읽습니다(한도를 씁니다). direct도 로그인이 없어 거절하면 로그인 요구가 아니라 플러그인의 답과 할 일 — 플러그인을 불러온 저장소를 갱신하고 다시 실행 — 이 옵니다. 참조 PNG가 브리지 답 하나(8 MiB)를 넘을 때(`DEVUP_REFERENCE_PNG_TOO_LARGE`, direct는 16 MiB까지 받습니다)도 같은 길을 갑니다.
 

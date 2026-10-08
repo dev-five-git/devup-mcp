@@ -104,3 +104,21 @@ impl std::fmt::Display for DevupError {
 }
 
 impl std::error::Error for DevupError {}
+
+/// What clears Figma's "Unable to establish connection to Figma".
+///
+/// Measured in the desktop app: while the file's tab sat behind another
+/// file's tab, the plugin runtime answered it to every read of data it had not
+/// loaded, and clicking the tab brought the same reads back in 0.2 s. Running
+/// the plugin again cleared it too - a plugin is run from its file's tab.
+pub fn figma_unreachable_hint(message: &str) -> Option<&'static str> {
+    message
+        .contains("Unable to establish connection to Figma")
+        .then_some(
+            "Figma's plugin runtime gave up after 10 seconds fetching data it had not loaded - \
+             another page, a main component, a variable or a style. It answered this to every \
+             such read while the file's tab sat behind another file's tab in the Figma desktop \
+             app, and clicking the tab brought the same reads back at once. Click the file's tab \
+             in Figma, then retry.",
+        )
+}
