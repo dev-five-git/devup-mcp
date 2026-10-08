@@ -111,9 +111,10 @@ fn owner<'a>(output: &'a CodegenOutput, attr: &GeneratedAttribute) -> Option<&'a
 }
 
 fn mapped(output: &CodegenOutput, attr: &GeneratedAttribute) -> bool {
+    let owner = owner(output, attr);
     output.source_map.entries.iter().any(|e| {
         e.property.is_some()
-            && e.node_id.as_deref() == owner(output, attr)
+            && e.node_id.as_deref() == owner
             && e.generated_property.as_deref() == Some(&attr.source)
             && e.generated_range
                 .as_ref()
