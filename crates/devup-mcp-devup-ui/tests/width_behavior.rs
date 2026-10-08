@@ -492,3 +492,46 @@ fn a_container_held_by_its_own_constraint_does_not_move_its_contents() {
     assert_eq!(text["confidence"], "high");
     assert_eq!(text["drawnInside"], "2:6");
 }
+
+/// A 64px loading indicator's dots, drawn right of centre, centred and
+/// against the right edge as the live one was. Its host sizes it; no
+/// viewport ever widens it, so "where does this dot go on a wider screen"
+/// is noise there.
+#[test]
+fn a_component_sized_root_asks_no_viewport_questions() {
+    let dots = [
+        shape("2:1", "dot", 44.0, 0.0, 12.0, 12.0, "111827"),
+        shape("2:2", "dot", 52.0, 0.0, 12.0, 12.0, "111827"),
+        shape("2:3", "dot", 26.0, 0.0, 12.0, 12.0, "111827"),
+    ];
+    let mut nodes = vec![json!({"id": ROOT, "type": "FRAME", "fields": {
+        "name": "Loading", "childrenIds": ["2:1", "2:2", "2:3"], "visible": true,
+        "layoutMode": "NONE", "layoutPositioning": "AUTO",
+        "layoutSizingHorizontal": "FIXED", "layoutSizingVertical": "FIXED",
+        "width": 64.0, "height": 12.0,
+        "constraints": {"horizontal": "MIN", "vertical": "MIN"},
+        "absoluteBoundingBox": {"x": 1000.0, "y": 0.0, "width": 64.0, "height": 12.0},
+        "parentId": "0:1", "parentType": "SECTION"
+    }, "extra": {}, "fieldErrors": {}})];
+    nodes.extend(dots);
+    let chunk: SnapshotChunk = serde_json::from_value(json!({
+        "fileKey": "width-case", "version": "1", "rootIds": [ROOT],
+        "nodes": nodes, "diagnostics": []
+    }))
+    .unwrap();
+    let snapshot = merge_chunks(vec![chunk]).unwrap();
+    let output = generate_component(&snapshot, ROOT, &CodegenOptions::default()).unwrap();
+
+    let report = width_behavior(&snapshot, ROOT, &output);
+    assert_eq!(report["root"]["componentSized"], true);
+    assert_eq!(report["summary"]["componentRootSuppressed"], 3, "{report}");
+    assert_eq!(report["findings"], json!([]), "{report}");
+
+    let screen_report = width_behavior(&screen(), ROOT, &generate(None));
+    assert_eq!(screen_report["root"]["componentSized"], false);
+    assert!(
+        screen_report["summary"]
+            .get("componentRootSuppressed")
+            .is_none()
+    );
+}

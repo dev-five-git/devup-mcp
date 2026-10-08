@@ -53,6 +53,11 @@ pub(crate) enum AnchorSource {
 /// noise well below this; anything larger is a different drawing.
 const EDGE_TOLERANCE: f64 = 0.5;
 
+/// The narrowest viewport a screen is drawn for. A root drawn narrower is a
+/// component its host places and sizes - a 64px loading indicator, an icon -
+/// so where its parts go on a wider screen is not a question it poses.
+const NARROWEST_SCREEN: f64 = 320.0;
+
 pub(crate) fn parent_of<'a>(snapshot: &'a Snapshot, node: &RawNode) -> Option<&'a RawNode> {
     snapshot.nodes.values().find(|candidate| {
         candidate
@@ -441,6 +446,8 @@ pub fn width_behavior(snapshot: &Snapshot, root_id: &str, output: &CodegenOutput
     let root_opening = opening(output, &root.id).unwrap_or("");
     let root_width = attribute(root_opening, "w").or_else(|| attribute(root_opening, "boxSize"));
     let root_fluid = root_width.is_none_or(|width| !width.ends_with("px"));
+    let design_width = root.typed_view().number("width");
+    let component_sized = design_width.is_some_and(|width| width < NARROWEST_SCREEN);
 
     let mut findings: Vec<Value> = Vec::new();
     let mut summary = BTreeMap::<&str, usize>::new();
@@ -510,6 +517,10 @@ pub fn width_behavior(snapshot: &Snapshot, root_id: &str, output: &CodegenOutput
                 continue;
             }
             let status = finding["status"].as_str().unwrap_or("").to_owned();
+            if component_sized && status == "consumer-policy-required" {
+                *summary.entry("componentRootSuppressed").or_default() += 1;
+                continue;
+            }
             *summary.entry(status_key(&status)).or_default() += 1;
             if findings.len() >= MAX_FINDINGS {
                 *summary.entry("truncatedFindings").or_default() += 1;
@@ -526,12 +537,15 @@ pub fn width_behavior(snapshot: &Snapshot, root_id: &str, output: &CodegenOutput
     }
     summary.insert("shapeSizeOmitted", omitted_shapes.len());
     let mut report = json!({
-        "designWidth": root.typed_view().number("width"),
+        "designWidth": design_width,
         "rootNodeId": root.id,
         "root": {
             "generatedWidth": root_width,
             "fluid": root_fluid,
-            "note": if root_fluid {
+            "componentSized": component_sized,
+            "note": if component_sized {
+                "Drawn narrower than any screen (320px): a component its host places and sizes, not a viewport. Findings that ask where a part goes on a wider screen are left out; summary.componentRootSuppressed counts them."
+            } else if root_fluid {
                 "The root takes its container's width, so every finding below applies at any viewport other than the drawn width."
             } else {
                 "The root keeps its drawn width in px, so the screen renders at that width at every viewport. Findings describe what changes once the root takes its container's width - with widthPolicy, or by editing the root."
