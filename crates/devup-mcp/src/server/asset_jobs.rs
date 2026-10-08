@@ -270,7 +270,6 @@ impl AssetJob {
                         "sha256",
                         "errorCode",
                         "errorDetail",
-                        "exportNote",
                         "outputPath",
                         "path",
                     ] {

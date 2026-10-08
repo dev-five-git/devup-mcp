@@ -235,16 +235,17 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     ))
 }
 
-/// Figma's plugin runtime, not the direct path, says this when a read needs a
-/// page it has not loaded; it was mistaken for a direct-path outage once.
+/// Figma's plugin runtime, not the direct path, says this when it cannot
+/// fetch data from outside the page in view; it was once mistaken for a
+/// direct-path outage.
 pub(crate) fn figma_page_load_hint(message: &str) -> Option<&'static str> {
     message
         .contains("Unable to establish connection to Figma")
         .then_some(
-            "Figma's plugin runtime gave up waiting for data from a page it had not loaded - here, \
-             typically the main component a layer inside an instance is drawn from. Keep the Figma \
-             window in front while the plugin works and retry; if it repeats, open the page that \
-             holds that component in Figma once, then retry.",
+            "Figma's plugin runtime could not fetch data from outside the page in view within 10 \
+             seconds. A Devup Bridge window left open for hours answered this to every such read - \
+             layers inside instances, main components - and running the plugin again cleared it at \
+             once. Close the Devup Bridge window, run the plugin again, then retry.",
         )
 }
 
@@ -449,9 +450,9 @@ mod r7_tests {
     }
 
     /// The bridge hands back what the plugin said in the remote path's shape,
-    /// so a node that is not there is still the caller's mistake, and Figma
-    /// giving up on an unloaded page says so instead of blaming the direct
-    /// path.
+    /// so a node that is not there is still the caller's mistake, and Figma's
+    /// runtime giving up on data outside the page in view says what clears it
+    /// instead of blaming the direct path.
     #[test]
     fn a_plugin_failure_over_the_bridge_is_classified_like_the_remote_one() {
         let bridge = |text: &str| {
@@ -471,7 +472,7 @@ mod r7_tests {
             error.details["nextAction"]["how"]
                 .as_str()
                 .unwrap()
-                .contains("a page it had not loaded"),
+                .contains("run the plugin again"),
             "{}",
             error.details
         );

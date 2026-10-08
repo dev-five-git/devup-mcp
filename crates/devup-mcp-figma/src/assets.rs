@@ -100,10 +100,6 @@ pub struct AssetManifestEntry {
     /// the message Figma or the transport gave. Bounded to 500 characters.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_detail: Option<String>,
-    /// Set when the bytes came only after a recovery step, naming it and the
-    /// first attempt's failure.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub export_note: Option<String>,
     /// Where the generated code refers to this asset, `/icons/x.svg` or
     /// `/images/x.png`, filled in by the server from the code generator's
     /// naming so the bytes can be written where the code will look.
@@ -461,7 +457,6 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
         output_path: None,
         error_code,
         error_detail: None,
-        export_note: None,
         path: None,
     }
 }
@@ -615,7 +610,6 @@ pub fn asset_export_from_result(
             output_path: None,
             error_code: descriptor.error_code,
             error_detail: bounded(descriptor.error_detail),
-            export_note: None,
             path: None,
         })));
     }
@@ -679,7 +673,6 @@ pub fn asset_export_from_result(
         output_path: None,
         error_code: None,
         error_detail: None,
-        export_note: bounded(descriptor.export_note),
         path: None,
     })))
 }
@@ -745,7 +738,6 @@ pub fn exported_asset_from_bytes(
         output_path: None,
         error_code: None,
         error_detail: None,
-        export_note: None,
         path: None,
     })
 }
@@ -768,8 +760,6 @@ struct AssetExportDescriptor {
     error_code: Option<String>,
     #[serde(default)]
     error_detail: Option<String>,
-    #[serde(default)]
-    export_note: Option<String>,
     #[serde(default)]
     cursor: Option<LargeValueCursor>,
 }

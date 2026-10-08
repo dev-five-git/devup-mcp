@@ -14,36 +14,25 @@ fn execute(
     writer: bool,
     export_fails: bool,
 ) -> (AssetRequest, Value) {
-    execute_node(
-        "1:2",
-        format,
-        json!({"length": length, "writer": writer, "exportFails": export_fails}),
-    )
-}
-
-/// Runs the compiled export script against a stand-in Plugin API. `scenario`
-/// sets how the stand-in behaves: `exportFails` fails every export,
-/// `pageLoad` adds `loadAllPagesAsync` and, as `"needed"`, fails exports
-/// until it has run or, as `"fails"`, fails it as well.
-fn execute_node(node_id: &str, format: AssetFormat, scenario: Value) -> (AssetRequest, Value) {
     let request = AssetRequest {
-        asset_id: format!("{node_id}:node"),
-        node_id: node_id.to_owned(),
+        asset_id: "1:2:node".to_owned(),
+        node_id: "1:2".to_owned(),
         field: "node".to_owned(),
         image_hash: None,
         format,
         scale: 2,
     };
     let call = ReadToolCall::asset_export("fixture", Some("v1".to_owned()), request.clone());
-    let mut input = scenario;
-    input["code"] = call.arguments()["code"].clone();
+    let code = call.arguments()["code"].as_str().unwrap().to_owned();
+    let input =
+        json!({"code": code, "length": length, "writer": writer, "exportFails": export_fails});
     // The native Plugin API provides base64Encode, but no figma.io. Keep the
     // source bytes deterministic and exercise the actual compiled export script
     // and Rust response decoder, including JSON nested in the bridge envelope.
     let js = r#"
 const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
-const bytes = Uint8Array.from({length: input.length ?? 11}, (_, i) => 65 + i % 26);
-let exports = 0, writes = 0, pageLoads = 0;
+const bytes = Uint8Array.from({length: input.length}, (_, i) => 65 + i % 26);
+let exports = 0, writes = 0;
 const figma = {
   fileKey: 'fixture',
   editorType: 'dev',
@@ -51,20 +40,13 @@ const figma = {
   getNodeByIdAsync: async () => ({exportAsync: async settings => {
     exports++;
     if (input.exportFails) throw new Error('renderer failed');
-    if (input.pageLoad && pageLoads === 0) {
-      throw new Error('Unable to establish connection to Figma after 10 seconds. Please check your internet connection.');
-    }
     return settings.format === 'SVG_STRING' ? Buffer.from(bytes).toString() : bytes;
   }}),
-};
-if (input.pageLoad) figma.loadAllPagesAsync = async () => {
-  if (input.pageLoad === 'fails') throw new Error('pages did not load');
-  pageLoads++;
 };
 if (input.writer) figma.io = {write: () => { writes++; }};
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 new AsyncFunction('figma', input.code)(figma).then(data => {
-  process.stdout.write(JSON.stringify({exports, writes, pageLoads, data}));
+  process.stdout.write(JSON.stringify({exports, writes, data}));
 }).catch(error => { console.error(error); process.exitCode = 1; });
 "#;
     let mut child = Command::new("node")
@@ -154,29 +136,17 @@ fn bridge_does_not_hide_export_failure_or_bypass_byte_limit() {
     }
 }
 
-fn decode(request: &AssetRequest, result: &Value) -> devup_mcp_figma::AssetManifestEntry {
+#[test]
+fn a_failed_export_says_what_figma_said() {
+    let (request, result) = execute(AssetFormat::Svg, 11, false, true);
     let response = UpstreamResult {
         raw: json!({"content": [{"type": "text", "text": result["data"].to_string()}]}),
     };
     let AssetExportOutcome::Entry(asset) =
-        asset_export_from_result(&response, "fixture", Some("v1"), request).unwrap()
+        asset_export_from_result(&response, "fixture", Some("v1"), &request).unwrap()
     else {
-        panic!("a bridge response is one entry")
+        panic!("a failed export is one entry")
     };
-    *asset
-}
-
-#[test]
-fn a_failed_export_says_what_figma_said() {
-    let (request, result) = execute_node(
-        "1:2",
-        AssetFormat::Svg,
-        json!({"exportFails": true, "pageLoad": "needed"}),
-    );
-    // Only a layer inside an instance waits on another page; any other node
-    // fails as it did, without loading the file.
-    assert_eq!(result["pageLoads"], 0);
-    let asset = decode(&request, &result);
     assert_eq!(asset.status, AssetStatus::Failed);
     let detail = asset
         .error_detail
@@ -186,50 +156,4 @@ fn a_failed_export_says_what_figma_said() {
         detail.contains("(editor: dev): renderer failed"),
         "{detail}"
     );
-}
-
-#[test]
-fn an_instance_layer_is_exported_once_the_pages_are_loaded() {
-    let (request, result) =
-        execute_node("I1:2;3:4", AssetFormat::Svg, json!({"pageLoad": "needed"}));
-    assert_eq!(result["exports"], 2);
-    assert_eq!(result["pageLoads"], 1);
-    let asset = decode(&request, &result);
-    assert_eq!(asset.status, AssetStatus::Exported);
-    assert_eq!(
-        STANDARD.decode(asset.data_base64.unwrap()).unwrap(),
-        b"ABCDEFGHIJK"
-    );
-    let note = asset.export_note.expect("the recovery is named");
-    assert!(
-        note.starts_with("Exported after loading the file's pages"),
-        "{note}"
-    );
-    assert!(
-        note.contains("Unable to establish connection to Figma"),
-        "{note}"
-    );
-}
-
-#[test]
-fn an_instance_layer_that_still_fails_reports_both_attempts() {
-    let (request, result) =
-        execute_node("I1:2;3:4", AssetFormat::Svg, json!({"pageLoad": "fails"}));
-    assert_eq!(result["exports"], 1);
-    let asset = decode(&request, &result);
-    assert_eq!(asset.status, AssetStatus::Failed);
-    assert_eq!(
-        asset.error_code.as_deref(),
-        Some("DEVUP_ASSET_EXPORT_FAILED")
-    );
-    let detail = asset.error_detail.expect("both attempts are named");
-    assert!(
-        detail.contains("Unable to establish connection to Figma"),
-        "{detail}"
-    );
-    assert!(
-        detail.contains("then loading the file's pages failed after"),
-        "{detail}"
-    );
-    assert!(detail.ends_with("pages did not load"), "{detail}");
 }

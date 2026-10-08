@@ -63,11 +63,11 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 - `discovery`: `complete` | `incomplete`, `discoveryReason`: `index-only` | `snapshot-incomplete`
 - `discoveredCount` / `collectedCount` / `manifestIncluded`
 - `unavailable[]`: 항목마다 `assetId`, `nodeId`, `errorCode`와 **`reason`** — `hidden-node`(숨김 노드) · `export-failed`(export 실패) · `not-requested`(애초에 요청하지 않음) · `capture-not-in-artifact`(요청했지만 이 artifact엔 그 format/scale이 없음)
-- `export-failed`에는 **`errorDetail`** 이 붙습니다 — 실패한 단계, 걸린 시간, Figma나 전송이 한 말 그대로(최대 500자). 예전에는 플러그인 스크립트가 예외를 버려서 코드만 남았고, 인스턴스 안쪽 레이어 여섯 개가 각각 11초씩 걸려 실패한 이유를 아무도 알 수 없었습니다. `failures[]`의 같은 항목에도 `errorDetail`이 실리고, Figma가 페이지를 불러오지 못한 경우면 `hint`가 할 일을 말합니다
+- `export-failed`에는 **`errorDetail`** 이 붙습니다 — 실패한 단계, 걸린 시간, Figma나 전송이 한 말 그대로(최대 500자). 예전에는 플러그인 스크립트가 예외를 버려서 코드만 남았고, 인스턴스 안쪽 레이어 여섯 개가 각각 11초씩 걸려 실패한 이유를 아무도 알 수 없었습니다. `failures[]`의 같은 항목에도 `errorDetail`이 실리고, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못한 경우면 `hint`가 할 일을 말합니다
 
 숨김 노드 실패는 `failures[]`가 아니라 `warnings[]`로 갑니다. 구현을 막는 실패가 아니기 때문입니다.
 
-인스턴스 안쪽 레이어(`I…` id)의 export가 실패하면 플러그인은 **파일의 페이지를 불러온 뒤 한 번 더** export합니다. 그런 레이어는 다른 페이지에 있는 메인 컴포넌트로 그려지는데, Figma 런타임은 불러오지 않은 페이지가 필요한 읽기를 "Unable to establish connection to Figma after 10 seconds"로 거절합니다. 두 번째에 받았으면 manifest 항목에 `exportNote`가 첫 시도의 실패와 함께 남고, 그래도 실패하면 `errorDetail`이 두 시도를 모두 말합니다. 다른 노드는 예전처럼 한 번만 시도합니다.
+그 여섯 개의 원인은 플러그인 창이었습니다. 몇 시간 열어 둔 Devup Bridge 창에서는 보고 있는 페이지 밖의 데이터가 필요한 읽기 — 인스턴스 안쪽 레이어의 export, 다른 페이지의 메인 컴포넌트 — 마다 Figma 런타임이 10초를 기다린 뒤 "Unable to establish connection to Figma after 10 seconds"로 답했고, 플러그인을 다시 실행하자 같은 여섯 개가 각각 2~12 ms에 export됐습니다. 이 문구가 오면 `hint`(자산)와 `nextAction.how`(읽기)가 플러그인을 다시 실행하라고 말합니다.
 
 `rawSnapshot`과 `rawPayload`는 수집한 디자인을 raw로 담은 것이라 `debug: true` 없이는 거절됩니다. 화면을 구현하는 데는 필요 없습니다 — 실제 캡처 10개 화면에서 tsx가 node·text·typography·asset·layout 기대치를 100% 담고 있습니다. 쓰는 자리는 하나입니다: **화면이 이상해 보일 때 생성기 탓인지 디자인이 원래 그런지 판정하는 것.** 그때는 디자인을 코드 옆에 놓고 읽어야 하고, 그게 이 플래그입니다.
 
@@ -488,7 +488,7 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 - **`ws://127.0.0.1`은 쓸 수 없습니다.** Figma의 `allowedDomains`가 그 주소를 거부해 manifest 전체가 무효가 되고 플러그인이 아예 로드되지 않습니다. `localhost`여야 합니다.
 - **한 화면은 한 번의 읽기로 옵니다.** 브리지는 플러그인에게 화면 하나를 봉투 하나(최대 8 MiB)에 담아 달라고 하고, 디코더도 그 크기까지 받습니다. 플러그인이 파일 키를 보고하지 못하면 봉투 안의 키 자리(`source`·`snapshot`)를 요청한 파일로 채웁니다. 예전에는 둘 다 맞지 않아 64 KiB가 넘는 화면이나 키 없는 플러그인의 봉투가 모두 버려지고, 노드마다 읽는 예전 경로로 떨어졌습니다. 그 경로는 breakpoint 형제 폭을 모으지 않아 `responsiveTsx`도 나오지 않았습니다. 실제 공지 화면은 4번 읽던 것이 1번이 되고, 세 폭이 함께 수집됩니다.
 - **Figma 창을 뒤로 보내면 느려집니다.** 브라우저가 백그라운드 플러그인을 분당 한 번꼴로 깨우기 때문에, 앞에서 160ms인 snapshot이 뒤에서는 11초가 됩니다. 수집 중에는 Figma를 앞에 두세요.
-- **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 다른 페이지를 불러오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
+- **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일(플러그인 다시 실행)을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
 
 자세한 내부 구조와 스크립트 생성 방식은 [`plugin/README.md`](plugin/README.md)에 있습니다.
 

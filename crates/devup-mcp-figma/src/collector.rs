@@ -1702,7 +1702,6 @@ impl CollectorSession {
             output_path: None,
             error_code: Some(error_code.to_owned()),
             error_detail,
-            export_note: None,
             path: None,
         });
     }

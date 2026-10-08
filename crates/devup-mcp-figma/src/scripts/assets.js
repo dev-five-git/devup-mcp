@@ -95,32 +95,7 @@ try {
     settings.constraint = { type: "SCALE", value: scale };
   }
   stage = "export";
-  let exported;
-  let exportNote = null;
-  try {
-    exported = await node.exportAsync(settings);
-  } catch (error) {
-    // Measured over the bridge: every layer inside an instance (an `I...`
-    // id) took about eleven seconds and failed, while the instances
-    // themselves exported at once. Figma's runtime answers a read that needs
-    // a page it has not loaded with "Unable to establish connection to Figma
-    // after 10 seconds", and an instance's layers are drawn from a main
-    // component that usually lives on another page. Loading the pages is the
-    // documented way to read across them under dynamic page access.
-    if (!String(options.nodeId).startsWith("I") || typeof figma.loadAllPagesAsync !== "function") {
-      throw error;
-    }
-    const first = describe(error);
-    try {
-      stage = "loading the file's pages";
-      await figma.loadAllPagesAsync();
-      stage = "export after loading the file's pages";
-      exported = await node.exportAsync(settings);
-    } catch (retried) {
-      return failed("DEVUP_ASSET_EXPORT_FAILED", `${first}; then ${describe(retried)}`.slice(0, 500));
-    }
-    exportNote = `Exported after loading the file's pages; the first attempt: ${first}`.slice(0, 500);
-  }
+  const exported = await node.exportAsync(settings);
   stage = "encode";
   const svgText = inlineSvg && typeof exported === "string" ? exported : null;
   const bytes =
@@ -191,7 +166,6 @@ try {
     ...(!hasFileWriter && svgText === null ? { data: figma.base64Encode(bytes) } : {}),
     text: svgText,
     errorCode: null,
-    ...(exportNote ? { exportNote } : {}),
   };
 } catch (error) {
   return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
