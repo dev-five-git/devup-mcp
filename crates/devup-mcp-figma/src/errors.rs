@@ -108,11 +108,11 @@ impl std::error::Error for DevupError {}
 /// What clears Figma's "Unable to establish connection to Figma".
 ///
 /// Measured in the desktop app: once the file had been out of sight for two
-/// or three minutes - its tab behind another file's tab, or the window
-/// minimized with the tab in front - the plugin runtime answered it to every
-/// read of data it had not loaded, and showing the file again brought the same
-/// reads back at once. Running the plugin again cleared it too, by bringing
-/// the file to the front.
+/// or three minutes - its tab behind another file's tab, the window minimized
+/// with the tab in front, or the window left open behind another window - the
+/// plugin runtime answered it to every read of data it had not loaded, and
+/// showing the file again brought the same reads back at once. Running the
+/// plugin again cleared it too, by bringing the file to the front.
 pub fn figma_unreachable_hint(message: &str) -> Option<&'static str> {
     message
         .contains("Unable to establish connection to Figma")
@@ -120,8 +120,8 @@ pub fn figma_unreachable_hint(message: &str) -> Option<&'static str> {
             "Figma's plugin runtime gave up after 10 seconds fetching data it had not loaded - \
              another page, a main component, a variable or a style. It answers this once the \
              file has been out of sight in the Figma desktop app for two or three minutes - its \
-             tab behind another file's tab, or the window minimized - and showing the file again \
-             brought the same reads back at once. Restore the Figma window and click the file's \
-             tab, then retry.",
+             tab behind another file's tab, or the window minimized or covered by another \
+             window - and showing the file again brought the same reads back at once. Bring the \
+             Figma window to the front and click the file's tab, then retry.",
         )
 }

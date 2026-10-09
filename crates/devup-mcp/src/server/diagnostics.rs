@@ -379,7 +379,7 @@ pub async fn doctor_report(
 ) -> Value {
     let mut report = connection_report(status, &direct, bridge.as_ref());
     report["preferredPathNote"] = json!(
-        "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first and keep direct as the fallback for what the bridge cannot serve (currently a file-scope metadata read)."
+        "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first: it serves every read a collection makes, and direct is the fallback that re-reads what the plugin answers short - data Figma withholds while the file is out of sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an older plugin does not know."
     );
     report["clientSetup"] = client_setup();
     report
@@ -397,8 +397,10 @@ fn direct_path(status: AuthStatus, direct: &DirectPathSnapshot, bridge_available
     );
     if bridge_available {
         reason.push_str(
-            " While a bridge plugin is attached this path is needed only for what the bridge \
-             cannot serve: a file-scope metadata read.",
+            " While a bridge plugin is attached it serves every read, and this path only re-reads \
+             what the plugin answers short: data Figma withholds while the file is out of sight, \
+             a reference PNG the plugin cannot draw as get_screenshot does, a read an older \
+             plugin does not know.",
         );
     }
     json!({

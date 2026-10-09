@@ -200,16 +200,16 @@ async fn routing_is_decided_before_the_call() {
             .await
     );
 
-    // 노드가 지정된 메타데이터는 두 경로가 같은 `MetadataDocument` 로 환원되므로
-    // 플러그인이 맡는다. 노드 없는 읽기는 최상위 페이지 목록이라는 다른 계약이라
-    // 원격이 받아야 한다.
+    // 메타데이터는 노드가 있든 없든 플러그인이 맡는다. 노드가 있으면 두 경로가 같은
+    // `MetadataDocument` 로 환원되고, 없으면 최상위 페이지 목록을 공식 `get_metadata`
+    // 와 같은 글로 쓴다.
     assert!(
         client
             .can_serve(&ReadToolCall::metadata(FILE_KEY, Some("1:2")))
             .await
     );
     assert!(
-        !client
+        client
             .can_serve(&ReadToolCall::metadata(FILE_KEY, None))
             .await
     );
@@ -553,7 +553,7 @@ async fn a_bridge_only_key_never_reaches_the_remote_path() {
     let error = upstream
         .call_read_tool(ReadToolCall::metadata("bridge:41", None))
         .await
-        .expect_err("the bridge cannot list a file's pages, and direct has no key");
+        .expect_err("no plugin holds this connection to list its pages");
     assert_eq!(error.details["tool"], "get_metadata");
 
     assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
@@ -760,6 +760,10 @@ impl FigmaUpstream for SignedOutRemote {
             false,
         ))
     }
+
+    async fn has_credentials(&self) -> bool {
+        false
+    }
 }
 
 /// 브리지 답 하나에 실리지 않는 참조 PNG 는 원격에 묻는다. 원격이 로그인 없이 거절하면
@@ -796,6 +800,395 @@ async fn a_signed_out_remote_leaves_the_plugins_refusal_standing() {
         "{}",
         result.raw
     );
+}
+
+/// 노드 없는 metadata 읽기 — 파일의 최상위 페이지 목록 — 도 플러그인이 맡는다.
+/// 플러그인의 페이지 목록을 공식 `get_metadata` 가 쓰는 글로 옮겨, 수집기가 두 경로의
+/// 답을 같은 파서로 받는다.
+#[tokio::test]
+async fn a_files_page_list_comes_from_the_plugins_page_catalog() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let client = BridgeFigmaClient::new(server.state());
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::metadata(FILE_KEY, None))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "pageCatalog");
+    answer(
+        &mut plugin,
+        &job,
+        json!({ "fileKey": FILE_KEY, "nodes": [
+            { "id": "0:1", "type": "PAGE", "fields": { "name": "Cover" } },
+            { "id": "5:2", "type": "PAGE", "fields": { "name": "Screens" } },
+        ]}),
+    )
+    .await;
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the bridge answers");
+    assert_eq!(
+        result.raw["content"][0]["text"],
+        "Top-level pages of the document:\n- 0:1: Cover\n- 5:2: Screens\n"
+    );
+    assert!(result.raw["_meta"]["devup/bridge"].is_object());
+}
+
+/// JSON 을 플러그인이 붙들어 둘 때처럼 ASCII 로 쓴다 — 그 밖의 글자는 `\uXXXX`.
+fn ascii_json(value: &Value) -> String {
+    let mut text = String::new();
+    for unit in serde_json::to_string(value)
+        .expect("JSON encodes")
+        .encode_utf16()
+    {
+        match u8::try_from(unit) {
+            Ok(byte) if byte.is_ascii() => text.push(char::from(byte)),
+            _ => text.push_str(&format!("\\u{unit:04x}")),
+        }
+    }
+    text
+}
+
+/// 브리지 답 하나에 들어가지 않는 참조 PNG 답은 플러그인이 붙들어 두고 조각으로
+/// 내준다. 브리지는 조각을 이어 받아 하나로 되돌리고, 그 답을 평소처럼 감싼다 — 노트의
+/// 한글 레이어 이름까지 그대로.
+#[tokio::test]
+async fn a_held_reference_answer_is_read_back_in_pieces() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let client = BridgeFigmaClient::new(server.state());
+    let opaque = png_base64(1, 1, vec![10, 20, 30, 255]);
+    let note = "TEXT \"공지 제목\" reaches into it and may show here";
+    let whole = ascii_json(&json!({ "kind": "devupReferencePng", "nodeId": "1:2",
+        "mimeType": "image/png", "byteLength": 0, "data": opaque, "note": note }));
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+            .await
+    });
+
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "referencePng");
+    answer(
+        &mut plugin,
+        &job,
+        json!({ "kind": "devupReferencePngChunked", "nodeId": "1:2", "id": "1:2@1",
+            "length": whole.len() }),
+    )
+    .await;
+    let mut offset = 0;
+    while offset < whole.len() {
+        let job = next_job(&mut plugin).await;
+        assert_eq!(job["script"], "referencePngChunk");
+        assert_eq!(job["params"]["largeValue"]["id"], "1:2@1");
+        assert_eq!(job["params"]["largeValue"]["offset"], offset);
+        let end = (offset + 40).min(whole.len());
+        answer(
+            &mut plugin,
+            &job,
+            json!({ "kind": "devupReferencePngChunk", "id": "1:2@1", "offset": offset,
+                "nextOffset": end, "complete": end == whole.len(), "text": &whole[offset..end] }),
+        )
+        .await;
+        offset = end;
+    }
+
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the bridge answers");
+    assert_eq!(result.raw["content"][0]["data"], opaque);
+    assert_eq!(result.raw["_meta"]["devup/referencePngNote"], note);
+}
+
+/// 다른 레이어가 노드에 닿으면 플러그인은 노드만 export 하고 조상들을 설명한다.
+/// 브리지가 그 나머지를 그려 `get_screenshot` 이 그리는 그림을 만든다 — 캔버스 export 는
+/// 그리지 못할 때를 위해 함께 올 뿐 쓰이지 않는다.
+#[tokio::test]
+async fn an_overlapped_node_is_composed_over_its_ancestors() {
+    use base64::Engine as _;
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let client = BridgeFigmaClient::new(server.state());
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    answer(
+        &mut plugin,
+        &job,
+        json!({ "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png",
+            "byteLength": 0, "data": png_base64(2, 1, vec![0, 0, 0, 255, 0, 0, 0, 255]),
+            "backdrop": [30, 30, 30], "reaching": "TEXT \"Caption\"",
+            "compose": {
+                "area": { "x": 0, "y": 0, "width": 2, "height": 1 }, "scale": 1,
+                "width": 2, "height": 1, "page": [30, 30, 30],
+                "layers": [{ "transform": [[1, 0, 0], [0, 1, 0]], "width": 2, "height": 1,
+                    "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 0, "b": 0 } }] }],
+                "node": { "picture": { "data": png_base64(1, 1, vec![255, 255, 255, 255]),
+                    "area": { "x": 1, "y": 0, "width": 1, "height": 1 } } },
+                "images": {}
+            } }),
+    )
+    .await;
+    let result = reading
+        .await
+        .expect("the read task finishes")
+        .expect("the bridge answers");
+    let data = result.raw["content"][0]["data"].as_str().expect("an image");
+    let decoded = image::load_from_memory(
+        &base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .expect("base64"),
+    )
+    .expect("a PNG")
+    .into_rgba8();
+    assert_eq!(decoded.into_raw(), vec![255, 0, 0, 255, 255, 255, 255, 255]);
+    assert!(result.raw["_meta"].get("devup/referencePngNote").is_none());
+    assert!(
+        result.raw["_meta"]
+            .get("devup/referencePngApproximate")
+            .is_none()
+    );
+}
+
+/// 원격 경로로 다시 읽은 횟수를 센다.
+struct CountingMeter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+#[async_trait::async_trait]
+impl devup_mcp_figma::Meter for CountingMeter {
+    async fn acquire(&self) {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// 정해 둔 답을 내는 원격. 몇 번 불렸는지 센다.
+struct FixedRemote {
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    raw: Value,
+}
+
+#[async_trait::async_trait]
+impl FigmaUpstream for FixedRemote {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(UpstreamResult {
+            raw: self.raw.clone(),
+        })
+    }
+}
+
+struct Counts {
+    remote: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    metered: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Counts {
+    fn new() -> Self {
+        Self {
+            remote: std::sync::Arc::default(),
+            metered: std::sync::Arc::default(),
+        }
+    }
+
+    fn get(&self) -> (usize, usize) {
+        use std::sync::atomic::Ordering::SeqCst;
+        (self.remote.load(SeqCst), self.metered.load(SeqCst))
+    }
+}
+
+/// 플러그인에 `call` 을 보내 `plugin_answer` 로 답하게 하고, 그 뒤의 결과를 돌려준다.
+async fn through_fallback(
+    upstream: FallbackUpstream<BridgeFigmaClient, impl FigmaUpstream + 'static>,
+    plugin: &mut Plugin,
+    call: ReadToolCall,
+    plugin_answer: Value,
+) -> UpstreamResult {
+    let reading = tokio::spawn(async move { upstream.call_read_tool(call).await });
+    let job = next_job(plugin).await;
+    let mut message = plugin_answer;
+    message["kind"] = json!("devup-result");
+    message["requestId"] = job["requestId"].clone();
+    plugin
+        .send(Message::Text(message.to_string().into()))
+        .await
+        .expect("the answer is sent");
+    reading
+        .await
+        .expect("the read task finishes")
+        .expect("an answer comes back")
+}
+
+fn fixed_fallback(
+    server: &BridgeServer,
+    counts: &Counts,
+    raw: Value,
+) -> FallbackUpstream<BridgeFigmaClient, FixedRemote> {
+    FallbackUpstream::new(
+        BridgeFigmaClient::new(server.state()),
+        FixedRemote {
+            calls: counts.remote.clone(),
+            raw,
+        },
+    )
+    .with_meter(std::sync::Arc::new(CountingMeter(counts.metered.clone())))
+}
+
+const UNREACHABLE: &str = "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.";
+
+/// 파일이 화면에 보이지 않으면 Figma 는 불러오지 않은 데이터를 플러그인에게 주지
+/// 않는다. 그 말이 섞인 플러그인의 답은 원격 경로가 다시 읽는다 — 원격은 그 상태와
+/// 무관하다. 한도를 쓰는 읽기라 속도에 맞춰 보내고, 왜 다시 읽었는지 결과에 남긴다.
+#[tokio::test]
+async fn a_read_figma_withheld_out_of_sight_is_read_again_on_the_direct_path() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let short = json!({ "data": { "fileKey": FILE_KEY, "resources": { "unresolved": [
+        { "id": "VariableID:1:2", "lookupError": UNREACHABLE }] } } });
+
+    let counts = Counts::new();
+    let direct = json!({ "content": [{ "type": "text", "text": "{\"fileKey\":\"FileKey123\"}" }] });
+    let result = through_fallback(
+        fixed_fallback(&server, &counts, direct.clone()),
+        &mut plugin,
+        ReadToolCall::fast_snapshot(FILE_KEY, "1:2"),
+        short.clone(),
+    )
+    .await;
+    assert_eq!(result.raw["content"], direct["content"]);
+    assert_eq!(
+        result.raw["_meta"]["devup/directFallback"],
+        "file-out-of-sight"
+    );
+    assert_eq!(counts.get(), (1, 1));
+
+    // 원격의 답이 공식 MCP 의 20 KB 에서 잘렸으면 디코딩되지 않으니 플러그인의 답을 쓴다.
+    let counts = Counts::new();
+    let truncated = json!({ "content": [{ "type": "text",
+        "text": "{\"fileKey\":\"FileKey123\",\"nodes\":[ // truncated to 20kb" }] });
+    let result = through_fallback(
+        fixed_fallback(&server, &counts, truncated),
+        &mut plugin,
+        ReadToolCall::fast_snapshot(FILE_KEY, "1:2"),
+        short.clone(),
+    )
+    .await;
+    assert!(
+        result.raw["content"][0]["text"]
+            .as_str()
+            .is_some_and(|text| text.contains("lookupError")),
+        "{}",
+        result.raw
+    );
+    assert_eq!(counts.get(), (1, 1));
+
+    // 로그인이 없으면 원격은 시도도 되지 않는다. 속도에 맞춰 기다리지 않고 플러그인의 답을 쓴다.
+    let metered = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let upstream = FallbackUpstream::new(BridgeFigmaClient::new(server.state()), SignedOutRemote)
+        .with_meter(std::sync::Arc::new(CountingMeter(metered.clone())));
+    let result = through_fallback(
+        upstream,
+        &mut plugin,
+        ReadToolCall::fast_snapshot(FILE_KEY, "1:2"),
+        short,
+    )
+    .await;
+    assert!(result.raw["_meta"]["devup/bridge"].is_object());
+    assert_eq!(metered.load(std::sync::atomic::Ordering::SeqCst), 0);
+}
+
+/// 플러그인이 `get_screenshot` 과 같은 그림을 그리지 못하면 — 여기서는 그릴 수 없는
+/// 칠 — 캔버스 그림에 이유를 달고, 원격이 열려 있으면 원격의 `get_screenshot` 이 대신
+/// 답한다. 열려 있지 않으면 캔버스 그림과 그 이유가 답이다.
+#[tokio::test]
+async fn a_picture_the_plugin_cannot_compose_goes_to_get_screenshot() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let canvas = png_base64(1, 1, vec![10, 20, 30, 255]);
+    let uncomposable = json!({ "data": { "kind": "devupReferencePng", "nodeId": "1:2",
+        "mimeType": "image/png", "byteLength": 0, "data": canvas, "backdrop": [30, 30, 30],
+        "reaching": "TEXT \"Caption\"",
+        "compose": { "area": { "x": 0, "y": 0 }, "width": 1, "height": 1, "page": [30, 30, 30],
+            "layers": [{ "transform": [[1, 0, 0], [0, 1, 0]], "width": 1, "height": 1,
+                "fills": [{ "type": "VIDEO" }] }],
+            "node": { "picture": { "data": canvas, "area": { "x": 0, "y": 0 } } } } } });
+
+    let counts = Counts::new();
+    let shot = json!({ "content": [{ "type": "image", "data": "aWdub3JlZA==", "mimeType": "image/png" }] });
+    let result = through_fallback(
+        fixed_fallback(&server, &counts, shot.clone()),
+        &mut plugin,
+        ReadToolCall::screenshot(FILE_KEY, "1:2"),
+        uncomposable.clone(),
+    )
+    .await;
+    assert_eq!(result.raw["content"], shot["content"]);
+    assert_eq!(
+        result.raw["_meta"]["devup/directFallback"],
+        "reference-png-approximate"
+    );
+    assert_eq!(counts.get(), (1, 1));
+
+    let upstream = FallbackUpstream::new(BridgeFigmaClient::new(server.state()), SignedOutRemote);
+    let result = through_fallback(
+        upstream,
+        &mut plugin,
+        ReadToolCall::screenshot(FILE_KEY, "1:2"),
+        uncomposable,
+    )
+    .await;
+    assert_eq!(result.raw["content"][0]["data"], canvas);
+    let note = result.raw["_meta"]["devup/referencePngNote"]
+        .as_str()
+        .expect("the canvas picture says why");
+    assert!(
+        note.contains("VIDEO") && note.contains("TEXT \"Caption\""),
+        "{note}"
+    );
+}
+
+/// 플러그인이 답하지 못해 원격이 읽은 자산의 이어 읽기는, 플러그인이 다시 export 한
+/// 바이트가 원격의 해시와 다르면 원격이 답한다. 그 바이트는 원격의 렌더러에서만 나온다.
+#[tokio::test]
+async fn a_value_the_direct_path_produced_is_read_on_from_it() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let counts = Counts::new();
+    let fragment = json!({ "content": [{ "type": "text", "text": "{\"kind\":\"devupLargeValueFragment\"}" }] });
+    let call = ReadToolCall::large_value(
+        FILE_KEY,
+        devup_mcp_figma::LargeValueReadOptions {
+            node_id: "1:2".to_owned(),
+            field: "$export/png/1".to_owned(),
+            offset: 8192,
+            max_chunk_bytes: 8192,
+            byte_length: 20_000,
+            sha256: "0".repeat(64),
+            version: None,
+        },
+    );
+    let result = through_fallback(
+        fixed_fallback(&server, &counts, fragment.clone()),
+        &mut plugin,
+        call,
+        json!({ "error": "DEVUP_LARGE_VALUE_CHANGED" }),
+    )
+    .await;
+    assert_eq!(result.raw["content"], fragment["content"]);
+    assert_eq!(
+        result.raw["_meta"]["devup/directFallback"],
+        "value-from-direct-path"
+    );
+    assert_eq!(counts.get(), (1, 1));
 }
 
 #[tokio::test]

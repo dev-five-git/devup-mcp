@@ -598,8 +598,9 @@ async fn an_explore_without_url_anchors_on_the_selection() -> anyhow::Result<()>
     Ok(())
 }
 
-/// Login is not refused while a plugin is attached - the bridge cannot serve
-/// every read - but the answer says it was probably not needed.
+/// Login is not refused while a plugin is attached - the direct path re-reads
+/// what the plugin answers short - but the answer says it was probably not
+/// needed.
 #[tokio::test]
 async fn login_with_a_plugin_attached_warns_and_still_logs_in() -> anyhow::Result<()> {
     let setup = setup();

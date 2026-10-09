@@ -37,7 +37,7 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 | `responsiveTsx` | `responsiveTsx`, `responsiveSlots`, (표현 불가한 값이 있으면) `responsiveUnrepresented` |
 | `devupJson` | `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts`, `unresolvedVariables` |
 | `sourceMap` / `assetManifest` | 같은 이름의 키 |
-| `referencePng` | `referencePng`, (플러그인의 그림에 `get_screenshot`이 넣지 않는 레이어가 들어갔을 수 있으면) `referencePngNote` |
+| `referencePng` | `referencePng`, (플러그인이 `get_screenshot`과 같은 그림을 다 그리지 못해 캔버스의 그 자리를 그렸으면) `referencePngNote` |
 | `rawSnapshot` / `rawPayload` | 같은 이름의 키 — **`debug: true` 필요** |
 
 그 밖에 항상 붙는 것은 `status`, `quality`, `completeness`, `cache`, `collection`, `source`, `targetKind`, `failures`, `assetSummary`, `outputPaths`뿐입니다.
@@ -234,7 +234,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 - `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(예: manifest에 `enablePrivatePluginApi`가 없던 예전 빌드)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다.
 - `nextAction` — 지금 상태에서 할 다음 호출. 플러그인 하나면 url 없는 `devup_figma_export`, direct만 열려 있으면 frame 링크가 필요한 export, 둘 다 막혔으면 `options`에 플러그인 실행(권장)과 로그인을 차례로 담습니다.
 
-`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning: "A bridge is attached; login is only needed for a file-scope metadata read."`이 붙습니다.
+`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning`이 붙습니다 — 브리지가 모든 읽기를 맡으며, 로그인은 플러그인이 다 답하지 못한 읽기(파일이 화면에 보이지 않는 동안 Figma가 내주지 않은 데이터, `get_screenshot`처럼 그리지 못한 참조 PNG, 오래된 플러그인이 모르는 읽기)를 한도를 쓰는 direct 경로로 다시 읽게 할 뿐이라는 내용입니다.
 
 ```json
 { "action": "doctor" }
@@ -396,11 +396,21 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 **브리지를 먼저 쓰십시오.** direct는 Figma가 사용량을 세는 경로이고, 화면 하나가 여러 번의 읽기를 쓰므로 한도가 금방 바닥납니다. 그래서 direct로 가는 읽기는 한도에 맞춘 속도(`DEVUP_FIGMA_CALLS_PER_MINUTE`, 기본 분당 8회)로 늦춰 보내지만, 브리지로 가는 읽기는 늦추지 않습니다. 예전에는 브리지 읽기까지 같은 속도로 묶여, 같은 서버의 두 번째 export가 쓰지도 않는 한도를 1분 가까이 기다렸습니다.
 
-**플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 브리지가 못 하는 읽기가 있으면 **그 읽기가** 자기 이유로 거절하므로, 무엇이 왜 막혔는지가 그대로 드러납니다.
+**플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 플러그인이 다 답하지 못한 읽기는 로그인이 되어 있으면 direct 경로가 다시 읽고, 아니면 플러그인의 답이 그 이유와 함께 그대로 옵니다(아래).
 
 지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "status" }`의 `activePath`와 `paths.bridge`/`paths.direct`로 확인하세요. **연결 순서는 bridge → direct입니다** — 로그인을 요청하기 전에 이것부터 부르세요.
 
-현재 브리지가 **못** 하는 읽기는 하나입니다 — `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록이라 계약이 다릅니다). `referencePng`를 포함한 그 밖의 export 경로는 전부 브리지로 갑니다.
+**브리지는 수집이 하는 모든 읽기를 맡습니다.** `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록)도 플러그인의 페이지 목록을 공식 `get_metadata`와 같은 글로 옮겨 답하므로, 수집기는 두 경로의 답을 같은 파서로 받습니다. direct 경로는 **플러그인이 다 답하지 못한 읽기만** 다시 읽습니다 — 로그인이 되어 있을 때만, 한도의 속도에 맞춰서입니다. 다시 읽은 이유는 응답의 `source.directFallbackReasons`에 실립니다.
+
+| 이유 | 플러그인이 답한 것 | 로그인이 없으면 |
+|---|---|---|
+| `file-out-of-sight` | 파일이 화면에 보이지 않아 Figma가 불러오지 않은 데이터를 내주지 않음("Unable to establish connection to Figma", 아래 "그 파일을 화면에 띄워 두세요") | 플러그인의 답과 할 일(`hint`·`nextAction.how`) |
+| `reference-png-approximate` | `get_screenshot`과 같은 그림을 다 그리지 못한 참조 PNG(아래 "`referencePng`도 플러그인이 그립니다") | 캔버스가 보여 주는 그림과 `referencePngNote` |
+| `plugin-older-than-server` | 이 devup-mcp보다 먼저 빌드된 플러그인이 모르는 읽기 | 플러그인의 답과 할 일(플러그인 갱신) |
+| `plugin-answer-too-large` | 조각으로 내주기 전 플러그인이 답 하나에 담지 못한 참조 PNG | 플러그인의 답 |
+| `value-from-direct-path` | direct가 읽은 큰 값의 이어 읽기 — 그 바이트는 direct의 렌더러에서만 나옴 | 생기지 않음 |
+
+direct의 답이 오류이거나 공식 MCP의 텍스트 상한(20 KB)에서 잘렸으면 플러그인의 답을 그대로 씁니다. 쓸 수 있는 답을 버리고 실패를 올리지는 않습니다.
 
 ### 링크 없이 쓰기 — 플러그인이 연 파일과 Figma 선택
 
@@ -438,7 +448,8 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 ```
 
 - `fileKey`는 **플러그인이 보고한 키**뿐입니다. 보고하지 못했으면 `null`과 `fileKeyReason`이 오고, 요청에 실려 온 키가 있었다면 `requestedFileKey`로 따로 보고합니다 — 그 키를 파일의 키로 내세우지 않습니다. `sourceMap.source.fileKey`도 같은 규칙을 따릅니다.
-- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지는 direct 경로가 답했습니다 — 예컨대 devup-mcp보다 오래된 플러그인이 모르는 읽기(아래 "알아 두어야 할 것").
+- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지는 direct 경로가 답했습니다.
+- `directFallbacks`·`directFallbackReasons`·`directFallbackHint`는 플러그인이 답했지만 direct 경로가 다시 읽은 읽기의 수, 그 이유(위 표), 그리고 사람이 할 일입니다. 다시 읽은 것이 없으면 나오지 않습니다.
 - 캐시된 수집을 다시 투영한 응답은 `kind: "artifact"`를 유지하고 `origin: "bridge"`와 같은 출처 정보를 답니다.
 
 ### 브리지 플러그인 — 한도를 쓰지 않고 읽기
@@ -489,10 +500,16 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 - **`ws://127.0.0.1`은 쓸 수 없습니다.** Figma의 `allowedDomains`가 그 주소를 거부해 manifest 전체가 무효가 되고 플러그인이 아예 로드되지 않습니다. `localhost`여야 합니다.
 - **한 화면은 한 번의 읽기로 옵니다.** 브리지는 플러그인에게 화면 하나를 봉투 하나(최대 8 MiB)에 담아 달라고 하고, 디코더도 그 크기까지 받습니다. 플러그인이 파일 키를 보고하지 못하면 봉투 안의 키 자리(`source`·`snapshot`)를 요청한 파일로 채웁니다. 예전에는 둘 다 맞지 않아 64 KiB가 넘는 화면이나 키 없는 플러그인의 봉투가 모두 버려지고, 노드마다 읽는 예전 경로로 떨어졌습니다. 그 경로는 breakpoint 형제 폭을 모으지 않아 `responsiveTsx`도 나오지 않았습니다. 실제 공지 화면은 4번 읽던 것이 1번이 되고, 세 폭이 함께 수집됩니다.
 - **Figma 창을 뒤로 보내면 느려집니다.** 브라우저가 백그라운드 플러그인을 분당 한 번꼴로 깨우기 때문에, 앞에서 160ms인 snapshot이 뒤에서는 11초가 됩니다. 수집 중에는 Figma를 앞에 두세요.
-- **그 파일을 화면에 띄워 두세요.** 플러그인이 도는 파일이 화면에서 2~3분 사라지면 — 탭이 다른 파일의 탭 뒤로 가거나, 탭은 앞에 둔 채 Figma 창을 최소화해도 — Figma 런타임은 아직 불러오지 않은 데이터를 읽을 때마다 10초 뒤 "Unable to establish connection to Figma"로 답합니다(실측: 탭이 뒤에 간 뒤 1분째는 정상, 2분째부터 실패. 창만 최소화하면 2분째 정상, 3분째부터 실패). 이미 불러온 변수·스타일은 한동안 답하지만(10분째도 해석) 그것마저 빠지면 화면은 받아지는데 토큰 대신 값이 들어갑니다(공지 화면: 37개 중 0개 해석). 창을 열고 그 파일의 탭을 누르면 곧바로 풀리며, 응답의 `hint`·`nextAction.how`가 그렇게 말합니다.
+- **그 파일을 화면에 띄워 두세요.** 플러그인이 도는 파일이 화면에서 2~3분 사라지면 — 탭이 다른 파일의 탭 뒤로 가거나, 탭은 앞에 둔 채 Figma 창을 최소화하거나, 창이 다른 창에 가리기만 해도 — Figma 런타임은 아직 불러오지 않은 데이터를 읽을 때마다 10초 뒤 "Unable to establish connection to Figma"로 답합니다(실측: 탭이 뒤에 간 뒤 1분째는 정상, 2분째부터 실패. 창만 최소화하면 2분째 정상, 3분째부터 실패). 이미 불러온 변수·스타일은 한동안 답하지만(10분째도 해석) 그것마저 빠지면 화면은 받아지는데 토큰 대신 값이 들어갑니다(공지 화면: 37개 중 0개 해석). 창을 앞으로 가져와 그 파일의 탭을 누르면 곧바로 풀리며, 응답의 `hint`·`nextAction.how`가 그렇게 말합니다. **로그인이 되어 있으면 그 읽기는 direct 경로가 다시 읽어**(한도를 씁니다) 결과가 달라지지 않고, `source.directFallbackReasons`의 `file-out-of-sight`와 `directFallbackHint`가 그 사실과 할 일을 말합니다. 실측: Figma 창을 다른 창에 가린 지 5분 뒤 파일 전체 검색에서 플러그인의 읽기 하나가 그렇게 돌아왔고, direct가 그 하나를 다시 읽어 Figma를 앞에 두고 한 검색과 같은 100건을 돌려줬습니다(15 s, 앞에 두면 0.4 s).
 - **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일(그 파일의 탭 누르기)을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
-- **`referencePng`도 플러그인이 그립니다 — 거절하지 않습니다.** `get_screenshot`은 노드 **하나만** 그립니다. 옆·위·아래의 다른 레이어는 넣지 않고, 노드가 속한 프레임·Section의 채움과 페이지 배경 위에, 노드의 렌더 영역(그림자·밖으로 넘친 자식 포함, 잘라 내는 조상이 자른 만큼)으로 그립니다. 같은 파일의 노드 14개로 확인한 규칙입니다(아래 Header를 위에 둔 배너, 배너를 아래에 둔 투명 Header, 그림자가 있는 카드, 글자 영역만큼 잘린 텍스트, 담긴 프레임이 자른 사진 포함). 플러그인 API로는 그 그림을 그대로 주문할 수 없어, 플러그인은 늘 같은 영역(`useAbsoluteBounds: false`, scale 1이되 긴 변은 direct의 `maxDimension`과 같은 8192px까지, sRGB)으로 가장 가까운 그림을 그립니다. **노드 아래가 한 가지 색이면**(덮는 단색 채움뿐이고, 반투명·블렌드 레이어나 테두리·둥근 모서리·안쪽 효과·마스크가 닿지 않으면) 노드만(`contentsOnly: true`) 그리고 그 색을 알려 줘 같은 그림이 됩니다. **아니면**(사진·그라디언트로 칠한 프레임 안 등) 캔버스가 보여 주는 그 자리를(`contentsOnly: false`) 그리고 그 export에 빠지는 페이지 배경을 알려 줍니다. 그 자리에 다른 레이어가 닿으면 그 레이어도 그림에 들어가므로(`get_screenshot`에는 없음) 응답의 `referencePngNote`가 그 레이어와 이유를 댑니다. 브리지는 알려 준 색 위로 평평하게 덮어 `get_screenshot`과 같은 이미지 블록 하나로 돌려주고, 수집기는 두 경로의 답을 같은 검증으로 받습니다.
-- **devup-mcp보다 오래된 플러그인은 새 읽기를 모른다고 답합니다**(`DEVUP_BRIDGE_UNKNOWN_SCRIPT`). 시도조차 되지 않은 읽기라, 플러그인이 파일 키를 보고했으면 그 읽기만 direct 경로가 대신 읽습니다(한도를 씁니다). direct도 로그인이 없어 거절하면 로그인 요구가 아니라 플러그인의 답과 할 일 — 플러그인을 불러온 저장소를 갱신하고 다시 실행 — 이 옵니다. 참조 PNG가 브리지 답 하나(8 MiB)를 넘을 때(`DEVUP_REFERENCE_PNG_TOO_LARGE`, direct는 16 MiB까지 받습니다)도 같은 길을 갑니다.
+- **`referencePng`도 플러그인이 그립니다 — 거절하지 않습니다.** `get_screenshot`은 노드를 조상들의 맥락 — 채움(그라디언트·사진 포함), 잘라 내기, 불투명도, 블렌드 모드, 레이어 블러, 드롭 섀도 — 안에서 그리되 **다른 레이어는 모두 빼고**, 노드의 렌더 영역(그림자·밖으로 넘친 자식 포함, 잘라 내는 조상이 자른 만큼)으로 그립니다. 플러그인은 그 영역을 늘 같은 설정(`useAbsoluteBounds: false`, scale 1이되 긴 변은 direct의 `maxDimension`과 같은 8192px까지, sRGB)으로 export합니다.
+  - **그 영역에 다른 레이어가 닿지 않으면** 캔버스의 그 자리(`contentsOnly: false`)가 곧 그 그림입니다. 플러그인은 그것과 export에 빠지는 페이지 배경을 보내고, 브리지가 그 위로 평평하게 덮습니다.
+  - **닿으면** 플러그인은 노드만(`contentsOnly: true`) export하고 조상들을 설명합니다 — 변환·크기·모서리, 채움, 불투명도·블렌드, 잘라 내기, 효과, 마스크, 채움에 쓴 사진의 원본. 나머지는 devup-mcp가 그립니다: 단색·그라디언트(선형·방사·각·마름모)·사진(FILL·FIT·TILE·CROP) 채움, 둥근 모서리로 잘라 내기, 블렌드 모드 18가지, 알파·밝기 마스크, 레이어 블러, spread 없는 드롭 섀도, 노드 자신의 배경 블러. 노드의 배경 블러가 아래 레이어를 머금으면 노드를 제 채움과 자식들의 export로 그립니다.
+  - **그리지 못하는 것**이 있으면 캔버스의 그 자리를 그리고, 응답의 `referencePngNote`가 이유와 닿은 레이어를 댑니다. 조상의 테두리·안쪽 효과·배경 블러, 회전·필터가 있는 사진 채움, 그 밖의 칠, spread가 있는 그림자, 8M 픽셀이 넘는 영역, 64 MB가 넘는 사진, 플러그인이 export하지 못한 부분이 여기에 듭니다. 로그인이 되어 있으면 direct의 `get_screenshot`이 대신 답합니다(`reference-png-approximate`).
+  - **답 하나(6 MiB)에 들어가지 않는 답**은 플러그인이 붙들어 두고 4 MiB 조각으로 내주며, 브리지가 이어 받습니다(최대 96 MiB). 조각의 위치가 어긋나지 않도록 붙들어 둔 글은 ASCII로 씁니다. 레이어 이름은 흔히 한글입니다.
+
+  브리지는 `get_screenshot`과 같은 이미지 블록 하나로 돌려주고, 수집기는 두 경로의 답을 같은 검증으로 받습니다.
+- **devup-mcp보다 오래된 플러그인은 새 읽기를 모른다고 답합니다**(`DEVUP_BRIDGE_UNKNOWN_SCRIPT`). 시도조차 되지 않은 읽기라, 플러그인이 파일 키를 보고했고 로그인이 되어 있으면 그 읽기만 direct 경로가 대신 읽습니다(한도를 씁니다). 로그인이 없으면 로그인 요구가 아니라 플러그인의 답과 할 일 — 플러그인을 불러온 저장소를 갱신하고 다시 실행 — 이 옵니다. 조각으로 내주기 전의 플러그인이 참조 PNG를 브리지 답 하나(8 MiB)에 담지 못할 때(`DEVUP_REFERENCE_PNG_TOO_LARGE`, direct는 16 MiB까지 받습니다)도 같은 길을 갑니다.
 
 자세한 내부 구조와 스크립트 생성 방식은 [`plugin/README.md`](plugin/README.md)에 있습니다.
 
@@ -634,7 +651,13 @@ devup://artifact/{artifactId}/outputs/{outputId}/manifest
 devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
 ``` `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
-`referencePng`는 선택했을 때만 읽기를 정확히 한 번 더 합니다. 브리지가 맡은 파일이면 플러그인이 노드를 PNG로 export하고(위 "브리지 플러그인"), 아니면 공식 read-only `get_screenshot`을 부릅니다. 두 경로의 PNG는 크기는 같아도 픽셀 값이 조금씩 다릅니다 — 플러그인이 노드만 그린 12개에서 사진 그리드만 최대 37/255(16/255를 넘는 픽셀 0.07%)였고 나머지는 최대 16/255, 대부분의 차이는 1/255입니다. 캔버스가 보여 주는 자리를 그린 2개(사진으로 칠한 프레임 안)는 최대 15/255·9/255였습니다. 렌더 하네스(`--channel-tolerance 24`)의 점수는 reference를 어느 경로에서 받아도 화면마다 0.02%p 안에서 같았습니다. 그래도 한 기준선의 reference는 한 경로에서 받으세요 — `source.bridgeReads`가 `collection.figmaToolCalls`와 같으면 PNG도 플러그인이 그린 것입니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
+`referencePng`는 선택했을 때만 읽기를 정확히 한 번 더 합니다. 브리지가 맡은 파일이면 플러그인이 노드를 PNG로 export하고(위 "브리지 플러그인"), 아니면 공식 read-only `get_screenshot`을 부릅니다. 두 경로의 PNG는 크기는 같아도 픽셀 값이 조금씩 다릅니다. 데스크톱 앱과 Figma 서버의 렌더러가 달라서입니다. 같은 파일에서 `get_screenshot`과 비교해 잰 값은 다음과 같습니다.
+
+- **다른 레이어가 닿아 devup-mcp가 그린 노드 6개:** 픽셀의 99.65~99.97%가 2/255 안이고 최대 15/255입니다. 6개는 그라디언트 위, 블러·그림자·불투명도가 걸린 조상 아래, 배경 블러를 가진 노드, 회전한 노드였습니다. 예외는 블러가 걸린 조상을 섹션이 자르는 가장자리 한 줄로, 84/255이고 그 노드 픽셀의 0.19%입니다.
+- **캔버스 그대로인 화면 11개:** 99.98% 이상이 2/255 안이고 최대 21/255입니다. 사진 그리드만 90.5%, 최대 37/255(16/255 초과 0.07%)입니다.
+- **캔버스 그대로인 노드 12개:** 99.09% 이상이 2/255 안입니다. 작은 블러 글자가 있는 한 노드만 94.45%, 최대 67/255인데, 이는 플러그인의 export 자체가 그렇습니다.
+
+렌더 하네스(`--channel-tolerance 24`)의 점수는 reference를 어느 경로에서 받아도 화면마다 0.02%p 안에서 같았습니다. 그래도 한 기준선의 reference는 한 경로에서 받으세요 — `source.bridgeReads`가 `collection.figmaToolCalls`와 같으면 PNG도 플러그인이 그린 것입니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 

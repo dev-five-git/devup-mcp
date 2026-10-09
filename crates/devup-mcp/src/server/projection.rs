@@ -1200,6 +1200,28 @@ pub(super) async fn complete_operation(
 /// attached. So the agent could not tell which path had served it, and was
 /// told its own invention was the file.
 fn attach_bridge_source(source: &mut Value, payload: &CollectedPayload) {
+    let fallbacks = &payload.stats.direct_fallbacks;
+    if !fallbacks.is_empty() {
+        let reasons: std::collections::BTreeSet<&str> =
+            fallbacks.iter().map(String::as_str).collect();
+        let hints: Vec<&str> = reasons
+            .iter()
+            .filter_map(|reason| match *reason {
+                "file-out-of-sight" => Some(
+                    "Figma had stopped fetching data for the file because it was out of sight - its tab behind another tab, or the window minimized or covered by another window - so the plugin's reads came back short and were read again on the metered direct path. Keep the file visible in the Figma desktop app to keep every read on the plugin.",
+                ),
+                "plugin-older-than-server" => Some(
+                    "The Devup Bridge plugin is older than this devup-mcp and did not know some reads, so they went to the metered direct path. Update the repository the plugin was imported from and run the plugin again.",
+                ),
+                _ => None,
+            })
+            .collect();
+        source["directFallbacks"] = json!(fallbacks.len());
+        source["directFallbackReasons"] = json!(reasons);
+        if !hints.is_empty() {
+            source["directFallbackHint"] = json!(hints.join(" "));
+        }
+    }
     let Some(served) = &payload.stats.bridge else {
         return;
     };

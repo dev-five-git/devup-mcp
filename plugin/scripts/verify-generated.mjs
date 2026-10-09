@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 
-const { SCRIPTS, pageCatalog, referencePng, usedResources } = await import(
+const { SCRIPTS, pageCatalog, referencePng, referencePngChunk, usedResources } = await import(
   '../src/generated/scripts.js'
 )
 
@@ -23,6 +23,7 @@ const EXPECTED = [
   'metadata',
   'pageCatalog',
   'referencePng',
+  'referencePngChunk',
   'search',
   'sectionIndex',
   'snapshot',
@@ -65,12 +66,12 @@ assert.equal(catalog.nodes.length, 2)
 assert.equal(catalog.nodes[0].fields.name, 'Page 1')
 assert.equal(catalog.nodes[1].type, 'PAGE')
 
-// 참조 PNG 는 수집기가 공식 `get_screenshot` 과 같은 그림으로 받으므로, 어떤
-// 설정으로 export 하는지와 — 노드 아래가 한 가지 색이 아니면 — 무엇을 대신 그리고
-// 무엇을 알리는지가 계약이다. 거절하는 경우는 없다.
-let exported
+// 참조 PNG 는 수집기가 공식 `get_screenshot` 과 같은 그림으로 받으므로, 무엇을
+// export 하는지 — 다른 레이어가 닿지 않으면 캔버스, 닿으면 노드만과 조상들의 설명 —
+// 와 언제 그것을 접는지가 계약이다. 거절하는 경우는 없다.
+const exports = []
 const solid = (value, opacity = 1) => ({
-  type: 'SOLID', visible: true, opacity, color: { r: value / 255, g: value / 255, b: value / 255 },
+  type: 'SOLID', visible: true, opacity, blendMode: 'NORMAL', color: { r: value / 255, g: value / 255, b: value / 255 },
 })
 const box = (x, y, width, height) => ({ x, y, width, height })
 const page = { type: 'PAGE', backgrounds: [solid(30)], children: [] }
@@ -79,63 +80,131 @@ const nest = (parent, child) => {
   parent.children = [...(parent.children ?? []), child]
   return child
 }
-const node = (fields) => ({
-  type: 'FRAME', name: 'n', visible: true, opacity: 1, blendMode: 'PASS_THROUGH', fills: [], strokes: [], effects: [],
-  children: [],
-  exportAsync: async (settings) => {
-    exported = settings
-    return new Uint8Array([137, 80, 78, 71])
-  },
-  ...fields,
-  absoluteRenderBounds: fields.absoluteRenderBounds ?? fields.absoluteBoundingBox,
-})
-const section = nest(page, node({ type: 'SECTION', fills: [solid(255, 0.16)], absoluteBoundingBox: box(0, 0, 4000, 12000) }))
-const screen = nest(section, node({
-  absoluteBoundingBox: box(100, 100, 360, 740), absoluteRenderBounds: box(96, 100, 368, 748),
+// 내보내는 PNG 의 머리말에 크기를 싣는다(가로 4, 세로 2).
+const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 4, 0, 0, 0, 2])
+const node = (fields) => {
+  const made = {
+    type: 'FRAME', name: 'n', visible: true, opacity: 1, blendMode: 'PASS_THROUGH', fills: [], strokes: [], effects: [],
+    children: [], topLeftRadius: 0, topRightRadius: 0, bottomRightRadius: 0, bottomLeftRadius: 0,
+    exportAsync: async (settings) => {
+      exports.push({ id: made.id, ...settings })
+      return png
+    },
+    findOne(test) {
+      for (const child of this.children) {
+        if (test(child)) return child
+        const deeper = child.findOne && child.findOne(test)
+        if (deeper) return deeper
+      }
+      return null
+    },
+    ...fields,
+  }
+  const at = fields.absoluteBoundingBox
+  made.absoluteRenderBounds = fields.absoluteRenderBounds ?? at
+  made.absoluteTransform = [[1, 0, at.x], [0, 1, at.y]]
+  made.width = at.width
+  made.height = at.height
+  return made
+}
+const gradient = {
+  type: 'GRADIENT_LINEAR', visible: true, opacity: 1, blendMode: 'NORMAL', gradientTransform: [[1, 0, 0], [0, 1, 0]],
+  gradientStops: [{ position: 0, color: { r: 1, g: 1, b: 1, a: 1 } }, { position: 1, color: { r: 0, g: 0, b: 0, a: 1 } }],
+}
+const section = nest(page, node({ id: 's', type: 'SECTION', fills: [solid(255, 0.16)], absoluteBoundingBox: box(0, 0, 4000, 12000) }))
+const screen = nest(section, node({ id: '1:2', absoluteBoundingBox: box(100, 100, 360, 740), absoluteRenderBounds: box(96, 100, 368, 748) }))
+const tall = nest(section, node({ id: '1:3', absoluteBoundingBox: box(500, 100, 1920, 9000) }))
+const card = nest(section, node({ id: 'card', fills: [gradient], clipsContent: true, absoluteBoundingBox: box(3000, 0, 400, 400) }))
+const inCard = nest(card, node({ id: '1:4', absoluteBoundingBox: box(3010, 10, 100, 100) }))
+nest(card, node({ id: 'cap', type: 'TEXT', name: 'Caption', absoluteBoundingBox: box(3050, 50, 300, 40) }))
+nest(section, node({ id: 'under', type: 'TEXT', name: 'Under', absoluteBoundingBox: box(5010, 10, 50, 50) }))
+const plate = nest(section, node({ id: 'plate', fills: [solid(200)], absoluteBoundingBox: box(5000, 0, 400, 400) }))
+const onPlate = nest(plate, node({ id: '1:5', absoluteBoundingBox: box(5000, 0, 100, 100) }))
+const inset = nest(section, node({ id: 'inset', fills: [solid(200)], effects: [{ type: 'INNER_SHADOW', visible: true }], absoluteBoundingBox: box(6000, 0, 400, 400) }))
+const inInset = nest(inset, node({ id: '1:6', absoluteBoundingBox: box(6010, 10, 100, 100) }))
+nest(inset, node({ id: 'over', type: 'TEXT', name: '덮는 글', absoluteBoundingBox: box(6050, 50, 100, 40) }))
+const shaky = nest(card, node({ id: '1:9', absoluteBoundingBox: box(3200, 10, 100, 100) }))
+const exportShaky = shaky.exportAsync
+shaky.exportAsync = async (settings) => {
+  if (settings.contentsOnly) throw new Error('Unable to establish connection to Figma after 10 seconds.')
+  return exportShaky(settings)
+}
+const glassHost = nest(section, node({ id: 'glassHost', fills: [solid(68)], absoluteBoundingBox: box(7000, 0, 400, 400) }))
+nest(glassHost, node({ id: 'blob', type: 'TEXT', name: 'Blob', absoluteBoundingBox: box(7100, 100, 100, 100) }))
+const glass = nest(glassHost, node({
+  id: '1:7', fills: [solid(255, 0.2)], effects: [{ type: 'BACKGROUND_BLUR', visible: true, radius: 10 }],
+  absoluteBoundingBox: box(7000, 0, 240, 240),
 }))
-const tall = nest(section, node({ absoluteBoundingBox: box(500, 100, 1920, 9000) }))
-const hero = nest(section, node({ fills: [{ type: 'IMAGE', visible: true }], absoluteBoundingBox: box(0, 10000, 1920, 900) }))
-const inHero = nest(hero, node({ absoluteBoundingBox: box(10, 10010, 100, 100) }))
-const captioned = nest(hero, node({ absoluteBoundingBox: box(400, 10010, 100, 100) }))
-nest(hero, node({ type: 'TEXT', name: 'Caption', absoluteBoundingBox: box(450, 10050, 300, 40) }))
-nest(section, node({ isMask: true, absoluteBoundingBox: box(3000, 0, 100, 100) }))
-const masked = nest(section, node({ absoluteBoundingBox: box(3000, 0, 100, 100) }))
-const nodes = { '1:2': screen, '1:3': tall, '1:4': inHero, '1:5': masked, '1:6': captioned }
+nest(glass, node({ id: 'label', type: 'TEXT', name: 'Label', absoluteBoundingBox: box(7010, 10, 50, 20) }))
+const maskHost = nest(section, node({ id: 'maskHost', fills: [gradient], absoluteBoundingBox: box(8000, 0, 400, 400) }))
+nest(maskHost, node({ id: 'mask', isMask: true, maskType: 'ALPHA', absoluteBoundingBox: box(8000, 0, 100, 100) }))
+const maskedNode = nest(maskHost, node({ id: '1:8', absoluteBoundingBox: box(8000, 0, 100, 100) }))
+nest(maskHost, node({ id: 'cover', type: 'TEXT', name: 'Cover', absoluteBoundingBox: box(8050, 50, 100, 40) }))
+const nodes = Object.fromEntries([screen, tall, inCard, onPlate, inInset, glass, maskedNode, shaky].map((n) => [n.id, n]))
 globalThis.figma = {
+  mixed: Symbol('mixed'),
   getNodeByIdAsync: async (id) => nodes[id] ?? null,
+  getImageByHash: () => null,
   base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
 }
-const reference = await referencePng({ nodeId: '1:2' })
-assert.deepEqual(exported, {
-  format: 'PNG',
-  constraint: { type: 'SCALE', value: 1 },
-  contentsOnly: true,
-  useAbsoluteBounds: false,
-  colorProfile: 'SRGB',
-})
-assert.deepEqual(reference, {
-  kind: 'devupReferencePng',
-  nodeId: '1:2',
-  mimeType: 'image/png',
-  byteLength: 4,
-  data: 'iVBORw==',
-  backdrop: [66, 66, 66],
-})
-await referencePng({ nodeId: '1:3' })
-assert.deepEqual(exported.constraint, { type: 'HEIGHT', value: 8192 })
-// 사진 위의 노드는 캔버스가 보여 주는 그 자리를 그리고, 그 export 에 없는 페이지 배경만 알린다.
-const overImage = await referencePng({ nodeId: '1:4' })
-assert.equal(exported.contentsOnly, false)
-assert.equal(exported.useAbsoluteBounds, false)
-assert.deepEqual(overImage.backdrop, [30, 30, 30])
-assert.equal(overImage.note, undefined)
-// 그 자리에 다른 레이어가 닿으면 그림에 들어가므로 이름을 댄다. 마스크는 그려지지 않으니 대지 않는다.
-const withCaption = await referencePng({ nodeId: '1:6' })
-assert.match(withCaption.note, /FRAME "n" is painted with IMAGE.*TEXT "Caption" reaches into it/)
-const clipped = await referencePng({ nodeId: '1:5' })
-assert.equal(exported.contentsOnly, false)
-assert.equal(clipped.note, undefined)
+const run = async (id) => {
+  exports.length = 0
+  return referencePng({ nodeId: id })
+}
+// 닿는 레이어가 없으면 캔버스가 그 그림이다 — 페이지 배경만 알린다.
+const alone = await run('1:2')
+assert.deepEqual(exports, [{ id: '1:2', format: 'PNG', constraint: { type: 'SCALE', value: 1 }, contentsOnly: false, useAbsoluteBounds: false, colorProfile: 'SRGB' }])
+assert.deepEqual(alone, { kind: 'devupReferencePng', nodeId: '1:2', mimeType: 'image/png', byteLength: 24, data: Buffer.from(png).toString('base64'), backdrop: [30, 30, 30] })
+await run('1:3')
+assert.deepEqual(exports[0].constraint, { type: 'HEIGHT', value: 8192 })
+// 그라디언트 위에 다른 레이어가 닿으면 노드만 export 하고 조상을 설명한다. 캔버스도 함께 실린다.
+const composed = await run('1:4')
+assert.deepEqual(exports.map((e) => [e.id, e.contentsOnly]), [['1:4', true], ['1:4', false]])
+assert.equal(composed.compose.layers.length, 2)
+assert.equal(composed.compose.layers[1].fills[0].type, 'GRADIENT_LINEAR')
+assert.deepEqual(composed.compose.node.picture.area, box(3010, 10, 100, 100))
+assert.deepEqual([composed.compose.width, composed.compose.height], [4, 2])
+assert.match(composed.reaching, /TEXT "Caption"/)
+assert.equal(composed.approximate, undefined)
+// 아래에 깔린 레이어가 불투명한 단색 아래 숨으면 닿는 것으로 치지 않는다.
+const hidden = await run('1:5')
+assert.equal(hidden.compose, undefined)
+// 그리지 못하는 효과가 있으면 캔버스를 쓰고 이유를 단다.
+const inner = await run('1:6')
+assert.match(inner.approximate, /INNER_SHADOW/)
+assert.match(inner.note, /TEXT "덮는 글" reach into it/)
+// 노드만의 export 가 실패해도 거절하지 않는다 — 캔버스 그림에 그 이유를 단다.
+const shaken = await run('1:9')
+assert.equal(shaken.compose, undefined)
+assert.equal(shaken.data, Buffer.from(png).toString('base64'))
+assert.match(shaken.approximate, /could not be exported: Unable to establish connection to Figma/)
+// 배경 흐림이 아래 레이어를 머금으면 노드를 제 칠과 자식들의 export 로 그린다.
+const parts = await run('1:7')
+assert.ok(parts.compose.node.own, JSON.stringify(parts))
+assert.deepEqual(parts.compose.node.children.map((c) => c.area), [box(7010, 10, 50, 20)])
+assert.equal(parts.compose.node.picture, undefined)
+// 마스크가 노드를 자르면 그 마스크의 export 가 실린다.
+const clippedByMask = await run('1:8')
+assert.deepEqual(clippedByMask.compose.node.mask.area, box(8000, 0, 100, 100))
 await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
+// 답 하나에 들어가지 않는 답은 붙들어 두고 조각으로 내준다. 붙든 글은 ASCII 라
+// 오프셋이 여기(UTF-16)와 devup-mcp(바이트)에서 같은 자리를 가리킨다.
+const big = new Uint8Array(5 * 1024 * 1024)
+big.set(png)
+inInset.exportAsync = async () => big
+const held = await run('1:6')
+assert.equal(held.kind, 'devupReferencePngChunked')
+let text = ''
+for (let piece; !piece || !piece.complete; ) {
+  piece = await referencePngChunk({ largeValue: { id: held.id, offset: text.length } })
+  assert.equal(piece.offset, text.length)
+  text += piece.text
+}
+assert.equal(text.length, held.length)
+assert.match(text, /^[\x20-\x7e]*$/)
+assert.equal(JSON.parse(text).byteLength, big.length)
+assert.match(JSON.parse(text).note, /TEXT "덮는 글"/)
+await assert.rejects(referencePngChunk({ largeValue: { id: held.id, offset: 0 } }), /DEVUP_REFERENCE_PNG_ANSWER_GONE/)
 
 const unreachable = 'Unable to establish connection to Figma after 10 seconds.'
 const refuse = async () => {
@@ -158,5 +227,5 @@ assert.deepEqual(
 )
 
 console.log(
-  `verified ${EXPECTED.length} generated scripts (pageCatalog, referencePng and usedResources executed)`,
+  `verified ${EXPECTED.length} generated scripts (pageCatalog, referencePng, referencePngChunk and usedResources executed)`,
 )

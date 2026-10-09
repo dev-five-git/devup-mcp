@@ -18,9 +18,9 @@ use serde_json::{Map, Value, json};
 use tokio::sync::Mutex;
 
 use super::{
-    AssetRequest, CredentialStore, DevupError, LargeValueReadOptions, OAuthManager, ResourceBatch,
-    UpstreamFailureContext, UpstreamFailureKind, collector::MAX_REFERENCE_PNG_DIMENSION,
-    upstream_failure_error,
+    AssetRequest, AuthStatus, CredentialStore, DevupError, LargeValueReadOptions, OAuthManager,
+    ResourceBatch, UpstreamFailureContext, UpstreamFailureKind,
+    collector::MAX_REFERENCE_PNG_DIMENSION, upstream_failure_error,
 };
 
 const DEFAULT_FIGMA_MCP_ENDPOINT: &str = "https://mcp.figma.com/mcp";
@@ -856,6 +856,14 @@ pub trait FigmaUpstream: Send + Sync {
     async fn is_metered(&self, _call: &ReadToolCall) -> bool {
         true
     }
+
+    /// 지금 보내면 시도라도 되는지. 원격은 저장된 토큰이 있어야 한다.
+    ///
+    /// 플러그인이 답한 읽기를 원격으로 다시 읽기 전에 묻는다. 토큰이 없으면 그 읽기는
+    /// 로그인 요구로 끝날 뿐인데, 그 전에 한도의 속도에 맞춰 1분까지 기다리게 된다.
+    async fn has_credentials(&self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone)]
@@ -923,6 +931,10 @@ impl<S: CredentialStore> FigmaUpstream for RemoteFigmaClient<S> {
         let raw = serde_json::to_value(result)
             .map_err(|error| map_upstream_error(UpstreamFailureContext::Decode, error))?;
         Ok(UpstreamResult { raw })
+    }
+
+    async fn has_credentials(&self) -> bool {
+        matches!(self.oauth.status().await, Ok(AuthStatus::Connected))
     }
 }
 
@@ -1007,14 +1019,20 @@ impl ReadToolCall {
 
         let job = match self {
             // `metadata.js` 의 JSON 과 공식 경로의 XML 은 `find_metadata` 에서
-            // 같은 `MetadataDocument` 로 환원된다. 노드 없는 읽기는 최상위 페이지
-            // 목록이라는 다른 계약이므로 제외한다.
+            // 같은 `MetadataDocument` 로 환원된다.
             Self::Metadata {
                 node_id: Some(node_id),
                 ..
             } => BridgeJob {
                 script: "metadata",
                 params: json!({ "nodeId": node_id }),
+            },
+
+            // 노드 없는 읽기는 최상위 페이지 목록이다. 플러그인의 페이지 목록을 브리지
+            // 클라이언트가 공식 `get_metadata` 와 같은 글로 감싼다.
+            Self::Metadata { node_id: None, .. } => BridgeJob {
+                script: BuiltinScript::PageCatalog.plugin_name(),
+                params: json!({}),
             },
 
             // 공식 `get_screenshot` 대신 플러그인이 노드를 PNG 로 export 한다.
@@ -1024,10 +1042,11 @@ impl ReadToolCall {
                 params: json!({ "nodeId": node_id }),
             },
 
-            Self::Metadata { .. }
-            | Self::VariableDefs { .. }
+            Self::VariableDefs { .. }
             | Self::DesignContext { .. }
-            | Self::CodeConnectMap { .. } => return None,
+            | Self::CodeConnectMap { .. } => {
+                return None;
+            }
 
             Self::Snapshot {
                 node_id,

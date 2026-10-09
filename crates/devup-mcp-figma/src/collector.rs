@@ -169,6 +169,12 @@ pub struct CollectionStats {
     /// naming the plugin; the rest went to Figma's metered MCP.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bridge: Option<crate::BridgeServed>,
+    /// Why reads the Devup Bridge plugin answered were read again on the
+    /// metered path, one entry per read: `file-out-of-sight`,
+    /// `reference-png-approximate`, `plugin-older-than-server`,
+    /// `plugin-answer-too-large`, `value-from-direct-path`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub direct_fallbacks: Vec<String>,
 }
 
 impl Default for CollectionStats {
@@ -188,6 +194,7 @@ impl Default for CollectionStats {
             wire_bytes: 0,
             envelope_chunks: 0,
             bridge: None,
+            direct_fallbacks: Vec::new(),
         }
     }
 }
@@ -616,6 +623,10 @@ impl CollectorSession {
         if let Some(served) = crate::BridgeServed::from_result(&result.raw) {
             let reads = self.stats.bridge.as_ref().map_or(0, |bridge| bridge.reads) + served.reads;
             self.stats.bridge = Some(crate::BridgeServed { reads, ..served });
+        }
+        if let Some(reason) = result.raw["_meta"][crate::bridge::DIRECT_FALLBACK_META_KEY].as_str()
+        {
+            self.stats.direct_fallbacks.push(reason.to_owned());
         }
         match pending.kind {
             CallKind::FastSnapshot => {

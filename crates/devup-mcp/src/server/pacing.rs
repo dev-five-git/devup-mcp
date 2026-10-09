@@ -142,6 +142,13 @@ impl CallPacer {
     }
 }
 
+#[async_trait::async_trait]
+impl devup_mcp_figma::Meter for CallPacer {
+    async fn acquire(&self) {
+        CallPacer::acquire(self).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

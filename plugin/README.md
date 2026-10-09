@@ -47,9 +47,11 @@ node --test tests/withdraw.test.mjs   # 커밋할 dist/code.js 가 취소를 지
 쓰면 됩니다. 창을 닫으면 연결이 끊기고 그 파일의 읽기는 다시 공식 MCP 로 갑니다.
 
 수집하는 동안 **그 파일을 화면에 띄워 두십시오.** 탭이 다른 파일의 탭 뒤로 가거나
-Figma 창이 최소화된 지 2~3분이 지나면, Figma 는 아직 불러오지 않은 데이터(다른 페이지,
-인스턴스 안쪽 레이어, 변수와 스타일)를 10초 뒤 "Unable to establish connection to
-Figma" 로 거절합니다. 창을 열고 그 파일의 탭을 누르면 곧바로 풀립니다.
+Figma 창이 최소화되거나 다른 창에 가린 지 2~3분이 지나면, Figma 는 아직 불러오지 않은
+데이터(다른 페이지, 인스턴스 안쪽 레이어, 변수와 스타일)를 10초 뒤 "Unable to establish
+connection to Figma" 로 거절합니다. 창을 앞으로 가져와 그 파일의 탭을 누르면 곧바로
+풀립니다. 로그인이 되어 있으면 그렇게 빠진 읽기는 공식 MCP 가 다시 읽고(한도를 씁니다)
+응답의 `source.directFallbackReasons` 가 `file-out-of-sight` 로 그 사실을 알립니다.
 
 창에 표시되는 점이 상태입니다.
 

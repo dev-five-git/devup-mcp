@@ -293,14 +293,20 @@ impl Services {
             }),
             Bridge::Off => None,
         };
+        let pacer = Arc::new(CallPacer::from_env());
         let upstream: Arc<dyn FigmaUpstream> = match bridge {
-            Some(bridge) => Arc::new(FallbackUpstream::new(
-                BridgeFigmaClient::new(bridge.state()).with_port(bridge.port()),
-                remote,
-            )),
+            Some(bridge) => Arc::new(
+                FallbackUpstream::new(
+                    BridgeFigmaClient::new(bridge.state()).with_port(bridge.port()),
+                    remote,
+                )
+                .with_meter(pacer.clone()),
+            ),
             None => Arc::new(remote),
         };
-        Ok(Self::new(Arc::new(oauth), upstream))
+        let mut services = Self::new(Arc::new(oauth), upstream);
+        services.pacer = pacer;
+        Ok(services)
     }
 }
 
@@ -1220,7 +1226,7 @@ impl DevupServer {
                        Two paths reach Figma: the Devup Bridge plugin running in the Figma desktop app is preferred and needs no login, and OAuth - the metered direct path - is the fallback. \
                        Call status before asking anyone to log in: it reports both paths, the files attached plugins have open with their current page and selection, and the next call to make. `connected` is false, and `status` reads disconnected, only when neither path can serve. \
                        With exactly one plugin attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url. \
-                       login is needed only when no plugin is attached, or for what the bridge cannot serve (a file-scope metadata read). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
+                       login is needed only when no plugin is attached; with one attached it serves every read, and login only lets what the plugin answers short be read again on the metered direct path (data Figma withholds while the file is out of sight, a referencePng it cannot draw as get_screenshot does, a read an older plugin does not know). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
@@ -1258,10 +1264,11 @@ impl DevupServer {
                 return Ok(tool_result(json!({ "status": "configured" })));
             }
             "login" => {
-                // Warned rather than refused: the bridge cannot serve every
-                // read, and whoever asks may need one of those. But reaching
-                // for the metered path while the free one is attached is the
-                // mistake this answer exists to catch, so it says so.
+                // Warned rather than refused: the bridge serves every read,
+                // but the direct path re-reads what the plugin answers short,
+                // and whoever asks may want that. But reaching for the metered
+                // path while the free one is attached is the mistake this
+                // answer exists to catch, so it says so.
                 let bridge_attached = self
                     .services
                     .upstream
@@ -1272,7 +1279,7 @@ impl DevupServer {
                 let mut report = self.connection_report().await.map_err(to_mcp_error)?;
                 if bridge_attached {
                     report["warning"] = json!(
-                        "A bridge is attached; login is only needed for a file-scope metadata read."
+                        "A bridge is attached and serves every read; login only lets what the plugin answers short - data Figma withholds while the file is out of sight, a reference PNG it cannot draw as get_screenshot does, a read an older plugin does not know - be read again on the metered direct path."
                     );
                 }
                 return Ok(tool_result(report));

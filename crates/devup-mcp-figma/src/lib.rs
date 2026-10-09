@@ -25,7 +25,7 @@ pub use collector::{
 pub use bridge::{
     AttachedFile, BridgeFigmaClient, BridgeIssue, BridgeJob, BridgeOptions, BridgePathSnapshot,
     BridgePeer, BridgeRole, BridgeServed, BridgeServer, BridgeState, DEFAULT_BRIDGE_PORT,
-    FallbackUpstream, NodeRef, PluginContext, PortOwner, PreferredUpstream,
+    FallbackUpstream, Meter, NodeRef, PluginContext, PortOwner, PreferredUpstream,
 };
 pub use credentials::{
     ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,
@@ -80,6 +80,7 @@ pub use url::{BRIDGE_CURRENT_KEY, BRIDGE_CURRENT_URL, FigmaTarget, is_bridge_onl
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 mod original_image;
+mod reference_compose;
 pub use assets::{
     AssetExportOutcome, AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest,
     AssetSelection, AssetStatus, MAX_ASSET_BYTES, PNG_EXPORT_FIELD, SVG_EXPORT_FIELD,

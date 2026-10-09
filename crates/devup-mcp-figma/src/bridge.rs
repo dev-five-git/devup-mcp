@@ -988,25 +988,114 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
     Ok(result)
 }
 
+/// 노드 없는 metadata 읽기를 원격 `get_metadata` 가 주는 모양 — 최상위 페이지 목록 —
+/// 으로 쓴다. 수집기는 두 경로의 답을 같은 파서(`parse_top_level_pages`)로 받는다.
+pub(crate) fn wrap_as_top_level_pages(
+    data: &Value,
+    served: &BridgeServed,
+) -> Result<Value, DevupError> {
+    let pages = data["nodes"]
+        .as_array()
+        .ok_or_else(|| unavailable("the plugin's page catalog has no nodes"))?;
+    let mut text = String::from("Top-level pages of the document:\n");
+    for page in pages {
+        let name = page["fields"]["name"].as_str().unwrap_or_default();
+        text.push_str(&format!(
+            "- {}: {}\n",
+            page["id"].as_str().unwrap_or_default(),
+            name.replace(['\r', '\n'], " ")
+        ));
+    }
+    let mut result = json!({
+        "content": [{ "type": "text", "text": text }],
+        "isError": false,
+        "_meta": {},
+    });
+    result["_meta"][SERVED_META_KEY] = serde_json::to_value(served)
+        .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
+    Ok(result)
+}
+
+/// 참조 PNG 의 답이 브리지 답 하나에 들어가지 않으면 플러그인은 그것을 붙들고 조각으로
+/// 내준다. 이어 받아 하나로 되돌린다 — 원격 `get_screenshot` 이 16 MiB 까지 받는 것을
+/// 브리지도 받는다.
+async fn whole_reference_answer(
+    state: &BridgeState,
+    file_key: &str,
+    data: Value,
+) -> Result<Value, DevupError> {
+    if data["kind"] != "devupReferencePngChunked" {
+        return Ok(data);
+    }
+    let id = data["id"].as_str().unwrap_or_default().to_owned();
+    let length = data["length"].as_u64().unwrap_or(0) as usize;
+    if id.is_empty() || length == 0 || length > REFERENCE_ANSWER_LIMIT {
+        return Err(unavailable(
+            "the plugin's reference PNG answer is too large or unnamed",
+        ));
+    }
+    let mut text = String::with_capacity(length);
+    while text.len() < length {
+        let (piece, _) = state
+            .dispatch(
+                file_key,
+                "referencePngChunk",
+                json!({ "largeValue": { "id": id, "offset": text.len() } }),
+            )
+            .await?;
+        let part = piece["text"].as_str().unwrap_or_default();
+        if piece["offset"].as_u64() != Some(text.len() as u64) || part.is_empty() {
+            return Err(unavailable(
+                "the plugin's reference PNG pieces do not line up",
+            ));
+        }
+        text.push_str(part);
+    }
+    serde_json::from_str(&text)
+        .map_err(|error| unavailable(format!("the plugin's reference PNG answer: {error}")))
+}
+
+/// 조각으로 받는 참조 PNG 답의 상한. 이미지 채움의 원본까지 실으므로 PNG 상한(16 MiB)
+/// 보다 크다.
+const REFERENCE_ANSWER_LIMIT: usize = 96 * 1024 * 1024;
+
+/// 참조 PNG 결과의 `_meta` 에서, 플러그인이 `get_screenshot` 과 같은 그림을 다 그리지
+/// 못했다는 이유를 싣는 자리. 원격 경로가 열려 있으면 그쪽이 대신 답한다.
+const REFERENCE_PNG_APPROXIMATE_META_KEY: &str = "devup/referencePngApproximate";
+
+/// 원격 경로가 브리지 대신 답했을 때 그 이유를 결과의 `_meta` 에 싣는 자리.
+pub(crate) const DIRECT_FALLBACK_META_KEY: &str = "devup/directFallback";
+
 /// 플러그인이 export 한 참조 PNG 를 공식 `get_screenshot` 이 주는 모양 — 이미지
 /// 블록 하나 — 으로 쓴다. 수집기는 두 경로의 답을 같은 디코더로 받는다.
 ///
-/// 그림도 같게 맞춘다. 플러그인이 알려 준 색 — 노드만 그렸으면 조상들의 채움을 페이지
-/// 배경 위에 겹친 것, 캔버스가 보여 주는 자리를 그렸으면 페이지 배경 — 위로 투명한
-/// 자리를 덮는다. `get_screenshot` 은 그 자리를 그 색으로 채워 돌려준다. 그 그림에
-/// `get_screenshot` 이 넣지 않는 레이어가 들어갔을 수 있다는 플러그인의 말은 `_meta` 에
-/// 실어 수집기가 응답으로 옮긴다.
+/// 그림도 같게 맞춘다. 다른 레이어가 닿지 않으면 플러그인은 캔버스가 보여 주는 그
+/// 자리를 export 하고 페이지 배경을 알려 주며, 여기서 그 위로 투명한 자리를 덮는다.
+/// 닿으면 노드만 export 하고 조상들을 설명하며, 여기서 나머지를 그린다
+/// (`reference_compose`). 다 그리지 못한 것이 있으면 그 이유를 `_meta` 에 실어
+/// 원격 경로가 대신 답하게 한다.
 fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
-    let png = data
-        .get("data")
-        .and_then(Value::as_str)
-        .filter(|_| data["kind"] == "devupReferencePng" && data["mimeType"] == "image/png")
-        .ok_or_else(|| {
-            unavailable("the plugin's reference PNG answer is not a devupReferencePng")
-        })?;
-    let png = match named_backdrop(data) {
-        Some(backdrop) => crate::collector::flatten_reference_png(png, backdrop)?,
-        None => png.to_owned(),
+    if data["kind"] != "devupReferencePng" || data["mimeType"] != "image/png" {
+        return Err(unavailable(
+            "the plugin's reference PNG answer is not a devupReferencePng",
+        ));
+    }
+    let composed = data["compose"]
+        .is_object()
+        .then(|| crate::reference_compose::compose(&data["compose"]));
+    let mut failure = None;
+    let png = match composed {
+        Some(Ok(png)) => png,
+        failed => {
+            failure = failed.and_then(Result::err);
+            let png = data["data"].as_str().ok_or_else(|| {
+                unavailable("the plugin's reference PNG answer carries no picture")
+            })?;
+            match named_backdrop(data) {
+                Some(backdrop) => crate::collector::flatten_reference_png(png, backdrop)?,
+                None => png.to_owned(),
+            }
+        }
     };
     let mut result = json!({
         "content": [{ "type": "image", "data": png, "mimeType": "image/png" }],
@@ -1017,6 +1106,18 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
         .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
     if let Some(note) = data.get("note").and_then(Value::as_str) {
         result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(note);
+    }
+    if let Some(reason) = data.get("approximate").and_then(Value::as_str) {
+        result["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY] = json!(reason);
+    }
+    if let Some(error) = failure {
+        result["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY] =
+            json!(format!("devup-mcp could not compose it: {}", error.message));
+        result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(format!(
+            "Drawn as the canvas shows this area: devup-mcp could not compose what get_screenshot draws here ({}). {} reach into it and may show here; get_screenshot leaves other layers out.",
+            error.message,
+            data["reaching"].as_str().unwrap_or("Other layers")
+        ));
     }
     Ok(result)
 }
@@ -1407,8 +1508,18 @@ impl FigmaUpstream for BridgeFigmaClient {
             ..served
         };
         if matches!(call, ReadToolCall::Screenshot { .. }) {
+            let data = whole_reference_answer(&self.state, call.file_key(), data).await?;
+            // 그리는 일은 픽셀마다 도는 계산이라 비동기 작업자를 붙들지 않게 넘긴다.
+            let raw = tokio::task::spawn_blocking(move || wrap_as_image_result(&data, &served))
+                .await
+                .map_err(|error| {
+                    unavailable(format!("composing the reference PNG stopped: {error}"))
+                })??;
+            return Ok(UpstreamResult { raw });
+        }
+        if matches!(call, ReadToolCall::Metadata { node_id: None, .. }) {
             return Ok(UpstreamResult {
-                raw: wrap_as_image_result(&data, &served)?,
+                raw: wrap_as_top_level_pages(&data, &served)?,
             });
         }
         stamp_file_key(&mut data, call.file_key());
@@ -1483,6 +1594,17 @@ fn bridge_batch_budget() -> BatchBudget {
 pub struct FallbackUpstream<P, S> {
     preferred: P,
     secondary: S,
+    meter: Option<Arc<dyn Meter>>,
+}
+
+/// Holds a read bound for the metered path until it fits under the allowance.
+///
+/// The caller paces a read it sends to the metered path itself; a read the
+/// plugin answered and that is then read again there is decided in here, after
+/// the caller's decision, so it waits on this.
+#[async_trait]
+pub trait Meter: Send + Sync {
+    async fn acquire(&self);
 }
 
 impl<P, S> FallbackUpstream<P, S> {
@@ -1490,7 +1612,20 @@ impl<P, S> FallbackUpstream<P, S> {
         Self {
             preferred,
             secondary,
+            meter: None,
         }
+    }
+
+    pub fn with_meter(mut self, meter: Arc<dyn Meter>) -> Self {
+        self.meter = Some(meter);
+        self
+    }
+
+    async fn metered<T>(&self, read: impl std::future::Future<Output = T>) -> T {
+        if let Some(meter) = &self.meter {
+            meter.acquire().await;
+        }
+        read.await
     }
 }
 
@@ -1508,12 +1643,29 @@ where
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
         if self.preferred.can_serve(&call).await {
             let answered = self.preferred.call_read_tool(call.clone()).await?;
-            if is_bridge_only_key(call.file_key()) || !remote_may_answer(&answered.raw) {
+            if is_bridge_only_key(call.file_key()) {
                 return Ok(answered);
             }
-            return match self.secondary.call_read_tool(call).await {
-                Err(error) if !error.retryable => Ok(answered),
-                other => other,
+            let better = remote_does_better(&answered.raw);
+            let Some(reason) = better.or_else(|| remote_may_answer(&answered.raw)) else {
+                return Ok(answered);
+            };
+            if !self.secondary.has_credentials().await {
+                return Ok(answered);
+            }
+            return match self.metered(self.secondary.call_read_tool(call)).await {
+                Ok(direct)
+                    if better.is_some()
+                        && (direct.raw["isError"] == true || cut_short(&direct.raw)) =>
+                {
+                    Ok(answered)
+                }
+                Ok(mut direct) => {
+                    direct.raw["_meta"][DIRECT_FALLBACK_META_KEY] = json!(reason);
+                    Ok(direct)
+                }
+                Err(error) if better.is_none() && error.retryable => Err(error),
+                Err(_) => Ok(answered),
             };
         }
         // 브리지만 읽을 수 있는 키다. 원격으로 넘기면 Figma 에 없는 키를 묻게 되고,
@@ -1560,22 +1712,64 @@ where
     }
 }
 
-/// 원격 경로라면 해낼 수 있는 플러그인의 거절: 이 devup-mcp 보다 먼저 빌드돼
-/// 스크립트를 모른다(읽기는 시도되지 않았다), 또는 참조 PNG 가 브리지 답 하나(8 MiB)를
-/// 넘는다(원격은 16 MiB 까지 받는다).
-fn remote_may_answer(raw: &Value) -> bool {
-    raw["isError"] == true
-        && raw["content"][0]["text"].as_str().is_some_and(|text| {
-            text.contains("DEVUP_BRIDGE_UNKNOWN_SCRIPT")
-                || text.contains("DEVUP_REFERENCE_PNG_TOO_LARGE")
-        })
+/// 플러그인이 답은 했지만 원격 경로가 더 낫게 답할 수 있는 경우와 그 이유. 원격이
+/// 어떤 이유로든 답하지 못하면 플러그인의 답을 그대로 쓴다 — 쓸 수 있는 답을 버리고
+/// 실패를 올리지 않는다.
+///
+/// - Figma 가 화면에 보이지 않는 파일의 데이터를 가져오지 않아 읽기의 일부나 전부가
+///   "Unable to establish connection to Figma" 로 빠졌다(`figma_unreachable_hint`).
+///   원격 경로는 그 상태와 무관하다.
+/// - 참조 PNG 에서 플러그인이 `get_screenshot` 과 같은 그림을 다 그리지 못했다.
+fn remote_does_better(raw: &Value) -> Option<&'static str> {
+    if raw["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY].is_string() {
+        return Some("reference-png-approximate");
+    }
+    texts(raw)
+        .any(|text| crate::figma_unreachable_hint(text).is_some())
+        .then_some("file-out-of-sight")
+}
+
+/// 원격 경로라면 해낼 수 있는 플러그인의 거절과 그 이유:
+///
+/// - 이 devup-mcp 보다 먼저 빌드돼 스크립트를 모른다 — 읽기는 시도되지 않았다.
+/// - 참조 PNG 가 브리지 답 하나(8 MiB)를 넘는다 — 조각으로 내주기 전의 플러그인이다.
+/// - 큰 값의 바이트가 읽기가 가리키는 해시와 다르다 — 그 값은 원격 경로의 렌더러가
+///   만든 것이라(플러그인이 답하지 못해 원격이 읽은 자산의 이어 읽기), 거기서만 같은
+///   바이트가 나온다.
+fn remote_may_answer(raw: &Value) -> Option<&'static str> {
+    if raw["isError"] != true {
+        return None;
+    }
+    let text = raw["content"][0]["text"].as_str()?;
+    [
+        ("DEVUP_BRIDGE_UNKNOWN_SCRIPT", "plugin-older-than-server"),
+        ("DEVUP_REFERENCE_PNG_TOO_LARGE", "plugin-answer-too-large"),
+        ("DEVUP_LARGE_VALUE_CHANGED", "value-from-direct-path"),
+    ]
+    .into_iter()
+    .find_map(|(code, reason)| text.contains(code).then_some(reason))
+}
+
+/// 원격의 답이 공식 MCP 의 텍스트 상한(20 KB)에서 잘렸는지. 플러그인의 크기로 묶은
+/// 읽기를 원격이 다시 읽으면 생기고, 그 답은 디코딩되지 않으므로 플러그인의 답이 낫다.
+fn cut_short(raw: &Value) -> bool {
+    texts(raw).any(|text| text.trim_end().ends_with("// truncated to 20kb"))
+}
+
+fn texts(raw: &Value) -> impl Iterator<Item = &str> {
+    raw["content"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|block| block["text"].as_str())
 }
 
 /// 브리지만 읽을 수 있는 키의 읽기를 브리지가 맡지 못할 때의 거절.
 ///
 /// 두 경우는 고치는 방법이 다르다. 스크립트 읽기면 플러그인이 끊긴 것이니 다시
-/// 띄우면 되고, 그 밖의 읽기(노드 없는 metadata 등)는 브리지가 애초에 못 하는 일이라
-/// 그 파일의 진짜 Figma 링크가 있어야 direct 경로로 읽을 수 있다.
+/// 띄우면 되고, 그 밖의 읽기(수집이 쓰지 않는 공식 도구 — 변수 정의, 디자인 컨텍스트,
+/// Code Connect)는 브리지가 애초에 못 하는 일이라 그 파일의 진짜 Figma 링크가 있어야
+/// direct 경로로 읽을 수 있다.
 fn bridge_only_refusal(call: &ReadToolCall) -> DevupError {
     let message = if call.bridge_job().is_some() {
         "The Devup Bridge plugin this request was addressed to is no longer attached. Run it \

@@ -57,8 +57,10 @@ never carries them. Rule numbers match the original list, which skipped 9.
 Two paths reach Figma and they are not equals. The Devup Bridge plugin, run in
 the Figma desktop app on the file, needs no login and spends none of Figma's
 allowance. The direct path is OAuth against Figma's MCP and is metered. Use the
-bridge first; direct is the fallback for what the bridge cannot serve - a
-file-scope metadata read.
+bridge first: it serves every read a collection makes, and direct only re-reads
+what the plugin answers short - data Figma withholds while the file is out of
+sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an
+older plugin does not know. `source.directFallbacks` counts those re-reads.
 
 - Call `devup_figma_auth` with `action: "status"` before asking anyone to log
   in. It reports both paths: `connected`, `activePath` (`bridge`, `direct` or
