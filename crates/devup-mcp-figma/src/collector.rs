@@ -2225,6 +2225,45 @@ fn validate_reference_png(bytes: &[u8]) -> Result<(), DevupError> {
         .map_err(reference_png_decode_error)
 }
 
+/// The plugin's export flattened onto the page background, which is what
+/// `get_screenshot` hands back: measured on the same frames, its PNG was
+/// opaque where the export kept a translucent backdrop or transparent gaps,
+/// showing the page background (30, 30, 30) there. An opaque export is
+/// returned as it came.
+pub(crate) fn flatten_reference_png(
+    data_base64: &str,
+    backdrop: [u8; 3],
+) -> Result<String, DevupError> {
+    let bytes = STANDARD
+        .decode(data_base64.as_bytes())
+        .map_err(|_| invalid_call("Figma reference PNG base64 is invalid."))?;
+    let mut limits = Limits::default();
+    limits.max_image_width = Some(MAX_REFERENCE_PNG_DIMENSION);
+    limits.max_image_height = Some(MAX_REFERENCE_PNG_DIMENSION);
+    limits.max_alloc = Some(MAX_REFERENCE_PNG_DECODED_BYTES as u64);
+    let decoder =
+        PngDecoder::with_limits(Cursor::new(bytes), limits).map_err(reference_png_decode_error)?;
+    let mut pixels = image::DynamicImage::from_decoder(decoder)
+        .map_err(reference_png_decode_error)?
+        .into_rgba8();
+    if pixels.pixels().all(|pixel| pixel[3] == u8::MAX) {
+        return Ok(data_base64.to_owned());
+    }
+    for pixel in pixels.pixels_mut() {
+        let alpha = u32::from(pixel[3]);
+        for (value, under) in pixel.0.iter_mut().zip(backdrop) {
+            let mixed = u32::from(*value) * alpha + u32::from(under) * (255 - alpha);
+            *value = u8::try_from((mixed + 127) / 255).unwrap_or(u8::MAX);
+        }
+        pixel[3] = u8::MAX;
+    }
+    let mut encoded = Vec::new();
+    pixels
+        .write_with_encoder(image::codecs::png::PngEncoder::new(&mut encoded))
+        .map_err(|_| invalid_call("Figma reference PNG could not be re-encoded."))?;
+    Ok(STANDARD.encode(encoded))
+}
+
 fn reference_png_decode_error(error: ImageError) -> DevupError {
     if matches!(error, ImageError::Limits(_)) {
         DevupError::new(

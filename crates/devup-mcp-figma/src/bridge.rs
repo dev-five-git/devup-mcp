@@ -987,6 +987,9 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
 
 /// 플러그인이 export 한 참조 PNG 를 공식 `get_screenshot` 이 주는 모양 — 이미지
 /// 블록 하나 — 으로 쓴다. 수집기는 두 경로의 답을 같은 디코더로 받는다.
+///
+/// 그림도 같게 맞춘다. 플러그인이 알려 준 페이지 배경 위로 투명한 자리를 덮는다 —
+/// `get_screenshot` 은 그 자리를 캔버스로 채워 돌려준다.
 fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
     let png = data
         .get("data")
@@ -995,6 +998,10 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
         .ok_or_else(|| {
             unavailable("the plugin's reference PNG answer is not a devupReferencePng")
         })?;
+    let png = match page_backdrop(data) {
+        Some(backdrop) => crate::collector::flatten_reference_png(png, backdrop)?,
+        None => png.to_owned(),
+    };
     let mut result = json!({
         "content": [{ "type": "image", "data": png, "mimeType": "image/png" }],
         "isError": false,
@@ -1003,6 +1010,18 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
     result["_meta"][SERVED_META_KEY] = serde_json::to_value(served)
         .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
     Ok(result)
+}
+
+/// 플러그인이 export 한 노드가 놓인 페이지의 배경, `[r, g, b]`. 이 값을 보내기 전에
+/// 빌드된 플러그인은 보내지 않으며, 그 export 는 받은 그대로 넘긴다.
+fn page_backdrop(data: &Value) -> Option<[u8; 3]> {
+    let channels = data
+        .get("backdrop")?
+        .as_array()?
+        .iter()
+        .map(|value| value.as_u64().and_then(|value| u8::try_from(value).ok()))
+        .collect::<Option<Vec<_>>>()?;
+    <[u8; 3]>::try_from(channels).ok()
 }
 
 /// 플러그인이 붙는 문에 들이는 `Origin`.

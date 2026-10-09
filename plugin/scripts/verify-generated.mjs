@@ -68,7 +68,14 @@ assert.equal(catalog.nodes[1].type, 'PAGE')
 // 참조 PNG 는 수집기가 공식 `get_screenshot` 과 같은 그림으로 받으므로, 어떤
 // 설정으로 export 하는지가 계약이다.
 let exported
+const page = {
+  type: 'PAGE',
+  backgrounds: [{ type: 'SOLID', visible: true, opacity: 1, color: { r: 30 / 255, g: 30 / 255, b: 30 / 255 } }],
+}
+const section = { type: 'SECTION', parent: page }
 const drawn = (width, height) => ({
+  type: 'FRAME',
+  parent: section,
   absoluteBoundingBox: { x: 0, y: 0, width, height },
   exportAsync: async (settings) => {
     exported = settings
@@ -85,6 +92,7 @@ assert.deepEqual(exported, {
   format: 'PNG',
   constraint: { type: 'SCALE', value: 1 },
   useAbsoluteBounds: true,
+  contentsOnly: false,
   colorProfile: 'SRGB',
 })
 assert.deepEqual(reference, {
@@ -93,6 +101,7 @@ assert.deepEqual(reference, {
   mimeType: 'image/png',
   byteLength: 4,
   data: 'iVBORw==',
+  backdrop: [30, 30, 30],
 })
 await referencePng({ nodeId: '1:3' })
 assert.deepEqual(exported.constraint, { type: 'HEIGHT', value: 8192 })

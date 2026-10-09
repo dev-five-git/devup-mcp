@@ -601,6 +601,66 @@ async fn a_reference_png_is_exported_by_the_plugin_and_comes_back_as_one_image()
     assert!(result.raw["_meta"]["devup/bridge"].is_object());
 }
 
+fn png_base64(width: u32, height: u32, rgba: Vec<u8>) -> String {
+    use base64::Engine as _;
+    let pixels = image::RgbaImage::from_raw(width, height, rgba).expect("pixels fill the image");
+    let mut encoded = Vec::new();
+    pixels
+        .write_with_encoder(image::codecs::png::PngEncoder::new(&mut encoded))
+        .expect("a PNG encodes");
+    base64::engine::general_purpose::STANDARD.encode(encoded)
+}
+
+/// `get_screenshot` 은 프레임의 반투명한 자리를 캔버스로 채운 불투명한 PNG 를 준다.
+/// 플러그인의 export 는 알파를 그대로 두므로, 브리지가 플러그인이 알려 준 페이지 배경
+/// 위로 덮는다. 처음부터 불투명한 export 는 다시 인코딩하지 않는다.
+#[tokio::test]
+async fn a_translucent_reference_png_is_flattened_onto_the_page_background() {
+    use base64::Engine as _;
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let read = |plugin_answer: Value| {
+        let client = BridgeFigmaClient::new(server.state());
+        (
+            tokio::spawn(async move {
+                client
+                    .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+                    .await
+            }),
+            plugin_answer,
+        )
+    };
+    let answer_with = |data: String| {
+        json!({ "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png",
+            "byteLength": 0, "data": data, "backdrop": [30, 30, 30] })
+    };
+
+    let (reading, plugin_answer) = read(answer_with(png_base64(
+        2,
+        1,
+        vec![0, 0, 0, 178, 255, 255, 255, 255],
+    )));
+    let job = next_job(&mut plugin).await;
+    answer(&mut plugin, &job, plugin_answer).await;
+    let result = reading.await.expect("the read finishes").expect("answered");
+    let data = result.raw["content"][0]["data"].as_str().expect("an image");
+    let decoded = image::load_from_memory(
+        &base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .expect("base64"),
+    )
+    .expect("a PNG")
+    .into_rgba8();
+    assert_eq!(decoded.into_raw(), vec![9, 9, 9, 255, 255, 255, 255, 255]);
+
+    let opaque = png_base64(1, 1, vec![10, 20, 30, 255]);
+    let (reading, plugin_answer) = read(answer_with(opaque.clone()));
+    let job = next_job(&mut plugin).await;
+    answer(&mut plugin, &job, plugin_answer).await;
+    let result = reading.await.expect("the read finishes").expect("answered");
+    assert_eq!(result.raw["content"][0]["data"], opaque);
+}
+
 /// devup-mcp 보다 먼저 빌드된 플러그인은 새 스크립트를 모른다고 답한다. 읽기는
 /// 시도되지 않았으므로 원격이 읽을 수 있는 키면 원격이 대신 답하고, 플러그인만 아는
 /// 키면 그 답이 할 일과 함께 올라간다.
