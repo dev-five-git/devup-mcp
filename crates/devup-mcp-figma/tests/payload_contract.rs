@@ -149,7 +149,7 @@ fn completeness_report_names_what_the_lookups_threw() {
             .resources
             .hint
             .as_deref()
-            .is_some_and(|hint| hint.contains("Click the file's tab")),
+            .is_some_and(|hint| hint.contains("click the file's tab")),
         "{report:?}"
     );
 }

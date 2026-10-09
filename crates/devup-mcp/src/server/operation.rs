@@ -468,7 +468,7 @@ mod r7_tests {
             error.details["nextAction"]["how"]
                 .as_str()
                 .unwrap()
-                .contains("Click the file's tab"),
+                .contains("click the file's tab"),
             "{}",
             error.details
         );
