@@ -988,8 +988,9 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
 /// 플러그인이 export 한 참조 PNG 를 공식 `get_screenshot` 이 주는 모양 — 이미지
 /// 블록 하나 — 으로 쓴다. 수집기는 두 경로의 답을 같은 디코더로 받는다.
 ///
-/// 그림도 같게 맞춘다. 플러그인이 알려 준 페이지 배경 위로 투명한 자리를 덮는다 —
-/// `get_screenshot` 은 그 자리를 캔버스로 채워 돌려준다.
+/// 그림도 같게 맞춘다. 플러그인이 알려 준 노드 아래의 색 — 조상들의 채움을 페이지
+/// 배경 위에 겹친 것 — 위로 투명한 자리를 덮는다. `get_screenshot` 은 그 자리를 그
+/// 색으로 채워 돌려준다.
 fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
     let png = data
         .get("data")
@@ -998,7 +999,7 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
         .ok_or_else(|| {
             unavailable("the plugin's reference PNG answer is not a devupReferencePng")
         })?;
-    let png = match page_backdrop(data) {
+    let png = match named_backdrop(data) {
         Some(backdrop) => crate::collector::flatten_reference_png(png, backdrop)?,
         None => png.to_owned(),
     };
@@ -1012,9 +1013,9 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
     Ok(result)
 }
 
-/// 플러그인이 export 한 노드가 놓인 페이지의 배경, `[r, g, b]`. 이 값을 보내기 전에
-/// 빌드된 플러그인은 보내지 않으며, 그 export 는 받은 그대로 넘긴다.
-fn page_backdrop(data: &Value) -> Option<[u8; 3]> {
+/// 플러그인이 export 한 노드 아래의 색, `[r, g, b]`. 이 값을 보내기 전에 빌드된
+/// 플러그인은 보내지 않으며, 그 export 는 받은 그대로 넘긴다.
+fn named_backdrop(data: &Value) -> Option<[u8; 3]> {
     let channels = data
         .get("backdrop")?
         .as_array()?
@@ -1552,13 +1553,15 @@ where
 }
 
 /// 원격 경로라면 해낼 수 있는 플러그인의 거절: 이 devup-mcp 보다 먼저 빌드돼
-/// 스크립트를 모른다(읽기는 시도되지 않았다), 또는 참조 PNG 가 브리지 답 하나(8 MiB)를
-/// 넘는다(원격은 16 MiB 까지 받는다).
+/// 스크립트를 모른다(읽기는 시도되지 않았다), 참조 PNG 가 브리지 답 하나(8 MiB)를
+/// 넘는다(원격은 16 MiB 까지 받는다), 또는 노드 아래가 한 가지 색이 아니라 플러그인이
+/// `get_screenshot` 과 같은 그림을 그릴 수 없다.
 fn remote_may_answer(raw: &Value) -> bool {
     raw["isError"] == true
         && raw["content"][0]["text"].as_str().is_some_and(|text| {
             text.contains("DEVUP_BRIDGE_UNKNOWN_SCRIPT")
                 || text.contains("DEVUP_REFERENCE_PNG_TOO_LARGE")
+                || text.contains("DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE")
         })
 }
 

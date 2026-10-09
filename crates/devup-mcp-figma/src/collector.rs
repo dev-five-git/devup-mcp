@@ -2225,11 +2225,12 @@ fn validate_reference_png(bytes: &[u8]) -> Result<(), DevupError> {
         .map_err(reference_png_decode_error)
 }
 
-/// The plugin's export flattened onto the page background, which is what
+/// The plugin's export flattened onto the colour the plugin names under the
+/// node - its ancestors' fills over the page background - which is what
 /// `get_screenshot` hands back: measured on the same frames, its PNG was
 /// opaque where the export kept a translucent backdrop or transparent gaps,
-/// showing the page background (30, 30, 30) there. An opaque export is
-/// returned as it came.
+/// showing that colour there (the page background (30, 30, 30) on a frame
+/// straight on the page). An opaque export is returned as it came.
 pub(crate) fn flatten_reference_png(
     data_base64: &str,
     backdrop: [u8; 3],

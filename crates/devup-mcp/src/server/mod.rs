@@ -1220,7 +1220,7 @@ impl DevupServer {
                        Two paths reach Figma: the Devup Bridge plugin running in the Figma desktop app is preferred and needs no login, and OAuth - the metered direct path - is the fallback. \
                        Call status before asking anyone to log in: it reports both paths, the files attached plugins have open with their current page and selection, and the next call to make. `connected` is false, and `status` reads disconnected, only when neither path can serve. \
                        With exactly one plugin attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url. \
-                       login is needed only when no plugin is attached, or for what the bridge cannot serve (a file-scope metadata read). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
+                       login is needed only when no plugin is attached, or for what the bridge cannot serve (a file-scope metadata read, and a referencePng the plugin refuses as DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
@@ -1272,7 +1272,7 @@ impl DevupServer {
                 let mut report = self.connection_report().await.map_err(to_mcp_error)?;
                 if bridge_attached {
                     report["warning"] = json!(
-                        "A bridge is attached; login is only needed for a file-scope metadata read."
+                        "A bridge is attached; login is only needed for a file-scope metadata read, and for a referencePng the plugin refuses as DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE."
                     );
                 }
                 return Ok(tool_result(report));

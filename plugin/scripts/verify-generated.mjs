@@ -66,23 +66,37 @@ assert.equal(catalog.nodes[0].fields.name, 'Page 1')
 assert.equal(catalog.nodes[1].type, 'PAGE')
 
 // 참조 PNG 는 수집기가 공식 `get_screenshot` 과 같은 그림으로 받으므로, 어떤
-// 설정으로 export 하는지가 계약이다.
+// 설정으로 export 하는지와 언제 거절하는지가 계약이다.
 let exported
-const page = {
-  type: 'PAGE',
-  backgrounds: [{ type: 'SOLID', visible: true, opacity: 1, color: { r: 30 / 255, g: 30 / 255, b: 30 / 255 } }],
+const solid = (value, opacity = 1) => ({
+  type: 'SOLID', visible: true, opacity, color: { r: value / 255, g: value / 255, b: value / 255 },
+})
+const box = (x, y, width, height) => ({ x, y, width, height })
+const page = { type: 'PAGE', backgrounds: [solid(30)], children: [] }
+const nest = (parent, child) => {
+  child.parent = parent
+  parent.children = [...(parent.children ?? []), child]
+  return child
 }
-const section = { type: 'SECTION', parent: page }
-const drawn = (width, height) => ({
-  type: 'FRAME',
-  parent: section,
-  absoluteBoundingBox: { x: 0, y: 0, width, height },
+const node = (fields) => ({
+  type: 'FRAME', name: 'n', visible: true, opacity: 1, blendMode: 'PASS_THROUGH', fills: [], strokes: [], effects: [],
+  children: [],
   exportAsync: async (settings) => {
     exported = settings
     return new Uint8Array([137, 80, 78, 71])
   },
+  ...fields,
 })
-const nodes = { '1:2': drawn(360, 740), '1:3': drawn(1920, 9000) }
+const section = nest(page, node({ type: 'SECTION', fills: [solid(255, 0.16)], absoluteBoundingBox: box(0, 0, 4000, 12000) }))
+const screen = nest(section, node({
+  absoluteBoundingBox: box(100, 100, 360, 740), absoluteRenderBounds: box(96, 100, 368, 748),
+}))
+const tall = nest(section, node({ absoluteBoundingBox: box(500, 100, 1920, 9000) }))
+const hero = nest(section, node({ fills: [{ type: 'IMAGE', visible: true }], absoluteBoundingBox: box(0, 10000, 1920, 900) }))
+const inHero = nest(hero, node({ absoluteBoundingBox: box(10, 10010, 100, 100) }))
+nest(section, node({ isMask: true, absoluteBoundingBox: box(3000, 0, 100, 100) }))
+const masked = nest(section, node({ absoluteBoundingBox: box(3000, 0, 100, 100) }))
+const nodes = { '1:2': screen, '1:3': tall, '1:4': inHero, '1:5': masked }
 globalThis.figma = {
   getNodeByIdAsync: async (id) => nodes[id] ?? null,
   base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
@@ -91,8 +105,8 @@ const reference = await referencePng({ nodeId: '1:2' })
 assert.deepEqual(exported, {
   format: 'PNG',
   constraint: { type: 'SCALE', value: 1 },
-  useAbsoluteBounds: true,
-  contentsOnly: false,
+  contentsOnly: true,
+  useAbsoluteBounds: false,
   colorProfile: 'SRGB',
 })
 assert.deepEqual(reference, {
@@ -101,10 +115,12 @@ assert.deepEqual(reference, {
   mimeType: 'image/png',
   byteLength: 4,
   data: 'iVBORw==',
-  backdrop: [30, 30, 30],
+  backdrop: [66, 66, 66],
 })
 await referencePng({ nodeId: '1:3' })
 assert.deepEqual(exported.constraint, { type: 'HEIGHT', value: 8192 })
+await assert.rejects(referencePng({ nodeId: '1:4' }), /DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:4: FRAME "n" is painted with IMAGE/)
+await assert.rejects(referencePng({ nodeId: '1:5' }), /DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:5: a mask clips it/)
 await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
 
 const unreachable = 'Unable to establish connection to Figma after 10 seconds.'

@@ -661,9 +661,10 @@ async fn a_translucent_reference_png_is_flattened_onto_the_page_background() {
     assert_eq!(result.raw["content"][0]["data"], opaque);
 }
 
-/// devup-mcp 보다 먼저 빌드된 플러그인은 새 스크립트를 모른다고 답한다. 읽기는
-/// 시도되지 않았으므로 원격이 읽을 수 있는 키면 원격이 대신 답하고, 플러그인만 아는
-/// 키면 그 답이 할 일과 함께 올라간다.
+/// 플러그인이 시도하지 않았거나 같은 그림을 그릴 수 없는 읽기 — 이 devup-mcp 보다
+/// 먼저 빌드돼 스크립트를 모르거나, PNG 가 답 하나보다 크거나, 노드 아래가 한 가지 색이
+/// 아니다 — 는 원격이 읽을 수 있는 키면 원격이 대신 답하고, 플러그인만 아는 키면 그
+/// 답이 할 일과 함께 올라간다.
 #[tokio::test]
 async fn a_plugin_older_than_the_server_leaves_a_keyed_read_to_the_remote_path() {
     let older = "DEVUP_BRIDGE_UNKNOWN_SCRIPT: referencePng (아는 스크립트: assets, snapshot)";
@@ -677,28 +678,42 @@ async fn a_plugin_older_than_the_server_leaves_a_keyed_read_to_the_remote_path()
         },
     ));
 
-    let reading = {
-        let upstream = upstream.clone();
-        tokio::spawn(async move {
-            upstream
-                .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
-                .await
-        })
-    };
-    let job = next_job(&mut plugin).await;
-    plugin
-        .send(Message::Text(
-            json!({ "kind": "devup-result", "requestId": job["requestId"], "error": older })
-                .to_string()
-                .into(),
-        ))
-        .await
-        .expect("the refusal is sent");
-    reading
-        .await
-        .expect("the read task finishes")
-        .expect("the remote path answers in the plugin's place");
-    assert_eq!(remote_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    for (asked, refusal) in [
+        older,
+        "DEVUP_REFERENCE_PNG_TOO_LARGE 9000000 bytes, over the 8388608 one answer carries",
+        "DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:2: SECTION \"Hero\" is painted with IMAGE",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let reading = {
+            let upstream = upstream.clone();
+            tokio::spawn(async move {
+                upstream
+                    .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+                    .await
+            })
+        };
+        let job = next_job(&mut plugin).await;
+        plugin
+            .send(Message::Text(
+                json!({ "kind": "devup-result", "requestId": job["requestId"], "error": refusal })
+                    .to_string()
+                    .into(),
+            ))
+            .await
+            .expect("the refusal is sent");
+        reading
+            .await
+            .expect("the read task finishes")
+            .expect("the remote path answers in the plugin's place");
+        assert_eq!(
+            remote_calls.load(std::sync::atomic::Ordering::SeqCst),
+            asked + 1,
+            "{refusal}"
+        );
+    }
+    remote_calls.store(1, std::sync::atomic::Ordering::SeqCst);
 
     let keyless = BridgeServer::start(0).expect("an ephemeral port is free");
     let mut lone = connect_plugin_as(&keyless, None).await;
