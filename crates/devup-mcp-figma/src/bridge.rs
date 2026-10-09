@@ -71,6 +71,9 @@ const JOB_TIMEOUT: Duration = Duration::from_secs(90);
 /// 브리지가 답한 결과의 `_meta` 에서 어느 플러그인이 답했는지를 싣는 자리.
 const SERVED_META_KEY: &str = "devup/bridge";
 
+/// 참조 PNG 결과의 `_meta` 에서 플러그인이 그 그림에 단 말을 싣는 자리.
+pub(crate) const REFERENCE_PNG_NOTE_META_KEY: &str = "devup/referencePngNote";
+
 /// 플러그인이 끊긴 뒤 다시 붙기를 시도하는 간격(`plugin/src/ui.ts` 의 `RETRY_MS`).
 const PLUGIN_RETRY: Duration = Duration::from_secs(2);
 
@@ -988,9 +991,11 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
 /// 플러그인이 export 한 참조 PNG 를 공식 `get_screenshot` 이 주는 모양 — 이미지
 /// 블록 하나 — 으로 쓴다. 수집기는 두 경로의 답을 같은 디코더로 받는다.
 ///
-/// 그림도 같게 맞춘다. 플러그인이 알려 준 노드 아래의 색 — 조상들의 채움을 페이지
-/// 배경 위에 겹친 것 — 위로 투명한 자리를 덮는다. `get_screenshot` 은 그 자리를 그
-/// 색으로 채워 돌려준다.
+/// 그림도 같게 맞춘다. 플러그인이 알려 준 색 — 노드만 그렸으면 조상들의 채움을 페이지
+/// 배경 위에 겹친 것, 캔버스가 보여 주는 자리를 그렸으면 페이지 배경 — 위로 투명한
+/// 자리를 덮는다. `get_screenshot` 은 그 자리를 그 색으로 채워 돌려준다. 그 그림에
+/// `get_screenshot` 이 넣지 않는 레이어가 들어갔을 수 있다는 플러그인의 말은 `_meta` 에
+/// 실어 수집기가 응답으로 옮긴다.
 fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
     let png = data
         .get("data")
@@ -1010,6 +1015,9 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
     });
     result["_meta"][SERVED_META_KEY] = serde_json::to_value(served)
         .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
+    if let Some(note) = data.get("note").and_then(Value::as_str) {
+        result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(note);
+    }
     Ok(result)
 }
 
@@ -1553,15 +1561,13 @@ where
 }
 
 /// 원격 경로라면 해낼 수 있는 플러그인의 거절: 이 devup-mcp 보다 먼저 빌드돼
-/// 스크립트를 모른다(읽기는 시도되지 않았다), 참조 PNG 가 브리지 답 하나(8 MiB)를
-/// 넘는다(원격은 16 MiB 까지 받는다), 또는 노드 아래가 한 가지 색이 아니라 플러그인이
-/// `get_screenshot` 과 같은 그림을 그릴 수 없다.
+/// 스크립트를 모른다(읽기는 시도되지 않았다), 또는 참조 PNG 가 브리지 답 하나(8 MiB)를
+/// 넘는다(원격은 16 MiB 까지 받는다).
 fn remote_may_answer(raw: &Value) -> bool {
     raw["isError"] == true
         && raw["content"][0]["text"].as_str().is_some_and(|text| {
             text.contains("DEVUP_BRIDGE_UNKNOWN_SCRIPT")
                 || text.contains("DEVUP_REFERENCE_PNG_TOO_LARGE")
-                || text.contains("DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE")
         })
 }
 

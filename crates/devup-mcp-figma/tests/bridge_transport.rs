@@ -568,7 +568,7 @@ async fn a_bridge_only_key_never_reaches_the_remote_path() {
 
 /// referencePng 도 플러그인이 맡는다. 플러그인은 노드를 PNG 로 export 하고, 브리지는
 /// 그것을 공식 `get_screenshot` 처럼 이미지 블록 하나로 돌려준다 — 수집기가 두 경로를
-/// 같은 디코더로 받는다.
+/// 같은 디코더로 받는다. 플러그인이 그 그림에 단 말은 `_meta` 에 실려 수집기로 간다.
 #[tokio::test]
 async fn a_reference_png_is_exported_by_the_plugin_and_comes_back_as_one_image() {
     let server = BridgeServer::start(0).expect("an ephemeral port is free");
@@ -581,11 +581,12 @@ async fn a_reference_png_is_exported_by_the_plugin_and_comes_back_as_one_image()
     let job = next_job(&mut plugin).await;
     assert_eq!(job["script"], "referencePng");
     assert_eq!(job["params"]["nodeId"], "1:2");
+    let note = "INSTANCE \"Header\" reaches into it and may show here";
     answer(
         &mut plugin,
         &job,
         json!({ "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png",
-            "byteLength": 4, "data": "iVBORw==" }),
+            "byteLength": 4, "data": "iVBORw==", "note": note }),
     )
     .await;
 
@@ -599,6 +600,7 @@ async fn a_reference_png_is_exported_by_the_plugin_and_comes_back_as_one_image()
         json!([{ "type": "image", "data": "iVBORw==", "mimeType": "image/png" }])
     );
     assert!(result.raw["_meta"]["devup/bridge"].is_object());
+    assert_eq!(result.raw["_meta"]["devup/referencePngNote"], note);
 }
 
 fn png_base64(width: u32, height: u32, rgba: Vec<u8>) -> String {
@@ -661,10 +663,9 @@ async fn a_translucent_reference_png_is_flattened_onto_the_page_background() {
     assert_eq!(result.raw["content"][0]["data"], opaque);
 }
 
-/// 플러그인이 시도하지 않았거나 같은 그림을 그릴 수 없는 읽기 — 이 devup-mcp 보다
-/// 먼저 빌드돼 스크립트를 모르거나, PNG 가 답 하나보다 크거나, 노드 아래가 한 가지 색이
-/// 아니다 — 는 원격이 읽을 수 있는 키면 원격이 대신 답하고, 플러그인만 아는 키면 그
-/// 답이 할 일과 함께 올라간다.
+/// 플러그인이 시도하지 않았거나 답 하나에 담지 못한 읽기 — 이 devup-mcp 보다 먼저
+/// 빌드돼 스크립트를 모르거나, PNG 가 답 하나보다 크다 — 는 원격이 읽을 수 있는 키면
+/// 원격이 대신 답하고, 플러그인만 아는 키면 그 답이 할 일과 함께 올라간다.
 #[tokio::test]
 async fn a_plugin_older_than_the_server_leaves_a_keyed_read_to_the_remote_path() {
     let older = "DEVUP_BRIDGE_UNKNOWN_SCRIPT: referencePng (아는 스크립트: assets, snapshot)";
@@ -681,7 +682,6 @@ async fn a_plugin_older_than_the_server_leaves_a_keyed_read_to_the_remote_path()
     for (asked, refusal) in [
         older,
         "DEVUP_REFERENCE_PNG_TOO_LARGE 9000000 bytes, over the 8388608 one answer carries",
-        "DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:2: SECTION \"Hero\" is painted with IMAGE",
     ]
     .into_iter()
     .enumerate()

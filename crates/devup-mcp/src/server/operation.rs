@@ -284,9 +284,6 @@ fn plugin_next_action(code: &str) -> Option<Value> {
         "DEVUP_BRIDGE_UNKNOWN_SCRIPT" => Some(json!({
             "how": "The Devup Bridge plugin running in Figma was built before this devup-mcp and does not know this read. Update the checkout it was imported from, or import plugin/manifest.json from a current one (Plugins -> Development -> Import plugin from manifest...), run the plugin again on the file, then retry. Until then this read goes to the metered direct path only when the plugin reported the file's Figma key and devup_figma_auth login has been done."
         })),
-        "DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE" => Some(json!({
-            "how": "get_screenshot draws this node over what its frames and sections are painted with, and here that is not one colour - an image or gradient fill, a stroke, a rounded corner, a mask or a translucent layer reaches it - so the Devup Bridge plugin cannot draw the same picture. The direct path can, once the file's Figma key is known: run devup_figma_auth login, and if this export had no Figma link, repeat it with the file's own link (Share -> Copy link). Otherwise leave referencePng out, or ask for the containing frame's referencePng."
-        })),
         "DEVUP_REFERENCE_PNG_TOO_LARGE" => Some(json!({
             "how": "This node's PNG is larger than the 8 MiB one Devup Bridge answer carries. The direct path takes up to 16 MiB once the file's Figma key is known: run devup_figma_auth login, and if this export had no Figma link, repeat it with the file's own link (Share -> Copy link). Otherwise export a smaller frame."
         })),
@@ -461,20 +458,6 @@ mod r7_tests {
         assert_eq!(
             bridge("DEVUP_REFERENCE_PNG_TOO_LARGE 9000000 bytes").code,
             ErrorCode::DevupFigmaResponseTooLarge
-        );
-        let refused = bridge(
-            "DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:2: SECTION \"Hero\" is painted with IMAGE",
-        );
-        assert_eq!(
-            refused.details["pluginCode"],
-            "DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE"
-        );
-        assert!(
-            refused.details["nextAction"]["how"]
-                .as_str()
-                .is_some_and(|how| how.contains("devup_figma_auth login")),
-            "{}",
-            refused.details
         );
         let error = bridge(
             "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.",

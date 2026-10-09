@@ -2390,7 +2390,14 @@ async fn project_operation(
                 if output_paths.contains_key("referencePng") {
                     pending_binary_outputs.insert("referencePng".to_owned(), bytes);
                 }
-                result.insert("referencePng".to_owned(), json!(reference));
+                let mut inline = json!(reference);
+                if let Some(note) = inline
+                    .as_object_mut()
+                    .and_then(|inline| inline.remove("note"))
+                {
+                    result.insert("referencePngNote".to_owned(), note);
+                }
+                result.insert("referencePng".to_owned(), inline);
             }
 
             let reconcile_captured_assets = payload

@@ -593,6 +593,7 @@ mod tests {
             data_base64: WHITE.into(),
             byte_length: STANDARD.decode(WHITE).unwrap().len(),
             sha256: reference_hash(),
+            note: None,
         });
         let artifact = store
             .insert(
@@ -621,6 +622,7 @@ mod tests {
             data_base64: WHITE.into(),
             byte_length: STANDARD.decode(WHITE).unwrap().len(),
             sha256: reference_hash(),
+            note: None,
         });
         let artifact = store
             .insert(

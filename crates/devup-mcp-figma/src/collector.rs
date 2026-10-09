@@ -145,6 +145,10 @@ pub struct ReferencePng {
     pub data_base64: String,
     pub byte_length: usize,
     pub sha256: String,
+    /// The Devup Bridge plugin's word when its picture may hold layers
+    /// `get_screenshot`'s leaves out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1648,6 +1652,9 @@ impl CollectorSession {
                 "reference PNG call Figma target does not match the request.",
             ));
         }
+        let note = result.raw["_meta"][crate::bridge::REFERENCE_PNG_NOTE_META_KEY]
+            .as_str()
+            .map(str::to_owned);
         let data_base64 = take_single_png_data(result.raw)?;
         if data_base64.len() > MAX_REFERENCE_PNG_BASE64_BYTES {
             return Err(DevupError::new(
@@ -1673,6 +1680,7 @@ impl CollectorSession {
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect(),
+            note,
         });
         Ok(())
     }

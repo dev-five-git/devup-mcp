@@ -1220,7 +1220,7 @@ impl DevupServer {
                        Two paths reach Figma: the Devup Bridge plugin running in the Figma desktop app is preferred and needs no login, and OAuth - the metered direct path - is the fallback. \
                        Call status before asking anyone to log in: it reports both paths, the files attached plugins have open with their current page and selection, and the next call to make. `connected` is false, and `status` reads disconnected, only when neither path can serve. \
                        With exactly one plugin attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url. \
-                       login is needed only when no plugin is attached, or for what the bridge cannot serve (a file-scope metadata read, and a referencePng the plugin refuses as DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
+                       login is needed only when no plugin is attached, or for what the bridge cannot serve (a file-scope metadata read). configure injects a pre-registered client credential to skip Dynamic Client Registration; doctor adds client setup reference data to status.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_figma_auth(
@@ -1272,7 +1272,7 @@ impl DevupServer {
                 let mut report = self.connection_report().await.map_err(to_mcp_error)?;
                 if bridge_attached {
                     report["warning"] = json!(
-                        "A bridge is attached; login is only needed for a file-scope metadata read, and for a referencePng the plugin refuses as DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE."
+                        "A bridge is attached; login is only needed for a file-scope metadata read."
                     );
                 }
                 return Ok(tool_result(report));
@@ -1438,7 +1438,7 @@ impl DevupServer {
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
                        `outputs` defaults to `[\"tsx\"]`. Add `devupJson` only when the project has no `devup.json` yet, or when you are introducing tokens it does not define - if it already has one, that file is what the code must match, and `devup_project_context` is what reads it. \
                        If you already know the node ids you want - a brief named them, or an earlier call did - pass them straight to `frameIds` and skip `devup_figma_explore`; exploring to rediscover ids you are already holding spends a Figma call for nothing. Explore is for when a Section link is all you have. \
-                       Each output adds its own keys and nothing else - tsx adds `tsx`; componentTsx adds `componentTsx`; responsiveTsx adds `responsiveTsx`, `responsiveSlots` and, where a width asked for something one tree cannot say, `responsiveUnrepresented`; devupJson adds `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts` and `unresolvedVariables`; sourceMap, assetManifest and referencePng each add the key they name. \
+                       Each output adds its own keys and nothing else - tsx adds `tsx`; componentTsx adds `componentTsx`; responsiveTsx adds `responsiveTsx`, `responsiveSlots` and, where a width asked for something one tree cannot say, `responsiveUnrepresented`; devupJson adds `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts` and `unresolvedVariables`; sourceMap and assetManifest each add the key they name; referencePng adds `referencePng` and, when the Devup Bridge plugin's picture may hold layers get_screenshot leaves out, `referencePngNote` naming them. \
                        `rawSnapshot` and `rawPayload` are the collected design in raw form and need `debug: true`. Use them for one question only - a screen looks wrong and you must decide whether the generator is at fault or the design says so - never to implement, since the tsx already carries what they carry. \
                        `fidelity` and `completenessReport` appear only when the result is not exact or complete, or when includeDiagnostics is set. \
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \

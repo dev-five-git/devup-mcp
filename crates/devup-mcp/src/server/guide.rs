@@ -58,9 +58,7 @@ Two paths reach Figma and they are not equals. The Devup Bridge plugin, run in
 the Figma desktop app on the file, needs no login and spends none of Figma's
 allowance. The direct path is OAuth against Figma's MCP and is metered. Use the
 bridge first; direct is the fallback for what the bridge cannot serve - a
-file-scope metadata read, and a `referencePng` the plugin refuses as
-`DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE` because what lies under the node is not
-one plain colour.
+file-scope metadata read.
 
 - Call `devup_figma_auth` with `action: "status"` before asking anyone to log
   in. It reports both paths: `connected`, `activePath` (`bridge`, `direct` or

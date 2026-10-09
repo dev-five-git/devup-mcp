@@ -66,7 +66,8 @@ assert.equal(catalog.nodes[0].fields.name, 'Page 1')
 assert.equal(catalog.nodes[1].type, 'PAGE')
 
 // 참조 PNG 는 수집기가 공식 `get_screenshot` 과 같은 그림으로 받으므로, 어떤
-// 설정으로 export 하는지와 언제 거절하는지가 계약이다.
+// 설정으로 export 하는지와 — 노드 아래가 한 가지 색이 아니면 — 무엇을 대신 그리고
+// 무엇을 알리는지가 계약이다. 거절하는 경우는 없다.
 let exported
 const solid = (value, opacity = 1) => ({
   type: 'SOLID', visible: true, opacity, color: { r: value / 255, g: value / 255, b: value / 255 },
@@ -86,6 +87,7 @@ const node = (fields) => ({
     return new Uint8Array([137, 80, 78, 71])
   },
   ...fields,
+  absoluteRenderBounds: fields.absoluteRenderBounds ?? fields.absoluteBoundingBox,
 })
 const section = nest(page, node({ type: 'SECTION', fills: [solid(255, 0.16)], absoluteBoundingBox: box(0, 0, 4000, 12000) }))
 const screen = nest(section, node({
@@ -94,9 +96,11 @@ const screen = nest(section, node({
 const tall = nest(section, node({ absoluteBoundingBox: box(500, 100, 1920, 9000) }))
 const hero = nest(section, node({ fills: [{ type: 'IMAGE', visible: true }], absoluteBoundingBox: box(0, 10000, 1920, 900) }))
 const inHero = nest(hero, node({ absoluteBoundingBox: box(10, 10010, 100, 100) }))
+const captioned = nest(hero, node({ absoluteBoundingBox: box(400, 10010, 100, 100) }))
+nest(hero, node({ type: 'TEXT', name: 'Caption', absoluteBoundingBox: box(450, 10050, 300, 40) }))
 nest(section, node({ isMask: true, absoluteBoundingBox: box(3000, 0, 100, 100) }))
 const masked = nest(section, node({ absoluteBoundingBox: box(3000, 0, 100, 100) }))
-const nodes = { '1:2': screen, '1:3': tall, '1:4': inHero, '1:5': masked }
+const nodes = { '1:2': screen, '1:3': tall, '1:4': inHero, '1:5': masked, '1:6': captioned }
 globalThis.figma = {
   getNodeByIdAsync: async (id) => nodes[id] ?? null,
   base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
@@ -119,8 +123,18 @@ assert.deepEqual(reference, {
 })
 await referencePng({ nodeId: '1:3' })
 assert.deepEqual(exported.constraint, { type: 'HEIGHT', value: 8192 })
-await assert.rejects(referencePng({ nodeId: '1:4' }), /DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:4: FRAME "n" is painted with IMAGE/)
-await assert.rejects(referencePng({ nodeId: '1:5' }), /DEVUP_REFERENCE_PNG_NOT_REPRODUCIBLE 1:5: a mask clips it/)
+// 사진 위의 노드는 캔버스가 보여 주는 그 자리를 그리고, 그 export 에 없는 페이지 배경만 알린다.
+const overImage = await referencePng({ nodeId: '1:4' })
+assert.equal(exported.contentsOnly, false)
+assert.equal(exported.useAbsoluteBounds, false)
+assert.deepEqual(overImage.backdrop, [30, 30, 30])
+assert.equal(overImage.note, undefined)
+// 그 자리에 다른 레이어가 닿으면 그림에 들어가므로 이름을 댄다. 마스크는 그려지지 않으니 대지 않는다.
+const withCaption = await referencePng({ nodeId: '1:6' })
+assert.match(withCaption.note, /FRAME "n" is painted with IMAGE.*TEXT "Caption" reaches into it/)
+const clipped = await referencePng({ nodeId: '1:5' })
+assert.equal(exported.contentsOnly, false)
+assert.equal(clipped.note, undefined)
 await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
 
 const unreachable = 'Unable to establish connection to Figma after 10 seconds.'
