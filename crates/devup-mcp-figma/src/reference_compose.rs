@@ -738,6 +738,12 @@ struct Header {
 /// its strings.
 const PNG_TEXT_CHUNK_BYTES: u64 = 512;
 
+/// PNGs wider than this are not decoded. A PNG decoder unfilters rows outside
+/// its allowance, and for a wide interlaced 16-bit image those buffers outgrow
+/// it; up to this width (the plugin's exports' longest edge) they stay within
+/// `DECODE_SLACK`.
+const MAX_PNG_WIDTH: u64 = 8192;
+
 impl Header {
     /// Its format, size and allowance:
     /// - PNG and GIF: 8 bytes a pixel (a 16-bit PNG decodes to 8), which
@@ -752,7 +758,8 @@ impl Header {
     ///   and sizes buffers from data no header bounds, its entropy tables and
     ///   partitions among them.
     fn read(encoded: &[u8]) -> Result<Self, DevupError> {
-        let field = |at: usize, length: usize| encoded.get(at..at + length);
+        let field =
+            |at: usize, length: usize| at.checked_add(length).and_then(|end| encoded.get(at..end));
         let (format, width, height, allowance, texts) = if encoded.starts_with(b"\x89PNG\r\n\x1a\n")
         {
             let size =
@@ -761,17 +768,31 @@ impl Header {
             else {
                 return Err(invalid("a PNG's header cannot be read"));
             };
+            if width > MAX_PNG_WIDTH {
+                return Err(invalid(format!(
+                    "a PNG wider than {MAX_PNG_WIDTH} pixels is not composed"
+                )));
+            }
             let mut texts = 0_u64;
             let mut at = 8_usize;
-            while let Some(length) = size(at) {
-                let kind = field(at + 4, 4);
-                if matches!(kind, Some(b"tEXt" | b"zTXt" | b"iTXt")) {
+            while at < encoded.len() {
+                let (Some(length), Some(kind)) = (size(at), field(at + 4, 4)) else {
+                    return Err(invalid("a PNG's chunks cannot be read"));
+                };
+                let Some(end) = usize::try_from(length)
+                    .ok()
+                    .and_then(|length| at.checked_add(12)?.checked_add(length))
+                    .filter(|&end| end <= encoded.len())
+                else {
+                    return Err(invalid("a PNG's chunk runs past its end"));
+                };
+                if matches!(kind, b"tEXt" | b"zTXt" | b"iTXt") {
                     texts += 1;
                 }
-                if kind == Some(b"IEND") {
+                if kind == b"IEND" {
                     break;
                 }
-                at = at.saturating_add(12).saturating_add(length as usize);
+                at = end;
             }
             (
                 image::ImageFormat::Png,
@@ -834,9 +855,9 @@ impl Header {
 
 /// A JPEG's size and two bytes a pixel for each sample of each component, from
 /// its frame header: the first, before its first scan (its decoder refuses a
-/// second). A marker standing alone before it (another SOI, a restart) or a
-/// segment too short for its length is refused: its decoder reads those as
-/// segments, and could skip the frame header counted here.
+/// second). A marker standing alone before it (another SOI, a restart, a
+/// stuffed zero) or a segment too short for its length is refused: its decoder
+/// reads those differently, and could skip the frame header counted here.
 fn jpeg_frame(encoded: &[u8]) -> Option<(u64, u64, u64)> {
     let mut at = 2;
     loop {
@@ -852,7 +873,7 @@ fn jpeg_frame(encoded: &[u8]) -> Option<(u64, u64, u64)> {
         };
         match marker {
             0xFF => at += 1,
-            0x01 | 0xD0..=0xDA => return None,
+            0x00 | 0x01 | 0xD0..=0xDA => return None,
             0xC0..=0xCF if !matches!(marker, 0xC4 | 0xC8 | 0xCC) => {
                 let (height, width) = (u64::from(word(5)?), u64::from(word(7)?));
                 let components = usize::from(*encoded.get(at + 9)?);
@@ -1357,7 +1378,7 @@ mod tests {
     fn a_picture_too_large_to_decode_is_refused_from_its_header() {
         let scene = json!({
             "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
-            "node": {"picture": {"data": png_header(10_000, 10_000), "area": {"x": 0, "y": 0}}}
+            "node": {"picture": {"data": png_header(8_192, 12_000), "area": {"x": 0, "y": 0}}}
         });
         let error = compose(&scene).expect_err("too much memory");
         assert!(error.message.contains("MiB to draw"), "{}", error.message);
@@ -1369,7 +1390,7 @@ mod tests {
         let scene = json!({
             "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
             "node": {"own": {"transform": [[1, 0, 0], [0, 1, 0]], "width": 2000, "height": 2000,
-                             "mask": {"data": png_header(10_000, 10_000), "area": {"x": 0, "y": 0}}}}
+                             "mask": {"data": png_header(8_192, 12_000), "area": {"x": 0, "y": 0}}}}
         });
         let error = compose(&scene).expect_err("too much memory");
         assert!(error.message.contains("MiB to draw"), "{}", error.message);
@@ -1454,8 +1475,33 @@ mod tests {
         assert!(header.peak(bytes.len()) > 1000 * PNG_TEXT_CHUNK_BYTES);
     }
 
-    /// A second SOI before the frame header is refused: its decoder reads it as
-    /// a segment and could skip the frame header counted.
+    /// A PNG wider than the plugin's exports, or whose chunk runs past its end,
+    /// is not decoded.
+    #[test]
+    fn a_png_too_wide_or_cut_short_is_refused() {
+        let error = Header::read(&STANDARD.decode(png_header(8_193, 1)).expect("base64"))
+            .err()
+            .expect("too wide");
+        assert!(
+            error.message.contains("wider than 8192"),
+            "{}",
+            error.message
+        );
+        let mut cut = STANDARD
+            .decode(png(1, 1, vec![0, 0, 0, 0]))
+            .expect("base64");
+        cut.truncate(33);
+        cut.extend([0xFF, 0xFF, 0xFF, 0xFF, b'I', b'D', b'A', b'T']);
+        let error = Header::read(&cut).err().expect("cut short");
+        assert!(
+            error.message.contains("runs past its end"),
+            "{}",
+            error.message
+        );
+    }
+
+    /// A second SOI, or a stuffed zero, before the frame header is refused: its
+    /// decoder reads those differently and could skip the frame header counted.
     #[test]
     fn a_marker_standing_alone_before_the_jpeg_frame_is_refused() {
         let jpeg = [
@@ -1463,6 +1509,7 @@ mod tests {
             0xDA,
         ];
         assert_eq!(jpeg_frame(&jpeg), None);
+        assert_eq!(jpeg_frame(&[0xFF, 0xD8, 0xFF, 0x00, 0x00, 0x13]), None);
         assert_eq!(
             jpeg_frame(&[&jpeg[..2], &jpeg[4..]].concat()),
             Some((1, 1, 2))
