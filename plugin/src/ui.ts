@@ -39,6 +39,9 @@ interface ResultMessage {
 
 const RETRY_MS = 2000
 
+/** 이 창이 화면에 보이는지. Figma 가 가려지거나 최소화되면 거짓이 된다. */
+const inView = () => document.visibilityState === 'visible'
+
 /**
  * 이 플러그인 창 하나를 가리키는 이름. 창이 열려 있는 동안 바뀌지 않는다.
  *
@@ -98,6 +101,7 @@ function connect() {
         currentPage: bridgeStatus?.currentPage ?? null,
         selection: bridgeStatus?.selection ?? [],
         selectionCount: bridgeStatus?.selectionCount ?? 0,
+        inView: inView(),
       }),
     )
   }
@@ -153,6 +157,26 @@ async function decodeToPng(
   }
 }
 
+/** 지금의 페이지·선택·보임을 devup-mcp 에 알린다. 받는 쪽은 통째로 바꿔 끼운다. */
+function sendContext() {
+  if (!bridgeStatus || !socket || socket.readyState !== WebSocket.OPEN) return
+  socket.send(
+    JSON.stringify({
+      kind: 'context',
+      currentPage: bridgeStatus.currentPage,
+      selection: bridgeStatus.selection,
+      selectionCount: bridgeStatus.selectionCount,
+      inView: inView(),
+    }),
+  )
+}
+
+// 가려지거나 다시 보이면 알린다. 다시 보이면 메인이 문서를 다시 불러 둔다.
+document.addEventListener('visibilitychange', () => {
+  sendContext()
+  if (inView()) parent.postMessage({ pluginMessage: { kind: 'devup-in-view' } }, '*')
+})
+
 window.onmessage = (event: MessageEvent) => {
   const msg = event.data?.pluginMessage
   if (!msg || typeof msg !== 'object') return
@@ -182,16 +206,7 @@ window.onmessage = (event: MessageEvent) => {
       selection: context.selection,
       selectionCount: context.selectionCount,
     }
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(
-        JSON.stringify({
-          kind: 'context',
-          currentPage: context.currentPage,
-          selection: context.selection,
-          selectionCount: context.selectionCount,
-        }),
-      )
-    }
+    sendContext()
     return
   }
 

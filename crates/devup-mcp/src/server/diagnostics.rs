@@ -598,6 +598,14 @@ fn attached_file(file: &AttachedFile) -> Value {
         "selection": file.context.selection,
         "selectionCount": file.context.selection_count,
     });
+    if let Some(in_view) = file.context.in_view {
+        entry["inView"] = json!(in_view);
+        if !in_view {
+            entry["inViewNote"] = json!(
+                "Figma is not showing this file. Once it has been out of view for a minute or two, Figma answers reads of data it has not loaded with \"Unable to establish connection to Figma\" after 10 seconds each. Bring the Figma window to the front and click this file's tab before a collection."
+            );
+        }
+    }
     if file.file_key.is_none() {
         entry["fileKeyNote"] = json!(KEYLESS_NOTE);
     }
@@ -814,6 +822,7 @@ mod tests {
                 }),
                 selection: selected.map(|count| (1..=count).map(node).collect()),
                 selection_count: selected,
+                in_view: Some(false),
             },
         }
     }
@@ -943,6 +952,13 @@ mod tests {
         assert_eq!(file["currentPage"]["name"], "Page 1");
         assert_eq!(file["selection"][0]["id"], "1:1");
         assert_eq!(file["selection"][0]["type"], "FRAME");
+        // Out of view, status says so before a collection meets Figma's refusals.
+        assert_eq!(file["inView"], false);
+        assert!(
+            file["inViewNote"]
+                .as_str()
+                .is_some_and(|note| note.contains("to the front"))
+        );
         // One plugin, one selected frame: the next call needs no url.
         assert_eq!(bridge_only["nextAction"]["tool"], "devup_figma_export");
         assert!(bridge_only["nextAction"]["arguments"].get("url").is_none());

@@ -113,6 +113,11 @@ pub struct PluginContext {
     pub selection: Option<Vec<NodeRef>>,
     #[serde(default)]
     pub selection_count: Option<usize>,
+    /// 플러그인 창이 화면에 보이는지. Figma 는 보이지 않는 파일이 아직 불러오지 않은
+    /// 데이터를 읽지 못하게 하므로, 수집을 시작하기 전에 알 수 있어야 한다. 이것을
+    /// 보고하기 전에 빌드된 플러그인은 `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_view: Option<bool>,
 }
 
 impl PluginContext {

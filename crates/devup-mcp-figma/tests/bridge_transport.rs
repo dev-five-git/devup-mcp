@@ -461,6 +461,7 @@ async fn a_keyless_plugin_reports_where_it_is_and_answers_its_own_connection() {
                 "currentPage": { "id": "0:2", "name": "Page 2" },
                 "selection": [],
                 "selectionCount": 0,
+                "inView": false,
             })
             .to_string()
             .into(),
@@ -469,8 +470,9 @@ async fn a_keyless_plugin_reports_where_it_is_and_answers_its_own_connection() {
         .expect("the context is sent");
     for _ in 0..200 {
         let context = state.attached_files().await[0].context.clone();
-        if context.current_page.map(|page| page.name).as_deref() == Some("Page 2") {
+        if context.current_page.as_ref().map(|page| page.name.as_str()) == Some("Page 2") {
             assert_eq!(context.selection, Some(vec![]));
+            assert_eq!(context.in_view, Some(false));
             return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;

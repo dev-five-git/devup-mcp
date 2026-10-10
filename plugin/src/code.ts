@@ -229,7 +229,36 @@ function withdraw(requestId: string) {
   if (running === requestId) withdrawn.add(requestId)
 }
 
+/**
+ * 문서를 미리 불러 둔다. Figma 는 파일이 화면에서 1~3분 사라지면 아직 불러오지 않은
+ * 데이터를 읽는 플러그인에 10초 뒤 "Unable to establish connection" 으로 답하지만,
+ * 이미 불러온 것은 계속 답한다(페이지를 불러 둔 뒤에는 같은 실패가 재현되지 않았다).
+ * 그래서 보일 때 — 시작할 때와 다시 보이게 될 때 — 모든 페이지와 로컬 변수·스타일을
+ * 불러 둔다. 실패해도 읽기는 그때그때 불러온다.
+ */
+let preloading: Promise<void> | null = null
+function preload() {
+  preloading ??= (async () => {
+    try {
+      await figma.loadAllPagesAsync()
+      await Promise.all([
+        figma.variables.getLocalVariableCollectionsAsync(),
+        figma.variables.getLocalVariablesAsync(),
+        figma.getLocalPaintStylesAsync(),
+        figma.getLocalTextStylesAsync(),
+        figma.getLocalEffectStylesAsync(),
+        figma.getLocalGridStylesAsync(),
+      ])
+    } catch {
+      // 불러 두지 못한 것은 읽을 때 불러온다.
+    } finally {
+      preloading = null
+    }
+  })()
+}
+
 figma.showUI(__html__, { width: 320, height: 220 })
+preload()
 
 // 읽기 스크립트도 페이지를 옮기므로 사람이 옮긴 것과 함께 이 이벤트로 온다.
 figma.on('selectionchange', postContext)
@@ -267,5 +296,11 @@ figma.ui.onmessage = (message: unknown) => {
   if (msg.kind === 'devup-decoded') {
     const decoded = message as DecodedMessage
     decoding.get(decoded.id)?.(decoded.png ?? null)
+    return
+  }
+
+  // 다시 보이게 됐다. 가려진 사이에 바뀐 것까지 불러 둔다.
+  if (msg.kind === 'devup-in-view') {
+    preload()
   }
 }
