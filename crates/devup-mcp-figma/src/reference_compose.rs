@@ -211,12 +211,8 @@ struct Entry<'a> {
 /// instead. The answer the scene came in is read before this is counted.
 const MAX_COMPOSE_BYTES: u64 = 1536 * 1024 * 1024;
 
-/// What a decoder may allocate a pixel of the image's header size (a 16-bit
-/// PNG is 8); becoming RGBA8 adds the 4 kept.
-const DECODER_BYTES_PER_PIXEL: u64 = 8;
-const DECODE_BYTES_PER_PIXEL: u64 = DECODER_BYTES_PER_PIXEL + 4;
-
-/// What a decoder may hold besides the pixels: row buffers, metadata chunks.
+/// What a decoder may hold besides its per-pixel buffers: row buffers and
+/// metadata chunks. Counted once: pictures and images decode one at a time.
 const DECODE_SLACK: u64 = 16 * 1024 * 1024;
 
 /// Kernel taps across every blur and shadow, so a wide blur over a large area
@@ -245,15 +241,15 @@ fn within_budget(
         .chain(&scene.node.picture)
         .chain(&scene.node.children)
     {
-        let (width, height) = dimensions(&base64_bytes(&picture.data)?)?;
-        largest_picture = largest_picture.max(u64::from(width) * u64::from(height));
+        let (_, cost) = decode_cost(&base64_bytes(&picture.data)?)?;
+        largest_picture = largest_picture.max(cost);
     }
     // 20 bytes a pixel for each stack entry (colour and clip), 16 for each
     // mask kept to cut its layer, and about 120 for what one layer, blur or
     // picture holds while it is drawn.
     let bytes = pixels
         .saturating_mul(20 * (1 + isolated) + 16 * masks + 120)
-        .saturating_add(largest_picture.saturating_mul(DECODE_BYTES_PER_PIXEL))
+        .saturating_add(largest_picture)
         .saturating_add(DECODE_SLACK)
         .saturating_add(images.decoded_bytes());
     if bytes > MAX_COMPOSE_BYTES {
@@ -666,16 +662,11 @@ fn base64_bytes(data: &str) -> Result<Vec<u8>, DevupError> {
 }
 
 impl Decoded {
-    /// Decoded within what the budget counted for its header's size, so a GIF
-    /// frame larger than the screen its header names is refused, not decoded.
+    /// Decoded within what the budget counted for it (`decode_cost`).
     fn from_bytes(bytes: &[u8]) -> Result<Self, DevupError> {
-        let (width, height) = dimensions(bytes)?;
+        let (decoder, _) = decode_cost(bytes)?;
         let mut limits = image::Limits::default();
-        limits.max_alloc = Some(
-            (u64::from(width) * u64::from(height))
-                .saturating_mul(DECODER_BYTES_PER_PIXEL)
-                .saturating_add(DECODE_SLACK),
-        );
+        limits.max_alloc = Some(decoder.saturating_add(DECODE_SLACK));
         let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
             .with_guessed_format()
             .map_err(|error| invalid(format!("an image cannot be read: {error}")))?;
@@ -727,7 +718,7 @@ impl Decoded {
 /// sampled.
 struct Images {
     sources: HashMap<String, Vec<u8>>,
-    pixels: u64,
+    cost: u64,
     decoded: HashMap<String, Decoded>,
 }
 
@@ -740,26 +731,169 @@ fn dimensions(encoded: &[u8]) -> Result<(u32, u32), DevupError> {
         .map_err(|error| invalid(format!("an image cannot be read: {error}")))
 }
 
+/// What decoding an image may allocate, from its header alone: what its
+/// decoder may allocate, and that with the RGBA8 it becomes (4 bytes a pixel)
+/// and a copy of its bytes.
+///
+/// PNG and GIF decoders are held to their part (`Decoded::from_bytes`): a
+/// 16-bit PNG decodes to 8 bytes a pixel, and a GIF frame larger than its
+/// screen is refused. The others take no such limit, so they are counted from
+/// what sizes their buffers:
+/// - A JPEG decoder keeps two bytes for each sample of each component's
+///   coefficients, at the sampling factors its frame headers name, over rows
+///   and columns padded to whole MCUs, beside a 4-byte output.
+/// - A WebP decoder sizes its buffers from its image data before checking it
+///   against the canvas, so a WebP whose data does not match its canvas or
+///   frames, or whose chunks run past it, is refused. One that matches takes
+///   at most 12 bytes a pixel: canvas, frame and planes.
+fn decode_cost(encoded: &[u8]) -> Result<(u64, u64), DevupError> {
+    let (width, height) = dimensions(encoded)?;
+    let (width, height) = (u64::from(width), u64::from(height));
+    let decoder = match image::guess_format(encoded) {
+        Ok(image::ImageFormat::Jpeg) => {
+            let coefficients = jpeg_coefficient_bytes(encoded)
+                .ok_or_else(|| invalid("a JPEG's frame header cannot be read"))?;
+            (width + 32)
+                .saturating_mul(height + 32)
+                .saturating_mul(coefficients + 4)
+        }
+        Ok(image::ImageFormat::WebP) if !webp_matches_its_canvas(encoded, width, height) => {
+            return Err(invalid("a WebP's image data does not match its canvas"));
+        }
+        Ok(image::ImageFormat::WebP) => width.saturating_mul(height).saturating_mul(12),
+        _ => width.saturating_mul(height).saturating_mul(8),
+    };
+    let kept = width.saturating_mul(height).saturating_mul(4);
+    Ok((
+        decoder,
+        decoder
+            .saturating_add(kept)
+            .saturating_add(encoded.len() as u64),
+    ))
+}
+
+/// Two bytes a pixel for each sample of each component, at the largest
+/// sampling factors any frame header before the first scan names.
+fn jpeg_coefficient_bytes(encoded: &[u8]) -> Option<u64> {
+    let mut largest = None;
+    let mut at = 2;
+    while let Some(&byte) = encoded.get(at) {
+        if byte != 0xFF {
+            return None;
+        }
+        let marker = *encoded.get(at + 1)?;
+        match marker {
+            0xFF => at += 1,
+            0x01 | 0xD0..=0xD9 => at += 2,
+            0xDA => break,
+            _ => {
+                let length = u16::from_be_bytes([*encoded.get(at + 2)?, *encoded.get(at + 3)?]);
+                if matches!(marker, 0xC0..=0xCF) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
+                    let components = usize::from(*encoded.get(at + 9)?);
+                    let samples: Option<u64> = (0..components)
+                        .map(|index| {
+                            let factors = *encoded.get(at + 11 + 3 * index)?;
+                            Some(2 * u64::from(factors >> 4) * u64::from(factors & 15))
+                        })
+                        .sum();
+                    largest = largest.max(Some(samples?));
+                }
+                at += 2 + usize::from(length);
+            }
+        }
+    }
+    largest
+}
+
+/// Whether a WebP's chunks lie within it and each image it holds is the size
+/// it claims: the canvas for a still image, its frame for an animated one,
+/// each frame inside the canvas.
+fn webp_matches_its_canvas(encoded: &[u8], width: u64, height: u64) -> bool {
+    fn chunks(data: &[u8]) -> Option<Vec<(&[u8], &[u8])>> {
+        let mut found = Vec::new();
+        let mut at = 0;
+        while at < data.len() {
+            let header = data.get(at..at + 8)?;
+            let size = u32::from_le_bytes(header[4..8].try_into().ok()?) as usize;
+            found.push((&header[..4], data.get(at + 8..at + 8 + size)?));
+            at += 8 + size + size % 2;
+        }
+        Some(found)
+    }
+    fn size_of(kind: &[u8], body: &[u8]) -> Option<(u64, u64)> {
+        match kind {
+            b"VP8 " => Some((
+                u64::from(u16::from_le_bytes([*body.get(6)?, *body.get(7)?]) & 0x3FFF),
+                u64::from(u16::from_le_bytes([*body.get(8)?, *body.get(9)?]) & 0x3FFF),
+            )),
+            b"VP8L" => {
+                let bits = u32::from_le_bytes(body.get(1..5)?.try_into().ok()?);
+                Some((
+                    u64::from(bits & 0x3FFF) + 1,
+                    u64::from((bits >> 14) & 0x3FFF) + 1,
+                ))
+            }
+            _ => None,
+        }
+    }
+    let fits = |chunks: &[(&[u8], &[u8])], width: u64, height: u64| {
+        chunks.iter().all(|(kind, body)| {
+            !matches!(*kind, b"VP8 " | b"VP8L") || size_of(kind, body) == Some((width, height))
+        })
+    };
+    let riff = encoded
+        .get(4..8)
+        .and_then(|size| Some(u32::from_le_bytes(size.try_into().ok()?) as usize));
+    let (Some(b"RIFF"), Some(b"WEBP"), Some(riff)) = (encoded.get(..4), encoded.get(8..12), riff)
+    else {
+        return false;
+    };
+    let Some(top) = encoded.get(12..8 + riff).and_then(chunks) else {
+        return false;
+    };
+    fits(&top, width, height)
+        && top
+            .iter()
+            .filter(|(kind, _)| *kind == b"ANMF")
+            .all(|(_, frame)| {
+                let field = |at: usize| {
+                    frame
+                        .get(at..at + 3)
+                        .map(|b| u64::from(b[0]) | u64::from(b[1]) << 8 | u64::from(b[2]) << 16)
+                };
+                let (Some(x), Some(y), Some(w), Some(h)) = (field(0), field(3), field(6), field(9))
+                else {
+                    return false;
+                };
+                let (w, h) = (w + 1, h + 1);
+                2 * x + w <= width
+                    && 2 * y + h <= height
+                    && frame
+                        .get(16..)
+                        .and_then(chunks)
+                        .is_some_and(|inner| fits(&inner, w, h))
+            })
+}
+
 impl Images {
     fn new(sources: &HashMap<String, String>) -> Result<Self, DevupError> {
         let mut bytes = HashMap::new();
-        let mut pixels = 0_u64;
+        let mut cost = 0_u64;
         for (hash, data) in sources {
             let encoded = base64_bytes(data)?;
-            let (width, height) = dimensions(&encoded)?;
-            pixels = pixels.saturating_add(u64::from(width) * u64::from(height));
+            cost = cost.saturating_add(decode_cost(&encoded)?.1);
             bytes.insert(hash.clone(), encoded);
         }
         Ok(Self {
             sources: bytes,
-            pixels,
+            cost,
             decoded: HashMap::new(),
         })
     }
 
     /// What decoding them all takes: each is kept once decoded.
     fn decoded_bytes(&self) -> u64 {
-        self.pixels.saturating_mul(DECODE_BYTES_PER_PIXEL)
+        self.cost
     }
 
     fn get(&mut self, hash: &str) -> Result<&Decoded, DevupError> {
@@ -1259,6 +1393,76 @@ mod tests {
             "{}",
             error.message
         );
+    }
+
+    /// A WebP whose 1x1 canvas holds a VP8 frame claiming 16383x16383 is
+    /// refused before its decoder sizes planes from that frame.
+    #[test]
+    fn a_webp_whose_data_does_not_match_its_canvas_is_not_decoded() {
+        let mut webp = b"RIFF".to_vec();
+        webp.extend(40_u32.to_le_bytes());
+        webp.extend(b"WEBPVP8X");
+        webp.extend(10_u32.to_le_bytes());
+        webp.extend([0; 10]);
+        webp.extend(b"VP8 ");
+        webp.extend(10_u32.to_le_bytes());
+        webp.extend([0, 0, 0, 0x9d, 0x01, 0x2a, 0xff, 0x3f, 0xff, 0x3f]);
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 1, "height": 1, "page": [0, 0, 0],
+            "node": {"picture": {"data": STANDARD.encode(webp), "area": {"x": 0, "y": 0}}}
+        });
+        let error = compose(&scene).expect_err("the WebP is refused");
+        assert!(
+            error.message.contains("does not match its canvas"),
+            "{}",
+            error.message
+        );
+    }
+
+    /// A JPEG is counted at the sampling factors its frame header names.
+    #[test]
+    fn a_jpeg_is_counted_at_its_sampling_factors() {
+        let mut jpeg = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00];
+        jpeg.extend([0xFF, 0xC0, 0x00, 0x14, 8, 0x0F, 0xA0, 0x0F, 0xA0, 4]);
+        for id in 1..=4 {
+            jpeg.extend([id, 0x44, 0]);
+        }
+        jpeg.extend([0xFF, 0xDA]);
+        assert_eq!(jpeg_coefficient_bytes(&jpeg), Some(2 * 16 * 4));
+    }
+
+    /// Image fills in JPEG and WebP still compose.
+    #[test]
+    fn jpeg_and_webp_fills_compose() {
+        let mut jpeg = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new(&mut jpeg)
+            .encode(
+                &[255, 0, 0].repeat(16),
+                4,
+                4,
+                image::ExtendedColorType::Rgb8,
+            )
+            .expect("a JPEG encodes");
+        let mut webp = Vec::new();
+        image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
+            .encode(
+                &[0, 0, 255, 255].repeat(16),
+                4,
+                4,
+                image::ExtendedColorType::Rgba8,
+            )
+            .expect("a WebP encodes");
+        for (bytes, channel) in [(jpeg, 0), (webp, 2)] {
+            let scene = json!({
+                "area": {"x": 0, "y": 0}, "width": 4, "height": 4, "page": [0, 0, 0],
+                "layers": [{"transform": [[1, 0, 0], [0, 1, 0]], "width": 4, "height": 4,
+                            "fills": [{"type": "IMAGE", "imageHash": "fill", "scaleMode": "FILL"}]}],
+                "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}},
+                "images": {"fill": STANDARD.encode(bytes)}
+            });
+            let rgba = decode(&compose(&scene).expect("composes"));
+            assert!(rgba[channel] > 200, "{rgba:?}");
+        }
     }
 
     /// What would take more memory or blur work than a reference PNG is worth
