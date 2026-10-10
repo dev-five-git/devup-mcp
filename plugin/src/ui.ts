@@ -131,29 +131,44 @@ function connect() {
  * 메인이 넘긴 사진을 브라우저로 디코딩해 PNG 로 돌려준다. 긴 변이 `maxEdge` 를 넘으면
  * 그만큼 줄인다. devup-mcp 는 이 PNG 를 원본 크기에 맞춰 놓는다. 브라우저가 풀지 못하는
  * 사진이면 null — 메인은 원본을 그대로 보낸다.
+ *
+ * 한 번에 하나만 디코딩한다. 메인이 기다리다 그만둔 디코딩도 브라우저에서는 끝까지
+ * 돌기 때문에, 그것이 끝나기 전에 온 요청은 디코딩하지 않고 null 로 답한다. 디코딩한
+ * 크기가 Figma 가 알려 준 크기(`width`·`height`)와 다르면 버린다 — 메인은 그 크기로
+ * 메모리를 미리 셌다.
  */
+let converting = false
 async function decodeToPng(
   bytes: Uint8Array<ArrayBuffer>,
   maxEdge: number,
+  width: number,
+  height: number,
 ): Promise<Uint8Array | null> {
+  if (converting) return null
+  converting = true
+  let bitmap: ImageBitmap | undefined
   try {
-    const bitmap = await createImageBitmap(new Blob([bytes]), {
+    bitmap = await createImageBitmap(new Blob([bytes]), {
       colorSpaceConversion: 'none',
       premultiplyAlpha: 'none',
     })
-    const fit = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
-    const width = Math.max(1, Math.round(bitmap.width * fit))
-    const height = Math.max(1, Math.round(bitmap.height * fit))
-    const canvas = new OffscreenCanvas(width, height)
+    if (bitmap.width !== width || bitmap.height !== height) return null
+    const fit = Math.min(1, maxEdge / Math.max(width, height))
+    const drawnWidth = Math.max(1, Math.round(width * fit))
+    const drawnHeight = Math.max(1, Math.round(height * fit))
+    const canvas = new OffscreenCanvas(drawnWidth, drawnHeight)
     const context = canvas.getContext('2d')
     if (!context) return null
     context.imageSmoothingQuality = 'high'
-    context.drawImage(bitmap, 0, 0, width, height)
+    context.drawImage(bitmap, 0, 0, drawnWidth, drawnHeight)
     bitmap.close()
     const blob = await canvas.convertToBlob({ type: 'image/png' })
     return new Uint8Array(await blob.arrayBuffer())
   } catch {
     return null
+  } finally {
+    bitmap?.close()
+    converting = false
   }
 }
 
@@ -182,7 +197,7 @@ window.onmessage = (event: MessageEvent) => {
   if (!msg || typeof msg !== 'object') return
 
   if (msg.kind === 'devup-decode') {
-    void decodeToPng(msg.bytes, msg.maxEdge).then((png) => {
+    void decodeToPng(msg.bytes, msg.maxEdge, msg.width, msg.height).then((png) => {
       parent.postMessage({ pluginMessage: { kind: 'devup-decoded', id: msg.id, png } }, '*')
     })
     return

@@ -169,6 +169,14 @@ pub(crate) fn compose(scene: &Value) -> Result<String, DevupError> {
     {
         margin /= 2;
     }
+    // A drop shadow is cast from what lies its offset and spread away, and
+    // past the margin nothing is drawn to cast it: a shadow reaching farther is
+    // not composed rather than drawn smaller.
+    if let Some(reach) = shadow_reach(&scene).filter(|&reach| reach > margin) {
+        return Err(invalid(format!(
+            "a shadow is cast from {reach} pixels away, past the {margin} drawn around the area"
+        )));
+    }
     let wide = width + 2 * margin;
     let mut images = Images::new(&scene.images)?;
     within_budget(&scene, wide, height + 2 * margin, &images)?;
@@ -294,13 +302,48 @@ fn within_budget(
             let reach = (number(&effect["radius"]) * scene.scale * 1.5)
                 .ceil()
                 .max(0.0) as u64;
-            pixels.saturating_mul(reach.saturating_mul(4).saturating_add(2))
+            // A shadow's spread takes the widest (or narrowest) alpha across a
+            // window twice the spread wide, once along each axis.
+            let spread = if effect["type"] == "DROP_SHADOW" {
+                (number(&effect["spread"]) * scene.scale).round().abs() as u64
+            } else {
+                0
+            };
+            pixels
+                .saturating_mul(reach.saturating_mul(4).saturating_add(2))
+                .saturating_add(if spread == 0 {
+                    0
+                } else {
+                    pixels.saturating_mul(spread.saturating_mul(4).saturating_add(2))
+                })
         })
         .fold(0_u64, u64::saturating_add);
     if taps > MAX_BLUR_TAPS {
-        return Err(invalid(format!("its blurs would take {taps} kernel taps")));
+        return Err(invalid(format!(
+            "its blurs and shadow spreads would take {taps} kernel taps"
+        )));
     }
     Ok(())
+}
+
+/// How far away, in pixels, the farthest drop shadow is cast from: its
+/// offset and its spread.
+fn shadow_reach(scene: &Scene) -> Option<usize> {
+    scene
+        .layers
+        .iter()
+        .chain(scene.node.own.as_ref())
+        .flat_map(|layer| layer.effects.iter().filter(|effect| visible(effect)))
+        .filter(|effect| effect["type"] == "DROP_SHADOW")
+        .map(|effect| {
+            ((number(&effect["offset"]["x"])
+                .abs()
+                .max(number(&effect["offset"]["y"]).abs())
+                + number(&effect["spread"]).abs())
+                * scene.scale)
+                .ceil() as usize
+        })
+        .max()
 }
 
 /// How many pixels past the area the widest blur or shadow in the scene reads.
@@ -1158,9 +1201,7 @@ fn drop_shadow(pixels: &[Px], grid: &Grid, effect: &Value, shape: &[f32]) -> Vec
             *px = [colour[0], colour[1], colour[2], alpha * colour[3]];
         }
     }
-    let spread = (number(&effect["spread"]) * grid.scale)
-        .round()
-        .clamp(-512.0, 512.0) as isize;
+    let spread = (number(&effect["spread"]) * grid.scale).round() as isize;
     if spread != 0 {
         spread_alpha(&mut shadow, width, height, spread);
     }
@@ -1905,6 +1946,34 @@ mod tests {
         assert_eq!(red(&decode(&compose(&scene(0.0)).expect("composes"))), 4);
         assert_eq!(red(&decode(&compose(&scene(1.0)).expect("composes"))), 16);
         assert_eq!(red(&decode(&compose(&scene(-1.0)).expect("composes"))), 0);
+    }
+
+    /// A spread is drawn as asked or not at all. The work it takes is counted
+    /// before drawing: unblurred, a spread of 500 over a thousand-pixel square
+    /// would take eight billion comparisons. A shadow cast from farther than
+    /// the margin drawn around the area - here a square 550 pixels to the left
+    /// with a spread of 600, whose shadow reaches the area while one spread
+    /// 512 would not - is not composed rather than drawn with less spread.
+    #[test]
+    fn a_large_spread_is_counted_and_never_drawn_smaller() {
+        let scene = |width: u32, layer: Value| {
+            json!({
+                "area": {"x": 0, "y": 0}, "width": width, "height": width, "page": [255, 255, 255],
+                "layers": [layer],
+                "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+            })
+        };
+        let shadowed = |x: f64, size: f64, spread: f64| {
+            json!({"transform": [[1, 0, x], [0, 1, 0]], "width": size, "height": size,
+                   "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}],
+                   "effects": [{"type": "DROP_SHADOW", "radius": 0, "spread": spread,
+                                "offset": {"x": 0, "y": 0}, "color": {"r": 1, "g": 0, "b": 0, "a": 1}}]})
+        };
+        let error = compose(&scene(1000, shadowed(0.0, 1000.0, 500.0))).expect_err("too much work");
+        assert!(error.message.contains("kernel taps"), "{}", error.message);
+        let error =
+            compose(&scene(4, shadowed(-552.0, 2.0, 600.0))).expect_err("cast from too far");
+        assert!(error.message.contains("pixels away"), "{}", error.message);
     }
 
     /// An inner shadow falls inside the layer from the side its offset points

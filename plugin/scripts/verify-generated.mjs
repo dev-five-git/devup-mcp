@@ -267,6 +267,31 @@ globalThis.figma.getImageByHash = fill(png, 2, 2)
 const plainFill = await run('1:10')
 assert.deepEqual(asked, [])
 assert.equal(plainFill.compose.images.big, Buffer.from(png).toString('base64'))
+// 바꾸는 데 512 MiB 넘게 들 사진은 UI 에 보내지 않고 그대로 보낸다.
+globalThis.figma.getImageByHash = fill(webp, 30000, 30000)
+const hugeFill = await run('1:10')
+assert.deepEqual(asked, [])
+assert.equal(hugeFill.compose.images.big, Buffer.from(webp).toString('base64'))
+// 장면 하나의 사진들은 변환 시간 한 몫을 나눠 쓴다. 첫 변환이 그 시간을 다 쓰고 멈추면
+// 나머지는 UI 에 보내지 않고 그대로 보낸다 — 캔버스 그림을 보낼 시간이 남는다.
+const realNow = Date.now
+let clock = realNow()
+Date.now = () => clock
+const waited = []
+globalThis.__devupNormalizeImage = async (bytes, maxEdge, timeoutMs) => {
+  waited.push(timeoutMs)
+  clock += timeoutMs
+  return null
+}
+const imageFill = (imageHash) => ({ type: 'IMAGE', visible: true, opacity: 1, blendMode: 'NORMAL', imageHash, scaleMode: 'FILL' })
+const fills = photo.fills
+photo.fills = ['w1', 'w2', 'w3'].map(imageFill)
+globalThis.figma.getImageByHash = () => ({ getBytesAsync: async () => webp, getSizeAsync: async () => ({ width: 3000, height: 2000 }) })
+const stalled = await run('1:10')
+Date.now = realNow
+photo.fills = fills
+assert.deepEqual(waited, [20000])
+assert.deepEqual(Object.values(stalled.compose.images), Array(3).fill(Buffer.from(webp).toString('base64')))
 delete globalThis.__devupNormalizeImage
 globalThis.figma.getImageByHash = () => null
 

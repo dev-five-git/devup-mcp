@@ -77,29 +77,36 @@ const PORT = 1993
  * 사진을 브라우저로 디코딩해 PNG 로 받는 자리. 참조 PNG 스크립트가 devup-mcp 가
  * 디코딩하지 않을 사진(PNG·JPEG·GIF 가 아니거나, 너무 크거나, 대부분 메타데이터인 것)을
  * 넘긴다. 디코더는 브라우저가 있는 UI 에만 있어 거기에 맡긴다. 답이 없으면 null 이고,
- * 스크립트는 원본을 그대로 보낸다.
+ * 스크립트는 원본을 그대로 보낸다. 기다리는 시간(`timeoutMs`)은 스크립트가 정한다 —
+ * 장면 하나의 사진들이 한 몫을 나눠 쓴다. 사진의 크기(`width`·`height`)는 Figma 가 아는
+ * 값이고, UI 는 디코딩한 크기가 그와 다르면 버린다.
  */
-const DECODE_TIMEOUT_MS = 30_000
 const decoding = new Map<string, (png: Uint8Array | null) => void>()
 let decodes = 0
 ;(
   globalThis as unknown as {
-    __devupNormalizeImage: (bytes: Uint8Array, maxEdge: number) => Promise<Uint8Array | null>
+    __devupNormalizeImage: (
+      bytes: Uint8Array,
+      maxEdge: number,
+      timeoutMs: number,
+      width: number,
+      height: number,
+    ) => Promise<Uint8Array | null>
   }
-).__devupNormalizeImage = (bytes, maxEdge) =>
+).__devupNormalizeImage = (bytes, maxEdge, timeoutMs, width, height) =>
   new Promise((resolve) => {
     decodes += 1
     const id = `decode-${decodes}`
     const timer = setTimeout(() => {
       decoding.delete(id)
       resolve(null)
-    }, DECODE_TIMEOUT_MS)
+    }, timeoutMs)
     decoding.set(id, (png) => {
       clearTimeout(timer)
       decoding.delete(id)
       resolve(png)
     })
-    figma.ui.postMessage({ kind: 'devup-decode', id, bytes, maxEdge })
+    figma.ui.postMessage({ kind: 'devup-decode', id, bytes, maxEdge, width, height })
   })
 
 /**

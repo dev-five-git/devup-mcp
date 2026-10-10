@@ -28,8 +28,9 @@ function plugin() {
       return null
     },
   }
-  vm.runInNewContext(bundle, { figma, __html__: '', console })
-  return { posted, looked, send: (message) => figma.ui.onmessage(message) }
+  const context = { figma, __html__: '', console, setTimeout, clearTimeout }
+  vm.runInNewContext(bundle, context)
+  return { posted, looked, context, send: (message) => figma.ui.onmessage(message) }
 }
 
 const job = (requestId, nodeId) => ({
@@ -81,4 +82,16 @@ test('withdrawing a job that already answered changes nothing', async () => {
     posted.map((message) => message.requestId),
     ['a', 'a2'],
   )
+})
+
+// The image conversion the reference PNG script hands to the UI waits only as
+// long as the script gives it: an answer that never comes is nothing.
+test('an image conversion the UI never answers is given up at its time', async () => {
+  const { posted, context } = plugin()
+  const started = Date.now()
+  const png = await context.__devupNormalizeImage(new Uint8Array(4), 8192, 30, 2, 1)
+  assert.equal(png, null)
+  assert.ok(Date.now() - started < 5000)
+  const asked = posted.find((message) => message.kind === 'devup-decode')
+  assert.deepEqual([asked.maxEdge, asked.width, asked.height], [8192, 2, 1])
 })

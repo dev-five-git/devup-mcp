@@ -263,8 +263,14 @@ try {
   // An image devup-mcp does not decode - not a PNG, JPEG or GIF, an edge past
   // what the plugin exports, or mostly metadata - the plugin's UI decodes as a
   // browser does and hands back as a PNG, laid out at the original's size.
-  // Others go as they are, so their pixels stay what they were.
+  // Others go as they are, so their pixels stay what they were. The UI decodes
+  // one image at a time and all of a scene's images share one allowance of
+  // time, so stalled conversions still leave time to send the canvas picture.
+  // An image the browser would need over 512 MiB to convert - the whole image
+  // decoded, 4 bytes a pixel, and up to 8 a pixel for the PNG drawn from it -
+  // or one left when the time is up goes as it is.
   const normalize = globalThis.__devupNormalizeImage;
+  const normalizeUntil = Date.now() + 20000;
   let imageBytes = 0;
   for (const hash of images) {
     const image = hash && figma.getImageByHash(hash);
@@ -278,8 +284,12 @@ try {
       const { width, height } = await image.getSizeAsync();
       const starts = (...values) => values.every((value, at) => bytes[at] === value);
       const decoded = starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8) || starts(0x47, 0x49, 0x46);
-      if (!decoded || Math.max(width, height) > 8192 || bytes.length > 4 * width * height + 1024 * 1024) {
-        const png = await normalize(bytes, 8192);
+      const fit = Math.min(1, 8192 / Math.max(width, height, 1));
+      const peak = 4 * width * height + 8 * Math.ceil(width * fit) * Math.ceil(height * fit) + bytes.length;
+      const left = normalizeUntil - Date.now();
+      if ((!decoded || Math.max(width, height) > 8192 || bytes.length > 4 * width * height + 1024 * 1024)
+        && peak <= 512 * 1024 * 1024 && left > 0) {
+        const png = await normalize(bytes, 8192, left, width, height);
         if (png) {
           bytes = png;
           laidOut = { width, height };
