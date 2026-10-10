@@ -188,7 +188,9 @@ const describe = (layer, own) => {
 };
 const picture = async (layer) => {
   const bytes = await layer.exportAsync(settings(true, layer === node));
-  return { data: figma.base64Encode(bytes), area: layer.absoluteRenderBounds, blendMode: layer.blendMode || null, size: pngSize(bytes) };
+  // A mask draws nothing itself, so Figma gives it no render bounds; its
+  // export covers its box.
+  return { data: figma.base64Encode(bytes), area: layer.absoluteRenderBounds || layer.absoluteBoundingBox, blendMode: layer.blendMode || null, size: pngSize(bytes) };
 };
 const maskOf = async (member) => {
   const mask = masks.get(member);
