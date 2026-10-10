@@ -89,6 +89,15 @@ struct Layer {
     /// The mask that clips this layer among its siblings.
     #[serde(default)]
     mask: Option<Picture>,
+    /// Drawn over all the layer holds: its paints, inside, outside or across
+    /// its edge by `stroke_align`, `stroke_weights` wide (top, right, bottom,
+    /// left). The plugin sends only a rectangle's undashed, mitred strokes.
+    #[serde(default)]
+    strokes: Vec<Value>,
+    #[serde(default)]
+    stroke_align: Option<String>,
+    #[serde(default)]
+    stroke_weights: [f64; 4],
 }
 
 /// A plugin export placed at the absolute bounds it covers.
@@ -247,6 +256,7 @@ fn within_budget(
         + u64::from(scene.node.own.is_some() && scene.node.mask.is_some());
     let masks = layers().filter(|layer| layer.mask.is_some()).count() as u64
         + u64::from(scene.node.mask.is_some());
+    let stroked = layers().filter(|layer| !layer.strokes.is_empty()).count() as u64;
     // Pictures and images decode one at a time; a picture is dropped once laid
     // on the grid, an image is kept.
     let mut peak = images.peak;
@@ -260,10 +270,10 @@ fn within_budget(
         peak = peak.max(Header::read(&encoded)?.peak(encoded.len()));
     }
     // 20 bytes a pixel for each stack entry (colour and clip), 16 for each
-    // mask kept to cut its layer, and about 120 for what one layer, blur or
-    // picture holds while it is drawn.
+    // mask kept to cut its layer, 4 for the clip a stroke waits with, and about
+    // 120 for what one layer, blur or picture holds while it is drawn.
     let bytes = pixels
-        .saturating_mul(20 * (1 + isolated) + 16 * masks + 120)
+        .saturating_mul(20 * (1 + isolated) + 16 * masks + 4 * stroked + 120)
         .saturating_add(peak)
         .saturating_add(images.kept);
     if bytes > MAX_COMPOSE_BYTES {
@@ -348,6 +358,9 @@ fn draw(
         mask: None,
     }];
     let own = scene.node.own.as_ref();
+    // A layer's stroke goes over everything it holds, so it waits until that
+    // is drawn, with the clip that cuts the layer itself.
+    let mut strokes: Vec<(usize, &Layer, Vec<f32>)> = Vec::new();
     for layer in scene.layers.iter().chain(own) {
         // Drawn from its parts, the node takes its own mask: it cuts the
         // node's paints, background blur and children alike.
@@ -396,6 +409,7 @@ fn draw(
                 entry.pixels[index] = mix(entry.pixels[index], blurred[index], weight);
             }
         }
+        let depth = stack.len() - 1;
         let top = stack.last_mut().expect("the page entry stays");
         for paint in layer.fills.iter().filter(|paint| visible(paint)) {
             let blend = Blend::parse(paint["blendMode"].as_str())?;
@@ -409,6 +423,9 @@ fn draw(
                 let source = paint_at(paint, layer, local, images)?;
                 composite(pixel, source, blend, coverage);
             }
+        }
+        if !layer.strokes.is_empty() {
+            strokes.push((depth, layer, top.clip.clone()));
         }
         if layer.clips {
             for (clip, &cover) in top.clip.iter_mut().zip(&shape) {
@@ -437,7 +454,17 @@ fn draw(
             composite(pixel, source, blend, clip);
         }
     }
-    while stack.len() > 1 {
+    loop {
+        // The entry on top is complete: lay the strokes of the layers drawn
+        // into it, innermost first.
+        let depth = stack.len() - 1;
+        let top = stack.last_mut().expect("the page entry stays");
+        for (_, layer, clip) in strokes.iter().rev().filter(|(at, ..)| *at == depth) {
+            stroke(&mut top.pixels, layer, clip, &grid, images)?;
+        }
+        if stack.len() == 1 {
+            break;
+        }
         let entry = stack.pop().expect("more than the page entry");
         let layer = entry.layer.expect("an isolated entry names its layer");
         let mut pixels = entry.pixels;
@@ -459,6 +486,40 @@ fn draw(
         }
     }
     Ok(stack.pop().expect("the page entry stays").pixels)
+}
+
+/// A rectangle's stroke laid over `pixels`, cut by `clip`.
+fn stroke(
+    pixels: &mut [Px],
+    layer: &Layer,
+    clip: &[f32],
+    grid: &Grid,
+    images: &mut Images,
+) -> Result<(), DevupError> {
+    let geometry = Geometry::new(layer)?;
+    let [top, right, bottom, left] = layer.stroke_weights;
+    let half = [top / 2.0, right / 2.0, bottom / 2.0, left / 2.0];
+    let (outer, inner) = match layer.stroke_align.as_deref() {
+        Some("INSIDE") => ([0.0; 4], [-top, -right, -bottom, -left]),
+        Some("OUTSIDE") => (layer.stroke_weights, [0.0; 4]),
+        _ => (half, half.map(|weight| -weight)),
+    };
+    for paint in layer.strokes.iter().filter(|paint| visible(paint)) {
+        let blend = Blend::parse(paint["blendMode"].as_str())?;
+        for (index, pixel) in pixels.iter_mut().enumerate() {
+            let point = grid.point(index);
+            let ring = (geometry.grown(point, grid.scale, outer)
+                - geometry.grown(point, grid.scale, inner))
+            .max(0.0);
+            let coverage = ring * clip[index];
+            if coverage <= 0.0 {
+                continue;
+            }
+            let source = paint_at(paint, layer, geometry.local(point), images)?;
+            composite(pixel, source, blend, coverage);
+        }
+    }
+    Ok(())
 }
 
 fn visible(item: &Value) -> bool {
@@ -515,6 +576,41 @@ impl Geometry {
             height: layer.height,
             radii: layer.radii.map(|radius| radius.clamp(0.0, limit)),
         })
+    }
+
+    /// Anti-aliased coverage of the rectangle grown by `grow` on each side (top,
+    /// right, bottom, left; negative shrinks). A rounded corner's arc grows
+    /// about the same centre; a square corner stays square, as a mitre does.
+    fn grown(&self, point: (f64, f64), scale: f64, [top, right, bottom, left]: [f64; 4]) -> f32 {
+        let (x, y) = self.local(point);
+        let half = 0.5 / scale;
+        let (x0, y0, x1, y1) = (-left, -top, self.width + right, self.height + bottom);
+        if x1 <= x0 || y1 <= y0 {
+            return 0.0;
+        }
+        let edge = (x - x0).min(x1 - x).min(y - y0).min(y1 - y);
+        let mut coverage = ((edge + half) / (2.0 * half)).clamp(0.0, 1.0);
+        let [tl, tr, br, bl] = self.radii;
+        for (radius, grow, cx, cy, sx, sy) in [
+            (tl, top.max(left), tl, tl, -1.0, -1.0),
+            (tr, top.max(right), self.width - tr, tr, 1.0, -1.0),
+            (
+                br,
+                bottom.max(right),
+                self.width - br,
+                self.height - br,
+                1.0,
+                1.0,
+            ),
+            (bl, bottom.max(left), bl, self.height - bl, -1.0, 1.0),
+        ] {
+            let arc = radius + grow;
+            if radius > 0.0 && arc > 0.0 && (x - cx) * sx > 0.0 && (y - cy) * sy > 0.0 {
+                let distance = (x - cx).hypot(y - cy) - arc;
+                coverage = coverage.min(((-distance + half) / (2.0 * half)).clamp(0.0, 1.0));
+            }
+        }
+        coverage as f32
     }
 
     fn local(&self, (x, y): (f64, f64)) -> (f64, f64) {
@@ -1637,6 +1733,34 @@ mod tests {
             [true, true, false, false, true, true, false, false]
         );
         assert_eq!(columns(&laid_out), columns(&full));
+    }
+
+    /// An ancestor's stroke goes over everything it holds: one pixel outside a
+    /// white 2x2 square is black all round, mitred at the corners, and the
+    /// node inside does not cover it.
+    #[test]
+    fn an_ancestors_stroke_is_drawn_round_it() {
+        let scene = |align: &str, weight: f64, at: f64, size: f64| {
+            json!({
+                "area": {"x": 0, "y": 0}, "width": 4, "height": 4, "page": [128, 128, 128],
+                "layers": [{"transform": [[1, 0, at], [0, 1, at]], "width": size, "height": size,
+                            "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}}],
+                            "strokes": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}],
+                            "strokeAlign": align, "strokeWeights": [weight, weight, weight, weight]}],
+                "node": {"picture": {"data": png(4, 4, [0, 255, 0, 255].repeat(16)), "area": {"x": 0, "y": 0}}}
+            })
+        };
+        let pixel =
+            |rgba: &[u8], x: usize, y: usize| rgba[(y * 4 + x) * 4..(y * 4 + x) * 4 + 3].to_vec();
+        let outside = decode(&compose(&scene("OUTSIDE", 1.0, 1.0, 2.0)).expect("composes"));
+        for (x, y) in [(0, 0), (1, 0), (3, 0), (0, 2), (3, 3)] {
+            assert_eq!(pixel(&outside, x, y), [0, 0, 0], "({x}, {y})");
+        }
+        assert_eq!(pixel(&outside, 1, 1), [0, 255, 0]);
+        let inside = decode(&compose(&scene("INSIDE", 1.0, 0.0, 4.0)).expect("composes"));
+        assert_eq!(pixel(&inside, 0, 0), [0, 0, 0]);
+        assert_eq!(pixel(&inside, 3, 2), [0, 0, 0]);
+        assert_eq!(pixel(&inside, 2, 2), [0, 255, 0]);
     }
 
     /// What would take more memory or blur work than a reference PNG is worth

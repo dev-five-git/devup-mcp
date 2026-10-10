@@ -179,11 +179,23 @@ const describe = (layer, own) => {
       || (own && effect.type === "BACKGROUND_BLUR");
     if (!fine) approximate.push(`${owner} has a ${effect.type}${effect.spread ? " with spread" : ""}`);
   }
-  if (strokeReaches(layer)) approximate.push(`${owner}'s stroke reaches it`);
+  // A rectangle's stroke devup-mcp draws: solid or gradient, undashed, and
+  // mitred where it reaches past the corners.
+  const strokes = shown(layer.strokes);
+  if (strokeReaches(layer)) {
+    const rectangular = ["FRAME", "RECTANGLE", "COMPONENT", "COMPONENT_SET", "INSTANCE", "SECTION"].includes(layer.type);
+    const painted = strokes.every((paint) => paint.type === "SOLID" || paint.type.startsWith("GRADIENT_"));
+    const dashed = Array.isArray(layer.dashPattern) && layer.dashPattern.length > 0;
+    const mitred = layer.strokeAlign === "INSIDE" || !layer.strokeJoin || layer.strokeJoin === "MITER";
+    if (!(rectangular && painted && !dashed && mitred)) approximate.push(`${owner}'s stroke reaches it`);
+  }
+  const weight = (side) => (typeof layer[side] === "number" ? layer[side] : typeof layer.strokeWeight === "number" ? layer.strokeWeight : 0);
   return {
     transform: plain(layer.absoluteTransform), width: layer.width, height: layer.height, radii: radii(layer),
     fills: plain(shown(layer.fills)), opacity: layer.opacity === undefined ? 1 : layer.opacity,
     blendMode: layer.blendMode || null, clips: !!layer.clipsContent, effects: plain(shown(layer.effects)),
+    strokes: plain(strokes), strokeAlign: layer.strokeAlign || null,
+    strokeWeights: ["strokeTopWeight", "strokeRightWeight", "strokeBottomWeight", "strokeLeftWeight"].map(weight),
   };
 };
 const picture = async (layer) => {
