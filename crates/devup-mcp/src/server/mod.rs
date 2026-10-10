@@ -252,24 +252,33 @@ impl Services {
         bridge: Bridge,
     ) -> Result<Self, DevupError> {
         // To check what happens without a Figma login while the person stays
-        // logged in: a credential store kept in memory, empty at start.
+        // logged in: the login and the client credential both kept in memory,
+        // empty at start, so the operating system's store is neither read nor
+        // written.
         if std::env::var("DEVUP_FIGMA_CREDENTIAL_STORE").as_deref() == Ok("memory") {
             return Self::assemble(
                 devup_mcp_figma::MemoryCredentialStore::default(),
+                Arc::new(devup_mcp_figma::MemoryClientCredentialStore::default()),
                 figma_direct,
                 bridge,
             );
         }
-        Self::assemble(KeyringCredentialStore, figma_direct, bridge)
+        Self::assemble(
+            KeyringCredentialStore,
+            Arc::new(KeyringClientCredentialStore),
+            figma_direct,
+            bridge,
+        )
     }
 
     fn assemble<S: devup_mcp_figma::CredentialStore>(
         store: S,
+        client_store: Arc<dyn devup_mcp_figma::ClientCredentialStore>,
         figma_direct: crate::FigmaDirectConfig,
         bridge: Bridge,
     ) -> Result<Self, DevupError> {
         let mut oauth = OAuthManager::with_endpoint(FIGMA_ENDPOINT, store)?
-            .with_client_credential_store(Arc::new(KeyringClientCredentialStore));
+            .with_client_credential_store(client_store);
         if figma_direct.callback_port.is_some() {
             oauth = oauth.with_callback_port(figma_direct.callback_port);
         }
