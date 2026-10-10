@@ -211,9 +211,13 @@ struct Entry<'a> {
 /// instead. The answer the scene came in is read before this is counted.
 const MAX_COMPOSE_BYTES: u64 = 1536 * 1024 * 1024;
 
-/// Decoding takes up to this much a pixel of the image: a 16-bit PNG is 8
-/// bytes a pixel before it becomes the 4 kept.
-const DECODE_BYTES_PER_PIXEL: u64 = 12;
+/// What a decoder may allocate a pixel of the image's header size (a 16-bit
+/// PNG is 8); becoming RGBA8 adds the 4 kept.
+const DECODER_BYTES_PER_PIXEL: u64 = 8;
+const DECODE_BYTES_PER_PIXEL: u64 = DECODER_BYTES_PER_PIXEL + 4;
+
+/// What a decoder may hold besides the pixels: row buffers, metadata chunks.
+const DECODE_SLACK: u64 = 16 * 1024 * 1024;
 
 /// Kernel taps across every blur and shadow, so a wide blur over a large area
 /// is drawn as the canvas shows it rather than computed for minutes.
@@ -235,9 +239,7 @@ fn within_budget(
         + u64::from(scene.node.mask.is_some());
     // Pictures are decoded one at a time, each dropped once laid on the grid.
     let mut largest_picture = 0_u64;
-    for picture in scene
-        .layers
-        .iter()
+    for picture in layers()
         .filter_map(|layer| layer.mask.as_ref())
         .chain(&scene.node.mask)
         .chain(&scene.node.picture)
@@ -252,6 +254,7 @@ fn within_budget(
     let bytes = pixels
         .saturating_mul(20 * (1 + isolated) + 16 * masks + 120)
         .saturating_add(largest_picture.saturating_mul(DECODE_BYTES_PER_PIXEL))
+        .saturating_add(DECODE_SLACK)
         .saturating_add(images.decoded_bytes());
     if bytes > MAX_COMPOSE_BYTES {
         return Err(invalid(format!(
@@ -663,8 +666,22 @@ fn base64_bytes(data: &str) -> Result<Vec<u8>, DevupError> {
 }
 
 impl Decoded {
+    /// Decoded within what the budget counted for its header's size, so a GIF
+    /// frame larger than the screen its header names is refused, not decoded.
     fn from_bytes(bytes: &[u8]) -> Result<Self, DevupError> {
-        let image = image::load_from_memory(bytes)
+        let (width, height) = dimensions(bytes)?;
+        let mut limits = image::Limits::default();
+        limits.max_alloc = Some(
+            (u64::from(width) * u64::from(height))
+                .saturating_mul(DECODER_BYTES_PER_PIXEL)
+                .saturating_add(DECODE_SLACK),
+        );
+        let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+            .with_guessed_format()
+            .map_err(|error| invalid(format!("an image cannot be read: {error}")))?;
+        reader.limits(limits);
+        let image = reader
+            .decode()
             .map_err(|error| invalid(format!("an image does not decode: {error}")))?
             .into_rgba8();
         Ok(Self {
@@ -1207,6 +1224,41 @@ mod tests {
         });
         let error = compose(&scene).expect_err("too much memory");
         assert!(error.message.contains("MiB to draw"), "{}", error.message);
+    }
+
+    /// The mask of a node drawn from its parts is sized from its header too.
+    #[test]
+    fn the_mask_of_a_node_drawn_from_its_parts_is_sized_up_front() {
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
+            "node": {"own": {"transform": [[1, 0, 0], [0, 1, 0]], "width": 2000, "height": 2000,
+                             "mask": {"data": png_header(10_000, 10_000), "area": {"x": 0, "y": 0}}}}
+        });
+        let error = compose(&scene).expect_err("too much memory");
+        assert!(error.message.contains("MiB to draw"), "{}", error.message);
+    }
+
+    /// A GIF whose first frame is far larger than the 1x1 screen its header
+    /// names is refused by the decoder before that frame is allocated.
+    #[test]
+    fn a_gif_frame_larger_than_its_header_is_not_decoded() {
+        let mut gif = b"GIF89a".to_vec();
+        gif.extend([1, 0, 1, 0, 0, 0, 0]);
+        gif.push(0x2C);
+        gif.extend([0, 0, 0, 0]);
+        gif.extend(10_000_u16.to_le_bytes());
+        gif.extend(12_000_u16.to_le_bytes());
+        gif.extend([0x80, 0, 0, 0, 255, 255, 255, 2, 0, 0x3B]);
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 1, "height": 1, "page": [0, 0, 0],
+            "node": {"picture": {"data": STANDARD.encode(gif), "area": {"x": 0, "y": 0}}}
+        });
+        let error = compose(&scene).expect_err("the frame is refused");
+        assert!(
+            error.message.contains("Memory limit exceeded"),
+            "{}",
+            error.message
+        );
     }
 
     /// What would take more memory or blur work than a reference PNG is worth

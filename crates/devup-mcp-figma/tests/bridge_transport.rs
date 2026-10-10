@@ -1231,24 +1231,54 @@ impl PreferredUpstream for SlowPlugin {
     }
 }
 
-/// 원격으로 다시 읽는 일은 읽기 하나의 시간(`READ_TIME_LIMIT`)에서 플러그인이 쓰고 남은
-/// 만큼만 한다. 60초 걸려 온 플러그인의 그림은, 35초를 기다려야 자리가 나는 한도 때문에
-/// 읽기의 시간 제한에서 잃지 않는다. 시간이 남았으면 그대로 원격이 다시 읽는다.
+/// 로그인을 확인하는 데 `sign_in` 이 걸리는 원격. 늘 정해 둔 그림으로 답한다.
+struct SlowSignIn {
+    sign_in: std::time::Duration,
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl FigmaUpstream for SlowSignIn {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(UpstreamResult {
+            raw: json!({ "content": [{ "type": "image", "data": "ZGlyZWN0", "mimeType": "image/png" }] }),
+        })
+    }
+
+    async fn has_credentials(&self) -> bool {
+        tokio::time::sleep(self.sign_in).await;
+        true
+    }
+}
+
+/// 원격으로 다시 읽는 일 — 로그인 확인, 한도 자리, 원격의 답 — 은 읽기 하나의 시간
+/// (`READ_TIME_LIMIT`)에서 플러그인이 쓰고 남은 만큼만 한다. 60초 걸려 온 플러그인의
+/// 그림은, 35초를 기다려야 자리가 나는 한도나 35초 걸리는 로그인 확인 때문에 읽기의 시간
+/// 제한에서 잃지 않는다. 시간이 남았으면 그대로 원격이 다시 읽는다.
 #[tokio::test(start_paused = true)]
 async fn re_reading_on_the_direct_path_fits_in_what_the_plugin_left_of_the_read() {
-    for (plugin_took, remote_reads) in [(60, 0), (10, 1)] {
+    for (plugin_took, meter_wait, sign_in, counted) in [
+        (60, 35, 0, (0, 1)),
+        (60, 0, 35, (0, 0)),
+        (10, 35, 0, (1, 1)),
+    ] {
         let counts = Counts::new();
         let upstream = FallbackUpstream::new(
             SlowPlugin {
                 delay: std::time::Duration::from_secs(plugin_took),
             },
-            FixedRemote {
+            SlowSignIn {
+                sign_in: std::time::Duration::from_secs(sign_in),
                 calls: counts.remote.clone(),
-                raw: json!({ "content": [{ "type": "image", "data": "ZGlyZWN0", "mimeType": "image/png" }] }),
             },
         )
         .with_meter(std::sync::Arc::new(PacedMeter {
-            wait: std::time::Duration::from_secs(35),
+            wait: std::time::Duration::from_secs(meter_wait),
             calls: counts.metered.clone(),
         }));
         let result = tokio::time::timeout(
@@ -1258,16 +1288,14 @@ async fn re_reading_on_the_direct_path_fits_in_what_the_plugin_left_of_the_read(
         .await
         .expect("answered within the read's time")
         .expect("an answer");
-        let expected = if remote_reads == 0 {
+        let expected = if counted.0 == 0 {
             "cGx1Z2lu"
         } else {
             "ZGlyZWN0"
         };
-        assert_eq!(
-            result.raw["content"][0]["data"], expected,
-            "{plugin_took} s"
-        );
-        assert_eq!(counts.get(), (remote_reads, 1), "{plugin_took} s");
+        let case = format!("plugin {plugin_took} s, meter {meter_wait} s, sign-in {sign_in} s");
+        assert_eq!(result.raw["content"][0]["data"], expected, "{case}");
+        assert_eq!(counts.get(), counted, "{case}");
     }
 }
 

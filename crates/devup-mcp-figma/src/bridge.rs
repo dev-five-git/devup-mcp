@@ -1689,23 +1689,21 @@ impl<P, S> FallbackUpstream<P, S> {
         self
     }
 
-    /// 원격 읽기를 한도 자리를 얻어 끝낸다 — `DIRECT_FALLBACK_BUDGET` 안에, 그리고 이 읽기가
-    /// 시작된 `started` 로부터 `READ_TIME_LIMIT - FALLBACK_MARGIN` 안에. 플러그인의 읽기가 오래
-    /// 걸렸으면 그만큼 덜 기다린다. 자리를 얻지 못했거나 시간 안에 끝나지 않았으면 `None`.
+    /// 원격 읽기를 한도 자리를 얻어 `deadline` 안에 끝낸다. 자리를 얻지 못했거나 시간 안에
+    /// 끝나지 않았으면 `None`.
     async fn metered<T>(
         &self,
-        started: tokio::time::Instant,
+        deadline: tokio::time::Instant,
         read: impl std::future::Future<Output = T>,
     ) -> Option<T> {
-        let now = tokio::time::Instant::now();
-        let deadline =
-            (now + DIRECT_FALLBACK_BUDGET).min(started + READ_TIME_LIMIT - FALLBACK_MARGIN);
-        let budget = deadline.saturating_duration_since(now);
+        let budget = deadline.saturating_duration_since(tokio::time::Instant::now());
         if budget.is_zero() {
             return None;
         }
         if let Some(meter) = &self.meter
-            && !meter.acquire_within(budget).await
+            && !tokio::time::timeout_at(deadline, meter.acquire_within(budget))
+                .await
+                .unwrap_or(false)
         {
             return None;
         }
@@ -1735,13 +1733,20 @@ where
             let Some(reason) = better.or_else(|| remote_may_answer(&answered.raw)) else {
                 return Ok(answered);
             };
-            if !self.secondary.has_credentials().await {
-                return Ok(answered);
-            }
-            return match self
-                .metered(started, self.secondary.call_read_tool(call))
-                .await
-            {
+            // 로그인 확인, 한도 자리, 원격의 답이 모두 이 시간 안이다 — `DIRECT_FALLBACK_BUDGET`
+            // 안에, 그리고 이 읽기가 시작된 때부터 `READ_TIME_LIMIT - FALLBACK_MARGIN` 안에.
+            let deadline = (tokio::time::Instant::now() + DIRECT_FALLBACK_BUDGET)
+                .min(started + READ_TIME_LIMIT - FALLBACK_MARGIN);
+            let direct =
+                match tokio::time::timeout_at(deadline, self.secondary.has_credentials()).await {
+                    Ok(false) => return Ok(answered),
+                    Ok(true) => {
+                        self.metered(deadline, self.secondary.call_read_tool(call))
+                            .await
+                    }
+                    Err(_) => None,
+                };
+            return match direct {
                 // 플러그인의 답을 쓸 수 있으면 그것을 쓴다. 쓸 수 없는 답(거절)이면 한도가
                 // 비는 대로 다시 해 볼 일이다.
                 None if better.is_some() => Ok(answered),

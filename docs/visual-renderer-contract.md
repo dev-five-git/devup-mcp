@@ -24,7 +24,7 @@ When a Devup Bridge plugin serves the file, the plugin draws the reference inste
   - an ancestor's stroke, inner shadow or background blur reaching the area;
   - an image fill with rotation or filters, any other paint, a shadow with spread;
   - an area over 8M pixels, or images over 64 MiB together;
-  - a composition that would take over 1.5 GiB or over four billion blur kernel taps, counted before it is drawn, the masks each layer keeps and the decoding of every picture and image included (their sizes read from their headers);
+  - a composition that would take over 1.5 GiB or over four billion blur kernel taps, counted before it is drawn, the masks each layer keeps and the decoding of every picture and image included (their sizes read from their headers, and each decoder held to what was counted for it);
   - a part the plugin could not export, or a composition that stopped unexpectedly.
 
 When the node is drawn from its own paints and children, its mask cuts all of them, its background blur included.
