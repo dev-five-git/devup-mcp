@@ -53,6 +53,10 @@ connection to Figma" 로 거절합니다. 창을 앞으로 가져와 그 파일�
 풀립니다. 로그인이 되어 있으면 그렇게 빠진 읽기는 공식 MCP 가 다시 읽고(한도를 씁니다)
 응답의 `source.directFallbackReasons` 가 `file-out-of-sight` 로 그 사실을 알립니다.
 
+큰 참조 PNG 답(6 MiB 넘게)은 플러그인이 다 읽혀 갈 때까지(최대 2분) 붙들어 두고 조각으로
+내줍니다. 붙든 답이 192 MiB 만큼 쌓여 있으면 새 그림은 바쁘다고(`DEVUP_REFERENCE_PNG_BUSY`)
+답하고, devup-mcp 가 잠시 뒤 다시 묻습니다 — 다른 요청이 읽고 있는 답을 밀어내지 않습니다.
+
 창에 표시되는 점이 상태입니다.
 
 | 표시 | 뜻 |

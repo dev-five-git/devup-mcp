@@ -11,8 +11,25 @@
 //   use, and the masks that clip the chain - for devup-mcp to compose.
 // - What devup-mcp cannot compose is named in `approximate`, over the canvas
 //   export; the read then goes to get_screenshot when the direct path can.
-// An answer too large for one bridge answer is held here and read in pieces.
+// An answer too large for one bridge answer is held here and read in pieces
+// (referencePngChunk). A held answer stays until it is read or two minutes
+// pass; while held answers fill the budget this answers BUSY, and devup-mcp
+// asks again, rather than drop one another request is still reading.
 const nodeId = "__DEVUP_NODE_ID__";
+const PIECE_THRESHOLD = 6 * 1024 * 1024;
+const ANSWER_LIMIT = 90 * 1024 * 1024; // under the 96 MiB devup-mcp reads back
+const HELD_BUDGET = 192 * 1024 * 1024;
+const HELD_FOR = 2 * 60 * 1000;
+if (!globalThis.__devupReferencePngAnswers) globalThis.__devupReferencePngAnswers = new Map();
+const store = globalThis.__devupReferencePngAnswers;
+let heldLength = 0;
+for (const [id, entry] of store) {
+  if (Date.now() - entry.at > HELD_FOR) store.delete(id);
+  else heldLength += entry.text.length;
+}
+if (heldLength >= HELD_BUDGET) {
+  throw new Error(`DEVUP_REFERENCE_PNG_BUSY ${heldLength} characters are held for other reads`);
+}
 const node = await figma.getNodeByIdAsync(nodeId);
 if (!node || typeof node.exportAsync !== "function") {
   throw new Error(`DEVUP_NODE_NOT_FOUND ${nodeId}`);
@@ -99,17 +116,32 @@ const canvasAnswer = async (extra) => {
   return { kind: "devupReferencePng", nodeId, mimeType: "image/png", byteLength: bytes.length, data: figma.base64Encode(bytes), backdrop: pageBackdrop, ...extra };
 };
 
+// The canvas picture stands in for what devup-mcp cannot compose, and says why.
+const approximation = (reasons, reaching) => {
+  const unique = [...new Set(reasons)];
+  return {
+    approximate: unique.join("; "),
+    note: `Drawn as the canvas shows this area: devup-mcp cannot yet compose what get_screenshot draws here (${unique.slice(0, 3).join("; ")}). `
+      + `Layers reaching into it may show here: ${reaching}; get_screenshot leaves other layers out.`,
+  };
+};
+
 const held = (answer) => {
   // Escaped to ASCII, so an offset into it counts the same here (UTF-16 units)
   // and in devup-mcp (bytes): layer names in a note are often not ASCII.
   const text = JSON.stringify(answer)
     .replace(/[\u0080-\uffff]/g, (unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`);
-  if (text.length <= 6 * 1024 * 1024) return answer;
-  globalThis.__devupReferencePngAnswers = globalThis.__devupReferencePngAnswers || new Map();
-  const store = globalThis.__devupReferencePngAnswers;
-  const id = `${nodeId}@${Date.now()}`;
-  store.set(id, text);
-  while (store.size > 2) store.delete(store.keys().next().value);
+  if (text.length > ANSWER_LIMIT) {
+    if (answer.compose) {
+      // What it takes to compose does not fit; the canvas picture alone may.
+      const { compose, reaching, ...canvas } = answer;
+      return held({ ...canvas, ...approximation([`the answer would be ${text.length} characters`], reaching) });
+    }
+    throw new Error(`DEVUP_REFERENCE_PNG_TOO_LARGE ${text.length} characters, over the ${ANSWER_LIMIT} one answer is read back up to`);
+  }
+  if (text.length <= PIECE_THRESHOLD) return answer;
+  const id = `${nodeId}@${Date.now()}.${Math.random().toString(36).slice(2, 10)}`;
+  store.set(id, { text, at: Date.now() });
   return { kind: "devupReferencePngChunked", nodeId, id, length: text.length };
 };
 
@@ -224,14 +256,7 @@ try {
 }
 
 const reaching = `${intruders.slice(0, 5).join(", ")}${intruders.length > 5 ? ` and ${intruders.length - 5} more` : ""}`;
-if (approximate.length > 0) {
-  const reasons = [...new Set(approximate)];
-  return held(await canvasAnswer({
-    approximate: reasons.join("; "),
-    note: `Drawn as the canvas shows this area: devup-mcp cannot yet compose what get_screenshot draws here (${reasons.slice(0, 3).join("; ")}). `
-      + `${reaching} reach into it and may show here; get_screenshot leaves other layers out.`,
-  }));
-}
+if (approximate.length > 0) return held(await canvasAnswer(approximation(approximate, reaching)));
 // The canvas export rides along for devup-mcp to fall back on if composing fails.
 return held(await canvasAnswer({
   reaching,

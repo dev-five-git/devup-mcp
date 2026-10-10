@@ -140,7 +140,13 @@ const maskHost = nest(section, node({ id: 'maskHost', fills: [gradient], absolut
 nest(maskHost, node({ id: 'mask', isMask: true, maskType: 'ALPHA', absoluteBoundingBox: box(8000, 0, 100, 100) }))
 const maskedNode = nest(maskHost, node({ id: '1:8', absoluteBoundingBox: box(8000, 0, 100, 100) }))
 nest(maskHost, node({ id: 'cover', type: 'TEXT', name: 'Cover', absoluteBoundingBox: box(8050, 50, 100, 40) }))
-const nodes = Object.fromEntries([screen, tall, inCard, onPlate, inInset, glass, maskedNode, shaky].map((n) => [n.id, n]))
+const photo = nest(section, node({
+  id: 'photo', fills: [{ type: 'IMAGE', visible: true, opacity: 1, blendMode: 'NORMAL', imageHash: 'big', scaleMode: 'FILL' }],
+  absoluteBoundingBox: box(9000, 0, 400, 400),
+}))
+const onPhoto = nest(photo, node({ id: '1:10', absoluteBoundingBox: box(9010, 10, 100, 100) }))
+nest(photo, node({ id: 'caption2', type: 'TEXT', name: 'Caption2', absoluteBoundingBox: box(9050, 50, 100, 40) }))
+const nodes = Object.fromEntries([screen, tall, inCard, onPlate, inInset, glass, maskedNode, shaky, onPhoto].map((n) => [n.id, n]))
 globalThis.figma = {
   mixed: Symbol('mixed'),
   getNodeByIdAsync: async (id) => nodes[id] ?? null,
@@ -172,7 +178,7 @@ assert.equal(hidden.compose, undefined)
 // 그리지 못하는 효과가 있으면 캔버스를 쓰고 이유를 단다.
 const inner = await run('1:6')
 assert.match(inner.approximate, /INNER_SHADOW/)
-assert.match(inner.note, /TEXT "덮는 글" reach into it/)
+assert.match(inner.note, /may show here: TEXT "덮는 글"/)
 // 노드만의 export 가 실패해도 거절하지 않는다 — 캔버스 그림에 그 이유를 단다.
 const shaken = await run('1:9')
 assert.equal(shaken.compose, undefined)
@@ -188,23 +194,52 @@ const clippedByMask = await run('1:8')
 assert.deepEqual(clippedByMask.compose.node.mask.area, box(8000, 0, 100, 100))
 await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
 // 답 하나에 들어가지 않는 답은 붙들어 두고 조각으로 내준다. 붙든 글은 ASCII 라
-// 오프셋이 여기(UTF-16)와 devup-mcp(바이트)에서 같은 자리를 가리킨다.
+// 오프셋이 여기(UTF-16)와 devup-mcp(바이트)에서 같은 자리를 가리킨다. 셋을 붙들어도
+// 먼저 붙든 답이 읽히기 전에 밀려나지 않는다.
 const big = new Uint8Array(5 * 1024 * 1024)
 big.set(png)
 inInset.exportAsync = async () => big
-const held = await run('1:6')
-assert.equal(held.kind, 'devupReferencePngChunked')
-let text = ''
-for (let piece; !piece || !piece.complete; ) {
-  piece = await referencePngChunk({ largeValue: { id: held.id, offset: text.length } })
-  assert.equal(piece.offset, text.length)
-  text += piece.text
+const readBack = async (descriptor) => {
+  let text = ''
+  for (let piece; !piece || !piece.complete; ) {
+    piece = await referencePngChunk({ largeValue: { id: descriptor.id, offset: text.length } })
+    assert.equal(piece.offset, text.length)
+    text += piece.text
+  }
+  assert.equal(text.length, descriptor.length)
+  return text
 }
-assert.equal(text.length, held.length)
+const heldAnswers = [await run('1:6'), await run('1:6'), await run('1:6')]
+assert.deepEqual(heldAnswers.map((answer) => answer.kind), Array(3).fill('devupReferencePngChunked'))
+assert.equal(new Set(heldAnswers.map((answer) => answer.id)).size, 3)
+const text = await readBack(heldAnswers[0])
 assert.match(text, /^[\x20-\x7e]*$/)
 assert.equal(JSON.parse(text).byteLength, big.length)
 assert.match(JSON.parse(text).note, /TEXT "덮는 글"/)
-await assert.rejects(referencePngChunk({ largeValue: { id: held.id, offset: 0 } }), /DEVUP_REFERENCE_PNG_ANSWER_GONE/)
+for (const answer of heldAnswers.slice(1)) await readBack(answer)
+await assert.rejects(referencePngChunk({ largeValue: { id: heldAnswers[0].id, offset: 0 } }), /DEVUP_REFERENCE_PNG_ANSWER_GONE/)
+// 붙든 답이 상한만큼 쌓여 있으면 새 그림을 그리지 않고 바쁘다고 답한다 — devup-mcp 가
+// 다시 묻는다. 2분이 지나도록 아무도 읽지 않은 답은 버린다.
+const answers = globalThis.__devupReferencePngAnswers
+answers.set('unread', { text: { length: 192 * 1024 * 1024 }, at: Date.now() })
+await assert.rejects(run('1:2'), /DEVUP_REFERENCE_PNG_BUSY/)
+answers.get('unread').at = Date.now() - 3 * 60 * 1000
+assert.equal((await run('1:2')).kind, 'devupReferencePng')
+assert.equal(answers.has('unread'), false)
+// 조합에 드는 것(조상의 사진 64 MiB)까지 실으면 답 하나의 상한을 넘을 때는 조합을 버리고
+// 캔버스 그림만 이유와 함께 보낸다.
+const photoBytes = new Uint8Array(64 * 1024 * 1024)
+globalThis.figma.getImageByHash = (hash) => (hash === 'big' ? { getBytesAsync: async () => photoBytes } : null)
+const canvasBytes = new Uint8Array(4 * 1024 * 1024)
+canvasBytes.set(png)
+onPhoto.exportAsync = async (settings) => (settings.contentsOnly ? png : canvasBytes)
+const overLimit = await run('1:10')
+assert.equal(overLimit.kind, 'devupReferencePng')
+assert.equal(overLimit.compose, undefined)
+assert.equal(overLimit.byteLength, canvasBytes.length)
+assert.match(overLimit.approximate, /the answer would be \d+ characters/)
+assert.match(overLimit.note, /may show here: TEXT "Caption2"/)
+globalThis.figma.getImageByHash = () => null
 
 const unreachable = 'Unable to establish connection to Figma after 10 seconds.'
 const refuse = async () => {

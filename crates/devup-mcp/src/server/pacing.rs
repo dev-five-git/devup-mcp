@@ -96,6 +96,19 @@ impl CallPacer {
         }
     }
 
+    /// Like `acquire`, but gives up rather than wait past `budget`, and then
+    /// counts nothing as spent.
+    pub async fn acquire_within(&self, budget: Duration) -> bool {
+        let deadline = Instant::now() + budget;
+        while let Some(wait) = self.reserve() {
+            if Instant::now() + wait > deadline {
+                return false;
+            }
+            sleep(wait).await;
+        }
+        true
+    }
+
     /// Records a refusal by filling the window, so the next call waits it out
     /// in full.
     ///
@@ -144,8 +157,8 @@ impl CallPacer {
 
 #[async_trait::async_trait]
 impl devup_mcp_figma::Meter for CallPacer {
-    async fn acquire(&self) {
-        CallPacer::acquire(self).await;
+    async fn acquire_within(&self, budget: Duration) -> bool {
+        CallPacer::acquire_within(self, budget).await
     }
 }
 
@@ -262,6 +275,19 @@ mod tests {
         let after_penalty = Instant::now();
         pacer.acquire().await;
         assert_eq!(Instant::now().duration_since(after_penalty), WINDOW);
+    }
+
+    /// A read that may only wait so long gives up, without spending a slot,
+    /// rather than wait past it, and takes a slot that opens in time.
+    #[tokio::test(start_paused = true)]
+    async fn a_bounded_wait_gives_up_without_spending_a_slot() {
+        let pacer = CallPacer::new(1, WINDOW);
+        assert!(pacer.acquire_within(Duration::ZERO).await);
+        let start = Instant::now();
+        assert!(!pacer.acquire_within(WINDOW / 2).await);
+        assert_eq!(Instant::now().duration_since(start), Duration::ZERO);
+        assert!(pacer.acquire_within(WINDOW).await);
+        assert_eq!(Instant::now().duration_since(start), WINDOW);
     }
 
     /// And it is a pause, not a shutdown: once the window has passed the pacer

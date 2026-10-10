@@ -957,14 +957,28 @@ async fn an_overlapped_node_is_composed_over_its_ancestors() {
     );
 }
 
-/// 원격 경로로 다시 읽은 횟수를 센다.
-struct CountingMeter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+/// 원격 경로로 다시 읽으려 한 횟수를 센다. `room` 이 거짓이면 한도 자리가 없다고 답한다.
+struct CountingMeter {
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    room: bool,
+}
 
 #[async_trait::async_trait]
 impl devup_mcp_figma::Meter for CountingMeter {
-    async fn acquire(&self) {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    async fn acquire_within(&self, _budget: std::time::Duration) -> bool {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.room
     }
+}
+
+fn meter(
+    calls: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    room: bool,
+) -> std::sync::Arc<CountingMeter> {
+    std::sync::Arc::new(CountingMeter {
+        calls: calls.clone(),
+        room,
+    })
 }
 
 /// 정해 둔 답을 내는 원격. 몇 번 불렸는지 센다.
@@ -1040,7 +1054,7 @@ fn fixed_fallback(
             raw,
         },
     )
-    .with_meter(std::sync::Arc::new(CountingMeter(counts.metered.clone())))
+    .with_meter(meter(&counts.metered, true))
 }
 
 const UNREACHABLE: &str = "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.";
@@ -1053,7 +1067,7 @@ async fn a_read_figma_withheld_out_of_sight_is_read_again_on_the_direct_path() {
     let server = BridgeServer::start(0).expect("an ephemeral port is free");
     let mut plugin = connect_plugin(&server).await;
     let short = json!({ "data": { "fileKey": FILE_KEY, "resources": { "unresolved": [
-        { "id": "VariableID:1:2", "lookupError": UNREACHABLE }] } } });
+        { "id": "VariableID:1:2", "reason": "notFoundOrUnavailable", "error": UNREACHABLE }] } } });
 
     let counts = Counts::new();
     let direct = json!({ "content": [{ "type": "text", "text": "{\"fileKey\":\"FileKey123\"}" }] });
@@ -1085,16 +1099,77 @@ async fn a_read_figma_withheld_out_of_sight_is_read_again_on_the_direct_path() {
     assert!(
         result.raw["content"][0]["text"]
             .as_str()
-            .is_some_and(|text| text.contains("lookupError")),
+            .is_some_and(|text| text.contains("notFoundOrUnavailable")),
         "{}",
         result.raw
     );
     assert_eq!(counts.get(), (1, 1));
 
+    // 한도에 걸렸다는 문장은 `isError` 없이도 온다. 그것도 쓸 수 없는 답이니 플러그인의 답을 쓴다.
+    let counts = Counts::new();
+    let refusal = json!({ "content": [{ "type": "text",
+        "text": "You've reached the tool call limit for your plan. Try again later." }] });
+    let result = through_fallback(
+        fixed_fallback(&server, &counts, refusal),
+        &mut plugin,
+        ReadToolCall::fast_snapshot(FILE_KEY, "1:2"),
+        short.clone(),
+    )
+    .await;
+    assert!(
+        result.raw["_meta"]["devup/bridge"].is_object(),
+        "{}",
+        result.raw
+    );
+    assert_eq!(counts.get(), (1, 1));
+
+    // 정해진 시간 안에 한도 자리가 나지 않으면 기다리지 않고 플러그인의 답을 쓴다 — 이미 받은
+    // 답을 읽기 시간 초과로 잃지 않는다.
+    let counts = Counts::new();
+    let upstream = FallbackUpstream::new(
+        BridgeFigmaClient::new(server.state()),
+        FixedRemote {
+            calls: counts.remote.clone(),
+            raw: direct.clone(),
+        },
+    )
+    .with_meter(meter(&counts.metered, false));
+    let result = through_fallback(
+        upstream,
+        &mut plugin,
+        ReadToolCall::fast_snapshot(FILE_KEY, "1:2"),
+        short.clone(),
+    )
+    .await;
+    assert!(
+        result.raw["_meta"]["devup/bridge"].is_object(),
+        "{}",
+        result.raw
+    );
+    assert_eq!(counts.get(), (0, 1));
+
+    // 디자인의 글에 같은 문장이 있다고 다시 읽지 않는다. 오류를 싣는 자리에 있을 때만이다.
+    let counts = Counts::new();
+    let quoted = json!({ "data": { "fileKey": FILE_KEY, "nodes": [{ "id": "1:2", "type": "TEXT",
+        "fields": { "characters": UNREACHABLE } }] } });
+    let result = through_fallback(
+        fixed_fallback(&server, &counts, direct.clone()),
+        &mut plugin,
+        ReadToolCall::fast_snapshot(FILE_KEY, "1:2"),
+        quoted,
+    )
+    .await;
+    assert!(
+        result.raw["_meta"]["devup/bridge"].is_object(),
+        "{}",
+        result.raw
+    );
+    assert_eq!(counts.get(), (0, 0));
+
     // 로그인이 없으면 원격은 시도도 되지 않는다. 속도에 맞춰 기다리지 않고 플러그인의 답을 쓴다.
     let metered = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let upstream = FallbackUpstream::new(BridgeFigmaClient::new(server.state()), SignedOutRemote)
-        .with_meter(std::sync::Arc::new(CountingMeter(metered.clone())));
+        .with_meter(meter(&metered, true));
     let result = through_fallback(
         upstream,
         &mut plugin,
@@ -1189,6 +1264,109 @@ async fn a_value_the_direct_path_produced_is_read_on_from_it() {
         "value-from-direct-path"
     );
     assert_eq!(counts.get(), (1, 1));
+}
+
+/// 플러그인이 큰 답들을 붙들고 있어 바쁘다고 하면 브리지는 잠시 뒤 다시 묻는다. 붙들어 둔
+/// 답이 읽기 전에 사라졌으면(플러그인이 다시 실행되는 등) 한 번 다시 받는다. 어느 쪽도 실패가
+/// 아니다.
+#[tokio::test]
+async fn a_busy_plugin_or_a_vanished_answer_is_asked_again() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let opaque = png_base64(1, 1, vec![10, 20, 30, 255]);
+    let picture = json!({ "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png",
+        "byteLength": 0, "data": opaque });
+    let refuse = |job: &Value, error: &str| {
+        Message::Text(
+            json!({ "kind": "devup-result", "requestId": job["requestId"], "error": error })
+                .to_string()
+                .into(),
+        )
+    };
+
+    let client = BridgeFigmaClient::new(server.state());
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    plugin
+        .send(refuse(
+            &job,
+            "DEVUP_REFERENCE_PNG_BUSY 201326592 characters are held for other reads",
+        ))
+        .await
+        .expect("busy is sent");
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "referencePng");
+    answer(&mut plugin, &job, picture.clone()).await;
+    let result = reading.await.expect("the read finishes").expect("answered");
+    assert_eq!(result.raw["content"][0]["data"], opaque);
+
+    let client = BridgeFigmaClient::new(server.state());
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    answer(
+        &mut plugin,
+        &job,
+        json!({ "kind": "devupReferencePngChunked", "nodeId": "1:2", "id": "1:2@1", "length": 10 }),
+    )
+    .await;
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "referencePngChunk");
+    plugin
+        .send(refuse(&job, "DEVUP_REFERENCE_PNG_ANSWER_GONE 1:2@1"))
+        .await
+        .expect("gone is sent");
+    let job = next_job(&mut plugin).await;
+    assert_eq!(job["script"], "referencePng");
+    answer(&mut plugin, &job, picture).await;
+    let result = reading.await.expect("the read finishes").expect("answered");
+    assert_eq!(result.raw["content"][0]["data"], opaque);
+}
+
+/// 플러그인이 답하지 못한 읽기(예전 플러그인이 모르는 스크립트)를 원격으로 넘기려는데 정해진
+/// 시간 안에 한도 자리가 나지 않으면, 한도가 찬 것으로 알려 수집이 기다렸다 다시 하게 한다.
+#[tokio::test]
+async fn a_read_the_plugin_cannot_answer_waits_for_room_rather_than_fail() {
+    let server = BridgeServer::start(0).expect("an ephemeral port is free");
+    let mut plugin = connect_plugin(&server).await;
+    let counts = Counts::new();
+    let upstream = FallbackUpstream::new(
+        BridgeFigmaClient::new(server.state()),
+        FixedRemote {
+            calls: counts.remote.clone(),
+            raw: json!({ "content": [] }),
+        },
+    )
+    .with_meter(meter(&counts.metered, false));
+    let reading = tokio::spawn(async move {
+        upstream
+            .call_read_tool(ReadToolCall::screenshot(FILE_KEY, "1:2"))
+            .await
+    });
+    let job = next_job(&mut plugin).await;
+    plugin
+        .send(Message::Text(
+            json!({ "kind": "devup-result", "requestId": job["requestId"],
+                "error": "DEVUP_BRIDGE_UNKNOWN_SCRIPT: referencePng (아는 스크립트: snapshot)" })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .expect("the refusal is sent");
+    let error = reading
+        .await
+        .expect("the read finishes")
+        .expect_err("there was no room to read it on the metered path");
+    assert_eq!(error.code, ErrorCode::DevupFigmaRateLimited);
+    assert!(error.retryable);
+    assert_eq!(counts.get(), (0, 1));
 }
 
 #[tokio::test]

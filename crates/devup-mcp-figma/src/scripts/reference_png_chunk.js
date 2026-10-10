@@ -2,10 +2,11 @@
 // did not fit one bridge answer. Bridge only: the direct path never asks.
 const options = "__DEVUP_LARGE_VALUE__";
 const store = globalThis.__devupReferencePngAnswers;
-const text = store && store.get(options.id);
-if (typeof text !== "string") {
+const entry = store && store.get(options.id);
+if (!entry || typeof entry.text !== "string") {
   throw new Error(`DEVUP_REFERENCE_PNG_ANSWER_GONE ${options.id}`);
 }
+const text = entry.text;
 const offset = Math.max(0, Math.floor(Number(options.offset) || 0));
 const end = Math.min(text.length, offset + 4 * 1024 * 1024);
 if (end >= text.length) store.delete(options.id);

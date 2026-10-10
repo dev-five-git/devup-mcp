@@ -133,6 +133,12 @@ pub(crate) fn compose(scene: &Value) -> Result<String, DevupError> {
             "{width}x{height} is outside the composable range"
         )));
     }
+    if !(scene.scale.is_finite() && scene.scale > 0.0 && scene.scale <= 64.0) {
+        return Err(invalid(format!(
+            "the scale {} is outside the composable range",
+            scene.scale
+        )));
+    }
     // A blur at the area's rim reads what lies past it - the ancestors'
     // paints go on there - so the stack is drawn wider and cut back.
     let mut margin = blur_reach(&scene);
@@ -142,7 +148,9 @@ pub(crate) fn compose(scene: &Value) -> Result<String, DevupError> {
         margin /= 2;
     }
     let wide = width + 2 * margin;
-    let pixels = draw(&scene, wide, height + 2 * margin, margin)?;
+    let mut images = Images::new(&scene.images)?;
+    within_budget(&scene, wide, height + 2 * margin, &images)?;
+    let pixels = draw(&scene, wide, height + 2 * margin, margin, &mut images)?;
     let mut rgba = Vec::with_capacity(width * height * 4);
     for row in pixels.chunks_exact(wide).skip(margin).take(height) {
         for pixel in &row[margin..margin + width] {
@@ -194,6 +202,61 @@ struct Entry<'a> {
     pixels: Vec<Px>,
     clip: Vec<f32>,
     layer: Option<&'a Layer>,
+    /// The mask that cuts this layer where it is laid back.
+    mask: Option<Vec<Px>>,
+}
+
+/// Working memory one composition may take: the stack's buffers, those a
+/// layer, blur or picture holds while it is drawn, and the decoded images.
+/// Past it the area is drawn as the canvas shows it instead.
+const MAX_COMPOSE_BYTES: u64 = 1536 * 1024 * 1024;
+
+/// Kernel taps across every blur and shadow, so a wide blur over a large area
+/// is drawn as the canvas shows it rather than computed for minutes.
+const MAX_BLUR_TAPS: u64 = 4_000_000_000;
+
+/// Refuses, before anything is allocated, what would take more memory or blur
+/// work than one reference PNG is worth.
+fn within_budget(
+    scene: &Scene,
+    width: usize,
+    height: usize,
+    images: &Images,
+) -> Result<(), DevupError> {
+    let pixels = (width as u64) * (height as u64);
+    let layers = || scene.layers.iter().chain(scene.node.own.as_ref());
+    let isolated = layers().filter(|layer| isolating(layer)).count() as u64
+        + u64::from(scene.node.own.is_some() && scene.node.mask.is_some());
+    // 20 bytes a pixel for each stack entry (colour and clip), and about 120
+    // for what one layer, blur or picture holds while it is drawn.
+    let bytes = pixels
+        .saturating_mul(20 * (1 + isolated) + 120)
+        .saturating_add(images.decoded_bytes());
+    if bytes > MAX_COMPOSE_BYTES {
+        return Err(invalid(format!(
+            "it would take {} MiB to draw",
+            bytes >> 20
+        )));
+    }
+    let taps = layers()
+        .flat_map(|layer| layer.effects.iter().filter(|effect| visible(effect)))
+        .filter(|effect| {
+            matches!(
+                effect["type"].as_str(),
+                Some("LAYER_BLUR" | "BACKGROUND_BLUR" | "DROP_SHADOW")
+            )
+        })
+        .map(|effect| {
+            let reach = (number(&effect["radius"]) * scene.scale * 1.5)
+                .ceil()
+                .max(0.0) as u64;
+            pixels.saturating_mul(reach.saturating_mul(4).saturating_add(2))
+        })
+        .fold(0_u64, u64::saturating_add);
+    if taps > MAX_BLUR_TAPS {
+        return Err(invalid(format!("its blurs would take {taps} kernel taps")));
+    }
+    Ok(())
 }
 
 /// How many pixels past the area the widest blur or shadow in the scene reads.
@@ -220,7 +283,13 @@ fn blur_reach(scene: &Scene) -> usize {
         .min(512)
 }
 
-fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec<Px>, DevupError> {
+fn draw(
+    scene: &Scene,
+    width: usize,
+    height: usize,
+    margin: usize,
+    images: &mut Images,
+) -> Result<Vec<Px>, DevupError> {
     let origin = Grid::origin_of(scene.area, scene.scale);
     let grid = Grid {
         width,
@@ -232,7 +301,6 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
         scale: scene.scale,
     };
     let count = width * height;
-    let mut images = Images::new(&scene.images);
     let page = [
         (scene.page[0] / 255.0) as f32,
         (scene.page[1] / 255.0) as f32,
@@ -243,13 +311,26 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
         pixels: vec![page; count],
         clip: vec![1.0; count],
         layer: None,
+        mask: None,
     }];
-    for layer in scene.layers.iter().chain(scene.node.own.as_ref()) {
+    let own = scene.node.own.as_ref();
+    for layer in scene.layers.iter().chain(own) {
+        // Drawn from its parts, the node takes its own mask: it cuts the
+        // node's paints, background blur and children alike.
+        let is_own = own.is_some_and(|own| std::ptr::eq(own, layer));
+        let mask = match layer
+            .mask
+            .as_ref()
+            .or(scene.node.mask.as_ref().filter(|_| is_own))
+        {
+            Some(mask) => Some(place(mask, &grid, true)?),
+            None => None,
+        };
         let geometry = Geometry::new(layer)?;
         let shape: Vec<f32> = (0..count)
             .map(|index| geometry.coverage(grid.point(index), grid.scale))
             .collect();
-        let isolated = isolating(layer);
+        let isolated = isolating(layer) || mask.is_some();
         if isolated {
             // The ancestors' clip cuts this layer's result - after its blur
             // and shadow - where it is laid back, not its content before them.
@@ -257,6 +338,7 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
                 pixels: vec![[0.0; 4]; count],
                 clip: vec![1.0; count],
                 layer: Some(layer),
+                mask,
             });
         }
         if let Some(radius) = effect_radius(layer, "BACKGROUND_BLUR") {
@@ -271,9 +353,12 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
                 height,
                 radius * scene.scale / 2.0,
             );
-            let entry = &mut stack[below];
+            let (lower, upper) = stack.split_at_mut(below + 1);
+            let entry = &mut lower[below];
+            let layer_mask = upper.last().and_then(|top| top.mask.as_deref());
             for index in 0..count {
-                let weight = shape[index] * entry.clip[index];
+                let cut = layer_mask.map_or(1.0, |mask| mask[index][3]);
+                let weight = shape[index] * entry.clip[index] * cut;
                 entry.pixels[index] = mix(entry.pixels[index], blurred[index], weight);
             }
         }
@@ -287,7 +372,7 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
                     continue;
                 }
                 let local = geometry.local(grid.point(index));
-                let source = paint_at(paint, layer, local, &mut images)?;
+                let source = paint_at(paint, layer, local, images)?;
                 composite(pixel, source, blend, coverage);
             }
         }
@@ -298,9 +383,10 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
         }
     }
     let top = stack.last_mut().expect("the page entry stays");
-    let node_mask = match &scene.node.mask {
-        Some(mask) => Some(place(mask, &grid, true)?),
-        None => None,
+    // Drawn from its parts, the node's mask already went with its paints.
+    let node_mask = match (&scene.node.mask, own) {
+        (Some(mask), None) => Some(place(mask, &grid, true)?),
+        _ => None,
     };
     if let Some(picture) = &scene.node.picture {
         let blend = Blend::parse(picture.blend_mode.as_deref())?;
@@ -329,10 +415,7 @@ fn draw(scene: &Scene, width: usize, height: usize, margin: usize) -> Result<Vec
         if let Some(radius) = effect_radius(layer, "LAYER_BLUR") {
             pixels = gaussian(&pixels, width, height, radius * scene.scale / 2.0);
         }
-        let mask = match &layer.mask {
-            Some(mask) => Some(place(mask, &grid, true)?),
-            None => None,
-        };
+        let mask = entry.mask;
         let blend = Blend::parse(layer.blend_mode.as_deref())?;
         let below = stack.last_mut().expect("the page entry stays");
         for index in 0..count {
@@ -447,7 +530,7 @@ fn paint_at(
     paint: &Value,
     layer: &Layer,
     (x, y): (f64, f64),
-    images: &mut Images<'_>,
+    images: &mut Images,
 ) -> Result<Px, DevupError> {
     let opacity = paint["opacity"].as_f64().unwrap_or(1.0);
     let (nx, ny) = (x / layer.width, y / layer.height);
@@ -545,28 +628,38 @@ fn gradient_colour(stops: &Value, t: f64) -> Result<Px, DevupError> {
     Ok(px)
 }
 
+/// A decoded picture, RGBA bytes: a quarter of what straight floats take.
 struct Decoded {
     width: usize,
     height: usize,
-    pixels: Vec<Px>,
+    rgba: Vec<u8>,
+}
+
+fn base64_bytes(data: &str) -> Result<Vec<u8>, DevupError> {
+    STANDARD
+        .decode(data.as_bytes())
+        .map_err(|_| invalid("an image is not base64"))
 }
 
 impl Decoded {
-    fn from_base64(data: &str) -> Result<Self, DevupError> {
-        let bytes = STANDARD
-            .decode(data.as_bytes())
-            .map_err(|_| invalid("an image is not base64"))?;
-        let image = image::load_from_memory(&bytes)
+    fn from_bytes(bytes: &[u8]) -> Result<Self, DevupError> {
+        let image = image::load_from_memory(bytes)
             .map_err(|error| invalid(format!("an image does not decode: {error}")))?
-            .to_rgba8();
+            .into_rgba8();
         Ok(Self {
             width: image.width() as usize,
             height: image.height() as usize,
-            pixels: image
-                .pixels()
-                .map(|p| [p[0], p[1], p[2], p[3]].map(|c| f32::from(c) / 255.0))
-                .collect(),
+            rgba: image.into_raw(),
         })
+    }
+
+    fn at(&self, x: usize, y: usize) -> Px {
+        let start = (y * self.width + x) * 4;
+        let mut px = [0.0; 4];
+        for (value, &byte) in px.iter_mut().zip(&self.rgba[start..start + 4]) {
+            *value = f32::from(byte) / 255.0;
+        }
+        px
     }
 
     fn bilinear(&self, u: f64, v: f64) -> Px {
@@ -575,28 +668,56 @@ impl Decoded {
         let (x0, y0) = (u.floor() as usize, v.floor() as usize);
         let (x1, y1) = ((x0 + 1).min(self.width - 1), (y0 + 1).min(self.height - 1));
         let (fx, fy) = ((u - x0 as f64) as f32, (v - y0 as f64) as f32);
-        let at = |x: usize, y: usize| self.pixels[y * self.width + x];
+        let (a, b, c, d) = (
+            self.at(x0, y0),
+            self.at(x1, y0),
+            self.at(x0, y1),
+            self.at(x1, y1),
+        );
         let mut px = [0.0; 4];
         for (channel, value) in px.iter_mut().enumerate() {
-            let top = at(x0, y0)[channel] * (1.0 - fx) + at(x1, y0)[channel] * fx;
-            let bottom = at(x0, y1)[channel] * (1.0 - fx) + at(x1, y1)[channel] * fx;
+            let top = a[channel] * (1.0 - fx) + b[channel] * fx;
+            let bottom = c[channel] * (1.0 - fx) + d[channel] * fx;
             *value = top * (1.0 - fy) + bottom * fy;
         }
         px
     }
 }
 
-struct Images<'a> {
-    sources: &'a HashMap<String, String>,
+/// The images the ancestors' fills use, read once: their bytes up front, so
+/// their size is known before anything is drawn, and their pixels when first
+/// sampled.
+struct Images {
+    sources: HashMap<String, Vec<u8>>,
+    pixels: u64,
     decoded: HashMap<String, Decoded>,
 }
 
-impl<'a> Images<'a> {
-    fn new(sources: &'a HashMap<String, String>) -> Self {
-        Self {
-            sources,
-            decoded: HashMap::new(),
+impl Images {
+    fn new(sources: &HashMap<String, String>) -> Result<Self, DevupError> {
+        let mut bytes = HashMap::new();
+        let mut pixels = 0_u64;
+        for (hash, data) in sources {
+            let encoded = base64_bytes(data)?;
+            let (width, height) = image::ImageReader::new(std::io::Cursor::new(&encoded))
+                .with_guessed_format()
+                .map_err(|error| invalid(format!("an image cannot be read: {error}")))?
+                .into_dimensions()
+                .map_err(|error| invalid(format!("an image cannot be read: {error}")))?;
+            pixels = pixels.saturating_add(u64::from(width) * u64::from(height));
+            bytes.insert(hash.clone(), encoded);
         }
+        Ok(Self {
+            sources: bytes,
+            pixels,
+            decoded: HashMap::new(),
+        })
+    }
+
+    /// What decoding them all takes: their RGBA bytes, and as much again
+    /// while each decodes.
+    fn decoded_bytes(&self) -> u64 {
+        self.pixels.saturating_mul(8)
     }
 
     fn get(&mut self, hash: &str) -> Result<&Decoded, DevupError> {
@@ -606,7 +727,7 @@ impl<'a> Images<'a> {
                 .get(hash)
                 .ok_or_else(|| invalid(format!("the image {hash} was not sent")))?;
             self.decoded
-                .insert(hash.to_owned(), Decoded::from_base64(data)?);
+                .insert(hash.to_owned(), Decoded::from_bytes(data)?);
         }
         Ok(&self.decoded[hash])
     }
@@ -615,7 +736,7 @@ impl<'a> Images<'a> {
 /// A plugin export laid on the grid; outside it, transparent. A mask reads as
 /// its coverage in the alpha channel.
 fn place(picture: &Picture, grid: &Grid, as_mask: bool) -> Result<Vec<Px>, DevupError> {
-    let image = Decoded::from_base64(&picture.data)?;
+    let image = Decoded::from_bytes(&base64_bytes(&picture.data)?)?;
     let origin = Grid::origin_of(picture.area, grid.scale);
     let offset_x = ((origin.0 - grid.origin.0) * grid.scale).round() as isize;
     let offset_y = ((origin.1 - grid.origin.1) * grid.scale).round() as isize;
@@ -626,7 +747,7 @@ fn place(picture: &Picture, grid: &Grid, as_mask: bool) -> Result<Vec<Px>, Devup
         if column < 0 || row < 0 || column as usize >= image.width || row as usize >= image.height {
             continue;
         }
-        let source = image.pixels[row as usize * image.width + column as usize];
+        let source = image.at(column as usize, row as usize);
         *px = if as_mask && picture.luminance {
             let luma = 0.2126 * source[0] + 0.7152 * source[1] + 0.0722 * source[2];
             [0.0, 0.0, 0.0, luma * source[3]]
@@ -648,8 +769,8 @@ fn mix(a: Px, b: Px, weight: f32) -> Px {
 /// A drop shadow behind the layer: its alpha, moved, blurred and coloured.
 fn with_drop_shadow(pixels: &[Px], grid: &Grid, effect: &Value) -> Vec<Px> {
     let colour = colour(&effect["color"], 1.0);
-    let dx = (number(&effect["offset"]["x"]) * grid.scale).round() as isize;
-    let dy = (number(&effect["offset"]["y"]) * grid.scale).round() as isize;
+    let shift = |value: &Value| (number(value) * grid.scale).round().clamp(-1e9, 1e9) as isize;
+    let (dx, dy) = (shift(&effect["offset"]["x"]), shift(&effect["offset"]["y"]));
     let (width, height) = (grid.width, grid.height);
     let mut shadow = vec![[0.0; 4]; width * height];
     for (index, px) in shadow.iter_mut().enumerate() {
@@ -977,6 +1098,53 @@ mod tests {
         });
         let rgba = decode(&compose(&scene).expect("composes"));
         assert_eq!(rgba, vec![128, 128, 128, 255, 64, 64, 64, 255]);
+    }
+
+    /// Drawn from its parts (its own paints, then its children), the node is
+    /// still cut by its mask: outside it neither shows, inside both do.
+    #[test]
+    fn a_mask_cuts_a_node_drawn_from_its_parts() {
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 2, "height": 1, "page": [0, 0, 0],
+            "node": {
+                "own": {"transform": [[1, 0, 0], [0, 1, 0]], "width": 2, "height": 1,
+                        "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}}],
+                        "effects": [{"type": "BACKGROUND_BLUR", "radius": 2}]},
+                "children": [{"data": png(1, 1, vec![255, 0, 0, 255]), "area": {"x": 1, "y": 0}}],
+                "mask": {"data": png(1, 1, vec![0, 0, 0, 255]), "area": {"x": 1, "y": 0}}
+            }
+        });
+        let rgba = decode(&compose(&scene).expect("composes"));
+        assert_eq!(rgba, vec![0, 0, 0, 255, 255, 0, 0, 255]);
+    }
+
+    /// What would take more memory or blur work than a reference PNG is worth
+    /// is refused before anything is allocated, so the canvas picture is used.
+    #[test]
+    fn an_oversized_composition_is_refused_up_front() {
+        let translucent = |_| json!({"transform": [[1, 0, 0], [0, 1, 0]], "width": 2000, "height": 2000, "opacity": 0.5});
+        let deep = json!({
+            "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
+            "layers": (0..60).map(translucent).collect::<Vec<_>>(),
+            "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+        });
+        let error = compose(&deep).expect_err("too much memory");
+        assert!(error.message.contains("MiB to draw"), "{}", error.message);
+
+        let blurred = json!({
+            "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
+            "layers": [{"transform": [[1, 0, 0], [0, 1, 0]], "width": 2000, "height": 2000,
+                        "effects": [{"type": "LAYER_BLUR", "radius": 1e12}]}],
+            "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+        });
+        let error = compose(&blurred).expect_err("too much blur work");
+        assert!(error.message.contains("kernel taps"), "{}", error.message);
+
+        let unscaled = json!({
+            "area": {"x": 0, "y": 0}, "scale": 0, "width": 1, "height": 1, "page": [0, 0, 0],
+            "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+        });
+        assert!(compose(&unscaled).is_err());
     }
 
     #[test]

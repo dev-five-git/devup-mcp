@@ -116,7 +116,6 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     }
     let flagged = value.get("isError").and_then(Value::as_bool) == Some(true);
     let message = first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned());
-    let lowered = message.to_lowercase();
 
     // A quota refusal is the one upstream failure that clears on its own,
     // so it must not be reported as a permanent one.
@@ -126,16 +125,10 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     // contain and reported "variable/style batch not found in the Figma MCP
     // response" — the parser that happened to be next, named as the cause,
     // after twenty-four minutes of collecting. So the refusal is recognised by
-    // what it says as well as by how it is flagged.
-    //
-    // Only when it is short, though. A healthy response carries its payload in
-    // the same field, and a design is free to contain a layer named "rate
-    // limit"; reading that as a refusal would fail a collection that worked. A
-    // refusal is a sentence, a payload is a document, and the two are never
-    // close in length.
-    const LONGEST_REFUSAL: usize = 2000;
-    let refuses = (lowered.contains("tool call limit") || lowered.contains("rate limit"))
-        && (flagged || message.len() <= LONGEST_REFUSAL);
+    // what it says as well as by how it is flagged, and only when it is short
+    // (`is_quota_refusal`). The bridge's fallback to the direct path reads the
+    // direct answer with the same test, so the two cannot disagree.
+    let refuses = devup_mcp_figma::is_quota_refusal(&message, flagged);
     if !flagged && !refuses {
         return None;
     }

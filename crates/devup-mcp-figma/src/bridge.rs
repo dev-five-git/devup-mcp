@@ -1044,7 +1044,14 @@ async fn whole_reference_answer(
             )
             .await?;
         let part = piece["text"].as_str().unwrap_or_default();
-        if piece["offset"].as_u64() != Some(text.len() as u64) || part.is_empty() {
+        // 붙든 글은 ASCII 라 오프셋이 두 쪽에서 같은 자리를 가리킨다. 아니면 어긋난 것이다.
+        if piece["kind"] != "devupReferencePngChunk"
+            || piece["id"] != id.as_str()
+            || piece["offset"].as_u64() != Some(text.len() as u64)
+            || part.is_empty()
+            || !part.is_ascii()
+            || text.len() + part.len() > length
+        {
             return Err(unavailable(
                 "the plugin's reference PNG pieces do not line up",
             ));
@@ -1054,6 +1061,51 @@ async fn whole_reference_answer(
     serde_json::from_str(&text)
         .map_err(|error| unavailable(format!("the plugin's reference PNG answer: {error}")))
 }
+
+/// 참조 PNG 의 답 전체.
+///
+/// 플러그인은 큰 답을 읽혀 갈 때까지 붙들어 두고, 그것들이 상한만큼 쌓여 있으면 새 그림을
+/// 그리지 않고 바쁘다고 답한다(`DEVUP_REFERENCE_PNG_BUSY`). 붙든 답을 밀어내면 그 답을 읽던
+/// 요청이 실패하기 때문이다. 그동안에도 다른 요청의 조각 읽기는 처리되므로 잠시 뒤 다시
+/// 묻는다. 붙들어 둔 답이 읽기 전에 사라졌으면(플러그인이 다시 실행되는 등) 한 번 다시 받는다.
+async fn reference_answer(
+    state: &BridgeState,
+    file_key: &str,
+    script: &'static str,
+    params: Value,
+) -> Result<(Value, BridgeServed), DevupError> {
+    let deadline = tokio::time::Instant::now() + REFERENCE_BUSY_WAIT;
+    let mut fetched_again = false;
+    loop {
+        let (data, served) = match state.dispatch(file_key, script, params.clone()).await {
+            Err(error)
+                if plugin_says(&error, "DEVUP_REFERENCE_PNG_BUSY")
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(REFERENCE_BUSY_RETRY).await;
+                continue;
+            }
+            answered => answered?,
+        };
+        match whole_reference_answer(state, file_key, data).await {
+            Err(error)
+                if plugin_says(&error, "DEVUP_REFERENCE_PNG_ANSWER_GONE") && !fetched_again =>
+            {
+                fetched_again = true;
+            }
+            whole => return whole.map(|data| (data, served)),
+        }
+    }
+}
+
+fn plugin_says(error: &DevupError, code: &str) -> bool {
+    is_script_failure(error) && error.message.contains(code)
+}
+
+/// 바쁜 플러그인에게 참조 PNG 를 다시 묻는 간격과 그 상한. 상한은 export 작업이 읽기 하나에
+/// 주는 90초 안에 그림과 조각 읽기까지 마치도록 잡았다.
+const REFERENCE_BUSY_RETRY: std::time::Duration = std::time::Duration::from_millis(500);
+const REFERENCE_BUSY_WAIT: std::time::Duration = std::time::Duration::from_secs(45);
 
 /// 조각으로 받는 참조 PNG 답의 상한. 이미지 채움의 원본까지 실으므로 PNG 상한(16 MiB)
 /// 보다 크다.
@@ -1080,9 +1132,11 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
             "the plugin's reference PNG answer is not a devupReferencePng",
         ));
     }
-    let composed = data["compose"]
-        .is_object()
-        .then(|| crate::reference_compose::compose(&data["compose"]));
+    // 그리다 멈추는 일이 생겨도 함께 온 캔버스 그림이 답이 된다.
+    let composed = data["compose"].is_object().then(|| {
+        std::panic::catch_unwind(|| crate::reference_compose::compose(&data["compose"]))
+            .unwrap_or_else(|_| Err(unavailable("composing it stopped unexpectedly")))
+    });
     let mut failure = None;
     let png = match composed {
         Some(Ok(png)) => png,
@@ -1114,9 +1168,9 @@ fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, De
         result["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY] =
             json!(format!("devup-mcp could not compose it: {}", error.message));
         result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(format!(
-            "Drawn as the canvas shows this area: devup-mcp could not compose what get_screenshot draws here ({}). {} reach into it and may show here; get_screenshot leaves other layers out.",
+            "Drawn as the canvas shows this area: devup-mcp could not compose what get_screenshot draws here ({}). Layers reaching into it may show here: {}; get_screenshot leaves other layers out.",
             error.message,
-            data["reaching"].as_str().unwrap_or("Other layers")
+            data["reaching"].as_str().unwrap_or("other layers")
         ));
     }
     Ok(result)
@@ -1492,11 +1546,14 @@ impl FigmaUpstream for BridgeFigmaClient {
         };
         let mut params = job.params;
         widen_budgets(&mut params);
-        let (mut data, served) = match self
-            .state
-            .dispatch(call.file_key(), job.script, params)
-            .await
-        {
+        let answered = if matches!(call, ReadToolCall::Screenshot { .. }) {
+            reference_answer(&self.state, call.file_key(), job.script, params).await
+        } else {
+            self.state
+                .dispatch(call.file_key(), job.script, params)
+                .await
+        };
+        let (mut data, served) = match answered {
             Ok(answered) => answered,
             Err(error) if is_script_failure(&error) => {
                 return Ok(script_failure_result(&error.message));
@@ -1508,7 +1565,6 @@ impl FigmaUpstream for BridgeFigmaClient {
             ..served
         };
         if matches!(call, ReadToolCall::Screenshot { .. }) {
-            let data = whole_reference_answer(&self.state, call.file_key(), data).await?;
             // 그리는 일은 픽셀마다 도는 계산이라 비동기 작업자를 붙들지 않게 넘긴다.
             let raw = tokio::task::spawn_blocking(move || wrap_as_image_result(&data, &served))
                 .await
@@ -1597,15 +1653,21 @@ pub struct FallbackUpstream<P, S> {
     meter: Option<Arc<dyn Meter>>,
 }
 
-/// Holds a read bound for the metered path until it fits under the allowance.
+/// 한도를 쓰는 경로로 보낼 읽기를 한도 안에 들 때까지 붙든다.
 ///
-/// The caller paces a read it sends to the metered path itself; a read the
-/// plugin answered and that is then read again there is decided in here, after
-/// the caller's decision, so it waits on this.
+/// 원격으로 가는 읽기는 부르는 쪽이 스스로 늦춘다. 플러그인이 답한 읽기를 원격으로 다시
+/// 읽을지는 그 판단 뒤 여기서 정해지므로 여기서 이것을 기다린다 — 다만 정해진 시간 안에
+/// 자리가 나지 않으면 기다리지 않는다. 기다리는 시간도 읽기 하나에 주어진 시간 안에 들어
+/// 있어서, 오래 기다리면 이미 받은 플러그인의 답까지 시간 초과로 잃는다.
 #[async_trait]
 pub trait Meter: Send + Sync {
-    async fn acquire(&self);
+    /// `budget` 안에 한도 자리를 얻었으면 `true`. 얻지 못했으면 자리를 쓰지 않는다.
+    async fn acquire_within(&self, budget: std::time::Duration) -> bool;
 }
+
+/// 원격으로 다시 읽는 일 — 한도 자리를 기다리는 것과 원격의 답까지 — 을 끝내야 하는 시간.
+/// export 작업은 읽기 하나에 90초를 주므로, 플러그인의 읽기와 함께 그 안에 끝나도록 잡았다.
+const DIRECT_FALLBACK_BUDGET: std::time::Duration = std::time::Duration::from_secs(40);
 
 impl<P, S> FallbackUpstream<P, S> {
     pub fn new(preferred: P, secondary: S) -> Self {
@@ -1621,11 +1683,16 @@ impl<P, S> FallbackUpstream<P, S> {
         self
     }
 
-    async fn metered<T>(&self, read: impl std::future::Future<Output = T>) -> T {
-        if let Some(meter) = &self.meter {
-            meter.acquire().await;
+    /// 원격 읽기를 한도 자리를 얻어 `DIRECT_FALLBACK_BUDGET` 안에 끝낸다. 자리를 얻지
+    /// 못했거나 시간 안에 끝나지 않았으면 `None`.
+    async fn metered<T>(&self, read: impl std::future::Future<Output = T>) -> Option<T> {
+        let deadline = tokio::time::Instant::now() + DIRECT_FALLBACK_BUDGET;
+        if let Some(meter) = &self.meter
+            && !meter.acquire_within(DIRECT_FALLBACK_BUDGET).await
+        {
+            return None;
         }
-        read.await
+        tokio::time::timeout_at(deadline, read).await.ok()
     }
 }
 
@@ -1654,18 +1721,19 @@ where
                 return Ok(answered);
             }
             return match self.metered(self.secondary.call_read_tool(call)).await {
-                Ok(direct)
-                    if better.is_some()
-                        && (direct.raw["isError"] == true || cut_short(&direct.raw)) =>
-                {
+                // 플러그인의 답을 쓸 수 있으면 그것을 쓴다. 쓸 수 없는 답(거절)이면 한도가
+                // 비는 대로 다시 해 볼 일이다.
+                None if better.is_some() => Ok(answered),
+                None => Err(no_room_on_the_metered_path()),
+                Some(Ok(direct)) if better.is_some() && direct_unusable(&direct.raw) => {
                     Ok(answered)
                 }
-                Ok(mut direct) => {
+                Some(Ok(mut direct)) => {
                     direct.raw["_meta"][DIRECT_FALLBACK_META_KEY] = json!(reason);
                     Ok(direct)
                 }
-                Err(error) if better.is_none() && error.retryable => Err(error),
-                Err(_) => Ok(answered),
+                Some(Err(error)) if better.is_none() && error.retryable => Err(error),
+                Some(Err(_)) => Ok(answered),
             };
         }
         // 브리지만 읽을 수 있는 키다. 원격으로 넘기면 Figma 에 없는 키를 묻게 되고,
@@ -1725,8 +1793,44 @@ fn remote_does_better(raw: &Value) -> Option<&'static str> {
         return Some("reference-png-approximate");
     }
     texts(raw)
-        .any(|text| crate::figma_unreachable_hint(text).is_some())
+        .any(|text| {
+            crate::figma_unreachable_hint(text).is_some()
+                && (raw["isError"] == true || reports_unreachable(text))
+        })
         .then_some("file-out-of-sight")
+}
+
+/// 플러그인 답의 JSON 에서 오류를 싣는 자리 — 값을 읽지 못한 `$error`, 필드 읽기 실패
+/// `fieldErrors`, 미해석 리소스의 `error`, 자산 export 의 `errorDetail` — 에 그 말이 있는지.
+/// 디자인의 글(`characters`, 이름, 설명)에 같은 문장이 있어도 한도를 써서 다시 읽지 않는다.
+fn reports_unreachable(text: &str) -> bool {
+    fn within(value: &Value, in_error: bool) -> bool {
+        match value {
+            Value::String(text) => in_error && crate::figma_unreachable_hint(text).is_some(),
+            Value::Array(items) => items.iter().any(|item| within(item, in_error)),
+            Value::Object(fields) => fields.iter().any(|(key, value)| {
+                let error_field = matches!(
+                    key.as_str(),
+                    "$error" | "error" | "errors" | "fieldErrors" | "errorDetail" | "lookupError"
+                );
+                within(value, in_error || error_field)
+            }),
+            _ => false,
+        }
+    }
+    serde_json::from_str::<Value>(text).is_ok_and(|value| within(&value, false))
+}
+
+/// 플러그인이 답하지 못한 읽기를 원격으로 넘기려 했지만 정해진 시간 안에 한도 자리가 나지
+/// 않았다. 한도가 찬 것과 같으므로 그렇게 알려, 수집이 한도가 비기를 기다렸다 다시 하게 한다.
+fn no_room_on_the_metered_path() -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaRateLimited,
+        "The Devup Bridge plugin could not answer this read, and the metered direct path had no \
+         room in its allowance to read it in time. It is retried once the allowance frees up.",
+        true,
+        json!({ "source": "direct", "stage": "bridge-fallback" }),
+    )
 }
 
 /// 원격 경로라면 해낼 수 있는 플러그인의 거절과 그 이유:
@@ -1744,16 +1848,25 @@ fn remote_may_answer(raw: &Value) -> Option<&'static str> {
     [
         ("DEVUP_BRIDGE_UNKNOWN_SCRIPT", "plugin-older-than-server"),
         ("DEVUP_REFERENCE_PNG_TOO_LARGE", "plugin-answer-too-large"),
+        ("DEVUP_REFERENCE_PNG_BUSY", "plugin-busy"),
         ("DEVUP_LARGE_VALUE_CHANGED", "value-from-direct-path"),
     ]
     .into_iter()
     .find_map(|(code, reason)| text.contains(code).then_some(reason))
 }
 
-/// 원격의 답이 공식 MCP 의 텍스트 상한(20 KB)에서 잘렸는지. 플러그인의 크기로 묶은
-/// 읽기를 원격이 다시 읽으면 생기고, 그 답은 디코딩되지 않으므로 플러그인의 답이 낫다.
-fn cut_short(raw: &Value) -> bool {
-    texts(raw).any(|text| text.trim_end().ends_with("// truncated to 20kb"))
+/// 원격의 답을 쓸 수 없는지. 그때는 플러그인의 답이 낫다.
+///
+/// - 오류로 표시됐다.
+/// - 한도에 걸렸다는 문장 하나다 — `isError` 없이 오기도 한다(`is_quota_refusal`).
+/// - 공식 MCP 의 텍스트 상한(20 KB)에서 잘렸다. 플러그인의 크기로 묶은 읽기를 원격이 다시
+///   읽으면 생기고, 그 답은 디코딩되지 않는다.
+fn direct_unusable(raw: &Value) -> bool {
+    raw["isError"] == true
+        || texts(raw).any(|text| {
+            crate::is_quota_refusal(text, false)
+                || text.trim_end().ends_with("// truncated to 20kb")
+        })
 }
 
 fn texts(raw: &Value) -> impl Iterator<Item = &str> {

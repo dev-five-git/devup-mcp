@@ -105,6 +105,20 @@ impl std::fmt::Display for DevupError {
 
 impl std::error::Error for DevupError {}
 
+/// Whether Figma's MCP refused a read for its allowance.
+///
+/// The refusal need not be flagged: one arrived carrying no `isError` at all,
+/// as a successful result whose text was the sentence. So it is recognised by
+/// what it says, but only when that is short - a design is free to contain a
+/// layer named "rate limit", and a refusal is a sentence while a payload is a
+/// document; the two are never close in length.
+pub fn is_quota_refusal(message: &str, flagged: bool) -> bool {
+    const LONGEST_REFUSAL: usize = 2000;
+    let lowered = message.to_lowercase();
+    (lowered.contains("tool call limit") || lowered.contains("rate limit"))
+        && (flagged || message.len() <= LONGEST_REFUSAL)
+}
+
 /// What clears Figma's "Unable to establish connection to Figma".
 ///
 /// Measured in the desktop app: once the file had been out of sight for two
