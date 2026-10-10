@@ -730,13 +730,20 @@ struct Header {
     pixels: u64,
     /// What its decoder may allocate.
     allowance: u64,
+    /// What its decoder keeps for each PNG text chunk, which no allowance holds.
+    texts: u64,
 }
+
+/// What a PNG decoder keeps for one text chunk beside its bytes: the entry and
+/// its strings.
+const PNG_TEXT_CHUNK_BYTES: u64 = 512;
 
 impl Header {
     /// Its format, size and allowance:
     /// - PNG and GIF: 8 bytes a pixel (a 16-bit PNG decodes to 8), which
     ///   `Decoded::from_bytes` holds their decoders to; a GIF frame larger than
-    ///   its screen is refused.
+    ///   its screen decodes only within it. A PNG's text chunks are counted
+    ///   one by one.
     /// - JPEG: two bytes for each sample of each component's coefficients at
     ///   the sampling factors its frame header names, over rows and columns
     ///   padded to whole MCUs, and a 4-byte output. Its decoder takes no
@@ -746,25 +753,45 @@ impl Header {
     ///   partitions among them.
     fn read(encoded: &[u8]) -> Result<Self, DevupError> {
         let field = |at: usize, length: usize| encoded.get(at..at + length);
-        let (format, width, height, allowance) = if encoded.starts_with(b"\x89PNG\r\n\x1a\n") {
+        let (format, width, height, allowance, texts) = if encoded.starts_with(b"\x89PNG\r\n\x1a\n")
+        {
             let size =
                 |at| field(at, 4).map(|b| u64::from(u32::from_be_bytes([b[0], b[1], b[2], b[3]])));
             let (Some(b"IHDR"), Some(width), Some(height)) = (field(12, 4), size(16), size(20))
             else {
                 return Err(invalid("a PNG's header cannot be read"));
             };
+            let mut texts = 0_u64;
+            let mut at = 8_usize;
+            while let Some(length) = size(at) {
+                let kind = field(at + 4, 4);
+                if matches!(kind, Some(b"tEXt" | b"zTXt" | b"iTXt")) {
+                    texts += 1;
+                }
+                if kind == Some(b"IEND") {
+                    break;
+                }
+                at = at.saturating_add(12).saturating_add(length as usize);
+            }
             (
                 image::ImageFormat::Png,
                 width,
                 height,
                 width.saturating_mul(height).saturating_mul(8),
+                texts,
             )
         } else if encoded.starts_with(b"GIF87a") || encoded.starts_with(b"GIF89a") {
             let size = |at| field(at, 2).map(|b| u64::from(u16::from_le_bytes([b[0], b[1]])));
             let (Some(width), Some(height)) = (size(6), size(8)) else {
                 return Err(invalid("a GIF's header cannot be read"));
             };
-            (image::ImageFormat::Gif, width, height, width * height * 8)
+            (
+                image::ImageFormat::Gif,
+                width,
+                height,
+                width * height * 8,
+                0,
+            )
         } else if encoded.starts_with(&[0xFF, 0xD8]) {
             let (width, height, coefficients) = jpeg_frame(encoded)
                 .ok_or_else(|| invalid("a JPEG's frame header cannot be read"))?;
@@ -774,6 +801,7 @@ impl Header {
                 width,
                 height,
                 padded.saturating_mul(coefficients + 4),
+                0,
             )
         } else {
             return Err(invalid("an image is not a PNG, JPEG or GIF"));
@@ -785,25 +813,30 @@ impl Header {
             format,
             pixels: width.saturating_mul(height),
             allowance: allowance.saturating_add(DECODE_SLACK),
+            texts: texts.saturating_mul(PNG_TEXT_CHUNK_BYTES),
         })
     }
 
-    /// The most decoding it takes: its allowance twice (a PNG decoder keeps
-    /// its chunks within its own copy of the allowance, beside the output it is
-    /// held to), the RGBA8 it becomes, and four copies of its bytes (the
-    /// source, a JPEG decoder's own copy, and the metadata it gathers and
-    /// reassembles).
+    /// The most decoding it takes: its allowance three times (the output it is
+    /// held to, what a PNG decoder keeps within its own copy of the allowance,
+    /// and the rows it unfilters outside it), the RGBA8 it becomes, eight
+    /// copies of its bytes (the source, a JPEG decoder's own copy, the metadata
+    /// it gathers and reassembles, and the lists holding it), and its text
+    /// chunks.
     fn peak(&self, encoded: usize) -> u64 {
         self.allowance
-            .saturating_mul(2)
+            .saturating_mul(3)
             .saturating_add(self.pixels.saturating_mul(4))
-            .saturating_add((encoded as u64).saturating_mul(4))
+            .saturating_add((encoded as u64).saturating_mul(8))
+            .saturating_add(self.texts)
     }
 }
 
 /// A JPEG's size and two bytes a pixel for each sample of each component, from
 /// its frame header: the first, before its first scan (its decoder refuses a
-/// second).
+/// second). A marker standing alone before it (another SOI, a restart) or a
+/// segment too short for its length is refused: its decoder reads those as
+/// segments, and could skip the frame header counted here.
 fn jpeg_frame(encoded: &[u8]) -> Option<(u64, u64, u64)> {
     let mut at = 2;
     loop {
@@ -819,11 +852,13 @@ fn jpeg_frame(encoded: &[u8]) -> Option<(u64, u64, u64)> {
         };
         match marker {
             0xFF => at += 1,
-            0x01 | 0xD0..=0xD9 => at += 2,
-            0xDA => return None,
+            0x01 | 0xD0..=0xDA => return None,
             0xC0..=0xCF if !matches!(marker, 0xC4 | 0xC8 | 0xCC) => {
                 let (height, width) = (u64::from(word(5)?), u64::from(word(7)?));
                 let components = usize::from(*encoded.get(at + 9)?);
+                if usize::from(word(2)?) != 8 + 3 * components {
+                    return None;
+                }
                 let samples = (0..components)
                     .map(|index| {
                         let factors = *encoded.get(at + 11 + 3 * index)?;
@@ -832,7 +867,13 @@ fn jpeg_frame(encoded: &[u8]) -> Option<(u64, u64, u64)> {
                     .sum::<Option<u64>>()?;
                 return Some((width, height, samples));
             }
-            _ => at += 2 + usize::from(word(2)?),
+            _ => {
+                let length = usize::from(word(2)?);
+                if length < 2 {
+                    return None;
+                }
+                at += 2 + length;
+            }
         }
     }
 }
@@ -1395,7 +1436,40 @@ mod tests {
         assert_eq!(jpeg_frame(&jpeg), Some((4000, 4000, 2 * 16 * 4)));
     }
 
-    /// A JPEG fill composes, counted with four copies of its bytes - here
+    /// A PNG's text chunks are counted one by one: its decoder keeps an entry
+    /// for each that its allowance does not hold.
+    #[test]
+    fn a_pngs_text_chunks_are_counted() {
+        let mut bytes = STANDARD
+            .decode(png(1, 1, vec![0, 0, 0, 0]))
+            .expect("base64");
+        let text = [0, 0, 0, 2, b't', b'E', b'X', b't', b'a', 0, 0, 0, 0, 0];
+        let tail = bytes.split_off(33);
+        for _ in 0..1000 {
+            bytes.extend(text);
+        }
+        bytes.extend(tail);
+        let header = Header::read(&bytes).expect("a PNG header");
+        assert_eq!(header.texts, 1000 * PNG_TEXT_CHUNK_BYTES);
+        assert!(header.peak(bytes.len()) > 1000 * PNG_TEXT_CHUNK_BYTES);
+    }
+
+    /// A second SOI before the frame header is refused: its decoder reads it as
+    /// a segment and could skip the frame header counted.
+    #[test]
+    fn a_marker_standing_alone_before_the_jpeg_frame_is_refused() {
+        let jpeg = [
+            0xFF, 0xD8, 0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 8, 0, 1, 0, 1, 1, 1, 0x11, 0, 0xFF,
+            0xDA,
+        ];
+        assert_eq!(jpeg_frame(&jpeg), None);
+        assert_eq!(
+            jpeg_frame(&[&jpeg[..2], &jpeg[4..]].concat()),
+            Some((1, 1, 2))
+        );
+    }
+
+    /// A JPEG fill composes, counted with eight copies of its bytes - here
     /// mostly a large APP0 segment its decoder copies with the rest. A WebP
     /// fill is refused, so the canvas picture is used.
     #[test]
@@ -1416,7 +1490,7 @@ mod tests {
         }
         jpeg.extend(&encoded[2..]);
         let header = Header::read(&jpeg).expect("a JPEG header");
-        assert!(header.peak(jpeg.len()) >= 4 * jpeg.len() as u64);
+        assert!(header.peak(jpeg.len()) >= 8 * jpeg.len() as u64);
         let mut webp = Vec::new();
         image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
             .encode(
