@@ -272,6 +272,35 @@ globalThis.figma.getImageByHash = fill(webp, 30000, 30000)
 const hugeFill = await run('1:10')
 assert.deepEqual(asked, [])
 assert.equal(hugeFill.compose.images.big, Buffer.from(webp).toString('base64'))
+// 변환이 만드는 사본까지 모두 센다. 다른 바이트를 110 MiB 실은 1×1 사진은 바이트의 사본
+// 다섯만으로 512 MiB 를 넘으므로 UI 에 보내지 않는다. 그대로 가면 사진들이 함께 쓸 수 있는
+// 64 MiB 를 넘으므로, 인코딩하지 않고 그 이유와 함께 캔버스 그림을 보낸다.
+const heavy = new Uint8Array(110 * 1024 * 1024)
+globalThis.figma.getImageByHash = fill(heavy, 1, 1)
+const encodedLengths = []
+const base64Encode = globalThis.figma.base64Encode
+globalThis.figma.base64Encode = (bytes) => {
+  encodedLengths.push(bytes.length)
+  return base64Encode(bytes)
+}
+const heavyFill = await run('1:10')
+assert.deepEqual(asked, [])
+assert.equal(heavyFill.compose, undefined)
+assert.match(heavyFill.approximate, /images are over 67108864 bytes/)
+assert.ok(!encodedLengths.includes(heavy.length))
+// 사진은 읽는 대로 센다. 함께 64 MiB 를 넘는 순간 멈추고, 나머지는 인코딩하지 않는다.
+const forty = new Uint8Array(40 * 1024 * 1024)
+forty.set(png)
+const photoFills = photo.fills
+photo.fills = ['p1', 'p2'].map((imageHash) => ({ ...photoFills[0], imageHash }))
+globalThis.figma.getImageByHash = () => ({ getBytesAsync: async () => forty, getSizeAsync: async () => ({ width: 4000, height: 4000 }) })
+encodedLengths.length = 0
+const twoPhotos = await run('1:10')
+photo.fills = photoFills
+globalThis.figma.base64Encode = base64Encode
+assert.deepEqual(asked, [])
+assert.deepEqual(encodedLengths.filter((length) => length === forty.length), [forty.length])
+assert.match(twoPhotos.approximate, /images are over 67108864 bytes/)
 // 장면 하나의 사진들은 변환 시간 한 몫을 나눠 쓴다. 첫 변환이 그 시간을 다 쓰고 멈추면
 // 나머지는 UI 에 보내지 않고 그대로 보낸다 — 캔버스 그림을 보낼 시간이 남는다.
 const realNow = Date.now

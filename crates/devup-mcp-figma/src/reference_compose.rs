@@ -326,8 +326,7 @@ fn within_budget(
     Ok(())
 }
 
-/// How far away, in pixels, the farthest drop shadow is cast from: its
-/// offset and its spread.
+/// How far away, in pixels, the farthest drop shadow is cast from.
 fn shadow_reach(scene: &Scene) -> Option<usize> {
     scene
         .layers
@@ -335,15 +334,17 @@ fn shadow_reach(scene: &Scene) -> Option<usize> {
         .chain(scene.node.own.as_ref())
         .flat_map(|layer| layer.effects.iter().filter(|effect| visible(effect)))
         .filter(|effect| effect["type"] == "DROP_SHADOW")
-        .map(|effect| {
-            ((number(&effect["offset"]["x"])
-                .abs()
-                .max(number(&effect["offset"]["y"]).abs())
-                + number(&effect["spread"]).abs())
-                * scene.scale)
-                .ceil() as usize
-        })
+        .map(|effect| shadow_cast(effect, scene.scale))
         .max()
+}
+
+/// How far away a drop shadow is cast from as `drop_shadow` draws it: its
+/// larger offset and its spread, each rounded to whole pixels on its own.
+fn shadow_cast(effect: &Value, scale: f64) -> usize {
+    let rounded = |value: &Value| (number(value) * scale).round().abs() as usize;
+    rounded(&effect["offset"]["x"])
+        .max(rounded(&effect["offset"]["y"]))
+        .saturating_add(rounded(&effect["spread"]))
 }
 
 /// How many pixels past the area the widest blur or shadow in the scene reads.
@@ -367,7 +368,16 @@ fn blur_reach(scene: &Scene) -> usize {
             } else {
                 0.0
             };
-            (sigma * 3.0 + shift).ceil() as usize
+            let reach = (sigma * 3.0 + shift).ceil() as usize;
+            // Rounded apart, a drop shadow's offset and spread can be drawn a
+            // pixel farther than their sum rounded up.
+            if effect["type"] == "DROP_SHADOW" {
+                reach.max(
+                    shadow_cast(effect, scene.scale).saturating_add((sigma * 3.0).ceil() as usize),
+                )
+            } else {
+                reach
+            }
         })
         .max()
         .unwrap_or(0)
@@ -1974,6 +1984,36 @@ mod tests {
         let error =
             compose(&scene(4, shadowed(-552.0, 2.0, 600.0))).expect_err("cast from too far");
         assert!(error.message.contains("pixels away"), "{}", error.message);
+    }
+
+    /// A shadow's reach is counted as `drop_shadow` draws it, its offset and
+    /// spread each rounded: offset 255.5 and spread 256.5 come to 512 together
+    /// but are drawn 256 and 257 pixels away, one past the 512 drawn around
+    /// the area, so they are not composed. Offset 0.5 and spread 0.5 are drawn
+    /// as offset 1 and spread 1 are, and the margin is drawn wide enough for
+    /// them.
+    #[test]
+    fn a_shadows_reach_is_counted_as_it_is_drawn() {
+        let scene = |offset: f64, spread: f64| {
+            json!({
+                "area": {"x": 0, "y": 0}, "width": 4, "height": 4, "page": [255, 255, 255],
+                "layers": [{"transform": [[1, 0, -2], [0, 1, 1]], "width": 2, "height": 2,
+                            "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}],
+                            "effects": [{"type": "DROP_SHADOW", "radius": 0, "spread": spread,
+                                         "offset": {"x": offset, "y": 0}, "color": {"r": 1, "g": 0, "b": 0, "a": 1}}]}],
+                "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+            })
+        };
+        let error = compose(&scene(255.5, 256.5)).expect_err("cast from past the margin");
+        assert!(
+            error.message.contains("513 pixels away"),
+            "{}",
+            error.message
+        );
+        assert_eq!(
+            compose(&scene(0.5, 0.5)).expect("composes"),
+            compose(&scene(1.0, 1.0)).expect("composes")
+        );
     }
 
     /// An inner shadow falls inside the layer from the side its offset points

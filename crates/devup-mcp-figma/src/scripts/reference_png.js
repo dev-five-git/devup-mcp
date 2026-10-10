@@ -266,9 +266,17 @@ try {
   // Others go as they are, so their pixels stay what they were. The UI decodes
   // one image at a time and all of a scene's images share one allowance of
   // time, so stalled conversions still leave time to send the canvas picture.
-  // An image the browser would need over 512 MiB to convert - the whole image
-  // decoded, 4 bytes a pixel, and up to 8 a pixel for the PNG drawn from it -
-  // or one left when the time is up goes as it is.
+  // A conversion is counted before it is asked for, every buffer it makes
+  // added up and none taken to be freed early: the image's bytes here, the
+  // message carrying them, the copy the UI receives, the Blob made from it
+  // and what the decoder reads; the decoded image, and a resampled copy when
+  // it is drawn smaller; the canvas; the PNG encoded from it (at most 5 bytes
+  // a pixel, each row's filter byte and deflate's overhead included), the
+  // ArrayBuffer read from it, the message back and the copy received here;
+  // and the encoder's working memory. An image over 512 MiB that way, or one
+  // left when the time is up, goes as it is. Images are counted as they are
+  // read: past 64 MiB together the rest are not encoded, as the answer will
+  // be the canvas picture.
   const normalize = globalThis.__devupNormalizeImage;
   const normalizeUntil = Date.now() + 20000;
   let imageBytes = 0;
@@ -285,7 +293,10 @@ try {
       const starts = (...values) => values.every((value, at) => bytes[at] === value);
       const decoded = starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8) || starts(0x47, 0x49, 0x46);
       const fit = Math.min(1, 8192 / Math.max(width, height, 1));
-      const peak = 4 * width * height + 8 * Math.ceil(width * fit) * Math.ceil(height * fit) + bytes.length;
+      const drawn = Math.ceil(width * fit) * Math.ceil(height * fit);
+      const encoded = 5 * drawn + 64 * 1024;
+      const peak = 5 * bytes.length + 4 * width * height * (fit < 1 ? 2 : 1) + 4 * drawn + 4 * encoded
+        + 1024 * 1024;
       const left = normalizeUntil - Date.now();
       if ((!decoded || Math.max(width, height) > 8192 || bytes.length > 4 * width * height + 1024 * 1024)
         && peak <= 512 * 1024 * 1024 && left > 0) {
@@ -296,10 +307,13 @@ try {
         }
       }
     }
+    if (imageBytes + bytes.length > 64 * 1024 * 1024) {
+      approximate.push(`its ancestors' images are over ${64 * 1024 * 1024} bytes`);
+      break;
+    }
     imageBytes += bytes.length;
     imageData[hash] = laidOut ? { data: figma.base64Encode(bytes), ...laidOut } : figma.base64Encode(bytes);
   }
-  if (imageBytes > 64 * 1024 * 1024) approximate.push(`its ancestors' images are ${imageBytes} bytes`);
 } catch (error) {
   approximate.push(`a part could not be exported: ${error instanceof Error ? error.message : String(error)}`);
 }
