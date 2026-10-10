@@ -64,7 +64,43 @@ interface ContextMessage extends Context {
   kind: 'devup-context'
 }
 
+/** UI → 메인. `devup-decode` 의 답 — 디코딩하지 못했으면 png 가 null 이다. */
+interface DecodedMessage {
+  kind: 'devup-decoded'
+  id: string
+  png: Uint8Array | null
+}
+
 const PORT = 1993
+
+/**
+ * 사진을 브라우저로 디코딩해 PNG 로 받는 자리. 참조 PNG 스크립트가 devup-mcp 가
+ * 디코딩하지 않을 사진(PNG·JPEG·GIF 가 아니거나, 너무 크거나, 대부분 메타데이터인 것)을
+ * 넘긴다. 디코더는 브라우저가 있는 UI 에만 있어 거기에 맡긴다. 답이 없으면 null 이고,
+ * 스크립트는 원본을 그대로 보낸다.
+ */
+const DECODE_TIMEOUT_MS = 30_000
+const decoding = new Map<string, (png: Uint8Array | null) => void>()
+let decodes = 0
+;(
+  globalThis as unknown as {
+    __devupNormalizeImage: (bytes: Uint8Array, maxEdge: number) => Promise<Uint8Array | null>
+  }
+).__devupNormalizeImage = (bytes, maxEdge) =>
+  new Promise((resolve) => {
+    decodes += 1
+    const id = `decode-${decodes}`
+    const timer = setTimeout(() => {
+      decoding.delete(id)
+      resolve(null)
+    }, DECODE_TIMEOUT_MS)
+    decoding.set(id, (png) => {
+      clearTimeout(timer)
+      decoding.delete(id)
+      resolve(png)
+    })
+    figma.ui.postMessage({ kind: 'devup-decode', id, bytes, maxEdge })
+  })
 
 /**
  * 선택은 앞의 이만큼만 보낸다. 레이어 수천 개를 한꺼번에 고르면 메시지가
@@ -225,5 +261,11 @@ figma.ui.onmessage = (message: unknown) => {
 
   if (msg.kind === 'devup-cancel') {
     withdraw((message as CancelMessage).requestId)
+    return
+  }
+
+  if (msg.kind === 'devup-decoded') {
+    const decoded = message as DecodedMessage
+    decoding.get(decoded.id)?.(decoded.png ?? null)
   }
 }

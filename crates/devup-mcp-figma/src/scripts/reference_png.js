@@ -239,16 +239,34 @@ try {
   if (mask) content.mask = mask;
   if (size && size[0] * size[1] > 8e6) approximate.push(`the area is ${size[0]}x${size[1]} pixels`);
 
+  // An image devup-mcp does not decode - not a PNG, JPEG or GIF, an edge past
+  // what the plugin exports, or mostly metadata - the plugin's UI decodes as a
+  // browser does and hands back as a PNG, laid out at the original's size.
+  // Others go as they are, so their pixels stay what they were.
+  const normalize = globalThis.__devupNormalizeImage;
   let imageBytes = 0;
   for (const hash of images) {
     const image = hash && figma.getImageByHash(hash);
-    const bytes = image && await image.getBytesAsync();
+    let bytes = image && await image.getBytesAsync();
     if (!bytes) {
       approximate.push(`the image ${hash} could not be read`);
       continue;
     }
+    let laidOut = null;
+    if (typeof normalize === "function") {
+      const { width, height } = await image.getSizeAsync();
+      const starts = (...values) => values.every((value, at) => bytes[at] === value);
+      const decoded = starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8) || starts(0x47, 0x49, 0x46);
+      if (!decoded || Math.max(width, height) > 8192 || bytes.length > 4 * width * height + 1024 * 1024) {
+        const png = await normalize(bytes, 8192);
+        if (png) {
+          bytes = png;
+          laidOut = { width, height };
+        }
+      }
+    }
     imageBytes += bytes.length;
-    imageData[hash] = figma.base64Encode(bytes);
+    imageData[hash] = laidOut ? { data: figma.base64Encode(bytes), ...laidOut } : figma.base64Encode(bytes);
   }
   if (imageBytes > 64 * 1024 * 1024) approximate.push(`its ancestors' images are ${imageBytes} bytes`);
 } catch (error) {

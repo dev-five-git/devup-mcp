@@ -239,6 +239,27 @@ assert.equal(overLimit.compose, undefined)
 assert.equal(overLimit.byteLength, canvasBytes.length)
 assert.match(overLimit.approximate, /the answer would be \d+ characters/)
 assert.match(overLimit.note, /may show here: TEXT "Caption2"/)
+// devup-mcp 가 디코딩하지 않을 사진(여기서는 WebP)은 UI 가 PNG 로 바꿔 보내고 원본
+// 크기를 싣는다. PNG 사진은 그대로 보낸다 — 픽셀이 바뀌지 않는다.
+const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50])
+const asked = []
+globalThis.__devupNormalizeImage = async (bytes, maxEdge) => {
+  asked.push([bytes.length, maxEdge])
+  return png
+}
+const fill = (bytes, width, height) => (hash) =>
+  hash === 'big' ? { getBytesAsync: async () => bytes, getSizeAsync: async () => ({ width, height }) } : null
+onPhoto.exportAsync = async () => png
+globalThis.figma.getImageByHash = fill(webp, 3000, 2000)
+const decodedFill = await run('1:10')
+assert.deepEqual(asked, [[webp.length, 8192]])
+assert.deepEqual(decodedFill.compose.images.big, { data: Buffer.from(png).toString('base64'), width: 3000, height: 2000 })
+asked.length = 0
+globalThis.figma.getImageByHash = fill(png, 2, 2)
+const plainFill = await run('1:10')
+assert.deepEqual(asked, [])
+assert.equal(plainFill.compose.images.big, Buffer.from(png).toString('base64'))
+delete globalThis.__devupNormalizeImage
 globalThis.figma.getImageByHash = () => null
 
 const unreachable = 'Unable to establish connection to Figma after 10 seconds.'

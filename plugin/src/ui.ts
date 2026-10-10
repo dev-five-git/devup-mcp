@@ -123,9 +123,46 @@ function connect() {
   ws.onerror = () => {}
 }
 
+/**
+ * 메인이 넘긴 사진을 브라우저로 디코딩해 PNG 로 돌려준다. 긴 변이 `maxEdge` 를 넘으면
+ * 그만큼 줄인다. devup-mcp 는 이 PNG 를 원본 크기에 맞춰 놓는다. 브라우저가 풀지 못하는
+ * 사진이면 null — 메인은 원본을 그대로 보낸다.
+ */
+async function decodeToPng(
+  bytes: Uint8Array<ArrayBuffer>,
+  maxEdge: number,
+): Promise<Uint8Array | null> {
+  try {
+    const bitmap = await createImageBitmap(new Blob([bytes]), {
+      colorSpaceConversion: 'none',
+      premultiplyAlpha: 'none',
+    })
+    const fit = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * fit))
+    const height = Math.max(1, Math.round(bitmap.height * fit))
+    const canvas = new OffscreenCanvas(width, height)
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+    const blob = await canvas.convertToBlob({ type: 'image/png' })
+    return new Uint8Array(await blob.arrayBuffer())
+  } catch {
+    return null
+  }
+}
+
 window.onmessage = (event: MessageEvent) => {
   const msg = event.data?.pluginMessage
   if (!msg || typeof msg !== 'object') return
+
+  if (msg.kind === 'devup-decode') {
+    void decodeToPng(msg.bytes, msg.maxEdge).then((png) => {
+      parent.postMessage({ pluginMessage: { kind: 'devup-decoded', id: msg.id, png } }, '*')
+    })
+    return
+  }
 
   if (msg.kind === 'devup-status') {
     bridgeStatus = msg as StatusMessage

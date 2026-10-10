@@ -42,7 +42,21 @@ struct Scene {
     node: Content,
     /// Image fill bytes by image hash, base64.
     #[serde(default)]
-    images: HashMap<String, String>,
+    images: HashMap<String, ImageSource>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ImageSource {
+    /// Its own bytes, laid out at its own size.
+    Bytes(String),
+    /// A PNG the plugin's UI decoded it into (the original was not a PNG, JPEG
+    /// or GIF, or too large), laid out at the original's size.
+    Decoded {
+        data: String,
+        width: f64,
+        height: f64,
+    },
 }
 
 /// Where an export starts on the canvas; its size is the PNG's.
@@ -580,7 +594,7 @@ fn paint_at(
         "IMAGE" => {
             let hash = paint["imageHash"].as_str().unwrap_or_default();
             let image = images.get(hash)?;
-            let (iw, ih) = (image.width as f64, image.height as f64);
+            let (iw, ih) = image.layout;
             let (lw, lh) = (layer.width, layer.height);
             let (u, v, inside) = match paint["scaleMode"].as_str().unwrap_or("FILL") {
                 "FILL" | "FIT" => {
@@ -608,7 +622,9 @@ fn paint_at(
                     (u, v, (0.0..iw).contains(&u) && (0.0..ih).contains(&v))
                 }
             };
-            let mut px = image.bilinear(u - 0.5, v - 0.5);
+            // Exactly 1 unless the plugin sent the image smaller than laid out.
+            let (sx, sy) = (image.width as f64 / iw, image.height as f64 / ih);
+            let mut px = image.bilinear(u * sx - 0.5, v * sy - 0.5);
             px[3] *= (opacity * f64::from(u8::from(inside))) as f32;
             Ok(px)
         }
@@ -653,6 +669,9 @@ struct Decoded {
     width: usize,
     height: usize,
     rgba: Vec<u8>,
+    /// The size its fill is laid out at: its own, or the original's when the
+    /// plugin sent it decoded and smaller.
+    layout: (f64, f64),
 }
 
 fn base64_bytes(data: &str) -> Result<Vec<u8>, DevupError> {
@@ -677,6 +696,7 @@ impl Decoded {
         Ok(Self {
             width: image.width() as usize,
             height: image.height() as usize,
+            layout: (f64::from(image.width()), f64::from(image.height())),
             rgba: image.into_raw(),
         })
     }
@@ -717,6 +737,8 @@ impl Decoded {
 /// sampled.
 struct Images {
     sources: HashMap<String, Vec<u8>>,
+    /// The original's size, for an image the plugin sent decoded.
+    layouts: HashMap<String, (f64, f64)>,
     /// What stays once they are decoded, and the most one decode takes.
     kept: u64,
     peak: u64,
@@ -900,10 +922,21 @@ fn jpeg_frame(encoded: &[u8]) -> Option<(u64, u64, u64)> {
 }
 
 impl Images {
-    fn new(sources: &HashMap<String, String>) -> Result<Self, DevupError> {
-        let mut bytes = HashMap::new();
+    fn new(sources: &HashMap<String, ImageSource>) -> Result<Self, DevupError> {
+        let (mut bytes, mut layouts) = (HashMap::new(), HashMap::new());
         let (mut kept, mut peak) = (0_u64, 0_u64);
-        for (hash, data) in sources {
+        for (hash, source) in sources {
+            let (data, layout) = match source {
+                ImageSource::Bytes(data) => (data, None),
+                ImageSource::Decoded {
+                    data,
+                    width,
+                    height,
+                } if *width > 0.0 && *height > 0.0 => (data, Some((*width, *height))),
+                ImageSource::Decoded { .. } => {
+                    return Err(invalid(format!("the image {hash} has no size")));
+                }
+            };
             let encoded = base64_bytes(data)?;
             let header = Header::read(&encoded)?;
             kept = kept
@@ -911,9 +944,13 @@ impl Images {
                 .saturating_add(encoded.len() as u64);
             peak = peak.max(header.peak(encoded.len()));
             bytes.insert(hash.clone(), encoded);
+            if let Some(layout) = layout {
+                layouts.insert(hash.clone(), layout);
+            }
         }
         Ok(Self {
             sources: bytes,
+            layouts,
             kept,
             peak,
             decoded: HashMap::new(),
@@ -926,8 +963,11 @@ impl Images {
                 .sources
                 .get(hash)
                 .ok_or_else(|| invalid(format!("the image {hash} was not sent")))?;
-            self.decoded
-                .insert(hash.to_owned(), Decoded::from_bytes(data)?);
+            let mut decoded = Decoded::from_bytes(data)?;
+            if let Some(layout) = self.layouts.get(hash) {
+                decoded.layout = *layout;
+            }
+            self.decoded.insert(hash.to_owned(), decoded);
         }
         Ok(&self.decoded[hash])
     }
@@ -1564,6 +1604,39 @@ mod tests {
             "{}",
             error.message
         );
+    }
+
+    /// An image the plugin sent decoded and smaller is laid out at the original's
+    /// size: a 4-wide tile of red and blue sent 2 wide still repeats every 4.
+    #[test]
+    fn a_decoded_image_is_laid_out_at_the_originals_size() {
+        let tile = |images: Value| {
+            json!({
+                "area": {"x": 0, "y": 0}, "width": 8, "height": 2, "page": [0, 0, 0],
+                "layers": [{"transform": [[1, 0, 0], [0, 1, 0]], "width": 8, "height": 2,
+                            "fills": [{"type": "IMAGE", "imageHash": "t", "scaleMode": "TILE", "scalingFactor": 1}]}],
+                "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}},
+                "images": {"t": images}
+            })
+        };
+        let (red, blue) = ([255, 0, 0, 255], [0, 0, 255, 255]);
+        let original = png(4, 2, [red, red, blue, blue].concat().repeat(2));
+        let smaller = png(2, 1, [red, blue].concat());
+        let full = decode(&compose(&tile(json!(original))).expect("composes"));
+        let laid_out = decode(
+            &compose(&tile(json!({"data": smaller, "width": 4, "height": 2}))).expect("composes"),
+        );
+        let columns = |rgba: &[u8]| {
+            rgba[..32]
+                .chunks(4)
+                .map(|px| px[0] > 128)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            columns(&full),
+            [true, true, false, false, true, true, false, false]
+        );
+        assert_eq!(columns(&laid_out), columns(&full));
     }
 
     /// What would take more memory or blur work than a reference PNG is worth
