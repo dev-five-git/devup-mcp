@@ -146,6 +146,9 @@ const held = (answer) => {
 };
 
 if (intruders.length === 0) return held(await canvasAnswer({}));
+// Inside a mask's own layers the node only shapes the mask: Figma draws none of
+// it, and get_screenshot shows what lies under it.
+const shapesMask = members.some((member) => member.isMask);
 
 const approximate = [];
 const images = new Set();
@@ -207,8 +210,10 @@ const picture = async (layer) => {
 const maskOf = async (member) => {
   const mask = masks.get(member);
   if (!mask) return null;
-  const exported = await picture(mask);
-  return { data: exported.data, area: exported.area, luminance: mask.maskType === "LUMINANCE" };
+  // A mask draws nothing itself: Figma gives it no render bounds, and an export
+  // by them is empty. Exported by its box, it shows its shape.
+  const bytes = await mask.exportAsync({ ...settings(true, false), useAbsoluteBounds: true });
+  return { data: figma.base64Encode(bytes), area: mask.absoluteBoundingBox, luminance: mask.maskType === "LUMINANCE" };
 };
 
 const layers = [];
@@ -244,6 +249,8 @@ try {
       }
       size = [Math.ceil(area.width * scale - 1e-6), Math.ceil(area.height * scale - 1e-6)];
     }
+  } else if (shapesMask) {
+    size = [Math.ceil(area.width * scale - 1e-6), Math.ceil(area.height * scale - 1e-6)];
   } else {
     const exported = await picture(node);
     content.picture = { data: exported.data, area: exported.area, blendMode: exported.blendMode };

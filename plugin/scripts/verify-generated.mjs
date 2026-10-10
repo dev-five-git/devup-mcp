@@ -137,7 +137,8 @@ const glass = nest(glassHost, node({
 }))
 nest(glass, node({ id: 'label', type: 'TEXT', name: 'Label', absoluteBoundingBox: box(7010, 10, 50, 20) }))
 const maskHost = nest(section, node({ id: 'maskHost', fills: [gradient], absoluteBoundingBox: box(8000, 0, 400, 400) }))
-nest(maskHost, node({ id: 'mask', isMask: true, maskType: 'ALPHA', absoluteBoundingBox: box(8000, 0, 100, 100) }))
+const maskLayer = nest(maskHost, node({ id: 'mask', isMask: true, maskType: 'ALPHA', absoluteBoundingBox: box(8000, 0, 100, 100), absoluteRenderBounds: null }))
+const maskShape = nest(maskLayer, node({ id: '1:11', type: 'VECTOR', fills: [solid(0)], absoluteBoundingBox: box(8000, 0, 100, 100) }))
 const maskedNode = nest(maskHost, node({ id: '1:8', absoluteBoundingBox: box(8000, 0, 100, 100) }))
 nest(maskHost, node({ id: 'cover', type: 'TEXT', name: 'Cover', absoluteBoundingBox: box(8050, 50, 100, 40) }))
 const photo = nest(section, node({
@@ -146,7 +147,7 @@ const photo = nest(section, node({
 }))
 const onPhoto = nest(photo, node({ id: '1:10', absoluteBoundingBox: box(9010, 10, 100, 100) }))
 nest(photo, node({ id: 'caption2', type: 'TEXT', name: 'Caption2', absoluteBoundingBox: box(9050, 50, 100, 40) }))
-const nodes = Object.fromEntries([screen, tall, inCard, onPlate, inInset, glass, maskedNode, shaky, onPhoto].map((n) => [n.id, n]))
+const nodes = Object.fromEntries([screen, tall, inCard, onPlate, inInset, glass, maskedNode, shaky, onPhoto, maskShape].map((n) => [n.id, n]))
 globalThis.figma = {
   mixed: Symbol('mixed'),
   getNodeByIdAsync: async (id) => nodes[id] ?? null,
@@ -189,9 +190,16 @@ const parts = await run('1:7')
 assert.ok(parts.compose.node.own, JSON.stringify(parts))
 assert.deepEqual(parts.compose.node.children.map((c) => c.area), [box(7010, 10, 50, 20)])
 assert.equal(parts.compose.node.picture, undefined)
-// 마스크가 노드를 자르면 그 마스크의 export 가 실린다.
+// 마스크가 노드를 자르면 그 마스크의 export 가 실린다. 마스크는 스스로 그려지지 않아
+// 렌더 영역이 없으므로 제 상자로 export 한다.
 const clippedByMask = await run('1:8')
 assert.deepEqual(clippedByMask.compose.node.mask.area, box(8000, 0, 100, 100))
+assert.equal(exports.find((e) => e.id === 'mask').useAbsoluteBounds, true)
+// 마스크의 모양을 이루는 레이어는 Figma 가 그리지 않는다. 그 노드의 그림은 싣지 않고
+// 조상들만 그린다 — get_screenshot 도 그 아래에 있는 것만 보여 준다.
+const shapeOnly = await run('1:11')
+assert.ok(shapeOnly.compose, JSON.stringify(shapeOnly))
+assert.equal(shapeOnly.compose.node.picture, undefined)
 await assert.rejects(referencePng({ nodeId: '9:9' }), /DEVUP_NODE_NOT_FOUND/)
 // 답 하나에 들어가지 않는 답은 붙들어 두고 조각으로 내준다. 붙든 글은 ASCII 라
 // 오프셋이 여기(UTF-16)와 devup-mcp(바이트)에서 같은 자리를 가리킨다. 셋을 붙들어도
