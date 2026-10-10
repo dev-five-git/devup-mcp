@@ -287,7 +287,7 @@ fn within_budget(
         .filter(|effect| {
             matches!(
                 effect["type"].as_str(),
-                Some("LAYER_BLUR" | "BACKGROUND_BLUR" | "DROP_SHADOW")
+                Some("LAYER_BLUR" | "BACKGROUND_BLUR" | "DROP_SHADOW" | "INNER_SHADOW")
             )
         })
         .map(|effect| {
@@ -312,10 +312,14 @@ fn blur_reach(scene: &Scene) -> usize {
         .flat_map(|layer| layer.effects.iter().filter(|effect| visible(effect)))
         .map(|effect| {
             let sigma = number(&effect["radius"]) * scene.scale / 2.0;
-            let shift = if effect["type"] == "DROP_SHADOW" {
-                number(&effect["offset"]["x"])
+            let shift = if matches!(
+                effect["type"].as_str(),
+                Some("DROP_SHADOW" | "INNER_SHADOW")
+            ) {
+                (number(&effect["offset"]["x"])
                     .abs()
                     .max(number(&effect["offset"]["y"]).abs())
+                    + number(&effect["spread"]).abs())
                     * scene.scale
             } else {
                 0.0
@@ -424,6 +428,13 @@ fn draw(
                 composite(pixel, source, blend, coverage);
             }
         }
+        for effect in layer
+            .effects
+            .iter()
+            .filter(|effect| visible(effect) && effect["type"] == "INNER_SHADOW")
+        {
+            inner_shadow(&mut top.pixels, &top.clip, &shape, &geometry, &grid, effect)?;
+        }
         if !layer.strokes.is_empty() {
             strokes.push((depth, layer, top.clip.clone()));
         }
@@ -468,10 +479,39 @@ fn draw(
         let entry = stack.pop().expect("more than the page entry");
         let layer = entry.layer.expect("an isolated entry names its layer");
         let mut pixels = entry.pixels;
-        for effect in layer.effects.iter().filter(|effect| visible(effect)) {
-            if effect["type"] == "DROP_SHADOW" {
-                pixels = with_drop_shadow(&pixels, &grid, effect);
+        let shadows: Vec<&Value> = layer
+            .effects
+            .iter()
+            .filter(|effect| visible(effect) && effect["type"] == "DROP_SHADOW")
+            .collect();
+        if !shadows.is_empty() {
+            // Each shadow is cast by the layer alone, and all lie under it.
+            // Where it is not shown behind the layer it is cut away under the
+            // layer: under its shape when it is painted, and under what it
+            // holds wherever that reaches.
+            let geometry = Geometry::new(layer)?;
+            let painted = layer.fills.iter().any(visible);
+            let shape: Vec<f32> = (0..count)
+                .map(|index| {
+                    let held = pixels[index][3];
+                    if painted {
+                        geometry.coverage(grid.point(index), grid.scale).max(held)
+                    } else {
+                        held
+                    }
+                })
+                .collect();
+            let mut under = vec![[0.0; 4]; count];
+            for effect in shadows {
+                let shadow = drop_shadow(&pixels, &grid, effect, &shape);
+                for (px, cast) in under.iter_mut().zip(shadow) {
+                    composite(px, cast, Blend::Normal, 1.0);
+                }
             }
+            for (px, &own) in under.iter_mut().zip(&pixels) {
+                composite(px, own, Blend::Normal, 1.0);
+            }
+            pixels = under;
         }
         if let Some(radius) = effect_radius(layer, "LAYER_BLUR") {
             pixels = gaussian(&pixels, width, height, radius * scene.scale / 2.0);
@@ -1102,8 +1142,9 @@ fn mix(a: Px, b: Px, weight: f32) -> Px {
     out
 }
 
-/// A drop shadow behind the layer: its alpha, moved, blurred and coloured.
-fn with_drop_shadow(pixels: &[Px], grid: &Grid, effect: &Value) -> Vec<Px> {
+/// A drop shadow the layer casts: its alpha, moved, spread, blurred and
+/// coloured; unless shown behind it, cut away by `shape`.
+fn drop_shadow(pixels: &[Px], grid: &Grid, effect: &Value, shape: &[f32]) -> Vec<Px> {
     let colour = colour(&effect["color"], 1.0);
     let shift = |value: &Value| (number(value) * grid.scale).round().clamp(-1e9, 1e9) as isize;
     let (dx, dy) = (shift(&effect["offset"]["x"]), shift(&effect["offset"]["y"]));
@@ -1117,17 +1158,94 @@ fn with_drop_shadow(pixels: &[Px], grid: &Grid, effect: &Value) -> Vec<Px> {
             *px = [colour[0], colour[1], colour[2], alpha * colour[3]];
         }
     }
-    let shadow = gaussian(
+    let spread = (number(&effect["spread"]) * grid.scale)
+        .round()
+        .clamp(-512.0, 512.0) as isize;
+    if spread != 0 {
+        spread_alpha(&mut shadow, width, height, spread);
+    }
+    let mut shadow = gaussian(
         &shadow,
         width,
         height,
         number(&effect["radius"]) * grid.scale / 2.0,
     );
-    let mut out = shadow;
-    for (index, px) in out.iter_mut().enumerate() {
-        composite(px, pixels[index], Blend::Normal, 1.0);
+    if effect["showShadowBehindNode"] == false {
+        for (px, &cover) in shadow.iter_mut().zip(shape) {
+            px[3] *= 1.0 - cover;
+        }
     }
-    out
+    shadow
+}
+
+/// An inner shadow over a layer's paints and under what it holds: what lies
+/// outside the layer, moved by the offset, grown inward by the spread, blurred
+/// and coloured, inside the layer.
+fn inner_shadow(
+    pixels: &mut [Px],
+    clip: &[f32],
+    shape: &[f32],
+    geometry: &Geometry,
+    grid: &Grid,
+    effect: &Value,
+) -> Result<(), DevupError> {
+    let colour = colour(&effect["color"], 1.0);
+    let blend = Blend::parse(effect["blendMode"].as_str())?;
+    let (dx, dy) = (
+        number(&effect["offset"]["x"]),
+        number(&effect["offset"]["y"]),
+    );
+    let spread = number(&effect["spread"]);
+    let outside: Vec<Px> = (0..pixels.len())
+        .map(|index| {
+            let (x, y) = grid.point(index);
+            let inside = geometry.grown((x - dx, y - dy), grid.scale, [-spread; 4]);
+            [0.0, 0.0, 0.0, 1.0 - inside]
+        })
+        .collect();
+    let blurred = gaussian(
+        &outside,
+        grid.width,
+        grid.height,
+        number(&effect["radius"]) * grid.scale / 2.0,
+    );
+    for (index, pixel) in pixels.iter_mut().enumerate() {
+        let coverage = blurred[index][3] * shape[index] * clip[index];
+        composite(pixel, colour, blend, coverage);
+    }
+    Ok(())
+}
+
+/// Grows a shadow's alpha by `by` pixels (shrinks it when negative), as a
+/// shadow's spread does. Past the grid's edge the shadow is taken to go on.
+fn spread_alpha(shadow: &mut [Px], width: usize, height: usize, by: isize) {
+    let reach = by.unsigned_abs();
+    let pick = |a: f32, b: f32| if by > 0 { a.max(b) } else { a.min(b) };
+    for horizontal in [true, false] {
+        let (lines, length) = if horizontal {
+            (height, width)
+        } else {
+            (width, height)
+        };
+        let at = |line: usize, step: usize| {
+            if horizontal {
+                line * width + step
+            } else {
+                step * width + line
+            }
+        };
+        let mut alphas = vec![0.0_f32; length];
+        for line in 0..lines {
+            for (step, alpha) in alphas.iter_mut().enumerate() {
+                *alpha = shadow[at(line, step)][3];
+            }
+            for step in 0..length {
+                let (from, to) = (step.saturating_sub(reach), (step + reach).min(length - 1));
+                shadow[at(line, step)][3] =
+                    alphas[from..=to].iter().copied().fold(alphas[step], pick);
+            }
+        }
+    }
 }
 
 /// Separable Gaussian on premultiplied colour; nothing outside the grid.
@@ -1761,6 +1879,95 @@ mod tests {
         assert_eq!(pixel(&inside, 0, 0), [0, 0, 0]);
         assert_eq!(pixel(&inside, 3, 2), [0, 0, 0]);
         assert_eq!(pixel(&inside, 2, 2), [0, 255, 0]);
+    }
+
+    /// A shadow's spread grows or shrinks it before it is blurred: a black
+    /// square two pixels wide, its shadow moved four to the right and not
+    /// blurred, casts four red pixels; with a spread of one, sixteen; with a
+    /// spread of minus one, none.
+    #[test]
+    fn a_shadows_spread_grows_or_shrinks_it() {
+        let scene = |spread: f64| {
+            json!({
+                "area": {"x": 0, "y": 0}, "width": 10, "height": 6, "page": [255, 255, 255],
+                "layers": [{"transform": [[1, 0, 2], [0, 1, 2]], "width": 2, "height": 2,
+                            "fills": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}],
+                            "effects": [{"type": "DROP_SHADOW", "radius": 0, "spread": spread,
+                                         "offset": {"x": 4, "y": 0}, "color": {"r": 1, "g": 0, "b": 0, "a": 1}}]}],
+                "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+            })
+        };
+        let red = |rgba: &[u8]| {
+            rgba.chunks(4)
+                .filter(|px| px[0] > 200 && px[1] < 60)
+                .count()
+        };
+        assert_eq!(red(&decode(&compose(&scene(0.0)).expect("composes"))), 4);
+        assert_eq!(red(&decode(&compose(&scene(1.0)).expect("composes"))), 16);
+        assert_eq!(red(&decode(&compose(&scene(-1.0)).expect("composes"))), 0);
+    }
+
+    /// An inner shadow falls inside the layer from the side its offset points
+    /// away from: moved two down and not blurred, it darkens the top two rows of
+    /// a white square, and nothing below them or outside the square.
+    #[test]
+    fn an_inner_shadow_falls_inside_the_layer() {
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 6, "height": 6, "page": [128, 128, 128],
+            "layers": [{"transform": [[1, 0, 1], [0, 1, 1]], "width": 4, "height": 4,
+                        "fills": [{"type": "SOLID", "color": {"r": 1, "g": 1, "b": 1}}],
+                        "effects": [{"type": "INNER_SHADOW", "radius": 0, "spread": 0,
+                                     "offset": {"x": 0, "y": 2}, "color": {"r": 0, "g": 0, "b": 0, "a": 1}}]}],
+            "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+        });
+        let rgba = decode(&compose(&scene).expect("composes"));
+        let pixel = |x: usize, y: usize| rgba[(y * 6 + x) * 4];
+        assert_eq!(
+            [pixel(2, 1), pixel(2, 2), pixel(2, 3), pixel(2, 4)],
+            [0, 0, 255, 255]
+        );
+        assert_eq!(pixel(0, 1), 128);
+    }
+
+    /// A shadow not shown behind its layer is cut away under a painted layer's
+    /// whole shape, but under an unpainted one (a group) only where it holds
+    /// something: the shadow of a translucent square stays out of its box,
+    /// while a group's shadow shows inside its box beside what it holds.
+    #[test]
+    fn a_shadow_is_cut_away_under_its_layer_only() {
+        let scene = |fills: Value| {
+            json!({
+                "area": {"x": 0, "y": 0}, "width": 6, "height": 4, "page": [255, 255, 255],
+                "layers": [{"transform": [[1, 0, 1], [0, 1, 1]], "width": 4, "height": 2, "fills": fills,
+                            "effects": [{"type": "DROP_SHADOW", "radius": 0, "spread": 0, "showShadowBehindNode": false,
+                                         "offset": {"x": 1, "y": 0}, "color": {"r": 1, "g": 0, "b": 0, "a": 1}}]}],
+                "node": {"picture": {"data": png(1, 2, vec![0, 0, 255, 255, 0, 0, 255, 255]), "area": {"x": 1, "y": 1}}}
+            })
+        };
+        let pixel =
+            |rgba: &[u8], x: usize, y: usize| rgba[(y * 6 + x) * 4..(y * 6 + x) * 4 + 3].to_vec();
+        let painted = decode(
+            &compose(&scene(
+                json!([{"type": "SOLID", "opacity": 0.5, "color": {"r": 0, "g": 1, "b": 0}}]),
+            ))
+            .expect("composes"),
+        );
+        // Cast by a half-transparent fill, the shadow is half as strong.
+        assert_eq!(
+            pixel(&painted, 5, 1),
+            [255, 128, 128],
+            "the shadow past the square shows"
+        );
+        assert!(
+            pixel(&painted, 3, 1)[0] < 200,
+            "no shadow inside the painted square"
+        );
+        let group = decode(&compose(&scene(json!([]))).expect("composes"));
+        assert_eq!(
+            pixel(&group, 3, 1),
+            [255, 255, 255],
+            "nothing is cast where the group holds nothing"
+        );
     }
 
     /// What would take more memory or blur work than a reference PNG is worth

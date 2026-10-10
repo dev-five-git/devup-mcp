@@ -120,7 +120,7 @@ nest(card, node({ id: 'cap', type: 'TEXT', name: 'Caption', absoluteBoundingBox:
 nest(section, node({ id: 'under', type: 'TEXT', name: 'Under', absoluteBoundingBox: box(5010, 10, 50, 50) }))
 const plate = nest(section, node({ id: 'plate', fills: [solid(200)], absoluteBoundingBox: box(5000, 0, 400, 400) }))
 const onPlate = nest(plate, node({ id: '1:5', absoluteBoundingBox: box(5000, 0, 100, 100) }))
-const inset = nest(section, node({ id: 'inset', fills: [solid(200)], effects: [{ type: 'INNER_SHADOW', visible: true }], absoluteBoundingBox: box(6000, 0, 400, 400) }))
+const inset = nest(section, node({ id: 'inset', fills: [solid(200)], effects: [{ type: 'NOISE', visible: true }], absoluteBoundingBox: box(6000, 0, 400, 400) }))
 const inInset = nest(inset, node({ id: '1:6', absoluteBoundingBox: box(6010, 10, 100, 100) }))
 nest(inset, node({ id: 'over', type: 'TEXT', name: '덮는 글', absoluteBoundingBox: box(6050, 50, 100, 40) }))
 const shaky = nest(card, node({ id: '1:9', absoluteBoundingBox: box(3200, 10, 100, 100) }))
@@ -178,7 +178,7 @@ const hidden = await run('1:5')
 assert.equal(hidden.compose, undefined)
 // 그리지 못하는 효과가 있으면 캔버스를 쓰고 이유를 단다.
 const inner = await run('1:6')
-assert.match(inner.approximate, /INNER_SHADOW/)
+assert.match(inner.approximate, /NOISE/)
 assert.match(inner.note, /may show here: TEXT "덮는 글"/)
 // 노드만의 export 가 실패해도 거절하지 않는다 — 캔버스 그림에 그 이유를 단다.
 const shaken = await run('1:9')

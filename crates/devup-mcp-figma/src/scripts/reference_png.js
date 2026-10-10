@@ -178,9 +178,9 @@ const describe = (layer, own) => {
     }
   }
   for (const effect of shown(layer.effects)) {
-    const fine = effect.type === "LAYER_BLUR" || (effect.type === "DROP_SHADOW" && !effect.spread)
-      || (own && effect.type === "BACKGROUND_BLUR");
-    if (!fine) approximate.push(`${owner} has a ${effect.type}${effect.spread ? " with spread" : ""}`);
+    if (!["LAYER_BLUR", "DROP_SHADOW", "INNER_SHADOW", "BACKGROUND_BLUR"].includes(effect.type)) {
+      approximate.push(`${owner} has a ${effect.type}`);
+    }
   }
   // A rectangle's stroke devup-mcp draws: solid or gradient, undashed, and
   // mitred where it reaches past the corners.
