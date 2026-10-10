@@ -37,3 +37,5 @@ webbrowser.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 tempfile = "3"
+# 멈춘 시계로 읽기의 시간 제한을 잰다.
+tokio = { workspace = true, features = ["test-util"] }

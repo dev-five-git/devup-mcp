@@ -1181,6 +1181,96 @@ async fn a_read_figma_withheld_out_of_sight_is_read_again_on_the_direct_path() {
     assert_eq!(metered.load(std::sync::atomic::Ordering::SeqCst), 0);
 }
 
+/// `wait` 만큼 기다려야 자리가 나는 한도. `CallPacer` 처럼, 주어진 시간 안에 자리가 나지
+/// 않으면 기다리지 않고 거절한다.
+struct PacedMeter {
+    wait: std::time::Duration,
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl devup_mcp_figma::Meter for PacedMeter {
+    async fn acquire_within(&self, budget: std::time::Duration) -> bool {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if self.wait > budget {
+            return false;
+        }
+        tokio::time::sleep(self.wait).await;
+        true
+    }
+}
+
+/// `delay` 뒤에 `get_screenshot` 과 다 같게 그리지 못한 그림으로 답하는 플러그인.
+struct SlowPlugin {
+    delay: std::time::Duration,
+}
+
+#[async_trait::async_trait]
+impl FigmaUpstream for SlowPlugin {
+    async fn list_tools(&self) -> Result<Vec<String>, DevupError> {
+        Ok(vec!["use_figma".to_owned()])
+    }
+
+    async fn call_read_tool(&self, _call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        tokio::time::sleep(self.delay).await;
+        Ok(UpstreamResult {
+            raw: json!({ "content": [{ "type": "image", "data": "cGx1Z2lu", "mimeType": "image/png" }],
+                "_meta": { "devup/referencePngApproximate": "an ancestor's stroke" } }),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl PreferredUpstream for SlowPlugin {
+    async fn can_serve(&self, _call: &ReadToolCall) -> bool {
+        true
+    }
+
+    fn is_live(&self) -> bool {
+        true
+    }
+}
+
+/// 원격으로 다시 읽는 일은 읽기 하나의 시간(`READ_TIME_LIMIT`)에서 플러그인이 쓰고 남은
+/// 만큼만 한다. 60초 걸려 온 플러그인의 그림은, 35초를 기다려야 자리가 나는 한도 때문에
+/// 읽기의 시간 제한에서 잃지 않는다. 시간이 남았으면 그대로 원격이 다시 읽는다.
+#[tokio::test(start_paused = true)]
+async fn re_reading_on_the_direct_path_fits_in_what_the_plugin_left_of_the_read() {
+    for (plugin_took, remote_reads) in [(60, 0), (10, 1)] {
+        let counts = Counts::new();
+        let upstream = FallbackUpstream::new(
+            SlowPlugin {
+                delay: std::time::Duration::from_secs(plugin_took),
+            },
+            FixedRemote {
+                calls: counts.remote.clone(),
+                raw: json!({ "content": [{ "type": "image", "data": "ZGlyZWN0", "mimeType": "image/png" }] }),
+            },
+        )
+        .with_meter(std::sync::Arc::new(PacedMeter {
+            wait: std::time::Duration::from_secs(35),
+            calls: counts.metered.clone(),
+        }));
+        let result = tokio::time::timeout(
+            devup_mcp_figma::READ_TIME_LIMIT,
+            upstream.call_read_tool(ReadToolCall::fast_snapshot(FILE_KEY, "1:2")),
+        )
+        .await
+        .expect("answered within the read's time")
+        .expect("an answer");
+        let expected = if remote_reads == 0 {
+            "cGx1Z2lu"
+        } else {
+            "ZGlyZWN0"
+        };
+        assert_eq!(
+            result.raw["content"][0]["data"], expected,
+            "{plugin_took} s"
+        );
+        assert_eq!(counts.get(), (remote_reads, 1), "{plugin_took} s");
+    }
+}
+
 /// 플러그인이 `get_screenshot` 과 같은 그림을 그리지 못하면 — 여기서는 그릴 수 없는
 /// 칠 — 캔버스 그림에 이유를 달고, 원격이 열려 있으면 원격의 `get_screenshot` 이 대신
 /// 답한다. 열려 있지 않으면 캔버스 그림과 그 이유가 답이다.

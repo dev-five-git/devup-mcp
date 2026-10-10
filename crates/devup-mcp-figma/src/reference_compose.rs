@@ -125,8 +125,7 @@ fn invalid(message: impl Into<String>) -> DevupError {
 
 /// The composed picture as a base64 PNG, opaque, `width` x `height`.
 pub(crate) fn compose(scene: &Value) -> Result<String, DevupError> {
-    let scene: Scene =
-        serde_json::from_value(scene.clone()).map_err(|error| invalid(error.to_string()))?;
+    let scene = Scene::deserialize(scene).map_err(|error| invalid(error.to_string()))?;
     let (width, height) = (scene.width as usize, scene.height as usize);
     if width == 0 || height == 0 || (width as u64) * (height as u64) > MAX_COMPOSE_PIXELS {
         return Err(invalid(format!(
@@ -206,17 +205,22 @@ struct Entry<'a> {
     mask: Option<Vec<Px>>,
 }
 
-/// Working memory one composition may take: the stack's buffers, those a
-/// layer, blur or picture holds while it is drawn, and the decoded images.
-/// Past it the area is drawn as the canvas shows it instead.
+/// Working memory one composition may take: the stack's buffers and masks,
+/// those a layer, blur or picture holds while it is drawn, and the decoded
+/// pictures and images. Past it the area is drawn as the canvas shows it
+/// instead. The answer the scene came in is read before this is counted.
 const MAX_COMPOSE_BYTES: u64 = 1536 * 1024 * 1024;
+
+/// Decoding takes up to this much a pixel of the image: a 16-bit PNG is 8
+/// bytes a pixel before it becomes the 4 kept.
+const DECODE_BYTES_PER_PIXEL: u64 = 12;
 
 /// Kernel taps across every blur and shadow, so a wide blur over a large area
 /// is drawn as the canvas shows it rather than computed for minutes.
 const MAX_BLUR_TAPS: u64 = 4_000_000_000;
 
-/// Refuses, before anything is allocated, what would take more memory or blur
-/// work than one reference PNG is worth.
+/// Refuses, before drawing, what would take more memory or blur work than one
+/// reference PNG is worth.
 fn within_budget(
     scene: &Scene,
     width: usize,
@@ -227,10 +231,27 @@ fn within_budget(
     let layers = || scene.layers.iter().chain(scene.node.own.as_ref());
     let isolated = layers().filter(|layer| isolating(layer)).count() as u64
         + u64::from(scene.node.own.is_some() && scene.node.mask.is_some());
-    // 20 bytes a pixel for each stack entry (colour and clip), and about 120
-    // for what one layer, blur or picture holds while it is drawn.
+    let masks = layers().filter(|layer| layer.mask.is_some()).count() as u64
+        + u64::from(scene.node.mask.is_some());
+    // Pictures are decoded one at a time, each dropped once laid on the grid.
+    let mut largest_picture = 0_u64;
+    for picture in scene
+        .layers
+        .iter()
+        .filter_map(|layer| layer.mask.as_ref())
+        .chain(&scene.node.mask)
+        .chain(&scene.node.picture)
+        .chain(&scene.node.children)
+    {
+        let (width, height) = dimensions(&base64_bytes(&picture.data)?)?;
+        largest_picture = largest_picture.max(u64::from(width) * u64::from(height));
+    }
+    // 20 bytes a pixel for each stack entry (colour and clip), 16 for each
+    // mask kept to cut its layer, and about 120 for what one layer, blur or
+    // picture holds while it is drawn.
     let bytes = pixels
-        .saturating_mul(20 * (1 + isolated) + 120)
+        .saturating_mul(20 * (1 + isolated) + 16 * masks + 120)
+        .saturating_add(largest_picture.saturating_mul(DECODE_BYTES_PER_PIXEL))
         .saturating_add(images.decoded_bytes());
     if bytes > MAX_COMPOSE_BYTES {
         return Err(invalid(format!(
@@ -693,17 +714,22 @@ struct Images {
     decoded: HashMap<String, Decoded>,
 }
 
+/// An image's size from its header, without decoding it.
+fn dimensions(encoded: &[u8]) -> Result<(u32, u32), DevupError> {
+    image::ImageReader::new(std::io::Cursor::new(encoded))
+        .with_guessed_format()
+        .map_err(|error| invalid(format!("an image cannot be read: {error}")))?
+        .into_dimensions()
+        .map_err(|error| invalid(format!("an image cannot be read: {error}")))
+}
+
 impl Images {
     fn new(sources: &HashMap<String, String>) -> Result<Self, DevupError> {
         let mut bytes = HashMap::new();
         let mut pixels = 0_u64;
         for (hash, data) in sources {
             let encoded = base64_bytes(data)?;
-            let (width, height) = image::ImageReader::new(std::io::Cursor::new(&encoded))
-                .with_guessed_format()
-                .map_err(|error| invalid(format!("an image cannot be read: {error}")))?
-                .into_dimensions()
-                .map_err(|error| invalid(format!("an image cannot be read: {error}")))?;
+            let (width, height) = dimensions(&encoded)?;
             pixels = pixels.saturating_add(u64::from(width) * u64::from(height));
             bytes.insert(hash.clone(), encoded);
         }
@@ -714,10 +740,9 @@ impl Images {
         })
     }
 
-    /// What decoding them all takes: their RGBA bytes, and as much again
-    /// while each decodes.
+    /// What decoding them all takes: each is kept once decoded.
     fn decoded_bytes(&self) -> u64 {
-        self.pixels.saturating_mul(8)
+        self.pixels.saturating_mul(DECODE_BYTES_PER_PIXEL)
     }
 
     fn get(&mut self, hash: &str) -> Result<&Decoded, DevupError> {
@@ -1118,8 +1143,74 @@ mod tests {
         assert_eq!(rgba, vec![0, 0, 0, 255, 255, 0, 0, 255]);
     }
 
+    /// A PNG that is only its header, claiming `width` x `height`.
+    fn png_header(width: u32, height: u32) -> String {
+        fn crc(bytes: &[u8]) -> u32 {
+            let mut crc = !0_u32;
+            for &byte in bytes {
+                crc ^= u32::from(byte);
+                for _ in 0..8 {
+                    crc = if crc & 1 == 1 {
+                        (crc >> 1) ^ 0xEDB8_8320
+                    } else {
+                        crc >> 1
+                    };
+                }
+            }
+            !crc
+        }
+        let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+        let mut chunk = |kind: &[u8; 4], data: &[u8]| {
+            let typed = [kind.as_slice(), data].concat();
+            png.extend((data.len() as u32).to_be_bytes());
+            png.extend(&typed);
+            png.extend(crc(&typed).to_be_bytes());
+        };
+        chunk(
+            b"IHDR",
+            &[width.to_be_bytes(), height.to_be_bytes()]
+                .concat()
+                .iter()
+                .copied()
+                .chain([8, 6, 0, 0, 0])
+                .collect::<Vec<u8>>(),
+        );
+        chunk(b"IDAT", &[]);
+        chunk(b"IEND", &[]);
+        STANDARD.encode(png)
+    }
+
+    /// Every mask a layer keeps to cut it counts: eleven masked ancestors over
+    /// 2000x2000 take over 1.5 GiB though their stack alone was counted under it.
+    #[test]
+    fn masks_kept_on_the_stack_count_toward_the_budget() {
+        let masked = |_| {
+            json!({"transform": [[1, 0, 0], [0, 1, 0]], "width": 2000, "height": 2000,
+            "mask": {"data": png(1, 1, vec![0, 0, 0, 255]), "area": {"x": 0, "y": 0}}})
+        };
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
+            "layers": (0..11).map(masked).collect::<Vec<_>>(),
+            "node": {"picture": {"data": png(1, 1, vec![0, 0, 0, 0]), "area": {"x": 0, "y": 0}}}
+        });
+        let error = compose(&scene).expect_err("too much memory");
+        assert!(error.message.contains("MiB to draw"), "{}", error.message);
+    }
+
+    /// A picture's size is read from its header before it is decoded: one that
+    /// would take too much to decode is refused, not decoded.
+    #[test]
+    fn a_picture_too_large_to_decode_is_refused_from_its_header() {
+        let scene = json!({
+            "area": {"x": 0, "y": 0}, "width": 2000, "height": 2000, "page": [0, 0, 0],
+            "node": {"picture": {"data": png_header(10_000, 10_000), "area": {"x": 0, "y": 0}}}
+        });
+        let error = compose(&scene).expect_err("too much memory");
+        assert!(error.message.contains("MiB to draw"), "{}", error.message);
+    }
+
     /// What would take more memory or blur work than a reference PNG is worth
-    /// is refused before anything is allocated, so the canvas picture is used.
+    /// is refused before it is drawn, so the canvas picture is used.
     #[test]
     fn an_oversized_composition_is_refused_up_front() {
         let translucent = |_| json!({"transform": [[1, 0, 0], [0, 1, 0]], "width": 2000, "height": 2000, "opacity": 0.5});

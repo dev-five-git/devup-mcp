@@ -24,14 +24,14 @@ When a Devup Bridge plugin serves the file, the plugin draws the reference inste
   - an ancestor's stroke, inner shadow or background blur reaching the area;
   - an image fill with rotation or filters, any other paint, a shadow with spread;
   - an area over 8M pixels, or images over 64 MiB together;
-  - a composition that would take over 1.5 GiB or over four billion blur kernel taps, counted before anything is allocated;
+  - a composition that would take over 1.5 GiB or over four billion blur kernel taps, counted before it is drawn, the masks each layer keeps and the decoding of every picture and image included (their sizes read from their headers);
   - a part the plugin could not export, or a composition that stopped unexpectedly.
 
 When the node is drawn from its own paints and children, its mask cuts all of them, its background blur included.
 
 An answer over 6 MiB is held by the plugin and read in 4 MiB pieces, as ASCII so an offset means the same on both sides.
 - A held answer stays until it is read or two minutes pass; another request never evicts it.
-- While held answers fill 192 MiB the plugin answers `DEVUP_REFERENCE_PNG_BUSY` instead of drawing, and the bridge asks again for up to 45 seconds while the plugin goes on serving other requests' pieces.
+- While held answers reach 192 MiB the plugin answers `DEVUP_REFERENCE_PNG_BUSY` instead of drawing, and the bridge asks again for up to 45 seconds while the plugin goes on serving other requests' pieces. The 192 MiB is where new pictures stop being taken, not a ceiling: one answer taken below it (at most 90 MiB) can go past it.
 - An answer that vanished before it was read (the plugin was run again) is fetched once more.
 - An answer that would exceed 90 MiB, under the 96 MiB the bridge reads back, drops the composition and carries the canvas picture with the reason. The bridge hands the picture back as the same single image block `get_screenshot` gives, so both paths pass the same validation. A plugin built before this answers that it does not know the read; the read then goes to `get_screenshot` when the plugin reported the file's key and the direct path is logged in.
 
