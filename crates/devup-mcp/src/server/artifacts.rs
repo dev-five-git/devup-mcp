@@ -215,7 +215,10 @@ impl Default for ArtifactLimits {
         Self {
             ttl: Duration::from_secs(10 * 60),
             max_entries: 8,
-            max_entry_bytes: 32 * 1024 * 1024,
+            // One collection may fill the whole cache: a scope:file collection of a
+            // 5,543-node test file is 63.6 MB, and refusing it failed the export,
+            // while the entries it evicts cost only a re-collection.
+            max_entry_bytes: 128 * 1024 * 1024,
             max_total_bytes: 128 * 1024 * 1024,
         }
     }
