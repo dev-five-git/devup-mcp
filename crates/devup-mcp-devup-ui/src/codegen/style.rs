@@ -1440,13 +1440,18 @@ pub(super) struct Lengths<'a> {
 }
 
 impl Lengths<'_> {
-    /// `$token` for a drawn length whose every binding is a variable named
-    /// for one length token, when that token comes to the drawn length at the
-    /// width the screen was drawn for. `None` keeps the drawn length.
+    /// `$token` in place of a CSS length `literal`, when every binding the
+    /// literal stands for is a variable named for one length token and that
+    /// token comes to exactly the literal's value at the width the screen was
+    /// drawn for. `None` keeps the literal.
+    ///
+    /// Exactly, not after rounding: the literal is the drawn value rounded to
+    /// two decimals, and a token of `20.004px` compared that way passed for a
+    /// literal `20px` it does not render as.
     fn token<'v>(
         self,
         bindings: impl IntoIterator<Item = Option<&'v Value>>,
-        drawn: f64,
+        literal: f64,
     ) -> Option<String> {
         let mut found: Option<&LengthToken> = None;
         for binding in bindings {
@@ -1458,8 +1463,18 @@ impl Lengths<'_> {
         }
         let token = found?;
         let value = length_at(&token.value, self.viewport?)?;
-        (px(value) == px(drawn)).then(|| format!("${}", token.token))
+        (value.is_finite() && value == literal).then(|| format!("${}", token.token))
     }
+}
+
+/// The number a CSS length literal says: `12px` is 12, a bare `0` is 0.
+fn css_length(literal: &str) -> Option<f64> {
+    literal
+        .strip_suffix("px")
+        .unwrap_or(literal)
+        .parse::<f64>()
+        .ok()
+        .filter(|number| number.is_finite())
 }
 
 /// The variable a binding names. A text node's binding can be a list, one
@@ -1574,13 +1589,10 @@ pub(super) fn tokenize_lengths(
             "fontSize" if view.node_type() == "TEXT" => &["fontSize"],
             _ => continue,
         };
-        let Some(drawn) = value
-            .strip_suffix("px")
-            .and_then(|number| number.parse::<f64>().ok())
-        else {
+        let Some(literal) = value.ends_with("px").then(|| css_length(value)).flatten() else {
             continue;
         };
-        if let Some(token) = lengths.token(fields.iter().map(|field| binding(field)), drawn) {
+        if let Some(token) = lengths.token(fields.iter().map(|field| binding(field)), literal) {
             used_tokens.insert(token[1..].to_owned());
             *value = token;
         }
@@ -1851,14 +1863,20 @@ fn push_effects(
             } else {
                 ""
             };
-            let mut length = |field: &str, value: f64| match lengths
-                .token([effect.pointer(&format!("/boundVariables/{field}"))], value)
-            {
-                Some(token) => {
-                    used_tokens.insert(token[1..].to_owned());
-                    token
+            let mut length = |field: &str, value: f64| {
+                let literal = zero_or_px(value);
+                match css_length(&literal).and_then(|number| {
+                    lengths.token(
+                        [effect.pointer(&format!("/boundVariables/{field}"))],
+                        number,
+                    )
+                }) {
+                    Some(token) => {
+                        used_tokens.insert(token[1..].to_owned());
+                        token
+                    }
+                    None => literal,
                 }
-                None => zero_or_px(value),
             };
             let (x, y, radius) = (
                 length("offsetX", x),

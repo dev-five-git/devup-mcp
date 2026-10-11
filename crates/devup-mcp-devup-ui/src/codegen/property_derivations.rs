@@ -64,21 +64,22 @@ pub(crate) fn property_derivations(
             ),
             _ => unreachable!(),
         }
-        if stage == "text" {
-            style::tokenize_lengths(
-                snapshot,
-                node,
-                &mut props,
-                &options.length_tokens,
-                &mut tokens,
-            );
-        }
         for (name, value) in &props {
             if !before.iter().any(|p: &Prop| p.0 == *name && p.1 == *value) {
                 origins.insert(name.clone(), stage);
             }
         }
     }
+    // Written as render_node writes them, after the stages: a length bound to a
+    // variable becomes its token in place, and the prop keeps the stage that
+    // made it.
+    style::tokenize_lengths(
+        snapshot,
+        node,
+        &mut props,
+        &options.length_tokens,
+        &mut tokens,
+    );
     props.into_iter().filter_map(|(name, PropValue::String(value))| {
         let stage = origins.get(&name)?;
         let (fields, calculation): (Vec<&str>, &str) = match name.as_str() {

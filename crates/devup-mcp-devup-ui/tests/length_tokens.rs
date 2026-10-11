@@ -167,11 +167,15 @@ fn row(width: f64, gap: f64) -> Snapshot {
 }
 
 fn tsx(snapshot: &Snapshot) -> (String, Vec<String>) {
+    tsx_with(snapshot, &variables())
+}
+
+fn tsx_with(snapshot: &Snapshot, variables: &UpstreamResult) -> (String, Vec<String>) {
     let options = CodegenOptions {
         include_diagnostics: true,
         ..CodegenOptions::default()
     }
-    .with_resource_results(Some(&variables()), None);
+    .with_resource_results(Some(variables), None);
     let output = generate_component(snapshot, "s", &options).expect("codegen");
     let unmapped = output
         .diagnostics
@@ -220,4 +224,49 @@ fn a_bound_length_the_token_does_not_reproduce_stays_drawn() {
     assert!(tsx.contains("boxShadow=\"0 12px 20px 0 "), "{tsx}");
     assert!(tsx.contains("fontSize=\"16px\""), "{tsx}");
     assert!(!tsx.contains("$containerX"), "{tsx}");
+}
+
+/// A gap and a shadow offset bound to Light/Dark variables, Light first: the
+/// theme a page shows without `data-theme` is Light.
+fn light_dark(gap_light: f64, shadow_light: f64) -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "collections": [
+                {"id": "color", "name": "Color", "defaultModeId": "light",
+                 "modes": [{"modeId": "light", "name": "Light"}, {"modeId": "dark", "name": "Dark"}]}
+            ],
+            "variables": [
+                {"id": "v:gap", "name": "gap", "resolvedType": "FLOAT",
+                 "variableCollectionId": "color", "valuesByMode": {"light": gap_light, "dark": 20}},
+                {"id": "v:shadowY", "name": "shadowMdY", "resolvedType": "FLOAT",
+                 "variableCollectionId": "color", "valuesByMode": {"light": shadow_light, "dark": 12}}
+            ],
+            "styles": [],
+            "usedVariableIds": ["v:gap", "v:shadowY"],
+            "usedRemoteVariables": [],
+            "localComplete": true,
+            "usedRemoteComplete": true
+        }),
+    }
+}
+
+#[test]
+fn a_token_one_rounding_step_from_the_written_length_is_not_that_length() {
+    // Light is 20.004px and 12.004px; the screens are drawn at 20 and 12, as
+    // Dark has them. Both are written `20px` and `12px`, and the tokens would
+    // render the Light values.
+    let near = light_dark(20.004, 12.004);
+    let (spaced, _) = tsx_with(&row(360.0, 20.0), &near);
+    assert!(spaced.contains("gap=\"20px\""), "{spaced}");
+    let (card, _) = tsx_with(&screen(360.0, 20.0, 16.0, 12.0, 16.0), &near);
+    assert!(card.contains("boxShadow=\"0 12px 20px 0 "), "{card}");
+    assert!(!card.contains("$shadowMdY"), "{card}");
+
+    // The token that is the written length exactly takes its place.
+    let exact = light_dark(20.5, 12.5);
+    let (spaced, unmapped) = tsx_with(&row(360.0, 20.5), &exact);
+    assert!(spaced.contains("gap=\"$gap\""), "{spaced}");
+    assert!(unmapped.is_empty(), "{unmapped:?}");
+    let (card, _) = tsx_with(&screen(360.0, 20.0, 16.0, 12.5, 16.0), &exact);
+    assert!(card.contains("boxShadow=\"0 $shadowMdY 20px 0 "), "{card}");
 }
