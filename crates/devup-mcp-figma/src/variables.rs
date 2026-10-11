@@ -204,6 +204,11 @@ pub(crate) fn merge_used_resource_results(
         }
     }
 
+    // What the read added beyond the references - the variables those
+    // alias, which no node binds - stays: the theme needs them to give the
+    // aliases values.
+    variables.extend(variables_by_id.into_values());
+
     let mut styles = Vec::with_capacity(refs.styles.len());
     for style_ref in &refs.styles {
         if let Some(style) = styles_by_id.remove(&style_ref.id) {
@@ -249,6 +254,111 @@ pub(crate) fn merge_used_resource_results(
         },
         unresolved,
     })
+}
+
+/// What a file's own catalog leaves to read: the library variables and
+/// styles its nodes use, and the variables its own variables alias that it
+/// does not hold. The occurrences kept are the library ones, so one that
+/// cannot be read is reported where it is used.
+pub(crate) fn library_refs(local: &UpstreamResult, used: UsedResourceRefs) -> UsedResourceRefs {
+    let ids = |key: &str| {
+        local
+            .raw
+            .get(key)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.get("id")?.as_str().map(str::to_owned))
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let local_variables = ids("variables");
+    let local_styles = ids("styles");
+    let aliased = local
+        .raw
+        .get("variables")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|variable| variable.get("valuesByMode")?.as_object())
+        .flat_map(|values| values.values())
+        .filter(|value| value.get("type").and_then(Value::as_str) == Some("VARIABLE_ALIAS"))
+        .filter_map(|value| value.get("id")?.as_str().map(str::to_owned));
+    let variable_ids = used
+        .variable_ids
+        .into_iter()
+        .chain(aliased)
+        .filter(|id| !local_variables.contains(id))
+        .collect::<std::collections::BTreeSet<_>>();
+    UsedResourceRefs {
+        variable_ids: variable_ids.into_iter().collect(),
+        styles: used
+            .styles
+            .into_iter()
+            .filter(|style| !local_styles.contains(&style.id))
+            .collect(),
+        occurrences: used
+            .occurrences
+            .into_iter()
+            .filter(|occurrence| match occurrence.resource_kind {
+                ResourceKind::Variable => !local_variables.contains(&occurrence.resource_id),
+                ResourceKind::Style => !local_styles.contains(&occurrence.resource_id),
+            })
+            .collect(),
+    }
+}
+
+/// A file's own variables and styles joined with the library ones read for
+/// it, in the one shape the whole-file theme script answers with: every
+/// variable in `variables`, the library ones again in `usedRemoteVariables`.
+/// With nothing to read from a library, the used part is complete.
+pub(crate) fn join_used_resources(
+    local: UpstreamResult,
+    used: Option<UpstreamResult>,
+) -> UpstreamResult {
+    let mut raw = local.raw;
+    if let Some(used) = used {
+        for key in ["collections", "variables", "styles"] {
+            let mut seen = raw
+                .get(key)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|value| value.get("id")?.as_str().map(str::to_owned))
+                .collect::<std::collections::BTreeSet<_>>();
+            let added = used
+                .raw
+                .get(key)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|value| {
+                    value
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| seen.insert(id.to_owned()))
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            match raw.get_mut(key).and_then(Value::as_array_mut) {
+                Some(values) => values.extend(added),
+                None => raw[key] = Value::Array(added),
+            }
+        }
+        raw["usedRemoteComplete"] = used.raw["usedRemoteComplete"].clone();
+        raw["unresolved"] = used.raw["unresolved"].clone();
+    } else {
+        raw["usedRemoteComplete"] = Value::Bool(true);
+    }
+    raw["usedRemoteVariables"] = Value::Array(
+        raw.get("variables")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|variable| variable.get("remote").and_then(Value::as_bool) == Some(true))
+            .cloned()
+            .collect(),
+    );
+    UpstreamResult { raw }
 }
 
 fn resource_value_id(value: &Value) -> Result<String, DevupError> {

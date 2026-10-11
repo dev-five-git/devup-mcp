@@ -48,6 +48,13 @@ pub fn collect_used_resource_refs(chunks: &[SnapshotChunk]) -> UsedResourceRefs 
     for chunk in chunks {
         for node in &chunk.nodes {
             for (field, value) in node.fields.iter().chain(&node.extra) {
+                // Figma's suggestions of variables that match a raw value, not
+                // bindings. Read as bindings they put library colours the
+                // design never uses into a whole-file theme: `base`, suggested
+                // on 973 layers of the devup Test file, bound on none.
+                if field == "inferredVariables" {
+                    continue;
+                }
                 scan_value(
                     &node.id,
                     field,

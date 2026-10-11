@@ -291,6 +291,16 @@ function snapshotNode(node) {
   // "extra" bucket: an unlisted Figma Plugin API property is never collected.
   for (const name of manifest) {
     let value;
+    // A variant's component properties are defined on its set, and Figma
+    // refuses to read them from the variant.
+    if (
+      name === "componentPropertyDefinitions" &&
+      node.type === "COMPONENT" &&
+      node.parent &&
+      node.parent.type === "COMPONENT_SET"
+    ) {
+      continue;
+    }
     try {
       if (!(name in node)) {
         if (name === "overflowDirection" && ["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(node.type)) fields[name] = null; // Read attempted; absent in source.

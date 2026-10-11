@@ -907,7 +907,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 `includeTextPreview`는 **별도 예산**을 씁니다. 미리보기는 구조 투영이 쓰고 남긴 공간만 소비하므로, 켜고 끄는 것이 후보 개수·ID·`truncation.projection` 중 무엇도 바꾸지 않습니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
 
-탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집합니다.
+탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집하고, 그 뒤 노드가 쓰는 라이브러리 변수·스타일과 변수가 alias로 가리키는 변수를 같은 방식으로 읽어 합칩니다. 그래서 문서를 함께 수집하는 파일 전체 export(`rawPayload` 등)도 테마만 받는 export와 같은 테마를 냅니다. Figma가 원시 값에 맞춰 제안하는 변수(`inferredVariables`)는 바인딩이 아니므로 사용된 것으로 세지 않습니다.
 
 `sourcePolicy` 파라미터는 `auto`와 `direct` 둘 다 같은 동작이었으므로 제거했습니다 — 분기하지 않는 선택지는 호출자에게 틀릴 기회만 주었습니다. 경로 선택은 파라미터가 아니라 **플러그인이 붙어 있는지**가 정합니다: 붙어 있으면 브리지, 아니면 direct입니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 

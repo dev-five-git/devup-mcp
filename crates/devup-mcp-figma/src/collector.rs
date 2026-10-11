@@ -26,7 +26,7 @@ use crate::{
     plan_batches, read_snapshot_cursor, resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
-        merge_used_resource_results, merge_variable_results,
+        join_used_resources, library_refs, merge_used_resource_results, merge_variable_results,
     },
 };
 
@@ -245,6 +245,9 @@ pub struct CollectorSession {
     source_version: Option<String>,
     snapshot_chunks: BTreeMap<usize, SnapshotChunk>,
     variable_catalog: Option<VariableCatalog>,
+    /// A file's own variables and styles, read from its catalog, while the
+    /// library ones its nodes use are read.
+    file_local_resources: Option<UpstreamResult>,
     used_resource_refs: Option<UsedResourceRefs>,
     variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
@@ -294,6 +297,7 @@ impl CollectorSession {
             source_version: None,
             snapshot_chunks: BTreeMap::new(),
             variable_catalog: None,
+            file_local_resources: None,
             used_resource_refs: None,
             variable_batches: BTreeMap::new(),
             variables: None,
@@ -504,6 +508,7 @@ impl CollectorSession {
         if self.metadata.is_some()
             && self.request.resource_scope == ResourceScope::File
             && self.variable_catalog.is_none()
+            && self.file_local_resources.is_none()
             && self.variables.is_none()
             && self.queued.is_empty()
         {
@@ -531,10 +536,59 @@ impl CollectorSession {
                 .variable_catalog
                 .take()
                 .ok_or_else(|| invalid_call("Figma variable catalog is missing."))?;
-            self.variables = Some(merge_variable_results(
+            let local = merge_variable_results(
                 catalog,
                 std::mem::take(&mut self.variable_batches).into_values(),
-            )?);
+            )?;
+            // The catalog is the file's own variables and styles. The library
+            // ones its nodes use, and those its variables alias, were left
+            // out, so a theme of the whole file knew only the local half: a
+            // local spacing aliasing a library primitive had no value. They
+            // are read as a used-resource read reads them and joined to it.
+            let chunks = self.snapshot_chunks.values().cloned().collect::<Vec<_>>();
+            let refs = library_refs(&local, collect_used_resource_refs(&chunks));
+            if refs.variable_ids.is_empty() && refs.styles.is_empty() {
+                self.variables = Some(join_used_resources(local, None));
+            } else {
+                let node_id = self.root_node_id.clone().ok_or_else(|| {
+                    invalid_call("No root node ID available for the used Figma resource batch.")
+                })?;
+                for batch in used_resource_batches(&refs, self.request.batch_budget)? {
+                    self.enqueue(
+                        ReadToolCall::used_resources(
+                            &self.request.target.file_key,
+                            &node_id,
+                            batch,
+                        ),
+                        Some(node_id.clone()),
+                        CallKind::UsedResourceBatch,
+                    );
+                }
+                self.used_resource_refs = Some(refs);
+                self.file_local_resources = Some(local);
+                return self.advance();
+            }
+        }
+        if self.metadata.is_some()
+            && self.request.resource_scope == ResourceScope::File
+            && self.file_local_resources.is_some()
+            && self.variables.is_none()
+            && self.queued.is_empty()
+        {
+            let refs = self
+                .used_resource_refs
+                .take()
+                .ok_or_else(|| invalid_call("Used Figma resource references are missing."))?;
+            let local = self
+                .file_local_resources
+                .take()
+                .ok_or_else(|| invalid_call("The file's own Figma resources are missing."))?;
+            let merged = merge_used_resource_results(
+                &refs,
+                std::mem::take(&mut self.variable_batches).into_values(),
+            )?;
+            self.record_unresolved_diagnostics(&refs, &merged.unresolved);
+            self.variables = Some(join_used_resources(local, Some(merged.result)));
         }
         if self.metadata.is_some()
             && self.request.resource_scope == ResourceScope::Used
