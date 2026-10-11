@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "A `layoutGrow` that Figma itself ignores is no longer reported as a layout field the code failed to carry. Growth is shared out by an auto-layout parent; an export root's parent is outside the export, and a frame without auto-layout or a pinned child takes no part in it. An instance placed straight on the canvas keeps the 1 its component had in a row, and exporting it alone (the devup Test file's StatusCard and toast) was graded `lossy` for that value alone with `DEVUP_CODEGEN_LAYOUT_UNCOVERED`. The generated code is unchanged.",
+  "date": "2026-10-12T03:20:00+09:00"
+}

@@ -884,7 +884,26 @@ fn layout_field_is_semantic(
             view.string(field) == Some("FILL")
                 || crate::codegen::vertical_fill_container(snapshot, node)
         }
-        "layoutGrow" => view.number(field).is_some_and(|v| v > 0.0),
+        // Growth is shared out by an auto-layout parent, and the code has one
+        // only where that parent is in it. A root's parent is outside the
+        // export, and a frame without auto-layout - or a pinned child - takes
+        // no part in it: the value is inert in Figma and has nothing to say in
+        // the code. An instance placed on the canvas keeps the 1 its component
+        // had in a row, and that alone graded a standalone StatusCard lossy.
+        // Kept in step with `codegen::layout`, which writes `flex` only there.
+        "layoutGrow" => {
+            view.number(field).is_some_and(|v| v > 0.0)
+                && view.string("layoutPositioning") != Some("ABSOLUTE")
+                && view
+                    .string("parentId")
+                    .and_then(|parent_id| snapshot.nodes.get(parent_id))
+                    .is_some_and(|parent| {
+                        matches!(
+                            parent.typed_view().string("layoutMode"),
+                            Some("HORIZONTAL" | "VERTICAL")
+                        )
+                    })
+        }
         "layoutMode" => matches!(view.string(field), Some("HORIZONTAL" | "VERTICAL" | "GRID")),
         "layoutPositioning" => view.string(field) == Some("ABSOLUTE"),
         "width" => {
