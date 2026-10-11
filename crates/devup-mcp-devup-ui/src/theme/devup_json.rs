@@ -955,6 +955,18 @@ fn resolve_value<'a>(
     if value.get("type").and_then(Value::as_str) == Some("VARIABLE_ALIAS") {
         let alias = value.get("id").and_then(Value::as_str)?;
         let target = variables.get(alias)?;
+        // An alias into another collection is read in that collection's mode,
+        // which this mode id is not. A collection with one mode has one value
+        // to read; with several, which one applies is the consumer's to set.
+        let mode = if target.values_by_mode.contains_key(mode) {
+            mode
+        } else if target.variable_collection_id != variable.variable_collection_id
+            && target.values_by_mode.len() == 1
+        {
+            target.values_by_mode.keys().next()?.as_str()
+        } else {
+            return None;
+        };
         resolve_value(target, mode, variables, visiting)
     } else {
         Some(value)

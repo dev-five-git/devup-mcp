@@ -134,18 +134,23 @@ const localVariableIds = new Set(localVariables.map((variable) => variable.id));
 const localStyleIds = new Set([...paints, ...texts, ...effects, ...grids].map((style) => style.id));
 
 const unresolved = [];
-const remoteVariableJobs = [...usedVariableIds]
-  .filter((id) => !localVariableIds.has(id))
-  .sort()
-  .map(async (id) => {
-    try {
-      const variable = await figma.variables.getVariableByIdAsync(id);
-      return variable || null;
-    } catch (error) {
-      unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) });
-      return null;
-    }
-  });
+async function remoteVariable(id) {
+  try {
+    const variable = await figma.variables.getVariableByIdAsync(id);
+    return variable || null;
+  } catch (error) {
+    unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) });
+    return null;
+  }
+}
+// A variable can alias a library variable no node binds - a local spacing
+// that points at a library's primitive. The theme needs that variable to give
+// the alias a value, so it is read too, and so is whatever it aliases.
+function aliasTargets(variable) {
+  return Object.values(variable.valuesByMode || {})
+    .filter((value) => value && value.type === "VARIABLE_ALIAS" && typeof value.id === "string" && value.id)
+    .map((value) => value.id);
+}
 const remoteStyleJobs = [...usedStyleTypes.entries()]
   .filter(([id]) => !localStyleIds.has(id))
   .sort(([left], [right]) => left.localeCompare(right))
@@ -158,9 +163,20 @@ const remoteStyleJobs = [...usedStyleTypes.entries()]
       return null;
     }
   });
-const remoteVariables = (await Promise.all(remoteVariableJobs)).filter(Boolean);
+const requestedRemoteIds = new Set();
+const remoteVariables = [];
+let pendingRemoteIds = [...usedVariableIds, ...localVariables.flatMap(aliasTargets)];
+while (pendingRemoteIds.length > 0) {
+  const batch = [...new Set(pendingRemoteIds)]
+    .filter((id) => !localVariableIds.has(id) && !requestedRemoteIds.has(id))
+    .sort();
+  for (const id of batch) requestedRemoteIds.add(id);
+  const fetched = (await Promise.all(batch.map(remoteVariable))).filter(Boolean);
+  remoteVariables.push(...fetched);
+  pendingRemoteIds = fetched.flatMap(aliasTargets);
+}
 const remoteStyles = (await Promise.all(remoteStyleJobs)).filter(Boolean);
-for (const id of [...usedVariableIds].filter((id) => !localVariableIds.has(id))) {
+for (const id of requestedRemoteIds) {
   if (!remoteVariables.some((variable) => variable.id === id) && !unresolved.some((item) => item.id === id)) {
     unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable" });
   }

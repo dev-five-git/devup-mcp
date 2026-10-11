@@ -344,6 +344,44 @@ assert.deepEqual(
   [unreachable, unreachable],
 )
 
+// 로컬 변수가 alias 로 가리키는 라이브러리 변수는 어떤 노드도 묶지 않아도 읽는다.
+// 테마가 그 alias 의 값을 내려면 그 변수가 있어야 하고, 그 변수가 또 가리키는
+// 변수도 마찬가지다. 노드가 쓴 id 목록에는 넣지 않는다.
+const library = {
+  'R:bound': { id: 'R:bound', name: 'bound', remote: true, resolvedType: 'FLOAT', variableCollectionId: 'C:lib', valuesByMode: { lib: 4 } },
+  'R:aliased': { id: 'R:aliased', name: 'aliased', remote: true, resolvedType: 'FLOAT', variableCollectionId: 'C:lib', valuesByMode: { lib: { type: 'VARIABLE_ALIAS', id: 'R:deep' } } },
+  'R:deep': { id: 'R:deep', name: 'deep', remote: true, resolvedType: 'FLOAT', variableCollectionId: 'C:lib', valuesByMode: { lib: 40 } },
+}
+globalThis.figma = {
+  fileKey: 'file',
+  root: { findAll: () => [{ boundVariables: { paddingLeft: { type: 'VARIABLE_ALIAS', id: 'R:bound' } } }] },
+  variables: {
+    getLocalVariableCollectionsAsync: async () => [
+      { id: 'C:local', name: 'Semantic', defaultModeId: 'm', modes: [{ modeId: 'm', name: 'Mobile' }] },
+    ],
+    getLocalVariablesAsync: async () => [
+      { id: 'V:local', name: 'containerX', resolvedType: 'FLOAT', variableCollectionId: 'C:local', valuesByMode: { m: { type: 'VARIABLE_ALIAS', id: 'R:aliased' } } },
+    ],
+    getVariableByIdAsync: async (id) => library[id] ?? null,
+    getVariableCollectionByIdAsync: async (id) =>
+      id === 'C:lib' ? { id, name: 'Primitives', defaultModeId: 'lib', modes: [{ modeId: 'lib', name: 'Mode 1' }] } : null,
+  },
+  getLocalPaintStylesAsync: async () => [],
+  getLocalTextStylesAsync: async () => [],
+  getLocalEffectStylesAsync: async () => [],
+  getLocalGridStylesAsync: async () => [],
+  getStyleByIdAsync: async () => null,
+}
+const theme = await SCRIPTS.fastTheme({ theme: { offset: 0 } })
+assert.deepEqual(
+  theme.resources.variables.map((variable) => variable.id),
+  ['R:aliased', 'R:bound', 'R:deep', 'V:local'],
+)
+assert.deepEqual(theme.resources.collections.map((collection) => collection.id), ['C:lib', 'C:local'])
+assert.deepEqual(theme.resources.usedVariableIds, ['R:bound'])
+assert.equal(theme.resources.usedRemoteComplete, true)
+assert.equal(theme.page.complete, true)
+
 console.log(
-  `verified ${EXPECTED.length} generated scripts (pageCatalog, referencePng, referencePngChunk and usedResources executed)`,
+  `verified ${EXPECTED.length} generated scripts (pageCatalog, referencePng, referencePngChunk, usedResources and fastTheme executed)`,
 )
