@@ -409,9 +409,12 @@ fn an_alias_into_a_collection_with_one_mode_reads_its_one_value() {
     let output = generate_devup_json(&snapshot, ThemeScope::File).unwrap();
     let devup: serde_json::Value = serde_json::from_str(&output.json).unwrap();
 
-    assert_eq!(devup["theme"]["length"]["mobile"]["containerX"], "20px");
-    assert_eq!(devup["theme"]["length"]["tablet"]["containerX"], "40px");
-    assert!(devup["theme"]["length"]["mobile"].get("inset").is_none());
+    let lengths = devup["theme"]["length"].as_object().unwrap();
+    assert!(!lengths.is_empty());
+    for tokens in lengths.values() {
+        assert_eq!(tokens["containerX"], json!(["20px", null, "40px"]));
+        assert!(tokens.get("inset").is_none());
+    }
     assert_eq!(
         output
             .unresolved_variables
@@ -422,5 +425,54 @@ fn an_alias_into_a_collection_with_one_mode_reads_its_one_value() {
             ))
             .collect::<Vec<_>>(),
         vec![("inset", Some("mobile")), ("inset", Some("tablet"))]
+    );
+}
+
+#[test]
+fn a_length_whose_modes_are_breakpoints_is_one_responsive_token_in_every_theme() {
+    let snapshot: VariableSnapshot = serde_json::from_value(json!({
+        "collections": [
+            {"id": "color", "name": "Color", "defaultModeId": "light",
+             "modes": [{"modeId": "light", "name": "Light"}, {"modeId": "dark", "name": "Dark"}]},
+            {"id": "semantic", "name": "Semantic", "defaultModeId": "m",
+             "modes": [{"modeId": "m", "name": "Mobile"}, {"modeId": "t", "name": "Tablet"}]}
+        ],
+        "variables": [
+            {"id": "bg", "name": "bg", "resolvedType": "COLOR", "variableCollectionId": "color",
+             "valuesByMode": {"light": {"r": 1, "g": 1, "b": 1, "a": 1}, "dark": {"r": 0, "g": 0, "b": 0, "a": 1}}},
+            {"id": "gap", "name": "gap", "resolvedType": "FLOAT", "variableCollectionId": "color",
+             "valuesByMode": {"light": 8, "dark": 8}},
+            {"id": "container", "name": "containerX", "resolvedType": "FLOAT", "variableCollectionId": "semantic",
+             "valuesByMode": {"m": 20, "t": 40}},
+            {"id": "radius", "name": "radius", "resolvedType": "FLOAT", "variableCollectionId": "semantic",
+             "valuesByMode": {"m": 12, "t": 12}},
+            {"id": "gap-by-size", "name": "gap", "resolvedType": "FLOAT", "variableCollectionId": "semantic",
+             "valuesByMode": {"m": 4, "t": 12}}
+        ],
+        "styles": [], "usedRemoteVariables": [],
+        "localComplete": true, "usedRemoteComplete": true
+    }))
+    .unwrap();
+
+    let output = generate_devup_json(&snapshot, ThemeScope::File).unwrap();
+    let devup: serde_json::Value = serde_json::from_str(&output.json).unwrap();
+    let lengths = &devup["theme"]["length"];
+
+    assert_eq!(
+        lengths.as_object().unwrap().keys().collect::<Vec<_>>(),
+        ["light", "dark"]
+    );
+    for theme in ["light", "dark"] {
+        assert_eq!(lengths[theme]["containerX"], json!(["20px", null, "40px"]));
+        assert_eq!(lengths[theme]["radius"], "12px");
+        assert_eq!(lengths[theme]["gap"], "8px");
+    }
+    assert_eq!(
+        output
+            .conflicts
+            .iter()
+            .map(|conflict| (conflict.token.as_str(), conflict.mode.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("gap", "light"), ("gap", "dark")]
     );
 }

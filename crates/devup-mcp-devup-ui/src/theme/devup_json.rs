@@ -247,28 +247,63 @@ pub fn generate_devup_json(
             &variable.name,
             variable.code_syntax.get("WEB").map(String::as_str),
         );
+        let is_alias = |mode_id: &str| {
+            variable
+                .values_by_mode
+                .get(mode_id)
+                .and_then(|value| value.get("type"))
+                .and_then(Value::as_str)
+                == Some("VARIABLE_ALIAS")
+        };
+        // A length in a collection whose modes are breakpoints - Mobile,
+        // Tablet, PC - is one value per breakpoint. devup-ui reads a length
+        // token as a responsive array; under a mode's own name it would be a
+        // `data-theme` no page sets, and undefined everywhere else.
+        if variable.resolved_type == "FLOAT"
+            && let Some(slots) = breakpoint_slots(collection)
+        {
+            let mut values: [Option<Value>; 6] = Default::default();
+            let mut complete = true;
+            for (mode, slot) in collection.modes.iter().zip(slots) {
+                match resolve_value(variable, &mode.mode_id, &variables, &mut HashSet::new()) {
+                    Some(value) => match value.as_f64() {
+                        Some(number) => values[slot] = Some(Value::String(format_px(number))),
+                        None => complete = false,
+                    },
+                    None => {
+                        complete = false;
+                        unresolved_variables.push(unresolved_alias(variable, &mode.mode_id));
+                        diagnostics.push(alias_diagnostic(variable));
+                    }
+                }
+            }
+            if complete && let Some(value) = responsive_length(values) {
+                projected
+                    .entry(("length".to_owned(), BREAKPOINTS.to_owned(), token.clone()))
+                    .or_default()
+                    .push(ProjectedVariable {
+                        variable_id: variable.id.clone(),
+                        collection_id: variable.variable_collection_id.clone(),
+                        collection_name: collection.name.clone(),
+                        raw_name: variable.name.clone(),
+                        mode_id: collection.default_mode_id.clone(),
+                        source: candidate.source,
+                        value,
+                        resolution: if collection.modes.iter().any(|mode| is_alias(&mode.mode_id)) {
+                            "alias".to_owned()
+                        } else {
+                            "variable".to_owned()
+                        },
+                    });
+            }
+            continue;
+        }
         for mode in &collection.modes {
             let mut visiting = HashSet::new();
             let Some(value) = resolve_value(variable, &mode.mode_id, &variables, &mut visiting)
             else {
-                unresolved_variables.push(ThemeUnresolvedVariable {
-                    variable_id: variable.id.clone(),
-                    mode_id: Some(mode.mode_id.clone()),
-                    reason: "alias-cycle-or-missing-target".to_owned(),
-                });
-                diagnostics.push(Diagnostic {
-                    code: "DEVUP_THEME_ALIAS_CYCLE".to_owned(),
-                    message: format!(
-                        "Alias for variable '{}' could not be resolved safely.",
-                        variable.name
-                    ),
-                    node_id: None,
-                    severity: Some(DiagnosticSeverity::Warning),
-                    resource_kind: Some("variable".to_owned()),
-                    resource_id: Some(variable.id.clone()),
-                    recoverable: Some(true),
-                    ..Diagnostic::default()
-                });
+                unresolved_variables.push(unresolved_alias(variable, &mode.mode_id));
+                diagnostics.push(alias_diagnostic(variable));
                 continue;
             };
             let mode_name = normalize_token(&mode.name);
@@ -291,13 +326,7 @@ pub fn generate_devup_json(
                         mode_id: mode.mode_id.clone(),
                         source: candidate.source,
                         value,
-                        resolution: if variable
-                            .values_by_mode
-                            .get(&mode.mode_id)
-                            .and_then(|value| value.get("type"))
-                            .and_then(Value::as_str)
-                            == Some("VARIABLE_ALIAS")
-                        {
+                        resolution: if is_alias(&mode.mode_id) {
                             "alias".to_owned()
                         } else {
                             "variable".to_owned()
@@ -307,6 +336,8 @@ pub fn generate_devup_json(
         }
     }
 
+    let mut breakpoint_lengths: BTreeMap<String, ProjectedVariable> = BTreeMap::new();
+    let mut length_winners: BTreeMap<(String, String), ProjectedVariable> = BTreeMap::new();
     for ((kind, mode, token), candidates) in projected {
         let Some(winner) = candidates.first() else {
             continue;
@@ -318,33 +349,39 @@ pub fn generate_devup_json(
                     .or_default()
                     .insert(token.clone(), winner.value.clone());
             }
+            "length" if mode == BREAKPOINTS => {
+                breakpoint_lengths.insert(token.clone(), winner.clone());
+            }
             "length" => {
                 lengths
                     .entry(mode.clone())
                     .or_default()
                     .insert(token.clone(), winner.value.clone());
+                length_winners.insert((mode.clone(), token.clone()), winner.clone());
             }
             _ => continue,
         }
         let category = if kind == "color" { "colors" } else { "length" };
-        source_entries.push(ProvenanceEntry {
-            element_index: None,
-            calculation: None,
-            generated_property: None,
-            generated_range: None,
-            json_pointer: Some(format!(
-                "/theme/{}/{}/{}",
-                category,
-                json_pointer_segment(&mode),
-                json_pointer_segment(&token)
-            )),
-            node_id: None,
-            property: None,
-            variable_id: Some(winner.variable_id.clone()),
-            style_id: None,
-            asset_id: None,
-            resolution: winner.resolution.clone(),
-        });
+        if mode != BREAKPOINTS {
+            source_entries.push(ProvenanceEntry {
+                element_index: None,
+                calculation: None,
+                generated_property: None,
+                generated_range: None,
+                json_pointer: Some(format!(
+                    "/theme/{}/{}/{}",
+                    category,
+                    json_pointer_segment(&mode),
+                    json_pointer_segment(&token)
+                )),
+                node_id: None,
+                property: None,
+                variable_id: Some(winner.variable_id.clone()),
+                style_id: None,
+                asset_id: None,
+                resolution: winner.resolution.clone(),
+            });
+        }
         if candidates
             .iter()
             .skip(1)
@@ -352,39 +389,19 @@ pub fn generate_devup_json(
         {
             continue;
         }
-        let conflict_candidates = candidates
-            .iter()
-            .map(|candidate| ThemeConflictCandidate {
-                variable_id: candidate.variable_id.clone(),
-                collection_id: candidate.collection_id.clone(),
-                collection_name: candidate.collection_name.clone(),
-                raw_name: candidate.raw_name.clone(),
-                mode_id: candidate.mode_id.clone(),
-                source: candidate.source,
-                value_hash: value_hash(&candidate.value),
-            })
-            .collect::<Vec<_>>();
         conflicts.push(ThemeConflict {
             token: token.clone(),
             mode: mode.clone(),
             kind: kind.clone(),
             winner_variable_id: winner.variable_id.clone(),
-            candidates: conflict_candidates,
+            candidates: candidates.iter().map(conflict_candidate).collect(),
         });
-        diagnostics.push(Diagnostic {
-            code: "DEVUP_THEME_TOKEN_CONFLICT".to_owned(),
-            message: format!(
-                "The same theme token had conflicting values; applied deterministic precedence: token={token}, mode={mode}"
-            ),
-            node_id: None,
-            severity: Some(DiagnosticSeverity::Warning),
-            property: Some(format!("theme.{kind}.{mode}.{token}")),
-            resource_kind: Some("variable".to_owned()),
-            resource_id: Some(winner.variable_id.clone()),
-            fallback: Some("deterministic-winner".to_owned()),
-            recoverable: Some(true),
-            ..Diagnostic::default()
-        });
+        diagnostics.push(conflict_diagnostic(
+            &kind,
+            &mode,
+            &token,
+            &winner.variable_id,
+        ));
     }
 
     // A text style is a `typography` entry and an effect style a `shadow`
@@ -560,17 +577,79 @@ pub fn generate_devup_json(
     let lengths = {
         let ordered = in_mode_order(lengths);
         let mut by_theme = ordered.as_object().cloned().unwrap_or_default();
-        let first = by_theme.values().next().cloned();
+        let first = by_theme
+            .iter()
+            .next()
+            .map(|(name, tokens)| (name.clone(), tokens.clone()));
         let mut replicated = Map::new();
+        let mut copied_from = BTreeMap::new();
         for name in &theme_names {
             if let Some(tokens) = by_theme.remove(name) {
                 replicated.insert(name.clone(), tokens);
-            } else if let Some(first) = &first {
+                copied_from.insert(name.clone(), name.clone());
+            } else if let Some((source, first)) = &first {
                 replicated.insert(name.clone(), first.clone());
+                copied_from.insert(name.clone(), source.clone());
             }
         }
         for (name, tokens) in by_theme {
+            copied_from.insert(name.clone(), name.clone());
             replicated.insert(name, tokens);
+        }
+        if !breakpoint_lengths.is_empty() && replicated.is_empty() {
+            for name in &theme_names {
+                replicated.insert(name.clone(), Value::Object(Map::new()));
+            }
+        }
+        for (name, tokens) in &mut replicated {
+            let Some(tokens) = tokens.as_object_mut() else {
+                continue;
+            };
+            for (token, breakpoint) in &breakpoint_lengths {
+                match tokens.get(token) {
+                    None => {
+                        tokens.insert(token.clone(), breakpoint.value.clone());
+                        source_entries.push(ProvenanceEntry {
+                            element_index: None,
+                            calculation: None,
+                            generated_property: None,
+                            generated_range: None,
+                            json_pointer: Some(format!(
+                                "/theme/length/{}/{}",
+                                json_pointer_segment(name),
+                                json_pointer_segment(token)
+                            )),
+                            node_id: None,
+                            property: None,
+                            variable_id: Some(breakpoint.variable_id.clone()),
+                            style_id: None,
+                            asset_id: None,
+                            resolution: breakpoint.resolution.clone(),
+                        });
+                    }
+                    // The theme's own token of the same name keeps its place,
+                    // as the first candidate of one name does, and says so.
+                    Some(existing) if *existing != breakpoint.value => {
+                        let own = copied_from.get(name).and_then(|source| {
+                            length_winners.get(&(source.clone(), token.clone()))
+                        });
+                        let winner_id = own.map_or_else(String::new, |own| own.variable_id.clone());
+                        conflicts.push(ThemeConflict {
+                            token: token.clone(),
+                            mode: name.clone(),
+                            kind: "length".to_owned(),
+                            winner_variable_id: winner_id.clone(),
+                            candidates: own
+                                .into_iter()
+                                .chain([breakpoint])
+                                .map(conflict_candidate)
+                                .collect(),
+                        });
+                        diagnostics.push(conflict_diagnostic("length", name, token, &winner_id));
+                    }
+                    Some(_) => {}
+                }
+            }
         }
         Value::Object(replicated)
     };
@@ -1020,6 +1099,29 @@ fn breakpoint_slot(name: &str) -> Option<usize> {
     }
 }
 
+/// The slot of each of a collection's modes, in its order, when it has more
+/// than one and every one is named for a different breakpoint.
+fn breakpoint_slots(collection: &VariableCollection) -> Option<Vec<usize>> {
+    let slots = collection
+        .modes
+        .iter()
+        .map(|mode| breakpoint_slot(&mode.name))
+        .collect::<Option<Vec<_>>>()?;
+    let distinct = slots.iter().collect::<BTreeSet<_>>().len() == slots.len();
+    (slots.len() > 1 && distinct).then_some(slots)
+}
+
+/// A length token from its breakpoint slots: the value alone when every
+/// breakpoint has the same one, the responsive array otherwise.
+fn responsive_length(slots: [Option<Value>; 6]) -> Option<Value> {
+    let mut filled = slots.iter().flatten();
+    let first = filled.next()?.clone();
+    if filled.all(|value| *value == first) {
+        return Some(first);
+    }
+    responsive_entry(slots)
+}
+
 /// The size a text style's bound font size resolves to at each breakpoint:
 /// when every mode of the variable's collection is named for a breakpoint,
 /// each resolves, no two share a slot and the sizes differ. Otherwise `None`,
@@ -1032,18 +1134,74 @@ fn font_size_by_breakpoint(
     let id = style.pointer("/boundVariables/fontSize/id")?.as_str()?;
     let variable = variables.get(id)?;
     let collection = collections.get(variable.variable_collection_id.as_str())?;
-    let mut sizes: Vec<(usize, f64)> = Vec::new();
-    for mode in &collection.modes {
-        let slot = breakpoint_slot(&mode.name)?;
-        let size =
-            resolve_value(variable, &mode.mode_id, variables, &mut HashSet::new())?.as_f64()?;
-        if sizes.iter().any(|(taken, _)| *taken == slot) {
-            return None;
-        }
-        sizes.push((slot, size));
-    }
+    let sizes = collection
+        .modes
+        .iter()
+        .zip(breakpoint_slots(collection)?)
+        .map(|(mode, slot)| {
+            let size = resolve_value(variable, &mode.mode_id, variables, &mut HashSet::new())?;
+            Some((slot, size.as_f64()?))
+        })
+        .collect::<Option<Vec<_>>>()?;
     let differ = sizes.iter().any(|(_, size)| *size != sizes[0].1);
-    (sizes.len() > 1 && differ).then_some(sizes)
+    differ.then_some(sizes)
+}
+
+/// The theme mode under which the breakpoint lengths are gathered until the
+/// themes are known; `normalize_token` never makes a name like it.
+const BREAKPOINTS: &str = "@breakpoints";
+
+fn unresolved_alias(variable: &VariableDefinition, mode_id: &str) -> ThemeUnresolvedVariable {
+    ThemeUnresolvedVariable {
+        variable_id: variable.id.clone(),
+        mode_id: Some(mode_id.to_owned()),
+        reason: "alias-cycle-or-missing-target".to_owned(),
+    }
+}
+
+fn alias_diagnostic(variable: &VariableDefinition) -> Diagnostic {
+    Diagnostic {
+        code: "DEVUP_THEME_ALIAS_CYCLE".to_owned(),
+        message: format!(
+            "Alias for variable '{}' could not be resolved safely.",
+            variable.name
+        ),
+        node_id: None,
+        severity: Some(DiagnosticSeverity::Warning),
+        resource_kind: Some("variable".to_owned()),
+        resource_id: Some(variable.id.clone()),
+        recoverable: Some(true),
+        ..Diagnostic::default()
+    }
+}
+
+fn conflict_candidate(candidate: &ProjectedVariable) -> ThemeConflictCandidate {
+    ThemeConflictCandidate {
+        variable_id: candidate.variable_id.clone(),
+        collection_id: candidate.collection_id.clone(),
+        collection_name: candidate.collection_name.clone(),
+        raw_name: candidate.raw_name.clone(),
+        mode_id: candidate.mode_id.clone(),
+        source: candidate.source,
+        value_hash: value_hash(&candidate.value),
+    }
+}
+
+fn conflict_diagnostic(kind: &str, mode: &str, token: &str, winner: &str) -> Diagnostic {
+    Diagnostic {
+        code: "DEVUP_THEME_TOKEN_CONFLICT".to_owned(),
+        message: format!(
+            "The same theme token had conflicting values; applied deterministic precedence: token={token}, mode={mode}"
+        ),
+        node_id: None,
+        severity: Some(DiagnosticSeverity::Warning),
+        property: Some(format!("theme.{kind}.{mode}.{token}")),
+        resource_kind: Some("variable".to_owned()),
+        resource_id: Some(winner.to_owned()),
+        fallback: Some("deterministic-winner".to_owned()),
+        recoverable: Some(true),
+        ..Diagnostic::default()
+    }
 }
 
 fn format_px(value: f64) -> String {
