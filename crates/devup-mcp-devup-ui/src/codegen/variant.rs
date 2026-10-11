@@ -570,6 +570,7 @@ fn project_tree_inner(
         &mut used_tokens,
         style::StyleOptions {
             variable_tokens: &options.variable_tokens,
+            length_tokens: &options.length_tokens,
             asset_names_per_node: options.asset_names_per_node,
             width_policy: None,
         },
@@ -580,6 +581,13 @@ fn project_tree_inner(
         &options.variable_tokens,
         &mut used_tokens,
         &mut props,
+    );
+    style::tokenize_lengths(
+        snapshot,
+        node,
+        &mut props,
+        &options.length_tokens,
+        &mut used_tokens,
     );
     if asset.is_some() {
         props.retain(|(name, _)| {

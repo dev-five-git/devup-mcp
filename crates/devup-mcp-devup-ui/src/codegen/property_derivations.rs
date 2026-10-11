@@ -43,6 +43,7 @@ pub(crate) fn property_derivations(
                     &mut tokens,
                     style::StyleOptions {
                         variable_tokens: &options.variable_tokens,
+                        length_tokens: &options.length_tokens,
                         asset_names_per_node: options.asset_names_per_node,
                         width_policy: options.width_policy.as_ref(),
                     },
@@ -62,6 +63,15 @@ pub(crate) fn property_derivations(
                 &mut props,
             ),
             _ => unreachable!(),
+        }
+        if stage == "text" {
+            style::tokenize_lengths(
+                snapshot,
+                node,
+                &mut props,
+                &options.length_tokens,
+                &mut tokens,
+            );
         }
         for (name, value) in &props {
             if !before.iter().any(|p: &Prop| p.0 == *name && p.1 == *value) {
