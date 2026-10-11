@@ -187,9 +187,12 @@ fn actual_wquw_151_screen_preserves_children_tokens_and_typography() {
                 && d.node_id.as_deref() == Some("3879:35547")
         })
         .unwrap();
+    // The row holds this Text alone, so its 10px spacing has nothing to
+    // space; what the allocation proof cannot establish is the Text's own
+    // minimum width, which needs browser font metrics.
     assert_eq!(
         fill_issue.details.as_ref().unwrap()["implicitCssVerification"]["reasonCode"],
-        "gap-mismatch"
+        "intrinsic-replaced-minimum-unverified"
     );
     assert!(!output.diagnostics.iter().any(|diagnostic| {
         diagnostic.code == "DEVUP_CODEGEN_ABSOLUTE_FALLBACK"

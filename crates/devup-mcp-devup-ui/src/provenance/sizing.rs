@@ -465,7 +465,22 @@ fn horizontal_allocation(
             .map(css_px)
             .unwrap_or(Some(0.0))
             .ok_or("gap-unverified")?;
-        if gap < 0.0 || (gap - pv.number("itemSpacing").unwrap_or(0.0)).abs() > 0.5 {
+        // Spacing sits between the children laid out in the row. With one
+        // of them there is nothing to space, the code rightly writes no gap
+        // (`codegen::layout` omits it for the same reason), and the gap takes
+        // no part in the allocation below. A StatusCard whose second child is
+        // a hidden badge failed here on the 12px it does not need.
+        let in_flow = pv
+            .child_ids()
+            .filter_map(|sid| snapshot.nodes.get(sid))
+            .filter(|sibling| {
+                let sv = sibling.typed_view();
+                sv.bool("visible") != Some(false)
+                    && sv.string("layoutPositioning") != Some("ABSOLUTE")
+            })
+            .count();
+        if gap < 0.0 || (in_flow > 1 && (gap - pv.number("itemSpacing").unwrap_or(0.0)).abs() > 0.5)
+        {
             return Err("gap-mismatch");
         }
         let mut siblings = Vec::new();

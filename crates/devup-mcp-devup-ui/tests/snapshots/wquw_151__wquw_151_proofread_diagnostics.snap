@@ -1,5 +1,6 @@
 ---
 source: crates/devup-mcp-devup-ui/tests/wquw_151.rs
+assertion_line: 231
 expression: json!(output.diagnostics)
 ---
 [
@@ -72,8 +73,8 @@ expression: json!(output.diagnostics)
         "flexBasis": "0%",
         "flexShrink": 1,
         "evidenceLimit": "Verifies the responsive allocation contract at the captured parent/sibling sizes, not browser font metrics or pixel equivalence.",
-        "reasonCode": "gap-mismatch",
-        "reason": "Cannot prove main-axis allocation: gap-mismatch."
+        "reasonCode": "intrinsic-replaced-minimum-unverified",
+        "reason": "Cannot prove main-axis allocation: intrinsic-replaced-minimum-unverified."
       }
     }
   },
