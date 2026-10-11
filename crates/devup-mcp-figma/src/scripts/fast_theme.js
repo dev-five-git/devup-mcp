@@ -1,3 +1,7 @@
+// Figma's own MCP runs scripts with hidden layers inside instances left out
+// of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
+// here so the direct path and the Devup Bridge read the same document.
+figma.skipInvisibleInstanceChildren = false;
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
 // The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the measurement is
 // written up in fast_snapshot.js.
@@ -101,6 +105,10 @@ function scanResources(value, fieldName = "", seen = new WeakSet(), depth = 0) {
   }
 }
 
+// Under Figma's own MCP a page is not loaded until something loads it, and
+// `findAll` sees nothing on it: the devup Test file's second page answered
+// 0 nodes there and 70 to the plugin, which loads every page when it starts.
+for (const page of figma.root.children) await page.loadAsync();
 const documentNodes = [figma.root, ...figma.root.findAll(() => true)];
 for (const node of documentNodes) {
   for (const field of [

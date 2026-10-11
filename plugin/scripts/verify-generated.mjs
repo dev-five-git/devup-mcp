@@ -366,6 +366,8 @@ assert.deepEqual(aliased.usedVariableIds, ['V:local'])
 assert.deepEqual(aliased.collections.map((collection) => collection.id).sort(), ['C:lib', 'C:local'])
 
 // 로컬 변수가 alias 로 가리키는 라이브러리 변수는 어떤 노드도 묶지 않아도 읽는다.
+// 노드는 페이지를 불러온 뒤에야 보인다 — Figma 의 MCP 는 아무것도 불러 두지 않은 채 시작한다.
+let pageLoaded = false
 // 테마가 그 alias 의 값을 내려면 그 변수가 있어야 하고, 그 변수가 또 가리키는
 // 변수도 마찬가지다. 노드가 쓴 id 목록에는 넣지 않는다.
 const library = {
@@ -375,7 +377,17 @@ const library = {
 }
 globalThis.figma = {
   fileKey: 'file',
-  root: { findAll: () => [{ boundVariables: { paddingLeft: { type: 'VARIABLE_ALIAS', id: 'R:bound' } } }] },
+  root: {
+    children: [
+      {
+        loadAsync: async () => {
+          pageLoaded = true
+        },
+      },
+    ],
+    findAll: () =>
+      pageLoaded ? [{ boundVariables: { paddingLeft: { type: 'VARIABLE_ALIAS', id: 'R:bound' } } }] : [],
+  },
   variables: {
     getLocalVariableCollectionsAsync: async () => [
       { id: 'C:local', name: 'Semantic', defaultModeId: 'm', modes: [{ modeId: 'm', name: 'Mobile' }] },
@@ -402,6 +414,7 @@ assert.deepEqual(theme.resources.collections.map((collection) => collection.id),
 assert.deepEqual(theme.resources.usedVariableIds, ['R:bound'])
 assert.equal(theme.resources.usedRemoteComplete, true)
 assert.equal(theme.page.complete, true)
+assert.equal(globalThis.figma.skipInvisibleInstanceChildren, false)
 
 console.log(
   `verified ${EXPECTED.length} generated scripts (pageCatalog, referencePng, referencePngChunk, usedResources and fastTheme executed)`,

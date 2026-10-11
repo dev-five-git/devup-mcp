@@ -1,3 +1,7 @@
+// Figma's own MCP runs scripts with hidden layers inside instances left out
+// of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
+// here so the direct path and the Devup Bridge read the same document.
+figma.skipInvisibleInstanceChildren = false;
 const section = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
 if (!section) throw new Error("DEVUP_NODE_NOT_FOUND");
 if (section.type !== "SECTION") {

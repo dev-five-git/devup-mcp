@@ -400,7 +400,7 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "status" }`의 `activePath`와 `paths.bridge`/`paths.direct`로 확인하세요. **연결 순서는 bridge → direct입니다** — 로그인을 요청하기 전에 이것부터 부르세요.
 
-**브리지는 수집이 하는 모든 읽기를 맡습니다.** `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록)도 플러그인의 페이지 목록을 공식 `get_metadata`와 같은 글로 옮겨 답하므로, 수집기는 두 경로의 답을 같은 파서로 받습니다. direct 경로는 **플러그인이 다 답하지 못한 읽기만** 다시 읽습니다 — 로그인이 되어 있을 때만, 한도의 속도에 맞춰서입니다. 다시 읽은 이유는 응답의 `source.directFallbackReasons`에 실립니다.
+**브리지는 수집이 하는 모든 읽기를 맡습니다.** `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록)도 플러그인의 페이지 목록을 공식 `get_metadata`와 같은 글로 옮겨 답하므로, 수집기는 두 경로의 답을 같은 파서로 받습니다. direct 경로는 **플러그인이 다 답하지 못한 읽기만** 다시 읽습니다 — 로그인이 되어 있을 때만, 한도의 속도에 맞춰서입니다. 다시 읽은 이유는 응답의 `source.directFallbackReasons`에 실립니다. 두 경로는 같은 문서를 읽습니다. Figma의 MCP는 인스턴스 안의 숨긴 레이어를 `children`·`findAll`·`getNodeByIdAsync`에서 빼고 페이지를 불러 두지 않은 채 스크립트를 돌리는데, 플러그인은 둘 다 봅니다. 그래서 노드를 읽는 스크립트는 `figma.skipInvisibleInstanceChildren = false`로 시작하고, 파일 전체 테마는 모든 페이지를 불러온 뒤 훑습니다.
 
 | 이유 | 플러그인이 답한 것 | 로그인이 없으면 |
 |---|---|---|
