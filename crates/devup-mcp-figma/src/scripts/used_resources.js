@@ -50,21 +50,43 @@ try {
   localVariableListing = "unavailable";
 }
 
-const variableResults = await Promise.all(resources.variableIds.map(async (id) => {
+function aliasIdsOf(variable) {
+  return Object.values(variable.valuesByMode || {})
+    .filter((value) => value && value.type === "VARIABLE_ALIAS" && typeof value.id === "string" && value.id)
+    .map((value) => value.id);
+}
+
+async function resolveVariable(id) {
   const local = localVariableIndex.get(id);
   if (local) {
-    return { value: serialize(local), collectionId: local.variableCollectionId };
+    return { value: serialize(local), collectionId: local.variableCollectionId, aliasIds: aliasIdsOf(local) };
   }
   // 목록에 없으면 이 파일 것이 아니다(라이브러리 변수). 그때만 개별로 묻는다.
   try {
     const value = await figma.variables.getVariableByIdAsync(id);
     return value
-      ? { value: serialize(value), collectionId: value.variableCollectionId }
+      ? { value: serialize(value), collectionId: value.variableCollectionId, aliasIds: aliasIdsOf(value) }
       : { unresolved: { id, kind: "variable", reason: "notInFileAndLookupEmpty" } };
   } catch (error) {
     return { unresolved: { id, kind: "variable", reason: "notInFileAndLookupThrew", error: String((error && error.message) || error).slice(0, 300) } };
   }
-}));
+}
+
+const variableResults = await Promise.all(resources.variableIds.map(resolveVariable));
+// 변수는 어떤 노드도 묶지 않은 변수를 alias 로 가리킬 수 있다 — 라이브러리 primitive 를
+// 가리키는 로컬 spacing 처럼. 테마가 그 alias 의 값을 내려면 그 변수가 있어야 하므로
+// 그것도, 그것이 가리키는 것도 읽는다. 노드가 쓴 id 목록에는 넣지 않는다.
+const requestedVariableIds = new Set(resources.variableIds);
+let pendingAliasIds = variableResults.flatMap((result) => result.aliasIds || []);
+while (pendingAliasIds.length > 0) {
+  const batch = [...new Set(pendingAliasIds)]
+    .filter((id) => !requestedVariableIds.has(id))
+    .sort();
+  for (const id of batch) requestedVariableIds.add(id);
+  const fetched = await Promise.all(batch.map(resolveVariable));
+  variableResults.push(...fetched);
+  pendingAliasIds = fetched.flatMap((result) => result.aliasIds || []);
+}
 
 const collectionIds = [...new Set(variableResults
   .flatMap((result) => result.collectionId ? [result.collectionId] : []))].sort();

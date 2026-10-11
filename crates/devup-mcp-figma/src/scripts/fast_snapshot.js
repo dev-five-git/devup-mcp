@@ -401,6 +401,12 @@ function scanResources(value, variableIds, styleTypes) {
   }
 }
 
+function aliasIdsOf(variable) {
+  return Object.values(variable.valuesByMode || {})
+    .filter((value) => value && value.type === "VARIABLE_ALIAS" && typeof value.id === "string" && value.id)
+    .map((value) => value.id);
+}
+
 // Resolves every variable/style the given page of nodes references. Only the
 // nodes shipped in THIS page are scanned, so a page's resource block stays
 // consistent with its own integrity counters; devup-mcp merges across pages.
@@ -414,21 +420,23 @@ async function collectResources(nodes) {
     .map(([id, styleType]) => ({ id, styleType }))
     .sort((left, right) => left.id.localeCompare(right.id));
 
+  async function lookupVariable(id) {
+    try {
+      const variable = await figma.variables.getVariableByIdAsync(id);
+      return variable
+        ? {
+            kind: "variable",
+            value: serialize(variable, true),
+            collectionId: variable.variableCollectionId,
+            aliasIds: aliasIdsOf(variable),
+          }
+        : { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
+    } catch (error) {
+      return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) } };
+    }
+  }
   const results = await Promise.all([
-    ...sortedVariableIds.map(async (id) => {
-      try {
-        const variable = await figma.variables.getVariableByIdAsync(id);
-        return variable
-          ? {
-              kind: "variable",
-              value: serialize(variable, true),
-              collectionId: variable.variableCollectionId,
-            }
-          : { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable" } };
-      } catch (error) {
-        return { kind: "unresolved", value: { id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) } };
-      }
-    }),
+    ...sortedVariableIds.map(lookupVariable),
     ...sortedStyles.map(async ({ id, styleType }) => {
       try {
         const style = await figma.getStyleByIdAsync(id);
@@ -457,6 +465,22 @@ async function collectResources(nodes) {
       }
     }),
   ]);
+
+  // A variable can alias another that no node in this page binds - a local
+  // spacing pointing at a library's primitive. The theme needs that variable
+  // to give the alias a value, so it is read too, and so is what it aliases.
+  // The counts above stay the page's own references.
+  const requestedVariableIds = new Set(sortedVariableIds);
+  let pendingAliasIds = results.flatMap((result) => result.aliasIds || []);
+  while (pendingAliasIds.length > 0) {
+    const batch = [...new Set(pendingAliasIds)]
+      .filter((id) => !requestedVariableIds.has(id))
+      .sort();
+    for (const id of batch) requestedVariableIds.add(id);
+    const fetched = await Promise.all(batch.map(lookupVariable));
+    results.push(...fetched);
+    pendingAliasIds = fetched.flatMap((result) => result.aliasIds || []);
+  }
 
   const collectionIds = [...new Set(results
     .filter((result) => result.kind === "variable" && result.collectionId)

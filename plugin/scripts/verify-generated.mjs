@@ -344,6 +344,27 @@ assert.deepEqual(
   [unreachable, unreachable],
 )
 
+// 노드 범위도 같다. 노드가 쓴 로컬 변수가 가리키는 라이브러리 변수와 그 변수가
+// 가리키는 변수까지 읽고, 노드가 쓴 id 목록은 그대로 둔다.
+globalThis.figma = {
+  variables: {
+    getLocalVariablesAsync: async () => [
+      { id: 'V:local', name: 'containerX', valuesByMode: { m: { type: 'VARIABLE_ALIAS', id: 'R:aliased' } }, variableCollectionId: 'C:local' },
+    ],
+    getVariableByIdAsync: async (id) =>
+      ({
+        'R:aliased': { id: 'R:aliased', remote: true, valuesByMode: { lib: { type: 'VARIABLE_ALIAS', id: 'R:deep' } }, variableCollectionId: 'C:lib' },
+        'R:deep': { id: 'R:deep', remote: true, valuesByMode: { lib: 40 }, variableCollectionId: 'C:lib' },
+      })[id] ?? null,
+    getVariableCollectionByIdAsync: async (id) => ({ id, modes: [] }),
+  },
+  getStyleByIdAsync: async () => null,
+}
+const aliased = await usedResources({ resources: { variableIds: ['V:local'], styles: [] } })
+assert.deepEqual(aliased.variables.map((variable) => variable.id).sort(), ['R:aliased', 'R:deep', 'V:local'])
+assert.deepEqual(aliased.usedVariableIds, ['V:local'])
+assert.deepEqual(aliased.collections.map((collection) => collection.id).sort(), ['C:lib', 'C:local'])
+
 // 로컬 변수가 alias 로 가리키는 라이브러리 변수는 어떤 노드도 묶지 않아도 읽는다.
 // 테마가 그 alias 의 값을 내려면 그 변수가 있어야 하고, 그 변수가 또 가리키는
 // 변수도 마찬가지다. 노드가 쓴 id 목록에는 넣지 않는다.
