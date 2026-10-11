@@ -61,16 +61,69 @@ fn token_size_override_without_line_metrics_is_refused() {
     assert!(generate_component(&snapshot, "t", &options).is_err());
 }
 
+/// A size bound to a variable, or no size at all, cannot fix a pixel advance;
+/// the percentage is written as it is, which CSS scales with whatever size
+/// applies.
 #[test]
-fn variable_font_size_cannot_publish_a_fixed_percentage_advance() {
+fn variable_or_missing_font_size_keeps_the_percentage_in_the_theme() {
     let snapshot: VariableSnapshot = serde_json::from_value(json!({
-        "styles":[{"id":"s","name":"heading","styleType":"TEXT","value":{
-            "fontSize":52,"lineHeight":{"unit":"PERCENT","value":130},
-            "boundVariables":{"fontSize":{"type":"VARIABLE_ALIAS","id":"size"}}
-        }}]
+        "styles":[
+            {"id":"s","name":"heading","styleType":"TEXT","value":{
+                "fontSize":52,"lineHeight":{"unit":"PERCENT","value":129.99999523162842},
+                "boundVariables":{"fontSize":{"type":"VARIABLE_ALIAS","id":"size"}}
+            }},
+            {"id":"t","name":"caption","styleType":"TEXT","value":{
+                "lineHeight":{"unit":"PERCENT","value":150}
+            }}
+        ]
     }))
     .unwrap();
-    assert!(generate_devup_json(&snapshot, ThemeScope::File).is_err());
+    let output = generate_devup_json(&snapshot, ThemeScope::File).unwrap();
+    let theme: Value = serde_json::from_str(&output.json).unwrap();
+    assert_eq!(
+        theme["theme"]["typography"]["heading"]["lineHeight"],
+        "130%"
+    );
+    assert_eq!(
+        theme["theme"]["typography"]["caption"]["lineHeight"],
+        "150%"
+    );
+}
+
+/// A size bound to a variable whose modes are breakpoints is one size per
+/// breakpoint: Mobile at the first slot and Tablet at the third (768px), each
+/// with the percentage. Modes that are not breakpoints keep the token.
+#[test]
+fn font_size_whose_modes_are_breakpoints_is_one_size_per_breakpoint() {
+    let theme = |mobile: &str, tablet: &str| {
+        let snapshot: VariableSnapshot = serde_json::from_value(json!({
+            "collections": [{"id": "c", "name": "Size", "defaultModeId": "m", "modes": [
+                {"modeId": "m", "name": mobile}, {"modeId": "t", "name": tablet}]}],
+            "variables": [{"id": "size", "name": "textTest", "resolvedType": "FLOAT",
+                "variableCollectionId": "c", "codeSyntax": {}, "valuesByMode": {"m": 24, "t": 16}}],
+            "styles": [{"id": "s", "name": "test", "styleType": "TEXT", "value": {
+                "fontName": {"family": "Inter", "style": "Regular"}, "fontSize": 16,
+                "lineHeight": {"unit": "PERCENT", "value": 150},
+                "boundVariables": {"fontSize": {"type": "VARIABLE_ALIAS", "id": "size"}}}}],
+            "localComplete": true, "usedRemoteComplete": true
+        }))
+        .unwrap();
+        let output = generate_devup_json(&snapshot, ThemeScope::File).unwrap();
+        let theme: Value = serde_json::from_str(&output.json).unwrap();
+        theme["theme"]["typography"]["test"].clone()
+    };
+    assert_eq!(
+        theme("Mobile", "Tablet"),
+        json!([
+            {"fontFamily": "Inter", "fontWeight": 400, "fontSize": "24px", "lineHeight": "150%"},
+            null,
+            {"fontFamily": "Inter", "fontWeight": 400, "fontSize": "16px", "lineHeight": "150%"}
+        ])
+    );
+    assert_eq!(
+        theme("Light", "Dark"),
+        json!({"fontFamily": "Inter", "fontWeight": 400, "fontSize": "$textTest", "lineHeight": "150%"})
+    );
 }
 
 #[test]

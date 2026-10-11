@@ -54,10 +54,13 @@ metrics continues to use the token's paired font size and advance.
 
 If a styled source supplies a size but no usable line-height metrics, codegen
 refuses with `DevupCodegenFailed`. A percentage advance with a missing numeric
-size or a bound font-size variable is likewise refused. Theme generation
-refuses such percentage styles with `DevupThemeConflict`. These cases require
+size or a bound font-size variable is likewise refused. These cases require
 mode-aware metrics that the name-only map cannot represent; no guessed pixel
-advance or partially generated theme is returned. Consumers must also update
+advance is returned. (Later changes: codegen keeps the percentage for a bound
+size, and theme generation, which refused such percentage styles with
+`DevupThemeConflict`, now writes the percentage as it is - `150%` - for a
+bound or missing size, and gives a size bound to a variable whose modes are
+named for breakpoints one slot per breakpoint.) Consumers must also update
 line height if they subsequently override a generated token's font size by hand.
 
 For an inside uniform stroke on a horizontal or vertical auto-layout node,

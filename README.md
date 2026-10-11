@@ -628,6 +628,8 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 결과는 `theme.colors`, `theme.typography`, `theme.length`, `theme.shadow`를 포함하는 결정적 JSON 문자열과 counts, completeness를 반환합니다.
 
+텍스트 스타일의 글자 크기가 변수에 묶여 있고 그 변수의 모드가 브레이크포인트 이름(`Mobile`·`Tablet`·`Desktop`·`PC`, 또는 숫자)이면, 그 스타일은 모드마다 한 칸인 반응형 typography 배열이 됩니다 — `Mobile`은 첫 칸, `Tablet`은 셋째 칸(768px), `Desktop`·`PC`는 다섯째 칸(1280px)이고, 칸마다 그 모드에서 풀린 크기를 씁니다. 퍼센트 행간은 크기가 고정이면 Figma가 그리는 정수 px 행간으로, 크기가 변수에 묶였거나 없으면 `150%`처럼 퍼센트 그대로 씁니다(CSS가 적용되는 글자 크기에 맞춰 늘입니다). 예전에는 그 경우 테마 전체를 `DEVUP_THEME_CONFLICT`로 거절했습니다. 모드가 브레이크포인트 이름이 아니면(`Light`·`Dark` 등) 크기는 예전처럼 변수의 토큰(`$textTest`)입니다. 같은 변수의 `length` 토큰은 플러그인처럼 모드 이름을 테마 키(`theme.length.mobile`)로 씁니다.
+
 `outputPath`를 생략하면 결과를 메모리와 MCP 응답에만 유지합니다. 명시하면 생성된 TSX 또는 `devup.json`만 해당 경로에 기록하고 실제 절대 경로를 응답합니다. 기본 허용 write root는 `devup-mcp` process 시작 당시의 current directory 하나이며, 그 밖의 workspace는 반복 가능한 `--allow-write-root <directory>` 시작 인자로만 추가할 수 있습니다. Tool 입력으로 root 자체를 넓힐 수 없고 `..`, 다른 drive/UNC, alternate data stream, symlink/junction을 통한 root 탈출은 기록 전에 거절됩니다.
 
 여러 text/asset output은 모두 검증한 뒤 같은 directory의 exclusive 임시 파일에 staging하고 한 transaction으로 교체합니다. 정상 runtime 오류에서는 이미 교체한 파일을 역순으로 되돌리고 기존 파일을 복구합니다. 개별 rename은 atomic하지만 여러 directory와 process crash를 가로지르는 완전한 원자성은 일반 filesystem 특성상 보장하지 않습니다.

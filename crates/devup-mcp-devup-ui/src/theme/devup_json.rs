@@ -425,30 +425,28 @@ pub fn generate_devup_json(
         let level = level.min(5);
         match style.style_type.as_str() {
             "TEXT" => {
-                if style
-                    .value
-                    .pointer("/lineHeight/unit")
-                    .and_then(Value::as_str)
-                    == Some("PERCENT")
-                    && (style
-                        .value
-                        .get("fontSize")
-                        .and_then(Value::as_f64)
-                        .is_none()
-                        || style.value.pointer("/boundVariables/fontSize").is_some())
-                {
-                    return Err(DevupError::new(
-                        ErrorCode::DevupThemeConflict,
-                        format!(
-                            "Text style '{}' needs a fixed numeric font size for an integer percentage line advance; variable or missing sizes are not representable.",
-                            style.id
-                        ),
-                        false,
-                    ));
-                }
                 let slots = typography_slots.entry(token.clone()).or_default();
-                // The first style seen for a slot keeps it, as in the plugin.
-                if slots[level].is_none() {
+                // A style whose name does not say a breakpoint, with its size
+                // bound to a variable whose modes do - Mobile, Tablet, PC - is
+                // one size per breakpoint: a slot for each mode, the size that
+                // mode resolves to in it.
+                let named_for_breakpoint =
+                    style_token(&style.name) != (0, normalize_token(&style.name));
+                let by_breakpoint = if named_for_breakpoint {
+                    None
+                } else {
+                    font_size_by_breakpoint(&style.value, &variables, &collections)
+                };
+                if let Some(sizes) = by_breakpoint {
+                    for (slot, size) in sizes {
+                        if slots[slot].is_none() {
+                            let mut value = typography_value(&style.value, &variable_names);
+                            value["fontSize"] = Value::String(format_px(size));
+                            slots[slot] = Some(value);
+                        }
+                    }
+                } else if slots[level].is_none() {
+                    // The first style seen for a slot keeps it, as in the plugin.
                     slots[level] = Some(typography_value(&style.value, &variable_names));
                 }
                 source_entries.push(ProvenanceEntry {
@@ -638,9 +636,11 @@ pub fn generate_devup_json(
 /// A text style's value as devup-ui reads it — the plugin's
 /// `textStyleToTypography`.
 ///
-/// `fontSize` is in pixels, `lineHeight` a ratio from a percentage (`120%`
-/// is `1.2`), pixels as they are, and `normal` when Figma sets it
-/// automatically; `letterSpacing` is `em` from a percentage and pixels as
+/// `fontSize` is in pixels; `lineHeight` from a percentage is the whole-pixel
+/// advance Figma draws when the size is fixed, and the percentage itself
+/// (`150%`) when the size is bound to a variable or missing - CSS scales it
+/// with whatever size applies -, pixels as they are, and `normal` when Figma
+/// sets it automatically; `letterSpacing` is `em` from a percentage and pixels as
 /// they are; the weight is read off the font style's name; and a field the
 /// style binds to a variable is that variable's token. Two departures from
 /// the plugin, on purpose: `Bold Italic` is `700` and italic, where the
@@ -698,10 +698,16 @@ fn typography_value(style: &Value, variable_names: &BTreeMap<&str, String>) -> V
         let value = line_height.get("value").and_then(Value::as_f64);
         let written = match (unit, value) {
             (Some("AUTO"), _) => Some(Value::String("normal".to_owned())),
-            (Some("PERCENT"), Some(percent)) => style
-                .get("fontSize")
-                .and_then(Value::as_f64)
-                .map(|size| Value::String(format_px((size * percent / 100.0).round()))),
+            (Some("PERCENT"), Some(percent)) => Some(Value::String(
+                match style
+                    .get("fontSize")
+                    .and_then(Value::as_f64)
+                    .filter(|_| style.pointer("/boundVariables/fontSize").is_none())
+                {
+                    Some(size) => format_px((size * percent / 100.0).round()),
+                    None => format_percent(percent),
+                },
+            )),
             (Some(_), Some(pixels)) => Some(Value::String(format_px(pixels))),
             _ => None,
         };
@@ -976,6 +982,56 @@ fn color_value(value: &Value) -> Option<String> {
             channel("b")?
         ))
     }
+}
+
+/// A percentage as CSS writes it, to two decimals: Figma stores `130%` as
+/// `129.99999523162842`.
+fn format_percent(value: f64) -> String {
+    let rounded = (value * 100.0).round() / 100.0;
+    if rounded.fract() == 0.0 {
+        format!("{rounded:.0}%")
+    } else {
+        format!("{}%", format!("{rounded:.2}").trim_end_matches('0'))
+    }
+}
+
+/// The breakpoint slot a variable mode named for one stands for: `mobile`,
+/// `tablet` and `desktop` (or `pc`) at 0, 2 and 4, as in front of a style's
+/// name, and a number at its own slot.
+fn breakpoint_slot(name: &str) -> Option<usize> {
+    let name = name.trim().to_ascii_lowercase();
+    match name.as_str() {
+        "mobile" => Some(0),
+        "tablet" => Some(2),
+        "desktop" | "pc" => Some(4),
+        _ => name.parse::<usize>().ok().filter(|slot| *slot <= 5),
+    }
+}
+
+/// The size a text style's bound font size resolves to at each breakpoint:
+/// when every mode of the variable's collection is named for a breakpoint,
+/// each resolves, no two share a slot and the sizes differ. Otherwise `None`,
+/// and the style keeps the variable's token.
+fn font_size_by_breakpoint(
+    style: &Value,
+    variables: &BTreeMap<&str, &VariableDefinition>,
+    collections: &BTreeMap<&str, &VariableCollection>,
+) -> Option<Vec<(usize, f64)>> {
+    let id = style.pointer("/boundVariables/fontSize/id")?.as_str()?;
+    let variable = variables.get(id)?;
+    let collection = collections.get(variable.variable_collection_id.as_str())?;
+    let mut sizes: Vec<(usize, f64)> = Vec::new();
+    for mode in &collection.modes {
+        let slot = breakpoint_slot(&mode.name)?;
+        let size =
+            resolve_value(variable, &mode.mode_id, variables, &mut HashSet::new())?.as_f64()?;
+        if sizes.iter().any(|(taken, _)| *taken == slot) {
+            return None;
+        }
+        sizes.push((slot, size));
+    }
+    let differ = sizes.iter().any(|(_, size)| *size != sizes[0].1);
+    (sizes.len() > 1 && differ).then_some(sizes)
 }
 
 fn format_px(value: f64) -> String {
