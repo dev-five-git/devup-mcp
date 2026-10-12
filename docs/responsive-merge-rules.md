@@ -95,10 +95,13 @@ position, transform, `w`/`h`, `textAlign`, the flex and grid props, the offsets,
 overflow, and every padding and margin. A `bg` that stops being set is left to
 inherit.
 
-*Exactly one `"initial"` is placed*, at the first drawn width after the last
-value, and the array is cut there. So a prop that is set, dropped, then set
-again at a wider width cannot be expressed — the drop is lost. Neither screen
-here does that, but a design could.
+*The reference places exactly one `"initial"`*, at the first drawn width after
+the last value, and cuts the array there. So a prop that is set, dropped, then
+set again at a wider width loses the drop. `about` does that: the glow only its
+tablet draws is `display: none` at mobile and desktop, and the reference's
+array kept mobile's `none` at the tablet, hiding it everywhere. This repo
+clears every drawn width that leaves the prop unset after a narrower one set
+it (`["none", null, "block", null, "none"]`), and is otherwise the same.
 
 **A first value that is already the default is not written.** `flexDir="row"`,
 `alignItems`/`justifyContent="flex-start"` and `gap="0"` are dropped from slot
@@ -207,6 +210,14 @@ not what reading the output suggests:
 - **Children are paired by name, not by index.** Each width's children are
   bucketed by name, and for a name held by several children they are paired by
   position *within that name*. So a node inserted at one width shifts nothing.
+  Each of those keeps its own place in the order, so the siblings drawn
+  between two `quote`s stay between them; one bucket for the name wrote both
+  quotes before the title.
+- **A node drawn as different layout elements is one element.** The first
+  width's element is kept, and what each width's element does by itself —
+  `VStack` stacks, `Center` centres, each has its `display` — is written as
+  props first, so it merges like any other: a root that stacks at mobile and is
+  a plain `Box` at desktop gets `flexDir={["column", null, null, "initial"]}`.
 - **The toggle is not a separate branch.** A child missing at some width is not
   left out; the width is given a *copy of a present sibling's tree* with
   `display: 'none'` added. The copies then go through the ordinary merge, and

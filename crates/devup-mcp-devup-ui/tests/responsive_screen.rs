@@ -645,6 +645,17 @@ const NOTICE_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
 /// - A positioned mask icon keeps its height; the plugin writes the width
 ///   alone, and a mask with no height draws nothing.
 const ABOUT_DIFFERS_ON_PURPOSE: &[(&str, &str)] = &[
+    // The glow only the tablet draws. The plugin's single `"initial"` after
+    // the last value leaves mobile's `none` in effect at the tablet, so the
+    // answer hides it at every width; here it is shown where it is drawn.
+    (
+        "display=\"none\"",
+        "plugin hides at every width the layer only the tablet draws",
+    ),
+    (
+        "display={[\"none\", null, \"block\", null, \"none\"]}",
+        "plugin hides at every width the layer only the tablet draws",
+    ),
     // An export carries the node's own opacity - Figma writes it into an
     // SVG as `<g opacity>` and into a PNG's alpha (the landing hero at 0.8
     // exports with its opaque pixels at alpha 204) - so written on the

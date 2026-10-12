@@ -181,6 +181,111 @@ fn children_the_widths_order_differently_are_not_verified() {
     );
 }
 
+/// A layer only the middle width draws is shown there. The plugin's single
+/// `"initial"` after the last value left the narrower `none` in effect, so
+/// the layer was hidden at every width.
+#[test]
+fn a_layer_only_the_middle_width_draws_is_shown_there() {
+    let mut nodes = serde_json::Map::new();
+    let mut roots = Vec::new();
+    for (index, (name, width)) in [("mobile", 390), ("tablet", 992), ("desktop", 1440)]
+        .into_iter()
+        .enumerate()
+    {
+        let root = format!("frame:{index}");
+        roots.push(root.clone());
+        let mut children = vec![format!("label:{index}")];
+        if index == 1 {
+            children.push("glow:1".to_owned());
+            nodes.insert(
+                "glow:1".into(),
+                json!({"id":"glow:1","type":"FRAME","fields":{
+                "name":"glow","parentId":root,"width":40,"height":40,
+                "layoutSizingHorizontal":"FIXED","layoutSizingVertical":"FIXED",
+                "fills":[{"type":"SOLID","visible":true,"color":{"r":0,"g":0,"b":1}}]}}),
+            );
+        }
+        nodes.insert(
+            root.clone(),
+            json!({"id":root,"type":"FRAME","fields":{
+            "name":name,"width":width,"height":400,"layoutMode":"VERTICAL",
+            "inferredAutoLayout":{"layoutMode":"VERTICAL"},
+            "layoutSizingHorizontal":"FIXED","layoutSizingVertical":"FIXED",
+            "childrenIds":children}}),
+        );
+        nodes.insert(
+            format!("label:{index}"),
+            json!({"id":format!("label:{index}"),"type":"TEXT",
+            "fields":{"name":"label","parentId":root,"characters":"one","fontSize":16,
+            "lineHeight":{"unit":"PIXELS","value":24},"width":40,"height":24,
+            "textAutoResize":"WIDTH_AND_HEIGHT"}}),
+        );
+    }
+    let snapshot: Snapshot = serde_json::from_value(json!({
+        "fileKey":"contract","version":null,"roots":roots,"nodes":nodes,"diagnostics":[]
+    }))
+    .unwrap();
+    let merged = merge_breakpoints(&snapshot, &CodegenOptions::default())
+        .unwrap()
+        .unwrap();
+    let compact = merged.tsx.split_whitespace().collect::<String>();
+    assert!(
+        compact.contains(r#"display={["none",null,"block",null,"none"]}"#),
+        "{}",
+        merged.tsx
+    );
+    assert!(merged.verified, "{:?}\n{}", merged.gaps, merged.tsx);
+}
+
+/// Siblings that share a name keep their places around the ones between
+/// them: the opening and closing quote of a title stay either side of it.
+#[test]
+fn same_name_siblings_keep_their_places_around_the_others() {
+    let merged = merged(|index, nodes| {
+        let card = format!("card:{index}");
+        let ids = [
+            format!("open:{index}"),
+            format!("label:{index}"),
+            format!("close:{index}"),
+        ];
+        nodes[&card]["fields"]["childrenIds"] = json!(ids);
+        let width = [17, 20][index];
+        for id in [&ids[0], &ids[2]] {
+            nodes.insert(
+                id.clone(),
+                json!({"id":id,"type":"FRAME","fields":{
+                "name":"quote","parentId":card,"width":width,"height":14,
+                "layoutSizingHorizontal":"FIXED","layoutSizingVertical":"FIXED",
+                "fills":[{"type":"SOLID","visible":true,"color":{"r":0,"g":0,"b":1}}]}}),
+            );
+        }
+    });
+    let quote = merged.tsx.find("h=\"14px\"").unwrap();
+    let title = merged.tsx.find("one two").unwrap();
+    let last = merged.tsx.rfind("h=\"14px\"").unwrap();
+    assert!(quote < title && title < last, "{}", merged.tsx);
+    assert!(merged.verified, "{:?}\n{}", merged.gaps, merged.tsx);
+}
+
+/// A frame that stacks at mobile and lines up at desktop is one element in
+/// the module, so the stacking it did by being a `VStack` is written out.
+#[test]
+fn a_frame_laid_out_differently_by_width_keeps_each_direction() {
+    let merged = merged(|index, nodes| {
+        if index == 1 {
+            nodes["frame:1"]["fields"]["layoutMode"] = json!("HORIZONTAL");
+            nodes["frame:1"]["fields"]["inferredAutoLayout"] = json!({"layoutMode":"HORIZONTAL"});
+        }
+    });
+    let compact = merged.tsx.split_whitespace().collect::<String>();
+    assert!(
+        compact.contains(r#"flexDir={["column",null,null,null,"initial"]}"#),
+        "{}",
+        merged.tsx
+    );
+    assert!(merged.verified, "{:?}\n{}", merged.gaps, merged.tsx);
+}
+
 /// A layer hidden at every width is drawn at none, so the module leaves it
 /// out as each width's own `tsx` does, asset reference and all.
 #[test]
