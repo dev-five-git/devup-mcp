@@ -852,7 +852,11 @@ fn asset_summary(
             None if artifact.capabilities.asset_capture_count == 0 => "not-requested",
             None => "capture-not-in-artifact",
         };
-        json!({"assetId":asset.asset_id,"nodeId":asset.node_id,"reason":reason,"errorCode":asset.error_code})
+        let mut entry = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,"reason":reason,"errorCode":asset.error_code});
+        if let Some(detail) = &asset.error_detail {
+            entry["errorDetail"] = json!(detail);
+        }
+        entry
     }).collect::<Vec<_>>();
     let excluded = assets
         .iter()
@@ -939,10 +943,109 @@ pub(super) fn artifact_metadata(artifact: &ArtifactLookup) -> Value {
         "avoidedFigmaToolCalls": if artifact.cache_hit { origin_collection.figma_tool_calls } else { 0 },
         "originCollection": origin_collection,
         "capabilities": artifact.capabilities,
+        "reuse": reuse_summary(&artifact.capabilities),
         "sizeBytes": artifact.size_bytes,
         "acquiredAt": format_epoch_rfc3339(artifact.created_at_epoch_seconds),
         "expiresAt": format_epoch_rfc3339(artifact.expires_at_epoch_seconds)
     })
+}
+
+/// Which widths the generated code is checked at, and how: the mapping and the
+/// width-change report are static, and nothing here was rendered. Said apart
+/// so an exact grade at the drawn width is not read as a claim about others.
+fn attach_verification_scope(value: &mut Value, responsive_widths: &[f64]) {
+    let mut widths = value["widthBehavior"]["designWidth"]
+        .as_f64()
+        .into_iter()
+        .chain(
+            value["frames"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|frame| frame["widthBehavior"]["designWidth"].as_f64()),
+        )
+        .chain(responsive_widths.iter().copied())
+        .collect::<Vec<_>>();
+    widths.sort_by(f64::total_cmp);
+    widths.dedup();
+    if widths.is_empty() {
+        return;
+    }
+    let mut scope = json!({
+        "collectedWidths": widths,
+        "staticallyChecked": {
+            "mapping": "Each generated property against its source field, at the collected widths (quality.projection).",
+            "widthChange": "Anchors and sizing intent when a container is not its drawn width (widthBehavior); read from constraints and geometry, not rendered.",
+        },
+        "rendered": {
+            "state": "not-performed",
+            "note": "Nothing was rendered. devup_visual_compare compares a consumer-rendered PNG at a drawn width; devup_runtime_audit plans and ingests a consumer-side browser run at any widths.",
+        },
+    });
+    if !responsive_widths.is_empty() {
+        scope["betweenCollectedWidths"] = json!(
+            "responsiveTsx switches values at breakpoints; widths between and beyond the collected ones were never drawn."
+        );
+    }
+    value["verificationScope"] = scope;
+}
+
+/// Which further outputs this artifactId can project without calling Figma,
+/// and which need the original url again. Each output keeps its own
+/// preconditions (responsiveTsx still needs several widths); this only says
+/// whether the capture holds what it reads.
+fn reuse_summary(capabilities: &super::artifacts::ArtifactCapabilities) -> Value {
+    use super::artifacts::ArtifactKind;
+    use devup_mcp_figma::ResourceScope;
+    let mut with_artifact = Vec::new();
+    let mut needs_url = Vec::new();
+    match capabilities.kind {
+        ArtifactKind::Design => {
+            with_artifact.extend([
+                "tsx",
+                "componentTsx",
+                "responsiveTsx",
+                "sourceMap",
+                "assetManifest",
+                "designFingerprints",
+                "designChanges",
+                "pageScaffold",
+                "rawSnapshot",
+                "rawPayload",
+            ]);
+            if capabilities.resource_scope == ResourceScope::None {
+                needs_url.push("devupJson");
+            } else {
+                with_artifact.push("devupJson");
+            }
+            if capabilities.resource_scope != ResourceScope::File {
+                needs_url.push("devupJson:scope=file");
+            }
+            if capabilities.reference_png {
+                with_artifact.push("referencePng");
+            } else {
+                needs_url.push("referencePng");
+            }
+            needs_url.push("assetRequests-not-yet-captured");
+        }
+        ArtifactKind::ThemeOnly => {
+            with_artifact.push("devupJson");
+            needs_url.push("design-outputs");
+        }
+        ArtifactKind::SectionIndex => {}
+        ArtifactKind::Search | ArtifactKind::Explore => needs_url.push("export-outputs"),
+    }
+    let mut reuse = json!({
+        "withArtifactId": with_artifact,
+        "needsUrl": needs_url,
+        "processBound": "Held in this devup-mcp process's memory until expiresAt; a restarted or different process cannot serve this artifactId.",
+    });
+    if capabilities.kind == ArtifactKind::SectionIndex {
+        reuse["selection"] = json!(
+            "frameIds or allScreens with this artifactId collects the selected screens; nothing is projected from the index itself."
+        );
+    }
+    reuse
 }
 
 /// Adds `completenessReport` only when it has something to say.
@@ -1097,6 +1200,28 @@ pub(super) async fn complete_operation(
 /// attached. So the agent could not tell which path had served it, and was
 /// told its own invention was the file.
 fn attach_bridge_source(source: &mut Value, payload: &CollectedPayload) {
+    let fallbacks = &payload.stats.direct_fallbacks;
+    if !fallbacks.is_empty() {
+        let reasons: std::collections::BTreeSet<&str> =
+            fallbacks.iter().map(String::as_str).collect();
+        let hints: Vec<&str> = reasons
+            .iter()
+            .filter_map(|reason| match *reason {
+                "file-out-of-sight" => Some(
+                    "Figma had stopped fetching data for the file because it was out of sight - its tab behind another tab, or the window minimized or covered by another window - so the plugin's reads came back short and were read again on the metered direct path. Keep the file visible in the Figma desktop app to keep every read on the plugin.",
+                ),
+                "plugin-older-than-server" => Some(
+                    "The Devup Bridge plugin is older than this devup-mcp and did not know some reads, so they went to the metered direct path. Update the repository the plugin was imported from and run the plugin again.",
+                ),
+                _ => None,
+            })
+            .collect();
+        source["directFallbacks"] = json!(fallbacks.len());
+        source["directFallbackReasons"] = json!(reasons);
+        if !hints.is_empty() {
+            source["directFallbackHint"] = json!(hints.join(" "));
+        }
+    }
     let Some(served) = &payload.stats.bridge else {
         return;
     };
@@ -1249,9 +1374,14 @@ async fn project_operation(
             mut asset_public_root,
             fields,
             delivery,
+            width_policy,
         } => {
             let selected_fields = super::field_select::expand(&fields);
             page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
+            super::validation::validate_width_policy_nodes(
+                width_policy.as_ref(),
+                &payload.snapshot,
+            )?;
             let previous_fingerprints = super::design_drift::validate_request(
                 &outputs,
                 previous_design_fingerprints.as_deref(),
@@ -1303,6 +1433,10 @@ async fn project_operation(
             if let Some(root) = &asset_public_root {
                 recovery_arguments["assetPublicRoot"] = json!(root);
             }
+            if let Some(policy) = &width_policy {
+                recovery_arguments["widthPolicy"] =
+                    json!({"root": "fluid", "anchors": policy.anchors});
+            }
             let mut result = Map::new();
             // Not restated by quality: this grades how far token resolution
             // reached - whether external library variables were covered - where
@@ -1321,9 +1455,15 @@ async fn project_operation(
                 .iter()
                 .filter(|asset| asset.status == AssetStatus::Failed)
             {
-                let failure = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,
+                let mut failure = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,
                     "errorCode":asset.error_code,"message":"Asset export failed. Re-collect this asset from its URL.",
                     "retryable":true});
+                if let Some(detail) = &asset.error_detail {
+                    failure["errorDetail"] = json!(detail);
+                    if let Some(hint) = devup_mcp_figma::figma_unreachable_hint(detail) {
+                        failure["hint"] = json!(hint);
+                    }
+                }
                 if asset.error_code.as_deref() == Some("DEVUP_ASSET_NODE_HIDDEN") {
                     warnings.push(failure);
                 } else {
@@ -1710,6 +1850,7 @@ async fn project_operation(
                                 inline_instances: field == "tsx",
                                 root_layout,
                                 asset_names_per_node,
+                                width_policy: width_policy.clone(),
                                 ..CodegenOptions::default()
                             }
                             .with_payload_tokens(payload),
@@ -1728,6 +1869,14 @@ async fn project_operation(
                         };
                         scope_output(&mut output, field);
                         frame["outputResults"][field] = output_result(&output);
+                        if frame.get("widthBehavior").is_none() {
+                            frame["widthBehavior"] =
+                                devup_mcp_devup_ui::codegen::width::width_behavior(
+                                    &payload.snapshot,
+                                    &candidate.node.node_id,
+                                    &output,
+                                );
+                        }
                         frame_diagnostics.extend(output.diagnostics.iter().cloned());
                         fidelity_reports.push(output.fidelity_report.clone());
                         frame[field] = json!(output.tsx);
@@ -1849,6 +1998,7 @@ async fn project_operation(
             if let Some(roots) = selected_projection_roots {
                 responsive_snapshot.to_mut().roots = roots;
             }
+            let mut responsive_widths = Vec::new();
             let component_name_for_components = component_name.clone();
             // A screen captured with its other widths is convertible as one
             // tree. It is offered whenever those widths are present rather than
@@ -1949,6 +2099,17 @@ async fn project_operation(
                 }
                 result.insert("responsiveTsx".to_owned(), json!(module));
                 result.insert("responsiveSlots".to_owned(), json!(merged.slots));
+                responsive_widths = responsive_snapshot
+                    .roots
+                    .iter()
+                    .filter_map(|id| {
+                        responsive_snapshot
+                            .nodes
+                            .get(id)?
+                            .typed_view()
+                            .number("width")
+                    })
+                    .collect();
                 let responsive_issues: Vec<_> = projection_diagnostics
                     .iter()
                     .filter(|d| {
@@ -1967,8 +2128,15 @@ async fn project_operation(
                     "state":"produced","projection":responsive_quality,
                     "fidelity":{"scope":"breakpoint-source-projections","sourceOutput":"tsx","breakpoints":breakpoint_fidelity,
                         "syntaxValid":devup_mcp_devup_ui::validation::validate_tsx(&module).is_ok(),
-                        "mergedMappingVerified":false,"unrepresentedCount":merged.unrepresented.len(),
-                        "note":"Breakpoint reports describe their source projections; they do not certify the merged responsive module. Review responsiveUnrepresented and projectionIssues."}});
+                        "mergedMappingVerified":merged.verified,"unrepresentedCount":merged.unrepresented.len(),
+                        "mergeGapCount":merged.gaps.len(),
+                        "mergeGaps":merged.gaps.iter().take(20).collect::<Vec<_>>(),
+                        "note":if merged.verified {
+                            "Read at each collected width's slot, the merged module writes that width's own verified tsx: the same elements, values and text. This reads the code; it is not a rendering."
+                        } else {
+                            "Read at each collected width's slot, the merged module does not write that width's own verified tsx everywhere; mergeGaps names where. Review responsiveUnrepresented and projectionIssues."
+                        }},
+                    "_propertyContract":merged.contract});
 
                 if !merged.unrepresented.is_empty() {
                     for note in &merged.unrepresented {
@@ -2027,6 +2195,7 @@ async fn project_operation(
                         inline_instances: true,
                         root_layout,
                         asset_names_per_node,
+                        width_policy: width_policy.clone(),
                         ..CodegenOptions::default()
                     }
                     .with_payload_tokens(payload),
@@ -2034,6 +2203,14 @@ async fn project_operation(
                 scope_output(&mut output, "tsx");
                 result.entry("outputResults").or_insert_with(|| json!({}))["tsx"] =
                     output_result(&output);
+                result.insert(
+                    "widthBehavior".to_owned(),
+                    devup_mcp_devup_ui::codegen::width::width_behavior(
+                        &payload.snapshot,
+                        node_id,
+                        &output,
+                    ),
+                );
                 projection_diagnostics.extend(output.diagnostics.iter().cloned());
                 fidelity_reports.push(output.fidelity_report.clone());
                 generated_output_target = "tsx";
@@ -2073,6 +2250,7 @@ async fn project_operation(
                         inline_instances: false,
                         root_layout,
                         asset_names_per_node,
+                        width_policy: width_policy.clone(),
                         ..CodegenOptions::default()
                     }
                     .with_payload_tokens(payload),
@@ -2241,7 +2419,14 @@ async fn project_operation(
                 if output_paths.contains_key("referencePng") {
                     pending_binary_outputs.insert("referencePng".to_owned(), bytes);
                 }
-                result.insert("referencePng".to_owned(), json!(reference));
+                let mut inline = json!(reference);
+                if let Some(note) = inline
+                    .as_object_mut()
+                    .and_then(|inline| inline.remove("note"))
+                {
+                    result.insert("referencePngNote".to_owned(), note);
+                }
+                result.insert("referencePng".to_owned(), inline);
             }
 
             let reconcile_captured_assets = payload
@@ -2696,6 +2881,7 @@ async fn project_operation(
             rewrite_result_asset_references(&mut value, &replacements);
             audit_delivered_properties(&mut value);
             super::verdict_scope::attach(&mut value);
+            attach_verification_scope(&mut value, &responsive_widths);
             if strict && value["mappingComplete"] == false {
                 return Err(DevupError::with_details(
                     ErrorCode::DevupSnapshotUnsupported,
@@ -3004,11 +3190,12 @@ fn audit_delivered_properties(value: &mut Value) {
                 "message":"Source layout obligations lack verified emitted mappings, even if every generated attribute has provenance."}));
         }
         if field == "responsiveTsx"
-            && value["outputResults"][field]["fidelity"]["mergedMappingVerified"] == false
+            && value["outputResults"][field]["fidelity"]["mergedMappingVerified"] != true
         {
             missing.push(json!({"reason":"unverified-responsive-merge",
                 "propertyMappingVerified":false,
-                "message":"The responsive merge has no verified final provenance contract, including for an attribute-free module."}));
+                "gaps":value["outputResults"][field]["fidelity"]["mergeGaps"],
+                "message":"Read at some width's slot, the merged module does not write that width's own verified tsx; gaps names where."}));
         }
         value["outputResults"][field]["mappingComplete"] = json!(missing.is_empty());
         if missing.is_empty() {
@@ -3419,23 +3606,22 @@ mod w1_regressions {
     }
 
     #[tokio::test]
-    async fn r13_empty_responsive_still_reports_unverified_merge_stage() {
+    async fn r13_agreeing_widths_verify_the_responsive_merge() {
         let mut op = operation(&["responsiveTsx"]);
         if let PendingOperation::Export { all_screens, .. } = &mut op {
             *all_screens = true;
         }
         let result = project(responsive_payload(), op).await.unwrap();
-        assert_eq!(result["mappingComplete"], false);
+        let responsive = &result["outputResults"]["responsiveTsx"];
+        assert_eq!(responsive["mappingComplete"], true, "{result}");
+        assert_eq!(responsive["fidelity"]["mergedMappingVerified"], true);
         assert!(
-            result["projectionIssues"]
+            !result["projectionIssues"]
                 .as_array()
-                .unwrap()
-                .iter()
-                .any(|d| d["details"]["unmappedProperties"]
-                    .as_array()
-                    .is_some_and(|props| props
-                        .iter()
-                        .any(|p| p["reason"] == "unverified-responsive-merge")))
+                .into_iter()
+                .flatten()
+                .any(|d| d["details"]["output"] == "responsiveTsx"
+                    && d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED")
         );
     }
 
@@ -3445,16 +3631,38 @@ mod w1_regressions {
         if let PendingOperation::Export { all_screens, .. } = &mut op {
             *all_screens = true;
         }
+        // Only the mobile width is filled. devup-ui keeps a value into the
+        // wider slots, so the desktop width is drawn red where it is not.
         let mut data = responsive_payload();
-        for node in data.snapshot.nodes.values_mut() {
-            node.fields.insert(
-                "fills".into(),
-                json!([{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]),
-            );
-        }
+        data.snapshot.nodes.get_mut("1:1").unwrap().fields.insert(
+            "fills".into(),
+            json!([{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]),
+        );
         let result = project(data.clone(), op.clone()).await.unwrap();
         assert!(result["responsiveTsx"].is_string());
         assert_eq!(result["mappingComplete"], false);
+        let merge = result["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|d| {
+                d["details"]["unmappedProperties"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+            })
+            .find(|p| p["reason"] == "unverified-responsive-merge")
+            .unwrap();
+        assert!(
+            merge["gaps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|gap| gap["property"] == "bg"
+                    && gap["slot"] == 4
+                    && gap["widthNodeId"] == "1:2"),
+            "{merge}"
+        );
         assert_ne!(
             result["outputResults"]["responsiveTsx"]["projection"],
             "exact"
@@ -3756,7 +3964,7 @@ mod w1_regressions {
         let fidelity = &result["outputResults"]["responsiveTsx"]["fidelity"];
         assert_eq!(fidelity["scope"], "breakpoint-source-projections");
         assert_eq!(fidelity["breakpoints"].as_array().unwrap().len(), 2);
-        assert_eq!(fidelity["mergedMappingVerified"], false);
+        assert_eq!(fidelity["mergedMappingVerified"], true);
     }
 
     #[tokio::test]
@@ -5161,6 +5369,7 @@ mod w1_regressions {
             asset_public_root: None,
             fields: vec![],
             delivery: DeliveryMode::Inline,
+            width_policy: None,
         }
     }
 

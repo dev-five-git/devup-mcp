@@ -118,4 +118,38 @@ fn completeness_report_combines_graph_and_unresolved_resource_state() {
     assert_eq!(report.snapshot.state, CompletenessState::Partial);
     assert_eq!(report.resources.state, CompletenessState::Partial);
     assert_eq!(report.resources.unresolved_count, 1);
+    assert!(report.resources.lookup_error.is_none());
+    assert!(report.resources.hint.is_none());
+}
+
+/// Tokens lost because Figma stopped answering say so, and what clears it,
+/// instead of reading like resources that do not exist.
+#[test]
+fn completeness_report_names_what_the_lookups_threw() {
+    let thrown = "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.";
+    let mut parts = synthetic_parts();
+    parts.variables = Some(UpstreamResult {
+        raw: json!({
+            "variables": [],
+            "styles": [],
+            "unresolved": [
+                { "id": "VariableID:1:404", "kind": "variable", "reason": "notFoundOrUnavailable", "error": thrown },
+                { "id": "S:abc,", "kind": "style", "reason": "notFoundOrUnavailable", "error": thrown }
+            ]
+        }),
+    });
+    let report = CollectedPayload::try_from(parts)
+        .unwrap()
+        .completeness_report();
+
+    assert_eq!(report.resources.unresolved_count, 2);
+    assert_eq!(report.resources.lookup_error.as_deref(), Some(thrown));
+    assert!(
+        report
+            .resources
+            .hint
+            .as_deref()
+            .is_some_and(|hint| hint.contains("click the file's tab")),
+        "{report:?}"
+    );
 }

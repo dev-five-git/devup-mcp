@@ -6,7 +6,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
+Figma 쪽 4개, 프로젝트 쪽 6개, 스킬 1개, 모두 11개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
@@ -18,6 +18,7 @@ Figma 쪽 4개, 프로젝트 쪽 5개, 스킬 1개, 모두 10개입니다.
 - `devup_stack_diff`: DB 모델부터 생성된 API 클라이언트까지의 층간 드리프트 탐지. 모든 발견은 명시적 `confidence`를 가짐
 - `devup_visual_compare`: 소비자가 만든 `actual.png`를 reference PNG 하나와 비교. **스스로 렌더하지 않고 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 경로는 allowlist 안이어야 합니다. 기본 threshold는 0.005(0.5%). renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면 `visual.passed`가 true여도 판정은 `inconclusive`입니다
 - `devup_feature_trace`: 명시적 anchor(`routePath`, `figmaNodeId`/`artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`)에서 출발해 화면→API→라우트→모델→컬럼 슬라이스와 acceptance matrix를 읽어냄. **요구사항 산문만 주면 거절합니다.** 각 hop은 근거가 있거나 `UNVERIFIED`로 표시되고, 생성 산출물 소유권·UI 재사용 순위·잘림 상한을 함께 보고합니다
+- `devup_runtime_audit`: 생성한 화면을 여러 viewport 폭에서 재 볼 **브라우저 실행 계획**을 검증해 쓰고(`plan`), 소비자 프로젝트의 실행기(`harness/runtime-audit`)가 쓴 보고서를 그 계획에 묶어 검증합니다(`ingest`). **서버는 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 계획은 선언형 데이터뿐이고, 계획 id와 파일 해시에 묶이지 않은 보고서는 거절하며 모든 개수를 항목에서 다시 셉니다
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
 
@@ -35,7 +36,8 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 | `componentTsx` | `componentTsx` |
 | `responsiveTsx` | `responsiveTsx`, `responsiveSlots`, (표현 불가한 값이 있으면) `responsiveUnrepresented` |
 | `devupJson` | `devupJson`, `themeCounts`, `themeCompleteness`, `conflicts`, `unresolvedVariables` |
-| `sourceMap` / `assetManifest` / `referencePng` | 같은 이름의 키 |
+| `sourceMap` / `assetManifest` | 같은 이름의 키 |
+| `referencePng` | `referencePng`, (플러그인이 `get_screenshot`과 같은 그림을 다 그리지 못해 캔버스의 그 자리를 그렸으면) `referencePngNote` |
 | `rawSnapshot` / `rawPayload` | 같은 이름의 키 — **`debug: true` 필요** |
 
 그 밖에 항상 붙는 것은 `status`, `quality`, `completeness`, `cache`, `collection`, `source`, `targetKind`, `failures`, `assetSummary`, `outputPaths`뿐입니다.
@@ -49,6 +51,8 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 | `warnings` | 숨김 노드처럼 실패가 아닌 자산 문제가 있을 때 |
 | `frames` | Section에서 여러 화면을 한 번에 export했을 때 |
 | `selection` / `nextAction` | `status`가 `selection_required`일 때 |
+| `widthBehavior` | `tsx`(Section 배치에서는 `componentTsx`도)를 만들었을 때. 단일 화면은 최상위, Section 배치는 `frames[]` 각 항목 ([그린 폭이 아닌 폭](#그린-폭이-아닌-폭--widthbehavior와-widthpolicy)) |
+| `verificationScope` | 생성 TSX의 폭(`widthBehavior.designWidth`, 반응형이면 수집한 폭들)을 알 때 |
 
 `fidelity`와 `completenessReport`를 기본에서 뺀 이유는 깨끗한 결과에서 `quality`가 이미 한 말을 되풀이할 뿐이기 때문이고, 그만큼(측정값 797 B) 매 응답이 가벼워집니다.
 
@@ -60,8 +64,11 @@ devup-mcp는 Figma Plugin API의 readable data property를 raw JSON으로 보존
 - `discovery`: `complete` | `incomplete`, `discoveryReason`: `index-only` | `snapshot-incomplete`
 - `discoveredCount` / `collectedCount` / `manifestIncluded`
 - `unavailable[]`: 항목마다 `assetId`, `nodeId`, `errorCode`와 **`reason`** — `hidden-node`(숨김 노드) · `export-failed`(export 실패) · `not-requested`(애초에 요청하지 않음) · `capture-not-in-artifact`(요청했지만 이 artifact엔 그 format/scale이 없음)
+- `export-failed`에는 **`errorDetail`** 이 붙습니다 — 실패한 단계, 걸린 시간, Figma나 전송이 한 말 그대로(최대 500자). 예전에는 플러그인 스크립트가 예외를 버려서 코드만 남았고, 인스턴스 안쪽 레이어 여섯 개가 각각 11초씩 걸려 실패한 이유를 아무도 알 수 없었습니다. `failures[]`의 같은 항목에도 `errorDetail`이 실리고, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못한 경우면 `hint`가 할 일을 말합니다
 
 숨김 노드 실패는 `failures[]`가 아니라 `warnings[]`로 갑니다. 구현을 막는 실패가 아니기 때문입니다.
+
+그 여섯 개의 원인은 Figma 데스크톱 앱의 탭이었습니다. 플러그인이 도는 파일의 탭이 다른 파일의 탭 뒤에 놓여 있는 동안, Figma 런타임은 아직 불러오지 않은 데이터가 필요한 읽기 — 인스턴스 안쪽 레이어의 export, 다른 페이지의 메인 컴포넌트, id로 찾는 변수와 스타일 — 마다 10초를 기다린 뒤 "Unable to establish connection to Figma after 10 seconds"로 답했습니다. 그 탭을 누르자 같은 읽기가 곧바로 답했습니다 — 그 문구로 10.4 s 만에 실패하던 검색이 0.2 s에 답했고, 공지 화면이 쓰는 변수·스타일이 0/14·0/23에서 14·23으로 돌아왔습니다. 분 단위로 다시 재 보니 탭이 뒤로 간 지 1분째는 답하고 2분째부터 같은 문구로 실패했고, 탭을 앞에 둔 채 창만 최소화해도 3분째부터 같았습니다 — 그 파일이 화면에 보이지 않는 것이 원인입니다(아래 "그 파일을 화면에 띄워 두세요"). 처음에는 몇 시간 열어 둔 플러그인 창을 원인으로 보았습니다. 플러그인은 그 파일의 탭에서만 실행되므로, 다시 실행하는 처방이 통한 것도 파일이 앞으로 왔기 때문으로 보입니다. 이 문구가 오면 `hint`(자산)와 `nextAction.how`(읽기)가 창을 열고 그 파일의 탭을 누르라고 말하고, 해석하지 못한 변수·스타일이 있으면 `completenessReport.resources`에 Figma가 한 말(`lookupError`)과 같은 `hint`가 실립니다.
 
 `rawSnapshot`과 `rawPayload`는 수집한 디자인을 raw로 담은 것이라 `debug: true` 없이는 거절됩니다. 화면을 구현하는 데는 필요 없습니다 — 실제 캡처 10개 화면에서 tsx가 node·text·typography·asset·layout 기대치를 100% 담고 있습니다. 쓰는 자리는 하나입니다: **화면이 이상해 보일 때 생성기 탓인지 디자인이 원래 그런지 판정하는 것.** 그때는 디자인을 코드 옆에 놓고 읽어야 하고, 그게 이 플래그입니다.
 
@@ -147,7 +154,7 @@ stdio pipe를 보유한 상태이므로 host의 MCP 연결을 재시작하거나
 
 ```bash
 cargo fmt --all -- --check
-node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs
+node --test crates/devup-mcp-figma/tests/explore_script_behavior.mjs plugin/tests/withdraw.test.mjs harness/runtime-audit/test/checks.test.mjs
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo test -p devup-mcp --test stdio_smoke
@@ -170,7 +177,7 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 }
 ```
 
-시스템 브라우저는 `devup_figma_auth`의 `login`을 명시적으로 호출할 때만 열립니다. 변환 도구는 자격증명이 없으면 브라우저를 열지 않고 로그인이 필요하다는 오류를 반환합니다. 인증 정보는 운영체제 credential store에만 저장되며 `logout`은 해당 정보만 삭제합니다.
+시스템 브라우저는 `devup_figma_auth`의 `login`을 명시적으로 호출할 때만 열립니다. 변환 도구는 자격증명이 없으면 브라우저를 열지 않고 로그인이 필요하다는 오류를 반환합니다. 인증 정보는 운영체제 credential store에만 저장되며 `logout`은 해당 정보만 삭제합니다. `DEVUP_FIGMA_CREDENTIAL_STORE=memory`로 시작하면 운영체제 저장소를 건드리지 않고 비어 있는 메모리 저장소로 시작합니다 — 저장된 로그인을 지우지 않고 로그인 없는 동작을 확인할 때 씁니다.
 
 ### 연결 상태와 인증
 
@@ -224,10 +231,10 @@ stdio MCP를 지원하는 클라이언트에 다음과 같이 등록합니다.
 
 - `connected`/`activePath` — 지금 읽기가 실제로 어느 경로로 가는지. 플러그인이 붙어 있으면 `bridge`, 아니면 토큰이 있을 때 `direct`, 둘 다 없으면 `null`입니다.
 - **최상위 `status`가 `disconnected`인 것은 두 경로가 모두 막혔을 때뿐입니다.** 예전에는 direct(OAuth) 하나만 보고 `disconnected`라고 답해서, 플러그인이 붙어 있는데도 에이전트가 사용자에게 로그인을 요청했습니다. `status` 키는 그대로라 그 값만 읽는 호출자도 깨지지 않습니다.
-- `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(Dev Mode 등)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다.
+- `paths.bridge.attachedFiles` — 붙어 있는 플러그인마다 파일 이름, 보고 있는 페이지, 선택한 노드(앞 20개)와 전체 수. 파일 키를 보고하지 못한 플러그인(예: manifest에 `enablePrivatePluginApi`가 없던 예전 빌드)은 `fileKey: null`이며, 페이지·선택을 보고하기 전에 빌드된 플러그인은 `selection: null`입니다. `inView`는 Figma가 그 파일을 지금 화면에 보여 주는지이고, `false`면 `inViewNote`가 할 일을 말합니다(아래 "그 파일을 화면에 띄워 두세요").
 - `nextAction` — 지금 상태에서 할 다음 호출. 플러그인 하나면 url 없는 `devup_figma_export`, direct만 열려 있으면 frame 링크가 필요한 export, 둘 다 막혔으면 `options`에 플러그인 실행(권장)과 로그인을 차례로 담습니다.
 
-`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning: "A bridge is attached; login is only needed for file-scope metadata or referencePng."`이 붙습니다.
+`login`은 **막지 않고 경고합니다.** 플러그인이 붙어 있을 때 부르면 로그인은 그대로 진행하고, 응답에 `warning`이 붙습니다 — 브리지가 모든 읽기를 맡으며, 로그인은 플러그인이 다 답하지 못한 읽기(파일이 화면에 보이지 않는 동안 Figma가 내주지 않은 데이터, `get_screenshot`처럼 그리지 못한 참조 PNG, 오래된 플러그인이 모르는 읽기)를 한도를 쓰는 direct 경로로 다시 읽게 할 뿐이라는 내용입니다.
 
 ```json
 { "action": "doctor" }
@@ -389,11 +396,24 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 
 **브리지를 먼저 쓰십시오.** direct는 Figma가 사용량을 세는 경로이고, 화면 하나가 여러 번의 읽기를 쓰므로 한도가 금방 바닥납니다. 그래서 direct로 가는 읽기는 한도에 맞춘 속도(`DEVUP_FIGMA_CALLS_PER_MINUTE`, 기본 분당 8회)로 늦춰 보내지만, 브리지로 가는 읽기는 늦추지 않습니다. 예전에는 브리지 읽기까지 같은 속도로 묶여, 같은 서버의 두 번째 export가 쓰지도 않는 한도를 1분 가까이 기다렸습니다.
 
-**플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 브리지가 못 하는 읽기가 있으면 **그 읽기가** 자기 이유로 거절하므로, 무엇이 왜 막혔는지가 그대로 드러납니다.
+**플러그인이 이 파일을 맡고 있으면 로그인을 요구하지 않습니다.** 예전에는 수집을 시작하기 전에 토큰부터 확인해서, 한도를 아끼려고 플러그인을 띄운 사람에게 "먼저 한도 쓰는 경로를 여세요"라고 거절했습니다. 지금은 브리지를 먼저 보고, 이 파일을 맡은 플러그인이 없을 때만 로그인을 요구합니다. 수집 도중 플러그인이 다 답하지 못한 읽기는 로그인이 되어 있으면 direct 경로가 다시 읽고, 아니면 플러그인의 답이 그 이유와 함께 그대로 옵니다(아래).
 
 지금 어느 경로가 살아 있는지는 `devup_figma_auth { action: "status" }`의 `activePath`와 `paths.bridge`/`paths.direct`로 확인하세요. **연결 순서는 bridge → direct입니다** — 로그인을 요청하기 전에 이것부터 부르세요.
 
-현재 브리지가 **못** 하는 읽기는 둘입니다 — `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록이라 계약이 다릅니다)와 `referencePng`의 `get_screenshot`. 그 밖의 tsx export 경로는 전부 브리지로 갑니다.
+**브리지는 수집이 하는 모든 읽기를 맡습니다.** `scope: "file"`의 노드 없는 metadata 읽기(최상위 페이지 목록)도 플러그인의 페이지 목록을 공식 `get_metadata`와 같은 글로 옮겨 답하므로, 수집기는 두 경로의 답을 같은 파서로 받습니다. direct 경로는 **플러그인이 다 답하지 못한 읽기만** 다시 읽습니다 — 로그인이 되어 있을 때만, 한도의 속도에 맞춰서입니다. 다시 읽은 이유는 응답의 `source.directFallbackReasons`에 실립니다. 두 경로는 같은 문서를 읽습니다. Figma의 MCP는 인스턴스 안의 숨긴 레이어를 `children`·`findAll`·`getNodeByIdAsync`에서 빼고 페이지를 불러 두지 않은 채 스크립트를 돌리는데, 플러그인은 둘 다 봅니다. 그래서 노드를 읽는 스크립트는 `figma.skipInvisibleInstanceChildren = false`로 시작하고, 파일 전체 테마는 모든 페이지를 불러온 뒤 훑습니다.
+
+| 이유 | 플러그인이 답한 것 | 로그인이 없으면 |
+|---|---|---|
+| `file-out-of-sight` | 파일이 화면에 보이지 않아 Figma가 불러오지 않은 데이터를 내주지 않음("Unable to establish connection to Figma", 아래 "그 파일을 화면에 띄워 두세요") | 플러그인의 답과 할 일(`hint`·`nextAction.how`) |
+| `reference-png-approximate` | `get_screenshot`과 같은 그림을 다 그리지 못한 참조 PNG(아래 "`referencePng`도 플러그인이 그립니다") | 캔버스가 보여 주는 그림과 `referencePngNote` |
+| `plugin-older-than-server` | 이 devup-mcp보다 먼저 빌드된 플러그인이 모르는 읽기 | 플러그인의 답과 할 일(플러그인 갱신) |
+| `plugin-answer-too-large` | 조각으로 내주기 전 플러그인이 답 하나에 담지 못한 참조 PNG | 플러그인의 답 |
+| `value-from-direct-path` | direct가 읽은 큰 값의 이어 읽기 — 그 바이트는 direct의 렌더러에서만 나옴 | 생기지 않음 |
+
+다시 읽는 일 — 로그인 확인, 한도 자리를 기다리는 것, direct의 답까지 — 은 40초 안에, 그리고 플러그인의 읽기와 합쳐 export 작업이 읽기 하나에 주는 90초보다 5초 먼저 끝나야 합니다. 플러그인의 읽기가 오래 걸렸으면 그만큼 덜 기다리고, 남은 시간이 없으면 다시 읽지 않습니다.
+- **플러그인의 답을 그대로 쓰는 경우:** 그 시간을 넘기거나, direct의 답이 오류이거나, 한도에 걸렸다는 문장 하나이거나(`isError` 없이 오기도 합니다), 공식 MCP의 텍스트 상한(20 KB)에서 잘렸을 때입니다. 쓸 수 있는 답을 버리고 실패를 올리지는 않습니다.
+- **한도가 찬 것으로 알리는 경우:** 플러그인이 아예 답하지 못한 읽기(오래된 플러그인 등)가 시간 안에 자리를 얻지 못하면, 한도가 찬 것으로 알려(`DEVUP_FIGMA_RATE_LIMITED`, 다시 해 볼 수 있음) 수집이 한도가 비기를 기다렸다 다시 합니다.
+- **`file-out-of-sight`로 보는 경우:** "Unable to establish connection to Figma"가 플러그인 답의 오류 자리에 있을 때만입니다 — 값을 읽지 못한 `$error`, `fieldErrors`, 미해석 리소스의 `error`, 자산의 `errorDetail`, 또는 실패로 끝난 답입니다. 디자인의 글이나 이름에 같은 문장이 있어도 다시 읽지 않습니다.
 
 ### 링크 없이 쓰기 — 플러그인이 연 파일과 Figma 선택
 
@@ -431,7 +451,8 @@ devup-mcp가 Figma에 붙는 경로는 **둘**이고, 대등하지 않습니다.
 ```
 
 - `fileKey`는 **플러그인이 보고한 키**뿐입니다. 보고하지 못했으면 `null`과 `fileKeyReason`이 오고, 요청에 실려 온 키가 있었다면 `requestedFileKey`로 따로 보고합니다 — 그 키를 파일의 키로 내세우지 않습니다. `sourceMap.source.fileKey`도 같은 규칙을 따릅니다.
-- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지(예: `referencePng`)는 direct 경로가 답했습니다.
+- `bridgeReads`는 이 수집에서 플러그인이 답한 읽기 수입니다. `collection.figmaToolCalls`보다 작으면 나머지는 direct 경로가 답했습니다.
+- `directFallbacks`·`directFallbackReasons`·`directFallbackHint`는 플러그인이 답했지만 direct 경로가 다시 읽어 **그 답을 쓴** 읽기의 수, 그 이유(위 표), 그리고 사람이 할 일입니다. 다시 읽은 것이 없으면 나오지 않습니다. 이 값은 시도한 네트워크 호출의 수가 아니라 답의 출처입니다. 다시 읽었지만 플러그인의 답을 쓴 읽기는 세지 않습니다. 또 `DEVUP_FIGMA_CALL_CACHE`로 쌓아 둔 호출을 다시 쓰면, `bridgeReads`와 마찬가지로 그 출처가 그대로 다시 실립니다.
 - 캐시된 수집을 다시 투영한 응답은 `kind: "artifact"`를 유지하고 `origin: "bridge"`와 같은 출처 정보를 답니다.
 
 ### 브리지 플러그인 — 한도를 쓰지 않고 읽기
@@ -477,10 +498,34 @@ Figma에서 대상 파일을 열고 `Devup Bridge`를 실행하면 창이 하나
 - **브라우저 페이지는 붙지 못합니다.** 중계 문은 `Origin`이 붙은 요청을 모두 거절하고, 플러그인 문(`/plugin`)은 Figma 플러그인 창(`Origin: null`)과 `figma.com`만 받습니다. 흔한 웹 페이지가 플러그인인 척 읽기를 가로채지 못하게 하려는 것인데, 샌드박스 iframe이나 `file://` 페이지도 `null`을 실으므로 그런 페이지까지 막지는 못합니다.
 - **읽기 전용입니다.** 플러그인이 실행하는 스크립트는 **빌드 시점에 플러그인 안에 박혀 있고**, devup-mcp는 그중 어느 것을 실행할지 **이름만** 보냅니다. 소켓으로 코드가 오가지 않으며 Figma 문서를 바꾸는 호출은 존재하지 않습니다.
 - **이 기기에서만 됩니다.** 대기 주소는 `127.0.0.1`이라 다른 기기에서는 붙을 수 없고, 원격 CI에서는 브리지가 없으니 자동으로 원격 경로를 씁니다.
-- **파일은 한 번에 하나입니다.** 플러그인이 자기 파일 키를 보고하지 못하는 경우가 있어(Dev Mode 등), 키 없는 플러그인은 **혼자 붙어 있을 때만** 읽기를 받습니다. 두 개 이상이면 어느 파일인지 알 수 없으므로 원격 경로로 넘어갑니다.
+- **파일은 한 번에 하나입니다.** 플러그인은 `figma.fileKey`로 자기 파일을 알리는데, Figma는 이 값을 private plugin에만 줍니다. 그래서 manifest에 `enablePrivatePluginApi`를 적어 두었고, 이 줄이 없던 예전 빌드는 키를 보고하지 못했습니다(`fileKey: null`). 키 없는 플러그인은 **혼자 붙어 있을 때만** 읽기를 받습니다. 두 개 이상이면 어느 파일인지 알 수 없으므로 원격 경로로 넘어갑니다.
 - **포트를 바꾸려면 세 곳을 같이 고쳐야 합니다.** Figma는 플러그인이 접속할 수 있는 주소를 manifest에 미리 적어 두게 하고 실행 중에는 바꿀 수 없습니다. `manifest.json`의 `allowedDomains`, `src/code.ts`의 `PORT`, 그리고 환경 변수를 모두 고친 뒤 플러그인을 다시 빌드·설치해야 합니다. 하나만 바꾸면 **아무 말 없이 원격 경로로 돌아가** 한도를 그대로 씁니다.
 - **`ws://127.0.0.1`은 쓸 수 없습니다.** Figma의 `allowedDomains`가 그 주소를 거부해 manifest 전체가 무효가 되고 플러그인이 아예 로드되지 않습니다. `localhost`여야 합니다.
+- **한 화면은 한 번의 읽기로 옵니다.** 브리지는 플러그인에게 화면 하나를 봉투 하나(최대 8 MiB)에 담아 달라고 하고, 디코더도 그 크기까지 받습니다. 플러그인이 파일 키를 보고하지 못하면 봉투 안의 키 자리(`source`·`snapshot`)를 요청한 파일로 채웁니다. 예전에는 둘 다 맞지 않아 64 KiB가 넘는 화면이나 키 없는 플러그인의 봉투가 모두 버려지고, 노드마다 읽는 예전 경로로 떨어졌습니다. 그 경로는 breakpoint 형제 폭을 모으지 않아 `responsiveTsx`도 나오지 않았습니다. 실제 공지 화면은 4번 읽던 것이 1번이 되고, 세 폭이 함께 수집됩니다.
 - **Figma 창을 뒤로 보내면 느려집니다.** 브라우저가 백그라운드 플러그인을 분당 한 번꼴로 깨우기 때문에, 앞에서 160ms인 snapshot이 뒤에서는 11초가 됩니다. 수집 중에는 Figma를 앞에 두세요.
+- **그 파일을 화면에 띄워 두세요.** 플러그인이 도는 파일이 화면에서 2~3분 사라지면 — 탭이 다른 파일의 탭 뒤로 가거나, 탭은 앞에 둔 채 Figma 창을 최소화하거나, 창이 다른 창에 가리기만 해도 — Figma 런타임은 아직 불러오지 않은 데이터를 읽을 때마다 10초 뒤 "Unable to establish connection to Figma"로 답합니다(실측: 탭이 뒤에 간 뒤 1분째는 정상, 2분째부터 실패. 창만 최소화하면 2분째 정상, 3분째부터 실패). 이미 불러온 변수·스타일은 한동안 답하지만(10분째도 해석) 그것마저 빠지면 화면은 받아지는데 토큰 대신 값이 들어갑니다(공지 화면: 37개 중 0개 해석). 창을 앞으로 가져와 그 파일의 탭을 누르면 곧바로 풀리며, 응답의 `hint`·`nextAction.how`가 그렇게 말합니다. **로그인이 되어 있으면 그 읽기는 direct 경로가 다시 읽어**(한도를 씁니다) 결과가 달라지지 않고, `source.directFallbackReasons`의 `file-out-of-sight`와 `directFallbackHint`가 그 사실과 할 일을 말합니다. 미리 불러 두기(아래) 전의 실측: Figma 창을 다른 창에 가린 지 5~7분 뒤 파일 전체 검색 두 번에서 각각 플러그인의 읽기 하나가 그렇게 돌아와 direct가 다시 읽었고, 그중 Figma를 앞에 두고 다시 한 검색은 결과(100건)가 같았습니다(15 s, 앞에 두면 0.4 s). **지금은 플러그인이 시작할 때와 Figma가 그 파일을 다시 보여 줄 때마다 모든 페이지와 로컬 변수·스타일을 미리 불러 둡니다.** 불러 둔 데이터는 가려진 동안에도 답하므로, direct를 닿을 수 없게 한 채 Figma를 다른 창으로 5분·8분 가리고 한 파일 전체 검색·공지 모바일 TSX·참조 PNG 두 개가 앞에 둔 것과 같은 답(검색 100건과 그 id, TSX·PNG 해시)이었고 "Unable to establish connection"은 한 번도 없었습니다. 지금 보이는지는 `attachedFiles[].inView`가 알립니다(이 기능 전의 devup-mcp가 포트를 쥐고 있으면 그 필드가 빠집니다).
+- **플러그인이 답한 실패는 플러그인의 답으로 옵니다.** 스크립트가 던진 코드나 Figma 런타임의 말은 원격 `use_figma`와 같은 모양으로 올라가, 두 경로가 같은 오류로 분류됩니다 — 없는 노드는 `DEVUP_FIGMA_NODE_NOT_FOUND`(-32602), 그 밖은 `stage: "plugin-execution"`. 예전에는 브리지를 거친 모든 실패가 `DEVUP_FIGMA_DIRECT_UNAVAILABLE`이어서, Figma 런타임이 보고 있는 페이지 밖의 데이터를 가져오지 못했다는 "Unable to establish connection to Figma after 10 seconds"가 direct 경로의 장애로 읽혔습니다 — 그 읽기는 direct 경로에 간 적이 없습니다. 이 문구에는 `nextAction.how`가 할 일(그 파일의 탭 누르기)을 답니다. 포트를 쥔 호스트를 거친 실패도 같습니다. 호스트가 `scriptError`로 알리고, 그 표시를 보내지 않는 예전 호스트면 호스트가 스스로 쓰는 문구인지로 가립니다.
+- **`referencePng`도 플러그인이 그립니다 — 거절하지 않습니다.** `get_screenshot`은 노드를 조상들의 맥락 — 채움(그라디언트·사진 포함), 잘라 내기, 불투명도, 블렌드 모드, 레이어 블러, 드롭 섀도 — 안에서 그리되 **다른 레이어는 모두 빼고**, 노드의 렌더 영역(그림자·밖으로 넘친 자식 포함, 잘라 내는 조상이 자른 만큼)으로 그립니다. 플러그인은 그 영역을 늘 같은 설정(`useAbsoluteBounds: false`, scale 1이되 긴 변은 direct의 `maxDimension`과 같은 8192px까지, sRGB)으로 export합니다.
+  - **그 영역에 다른 레이어가 닿지 않으면** 캔버스의 그 자리(`contentsOnly: false`)가 곧 그 그림입니다. 플러그인은 그것과 export에 빠지는 페이지 배경을 보내고, 브리지가 그 위로 평평하게 덮습니다.
+  - **닿으면** 플러그인은 노드만(`contentsOnly: true`) export하고 조상들을 설명합니다 — 변환·크기·모서리, 채움, 불투명도·블렌드, 잘라 내기, 효과, 마스크, 채움에 쓴 사진의 원본. 나머지는 devup-mcp가 그립니다: 단색·그라디언트(선형·방사·각·마름모)·사진(PNG·JPEG·GIF, FILL·FIT·TILE·CROP) 채움, 둥근 모서리로 잘라 내기, 블렌드 모드 18가지, 알파·밝기 마스크, 레이어 블러, 드롭 섀도(spread 포함, 레이어 뒤로 보이지 않게 한 그림자는 레이어 아래를 잘라 냄)와 안쪽 그림자, 사각형 조상의 테두리(단색·그라디언트, 점선 없음, 모서리가 각진 것), 조상과 노드 자신의 배경 블러. 노드의 배경 블러가 아래 레이어를 머금으면 노드를 제 채움과 자식들의 export로 그리고, 노드의 마스크는 그 전부(채움·배경 블러·자식)를 자릅니다. 마스크는 Figma가 렌더 영역을 주지 않으므로 제 상자로 export해 놓고, 마스크를 이루는 레이어 안의 노드는 `get_screenshot`처럼 그리지 않습니다(그 아래만 보입니다). devup-mcp가 디코딩하지 않는 사진 — PNG·JPEG·GIF가 아닌 것(WebP 등), 긴 변이 8192px를 넘는 것, 대부분이 메타데이터인 것 — 은 플러그인 창(브라우저)이 디코딩해 긴 변 8192px 이하의 PNG로 돌려주고, 합성기는 원본 크기에 맞춰 배치합니다. 창은 한 번에 하나만 디코딩하고, 장면 하나의 사진들이 변환 시간 20초를 나눠 씁니다. 바꾸는 데 512 MiB가 넘게 들 사진(변환이 만드는 버퍼를 먼저 풀리는 것 없이 모두 더함: 사진 바이트의 사본 다섯 — 이쪽의 원본, 창으로 가는 메시지, 창이 받은 사본, Blob, 디코더가 읽는 것 —, 디코딩한 그림과 줄일 때의 사본, 캔버스, 그 캔버스로 만든 PNG와 그 사본 셋)과 시간이 다 된 뒤의 사진은 원래 바이트로 보냅니다.
+  - **그리지 못하는 것**이 있으면 캔버스의 그 자리를 그리고, 응답의 `referencePngNote`가 이유와 닿은 레이어를 댑니다. 다음이 여기에 듭니다. 로그인이 되어 있으면 direct의 `get_screenshot`이 대신 답합니다(`reference-png-approximate`).
+    - 사각형이 아닌 조상의 테두리, 점선 테두리, 모서리 이음이 둥글거나 깎인 바깥·가운데 테두리, 단색·그라디언트가 아닌 테두리
+    - 아래 레이어를 머금는 배경 블러가 노드 안의 레이어에 있거나, 자식을 둘 수 없는 노드(사각형·벡터 등)나 테두리가 있는 노드에 있는 경우
+    - 회전·필터가 있는 사진 채움, 그 밖의 칠, 노이즈·텍스처처럼 devup-mcp가 모르는 효과
+    - 8M 픽셀이 넘는 영역, 합쳐 64 MiB가 넘는 사진
+    - 오프셋과 spread를 합쳐 영역 둘레에 그려 둔 여백(최대 512px)보다 먼 곳에서 드리워지는 그림자
+    - 그리는 데 1.5 GiB가 넘는 메모리나 40억 번이 넘는 블러·그림자 spread 계산이 드는 경우 — 그리기 전에, 레이어마다 남는 마스크와 그림·사진의 디코딩까지 셉니다. 디코딩은 디코더를 만들기 전에 헤더만 읽고 셉니다. PNG·GIF 디코더에는 그 허용량을 걸고, PNG 디코더가 그 밖에서 잡는 것(풀어내는 행, 텍스트 청크마다의 항목)도 셉니다. JPEG 디코더는 상한을 받지 않으므로, 프레임 헤더의 샘플링으로 센 계수 버퍼와 바이트 사본까지 셉니다. 프레임 헤더 앞에 단독 마커(SOI·RST·채움 0)가 있는 JPEG는 디코딩하지 않습니다
+    - 플러그인 창이 PNG로 바꿔 주지 못한 사진(창도 디코딩하지 못했거나, 바꾸는 데 512 MiB가 넘게 들거나, 변환 시간이 다 됐거나, 이 디코딩 전에 빌드된 플러그인이거나, 플러그인이 형식·크기·바이트 수로 알아보지 못한 경우) 가운데 PNG·JPEG·GIF가 아닌 것(WebP — 그 디코더는 상한을 받지 않고, 헤더로 셀 수 없는 버퍼를 잡습니다), 8192px보다 넓은 PNG(넓은 인터레이스 16비트 PNG는 디코더가 풀어내는 행이 허용량을 넘습니다), 허용량 안에서 디코딩되지 않는 PNG·GIF(큰 메타데이터를 가진 PNG 등)
+    - 헤더를 읽을 수 없는 그림·사진
+    - 플러그인이 export하지 못한 부분, 그리다 멈춘 경우
+  - **답 하나(6 MiB)에 들어가지 않는 답**은 플러그인이 붙들어 두고 4 MiB 조각으로 내주며, 브리지가 이어 받습니다. 조각의 위치가 어긋나지 않도록 붙들어 둔 글은 ASCII로 씁니다. 레이어 이름은 흔히 한글입니다.
+    - **붙든 답:** 다 읽히거나 2분이 지날 때까지 남고, 다른 요청 때문에 밀려나지 않습니다.
+    - **바쁠 때:** 붙든 답이 192 MiB 이상 쌓여 있으면 플러그인은 새 그림을 그리지 않고 바쁘다고 답하며(`DEVUP_REFERENCE_PNG_BUSY`), 브리지는 45초까지 다시 묻습니다. 그 사이에도 다른 요청의 조각 읽기는 처리됩니다. 192 MiB는 새 그림을 받아들이는 문턱이지 상한이 아닙니다 — 그 아래에서 받아들인 답 하나(최대 90 MiB)만큼 넘을 수 있습니다.
+    - **사라진 답:** 읽기 전에 사라진 답(플러그인을 다시 실행한 경우 등)은 한 번 다시 받습니다.
+    - **너무 큰 답:** 조합에 드는 것까지 실은 답이 90 MiB(브리지가 받는 96 MiB 아래)를 넘으면 조합을 버리고 캔버스 그림만 이유와 함께 보냅니다.
+
+  브리지는 `get_screenshot`과 같은 이미지 블록 하나로 돌려주고, 수집기는 두 경로의 답을 같은 검증으로 받습니다.
+- **devup-mcp보다 오래된 플러그인은 새 읽기를 모른다고 답합니다**(`DEVUP_BRIDGE_UNKNOWN_SCRIPT`). 시도조차 되지 않은 읽기라, 플러그인이 파일 키를 보고했고 로그인이 되어 있으면 그 읽기만 direct 경로가 대신 읽습니다(한도를 씁니다). 로그인이 없으면 로그인 요구가 아니라 플러그인의 답과 할 일 — 플러그인을 불러온 저장소를 갱신하고 다시 실행 — 이 옵니다. 조각으로 내주기 전의 플러그인이 참조 PNG를 브리지 답 하나(8 MiB)에 담지 못할 때(`DEVUP_REFERENCE_PNG_TOO_LARGE`, direct는 16 MiB까지 받습니다)도 같은 길을 갑니다.
 
 자세한 내부 구조와 스크립트 생성 방식은 [`plugin/README.md`](plugin/README.md)에 있습니다.
 
@@ -583,6 +628,10 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 결과는 `theme.colors`, `theme.typography`, `theme.length`, `theme.shadow`를 포함하는 결정적 JSON 문자열과 counts, completeness를 반환합니다.
 
+텍스트 스타일의 글자 크기가 변수에 묶여 있고 그 변수의 모드가 브레이크포인트 이름(`Mobile`·`Tablet`·`Desktop`·`PC`, 또는 숫자)이면, 그 스타일은 모드마다 한 칸인 반응형 typography 배열이 됩니다 — `Mobile`은 첫 칸, `Tablet`은 셋째 칸(768px), `Desktop`·`PC`는 다섯째 칸(1280px)이고, 칸마다 그 모드에서 풀린 크기를 씁니다. 퍼센트 행간은 크기가 고정이면 Figma가 그리는 정수 px 행간으로, 크기가 변수에 묶였거나 없으면 `150%`처럼 퍼센트 그대로 씁니다(CSS가 적용되는 글자 크기에 맞춰 늘입니다). 예전에는 그 경우 테마 전체를 `DEVUP_THEME_CONFLICT`로 거절했습니다. 모드가 브레이크포인트 이름이 아니거나(`Light`·`Dark` 등), 스타일 이름에 이미 브레이크포인트가 들어 있거나, 크기가 모든 모드에서 같거나, 두 모드가 한 칸에 놓이거나, 풀리지 않는 모드가 있으면 크기는 예전처럼 변수의 토큰(`$textTest`)입니다. 숫자 모드 이름은 0–5번 칸입니다. 모드가 모두 브레이크포인트 이름인 컬렉션의 길이 변수는 `length` 토큰 하나를 반응형 배열로 써서 모든 테마에 넣습니다(`containerX: ["20px", null, "40px"]`, 모드마다 값이 같으면 값 하나). 플러그인은 모드 이름을 테마 키(`theme.length.mobile`)로 쓰는데, devup-ui에서 그것은 그 `data-theme`일 때만 값이 있는 토큰입니다. 테마에 같은 이름의 토큰이 이미 있으면 그 테마의 값을 두고 `conflicts`에 남깁니다. 브레이크포인트 길이 둘이 같은 이름에 다른 값을 가지면 정해진 순서로 하나를 고르고, 그 충돌은 `conflicts`에 mode `@breakpoints`로 남습니다. 색은 devup-ui가 배열을 받지 않아 예전처럼 모드 이름을 테마 키로 씁니다. 다른 컬렉션의 변수를 가리키는 alias는 그 컬렉션에 모드가 하나뿐이면(라이브러리의 primitive 등) 그 하나의 값으로 풉니다. 테마는 파일 전체든 노드 범위든, 노드가 묶지 않았더라도 변수가 alias로 가리키는 변수를 읽어(그 변수가 가리키는 변수까지) 함께 넣습니다. 모드가 여럿이면 어느 모드를 쓸지는 소비자가 정하므로 `unresolvedVariables`에 남깁니다.
+
+생성 TSX는 변수에 묶인 길이(padding, gap, 한 값인 모서리 반경, 그림자의 오프셋·블러·spread, 글자 크기)를 그 변수의 `$토큰`으로 씁니다(`px="$containerX"`, `boxShadow="0 $shadowMdY 20px 0 #00000026"`). 조건은 같은 변수로 만든 테마에서 그 토큰이, 페이지가 `data-theme` 없이 보여 주는 테마에서 화면이 그려진 폭(노드가 놓인 화면 프레임의 폭)일 때 코드에 쓰는 값과 정확히 같은 것입니다(반올림해서 같은 것은 같은 것이 아닙니다: `20.004px` 토큰은 `20px` 자리에 들어가지 않습니다). 반응형 토큰이면 그 뒤로 화면 폭에 따라 디자인의 모드 값을 따라가고, 그렇지 않으면 예전처럼 px를 씁니다(Mobile 값의 화면이 800px 폭이면 토큰이 거기서 40px이므로 `20px`). 플러그인은 길이를 토큰으로 쓰지 않습니다. 폭·높이는 치수 증명이 px 값에 기대므로 예전처럼 px입니다.
+
 `outputPath`를 생략하면 결과를 메모리와 MCP 응답에만 유지합니다. 명시하면 생성된 TSX 또는 `devup.json`만 해당 경로에 기록하고 실제 절대 경로를 응답합니다. 기본 허용 write root는 `devup-mcp` process 시작 당시의 current directory 하나이며, 그 밖의 workspace는 반복 가능한 `--allow-write-root <directory>` 시작 인자로만 추가할 수 있습니다. Tool 입력으로 root 자체를 넓힐 수 없고 `..`, 다른 drive/UNC, alternate data stream, symlink/junction을 통한 root 탈출은 기록 전에 거절됩니다.
 
 여러 text/asset output은 모두 검증한 뒤 같은 directory의 exclusive 임시 파일에 staging하고 한 transaction으로 교체합니다. 정상 runtime 오류에서는 이미 교체한 파일을 역순으로 되돌리고 기존 파일을 복구합니다. 개별 rename은 atomic하지만 여러 directory와 process crash를 가로지르는 완전한 원자성은 일반 filesystem 특성상 보장하지 않습니다.
@@ -613,7 +662,7 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 이미 노드 ID를 알고 있다면(브리프에 적혀 있거나 앞선 호출이 알려줬다면) `devup_figma_explore`를 건너뛰고 `frameIds`에 바로 넘기세요. 갖고 있는 ID를 다시 찾으려고 탐색하는 것은 Figma 호출 하나를 그냥 쓰는 일입니다. 탐색은 **Section 링크밖에 없을 때** 쓰는 도구입니다.
 
-`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. `artifactId`는 `url`·`refresh`와 동시에 쓸 수 없고, 함께 보내면 `DEVUP_FIGMA_HANDOFF_INVALID`로 거절됩니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개/항목당 32 MiB/전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`, `section-index`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부, redacted `assetCaptureCount`와 `sectionSelection`만 공개합니다. **`sectionSelection`이 마지막으로 검증된 Section 선택(`frameIds` 또는 `allScreens`)을 보존하므로**, artifact를 재사용할 때 `frameIds`를 다시 보내지 않아도 선택이 유지됩니다. 예전에는 `artifactId`만 넘기면 선택이 사라져 후보 목록 전체가 다시 돌아왔습니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
+`devup_figma_export`는 동일한 node/resource acquisition에서 여러 projection을 생성합니다. 응답의 `cache.artifactId`를 다음 요청의 `artifactId`로 넘기면 Figma를 다시 호출하지 않고 다른 output을 만들 수 있습니다. `artifactId`는 `url`·`refresh`와 동시에 쓸 수 없고, 함께 보내면 `DEVUP_FIGMA_HANDOFF_INVALID`로 거절됩니다. URL 요청은 같은 process 안에서 10분 TTL, 최대 8개·전체 128 MiB인 memory-only LRU cache를 재사용하며, `refresh: true`는 완료 cache뿐 아니라 진행 중 요청 공유도 우회해 URL을 새로 수집합니다. 수집 하나가 그 resource 출력과 함께 128 MiB를 다 쓸 수 있고, 그만큼 오래된 항목을 밀어냅니다. 예전의 항목당 32 MiB는 테스트 파일 하나의 `scope: "file"` 수집(63.6 MB)을 거절해 export를 실패시켰습니다. 동일 acquisition의 선행 작업이 취소되더라도 닫힌 in-flight 표식을 다음 요청이 원자적으로 제거하고 다시 수집하므로 같은 key가 process 수명 동안 오염되지 않습니다. `cache`에는 `reuseKind`, `ageSeconds`, `remainingTtlSeconds`, `avoidedFigmaToolCalls`, 원 수집의 `originCollection`이 포함되고, 응답 최상위 `collection`은 현재 요청이 실제로 실행한 호출만 집계합니다. `cache.capabilities`는 artifact의 `kind`(`design`, `theme-only`, `search`, `explore`, `section-index`), `collectionScope`, `resourceScope`, `referencePng` 보유 여부, redacted `assetCaptureCount`와 `sectionSelection`만 공개합니다. **`sectionSelection`이 마지막으로 검증된 Section 선택(`frameIds` 또는 `allScreens`)을 보존하므로**, artifact를 재사용할 때 `frameIds`를 다시 보내지 않아도 선택이 유지됩니다. 예전에는 `artifactId`만 넘기면 선택이 사라져 후보 목록 전체가 다시 돌아왔습니다. 내부 artifact는 asset ID·format·scale 전체를 보존하고 세 값이 정확히 같은 capture만 추가 Figma 호출 없이 재사용합니다. 재사용 요청이 이 범위를 넘으면 `DEVUP_FIGMA_HANDOFF_INVALID`로 투영과 파일 기록 전에 거절합니다. 예를 들어 node/used-resource artifact로 file 전체 `devupJson`을 만들거나 screenshot을 수집하지 않은 artifact로 `referencePng`를 만들 수 없습니다. credential, screenshot과 asset binary는 cache key나 통계에 포함하지 않고, process가 끝나면 cache도 사라집니다.
 
 `delivery`는 `auto | inline | resource`입니다. `auto`는 JSON escape, base64와 structured/text 이중 표현을 포함한 실제 MCP wire 크기를 계산해 개별 256 KiB·합계 1 MiB 이하만 inline으로 반환하고, 그보다 큰 결과는 native MCP `ResourceLink`와 `devup://artifact/...` URI로 바꿉니다. 링크 URI는 JSON manifest를 가리키므로 link MIME은 `application/json`이고 payload MIME·길이·SHA-256은 `payload*` metadata로 분리합니다. **manifest는 `chunkUris`로 내용 청크를 직접 가리킵니다** — 링크만 따라가면 manifest에서 막히고 청크 URI 형식을 따로 알아내 손으로 조립해야 했던 문제가 없어졌습니다. 두 URI 형식은 `resources/templates/list`에도 그대로 게시됩니다.
 
@@ -622,7 +671,13 @@ devup://artifact/{artifactId}/outputs/{outputId}/manifest
 devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
 ``` `resource`는 크기와 무관하게 TSX/JSON/PNG를 bounded chunk resource로 제공하며, binary chunk는 base64 MCP blob입니다. asset manifest는 binary를 내장하지 않고 각 asset의 독립 resource URI·MIME·길이·SHA-256을 참조하므로 `resources/read`로 원본 bytes를 정확히 재구성할 수 있습니다. 같은 artifact와 정규화한 projection은 content hash가 같은 resource를 재사용합니다. 파일 출력과 새 resource publication을 함께 요청하면 resource 조회를 reservation 동안 차단한 하나의 transaction으로 다루며, 파일 commit이 전부 성공한 뒤에만 resource와 LRU 변경을 공개합니다. 실패하면 원래 파일을 fingerprint로 검증해 복원하고 복원 불능 backup 경로를 구조화해 보고합니다. 현재 transaction이 만든 temp는 정상 종료·rollback에서 직접 제거하지만, 소유권을 증명할 수 없는 pre-existing temp나 crash·rollback recovery backup은 자동 삭제하지 않습니다.
 
-`referencePng`는 선택했을 때만 공식 read-only `get_screenshot`을 정확히 한 번 추가 호출합니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
+`referencePng`는 선택했을 때만 읽기를 정확히 한 번 더 합니다. 브리지가 맡은 파일이면 플러그인이 노드를 PNG로 export하고(위 "브리지 플러그인"), 아니면 공식 read-only `get_screenshot`을 부릅니다. 두 경로의 PNG는 크기는 같아도 픽셀 값이 조금씩 다릅니다. 데스크톱 앱과 Figma 서버의 렌더러가 달라서입니다. 같은 파일에서 `get_screenshot`과 비교해 잰 값은 다음과 같습니다.
+
+- **다른 레이어가 닿아 devup-mcp가 그린 노드 6개:** 픽셀의 99.65~99.97%가 2/255 안이고 최대 15/255입니다. 6개는 그라디언트 위, 블러·그림자·불투명도가 걸린 조상 아래, 배경 블러를 가진 노드, 회전한 노드였습니다. 예외는 블러가 걸린 조상을 섹션이 자르는 가장자리 한 줄로, 84/255이고 그 노드 픽셀의 0.19%입니다.
+- **하네스 화면 11개(360~1920 폭, 높이 7240까지):** 99.98% 이상이 2/255 안이고 최대 21/255입니다. 사진 그리드만 90.5%, 최대 37/255(16/255 초과 0.07%)입니다.
+- **캔버스 그대로인 노드 12개:** 99.09% 이상이 2/255 안입니다. 작은 블러 글자가 있는 한 노드만 94.45%, 최대 67/255인데, 이는 플러그인의 export 자체가 그렇습니다.
+
+렌더 하네스(`--channel-tolerance 24`)의 점수는 reference를 어느 경로에서 받아도 화면마다 0.02%p 안에서 같았습니다. 그래도 한 기준선의 reference는 한 경로에서 받으세요 — `source.bridgeReads`가 `collection.figmaToolCalls`와 같으면 PNG도 플러그인이 그린 것입니다. 공식 도구는 기본으로 PNG의 URL과 curl 안내를 text로만 돌려주고 긴 변을 1024px로 줄이므로, `enableBase64Response: true`와 `maxDimension: 8192`로 호출해 node 원래 크기의 PNG를 inline으로 받습니다. 결과의 image block은 정확히 하나여야 하며(곁의 text block은 읽지 않음), JSON/text에 숨긴 image나 다중 image는 거절합니다. 16 MiB compressed, 8192px, 64 MiB decoded 상한 안에서 PNG 전체를 실제 decode한 뒤 byte length와 SHA-256을 확인해 artifact에 보존하며, 단일 링크 node에만 적용됩니다. 그래서 `referencePng`를 `frameIds` 또는 `allScreens: true`와 함께 요청하면 수집 전에 거절되고, Section의 여러 Frame은 먼저 반환된 canonical URL별로 하나씩 수집해야 합니다. PNG bytes는 log·통계·cache key에 포함되지 않으며 `outputPaths.referencePng`를 명시하지 않으면 디스크에 기록하지 않습니다.
 
 모든 완료 응답에는 다음처럼 요청한 산출물별 `quality`가 포함됩니다.
 
@@ -754,9 +809,55 @@ SECTION 기본 응답은 화면 아티팩트가 아닌 선택 목록입니다. `
 
 Section 안의 frame이 `mobile` / `tablet` / `desktop`처럼 **breakpoint 이름**을 가지면, 그 frame 하나를 요청해도 같은 이름 규칙의 형제 frame이 함께 수집됩니다(Section 자체는 수집 범위 밖이며, 그 이름은 각 frame의 `parentName`으로 전달됩니다). 이때 `tsx`나 `responsiveTsx`를 요청하면 결과에 `responsiveTsx`가 추가됩니다 — 세 폭을 하나의 트리로 접고 폭마다 다른 값을 devup-ui 반응형 배열 `[mobile, sm, tablet, lg, pc]`로 쓴 모듈입니다. 각 폭이 놓이는 slot은 frame **이름이 아니라 폭**으로 정해집니다(`≤480 / ≤768 / ≤992 / ≤1280 / 그 이상`). 컴포넌트 이름은 `componentName`이 우선이고, 없으면 Section 이름의 PascalCase에 `Page`를 붙입니다(`about` → `AboutPage`).
 
-한 폭에만 있는 노드는 다른 폭에서 `display: none`으로 숨긴 복사본과 병합되며, 이때 복사본은 **Section 레이어 순서상 첫 폭**의 값을 가집니다 — 그래서 배열의 첫 slot에 desktop 값이 놓일 수 있습니다. 폭마다 줄바꿈 위치만 다른 텍스트는 `<Box as="br" display={[...]} />`로 쓰고, 컴포넌트 인스턴스의 variant prop이 폭마다 다르면 배열로 쓸 수 없으므로 가장 넓은 폭의 값을 쓰고 `responsiveUnrepresented`에 보고합니다. 함께 반환되는 `responsiveSlots`, `responsiveImports`, `responsiveComponents`가 slot과 import 목록입니다.
+한 폭에만 있는 노드는 다른 폭에서 `display: none`으로 숨긴 복사본과 병합되며, 이때 복사본은 **Section 레이어 순서상 첫 폭**의 값을 가집니다 — 그래서 배열의 첫 slot에 desktop 값이 놓일 수 있습니다. 그 노드를 가진 모든 폭에서 숨긴 레이어는 어느 폭에서도 그려지지 않으므로 `tsx`처럼 모듈에서 빠집니다. 폭마다 줄바꿈 위치만 다른 텍스트는 `<Box as="br" display={[...]} />`로 쓰고, 컴포넌트 인스턴스의 variant prop이 폭마다 다르면 배열로 쓸 수 없으므로 가장 넓은 폭의 값을 쓰고 `responsiveUnrepresented`에 보고합니다. 함께 반환되는 `responsiveSlots`, `responsiveImports`, `responsiveComponents`가 slot과 import 목록입니다.
 
 `rawPayload`는 `rawSnapshot`이 node 트리만 쓰는 것과 달리 수집 전체(variables, styles, stats, assets 포함, `referencePng` 제외)를 씁니다. 캡처를 fixture로 보관해 오프라인에서 서버와 같은 토큰 이름(`$gray200`, `typography="h4"`)으로 변환하려면 이것이 필요합니다.
+
+### 그린 폭이 아닌 폭 — `widthBehavior`와 `widthPolicy`
+
+`quality.projection`의 `exact`는 **그린 폭에서** 매핑이 정확하다는 뜻이지, 다른 viewport에서도 같다는 뜻이 아닙니다. absolute 자식이 있는 루트는 그린 폭을 px로 유지하므로 기본 출력은 어떤 viewport에서도 그 폭으로 그려집니다. 루트를 `w="100%"`로 넓히면 각 노드는 자기 constraint가 붙드는 가장자리에 남습니다 — Figma 기본값 MIN이면 왼쪽입니다. 그래서 오른쪽에 그린 배지의 배경과 글자가 넓은 화면에서 서로 다른 자리에 남는 식의 일이 생깁니다.
+
+**`widthBehavior`** 는 `tsx`를 만든 응답마다(Section 배치는 `componentTsx`를 만든 `frames[]` 각 항목에도) 붙습니다. 정적 판정입니다 — constraint, auto-layout sizing, 그린 좌표를 생성된 prop과 대조할 뿐 렌더하지 않습니다(`verification.runtime: "not-performed"`). 기본 출력의 TSX는 바뀌지 않습니다.
+
+- `designWidth`, `root.generatedWidth` / `root.fluid` — 루트가 px 폭을 유지하는지
+- `root.componentSized` — 루트를 어떤 화면보다 좁게(320px 미만) 그렸는지. 그러면 화면이 아니라 호스트가 놓고 크기를 정하는 컴포넌트(64px 로딩 표시, 아이콘)라서, "넓은 화면에서 이 부분은 어디로 가나"를 묻는 `consumer-policy-required` 발견은 내지 않고 `summary.componentRootSuppressed`로 셉니다. 실제 64px 로딩 표시에 붙던 발견 5건이 그런 소음이었습니다. 생성기가 표현하지 못한 것(`generator-approximation`)과 디자인이 정한 것은 그대로 보고합니다
+- `findings[]`(최대 40개) — 노드마다 `kind`, `status`, `confidence`, `evidence`(constraint, 양쪽 여백, 생성된 prop), 해당하면 `candidates`, `drawnInside`, `carries`
+- `summary`, 그리고 `shapeSizeOmitted` — 위치 지정된 자식 없는 도형을 플러그인처럼 `h="100%"`에 폭 없이 쓴 노드들. 기본 출력은 그대로 두고 여기와 `projectionIssues`에서 보고합니다
+
+| status | 누가 답하나 |
+|---|---|
+| `generator-approximation` | 디자인이 정한 것(STRETCH·SCALE·CENTER constraint, 직선)을 기본 출력이 표현하지 못함. `widthPolicy`가 그대로 씁니다 |
+| `consumer-policy-required` | 디자인이 답하지 않는 질문 — 오른쪽에 그렸지만 왼쪽에 고정된 배지가 넓은 화면에서 어디 있어야 하는지. `candidates`에서 고릅니다 |
+| `design-defined` | 디자인이 FIXED 폭으로 정한 것. 알림일 뿐입니다 |
+
+| kind | 상황 |
+|---|---|
+| `right-aligned-but-held-left` | 오른쪽 가장자리 가까이 그렸지만 constraint가 왼쪽에 고정. `carries`는 그 안에 그려져 함께 옮겨질 노드 |
+| `centered-but-held-left` | 양쪽 여백이 같게 그렸지만 왼쪽 고정. 후보는 left·center·stretch |
+| `group-anchor-mismatch` | 그려진 컨테이너와 다른 가장자리에 고정돼, 폭이 바뀌면 둘이 갈라짐 |
+| `constraint-not-expressed` | STRETCH·SCALE constraint를 기본 출력이 px 위치·폭으로 씀 |
+| `center-offset-dropped` | CENTER constraint인데 중심에서 벗어나 그렸고, 기본 출력은 정확히 가운데에 둠 — 그린 폭에서도 옮겨짐 |
+| `fixed-length-line-mask` | 직선을 mask로 그려, 상자가 늘어나도 선은 그린 길이에 머묾 |
+| `fixed-width-in-fluid-parent` | 디자인이 FIXED로 정한 폭 |
+
+**`widthPolicy`** 는 옵트인입니다. 주지 않으면 출력은 예전과 같습니다.
+
+```json
+{ "url": "...", "widthPolicy": { "root": "fluid", "anchors": { "2:4": "stretch", "2:6": "right", "2:12": "center" } } }
+```
+
+- 루트는 컨테이너의 폭을 받습니다(`w="100%"`, 높이는 유지. `rootLayout: "embedded"`면 원래대로 생략).
+- 위치 지정된 노드의 가장자리는 이 순서로 정합니다: `anchors`에 적은 것 → 그 노드가 그려진 컨테이너를 호출자가 `right`·`center`로 고정했다면 그것 → 노드 자신의 Figma constraint. 그래서 배지 배경만 `right`로 주면 그 안의 글자도 따라갑니다.
+- `right` → `right`, `stretch` → `left`+`right`(폭 없음), `scale` → `%` 폭, `center` → `left="50%"` 또는 `calc(50% ± Npx)`와 `translateX(-50%)`. 늘어나는 직선의 mask는 `maskSize="100% 100%"`, 자식 없는 도형은 자기 px 크기로 씁니다.
+- 이 prop들이 그린 폭에서 원래 위치·폭을 정확히 재현한다는 것은 검증합니다(ABSOLUTE 진단의 `components.horizontal`·`width`와 `anchorSource`). 다른 폭에서 어디 놓이는지는 **호출자의 정책**이지 디자인에 대한 주장이 아닙니다.
+- 캡처에 없는 node id는 거절합니다(`DEVUP_INVALID_INPUT`, `details.unknownNodeIds`) — 오타가 조용히 적용되지 않는 앵커가 되지 않도록. `jobId` 폴링에는 보낼 수 없고 원래 호출에 넣어야 합니다.
+- 한 폭짜리 화면용입니다. 여러 폭을 수집한 `responsiveTsx`에는 적용되지 않습니다.
+
+`verificationScope`는 이 응답이 무엇을 어떤 폭에서 확인했는지 따로 말합니다 — `collectedWidths`, 정적으로 확인한 것(`staticallyChecked`), 그리고 `rendered.state: "not-performed"`. 다른 폭에서 실제로 어떻게 그려지는지는 [`devup_runtime_audit`](#devup_runtime_audit--계획하고-검증할-뿐-실행하지-않는다)로 소비자 프로젝트에서 잽니다.
+
+비용(WQUW-151 실제 화면 10개): `widthBehavior`는 0.8~2.8 KB, 계산 0.02~0.3 ms(같은 화면의 codegen 3~33 ms). 기본 출력의 TSX는 변경 전과 같습니다 — 플러그인 golden 268쌍이 통과하고, 실제 화면 10개와 합성 화면 1개의 TSX SHA-256이 변경 전 빌드와 같습니다.
+
+**codegen이 화면 크기의 제곱으로 느려지던 것을 고쳤습니다.** 생성된 속성마다 그 속성이 sourceMap에 매핑됐는지 확인하는 감사가, 항목 하나를 볼 때마다 그 속성의 주인 노드를 sourceMap 전체에서 다시 찾았습니다(속성 수 × 항목 수²). 주인을 속성마다 한 번만 찾게 했고, 출력은 같습니다 — about 화면 세 폭의 `CodegenOutput` 전체(TSX, sourceMap, 진단, fidelity)가 변경 전과 같은 해시입니다. 실제 화면에서 폭 하나의 codegen이 약 1 s에서 70~100 ms로, 브리지로 받은 about(790 node, 세 폭) export의 투영이 15.3 s에서 0.58 s로 줄었습니다.
 
 ### 시간 트리거 Smart Animate — CSS keyframes
 
@@ -806,7 +907,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 `includeTextPreview`는 **별도 예산**을 씁니다. 미리보기는 구조 투영이 쓰고 남긴 공간만 소비하므로, 켜고 끄는 것이 후보 개수·ID·`truncation.projection` 중 무엇도 바꾸지 않습니다. 같은 파일·옵션에서 이미 수집한 더 큰 탐색 결과는 exact·related-node·superset 범위로 재사용되고, 동시에 들어온 호환 요청도 공식 Figma 호출 하나를 공유합니다. `refresh: true`는 모든 재사용을 건너뜁니다. 원하는 후보의 canonical URL을 `devup_figma_export`에 넘겨 정확한 화면만 변환합니다.
 
-탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집합니다.
+탐색과 검색은 변수 catalog를 수집하지 않습니다. 정확한 UI 변환 단계에서 선택 subtree의 모든 보존 필드에 있는 `VARIABLE_ALIAS`와 paint/text/effect/grid style ID를 재귀적으로 스캔하고, 실제 사용된 ID만 공식 Figma API로 조회합니다. `outputs: ["devupJson"]`에 `scope: "file"`을 함께 준 경우에만 file 전체 로컬 catalog를 수집하고, 그 뒤 노드가 쓰는 라이브러리 변수·스타일과 변수가 alias로 가리키는 변수를 같은 방식으로 읽어 합칩니다. 그래서 문서를 함께 수집하는 파일 전체 export(`rawPayload` 등)도 테마만 받는 export와 같은 테마를 냅니다. Figma가 원시 값에 맞춰 제안하는 변수(`inferredVariables`)는 바인딩이 아니므로 사용된 것으로 세지 않습니다.
 
 `sourcePolicy` 파라미터는 `auto`와 `direct` 둘 다 같은 동작이었으므로 제거했습니다 — 분기하지 않는 선택지는 호출자에게 틀릴 기회만 주었습니다. 경로 선택은 파라미터가 아니라 **플러그인이 붙어 있는지**가 정합니다: 붙어 있으면 브리지, 아니면 direct입니다. direct 경로는 연결과 read-only capability catalog 조회를 각각 30초, 개별 tool 호출을 5분으로 제한합니다. deadline을 넘기면 해당 remote session을 폐기하고 디자인 원문 없이 `retryable` timeout 단계만 반환합니다.
 
@@ -841,12 +942,15 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 |---|---|
 | `ok` | 심각도로 판정. error가 있으면 실패, `strict: true`면 warning도 실패 |
 | `okReason` | `clean` · `clean-unverified-tokens` · `info-only` · `warnings-only` · `warnings-and-info` · `strict-warnings` · `error-violations` |
-| `violations[]` | `rule`, `severity`(`info`\|`warning`\|`error`), `byteRange`, `message`, `suggestion` |
+| `violations[]` | `rule`, `severity`(`info`\|`warning`\|`error`), `byteRange`, `message`, `suggestion`, 그리고 위반이 놓인 JSX 여는 태그의 문서 순서 번호 `elementIndex`(0부터)와 `element`·`attribute` |
 | `violationCounts` | `error` / `warning` / `info` 개수 |
 | `themeNotes[]` | 비어 있는 토큰 카테고리를 종류마다 한 번씩만 요약 |
 | `tokens` | `referencedByTsx`, `definedByTheme`, `unknownTokenCheckRan` |
 | `checkedTokens` / `availableTokenCount` | 위 두 값과 같은 수를 예전 이름으로 유지 |
 | `themeAvailable` / `themeGuardrail` | 테마를 찾았는지, 못 찾았으면 왜 |
+| `layoutRisks[]` | 폭이 바뀌면 드러나는 정적 레이아웃 위험(`anchor-mismatch`, `right-aligned-but-held-left`, `centered-but-held-left`, `fixed-length-line-mask`) |
+| `verificationScope` | 정적으로 검사한 것(`static`: 실행한 규칙, 토큰 검사 여부, layout 검사와 `referenceWidth`)과 렌더하지 않은 것(`runtime.state: "not-performed"`) |
+| `sourceMapLink` | `sourceMap`을 넘겼을 때만. `linked`(`linkedViolations`, `unlinkedViolations`) 또는 `unavailable` |
 
 규칙은 **두 갈래**입니다. 앞의 여섯은 `tsx` 하나만 줘도 돌고, 뒤의 다섯은 `files` 번들로 줄 때만 돕니다 — 파일 경로와 파일 사이의 관계를 봐야 판정할 수 있기 때문입니다.
 
@@ -877,6 +981,24 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 `checkedTokens`와 `availableTokenCount`는 **서로 다른 것을 셉니다** — 앞은 이 TSX가 참조한 `$token` 수, 뒤는 `devup.json`이 정의한 토큰 수입니다. 비율이 아닙니다. `tokens`가 그 사실을 이름으로 다시 말해 줍니다.
 
+#### 위반을 Figma 노드에 잇기 — `sourceMap`과 `layoutRisks`
+
+`devup_figma_export`가 돌려준 `sourceMap`을 그대로 `sourceMap`으로 넘기면, 각 위반에 그 속성을 만든 Figma 노드와 필드가 `source[]`(최대 3개: `nodeId`, `property`, `generatedProperty`, `resolution`)로 붙습니다. 항목은 화면 하나면 `tsx`, Section 프레임이면 `entries` 아래에 있고 둘 다 받습니다. `tsx`와 `componentTsx`를 함께 요청했다면 검증하는 코드의 `sourceMap.byOutput.<output>`을 `{"tsx": [...]}`로 넘기세요. 바이트 오프셋 없이 `elementIndex`와 속성 이름으로 잇습니다 — sourceMap 항목도 같은 번호의 `elementIndex`를 갖습니다. `elementIndex`가 없는 예전 sourceMap이면 `sourceMapLink.state`가 `unavailable`입니다. `files` 번들과 함께 넘겨도 `unavailable`입니다 — 번들은 파일마다 요소를 0부터 세므로, 한 TSX의 sourceMap을 어느 파일의 위반에 이을지 정할 수 없습니다.
+
+이어지지 않은 위반은 `unlinkedViolations`로 세고 이유를 붙입니다. sourceMap이 그 속성을 매핑하지 않은 경우이고, export는 그런 속성을 `projectionIssues`(`DEVUP_CODEGEN_PROPERTY_UNMAPPED`)에 같은 `elementIndex`로 보고합니다. WQUW-151 실제 화면에서는 161건 중 158건, 300건 중 296건이 이어졌고, 나머지는 여러 스타일 구간을 가진 텍스트 안쪽 `<Text>`의 `color`였습니다.
+
+`layoutRisks`는 위치 지정된 형제들이 각각 어느 가장자리에 고정됐는지 읽어 세 가지를 보고합니다.
+
+- `anchor-mismatch`: 칠해진 형제 안에 그려졌는데 다른 가장자리에 고정된 상자
+- `fixed-length-line-mask`: 늘어나는 상자 안에서 그린 길이를 지키는 mask 직선
+- `right-aligned-but-held-left`·`centered-but-held-left`: 폭이 viewport를 따라가는 컨테이너 안에서 왼쪽에 고정됐지만 오른쪽 가장자리나 가운데에 그려진 상자. 손으로 넓힌 실제 공지 화면에서 Chromium이 408px 어긋남을 잰 바로 그 경우입니다. 따라간다고 보는 컨테이너는 보수적으로 고릅니다: px 폭이 없는 루트, 그리고 가로 여백·padding 없이 그 안을 꽉 채우는 in-flow 자식뿐입니다. 실제 화면 17개를 export 그대로 검사했을 때는 하나도 보고되지 않았습니다.
+
+부모가 px 폭을 말하지 않으면 `referenceWidth`로 계산하고, 그것도 없으면 추측하지 않고 `verificationScope.static.groupsWithoutReferenceWidth`로 셉니다.
+
+**새 검사는 `ok`, `okReason`, strict 판정을 바꾸지 않습니다.** 기존 info가 error로 바뀌는 일도 없습니다 — 결과는 `violations` 밖의 별도 키에만 실립니다.
+
+비용: 위반마다 `elementIndex`·`element`·`attribute`가 붙어 기본 응답의 `violations`가 약 19% 커지고(WQUW-151의 300건 화면에서 88.6 → 105.5 KB), 검증 시간은 1.12 → 1.36 ms가 됐습니다. `sourceMap` 연결은 넘길 때만 일어나며, 같은 화면에서 요청 176 KB·응답 155 KB·stdio 왕복 12.6 ms(넘기지 않으면 5.2 ms)였습니다.
+
 ### `devup_stack_diff` — 휴리스틱이고, 그렇게 말한다
 
 레이어는 `db-entity`, `entity-route`, `route-openapi`, `openapi-client` 넷이며 생략하면 전부 실행합니다. 컴파일러가 아니라 텍스트/JSON 휴리스틱이므로 모든 발견은 `confidence`를 달고 나오고, 그 값은 `low` 또는 `medium`입니다 — **`high`는 없습니다.**
@@ -891,6 +1013,8 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 그래서 **통과 여부보다 판정 근거가 중요합니다.** renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면, 픽셀이 일치해 `visual.passed`가 `true`여도 최종 판정은 `inconclusive`입니다 — 무엇으로 그린 그림인지 모르는 채 "같다"고 말하는 것은 보증이 아니기 때문입니다. renderer pinning과 환경 manifest 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
 
+서버가 스스로 증명할 수 있는 것은 서버가 채웁니다. reference를 `artifactId`로 주고 manifest에 `referenceResource`를 빠뜨리면, 이 서버가 Figma에서 받아 들고 있는 그 PNG의 해시로 채우고 `environment.filledByServer`에 적습니다. 경로로 준 reference는 소비자의 파일이라 채우지 않습니다. 나머지 manifest 항목은 여전히 소비자가 말해야 합니다.
+
 ### `devup_feature_trace` — anchor가 없으면 거절한다
 
 화면부터 컬럼까지 한 기능의 슬라이스를 읽어 acceptance matrix로 돌려줍니다. 출발점은 **명시적 anchor**여야 합니다 — `routePath`, `figmaNodeId` 또는 `artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`.
@@ -901,6 +1025,20 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 정적 파싱은 런타임 동작을 증명하지 않습니다. 이 도구가 "연결돼 있다"고 말하는 것은 코드가 그렇게 적혀 있다는 뜻이지, 실행했을 때 그렇게 동작한다는 뜻이 아닙니다.
 
+### `devup_runtime_audit` — 계획하고 검증할 뿐, 실행하지 않는다
+
+생성한 화면이 그린 폭이 아닌 폭에서 어떻게 그려지는지는 렌더해 봐야 압니다. 이 도구는 그 실행을 **계획하고 검증**하며, 실행은 소비자 프로젝트가 합니다. 서버는 브라우저를 띄우지도, 명령을 실행하지도, URL을 가져오지도 않습니다. Playwright는 MCP 서버의 의존성이 아니라 소비자가 설치하는 실행기 `harness/runtime-audit`의 의존성입니다.
+
+1. `plan` — viewport, 화면(`routePath`, 또는 role과 접근 가능한 이름·testId·텍스트로 요소를 찾는 `click`·`fill` 단계), 기하 검사(`no-horizontal-overflow`, `contained`, `aligned`, `spans`, `visible`)를 담은 선언형 계획을 검증해 허용된 root 아래 `outputPath`에 씁니다. 모든 객체가 모르는 필드를 거절하므로 명령이나 스크립트를 실을 자리가 없고, URL은 자격증명 없는 http(s)여야 하며, 실행 중 `allowedOrigins` 밖으로 가는 요청은 막힙니다. `planId`는 정규화한 계획의 SHA-256입니다.
+2. 실행 — 소비자 프로젝트에서 `node run.mjs --plan plan.json --out out`. viewport마다 프로필·쿠키·저장소 없는 새 브라우저 context를 쓰고 `report.json`과 스크린샷을 씁니다. 시간 상한에 걸리거나 중단되면 끝낸 만큼을 `partial`·`aborted`로 쓰며, 이어서 실행하지는 않습니다.
+3. `ingest` — 보고서를 그대로 믿지 않습니다. 계획 id와 계획 파일 해시에 묶이지 않은 보고서나 바뀐 스크린샷은 `rejected`(`plan-edited`, `report-for-another-plan`, `plan-file-differs`, `artifact-changed`)이고, 모든 개수를 항목에서 다시 셉니다. 없는 항목은 `not-run`이지 통과가 아니며, 환경 오류(콘솔·네트워크 오류, 빠진 폰트, 다른 viewport 폭)가 있으면 실패도 `inconclusive`입니다. 응답의 `evidence`가 서버가 직접 확인한 것과 실행기가 신고만 한 것을 나눕니다.
+
+시각 원본은 Figma 프레임을 그린 폭에만 있습니다(`figmaReferences[].visualOriginalAt`). 그 폭의 스크린샷은 `devup_visual_compare`로 비교하고, 나머지 폭에서는 레이아웃 검사만 의미가 있습니다.
+
+`ingest`는 그린 폭에서 찍혀 검증된 스크린샷마다 **바로 부를 수 있는 `devup_visual_compare` 호출**을 `visualComparisons[]`로 돌려줍니다. audit이 아는 것 — 스크린샷 경로(`actual`·`actualPng`), viewport, 실행기가 신고한 브라우저 버전(`renderer`), OS·locale·timezone, 그 run에 환경 오류가 있었는지(`environmentStatus`) — 은 채워져 있고, 소비자만 말할 수 있는 것(reference의 `artifactId`, `tsxResource`, `themePath`, `assetDirectory`, `devupUiVersion`, `fontManifest`)은 `consumerMustAdd`가 이름으로 댑니다. 그대로 불러도 `inconclusive`가 될 사정 — scale 1이 아닌 캡처, viewport보다 긴 페이지의 full-page 캡처, 환경 오류 — 은 `blockers`가 미리 말합니다. 예전에는 audit 스크린샷을 비교기에 넣으면 이 항목들이 비어 언제나 `inconclusive`였습니다.
+
+360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다. 계약 전체는 [`docs/runtime-audit-contract.md`](docs/runtime-audit-contract.md)에 있습니다.
+
 ## 읽기 전용·개인정보 보호
 
 - upstream 호출은 `get_metadata`, `get_variable_defs`, `get_design_context`, `get_code_connect_map`, `get_screenshot`과 내장된 read-only `use_figma` script로 닫혀 있습니다.
@@ -908,6 +1046,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 - stdout에는 MCP frame만 출력하고 trace는 stderr로 보냅니다.
 - access token, refresh token, OAuth code, PKCE verifier는 Debug, trace와 MCP error에 포함하지 않습니다.
 - Figma snapshot과 screenshot을 기본적으로 디스크에 저장하지 않습니다.
+- `devup_runtime_audit`는 브라우저를 띄우거나 명령을 실행하지 않습니다. 계획은 실행되지 않는 데이터이고, 실행기의 스크린샷은 소비자의 보고서 디렉터리에만 남으며 응답에는 해시와 검증 상태만 실립니다.
 - screenshot, asset, TSX resource는 bounded memory artifact와 같은 TTL을 가지며 resource manifest에는 이름·MIME·크기·hash만 노출됩니다.
 - 호환성 fixture는 고정한 JavaScript 플러그인의 268개 synthetic 입력입니다. 별도의 WQUW-151 회귀 fixture는 공식 MCP에서 read-only로 수집한 디자인 node/텍스트/token 이름만 포함하며 OAuth token, header, callback parameter, 사용자 계정·email은 포함하지 않습니다.
 
@@ -973,12 +1112,14 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 
 일반 화면 export도 수집이 길어지면 약 1초의 초기 대기 후 `exportJob`을 반환합니다(`assetJob`은 호환 별칭). `jobId`로 상태를 조회하고 paused 상태는 `jobAction:"resume"`으로 재개합니다. `calls`의 frame/root ID·pagination·elapsedMs와 projection 시간을 확인할 수 있습니다. 예산은 frame-output unit당 5–20초의 계획용 추정이며 보장이 아닙니다. 요청 한도 6 frames/12 units와 별개로 upstream 지연은 job으로 처리합니다. 지연 프레임을 분리하려면 한 프레임씩 호출하십시오. 작업은 서버 프로세스 안에서 30분, 완료 응답은 5분 보존되며 재시작을 넘겨 보존되지 않습니다.
 
-artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
+artifact의 `artifactState`는 `expired`(확인된 TTL 만료), `evicted`(확인된 캐시 제거), `issued-by-another-process`(다른 devup-mcp 프로세스가 발급한 id — 재시작 전의 서버나 다른 세션의 서버), `unknown`(현재 서버에서 원인 판단 불가)을 구분합니다. artifactId의 앞 6바이트가 발급한 프로세스의 표식이라 디스크에 아무것도 쓰지 않고 구분하며, id는 그대로 43자입니다. 최근 제거 64개 이내의 복구 metadata가 있으면 canonical URL과 선택을 `nextAction.arguments`로 제공합니다. URL 원문의 파일 제목은 저장하지 않아도 같은 대상을 가리키는 canonical URL을 구성합니다. metadata가 없으면 `recoveryState:"unrecoverable"`로 명시하며, 서버 재시작이라고 단정하지 않습니다.
+
+오류의 `details.recovery`는 `mode`(`recollect` | `reproject` | `reread-manifest` | `fix-uri`), `cause`, `reprojectable`, `requiresOriginalUrl`을 줍니다. resource 읽기 실패는 계속 `resource not found`이지만 data에 같은 `recovery`가 실립니다 — artifact가 살아 있는데 output이 없으면 `reproject`, 청크 번호가 범위 밖이면 `chunkCount`·`manifestUri`와 함께 `reread-manifest`입니다. artifact의 capability가 요청한 output을 덮지 못해 거절할 때는 `recovery.missing`이 빠진 것(`referencePng`, `asset-captures` 등)을, `nextAction`이 `artifactId` 대신 원래 url로 다시 부르는 인자를 담습니다. 성공 응답의 `cache.reuse`는 이 artifactId로 Figma 호출 없이 더 투영할 수 있는 output(`withArtifactId`)과 원래 url이 필요한 것(`needsUrl`)을 미리 나열합니다.
 
 
 ### R9 sourceMap 필드와 resolution
 
-TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
+TSX 항목의 기본 필드는 `nodeId`, `property`, `generatedProperty`, `resolution`입니다. 선택적 `variableId`는 원본 변수 토큰 참조, `styleId`는 typography/style 토큰 참조, `assetId`는 이미지·벡터 자산 참조를 식별할 때 붙습니다. 한 항목에 여러 식별자가 함께 있을 수 있으며 해당 참조가 없으면 생략합니다. `elementIndex`는 그 항목이 매핑한 JSX 여는 태그의 문서 순서 번호(0부터)이고, `devup_ui_validate`가 위반에 붙이는 번호와 같습니다 — 오프셋 없이 둘을 잇는 키입니다. devup.json 매핑은 `jsonPointer`로 테마 위치를 가리키며 TSX 기본 필드가 모두 있는 것은 아닙니다.
 
 | resolution | 의미와 검증 범위 |
 | --- | --- |
@@ -1020,7 +1161,7 @@ HUG 검증은 원본과 일치하는 생성 auto-layout에서 크기 override �
 
 최종 TSX의 모든 JSX 속성(표현식·boolean·spread 포함)을 파서로 검사합니다. 기존 `sourceMap`에 없는 속성은 생성 단계의 원본 필드와 계산으로 대조하며, 확인된 항목은 `DEVUP_CODEGEN_PROPERTY_EVIDENCE`로 `projectionEvidence`에 남깁니다. `sourceFields`, `originalValue`, `calculation`, `stage`, `generatedProperty`, `elementIndex`, `assetId` 및 `details.output`을 함께 읽습니다. 자산 경계 보정은 render bounds와 bounding box의 차이, 효과는 원본 `effects`를 근거로 남깁니다. 이 근거는 생성 계산의 대응이며 SVG/CSS 효과의 브라우저 합성 실측이 아닙니다.
 
-설명할 수 없는 속성은 `DEVUP_CODEGEN_PROPERTY_UNMAPPED`, `mappingComplete=false`로 항상 보고합니다. 값은 유지되므로 이 진단의 `fidelityImpact`는 `none`입니다. 다른 손실·근사가 없는 경우 `quality.projection=mapping-incomplete`가 되며 `exact`와 최종 완료 판정을 허용하지 않습니다. 기존 lossy·approximated 판정은 유지합니다. 반응형 병합은 개별 breakpoint source mapping만으로 병합 속성을 증명할 수 없으므로 같은 진단을 제공합니다. `strict`는 매핑 누락도 거절합니다. `tsx`와 `componentTsx`를 함께 요청한 경우 `sourceMap.byOutput`이 출력별 map을 구분하며 기존 단일 map 필드는 호환성을 위해 유지합니다.
+설명할 수 없는 속성은 `DEVUP_CODEGEN_PROPERTY_UNMAPPED`, `mappingComplete=false`로 항상 보고합니다. 값은 유지되므로 이 진단의 `fidelityImpact`는 `none`입니다. 다른 손실·근사가 없는 경우 `quality.projection=mapping-incomplete`가 되며 `exact`와 최종 완료 판정을 허용하지 않습니다. 기존 lossy·approximated 판정은 유지합니다. 반응형 병합은 각 폭의 slot에서 병합 모듈을 읽어(배열은 devup-ui가 읽는 대로, 그 폭에서 숨긴 요소는 빼고) 그 폭만 따로 변환한 tsx와 대조합니다. 같은 요소, 같은 값(그 폭의 계약이 검증한 값), 같은 글이고 그 폭에 남는 요소가 없을 때만 `mergedMappingVerified`가 true이고, 아니면 `mergeGaps`가 어느 폭의 어느 노드·속성인지 대며 같은 진단을 제공합니다. 컴포넌트 참조는 이름과 그 폭의 인스턴스가 고른 variant까지 대조하지만, 그리는 것은 이 모듈에 없는 컴포넌트 파일이고 인스턴스는 그 글·크기를 덮어쓸 수 있으므로, 참조를 보여 주는 모듈은 검증되지 않습니다(`component-body-unverified`). 코드를 읽는 대조이지 렌더링이 아닙니다. `strict`는 매핑 누락도 거절합니다. `tsx`와 `componentTsx`를 함께 요청한 경우 `sourceMap.byOutput`이 출력별 map을 구분하며 기존 단일 map 필드는 호환성을 위해 유지합니다.
 
 `outputPaths`의 프레임 출력 키는 `frame:<nodeId>:<output>`입니다. 예: `{"frame:3997:46715:tsx":"C:/allowed/Screen.tsx","frame:3997:46715:sourceMap":"C:/allowed/Screen.map.json"}`. `outputPathResults.supportedKeys`는 이번 투영에서 실제 쓸 수 있는 키를 열거합니다. 프레임 응답에 일반 `tsx`/`sourceMap` 키를 쓰거나 미지원·미생성 출력 키를 쓰면 `outputPathResults.diagnostics`에 명시하며 조용히 무시하지 않습니다. 최상위 단일 출력은 기존 일반 키를 사용합니다. `outputPaths` 응답은 성공적으로 커밋한 파일만 나타냅니다. 자산 binary는 계속 `assetRequests[].outputPath`를 사용합니다.
 

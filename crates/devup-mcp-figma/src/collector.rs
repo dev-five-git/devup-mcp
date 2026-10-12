@@ -26,7 +26,7 @@ use crate::{
     plan_batches, read_snapshot_cursor, resolve_asset_selections, snapshot_chunk_from_result,
     variables::{
         VariableBatchResult, VariableCatalog, batch_from_result, catalog_from_result,
-        merge_used_resource_results, merge_variable_results,
+        join_used_resources, library_refs, merge_used_resource_results, merge_variable_results,
     },
 };
 
@@ -145,6 +145,10 @@ pub struct ReferencePng {
     pub data_base64: String,
     pub byte_length: usize,
     pub sha256: String,
+    /// The Devup Bridge plugin's word when its picture may hold layers
+    /// `get_screenshot`'s leaves out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,6 +169,12 @@ pub struct CollectionStats {
     /// naming the plugin; the rest went to Figma's metered MCP.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bridge: Option<crate::BridgeServed>,
+    /// Why reads the Devup Bridge plugin answered were read again on the
+    /// metered path, one entry per read: `file-out-of-sight`,
+    /// `reference-png-approximate`, `plugin-older-than-server`,
+    /// `plugin-answer-too-large`, `value-from-direct-path`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub direct_fallbacks: Vec<String>,
 }
 
 impl Default for CollectionStats {
@@ -184,6 +194,7 @@ impl Default for CollectionStats {
             wire_bytes: 0,
             envelope_chunks: 0,
             bridge: None,
+            direct_fallbacks: Vec::new(),
         }
     }
 }
@@ -234,6 +245,9 @@ pub struct CollectorSession {
     source_version: Option<String>,
     snapshot_chunks: BTreeMap<usize, SnapshotChunk>,
     variable_catalog: Option<VariableCatalog>,
+    /// A file's own variables and styles, read from its catalog, while the
+    /// library ones its nodes use are read.
+    file_local_resources: Option<UpstreamResult>,
     used_resource_refs: Option<UsedResourceRefs>,
     variable_batches: BTreeMap<usize, VariableBatchResult>,
     variables: Option<UpstreamResult>,
@@ -283,6 +297,7 @@ impl CollectorSession {
             source_version: None,
             snapshot_chunks: BTreeMap::new(),
             variable_catalog: None,
+            file_local_resources: None,
             used_resource_refs: None,
             variable_batches: BTreeMap::new(),
             variables: None,
@@ -493,6 +508,7 @@ impl CollectorSession {
         if self.metadata.is_some()
             && self.request.resource_scope == ResourceScope::File
             && self.variable_catalog.is_none()
+            && self.file_local_resources.is_none()
             && self.variables.is_none()
             && self.queued.is_empty()
         {
@@ -520,10 +536,59 @@ impl CollectorSession {
                 .variable_catalog
                 .take()
                 .ok_or_else(|| invalid_call("Figma variable catalog is missing."))?;
-            self.variables = Some(merge_variable_results(
+            let local = merge_variable_results(
                 catalog,
                 std::mem::take(&mut self.variable_batches).into_values(),
-            )?);
+            )?;
+            // The catalog is the file's own variables and styles. The library
+            // ones its nodes use, and those its variables alias, were left
+            // out, so a theme of the whole file knew only the local half: a
+            // local spacing aliasing a library primitive had no value. They
+            // are read as a used-resource read reads them and joined to it.
+            let chunks = self.snapshot_chunks.values().cloned().collect::<Vec<_>>();
+            let refs = library_refs(&local, collect_used_resource_refs(&chunks));
+            if refs.variable_ids.is_empty() && refs.styles.is_empty() {
+                self.variables = Some(join_used_resources(local, None));
+            } else {
+                let node_id = self.root_node_id.clone().ok_or_else(|| {
+                    invalid_call("No root node ID available for the used Figma resource batch.")
+                })?;
+                for batch in used_resource_batches(&refs, self.request.batch_budget)? {
+                    self.enqueue(
+                        ReadToolCall::used_resources(
+                            &self.request.target.file_key,
+                            &node_id,
+                            batch,
+                        ),
+                        Some(node_id.clone()),
+                        CallKind::UsedResourceBatch,
+                    );
+                }
+                self.used_resource_refs = Some(refs);
+                self.file_local_resources = Some(local);
+                return self.advance();
+            }
+        }
+        if self.metadata.is_some()
+            && self.request.resource_scope == ResourceScope::File
+            && self.file_local_resources.is_some()
+            && self.variables.is_none()
+            && self.queued.is_empty()
+        {
+            let refs = self
+                .used_resource_refs
+                .take()
+                .ok_or_else(|| invalid_call("Used Figma resource references are missing."))?;
+            let local = self
+                .file_local_resources
+                .take()
+                .ok_or_else(|| invalid_call("The file's own Figma resources are missing."))?;
+            let merged = merge_used_resource_results(
+                &refs,
+                std::mem::take(&mut self.variable_batches).into_values(),
+            )?;
+            self.record_unresolved_diagnostics(&refs, &merged.unresolved);
+            self.variables = Some(join_used_resources(local, Some(merged.result)));
         }
         if self.metadata.is_some()
             && self.request.resource_scope == ResourceScope::Used
@@ -613,6 +678,10 @@ impl CollectorSession {
             let reads = self.stats.bridge.as_ref().map_or(0, |bridge| bridge.reads) + served.reads;
             self.stats.bridge = Some(crate::BridgeServed { reads, ..served });
         }
+        if let Some(reason) = result.raw["_meta"][crate::bridge::DIRECT_FALLBACK_META_KEY].as_str()
+        {
+            self.stats.direct_fallbacks.push(reason.to_owned());
+        }
         match pending.kind {
             CallKind::FastSnapshot => {
                 self.accept_fast_snapshot(&pending.planned, pending.order, result)
@@ -682,7 +751,11 @@ impl CollectorSession {
             let ReadToolCall::AssetExport { request, .. } = pending.planned.call else {
                 return Err(invalid_call("asset call format is invalid."));
             };
-            self.record_asset_failure(*request, "DEVUP_ASSET_EXPORT_FAILED");
+            self.record_asset_failure(
+                *request,
+                "DEVUP_ASSET_EXPORT_FAILED",
+                Some(error.message.clone()),
+            );
             return Ok(true);
         }
         if pending.kind == CallKind::LargeValue {
@@ -1526,7 +1599,13 @@ impl CollectorSession {
             .remove(&key)
             .ok_or_else(|| invalid_call("large value assembler is missing."))?;
         if let Some(request) = self.chunked_assets.remove(&key) {
-            self.record_asset_failure(request, "DEVUP_ASSET_EXPORT_FAILED");
+            self.record_asset_failure(
+                request,
+                "DEVUP_ASSET_EXPORT_FAILED",
+                Some(format!(
+                    "reading the export back in fragments failed: {error_code}"
+                )),
+            );
             return Ok(());
         }
         let descriptor = assembler.descriptor().clone();
@@ -1582,7 +1661,7 @@ impl CollectorSession {
             version.as_deref(),
             request,
         )? {
-            AssetExportOutcome::Entry(entry) => entry,
+            AssetExportOutcome::Entry(entry) => *entry,
             AssetExportOutcome::Chunked(descriptor) => {
                 let key = (descriptor.node_id.clone(), descriptor.field.clone());
                 if self.large_values.contains_key(&key) {
@@ -1617,7 +1696,7 @@ impl CollectorSession {
                 .error_code
                 .clone()
                 .unwrap_or_else(|| "DEVUP_ASSET_EXPORT_FAILED".to_owned());
-            self.record_asset_diagnostic(request, &error_code);
+            self.record_asset_diagnostic(request, &error_code, exported.error_detail.as_deref());
         }
         self.asset_results.push(exported);
         Ok(())
@@ -1638,6 +1717,9 @@ impl CollectorSession {
                 "reference PNG call Figma target does not match the request.",
             ));
         }
+        let note = result.raw["_meta"][crate::bridge::REFERENCE_PNG_NOTE_META_KEY]
+            .as_str()
+            .map(str::to_owned);
         let data_base64 = take_single_png_data(result.raw)?;
         if data_base64.len() > MAX_REFERENCE_PNG_BASE64_BYTES {
             return Err(DevupError::new(
@@ -1663,12 +1745,19 @@ impl CollectorSession {
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect(),
+            note,
         });
         Ok(())
     }
 
-    fn record_asset_failure(&mut self, request: AssetRequest, error_code: &str) {
-        self.record_asset_diagnostic(&request, error_code);
+    fn record_asset_failure(
+        &mut self,
+        request: AssetRequest,
+        error_code: &str,
+        error_detail: Option<String>,
+    ) {
+        let error_detail = error_detail.map(|detail| detail.chars().take(500).collect::<String>());
+        self.record_asset_diagnostic(&request, error_code, error_detail.as_deref());
         let source_kind = crate::assets::source_kind_of(&request).to_owned();
         self.asset_results.push(AssetManifestEntry {
             asset_id: request.asset_id,
@@ -1685,11 +1774,17 @@ impl CollectorSession {
             data_base64: None,
             output_path: None,
             error_code: Some(error_code.to_owned()),
+            error_detail,
             path: None,
         });
     }
 
-    fn record_asset_diagnostic(&mut self, request: &AssetRequest, error_code: &str) {
+    fn record_asset_diagnostic(
+        &mut self,
+        request: &AssetRequest,
+        error_code: &str,
+        error_detail: Option<&str>,
+    ) {
         if let Some(chunk) = self
             .snapshot_chunks
             .values_mut()
@@ -1697,8 +1792,13 @@ impl CollectorSession {
         {
             chunk.diagnostics.push(crate::Diagnostic {
                 code: error_code.to_owned(),
-                message: "Failed to export the requested Figma asset; layout output was kept."
-                    .to_owned(),
+                message: match error_detail {
+                    Some(detail) => format!(
+                        "Failed to export the requested Figma asset; layout output was kept. {detail}"
+                    ),
+                    None => "Failed to export the requested Figma asset; layout output was kept."
+                        .to_owned(),
+                },
                 node_id: Some(request.node_id.clone()),
                 severity: Some(crate::DiagnosticSeverity::Warning),
                 property: Some(request.field.clone()),
@@ -2198,6 +2298,46 @@ fn validate_reference_png(bytes: &[u8]) -> Result<(), DevupError> {
         .map_err(reference_png_decode_error)
 }
 
+/// The plugin's export flattened onto the colour the plugin names under the
+/// node - its ancestors' fills over the page background - which is what
+/// `get_screenshot` hands back: measured on the same frames, its PNG was
+/// opaque where the export kept a translucent backdrop or transparent gaps,
+/// showing that colour there (the page background (30, 30, 30) on a frame
+/// straight on the page). An opaque export is returned as it came.
+pub(crate) fn flatten_reference_png(
+    data_base64: &str,
+    backdrop: [u8; 3],
+) -> Result<String, DevupError> {
+    let bytes = STANDARD
+        .decode(data_base64.as_bytes())
+        .map_err(|_| invalid_call("Figma reference PNG base64 is invalid."))?;
+    let mut limits = Limits::default();
+    limits.max_image_width = Some(MAX_REFERENCE_PNG_DIMENSION);
+    limits.max_image_height = Some(MAX_REFERENCE_PNG_DIMENSION);
+    limits.max_alloc = Some(MAX_REFERENCE_PNG_DECODED_BYTES as u64);
+    let decoder =
+        PngDecoder::with_limits(Cursor::new(bytes), limits).map_err(reference_png_decode_error)?;
+    let mut pixels = image::DynamicImage::from_decoder(decoder)
+        .map_err(reference_png_decode_error)?
+        .into_rgba8();
+    if pixels.pixels().all(|pixel| pixel[3] == u8::MAX) {
+        return Ok(data_base64.to_owned());
+    }
+    for pixel in pixels.pixels_mut() {
+        let alpha = u32::from(pixel[3]);
+        for (value, under) in pixel.0.iter_mut().zip(backdrop) {
+            let mixed = u32::from(*value) * alpha + u32::from(under) * (255 - alpha);
+            *value = u8::try_from((mixed + 127) / 255).unwrap_or(u8::MAX);
+        }
+        pixel[3] = u8::MAX;
+    }
+    let mut encoded = Vec::new();
+    pixels
+        .write_with_encoder(image::codecs::png::PngEncoder::new(&mut encoded))
+        .map_err(|_| invalid_call("Figma reference PNG could not be re-encoded."))?;
+    Ok(STANDARD.encode(encoded))
+}
+
 fn reference_png_decode_error(error: ImageError) -> DevupError {
     if matches!(error, ImageError::Limits(_)) {
         DevupError::new(
@@ -2408,9 +2548,13 @@ fn merge_fast_resources(
                 .into_iter()
                 .flatten(),
         )
-        .map(|value| serde_json::to_string(value).map(|key| (key, value.clone())))
-        .collect::<Result<BTreeMap<_, _>, _>>()
-        .map_err(|_| invalid_call("Could not serialize the multi-root unresolved resource."))?;
+        .map(|value| {
+            (
+                (value["id"].to_string(), value["kind"].to_string()),
+                value.clone(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     current.insert(
         "unresolved".to_owned(),
         Value::Array(unresolved.into_values().collect()),

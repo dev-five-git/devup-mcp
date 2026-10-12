@@ -1,3 +1,7 @@
+// Figma's own MCP runs scripts with hidden layers inside instances left out
+// of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
+// here so the direct path and the Devup Bridge read the same document.
+figma.skipInvisibleInstanceChildren = false;
 const MAX_ENVELOPE_BYTES = 8 * 1024 * 1024;
 // The Figma MCP cuts a text result at 20,480 UTF-8 bytes; the measurement is
 // written up in fast_snapshot.js.
@@ -101,6 +105,10 @@ function scanResources(value, fieldName = "", seen = new WeakSet(), depth = 0) {
   }
 }
 
+// Under Figma's own MCP a page is not loaded until something loads it, and
+// `findAll` sees nothing on it: the devup Test file's second page answered
+// 0 nodes there and 70 to the plugin, which loads every page when it starts.
+for (const page of figma.root.children) await page.loadAsync();
 const documentNodes = [figma.root, ...figma.root.findAll(() => true)];
 for (const node of documentNodes) {
   for (const field of [
@@ -134,18 +142,23 @@ const localVariableIds = new Set(localVariables.map((variable) => variable.id));
 const localStyleIds = new Set([...paints, ...texts, ...effects, ...grids].map((style) => style.id));
 
 const unresolved = [];
-const remoteVariableJobs = [...usedVariableIds]
-  .filter((id) => !localVariableIds.has(id))
-  .sort()
-  .map(async (id) => {
-    try {
-      const variable = await figma.variables.getVariableByIdAsync(id);
-      return variable || null;
-    } catch (_) {
-      unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable" });
-      return null;
-    }
-  });
+async function remoteVariable(id) {
+  try {
+    const variable = await figma.variables.getVariableByIdAsync(id);
+    return variable || null;
+  } catch (error) {
+    unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) });
+    return null;
+  }
+}
+// A variable can alias a library variable no node binds - a local spacing
+// that points at a library's primitive. The theme needs that variable to give
+// the alias a value, so it is read too, and so is whatever it aliases.
+function aliasTargets(variable) {
+  return Object.values(variable.valuesByMode || {})
+    .filter((value) => value && value.type === "VARIABLE_ALIAS" && typeof value.id === "string" && value.id)
+    .map((value) => value.id);
+}
 const remoteStyleJobs = [...usedStyleTypes.entries()]
   .filter(([id]) => !localStyleIds.has(id))
   .sort(([left], [right]) => left.localeCompare(right))
@@ -153,14 +166,25 @@ const remoteStyleJobs = [...usedStyleTypes.entries()]
     try {
       const style = await figma.getStyleByIdAsync(id);
       return style ? { style, styleType } : null;
-    } catch (_) {
-      unresolved.push({ id, kind: "style", reason: "notFoundOrUnavailable" });
+    } catch (error) {
+      unresolved.push({ id, kind: "style", reason: "notFoundOrUnavailable", error: String((error && error.message) || error).slice(0, 300) });
       return null;
     }
   });
-const remoteVariables = (await Promise.all(remoteVariableJobs)).filter(Boolean);
+const requestedRemoteIds = new Set();
+const remoteVariables = [];
+let pendingRemoteIds = [...usedVariableIds, ...localVariables.flatMap(aliasTargets)];
+while (pendingRemoteIds.length > 0) {
+  const batch = [...new Set(pendingRemoteIds)]
+    .filter((id) => !localVariableIds.has(id) && !requestedRemoteIds.has(id))
+    .sort();
+  for (const id of batch) requestedRemoteIds.add(id);
+  const fetched = (await Promise.all(batch.map(remoteVariable))).filter(Boolean);
+  remoteVariables.push(...fetched);
+  pendingRemoteIds = fetched.flatMap(aliasTargets);
+}
 const remoteStyles = (await Promise.all(remoteStyleJobs)).filter(Boolean);
-for (const id of [...usedVariableIds].filter((id) => !localVariableIds.has(id))) {
+for (const id of requestedRemoteIds) {
   if (!remoteVariables.some((variable) => variable.id === id) && !unresolved.some((item) => item.id === id)) {
     unresolved.push({ id, kind: "variable", reason: "notFoundOrUnavailable" });
   }

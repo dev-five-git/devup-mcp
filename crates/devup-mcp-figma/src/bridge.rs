@@ -71,6 +71,9 @@ const JOB_TIMEOUT: Duration = Duration::from_secs(90);
 /// 브리지가 답한 결과의 `_meta` 에서 어느 플러그인이 답했는지를 싣는 자리.
 const SERVED_META_KEY: &str = "devup/bridge";
 
+/// 참조 PNG 결과의 `_meta` 에서 플러그인이 그 그림에 단 말을 싣는 자리.
+pub(crate) const REFERENCE_PNG_NOTE_META_KEY: &str = "devup/referencePngNote";
+
 /// 플러그인이 끊긴 뒤 다시 붙기를 시도하는 간격(`plugin/src/ui.ts` 의 `RETRY_MS`).
 const PLUGIN_RETRY: Duration = Duration::from_secs(2);
 
@@ -110,6 +113,11 @@ pub struct PluginContext {
     pub selection: Option<Vec<NodeRef>>,
     #[serde(default)]
     pub selection_count: Option<usize>,
+    /// 플러그인 창이 화면에 보이는지. Figma 는 보이지 않는 파일이 아직 불러오지 않은
+    /// 데이터를 읽지 못하게 하므로, 수집을 시작하기 전에 알 수 있어야 한다. 이것을
+    /// 보고하기 전에 빌드된 플러그인은 `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_view: Option<bool>,
 }
 
 impl PluginContext {
@@ -408,6 +416,35 @@ pub struct BridgeState {
 
 fn unavailable(message: impl Into<String>) -> DevupError {
     DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, message, false)
+}
+
+/// 플러그인이 답한 실패 — 스크립트가 던진 `DEVUP_*` 코드나 Figma 런타임의 문구.
+/// 전송이 끊긴 것과 달리 읽기는 플러그인에 닿았으므로, [`BridgeFigmaClient`] 가
+/// 원격 `use_figma` 와 같은 `isError` 결과로 바꿔 올린다. 그러지 않으면 Figma 가
+/// 페이지를 불러오지 못했다는 말까지 "direct 경로를 쓸 수 없다"로 읽혔다.
+fn script_failure(message: impl Into<String>) -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaDirectUnavailable,
+        message,
+        false,
+        json!({ "source": "bridge", "stage": "plugin-execution" }),
+    )
+}
+
+pub(crate) fn is_script_failure(error: &DevupError) -> bool {
+    error.details["source"] == "bridge" && error.details["stage"] == "plugin-execution"
+}
+
+/// 플러그인이 답한 실패를 원격 `use_figma` 가 주는 모양으로 쓴다. 위쪽은 두 경로의
+/// 실패를 한 가지로 분류한다 — 없는 노드는 호출자 오류로, 나머지는 플러그인 실행
+/// 오류로.
+fn script_failure_result(message: &str) -> UpstreamResult {
+    UpstreamResult {
+        raw: json!({
+            "content": [{ "type": "text", "text": format!("Error: {message}") }],
+            "isError": true,
+        }),
+    }
 }
 
 /// 이 연결 하나만 가리키는 브리지 전용 키.
@@ -849,11 +886,7 @@ impl BridgeState {
             Ok(Ok(result)) => match (result.data, result.error) {
                 // 스크립트가 던진 DEVUP_* 코드는 그대로 올린다. 원격 경로와 같은
                 // 문자열이어야 위쪽 분기가 동일하게 동작한다.
-                (_, Some(message)) => Err(Failure::Final(DevupError::new(
-                    ErrorCode::DevupFigmaDirectUnavailable,
-                    message,
-                    false,
-                ))),
+                (_, Some(message)) => Err(Failure::Final(script_failure(message))),
                 (Some(data), None) => Ok((data, served)),
                 (None, None) => Err(Failure::Final(unavailable(
                     "bridge returned neither data nor error",
@@ -884,7 +917,7 @@ impl BridgeState {
 /// 기본값(봉투 19KB · 필드 4KB)은 공식 MCP 가 텍스트 결과를 20,480 바이트에서
 /// 자르기 때문에 생긴 것이다. 그 탓에 화면 하나가 30번 넘는 왕복으로 쪼개지고,
 /// 창이 뒤로 가 있으면 왕복 하나가 60초까지 걸린다 — 실측한 값이다.
-const BRIDGE_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
+pub(crate) const BRIDGE_ENVELOPE_BYTES: usize = 8 * 1024 * 1024;
 const BRIDGE_FIELD_BYTES: usize = 4 * 1024 * 1024;
 
 /// 스냅샷 읽기의 한도를 브리지 전송에 맞게 올린다.
@@ -914,6 +947,10 @@ fn widen_budgets(params: &mut Value) {
 /// 그 파일을 이 플러그인이 맡는다는 판단은 이미 `resolve` 가 내렸다. 이 값은
 /// 디코더의 대조에만 쓰이고, 파일 키로 보고되는 것은 [`BridgeServed`] 가 싣는
 /// 플러그인 자신의 보고뿐이다.
+///
+/// 빠른 스냅샷·테마 봉투는 이 키를 `source` 와 `snapshot` 안에 싣는다. 거기가 빈
+/// 채로 가면 디코더가 대상 불일치로 보고 빠른 경로를 통째로 버린다 — 실기기에서
+/// 화면마다 그렇게 노드마다 읽는 예전 경로로 떨어졌고, breakpoint 형제 폭도 잃었다.
 fn stamp_file_key(data: &mut Value, file_key: &str) {
     let Some(object) = data.as_object_mut() else {
         return;
@@ -924,6 +961,15 @@ fn stamp_file_key(data: &mut Value, file_key: &str) {
         .is_none_or(str::is_empty);
     if empty {
         object.insert("fileKey".to_owned(), Value::String(file_key.to_owned()));
+    }
+    for nested in ["source", "snapshot"] {
+        if let Some(inner) = object.get_mut(nested).and_then(Value::as_object_mut)
+            && inner
+                .get("fileKey")
+                .is_some_and(|key| key.as_str().is_none_or(str::is_empty))
+        {
+            inner.insert("fileKey".to_owned(), Value::String(file_key.to_owned()));
+        }
     }
 }
 
@@ -945,6 +991,206 @@ fn wrap_as_tool_result(data: &Value, served: &BridgeServed) -> Result<Value, Dev
     });
     result["_meta"][SERVED_META_KEY] = serde_json::to_value(served).map_err(encode)?;
     Ok(result)
+}
+
+/// 노드 없는 metadata 읽기를 원격 `get_metadata` 가 주는 모양 — 최상위 페이지 목록 —
+/// 으로 쓴다. 수집기는 두 경로의 답을 같은 파서(`parse_top_level_pages`)로 받는다.
+pub(crate) fn wrap_as_top_level_pages(
+    data: &Value,
+    served: &BridgeServed,
+) -> Result<Value, DevupError> {
+    let pages = data["nodes"]
+        .as_array()
+        .ok_or_else(|| unavailable("the plugin's page catalog has no nodes"))?;
+    let mut text = String::from("Top-level pages of the document:\n");
+    for page in pages {
+        let name = page["fields"]["name"].as_str().unwrap_or_default();
+        text.push_str(&format!(
+            "- {}: {}\n",
+            page["id"].as_str().unwrap_or_default(),
+            name.replace(['\r', '\n'], " ")
+        ));
+    }
+    let mut result = json!({
+        "content": [{ "type": "text", "text": text }],
+        "isError": false,
+        "_meta": {},
+    });
+    result["_meta"][SERVED_META_KEY] = serde_json::to_value(served)
+        .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
+    Ok(result)
+}
+
+/// 참조 PNG 의 답이 브리지 답 하나에 들어가지 않으면 플러그인은 그것을 붙들고 조각으로
+/// 내준다. 이어 받아 하나로 되돌린다 — 원격 `get_screenshot` 이 16 MiB 까지 받는 것을
+/// 브리지도 받는다.
+async fn whole_reference_answer(
+    state: &BridgeState,
+    file_key: &str,
+    data: Value,
+) -> Result<Value, DevupError> {
+    if data["kind"] != "devupReferencePngChunked" {
+        return Ok(data);
+    }
+    let id = data["id"].as_str().unwrap_or_default().to_owned();
+    let length = data["length"].as_u64().unwrap_or(0) as usize;
+    if id.is_empty() || length == 0 || length > REFERENCE_ANSWER_LIMIT {
+        return Err(unavailable(
+            "the plugin's reference PNG answer is too large or unnamed",
+        ));
+    }
+    let mut text = String::with_capacity(length);
+    while text.len() < length {
+        let (piece, _) = state
+            .dispatch(
+                file_key,
+                "referencePngChunk",
+                json!({ "largeValue": { "id": id, "offset": text.len() } }),
+            )
+            .await?;
+        let part = piece["text"].as_str().unwrap_or_default();
+        // 붙든 글은 ASCII 라 오프셋이 두 쪽에서 같은 자리를 가리킨다. 아니면 어긋난 것이다.
+        if piece["kind"] != "devupReferencePngChunk"
+            || piece["id"] != id.as_str()
+            || piece["offset"].as_u64() != Some(text.len() as u64)
+            || part.is_empty()
+            || !part.is_ascii()
+            || text.len() + part.len() > length
+        {
+            return Err(unavailable(
+                "the plugin's reference PNG pieces do not line up",
+            ));
+        }
+        text.push_str(part);
+    }
+    serde_json::from_str(&text)
+        .map_err(|error| unavailable(format!("the plugin's reference PNG answer: {error}")))
+}
+
+/// 참조 PNG 의 답 전체.
+///
+/// 플러그인은 큰 답을 읽혀 갈 때까지 붙들어 두고, 그것들이 상한만큼 쌓여 있으면 새 그림을
+/// 그리지 않고 바쁘다고 답한다(`DEVUP_REFERENCE_PNG_BUSY`). 붙든 답을 밀어내면 그 답을 읽던
+/// 요청이 실패하기 때문이다. 그동안에도 다른 요청의 조각 읽기는 처리되므로 잠시 뒤 다시
+/// 묻는다. 붙들어 둔 답이 읽기 전에 사라졌으면(플러그인이 다시 실행되는 등) 한 번 다시 받는다.
+async fn reference_answer(
+    state: &BridgeState,
+    file_key: &str,
+    script: &'static str,
+    params: Value,
+) -> Result<(Value, BridgeServed), DevupError> {
+    let deadline = tokio::time::Instant::now() + REFERENCE_BUSY_WAIT;
+    let mut fetched_again = false;
+    loop {
+        let (data, served) = match state.dispatch(file_key, script, params.clone()).await {
+            Err(error)
+                if plugin_says(&error, "DEVUP_REFERENCE_PNG_BUSY")
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(REFERENCE_BUSY_RETRY).await;
+                continue;
+            }
+            answered => answered?,
+        };
+        match whole_reference_answer(state, file_key, data).await {
+            Err(error)
+                if plugin_says(&error, "DEVUP_REFERENCE_PNG_ANSWER_GONE") && !fetched_again =>
+            {
+                fetched_again = true;
+            }
+            whole => return whole.map(|data| (data, served)),
+        }
+    }
+}
+
+fn plugin_says(error: &DevupError, code: &str) -> bool {
+    is_script_failure(error) && error.message.contains(code)
+}
+
+/// 바쁜 플러그인에게 참조 PNG 를 다시 묻는 간격과 그 상한. 상한은 export 작업이 읽기 하나에
+/// 주는 90초 안에 그림과 조각 읽기까지 마치도록 잡았다.
+const REFERENCE_BUSY_RETRY: std::time::Duration = std::time::Duration::from_millis(500);
+const REFERENCE_BUSY_WAIT: std::time::Duration = std::time::Duration::from_secs(45);
+
+/// 조각으로 받는 참조 PNG 답의 상한. 이미지 채움의 원본까지 실으므로 PNG 상한(16 MiB)
+/// 보다 크다.
+const REFERENCE_ANSWER_LIMIT: usize = 96 * 1024 * 1024;
+
+/// 참조 PNG 결과의 `_meta` 에서, 플러그인이 `get_screenshot` 과 같은 그림을 다 그리지
+/// 못했다는 이유를 싣는 자리. 원격 경로가 열려 있으면 그쪽이 대신 답한다.
+const REFERENCE_PNG_APPROXIMATE_META_KEY: &str = "devup/referencePngApproximate";
+
+/// 원격 경로가 브리지 대신 답했을 때 그 이유를 결과의 `_meta` 에 싣는 자리.
+pub(crate) const DIRECT_FALLBACK_META_KEY: &str = "devup/directFallback";
+
+/// 플러그인이 export 한 참조 PNG 를 공식 `get_screenshot` 이 주는 모양 — 이미지
+/// 블록 하나 — 으로 쓴다. 수집기는 두 경로의 답을 같은 디코더로 받는다.
+///
+/// 그림도 같게 맞춘다. 다른 레이어가 닿지 않으면 플러그인은 캔버스가 보여 주는 그
+/// 자리를 export 하고 페이지 배경을 알려 주며, 여기서 그 위로 투명한 자리를 덮는다.
+/// 닿으면 노드만 export 하고 조상들을 설명하며, 여기서 나머지를 그린다
+/// (`reference_compose`). 다 그리지 못한 것이 있으면 그 이유를 `_meta` 에 실어
+/// 원격 경로가 대신 답하게 한다.
+fn wrap_as_image_result(data: &Value, served: &BridgeServed) -> Result<Value, DevupError> {
+    if data["kind"] != "devupReferencePng" || data["mimeType"] != "image/png" {
+        return Err(unavailable(
+            "the plugin's reference PNG answer is not a devupReferencePng",
+        ));
+    }
+    // 그리다 멈추는 일이 생겨도 함께 온 캔버스 그림이 답이 된다.
+    let composed = data["compose"].is_object().then(|| {
+        std::panic::catch_unwind(|| crate::reference_compose::compose(&data["compose"]))
+            .unwrap_or_else(|_| Err(unavailable("composing it stopped unexpectedly")))
+    });
+    let mut failure = None;
+    let png = match composed {
+        Some(Ok(png)) => png,
+        failed => {
+            failure = failed.and_then(Result::err);
+            let png = data["data"].as_str().ok_or_else(|| {
+                unavailable("the plugin's reference PNG answer carries no picture")
+            })?;
+            match named_backdrop(data) {
+                Some(backdrop) => crate::collector::flatten_reference_png(png, backdrop)?,
+                None => png.to_owned(),
+            }
+        }
+    };
+    let mut result = json!({
+        "content": [{ "type": "image", "data": png, "mimeType": "image/png" }],
+        "isError": false,
+        "_meta": {},
+    });
+    result["_meta"][SERVED_META_KEY] = serde_json::to_value(served)
+        .map_err(|error| unavailable(format!("bridge result encode failed: {error}")))?;
+    if let Some(note) = data.get("note").and_then(Value::as_str) {
+        result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(note);
+    }
+    if let Some(reason) = data.get("approximate").and_then(Value::as_str) {
+        result["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY] = json!(reason);
+    }
+    if let Some(error) = failure {
+        result["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY] =
+            json!(format!("devup-mcp could not compose it: {}", error.message));
+        result["_meta"][REFERENCE_PNG_NOTE_META_KEY] = json!(format!(
+            "Drawn as the canvas shows this area: devup-mcp could not compose what get_screenshot draws here ({}). Layers reaching into it may show here: {}; get_screenshot leaves other layers out.",
+            error.message,
+            data["reaching"].as_str().unwrap_or("other layers")
+        ));
+    }
+    Ok(result)
+}
+
+/// 플러그인이 export 한 노드 아래의 색, `[r, g, b]`. 이 값을 보내기 전에 빌드된
+/// 플러그인은 보내지 않으며, 그 export 는 받은 그대로 넘긴다.
+fn named_backdrop(data: &Value) -> Option<[u8; 3]> {
+    let channels = data
+        .get("backdrop")?
+        .as_array()?
+        .iter()
+        .map(|value| value.as_u64().and_then(|value| u8::try_from(value).ok()))
+        .collect::<Option<Vec<_>>>()?;
+    <[u8; 3]>::try_from(channels).ok()
 }
 
 /// 플러그인이 붙는 문에 들이는 `Origin`.
@@ -1305,15 +1551,39 @@ impl FigmaUpstream for BridgeFigmaClient {
         };
         let mut params = job.params;
         widen_budgets(&mut params);
-        let (mut data, served) = self
-            .state
-            .dispatch(call.file_key(), job.script, params)
-            .await?;
-        stamp_file_key(&mut data, call.file_key());
+        let answered = if matches!(call, ReadToolCall::Screenshot { .. }) {
+            reference_answer(&self.state, call.file_key(), job.script, params).await
+        } else {
+            self.state
+                .dispatch(call.file_key(), job.script, params)
+                .await
+        };
+        let (mut data, served) = match answered {
+            Ok(answered) => answered,
+            Err(error) if is_script_failure(&error) => {
+                return Ok(script_failure_result(&error.message));
+            }
+            Err(error) => return Err(error),
+        };
         let served = BridgeServed {
             port: self.port,
             ..served
         };
+        if matches!(call, ReadToolCall::Screenshot { .. }) {
+            // 그리는 일은 픽셀마다 도는 계산이라 비동기 작업자를 붙들지 않게 넘긴다.
+            let raw = tokio::task::spawn_blocking(move || wrap_as_image_result(&data, &served))
+                .await
+                .map_err(|error| {
+                    unavailable(format!("composing the reference PNG stopped: {error}"))
+                })??;
+            return Ok(UpstreamResult { raw });
+        }
+        if matches!(call, ReadToolCall::Metadata { node_id: None, .. }) {
+            return Ok(UpstreamResult {
+                raw: wrap_as_top_level_pages(&data, &served)?,
+            });
+        }
+        stamp_file_key(&mut data, call.file_key());
         Ok(UpstreamResult {
             raw: wrap_as_tool_result(&data, &served)?,
         })
@@ -1378,18 +1648,71 @@ fn bridge_batch_budget() -> BatchBudget {
 ///
 /// 판정은 부르기 전에 끝난다. 브리지가 맡은 요청이 실패하면 그 실패를 그대로
 /// 올린다 — 노드가 없거나 봉투가 너무 큰 것은 원격에서도 같은 결과이고, 다시
-/// 물으면 아낀 요금을 도로 쓰게 된다.
+/// 물으면 아낀 요금을 도로 쓰게 된다. 예외는 원격이라면 해낼 수 있는 거절
+/// (`remote_may_answer`)이다. 원격이 읽을 수 있는 키면 원격에 묻되, 원격도 다시 해 볼
+/// 여지 없이 거절하면(로그인이 없다 등) 플러그인의 거절을 올린다 — 한도를 쓰지 않는
+/// 처방(플러그인 갱신)을 말하는 쪽이 그것이다.
 pub struct FallbackUpstream<P, S> {
     preferred: P,
     secondary: S,
+    meter: Option<Arc<dyn Meter>>,
 }
+
+/// 한도를 쓰는 경로로 보낼 읽기를 한도 안에 들 때까지 붙든다.
+///
+/// 원격으로 가는 읽기는 부르는 쪽이 스스로 늦춘다. 플러그인이 답한 읽기를 원격으로 다시
+/// 읽을지는 그 판단 뒤 여기서 정해지므로 여기서 이것을 기다린다 — 다만 정해진 시간 안에
+/// 자리가 나지 않으면 기다리지 않는다. 기다리는 시간도 읽기 하나에 주어진 시간 안에 들어
+/// 있어서, 오래 기다리면 이미 받은 플러그인의 답까지 시간 초과로 잃는다.
+#[async_trait]
+pub trait Meter: Send + Sync {
+    /// `budget` 안에 한도 자리를 얻었으면 `true`. 얻지 못했으면 자리를 쓰지 않는다.
+    async fn acquire_within(&self, budget: std::time::Duration) -> bool;
+}
+
+/// 읽기 하나에 주어진 시간. export 작업은 이 시간이 지난 읽기를 멈추고 다시 하게 한다.
+pub const READ_TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// 원격으로 다시 읽는 일 — 한도 자리를 기다리는 것과 원격의 답까지 — 에 주는 시간의 상한.
+const DIRECT_FALLBACK_BUDGET: std::time::Duration = std::time::Duration::from_secs(40);
+
+/// 다시 읽는 일은 플러그인의 읽기와 합쳐 `READ_TIME_LIMIT` 보다 이만큼 일찍 끝낸다. 그래야
+/// 시간이 다 됐을 때 이미 받은 플러그인의 답을 돌려줄 수 있다.
+const FALLBACK_MARGIN: std::time::Duration = std::time::Duration::from_secs(5);
 
 impl<P, S> FallbackUpstream<P, S> {
     pub fn new(preferred: P, secondary: S) -> Self {
         Self {
             preferred,
             secondary,
+            meter: None,
         }
+    }
+
+    pub fn with_meter(mut self, meter: Arc<dyn Meter>) -> Self {
+        self.meter = Some(meter);
+        self
+    }
+
+    /// 원격 읽기를 한도 자리를 얻어 `deadline` 안에 끝낸다. 자리를 얻지 못했거나 시간 안에
+    /// 끝나지 않았으면 `None`.
+    async fn metered<T>(
+        &self,
+        deadline: tokio::time::Instant,
+        read: impl std::future::Future<Output = T>,
+    ) -> Option<T> {
+        let budget = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if budget.is_zero() {
+            return None;
+        }
+        if let Some(meter) = &self.meter
+            && !tokio::time::timeout_at(deadline, meter.acquire_within(budget))
+                .await
+                .unwrap_or(false)
+        {
+            return None;
+        }
+        tokio::time::timeout_at(deadline, read).await.ok()
     }
 }
 
@@ -1405,8 +1728,44 @@ where
     }
 
     async fn call_read_tool(&self, call: ReadToolCall) -> Result<UpstreamResult, DevupError> {
+        let started = tokio::time::Instant::now();
         if self.preferred.can_serve(&call).await {
-            return self.preferred.call_read_tool(call).await;
+            let answered = self.preferred.call_read_tool(call.clone()).await?;
+            if is_bridge_only_key(call.file_key()) {
+                return Ok(answered);
+            }
+            let better = remote_does_better(&answered.raw);
+            let Some(reason) = better.or_else(|| remote_may_answer(&answered.raw)) else {
+                return Ok(answered);
+            };
+            // 로그인 확인, 한도 자리, 원격의 답이 모두 이 시간 안이다 — `DIRECT_FALLBACK_BUDGET`
+            // 안에, 그리고 이 읽기가 시작된 때부터 `READ_TIME_LIMIT - FALLBACK_MARGIN` 안에.
+            let deadline = (tokio::time::Instant::now() + DIRECT_FALLBACK_BUDGET)
+                .min(started + READ_TIME_LIMIT - FALLBACK_MARGIN);
+            let direct =
+                match tokio::time::timeout_at(deadline, self.secondary.has_credentials()).await {
+                    Ok(false) => return Ok(answered),
+                    Ok(true) => {
+                        self.metered(deadline, self.secondary.call_read_tool(call))
+                            .await
+                    }
+                    Err(_) => None,
+                };
+            return match direct {
+                // 플러그인의 답을 쓸 수 있으면 그것을 쓴다. 쓸 수 없는 답(거절)이면 한도가
+                // 비는 대로 다시 해 볼 일이다.
+                None if better.is_some() => Ok(answered),
+                None => Err(no_room_on_the_metered_path()),
+                Some(Ok(direct)) if better.is_some() && direct_unusable(&direct.raw) => {
+                    Ok(answered)
+                }
+                Some(Ok(mut direct)) => {
+                    direct.raw["_meta"][DIRECT_FALLBACK_META_KEY] = json!(reason);
+                    Ok(direct)
+                }
+                Some(Err(error)) if better.is_none() && error.retryable => Err(error),
+                Some(Err(_)) => Ok(answered),
+            };
         }
         // 브리지만 읽을 수 있는 키다. 원격으로 넘기면 Figma 에 없는 키를 묻게 되고,
         // 돌아오는 것은 원인과 무관한 거절 — 로그인하라거나 파일이 없다는 — 뿐이다.
@@ -1452,11 +1811,109 @@ where
     }
 }
 
+/// 플러그인이 답은 했지만 원격 경로가 더 낫게 답할 수 있는 경우와 그 이유. 원격이
+/// 어떤 이유로든 답하지 못하면 플러그인의 답을 그대로 쓴다 — 쓸 수 있는 답을 버리고
+/// 실패를 올리지 않는다.
+///
+/// - Figma 가 화면에 보이지 않는 파일의 데이터를 가져오지 않아 읽기의 일부나 전부가
+///   "Unable to establish connection to Figma" 로 빠졌다(`figma_unreachable_hint`).
+///   원격 경로는 그 상태와 무관하다.
+/// - 참조 PNG 에서 플러그인이 `get_screenshot` 과 같은 그림을 다 그리지 못했다.
+fn remote_does_better(raw: &Value) -> Option<&'static str> {
+    if raw["_meta"][REFERENCE_PNG_APPROXIMATE_META_KEY].is_string() {
+        return Some("reference-png-approximate");
+    }
+    texts(raw)
+        .any(|text| {
+            crate::figma_unreachable_hint(text).is_some()
+                && (raw["isError"] == true || reports_unreachable(text))
+        })
+        .then_some("file-out-of-sight")
+}
+
+/// 플러그인 답의 JSON 에서 오류를 싣는 자리 — 값을 읽지 못한 `$error`, 필드 읽기 실패
+/// `fieldErrors`, 미해석 리소스의 `error`, 자산 export 의 `errorDetail` — 에 그 말이 있는지.
+/// 디자인의 글(`characters`, 이름, 설명)에 같은 문장이 있어도 한도를 써서 다시 읽지 않는다.
+fn reports_unreachable(text: &str) -> bool {
+    fn within(value: &Value, in_error: bool) -> bool {
+        match value {
+            Value::String(text) => in_error && crate::figma_unreachable_hint(text).is_some(),
+            Value::Array(items) => items.iter().any(|item| within(item, in_error)),
+            Value::Object(fields) => fields.iter().any(|(key, value)| {
+                let error_field = matches!(
+                    key.as_str(),
+                    "$error" | "error" | "errors" | "fieldErrors" | "errorDetail" | "lookupError"
+                );
+                within(value, in_error || error_field)
+            }),
+            _ => false,
+        }
+    }
+    serde_json::from_str::<Value>(text).is_ok_and(|value| within(&value, false))
+}
+
+/// 플러그인이 답하지 못한 읽기를 원격으로 넘기려 했지만 정해진 시간 안에 한도 자리가 나지
+/// 않았다. 한도가 찬 것과 같으므로 그렇게 알려, 수집이 한도가 비기를 기다렸다 다시 하게 한다.
+fn no_room_on_the_metered_path() -> DevupError {
+    DevupError::with_details(
+        ErrorCode::DevupFigmaRateLimited,
+        "The Devup Bridge plugin could not answer this read, and the metered direct path had no \
+         room in its allowance to read it in time. It is retried once the allowance frees up.",
+        true,
+        json!({ "source": "direct", "stage": "bridge-fallback" }),
+    )
+}
+
+/// 원격 경로라면 해낼 수 있는 플러그인의 거절과 그 이유:
+///
+/// - 이 devup-mcp 보다 먼저 빌드돼 스크립트를 모른다 — 읽기는 시도되지 않았다.
+/// - 참조 PNG 가 브리지 답 하나(8 MiB)를 넘는다 — 조각으로 내주기 전의 플러그인이다.
+/// - 큰 값의 바이트가 읽기가 가리키는 해시와 다르다 — 그 값은 원격 경로의 렌더러가
+///   만든 것이라(플러그인이 답하지 못해 원격이 읽은 자산의 이어 읽기), 거기서만 같은
+///   바이트가 나온다.
+fn remote_may_answer(raw: &Value) -> Option<&'static str> {
+    if raw["isError"] != true {
+        return None;
+    }
+    let text = raw["content"][0]["text"].as_str()?;
+    [
+        ("DEVUP_BRIDGE_UNKNOWN_SCRIPT", "plugin-older-than-server"),
+        ("DEVUP_REFERENCE_PNG_TOO_LARGE", "plugin-answer-too-large"),
+        ("DEVUP_REFERENCE_PNG_BUSY", "plugin-busy"),
+        ("DEVUP_LARGE_VALUE_CHANGED", "value-from-direct-path"),
+    ]
+    .into_iter()
+    .find_map(|(code, reason)| text.contains(code).then_some(reason))
+}
+
+/// 원격의 답을 쓸 수 없는지. 그때는 플러그인의 답이 낫다.
+///
+/// - 오류로 표시됐다.
+/// - 한도에 걸렸다는 문장 하나다 — `isError` 없이 오기도 한다(`is_quota_refusal`).
+/// - 공식 MCP 의 텍스트 상한(20 KB)에서 잘렸다. 플러그인의 크기로 묶은 읽기를 원격이 다시
+///   읽으면 생기고, 그 답은 디코딩되지 않는다.
+fn direct_unusable(raw: &Value) -> bool {
+    raw["isError"] == true
+        || texts(raw).any(|text| {
+            crate::is_quota_refusal(text, false)
+                || text.trim_end().ends_with("// truncated to 20kb")
+        })
+}
+
+fn texts(raw: &Value) -> impl Iterator<Item = &str> {
+    raw["content"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|block| block["text"].as_str())
+}
+
 /// 브리지만 읽을 수 있는 키의 읽기를 브리지가 맡지 못할 때의 거절.
 ///
 /// 두 경우는 고치는 방법이 다르다. 스크립트 읽기면 플러그인이 끊긴 것이니 다시
-/// 띄우면 되고, 그 밖의 읽기(`get_screenshot` 등)는 브리지가 애초에 못 하는 일이라
-/// 그 파일의 진짜 Figma 링크가 있어야 direct 경로로 읽을 수 있다.
+/// 띄우면 되고, 그 밖의 읽기(수집이 쓰지 않는 공식 도구 — 변수 정의, 디자인 컨텍스트,
+/// Code Connect)는 브리지가 애초에 못 하는 일이라 그 파일의 진짜 Figma 링크가 있어야
+/// direct 경로로 읽을 수 있다.
 fn bridge_only_refusal(call: &ReadToolCall) -> DevupError {
     let message = if call.bridge_job().is_some() {
         "The Devup Bridge plugin this request was addressed to is no longer attached. Run it \

@@ -57,8 +57,10 @@ never carries them. Rule numbers match the original list, which skipped 9.
 Two paths reach Figma and they are not equals. The Devup Bridge plugin, run in
 the Figma desktop app on the file, needs no login and spends none of Figma's
 allowance. The direct path is OAuth against Figma's MCP and is metered. Use the
-bridge first; direct is the fallback for what the bridge cannot serve - a
-file-scope metadata read and `referencePng`.
+bridge first: it serves every read a collection makes, and direct only re-reads
+what the plugin answers short - data Figma withholds while the file is out of
+sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an
+older plugin does not know. `source.directFallbacks` counts those re-reads.
 
 - Call `devup_figma_auth` with `action: "status"` before asking anyone to log
   in. It reports both paths: `connected`, `activePath` (`bridge`, `direct` or
@@ -94,7 +96,9 @@ nothing reads.
 
 sourceMap records nodeId, original property, generatedProperty and resolution,
 plus optional variableId (variable token), styleId (style token) and assetId
-(asset reference), with no character/byte offsets.
+(asset reference), with no character/byte offsets. Each entry's elementIndex,
+which joins it to `devup_ui_validate` violations, adds 11-14% to the map
+(measured on the ten WQUW-151 screens).
 
 Resolution labels carry different weight. `raw-fallback` means a raw-value
 mapping, not necessarily an inaccurate value. `verified-explicit-dimension`
@@ -161,6 +165,19 @@ the path you wrote.
 
 With `delivery: "resource"`, devup-mcp returns `devup://artifact/...` resource
 links to read on demand instead of inlining bytes into every response.
+
+## 13. Exact means exact at the drawn width
+
+`quality.projection` grades the mapping at the width the frame was drawn at,
+not at any other viewport. Before widening a generated screen, read
+`widthBehavior`: a finding marked `consumer-policy-required` is a question the
+design does not answer. Choose an anchor from its `candidates` and pass it in
+`widthPolicy` (`{"root": "fluid", "anchors": {"<nodeId>": "right"}}`) rather
+than re-anchoring the generated code by hand. How the screen renders at other
+widths is checked in the consumer project: `devup_runtime_audit` writes the
+plan and verifies the report, and never runs the browser itself. Its ingest
+returns a ready `devup_visual_compare` call for each screenshot taken at a
+drawn width.
 "#;
 
 #[cfg(test)]

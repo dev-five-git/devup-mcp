@@ -1,7 +1,20 @@
+// Figma's own MCP runs scripts with hidden layers inside instances left out
+// of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
+// here so the direct path and the Devup Bridge read the same document.
+figma.skipInvisibleInstanceChildren = false;
 const options = "__DEVUP_ASSET__";
 "__DEVUP_LARGE_VALUE_HELPERS__";
 
-function failed(errorCode) {
+const started = Date.now();
+let stage = "lookup";
+
+function describe(error) {
+  const message = error && typeof error.message === "string" ? error.message : String(error);
+  const editor = typeof figma.editorType === "string" ? ` (editor: ${figma.editorType})` : "";
+  return `${stage} failed after ${Date.now() - started} ms${editor}: ${message}`.slice(0, 500);
+}
+
+function failed(errorCode, errorDetail) {
   return {
     kind: "devupAssetExport",
     fileKey: figma.fileKey || "",
@@ -16,6 +29,7 @@ function failed(errorCode) {
     byteLength: null,
     sha256: null,
     errorCode,
+    ...(errorDetail ? { errorDetail } : {}),
   };
 }
 
@@ -45,11 +59,12 @@ try {
   }
 
   if (original) {
+    stage = "reading the original image";
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
     const bytes = await image.getBytesAsync();
     if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
+      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 8388608`);
     }
     const starts = values => values.every((value, index) => bytes[index] === value);
     const mimeType = starts([137,80,78,71,13,10,26,10]) ? "image/png"
@@ -83,7 +98,9 @@ try {
   if (format === "PNG" || format === "JPG") {
     settings.constraint = { type: "SCALE", value: scale };
   }
+  stage = "export";
   const exported = await node.exportAsync(settings);
+  stage = "encode";
   const svgText = inlineSvg && typeof exported === "string" ? exported : null;
   const bytes =
     svgText === null
@@ -92,7 +109,7 @@ try {
         : new Uint8Array(exported)
       : devupUtf8Encode(svgText);
   if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE");
+    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${format} at scale ${scale} is ${bytes.length} bytes; one answer carries 1 to 8388608`);
   }
   const sha256 = devupSha256(bytes);
   // figma.io is an extension of the remote MCP, not the native Plugin API.
@@ -154,6 +171,6 @@ try {
     text: svgText,
     errorCode: null,
   };
-} catch (_) {
-  return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED");
+} catch (error) {
+  return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
 }

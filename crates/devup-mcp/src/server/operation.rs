@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use devup_mcp_devup_ui::codegen::RootLayout;
-use devup_mcp_figma::{DevupError, ErrorCode};
+use devup_mcp_figma::{DevupError, ErrorCode, figma_unreachable_hint};
 use serde_json::{Value, json};
 
 use super::{artifacts::ArtifactRequestKey, delivery::DeliveryMode};
@@ -42,6 +42,7 @@ pub enum PendingOperation {
         asset_public_root: Option<std::path::PathBuf>,
         fields: Vec<String>,
         delivery: DeliveryMode,
+        width_policy: Option<devup_mcp_devup_ui::codegen::width::WidthPolicy>,
     },
     Search {
         query: String,
@@ -115,7 +116,6 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     }
     let flagged = value.get("isError").and_then(Value::as_bool) == Some(true);
     let message = first_text(value).unwrap_or_else(|| "Figma reported an error.".to_owned());
-    let lowered = message.to_lowercase();
 
     // A quota refusal is the one upstream failure that clears on its own,
     // so it must not be reported as a permanent one.
@@ -125,16 +125,10 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
     // contain and reported "variable/style batch not found in the Figma MCP
     // response" — the parser that happened to be next, named as the cause,
     // after twenty-four minutes of collecting. So the refusal is recognised by
-    // what it says as well as by how it is flagged.
-    //
-    // Only when it is short, though. A healthy response carries its payload in
-    // the same field, and a design is free to contain a layer named "rate
-    // limit"; reading that as a refusal would fail a collection that worked. A
-    // refusal is a sentence, a payload is a document, and the two are never
-    // close in length.
-    const LONGEST_REFUSAL: usize = 2000;
-    let refuses = (lowered.contains("tool call limit") || lowered.contains("rate limit"))
-        && (flagged || message.len() <= LONGEST_REFUSAL);
+    // what it says as well as by how it is flagged, and only when it is short
+    // (`is_quota_refusal`). The bridge's fallback to the direct path reads the
+    // direct answer with the same test, so the two cannot disagree.
+    let refuses = devup_mcp_figma::is_quota_refusal(&message, flagged);
     if !flagged && !refuses {
         return None;
     }
@@ -178,7 +172,8 @@ pub(crate) fn upstream_error(value: &Value) -> Option<DevupError> {
         ));
     }
     let mut details = json!({"stage":"plugin-execution","pluginCode":null,
-        "nextAction":{"how":"Inspect the original upstream message and retry the original URL after correcting the reported plugin error."}});
+        "nextAction":{"how":figma_unreachable_hint(&message).unwrap_or(
+            "Inspect the original upstream message and retry the original URL after correcting the reported plugin error.")}});
     // The plugin serializes its own structured payload after the code.
     // Reading it for every code, rather than only for DEVUP_SECTION_REQUIRED,
     // is what lets a caller act on the others. DEVUP_SECTION_INDEX_TOO_LARGE
@@ -253,9 +248,9 @@ fn plugin_code(message: &str) -> Option<&str> {
 fn plugin_error_code(code: &str) -> Option<ErrorCode> {
     match code {
         "DEVUP_NODE_NOT_FOUND" | "DEVUP_PAGE_NOT_FOUND" => Some(ErrorCode::DevupFigmaNodeNotFound),
-        "DEVUP_ENVELOPE_TOO_LARGE" | "DEVUP_EXPLORE_PROJECTION_TOO_LARGE" => {
-            Some(ErrorCode::DevupFigmaResponseTooLarge)
-        }
+        "DEVUP_ENVELOPE_TOO_LARGE"
+        | "DEVUP_EXPLORE_PROJECTION_TOO_LARGE"
+        | "DEVUP_REFERENCE_PNG_TOO_LARGE" => Some(ErrorCode::DevupFigmaResponseTooLarge),
         _ => None,
     }
 }
@@ -278,6 +273,12 @@ fn plugin_next_action(code: &str) -> Option<Value> {
             "tool": "devup_figma_export",
             "how": "The selection produced more than the plugin transport carries. Narrow it: export one frame at a time rather than a Section or a whole page, and leave debug outputs off.",
             "doNot": "Do not raise limit to recover this; limit bounds the answer, not the collection."
+        })),
+        "DEVUP_BRIDGE_UNKNOWN_SCRIPT" => Some(json!({
+            "how": "The Devup Bridge plugin running in Figma was built before this devup-mcp and does not know this read. Update the checkout it was imported from, or import plugin/manifest.json from a current one (Plugins -> Development -> Import plugin from manifest...), run the plugin again on the file, then retry. Until then this read goes to the metered direct path only when the plugin reported the file's Figma key and devup_figma_auth login has been done."
+        })),
+        "DEVUP_REFERENCE_PNG_TOO_LARGE" => Some(json!({
+            "how": "This node's PNG is larger than the 8 MiB one Devup Bridge answer carries. The direct path takes up to 16 MiB once the file's Figma key is known: run devup_figma_auth login, and if this export had no Figma link, repeat it with the file's own link (Share -> Copy link). Otherwise export a smaller frame."
         })),
         "DEVUP_SECTION_INDEX_TOO_LARGE" => Some(json!({
             "tool": "devup_figma_search",
@@ -430,6 +431,39 @@ mod r7_tests {
                 .as_str()
                 .unwrap()
                 .contains("retry")
+        );
+    }
+
+    /// The bridge hands back what the plugin said in the remote path's shape,
+    /// so a node that is not there is still the caller's mistake, and Figma's
+    /// runtime giving up on data outside the page in view says what clears it
+    /// instead of blaming the direct path.
+    #[test]
+    fn a_plugin_failure_over_the_bridge_is_classified_like_the_remote_one() {
+        let bridge = |text: &str| {
+            upstream_error(&json!({"isError":true,"content":[{"type":"text","text":format!("Error: {text}")}]}))
+                .unwrap()
+        };
+        assert_eq!(
+            bridge("DEVUP_NODE_NOT_FOUND").code,
+            ErrorCode::DevupFigmaNodeNotFound
+        );
+        assert_eq!(
+            bridge("DEVUP_REFERENCE_PNG_TOO_LARGE 9000000 bytes").code,
+            ErrorCode::DevupFigmaResponseTooLarge
+        );
+        let error = bridge(
+            "Unable to establish connection to Figma after 10 seconds. Please check your internet connection.",
+        );
+        assert_eq!(error.code, ErrorCode::DevupSnapshotUnsupported);
+        assert_eq!(error.details["stage"], "plugin-execution");
+        assert!(
+            error.details["nextAction"]["how"]
+                .as_str()
+                .unwrap()
+                .contains("click the file's tab"),
+            "{}",
+            error.details
         );
     }
 

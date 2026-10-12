@@ -1,3 +1,7 @@
+// Figma's own MCP runs scripts with hidden layers inside instances left out
+// of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
+// here so the direct path and the Devup Bridge read the same document.
+figma.skipInvisibleInstanceChildren = false;
 // `get_metadata` 가 주던 노드 계층을 플러그인 API 로 그대로 만든다.
 //
 // 공식 경로는 XML 을 주고 이 경로는 JSON 을 주지만, 받는 쪽은 한 곳이다.

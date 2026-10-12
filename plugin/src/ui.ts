@@ -39,6 +39,9 @@ interface ResultMessage {
 
 const RETRY_MS = 2000
 
+/** 이 창이 화면에 보이는지. Figma 가 가려지거나 최소화되면 거짓이 된다. */
+const inView = () => document.visibilityState === 'visible'
+
 /**
  * 이 플러그인 창 하나를 가리키는 이름. 창이 열려 있는 동안 바뀌지 않는다.
  *
@@ -98,6 +101,7 @@ function connect() {
         currentPage: bridgeStatus?.currentPage ?? null,
         selection: bridgeStatus?.selection ?? [],
         selectionCount: bridgeStatus?.selectionCount ?? 0,
+        inView: inView(),
       }),
     )
   }
@@ -123,9 +127,81 @@ function connect() {
   ws.onerror = () => {}
 }
 
+/**
+ * 메인이 넘긴 사진을 브라우저로 디코딩해 PNG 로 돌려준다. 긴 변이 `maxEdge` 를 넘으면
+ * 그만큼 줄인다. devup-mcp 는 이 PNG 를 원본 크기에 맞춰 놓는다. 브라우저가 풀지 못하는
+ * 사진이면 null — 메인은 원본을 그대로 보낸다.
+ *
+ * 한 번에 하나만 디코딩한다. 메인이 기다리다 그만둔 디코딩도 브라우저에서는 끝까지
+ * 돌기 때문에, 그것이 끝나기 전에 온 요청은 디코딩하지 않고 null 로 답한다. 디코딩한
+ * 크기가 Figma 가 알려 준 크기(`width`·`height`)와 다르면 버린다 — 메인은 그 크기로
+ * 메모리를 미리 셌다.
+ */
+let converting = false
+async function decodeToPng(
+  bytes: Uint8Array<ArrayBuffer>,
+  maxEdge: number,
+  width: number,
+  height: number,
+): Promise<Uint8Array | null> {
+  if (converting) return null
+  converting = true
+  let bitmap: ImageBitmap | undefined
+  try {
+    bitmap = await createImageBitmap(new Blob([bytes]), {
+      colorSpaceConversion: 'none',
+      premultiplyAlpha: 'none',
+    })
+    if (bitmap.width !== width || bitmap.height !== height) return null
+    const fit = Math.min(1, maxEdge / Math.max(width, height))
+    const drawnWidth = Math.max(1, Math.round(width * fit))
+    const drawnHeight = Math.max(1, Math.round(height * fit))
+    const canvas = new OffscreenCanvas(drawnWidth, drawnHeight)
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.imageSmoothingQuality = 'high'
+    context.drawImage(bitmap, 0, 0, drawnWidth, drawnHeight)
+    bitmap.close()
+    const blob = await canvas.convertToBlob({ type: 'image/png' })
+    return new Uint8Array(await blob.arrayBuffer())
+  } catch {
+    return null
+  } finally {
+    bitmap?.close()
+    converting = false
+  }
+}
+
+/** 지금의 페이지·선택·보임을 devup-mcp 에 알린다. 받는 쪽은 통째로 바꿔 끼운다. */
+function sendContext() {
+  if (!bridgeStatus || !socket || socket.readyState !== WebSocket.OPEN) return
+  socket.send(
+    JSON.stringify({
+      kind: 'context',
+      currentPage: bridgeStatus.currentPage,
+      selection: bridgeStatus.selection,
+      selectionCount: bridgeStatus.selectionCount,
+      inView: inView(),
+    }),
+  )
+}
+
+// 가려지거나 다시 보이면 알린다. 다시 보이면 메인이 문서를 다시 불러 둔다.
+document.addEventListener('visibilitychange', () => {
+  sendContext()
+  if (inView()) parent.postMessage({ pluginMessage: { kind: 'devup-in-view' } }, '*')
+})
+
 window.onmessage = (event: MessageEvent) => {
   const msg = event.data?.pluginMessage
   if (!msg || typeof msg !== 'object') return
+
+  if (msg.kind === 'devup-decode') {
+    void decodeToPng(msg.bytes, msg.maxEdge, msg.width, msg.height).then((png) => {
+      parent.postMessage({ pluginMessage: { kind: 'devup-decoded', id: msg.id, png } }, '*')
+    })
+    return
+  }
 
   if (msg.kind === 'devup-status') {
     bridgeStatus = msg as StatusMessage
@@ -145,16 +221,7 @@ window.onmessage = (event: MessageEvent) => {
       selection: context.selection,
       selectionCount: context.selectionCount,
     }
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(
-        JSON.stringify({
-          kind: 'context',
-          currentPage: context.currentPage,
-          selection: context.selection,
-          selectionCount: context.selectionCount,
-        }),
-      )
-    }
+    sendContext()
     return
   }
 

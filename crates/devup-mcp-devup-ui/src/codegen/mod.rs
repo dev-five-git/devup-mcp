@@ -9,6 +9,7 @@ pub mod responsive;
 mod style;
 mod text;
 mod variant;
+pub mod width;
 
 pub use compat::{
     extract_custom_component_imports, extract_devup_imports, generate_import_statements,
@@ -16,9 +17,10 @@ pub use compat::{
     render_variant_tree_merge, render_viewport_component,
 };
 pub use component::{
-    CodegenOptions, CodegenOutput, RootLayout, generate_component, generate_component_set_target,
-    generate_inlined_component_instance, generate_legacy_component, generate_node,
-    normalize_component_name, render_component_registration_snapshot, render_component_source,
+    CodegenOptions, CodegenOutput, LengthToken, RootLayout, generate_component,
+    generate_component_set_target, generate_inlined_component_instance, generate_legacy_component,
+    generate_node, normalize_component_name, render_component_registration_snapshot,
+    render_component_source,
 };
 pub(crate) use layout::{
     centers_lone_space_between_child, derived_padding, export_box, folded_mask_dimensions,

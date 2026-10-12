@@ -173,6 +173,11 @@ fn script_answer(script: &str) -> Result<Value, &'static str> {
         "fastSnapshot" | "snapshot" => Ok(json!({
             "fileKey": "", "version": null, "rootIds": ["1:2"], "nodes": [frame_node()]
         })),
+        "referencePng" => Ok(json!({
+            "kind": "devupReferencePng", "nodeId": "1:2", "mimeType": "image/png", "byteLength": 68,
+            "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "note": REFERENCE_NOTE
+        })),
         _ => Err("DEVUP_TEST_SCRIPT_NOT_SIMULATED"),
     }
 }
@@ -378,6 +383,55 @@ async fn an_export_without_url_reads_the_selection_through_the_bridge() -> anyho
     Ok(())
 }
 
+const REFERENCE_NOTE: &str = "Drawn as the canvas shows this area, because what lies under the node is not one colour (FRAME \"Hero\" is painted with IMAGE). INSTANCE \"Header\" reaches into it and may show here; get_screenshot leaves other layers out.";
+
+/// The reference image is the plugin's export too, so a screen and its
+/// referencePng spend nothing on the metered path. What the plugin says about
+/// its picture reaches the answer once, beside it, where resource delivery
+/// keeps it too.
+#[tokio::test]
+async fn a_reference_png_comes_from_the_plugin() -> anyhow::Result<()> {
+    let setup = setup();
+    let jobs = serve(attach(&setup.bridge, keyless_hello("Landing")).await);
+
+    let (failed, output) = call(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+        "devup_figma_export",
+        json!({ "outputs": ["tsx", "referencePng"] }),
+    )
+    .await?;
+    assert!(!failed, "{output}");
+    assert_eq!(output["referencePng"]["mimeType"], "image/png", "{output}");
+    assert_eq!(output["referencePngNote"], REFERENCE_NOTE);
+    assert!(output["referencePng"].get("note").is_none(), "{output}");
+    assert_eq!(output["cache"]["capabilities"]["referencePng"], true);
+    assert_eq!(
+        output["source"]["bridgeReads"],
+        output["collection"]["figmaToolCalls"]
+    );
+
+    let (failed, delivered) = call(
+        Auth::new(AuthStatus::Disconnected),
+        setup.upstream.clone(),
+        "devup_figma_export",
+        json!({ "outputs": ["referencePng"], "delivery": "resource" }),
+    )
+    .await?;
+    assert!(!failed, "{delivered}");
+    assert!(delivered.get("referencePng").is_none(), "{delivered}");
+    assert_eq!(delivered["referencePngNote"], REFERENCE_NOTE);
+
+    assert_eq!(setup.remote_calls.load(Ordering::SeqCst), 0);
+    let jobs = jobs.lock().await;
+    assert!(
+        jobs.iter()
+            .any(|job| job["script"] == "referencePng" && job["params"]["nodeId"] == "1:2"),
+        "{jobs:?}"
+    );
+    Ok(())
+}
+
 /// A key a caller supplied is served by a keyless plugin while it is alone -
 /// that is how a real Figma link keeps working in Dev Mode - but the plugin
 /// cannot vouch for it, so it is reported as requested, never as the file's.
@@ -544,8 +598,9 @@ async fn an_explore_without_url_anchors_on_the_selection() -> anyhow::Result<()>
     Ok(())
 }
 
-/// Login is not refused while a plugin is attached - the bridge cannot serve
-/// every read - but the answer says it was probably not needed.
+/// Login is not refused while a plugin is attached - the direct path re-reads
+/// what the plugin answers short - but the answer says it was probably not
+/// needed.
 #[tokio::test]
 async fn login_with_a_plugin_attached_warns_and_still_logs_in() -> anyhow::Result<()> {
     let setup = setup();

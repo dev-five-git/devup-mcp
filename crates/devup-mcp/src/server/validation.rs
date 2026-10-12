@@ -122,15 +122,29 @@ pub(super) fn validate_artifact_projection(
     let reference_png_compatible =
         !outputs.iter().any(|output| output == "referencePng") || capabilities.reference_png;
 
-    if kind_compatible
-        && collection_compatible
-        && resources_compatible
-        && assets_compatible
-        && reference_png_compatible
-    {
+    let missing = [
+        (!kind_compatible).then_some("artifact-kind"),
+        (!collection_compatible).then_some("collection-scope"),
+        (!resources_compatible).then_some("file-resource-scope"),
+        (!assets_compatible).then_some("asset-captures"),
+        (!reference_png_compatible).then_some("referencePng"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+    if missing.is_empty() {
         return Ok(());
     }
-
+    let target = &artifact.payload.target;
+    let mut arguments = json!({
+        "url": target.link(target.node_id.as_deref()),
+        "outputs": outputs,
+        "scope": requested_scope,
+    });
+    if let Some(selection) = &capabilities.section_selection {
+        arguments["frameIds"] = json!(selection.frame_ids);
+        arguments["allScreens"] = json!(selection.all_screens);
+    }
     Err(DevupError::with_details(
         ErrorCode::DevupFigmaHandoffInvalid,
         "The artifact capture capability does not cover the requested export scope.",
@@ -141,7 +155,20 @@ pub(super) fn validate_artifact_projection(
                 "outputs": outputs,
                 "collectionScope": requested_scope,
                 "assetCaptureCount": requested_assets.len()
-            }
+            },
+            "recovery": {
+                "mode": "recollect",
+                "cause": "capture-missing",
+                "missing": missing,
+                "reprojectable": false,
+                "requiresOriginalUrl": false,
+            },
+            "nextAction": {
+                "tool": "devup_figma_export",
+                "arguments": arguments,
+                "omitArguments": ["artifactId"],
+                "how": "This artifact cannot serve these outputs without calling Figma again. Repeat the call with this url instead of artifactId, keeping any assetRequests and outputPaths you sent; the new acquisition captures what is missing.",
+            },
         }),
     ))
 }
@@ -298,6 +325,69 @@ pub(super) fn parse_collection_scope(scope: &str) -> Result<CollectionScope, Dev
             false,
         )),
     }
+}
+
+pub(super) fn parse_width_policy(
+    input: Option<&super::tools::WidthPolicyInput>,
+) -> Result<Option<devup_mcp_devup_ui::codegen::width::WidthPolicy>, DevupError> {
+    use devup_mcp_devup_ui::codegen::width::{Anchor, WidthPolicy};
+    let Some(input) = input else {
+        return Ok(None);
+    };
+    if input.root != "fluid" {
+        return Err(DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "widthPolicy.root must be \"fluid\".",
+            false,
+        ));
+    }
+    let anchors = input
+        .anchors
+        .iter()
+        .map(|(node_id, anchor)| {
+            let anchor = match anchor.as_str() {
+                "left" => Anchor::Left,
+                "right" => Anchor::Right,
+                "center" => Anchor::Center,
+                "stretch" => Anchor::Stretch,
+                "scale" => Anchor::Scale,
+                other => {
+                    return Err(DevupError::new(
+                        ErrorCode::DevupInvalidInput,
+                        format!(
+                            "widthPolicy.anchors[{node_id}] must be left, right, center, stretch or scale, not {other}."
+                        ),
+                        false,
+                    ));
+                }
+            };
+            Ok((node_id.clone(), anchor))
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(Some(WidthPolicy { anchors }))
+}
+
+/// A policy may only name nodes the capture holds; a typo would otherwise be
+/// an anchor that silently never applies.
+pub(super) fn validate_width_policy_nodes(
+    policy: Option<&devup_mcp_devup_ui::codegen::width::WidthPolicy>,
+    snapshot: &devup_mcp_figma::Snapshot,
+) -> Result<(), DevupError> {
+    let unknown = policy
+        .into_iter()
+        .flat_map(|policy| policy.anchors.keys())
+        .filter(|node_id| !snapshot.nodes.contains_key(*node_id))
+        .collect::<Vec<_>>();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+    Err(DevupError::with_details(
+        ErrorCode::DevupInvalidInput,
+        "widthPolicy.anchors names nodes this capture does not hold.",
+        false,
+        json!({"unknownNodeIds": unknown,
+            "how": "Use node ids from widthBehavior.findings of this export."}),
+    ))
 }
 
 pub(super) fn parse_root_layout(root_layout: &str) -> Result<RootLayout, DevupError> {
@@ -566,6 +656,38 @@ mod p3_tests {
             json!(["1:4", "1:5", "1:6"])
         );
         assert!(validate_export_budget(&frames, &["tsx".into(), "tsx".into()]).is_ok());
+    }
+
+    #[tokio::test]
+    async fn p2_capability_refusal_names_what_is_missing_and_how_to_recollect() {
+        use super::super::artifacts::{
+            ArtifactRequestKey, ArtifactStore,
+            w3_tests::{payload, request},
+        };
+        let artifact = ArtifactStore::default()
+            .insert(ArtifactRequestKey::from_collection(&request()), payload())
+            .await
+            .unwrap();
+        let error = validate_artifact_projection(
+            &artifact,
+            &["tsx".into(), "referencePng".into()],
+            "node",
+            &[],
+        )
+        .unwrap_err();
+        assert_eq!(error.details["recovery"]["mode"], "recollect");
+        assert_eq!(
+            error.details["recovery"]["missing"],
+            json!(["referencePng"])
+        );
+        let next = &error.details["nextAction"];
+        assert_eq!(next["omitArguments"], json!(["artifactId"]));
+        assert_eq!(
+            devup_mcp_figma::FigmaTarget::parse(next["arguments"]["url"].as_str().unwrap())
+                .unwrap(),
+            request().target
+        );
+        assert!(validate_artifact_projection(&artifact, &["tsx".into()], "node", &[]).is_ok());
     }
 
     #[test]

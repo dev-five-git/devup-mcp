@@ -190,3 +190,27 @@ fn variable_aliases_are_collected_from_any_lossless_snapshot_field() {
             && occurrence.resource_kind == ResourceKind::Variable
     }));
 }
+
+#[test]
+fn a_suggested_variable_is_not_a_used_one() {
+    let mut suggested = node(
+        "1:1",
+        json!({"fills": [{"type": "SOLID", "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "VariableID:bound"}}}]}),
+    );
+    suggested.extra.insert(
+        "inferredVariables".to_owned(),
+        json!({"fills": [[{"type": "VARIABLE_ALIAS", "id": "VariableID:suggested"}]]}),
+    );
+    let chunks = [SnapshotChunk {
+        file_key: "file-key".to_owned(),
+        version: None,
+        root_ids: vec!["1:1".to_owned()],
+        nodes: vec![suggested],
+        diagnostics: Vec::new(),
+    }];
+
+    assert_eq!(
+        collect_used_resource_refs(&chunks).variable_ids,
+        ["VariableID:bound"]
+    );
+}

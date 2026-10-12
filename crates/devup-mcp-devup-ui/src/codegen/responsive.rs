@@ -24,13 +24,21 @@
 //! responsive-merge-rules.md` says which function each came from and where
 //! this repo deliberately differs.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use devup_mcp_figma::{DevupError, RawNode, Snapshot};
+use serde_json::{Value, json};
 
 use super::{
-    component::CodegenOptions,
-    variant::{Tree, project_tree_keeping_instances, structure_signature},
+    component::{CodegenOptions, generate_component},
+    variant::{
+        POSITION_PROPS, Tree, instance_variant_props, project_tree_keeping_instances,
+        referenced_component_name, structure_signature,
+    },
+};
+use crate::provenance::attributes::{
+    GeneratedAttribute, OwnedElement, element_tags, generated_attributes, opening_elements,
+    owned_elements,
 };
 
 /// The widths a screen may be drawn at, narrowest first — the order devup-ui's
@@ -161,12 +169,15 @@ pub enum Merged {
 /// silently keep the mobile padding at every width.
 ///
 /// This follows `devup-figma-plugin`'s `mergePropsToResponsive` and
-/// `optimizeResponsiveValue`, including two limits worth knowing. Only the
-/// props in [`CLEARED_WHEN_DROPPED`] are cleared, so a `bg` that stops being
-/// set still inherits. And exactly one `"initial"` is placed, at the first
-/// width that exists after the last value, which is why a prop that is set,
-/// dropped, then set again wider cannot be expressed. Visibility deliberately
-/// differs: every drawn, unset width restores visible paint.
+/// `optimizeResponsiveValue`, with one of its limits kept: only the props in
+/// [`CLEARED_WHEN_DROPPED`] are cleared, so a `bg` that stops being set still
+/// inherits. The other is not kept. The plugin places exactly one
+/// `"initial"`, after the last value, so a prop set, dropped, then set again
+/// wider kept the narrower value at the width that dropped it; on `about` that
+/// hid the one layer only the tablet draws at every width. Here every drawn
+/// width that leaves the prop unset after a narrower one set it is cleared.
+/// Visibility deliberately differs: every drawn, unset width restores visible
+/// paint.
 pub fn merge_slots(prop: &str, widths: &[Drawn<'_>; SLOTS]) -> Merged {
     // One width is a screen, not a screen that changes. The reference hands
     // its props back untouched rather than wrapping each in a one-slot array.
@@ -189,15 +200,17 @@ pub fn merge_slots(prop: &str, widths: &[Drawn<'_>; SLOTS]) -> Merged {
         })
         .collect();
 
-    if cleared_when_dropped(prop)
-        && let Some(last) = slots.iter().rposition(Option::is_some)
-        && last < SLOTS - 1
-        // The clear has to land on a width that is actually drawn; putting it
-        // on a slot no frame occupies would say nothing.
-        && let Some(clear_at) = (last + 1..SLOTS).find(|slot| widths[*slot] != Drawn::Absent)
-    {
-        slots[clear_at] = Some("initial".to_owned());
-        slots.truncate(clear_at + 1);
+    // The clear lands only on a width that is actually drawn; one on a slot no
+    // frame occupies would say nothing. Repeats collapse below.
+    if cleared_when_dropped(prop) {
+        let mut set_before = false;
+        for (slot, width) in widths.iter().enumerate() {
+            match width {
+                Drawn::Set(_) => set_before = true,
+                Drawn::Unset if set_before => slots[slot] = Some("initial".to_owned()),
+                Drawn::Unset | Drawn::Absent => {}
+            }
+        }
     }
 
     // A slot that repeats what is already in effect says nothing.
@@ -551,14 +564,17 @@ fn first_slot<T>(by_slot: &BySlot<T>, precedence: &Precedence) -> Option<usize> 
 /// A child whose shape is unique among its siblings is keyed by that shape, so
 /// renaming it in one width does not lose it. Where several siblings share a
 /// shape the shape cannot tell them apart, so their name is used instead and
-/// they are paired in order. Insertion order is kept, because it is what the
-/// ordering below reads.
+/// they are paired in order: the second `quote` with the second `quote`. Each
+/// keeps a key of its own, so siblings drawn between them stay between them;
+/// one key for all of them emitted `“ ” title` for `“ title ”`. Insertion
+/// order is kept, because it is what the ordering below reads.
 fn children_to_map(tree: &Tree) -> Vec<(String, Vec<&Tree>)> {
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for child in &tree.children {
         *counts.entry(structure_signature(child)).or_default() += 1;
     }
     let mut grouped: Vec<(String, Vec<&Tree>)> = Vec::new();
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     for child in &tree.children {
         let signature = structure_signature(child);
         let mut key = if counts.get(&signature) == Some(&1) {
@@ -574,11 +590,9 @@ fn children_to_map(tree: &Tree) -> Vec<(String, Vec<&Tree>)> {
         {
             key = serde_json::to_string(&(key, source)).expect("image identity is serializable");
         }
-        if let Some((_, bucket)) = grouped.iter_mut().find(|(existing, _)| *existing == key) {
-            bucket.push(child);
-        } else {
-            grouped.push((key, vec![child]));
-        }
+        let occurrence = seen.entry(key.clone()).or_insert(0usize);
+        grouped.push((format!("{key}#{occurrence}"), vec![child]));
+        *occurrence += 1;
     }
     grouped
 }
@@ -689,6 +703,15 @@ fn render_attribute(merged: &Merged) -> Option<String> {
     }
 }
 
+/// What a layout element does by itself besides its `display`.
+fn implied_layout(component: &str) -> &'static [(&'static str, &'static str)] {
+    match component {
+        "VStack" => &[("flexDir", "column")],
+        "Center" => &[("alignItems", "center"), ("justifyContent", "center")],
+        _ => &[],
+    }
+}
+
 /// The `display` a devup-ui element already carries by being itself.
 fn implied_display(component: &str) -> Option<&'static str> {
     match component {
@@ -751,6 +774,37 @@ fn merge_trees(
     precedence: &Precedence,
     notes: &mut Vec<Unrepresented>,
 ) -> Option<Tree> {
+    // The merged element is the first width's. Where another width draws it as
+    // a different layout element, what each element does by itself has to be
+    // written out, or the first one's would apply at every width: a `VStack`
+    // root stacking a row the desktop width draws as a `Flex`.
+    let restated: BySlot<Tree>;
+    let components = by_slot
+        .iter()
+        .flatten()
+        .map(|tree| tree.component.as_str())
+        .collect::<BTreeSet<_>>();
+    let by_slot = if components.len() > 1
+        && components.iter().all(|name| LAYOUT_ELEMENTS.contains(name))
+        && by_slot.iter().flatten().all(|tree| !tree.is_component)
+    {
+        restated = std::array::from_fn(|slot| {
+            by_slot[slot].clone().map(|mut tree| {
+                for (name, value) in implied_layout(&tree.component) {
+                    tree.props
+                        .entry((*name).to_owned())
+                        .or_insert_with(|| (*value).to_owned());
+                }
+                tree.props
+                    .entry("display".to_owned())
+                    .or_insert_with(|| natural_display(&tree.component).to_owned());
+                tree
+            })
+        });
+        &restated
+    } else {
+        by_slot
+    };
     let first = by_slot[first_slot(by_slot, precedence)?].clone()?;
 
     let mut keys = BTreeSet::new();
@@ -819,6 +873,11 @@ fn merge_trees(
         {
             continue;
         }
+        if matches!(&merged, Merged::Same(Some(value))
+            if implied_layout(&first.component).contains(&(key.as_str(), value.as_str())))
+        {
+            continue;
+        }
         if let Some(attribute) = render_attribute(&merged) {
             props.insert(key, attribute);
         }
@@ -828,6 +887,13 @@ fn merge_trees(
     for tree in by_slot.iter().flatten() {
         source_node_ids.extend(tree.source_node_ids.iter().cloned());
     }
+    let slots = by_slot
+        .iter()
+        .map(|tree| {
+            tree.as_ref()
+                .map(|tree| (tree.node_id.clone(), tree.content.clone()))
+        })
+        .collect::<Vec<_>>();
 
     let content = merge_content(by_slot, &first, notes);
 
@@ -845,6 +911,7 @@ fn merge_trees(
             props: variants,
             children: Vec::new(),
             source_node_ids: source_node_ids.clone(),
+            slots: slots.clone(),
             ..first.clone()
         };
         if placement.is_empty() {
@@ -857,6 +924,7 @@ fn merge_trees(
             source_node_ids,
             is_component: false,
             content: None,
+            slots,
             ..first
         });
     }
@@ -866,6 +934,7 @@ fn merge_trees(
         children: merge_children(by_slot, precedence, notes),
         source_node_ids,
         content,
+        slots,
         ..first
     })
 }
@@ -1041,6 +1110,18 @@ fn merge_children(
             let mut children: BySlot<Tree> = std::array::from_fn(|slot| {
                 bucket(slot).and_then(|list| list.get(index).cloned().cloned())
             });
+            // A layer hidden at every width that has it is drawn at none, and
+            // `tsx` leaves it out — with its asset references, which a hidden
+            // layer has none of to deliver. A copy hidden everywhere would
+            // say nothing but `display: none`.
+            if children.iter().flatten().all(|child| {
+                child
+                    .props
+                    .get("display")
+                    .is_some_and(|value| value == "none")
+            }) {
+                continue;
+            }
             if (0..SLOTS).any(|slot| by_slot[slot].is_some() && children[slot].is_none()) {
                 for child in children.iter_mut().flatten() {
                     if child.component == "Image" {
@@ -1166,6 +1247,16 @@ pub struct MergedScreen {
     pub slots: Vec<usize>,
     /// What could not be carried across, and why.
     pub unrepresented: Vec<Unrepresented>,
+    /// Every attribute of `tsx`, as `attribute_contract` lists one, with
+    /// whether each width's own verified TSX writes what it resolves to at
+    /// that width's slot.
+    pub contract: Vec<Value>,
+    /// Read at each width's slot, the module writes that width's own TSX:
+    /// the same elements with the same values, nothing added, nothing
+    /// missing, and the same text.
+    pub verified: bool,
+    /// Where a width and the module part company, when they do.
+    pub gaps: Vec<Value>,
 }
 
 /// Everything `project_tree` can name. Anything else the merged tree mentions
@@ -1238,6 +1329,7 @@ pub fn merge_breakpoints(
         return Ok(None);
     }
     let mut by_slot: BySlot<Tree> = std::array::from_fn(|_| None);
+    let mut roots: BySlot<String> = std::array::from_fn(|_| None);
     let mut precedence: Precedence = [usize::MAX; SLOTS];
     let mut slots = Vec::new();
     for (position, breakpoint) in found.iter().enumerate() {
@@ -1259,21 +1351,685 @@ pub fn merge_breakpoints(
             let mut tree = project_tree_keeping_instances(snapshot, node, options, true)?;
             restore_implied_display(&mut tree);
             by_slot[slot] = Some(tree);
+            roots[slot] = Some(breakpoint.node_id.clone());
             precedence[slot] = position;
         }
     }
     slots.sort_unstable();
     let mut unrepresented = Vec::new();
-    Ok(
-        merge_trees(&by_slot, &precedence, &mut unrepresented).map(|tree| {
-            let mut components = BTreeSet::new();
-            collect_components(&tree, &mut components);
-            MergedScreen {
-                tsx: render_merged(&tree, 2),
-                components,
-                slots,
-                unrepresented,
+    let Some(tree) = merge_trees(&by_slot, &precedence, &mut unrepresented) else {
+        return Ok(None);
+    };
+    let mut components = BTreeSet::new();
+    collect_components(&tree, &mut components);
+    let tsx = render_merged(&tree, 2);
+    let (contract, gaps) = verify_merge(snapshot, options, &roots, &tree, &tsx);
+    Ok(Some(MergedScreen {
+        verified: gaps.is_empty() && contract.iter().all(|entry| entry["verified"] == true),
+        tsx,
+        components,
+        slots,
+        unrepresented,
+        contract,
+        gaps,
+    }))
+}
+
+/// One opening element of the merged module, in document order.
+struct Placed<'a> {
+    tree: &'a Tree,
+    /// Inside the tree's text rather than the tree's own element.
+    in_text: bool,
+    /// Whether the element is drawn at each slot.
+    shown: [bool; SLOTS],
+    parent_shown: [bool; SLOTS],
+    /// The element it sits in, by its place in the same order.
+    parent: Option<usize>,
+}
+
+/// The merged elements in the order `render_merged` writes them: an element,
+/// then its children, then whatever its text holds.
+fn place<'a>(
+    tree: &'a Tree,
+    parent: Option<usize>,
+    parent_shown: [bool; SLOTS],
+    placed: &mut Vec<Placed<'a>>,
+) {
+    let display = tree
+        .props
+        .get("display")
+        .and_then(|value| slot_values(value));
+    let shown = std::array::from_fn(|slot| {
+        parent_shown[slot]
+            && display
+                .as_deref()
+                .and_then(|values| effective(values, slot))
+                != Some("none")
+    });
+    let index = placed.len();
+    placed.push(Placed {
+        tree,
+        in_text: false,
+        shown,
+        parent_shown,
+        parent,
+    });
+    for child in &tree.children {
+        place(child, Some(index), shown, placed);
+    }
+    if let Some(content) = &tree.content {
+        for _ in opening_elements(&format!("<>{content}</>")) {
+            placed.push(Placed {
+                tree,
+                in_text: true,
+                shown,
+                parent_shown: shown,
+                parent: Some(index),
+            });
+        }
+    }
+}
+
+/// A merged value as written after its name: `="v"` for every width, or
+/// `={[...]}` with one entry per slot, `null` keeping the narrower one's.
+fn slot_values(written: &str) -> Option<Vec<Option<String>>> {
+    if let Some(value) = written
+        .strip_prefix("=\"")
+        .and_then(|rest| rest.strip_suffix('"'))
+    {
+        return Some(vec![Some(value.to_owned())]);
+    }
+    let mut rest = written
+        .strip_prefix("={[")?
+        .strip_suffix("]}")?
+        .trim_start();
+    let mut values = Vec::new();
+    while !rest.is_empty() {
+        if let Some(after) = rest.strip_prefix("null") {
+            values.push(None);
+            rest = after;
+        } else {
+            let after = rest.strip_prefix('"')?;
+            let end = after.find('"')?;
+            values.push(Some(after[..end].to_owned()));
+            rest = &after[end + 1..];
+        }
+        rest = rest.trim_start();
+        rest = rest.strip_prefix(',').unwrap_or(rest).trim_start();
+    }
+    Some(values)
+}
+
+/// What devup-ui applies at a slot: the last value at or below it.
+fn effective(values: &[Option<String>], slot: usize) -> Option<&str> {
+    values
+        .iter()
+        .take(slot + 1)
+        .rev()
+        .find_map(Option::as_deref)
+}
+
+/// A value as the element ends up with it, so that two spellings CSS draws
+/// the same compare equal and nothing else does. `None` is the property's
+/// CSS initial value. An element that writes nothing has what its own class
+/// sets — `Center` centres, `VStack` stacks — and `initial` undoes that
+/// class, except for `display`, whose initial value is `inline` whatever the
+/// element is. An inherited `initial` is settled by the caller, which knows
+/// the ancestors.
+fn settled(prop: &str, value: Option<&str>, tag: &str) -> Option<String> {
+    let value = match value {
+        None if prop == "display" => return Some(natural_display(tag).to_owned()),
+        None => implied_layout(tag)
+            .iter()
+            .find(|(name, _)| *name == prop)
+            .map(|(_, value)| *value),
+        Some("initial") if prop == "display" => return Some("inline".to_owned()),
+        Some("initial") if INHERITED.contains(&prop) => Some("initial"),
+        Some("initial") => None,
+        value => value,
+    };
+    match (prop, value) {
+        ("flexDir", Some("row"))
+        | ("gap", Some("0" | "0px"))
+        | (
+            "textDecorationSkipInk" | "textDecorationThickness" | "textUnderlineOffset",
+            Some("auto"),
+        )
+        | ("textDecorationStyle", Some("solid")) => None,
+        (_, value) => value.map(str::to_owned),
+    }
+}
+
+/// The devup-ui elements that are one `div` laid out by their props, so one
+/// stands for another wherever the props say what the other does by itself.
+const LAYOUT_ELEMENTS: [&str; 5] = ["Box", "Flex", "VStack", "Center", "Grid"];
+
+/// The props in [`CLEARED_WHEN_DROPPED`] an element inherits when it does
+/// not set them, where `initial` is not the same as leaving them unset.
+const INHERITED: [&str; 2] = ["textAlign", "visibility"];
+
+/// The value a generated attribute writes, as JSX reads it.
+fn written(attribute: &GeneratedAttribute) -> String {
+    attribute
+        .source
+        .strip_prefix(attribute.name.as_str())
+        .and_then(|rest| rest.strip_prefix("=\""))
+        .and_then(|rest| rest.strip_suffix('"'))
+        .map_or_else(
+            || attribute.source.clone(),
+            |value| {
+                value
+                    .replace("&quot;", "\"")
+                    .replace("&lt;", "<")
+                    .replace("&gt;", ">")
+                    .replace("&amp;", "&")
+            },
+        )
+}
+
+/// A text read at one slot: each break written for some widths becomes a
+/// `<br />` where it is shown and nothing where it is not.
+fn content_at(content: &str, slot: usize) -> String {
+    const OPEN: &str = "<Box as=\"br\" display={[";
+    const CLOSE: &str = "]} />";
+    let mut read = String::with_capacity(content.len());
+    let mut rest = content;
+    while let Some(at) = rest.find(OPEN) {
+        read.push_str(&rest[..at]);
+        let after = &rest[at + OPEN.len()..];
+        let Some(end) = after.find(CLOSE) else {
+            read.push_str(&rest[at..]);
+            return read;
+        };
+        let values = slot_values(&format!("={{[{}]}}", &after[..end]));
+        if values.as_deref().and_then(|values| effective(values, slot)) != Some("none") {
+            read.push_str("<br />");
+        }
+        rest = &after[end + CLOSE.len()..];
+    }
+    read.push_str(rest);
+    read
+}
+
+fn descends(snapshot: &Snapshot, node: &str, ancestor: &str) -> bool {
+    let mut current = Some(node);
+    for _ in 0..1024 {
+        let Some(id) = current else {
+            return false;
+        };
+        if id == ancestor {
+            return true;
+        }
+        current = snapshot
+            .nodes
+            .get(id)
+            .and_then(|node| node.typed_view().string("parentId"));
+    }
+    false
+}
+
+/// The `Box` a component reference is wrapped in to carry where it sits.
+fn wraps_a_reference(tree: &Tree) -> bool {
+    !tree.is_component
+        && tree.children.len() == 1
+        && tree.children[0].is_component
+        && tree.children[0].node_id == tree.node_id
+}
+
+/// The merged module against each width's own TSX.
+///
+/// Each width is converted on its own, instances spelled out as in `tsx`,
+/// and its elements are taken in order, by the node they were drawn from.
+/// The module is then read at that width's slot — every array resolved the
+/// way devup-ui resolves it, elements hidden there skipped — and the two
+/// must agree: the same elements, each with the same element name and the
+/// same settled values, every value one the width's own contract verifies,
+/// the same text, and no element of the width left over. A component
+/// reference stands for the instance's whole subtree. Its name, variant and
+/// placement are compared, but what it draws belongs to a file this module
+/// does not contain, so a module that shows one is not verified. An element
+/// no collected width draws is read at none of them, so its values are not
+/// verified.
+///
+/// This reads the code; it does not render it. It is what makes the merged
+/// attributes as verified as the per-width ones, and no more.
+fn verify_merge(
+    snapshot: &Snapshot,
+    options: &CodegenOptions,
+    roots: &BySlot<String>,
+    tree: &Tree,
+    tsx: &str,
+) -> (Vec<Value>, Vec<Value>) {
+    let attributes = generated_attributes(tsx);
+    let tags = element_tags(tsx);
+    let mut placed = Vec::new();
+    place(tree, None, [true; SLOTS], &mut placed);
+    let mut ok = vec![true; attributes.len()];
+    let mut gaps = Vec::new();
+    if placed.len() == tags.len() {
+        let mut by_element = vec![Vec::new(); placed.len()];
+        for (index, attribute) in attributes.iter().enumerate() {
+            by_element[attribute.element].push(index);
+        }
+        let reference = CodegenOptions {
+            inline_instances: true,
+            ..options.clone()
+        };
+        for (slot, root) in roots.iter().enumerate() {
+            let Some(root) = root else {
+                continue;
+            };
+            match generate_component(snapshot, root, &reference) {
+                Ok(output) => {
+                    let check = WidthCheck {
+                        snapshot,
+                        slot,
+                        placed: &placed,
+                        tags: &tags,
+                        attributes: &attributes,
+                        by_element: &by_element,
+                    };
+                    check.run(&owned_elements(&output), &mut ok, &mut gaps);
+                }
+                Err(error) => {
+                    ok.fill(false);
+                    gaps.push(json!({"reason":"width-not-converted","slot":slot,
+                        "widthNodeId":root,"detail":error.message}));
+                }
             }
-        }),
-    )
+        }
+        for (index, element) in placed.iter().enumerate() {
+            if !(0..SLOTS).any(|slot| roots[slot].is_some() && element.shown[slot]) {
+                for attribute in &by_element[index] {
+                    if attributes[*attribute].name != "display" {
+                        ok[*attribute] = false;
+                    }
+                }
+                gaps.push(json!({"reason":"drawn-at-no-width","element":index,
+                    "nodeId":element.tree.node_id,"tag":tags[index]}));
+            }
+        }
+    } else {
+        ok.fill(false);
+        gaps.push(
+            json!({"reason":"elements-not-aligned","placed":placed.len(),"written":tags.len()}),
+        );
+    }
+    let aligned = placed.len() == tags.len();
+    let contract = attributes
+        .iter()
+        .zip(&ok)
+        .map(|(attribute, verified)| {
+            json!({"elementIndex":attribute.element,"tag":attribute.tag,
+                "nodeId":aligned.then(|| placed[attribute.element].tree.node_id.as_str()),
+                "generatedProperty":attribute.source,"verified":verified})
+        })
+        .collect();
+    (contract, gaps)
+}
+
+struct WidthCheck<'a> {
+    snapshot: &'a Snapshot,
+    slot: usize,
+    placed: &'a [Placed<'a>],
+    tags: &'a [String],
+    attributes: &'a [GeneratedAttribute],
+    by_element: &'a [Vec<usize>],
+}
+
+impl WidthCheck<'_> {
+    fn run(&self, width: &[OwnedElement], ok: &mut [bool], gaps: &mut Vec<Value>) {
+        let slot = self.slot;
+        let mut queue: BTreeMap<&str, VecDeque<usize>> = BTreeMap::new();
+        for (index, element) in width.iter().enumerate() {
+            if let Some(node) = element.node_id.as_deref() {
+                queue.entry(node).or_default().push_back(index);
+            }
+        }
+        let mut matched = vec![false; width.len()];
+        // The width's elements are taken in the module's order, so each one
+        // taken must come after the last: a node drawn in another place, or
+        // siblings the widths order differently, is not the same code.
+        let mut last: Option<usize> = None;
+        let mut text_differs = BTreeSet::new();
+        let fail = |indexes: &[usize], ok: &mut [bool], gap: Value, gaps: &mut Vec<Value>| {
+            for index in indexes {
+                ok[*index] = false;
+            }
+            gaps.push(gap);
+        };
+        for (index, element) in self.placed.iter().enumerate() {
+            let own = &self.by_element[index];
+            let tag = self.tags[index].as_str();
+            let Some(Some((node, text))) = element.tree.slots.get(slot) else {
+                if element.shown[slot] {
+                    fail(
+                        own,
+                        ok,
+                        json!({"reason":"no-source-at-slot","slot":slot,
+                        "element":index,"tag":tag}),
+                        gaps,
+                    );
+                }
+                continue;
+            };
+            let gap = |reason: &str| json!({"reason":reason,"slot":slot,"widthNodeId":node,"element":index,"tag":tag});
+            if !element.shown[slot] {
+                if element.parent_shown[slot]
+                    && !element.in_text
+                    && queue
+                        .get(node.as_str())
+                        .is_some_and(|waiting| waiting.iter().any(|w| !matched[*w]))
+                {
+                    let display = own
+                        .iter()
+                        .copied()
+                        .filter(|a| self.attributes[*a].name == "display")
+                        .collect::<Vec<_>>();
+                    fail(&display, ok, gap("hidden-but-drawn-at-width"), gaps);
+                }
+                continue;
+            }
+            let waiting = queue.entry(node.as_str()).or_default();
+            if element.in_text {
+                if tag == "Box" {
+                    if text_differs.contains(&(element.tree as *const Tree)) {
+                        for a in own {
+                            ok[*a] = false;
+                        }
+                    }
+                    let display = own
+                        .iter()
+                        .map(|a| &self.attributes[*a])
+                        .find(|attribute| attribute.name == "display")
+                        .and_then(|attribute| slot_values(&attribute.source["display".len()..]));
+                    if display
+                        .as_deref()
+                        .and_then(|values| effective(values, slot))
+                        != Some("none")
+                    {
+                        match waiting.pop_front() {
+                            Some(w)
+                                if width[w].tag == "br"
+                                    && width[w].attributes.is_empty()
+                                    && last.is_none_or(|last| w > last) =>
+                            {
+                                matched[w] = true;
+                                last = Some(w);
+                            }
+                            other => {
+                                if let Some(w) = other {
+                                    matched[w] = true;
+                                }
+                                fail(own, ok, gap("break-differs-at-width"), gaps);
+                            }
+                        }
+                    }
+                    continue;
+                }
+                let Some(w) = waiting.pop_front() else {
+                    fail(own, ok, gap("element-only-in-merge"), gaps);
+                    continue;
+                };
+                matched[w] = true;
+                if !last.is_none_or(|last| w > last) {
+                    fail(own, ok, gap("order-differs-at-width"), gaps);
+                }
+                last = Some(w);
+                let mine = own
+                    .iter()
+                    .map(|a| self.attributes[*a].source.as_str())
+                    .collect::<BTreeSet<_>>();
+                let theirs = width[w]
+                    .attributes
+                    .iter()
+                    .map(|(attribute, _)| attribute.source.as_str())
+                    .collect::<BTreeSet<_>>();
+                if width[w].tag != tag
+                    || mine != theirs
+                    || width[w].attributes.iter().any(|(_, verified)| !verified)
+                {
+                    fail(own, ok, gap("text-element-differs-at-width"), gaps);
+                }
+                continue;
+            }
+            if element.tree.is_component {
+                let drawn = self.reference(element, node, own, width, &mut matched, ok, gaps);
+                if let (Some(first), Some(end)) = (drawn.first(), drawn.last()) {
+                    if !last.is_none_or(|last| *first > last) {
+                        fail(own, ok, gap("order-differs-at-width"), gaps);
+                    }
+                    last = Some(*end);
+                }
+                continue;
+            }
+            if wraps_a_reference(element.tree) {
+                let Some(&w) = waiting.front() else {
+                    fail(own, ok, gap("element-only-in-merge"), gaps);
+                    continue;
+                };
+                self.compare(own, &width[w], tag, true, node, index, ok, gaps);
+                continue;
+            }
+            let Some(w) = waiting.pop_front() else {
+                fail(own, ok, gap("element-only-in-merge"), gaps);
+                continue;
+            };
+            matched[w] = true;
+            if !last.is_none_or(|last| w > last) {
+                fail(own, ok, gap("order-differs-at-width"), gaps);
+            }
+            last = Some(w);
+            if width[w].tag != tag
+                && !(LAYOUT_ELEMENTS.contains(&tag)
+                    && LAYOUT_ELEMENTS.contains(&width[w].tag.as_str()))
+            {
+                let mut gap = gap("element-differs-at-width");
+                gap["widthTag"] = json!(width[w].tag);
+                fail(own, ok, gap, gaps);
+                continue;
+            }
+            self.compare(own, &width[w], tag, false, node, index, ok, gaps);
+            if let Some(content) = &element.tree.content
+                && content_at(content, slot) != text.as_deref().unwrap_or_default()
+            {
+                text_differs.insert(element.tree as *const Tree);
+                gaps.push(gap("text-differs-at-width"));
+            }
+        }
+        for (index, element) in width.iter().enumerate() {
+            if !matched[index] {
+                gaps.push(json!({"reason":"element-only-at-width","slot":slot,
+                    "widthNodeId":element.node_id,"widthTag":element.tag}));
+            }
+        }
+    }
+
+    /// One element's values at this slot against the width's element for
+    /// the same node. A wrapper carries only where its component sits.
+    #[allow(clippy::too_many_arguments)]
+    fn compare(
+        &self,
+        own: &[usize],
+        theirs: &OwnedElement,
+        tag: &str,
+        placement_only: bool,
+        node: &str,
+        element: usize,
+        ok: &mut [bool],
+        gaps: &mut Vec<Value>,
+    ) {
+        let slot = self.slot;
+        let their_tag = theirs.tag.as_str();
+        // A reference's wrapper carries where an absolute instance sits, and
+        // nothing of how the component lays itself out.
+        let absolute =
+            self.snapshot.nodes.get(node).is_some_and(|node| {
+                node.typed_view().string("layoutPositioning") == Some("ABSOLUTE")
+            });
+        let placement = |name: &str, value: &str| {
+            absolute && (POSITION_PROPS.contains(&name) || (name == "w" && value == "100%"))
+        };
+        let theirs = theirs
+            .attributes
+            .iter()
+            .map(|(attribute, verified)| (attribute.name.as_str(), (written(attribute), *verified)))
+            .filter(|(name, (value, _))| !placement_only || placement(name, value.as_str()))
+            .collect::<BTreeMap<_, _>>();
+        let mut names = BTreeSet::new();
+        for index in own {
+            let attribute = &self.attributes[*index];
+            let name = attribute.name.as_str();
+            names.insert(name);
+            if placement_only && name == "display" {
+                continue;
+            }
+            let here = slot_values(&attribute.source[name.len()..]).map(|values| {
+                let value = effective(&values, slot);
+                let unset = value == Some("initial")
+                    && INHERITED.contains(&name)
+                    && !self.inherited(element, name);
+                settled(name, if unset { None } else { value }, tag)
+            });
+            let (there, verified) = theirs.get(name).map_or((None, true), |(value, verified)| {
+                (Some(value.as_str()), *verified)
+            });
+            let there = settled(name, there, their_tag);
+            if here.as_ref() != Some(&there) || !verified {
+                ok[*index] = false;
+                gaps.push(json!({"reason":if verified {"value-differs-at-width"} else {"unverified-at-width"},
+                    "slot":slot,"widthNodeId":node,"element":element,"tag":tag,"property":name,
+                    "merged":here,"width":there}));
+            }
+        }
+        for (name, (value, _)) in &theirs {
+            if !names.contains(name)
+                && settled(name, Some(value.as_str()), their_tag) != settled(name, None, tag)
+            {
+                gaps.push(
+                    json!({"reason":"attribute-only-at-width","slot":slot,"widthNodeId":node,
+                    "element":element,"tag":tag,"property":name,"width":value}),
+                );
+            }
+        }
+        // Two layout elements differ only in what each does unwritten.
+        if !placement_only && their_tag != tag {
+            for name in implied_layout(tag)
+                .iter()
+                .chain(implied_layout(their_tag))
+                .map(|(name, _)| *name)
+                .chain(["display"])
+            {
+                if !names.contains(name)
+                    && !theirs.contains_key(name)
+                    && settled(name, None, tag) != settled(name, None, their_tag)
+                {
+                    gaps.push(json!({"reason":"element-differs-at-width","slot":slot,
+                        "widthNodeId":node,"element":element,"tag":tag,"widthTag":their_tag,
+                        "property":name}));
+                }
+            }
+        }
+    }
+
+    /// Whether an element this one sits in sets `name` at this slot, so that
+    /// leaving it unset inherits that rather than the initial value.
+    fn inherited(&self, element: usize, name: &str) -> bool {
+        let mut current = self.placed[element].parent;
+        while let Some(index) = current {
+            if self.by_element[index].iter().any(|a| {
+                let attribute = &self.attributes[*a];
+                attribute.name == name
+                    && slot_values(&attribute.source[name.len()..])
+                        .as_deref()
+                        .and_then(|values| effective(values, self.slot))
+                        .is_some_and(|value| value != "initial")
+            }) {
+                return true;
+            }
+            current = self.placed[index].parent;
+        }
+        false
+    }
+
+    /// A component reference: the component and the variant this width's
+    /// instance picked. Everything the instance draws is the component's,
+    /// so the width's elements for it are accounted for here; they are
+    /// returned in order.
+    #[allow(clippy::too_many_arguments)]
+    fn reference(
+        &self,
+        element: &Placed<'_>,
+        node: &str,
+        own: &[usize],
+        width: &[OwnedElement],
+        matched: &mut [bool],
+        ok: &mut [bool],
+        gaps: &mut Vec<Value>,
+    ) -> Vec<usize> {
+        let slot = self.slot;
+        let Some(instance) = self.snapshot.nodes.get(node) else {
+            for index in own {
+                ok[*index] = false;
+            }
+            gaps.push(json!({"reason":"no-source-at-slot","slot":slot,"widthNodeId":node}));
+            return Vec::new();
+        };
+        let view = instance.typed_view();
+        let drawn = width
+            .iter()
+            .enumerate()
+            .filter(|(_, element)| {
+                element
+                    .node_id
+                    .as_deref()
+                    .is_some_and(|owner| descends(self.snapshot, owner, node))
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        for index in &drawn {
+            matched[*index] = true;
+        }
+        let component = referenced_component_name(self.snapshot, view.name());
+        if drawn.is_empty() || component != element.tree.component {
+            for index in own {
+                ok[*index] = false;
+            }
+            gaps.push(json!({"reason":if drawn.is_empty() {"element-only-in-merge"} else {"component-differs-at-width"},
+                "slot":slot,"widthNodeId":node,"tag":element.tree.component,"widthComponent":component}));
+            return drawn;
+        }
+        let expected = instance_variant_props(&view);
+        let mut names = BTreeSet::new();
+        for index in own {
+            let attribute = &self.attributes[*index];
+            names.insert(attribute.name.as_str());
+            let here = slot_values(&attribute.source[attribute.name.len()..])
+                .and_then(|values| effective(&values, slot).map(str::to_owned));
+            if here.as_deref() != expected.get(&attribute.name).map(String::as_str) {
+                ok[*index] = false;
+                gaps.push(
+                    json!({"reason":"variant-differs-at-width","slot":slot,"widthNodeId":node,
+                    "property":attribute.name,"merged":here,"width":expected.get(&attribute.name)}),
+                );
+            }
+        }
+        for (name, value) in &expected {
+            if !names.contains(name.as_str()) {
+                gaps.push(
+                    json!({"reason":"variant-only-at-width","slot":slot,"widthNodeId":node,
+                    "property":name,"width":value}),
+                );
+            }
+        }
+        // The reference draws whatever its component's own file draws, which
+        // this module does not contain, and an instance can override its
+        // component's text, size or paint where the reference cannot say so.
+        // Matching the name and variant is not the same drawing.
+        gaps.push(
+            json!({"reason":"component-body-unverified","slot":slot,"widthNodeId":node,
+            "component":component,"drawnElements":drawn.len()}),
+        );
+        drawn
+    }
 }

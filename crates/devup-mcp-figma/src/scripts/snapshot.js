@@ -1,3 +1,7 @@
+// Figma's own MCP runs scripts with hidden layers inside instances left out
+// of `children`, `findAll` and `getNodeByIdAsync`; a plugin sees them. Set
+// here so the direct path and the Devup Bridge read the same document.
+figma.skipInvisibleInstanceChildren = false;
 const root = await figma.getNodeByIdAsync("__DEVUP_NODE_ID__");
 if (!root) throw new Error("DEVUP_NODE_NOT_FOUND");
 
@@ -20,7 +24,12 @@ const maxFieldBytes = Math.min(
   maxPayloadBytes - 1024,
   Math.max(512, Math.floor(Number(snapshotOptions.maxFieldBytes) || 4096)),
 );
-const skipped = new Set(["id", "type", "parent", "children"]);
+// `mainComponent`, `masterComponent` and `instances` are the synchronous
+// getters Figma refuses under dynamic-page document access ("Use
+// node.getMainComponentAsync instead"). Nothing here reads them, and walking
+// the prototype chain put one refusal per instance and component into
+// `fieldErrors`: 593 on the devup Test file.
+const skipped = new Set(["id", "type", "parent", "children", "mainComponent", "masterComponent", "instances"]);
 const hardProtectedFields = new Set([
   "parentId",
   "childrenIds",
@@ -161,6 +170,18 @@ function shrinkNodeToBudget(node, budget) {
   return node;
 }
 
+// A variant's component properties are defined on its set, and Figma
+// refuses to read them from the variant: "Can only get component property
+// definitions of a component set or non-variant component".
+function variantDefinitions(node, name) {
+  return (
+    name === "componentPropertyDefinitions" &&
+    node.type === "COMPONENT" &&
+    Boolean(node.parent) &&
+    node.parent.type === "COMPONENT_SET"
+  );
+}
+
 function snapshotNode(node) {
   const fields = {};
   const extra = {};
@@ -189,7 +210,7 @@ function snapshotNode(node) {
   if (!("overflowDirection" in node) && ["FRAME", "COMPONENT", "INSTANCE", "COMPONENT_SET"].includes(node.type)) fields.overflowDirection = null;
 
   for (const name of propertyNames(node)) {
-    if (skipped.has(name) || name.startsWith("_")) continue;
+    if (skipped.has(name) || name.startsWith("_") || variantDefinitions(node, name)) continue;
     try {
       const value = node[name];
       if (typeof value === "function") continue;

@@ -4,7 +4,7 @@ use devup_mcp_figma::{RawNode, Snapshot, TypedNode};
 use serde_json::Value;
 
 use super::{
-    component::Prop,
+    component::{LengthToken, Prop, PropValue},
     layout::{format_number, px, string_prop},
 };
 
@@ -430,7 +430,9 @@ fn same_color(
 #[derive(Clone, Copy)]
 pub(super) struct StyleOptions<'a> {
     pub variable_tokens: &'a std::collections::BTreeMap<String, String>,
+    pub length_tokens: &'a std::collections::BTreeMap<String, LengthToken>,
     pub asset_names_per_node: bool,
+    pub width_policy: Option<&'a super::width::WidthPolicy>,
 }
 
 // Record the route at the property writer; available geometry alone is not
@@ -440,6 +442,7 @@ pub(super) enum StyleDerivation {
     SvgMaskPolicy,
     InFlowExportBoundary,
     ImagePaintScale,
+    WidthPolicyLine,
 }
 
 impl StyleDerivation {
@@ -448,6 +451,7 @@ impl StyleDerivation {
             Self::SvgMaskPolicy => "svg-mask-policy",
             Self::InFlowExportBoundary => "in-flow-export-boundary",
             Self::ImagePaintScale => "image-paint-scale",
+            Self::WidthPolicyLine => "width-policy-straight-line",
         }
     }
 
@@ -476,6 +480,16 @@ impl StyleDerivation {
             Self::ImagePaintScale => (
                 vec!["isAsset", "fills"],
                 "push_object_fit: first visible IMAGE paint scaleMode FIT -> contain; CROP -> cover.",
+            ),
+            Self::WidthPolicyLine => (
+                vec![
+                    "absoluteBoundingBox",
+                    "strokes",
+                    "strokeWeight",
+                    "rotation",
+                    "constraints",
+                ],
+                "widthPolicy: a vector with a zero-height bounding box and a solid stroke is a straight rule; its box follows the parent's width under a stretch or scale anchor, so the mask is sized to the box (100% 100%) instead of keeping its drawn length. Stroke caps, if any, scale along the line.",
             ),
         }
     }
@@ -516,9 +530,15 @@ pub(super) fn push_style_props(
     let mut derivations = StyleDerivations::default();
     let StyleOptions {
         variable_tokens,
+        length_tokens,
         asset_names_per_node: per_node,
+        width_policy,
     } = style;
     let view = node.typed_view();
+    let lengths = Lengths {
+        tokens: length_tokens,
+        viewport: drawn_viewport(snapshot, node),
+    };
     if view.bool("visible") == Some(false) {
         string_prop(props, "display", "none");
     }
@@ -563,6 +583,16 @@ pub(super) fn push_style_props(
             );
             derivations.push(props, "maskSize", "contain", StyleDerivation::SvgMaskPolicy);
             derivations.push(props, "maskPos", "center", StyleDerivation::SvgMaskPolicy);
+            if width_policy
+                .is_some_and(|policy| super::width::line_follows_width(snapshot, node, policy))
+            {
+                derivations.push(
+                    props,
+                    "maskSize",
+                    "100% 100%",
+                    StyleDerivation::WidthPolicyLine,
+                );
+            }
         } else {
             string_prop(props, "src", source);
         }
@@ -618,7 +648,14 @@ pub(super) fn push_style_props(
         // The exported asset has its own painted bounds. The live-container
         // outside-edge correction does not establish how to compose those.
         push_strokes(&view, None, props, used_tokens, variable_tokens);
-        push_effects(&view, component, props, used_tokens, variable_tokens);
+        push_effects(
+            &view,
+            component,
+            props,
+            used_tokens,
+            variable_tokens,
+            lengths,
+        );
         // An export carries the node's own opacity: Figma writes it into the
         // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
         // as well it is applied twice - a decoration at 0.2 came out at 0.04,
@@ -716,7 +753,14 @@ pub(super) fn push_style_props(
             variable_tokens,
         );
     }
-    push_effects(&view, component, props, used_tokens, variable_tokens);
+    push_effects(
+        &view,
+        component,
+        props,
+        used_tokens,
+        variable_tokens,
+        lengths,
+    );
     if let Some(opacity) = view.number("opacity")
         && opacity < 1.0
     {
@@ -1003,6 +1047,7 @@ fn paint_css(
     let StyleOptions {
         variable_tokens,
         asset_names_per_node: per_node,
+        ..
     } = style;
     let kind = paint.get("type")?.as_str()?;
     match kind {
@@ -1386,6 +1431,174 @@ fn bound_paint_token(
     variable_tokens.get(id).cloned()
 }
 
+/// Length tokens and the width the screen was drawn for, carried together
+/// to every length the style pass writes.
+#[derive(Clone, Copy)]
+pub(super) struct Lengths<'a> {
+    tokens: &'a std::collections::BTreeMap<String, LengthToken>,
+    viewport: Option<f64>,
+}
+
+impl Lengths<'_> {
+    /// `$token` in place of a CSS length `literal`, when every binding the
+    /// literal stands for is a variable named for one length token and that
+    /// token comes to exactly the literal's value at the width the screen was
+    /// drawn for. `None` keeps the literal.
+    ///
+    /// Exactly, not after rounding: the literal is the drawn value rounded to
+    /// two decimals, and a token of `20.004px` compared that way passed for a
+    /// literal `20px` it does not render as.
+    fn token<'v>(
+        self,
+        bindings: impl IntoIterator<Item = Option<&'v Value>>,
+        literal: f64,
+    ) -> Option<String> {
+        let mut found: Option<&LengthToken> = None;
+        for binding in bindings {
+            let token = self.tokens.get(binding_id(binding?)?)?;
+            if found.is_some_and(|found| found.token != token.token) {
+                return None;
+            }
+            found = Some(token);
+        }
+        let token = found?;
+        let value = length_at(&token.value, self.viewport?)?;
+        (value.is_finite() && value == literal).then(|| format!("${}", token.token))
+    }
+}
+
+/// The number a CSS length literal says: `12px` is 12, a bare `0` is 0.
+fn css_length(literal: &str) -> Option<f64> {
+    literal
+        .strip_suffix("px")
+        .unwrap_or(literal)
+        .parse::<f64>()
+        .ok()
+        .filter(|number| number.is_finite())
+}
+
+/// The variable a binding names. A text node's binding can be a list, one
+/// per run of text; it names a variable when every run names the same one.
+fn binding_id(binding: &Value) -> Option<&str> {
+    match binding {
+        Value::Array(bindings) => {
+            let first = binding_id(bindings.first()?)?;
+            bindings
+                .iter()
+                .all(|binding| binding_id(binding) == Some(first))
+                .then_some(first)
+        }
+        binding => binding.get("id")?.as_str(),
+    }
+}
+
+/// What a length token comes to at a viewport `width`: devup-ui writes slot
+/// `i` of a responsive array from `min-width` 0, 480, 768, 992, 1280 and
+/// 1600px, and a slot left `null` keeps the one before it.
+fn length_at(value: &Value, width: f64) -> Option<f64> {
+    const BREAKPOINTS: [f64; 6] = [0.0, 480.0, 768.0, 992.0, 1280.0, 1600.0];
+    let length = |value: &Value| value.as_str()?.strip_suffix("px")?.parse::<f64>().ok();
+    match value {
+        Value::Array(slots) => {
+            let slot = BREAKPOINTS.iter().rposition(|min| *min <= width)?;
+            slots
+                .iter()
+                .take(slot + 1)
+                .rev()
+                .find(|value| !value.is_null())
+                .and_then(length)
+        }
+        value => length(value),
+    }
+}
+
+/// The width the screen holding `node` was drawn at: the outermost frame
+/// collected above it, short of the Section, page or component set it sits
+/// in. A length token is checked at that width, as a page shows it.
+fn drawn_viewport(snapshot: &Snapshot, node: &RawNode) -> Option<f64> {
+    let mut screen = node;
+    for _ in 0..snapshot.nodes.len() {
+        let Some(parent) = screen
+            .typed_view()
+            .string("parentId")
+            .and_then(|id| snapshot.nodes.get(id))
+        else {
+            break;
+        };
+        if matches!(
+            parent.typed_view().node_type(),
+            "SECTION" | "PAGE" | "DOCUMENT" | "COMPONENT_SET"
+        ) {
+            break;
+        }
+        screen = parent;
+    }
+    screen.typed_view().number("width")
+}
+
+/// Writes a length bound to a variable as the variable's `$token` where the
+/// token reproduces it: padding, gap, a single corner radius and a font
+/// size. A token that is responsive then follows the screen width as the
+/// design's breakpoint modes do, where the drawn pixels would hold one
+/// width's value at every width. Shadows are done where they are composed.
+pub(super) fn tokenize_lengths(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    props: &mut [Prop],
+    tokens: &std::collections::BTreeMap<String, LengthToken>,
+    used_tokens: &mut BTreeSet<String>,
+) {
+    if tokens.is_empty() {
+        return;
+    }
+    let view = node.typed_view();
+    let lengths = Lengths {
+        tokens,
+        viewport: drawn_viewport(snapshot, node),
+    };
+    let grid = view.string("layoutMode") == Some("GRID");
+    let single_run = view
+        .value("styledTextSegments")
+        .and_then(Value::as_array)
+        .filter(|runs| runs.len() == 1)
+        .and_then(|runs| runs.first());
+    let binding = |field: &str| {
+        view.value("boundVariables")
+            .and_then(|bound| bound.get(field))
+            .or_else(|| single_run?.get("boundVariables")?.get(field))
+    };
+    for (name, PropValue::String(value)) in props.iter_mut() {
+        let fields: &[&str] = match name.as_str() {
+            "p" => &["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"],
+            "px" => &["paddingLeft", "paddingRight"],
+            "py" => &["paddingTop", "paddingBottom"],
+            "pt" => &["paddingTop"],
+            "pr" => &["paddingRight"],
+            "pb" => &["paddingBottom"],
+            "pl" => &["paddingLeft"],
+            "gap" if grid => &["gridRowGap", "gridColumnGap"],
+            "gap" => &["itemSpacing"],
+            "rowGap" if grid => &["gridRowGap"],
+            "columnGap" if grid => &["gridColumnGap"],
+            "borderRadius" => &[
+                "topLeftRadius",
+                "topRightRadius",
+                "bottomRightRadius",
+                "bottomLeftRadius",
+            ],
+            "fontSize" if view.node_type() == "TEXT" => &["fontSize"],
+            _ => continue,
+        };
+        let Some(literal) = value.ends_with("px").then(|| css_length(value)).flatten() else {
+            continue;
+        };
+        if let Some(token) = lengths.token(fields.iter().map(|field| binding(field)), literal) {
+            used_tokens.insert(token[1..].to_owned());
+            *value = token;
+        }
+    }
+}
+
 fn push_radius(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
     if view.node_type() == "ELLIPSE"
         && view
@@ -1611,6 +1824,7 @@ fn push_effects(
     props: &mut Vec<Prop>,
     used_tokens: &mut BTreeSet<String>,
     variable_tokens: &std::collections::BTreeMap<String, String>,
+    lengths: Lengths<'_>,
 ) {
     let Some(effects) = view.value("effects").and_then(Value::as_array) else {
         return;
@@ -1649,20 +1863,32 @@ fn push_effects(
             } else {
                 ""
             };
+            let mut length = |field: &str, value: f64| {
+                let literal = zero_or_px(value);
+                match css_length(&literal).and_then(|number| {
+                    lengths.token(
+                        [effect.pointer(&format!("/boundVariables/{field}"))],
+                        number,
+                    )
+                }) {
+                    Some(token) => {
+                        used_tokens.insert(token[1..].to_owned());
+                        token
+                    }
+                    None => literal,
+                }
+            };
+            let (x, y, radius) = (
+                length("offsetX", x),
+                length("offsetY", y),
+                length("radius", radius),
+            );
             Some(if component == "Text" {
-                format!(
-                    "{inset}{} {} {} {color}",
-                    zero_or_px(x),
-                    zero_or_px(y),
-                    zero_or_px(radius)
-                )
+                format!("{inset}{x} {y} {radius} {color}")
             } else {
                 format!(
-                    "{inset}{} {} {} {} {color}",
-                    zero_or_px(x),
-                    zero_or_px(y),
-                    zero_or_px(radius),
-                    zero_or_px(spread)
+                    "{inset}{x} {y} {radius} {} {color}",
+                    length("spread", spread)
                 )
             })
         })

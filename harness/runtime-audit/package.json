@@ -1,0 +1,16 @@
+{
+  "name": "devup-runtime-audit",
+  "private": true,
+  "type": "module",
+  "description": "Consumer-side executor for devup_runtime_audit plans: runs them in isolated Playwright contexts and writes the report the server ingests.",
+  "bin": {
+    "devup-runtime-audit": "run.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/checks.test.mjs test/browser.test.mjs",
+    "test:unit": "node --test test/checks.test.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

@@ -379,7 +379,7 @@ pub async fn doctor_report(
 ) -> Value {
     let mut report = connection_report(status, &direct, bridge.as_ref());
     report["preferredPathNote"] = json!(
-        "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first and keep direct as the fallback for what the bridge cannot serve (currently a file-scope metadata read and referencePng's get_screenshot)."
+        "Two paths reach Figma and they are not equals. The bridge plugin reads through the Figma desktop app: no login, no OAuth, and it spends none of the Figma allowance the direct path is metered against — a single screen costs several reads, so the allowance goes quickly. Reach for the bridge first: it serves every read a collection makes, and direct is the fallback that re-reads what the plugin answers short - data Figma withholds while the file is out of sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an older plugin does not know."
     );
     report["clientSetup"] = client_setup();
     report
@@ -397,8 +397,10 @@ fn direct_path(status: AuthStatus, direct: &DirectPathSnapshot, bridge_available
     );
     if bridge_available {
         reason.push_str(
-            " While a bridge plugin is attached this path is needed only for what the bridge \
-             cannot serve: a file-scope metadata read and referencePng.",
+            " While a bridge plugin is attached it serves every read, and this path only re-reads \
+             what the plugin answers short: data Figma withholds while the file is out of sight, \
+             a reference PNG the plugin cannot draw as get_screenshot does, a read an older \
+             plugin does not know.",
         );
     }
     json!({
@@ -464,7 +466,7 @@ fn bridge_path(bridge: Option<&BridgePathSnapshot>) -> Value {
         "port": bridge.port,
         "host": bridge.host.as_ref().map(|host| peer(host, bridge.role == BridgeRole::Host)),
         "attachedFiles": bridge.attached_files.iter().map(attached_file).collect::<Vec<_>>(),
-        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (seen in Dev Mode); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (Figma fills figma.fileKey only for a manifest declaring enablePrivatePluginApi, which older builds lack); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
         "reason": bridge_reason(bridge),
     });
     if let Some(issue) = &bridge.issue {
@@ -596,6 +598,14 @@ fn attached_file(file: &AttachedFile) -> Value {
         "selection": file.context.selection,
         "selectionCount": file.context.selection_count,
     });
+    if let Some(in_view) = file.context.in_view {
+        entry["inView"] = json!(in_view);
+        if !in_view {
+            entry["inViewNote"] = json!(
+                "Figma is not showing this file. Once it has been out of view for a minute or two, Figma answers reads of data it has not loaded with \"Unable to establish connection to Figma\" after 10 seconds each. Bring the Figma window to the front and click this file's tab before a collection."
+            );
+        }
+    }
     if file.file_key.is_none() {
         entry["fileKeyNote"] = json!(KEYLESS_NOTE);
     }
@@ -812,6 +822,7 @@ mod tests {
                 }),
                 selection: selected.map(|count| (1..=count).map(node).collect()),
                 selection_count: selected,
+                in_view: Some(false),
             },
         }
     }
@@ -941,6 +952,13 @@ mod tests {
         assert_eq!(file["currentPage"]["name"], "Page 1");
         assert_eq!(file["selection"][0]["id"], "1:1");
         assert_eq!(file["selection"][0]["type"], "FRAME");
+        // Out of view, status says so before a collection meets Figma's refusals.
+        assert_eq!(file["inView"], false);
+        assert!(
+            file["inViewNote"]
+                .as_str()
+                .is_some_and(|note| note.contains("to the front"))
+        );
         // One plugin, one selected frame: the next call needs no url.
         assert_eq!(bridge_only["nextAction"]["tool"], "devup_figma_export");
         assert!(bridge_only["nextAction"]["arguments"].get("url").is_none());

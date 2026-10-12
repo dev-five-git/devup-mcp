@@ -65,6 +65,100 @@ pub fn generated_attributes(source: &str) -> Vec<GeneratedAttribute> {
     visitor.attributes
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct OpeningElement {
+    pub ordinal: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Every JSX opening element with its document-order ordinal: the same
+/// numbering [`generated_attributes`] gives its attributes.
+pub fn opening_elements(source: &str) -> Vec<OpeningElement> {
+    struct Openings {
+        elements: Vec<OpeningElement>,
+    }
+    impl<'a> Visit<'a> for Openings {
+        fn visit_jsx_opening_element(&mut self, element: &JSXOpeningElement<'a>) {
+            let span = element.span();
+            self.elements.push(OpeningElement {
+                ordinal: self.elements.len(),
+                start: span.start as usize,
+                end: span.end as usize,
+            });
+            walk::walk_jsx_opening_element(self, element);
+        }
+    }
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+    let mut visitor = Openings {
+        elements: Vec::new(),
+    };
+    visitor.visit_program(&parsed.program);
+    visitor.elements
+}
+
+/// The element name of each opening element, in the same order.
+pub(crate) fn element_tags(source: &str) -> Vec<String> {
+    opening_elements(source)
+        .into_iter()
+        .map(|element| {
+            source[element.start..element.end]
+                .trim_start_matches('<')
+                .split(|character: char| {
+                    character.is_whitespace() || character == '/' || character == '>'
+                })
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect()
+}
+
+/// One opening element of a generated output: its name, the node whose
+/// rendering it belongs to, and its attributes with whether each has a
+/// verified source.
+pub(crate) struct OwnedElement {
+    pub tag: String,
+    pub node_id: Option<String>,
+    pub attributes: Vec<(GeneratedAttribute, bool)>,
+}
+
+/// Every opening element of `output`, in document order.
+pub(crate) fn owned_elements(output: &CodegenOutput) -> Vec<OwnedElement> {
+    let nodes = output
+        .source_map
+        .entries
+        .iter()
+        .filter(|e| e.property.is_none() && e.resolution == "node")
+        .filter_map(|e| Some((e.generated_range.as_ref()?, e.node_id.as_deref()?)))
+        .collect::<Vec<_>>();
+    let mut elements = opening_elements(&output.tsx)
+        .into_iter()
+        .zip(element_tags(&output.tsx))
+        .map(|(element, tag)| OwnedElement {
+            tag,
+            node_id: nodes
+                .iter()
+                .filter(|(range, _)| range.start <= element.start && element.end <= range.end)
+                .min_by_key(|(range, _)| range.end - range.start)
+                .map(|(_, id)| (*id).to_owned()),
+            attributes: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    for (attribute, entry) in generated_attributes(&output.tsx)
+        .into_iter()
+        .zip(attribute_contract(output))
+    {
+        if let Some(element) = elements.get_mut(attribute.element) {
+            element
+                .attributes
+                .push((attribute, entry["verified"] == true));
+        }
+    }
+    elements
+}
+
 fn owner<'a>(output: &'a CodegenOutput, attr: &GeneratedAttribute) -> Option<&'a str> {
     output
         .source_map
@@ -78,9 +172,10 @@ fn owner<'a>(output: &'a CodegenOutput, attr: &GeneratedAttribute) -> Option<&'a
 }
 
 fn mapped(output: &CodegenOutput, attr: &GeneratedAttribute) -> bool {
+    let owner = owner(output, attr);
     output.source_map.entries.iter().any(|e| {
         e.property.is_some()
-            && e.node_id.as_deref() == owner(output, attr)
+            && e.node_id.as_deref() == owner
             && e.generated_property.as_deref() == Some(&attr.source)
             && e.generated_range
                 .as_ref()

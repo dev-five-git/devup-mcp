@@ -43,6 +43,10 @@ pub struct CollectedPayload {
 pub struct ResourceAudit {
     pub state: CompletenessState,
     pub unresolved_count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lookup_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,16 +60,18 @@ pub struct PayloadCompletenessReport {
 impl CollectedPayload {
     pub fn completeness_report(&self) -> PayloadCompletenessReport {
         let snapshot = self.snapshot.audit();
-        let unresolved_count = self
+        let (unresolved_count, lookup_error) = self
             .variables
             .as_ref()
-            .and_then(|result| find_unresolved_count(&result.raw))
+            .and_then(|result| find_unresolved(&result.raw))
             .unwrap_or_else(|| {
-                self.snapshot
+                let count = self
+                    .snapshot
                     .diagnostics
                     .iter()
                     .filter(|diagnostic| diagnostic.code == "DEVUP_RESOURCE_UNRESOLVED")
-                    .count()
+                    .count();
+                (count, None)
             });
         let resources = ResourceAudit {
             state: if unresolved_count == 0 {
@@ -74,6 +80,11 @@ impl CollectedPayload {
                 CompletenessState::Partial
             },
             unresolved_count,
+            hint: lookup_error
+                .as_deref()
+                .and_then(crate::figma_unreachable_hint)
+                .map(str::to_owned),
+            lookup_error,
         };
         let state = if snapshot.state == CompletenessState::Failed {
             CompletenessState::Failed
@@ -93,18 +104,25 @@ impl CollectedPayload {
     }
 }
 
-fn find_unresolved_count(value: &Value) -> Option<usize> {
+/// How many used resources went unresolved, and the first thing a lookup
+/// threw while resolving them. Without the latter, 37 tokens lost to Figma
+/// not answering read the same as 37 that do not exist.
+fn find_unresolved(value: &Value) -> Option<(usize, Option<String>)> {
     match value {
         Value::Object(object) => {
             if let Some(unresolved) = object.get("unresolved").and_then(Value::as_array) {
-                return Some(unresolved.len());
+                let error = unresolved
+                    .iter()
+                    .find_map(|entry| entry.get("error").and_then(Value::as_str))
+                    .map(str::to_owned);
+                return Some((unresolved.len(), error));
             }
-            object.values().find_map(find_unresolved_count)
+            object.values().find_map(find_unresolved)
         }
-        Value::Array(values) => values.iter().find_map(find_unresolved_count),
+        Value::Array(values) => values.iter().find_map(find_unresolved),
         Value::String(text) => serde_json::from_str::<Value>(text)
             .ok()
-            .and_then(|value| find_unresolved_count(&value)),
+            .and_then(|value| find_unresolved(&value)),
         Value::Null | Value::Bool(_) | Value::Number(_) => None,
     }
 }

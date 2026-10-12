@@ -40,6 +40,21 @@ pub struct CodegenOptions {
     /// them the file is the wrong size for the box and the picture is
     /// stretched into it. Named per node, each gets a file of its own.
     pub asset_names_per_node: bool,
+    /// Opt-in width-change anchors; `None` keeps the drawn-width output.
+    pub width_policy: Option<super::width::WidthPolicy>,
+    /// Length tokens of the theme generated from the same variables, by the
+    /// id of the variable named for them. A length bound to one of those
+    /// variables is written as its `$token` where the token comes to the
+    /// drawn value at the width the screen was drawn for.
+    pub length_tokens: BTreeMap<String, LengthToken>,
+}
+
+/// A `length` token as the theme writes it, in the theme a page shows
+/// without `data-theme`: one length, or a responsive array of them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LengthToken {
+    pub token: String,
+    pub value: serde_json::Value,
 }
 
 impl CodegenOptions {
@@ -58,8 +73,50 @@ impl CodegenOptions {
     ) -> Self {
         self.text_style_tokens = named_tokens(styles, "styles");
         self.variable_tokens = named_tokens(variables, "variables");
+        self.length_tokens = length_tokens(variables);
         self
     }
+}
+
+/// The length tokens the theme of these variables defines, by variable id:
+/// the same generator and scope the export's `devupJson` uses, so a token
+/// written into the code is the one the theme defines, with its value.
+fn length_tokens(variables: Option<&UpstreamResult>) -> BTreeMap<String, LengthToken> {
+    let Some(snapshot) =
+        variables.and_then(|result| crate::theme::variable_snapshot_from_result(result).ok())
+    else {
+        return BTreeMap::new();
+    };
+    let Some(theme) = crate::theme::generate_devup_json(&snapshot, crate::theme::ThemeScope::Node)
+        .ok()
+        .and_then(|output| serde_json::from_str::<serde_json::Value>(&output.json).ok())
+    else {
+        return BTreeMap::new();
+    };
+    // devup-ui's default theme is the first one under `colors`.
+    let lengths = &theme["theme"]["length"];
+    let Some(lengths) = theme["theme"]["colors"]
+        .as_object()
+        .and_then(|themes| themes.keys().next())
+        .or_else(|| lengths.as_object().and_then(|themes| themes.keys().next()))
+        .and_then(|name| lengths.get(name))
+        .and_then(serde_json::Value::as_object)
+    else {
+        return BTreeMap::new();
+    };
+    snapshot
+        .variables
+        .iter()
+        .chain(&snapshot.used_remote_variables)
+        .filter_map(|variable| {
+            let token = variable_token(
+                &variable.name,
+                variable.code_syntax.get("WEB").map(String::as_str),
+            );
+            let value = lengths.get(&token)?.clone();
+            Some((variable.id.clone(), LengthToken { token, value }))
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +128,9 @@ pub struct CodegenOutput {
     pub source_map: SourceMap,
     pub projection_trace: ProjectionTrace,
     pub fidelity_report: FidelityReport,
+    /// The policy the output was generated under, so verification and the
+    /// width report judge the anchors it actually wrote.
+    pub width_policy: Option<super::width::WidthPolicy>,
 }
 
 pub fn generate_component(
@@ -1014,7 +1074,9 @@ fn generate_node_marked(
         inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
         variable_tokens: options.variable_tokens.clone(),
+        length_tokens: options.length_tokens.clone(),
         root_layout: options.root_layout,
+        width_policy: options.width_policy.clone(),
         ..Context::default()
     };
     let jsx = render_node(snapshot, render_root, 0, &mut context, &mut HashSet::new())?;
@@ -1027,6 +1089,7 @@ fn generate_node_marked(
         source_map: SourceMap::empty(),
         projection_trace: ProjectionTrace::default(),
         fidelity_report: FidelityReport::default(),
+        width_policy: options.width_policy.clone(),
     })
 }
 
@@ -1357,7 +1420,9 @@ struct Context {
     instance_boolean_properties: Vec<BTreeMap<String, bool>>,
     text_style_tokens: std::collections::BTreeMap<String, String>,
     variable_tokens: std::collections::BTreeMap<String, String>,
+    length_tokens: BTreeMap<String, LengthToken>,
     root_layout: RootLayout,
+    width_policy: Option<super::width::WidthPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1465,6 +1530,7 @@ fn render_node(
                 &mut props,
                 context.root_layout,
                 depth == 0,
+                context.width_policy.as_ref(),
             );
             props.retain(|(name, value)| {
                 matches!(
@@ -1510,6 +1576,7 @@ fn render_node(
             &mut props,
             context.root_layout,
             depth == 0,
+            context.width_policy.as_ref(),
         );
         layout::string_prop(&mut props, "visibility", "hidden");
         let (opening, multiline) = render_props(&props, depth);
@@ -1574,6 +1641,7 @@ fn render_node(
         &mut props,
         context.root_layout,
         depth == 0,
+        context.width_policy.as_ref(),
     );
     // A frame with no auto-layout places its children itself, and this keeps
     // them resolvable. Once the gap around them is measurable it is emitted as
@@ -1620,7 +1688,9 @@ fn render_node(
         &mut context.used_tokens,
         style::StyleOptions {
             variable_tokens: &context.variable_tokens,
+            length_tokens: &context.length_tokens,
             asset_names_per_node: context.asset_names_per_node,
+            width_policy: context.width_policy.as_ref(),
         },
     );
     text::validate_line_metrics(&view, &context.text_style_tokens)?;
@@ -1630,6 +1700,13 @@ fn render_node(
         &context.variable_tokens,
         &mut context.used_tokens,
         &mut props,
+    );
+    style::tokenize_lengths(
+        snapshot,
+        node,
+        &mut props,
+        &context.length_tokens,
+        &mut context.used_tokens,
     );
     // Last, as the plugin merges `getReactionProps` last: what a timed Smart
     // Animate changes becomes keyframes on the child it changes, or on the

@@ -25,7 +25,7 @@ pub use collector::{
 pub use bridge::{
     AttachedFile, BridgeFigmaClient, BridgeIssue, BridgeJob, BridgeOptions, BridgePathSnapshot,
     BridgePeer, BridgeRole, BridgeServed, BridgeServer, BridgeState, DEFAULT_BRIDGE_PORT,
-    FallbackUpstream, NodeRef, PluginContext, PortOwner, PreferredUpstream,
+    FallbackUpstream, Meter, NodeRef, PluginContext, PortOwner, PreferredUpstream, READ_TIME_LIMIT,
 };
 pub use credentials::{
     ClientCredentialStore, ClientCredentials, CredentialStore, KeyringClientCredentialStore,
@@ -36,7 +36,7 @@ pub use envelope::{
     FastSnapshotPayload, FastThemePayload, FastTransportStats, ThemePage,
     decode_fast_multi_snapshot, decode_fast_snapshot, decode_fast_theme,
 };
-pub use errors::{DevupError, ErrorCode};
+pub use errors::{DevupError, ErrorCode, figma_unreachable_hint, is_quota_refusal};
 pub use explore::{
     ExploreBounds, ExploreCandidate, ExploreGroup, ExploreKind, ExploreNode, ExploreOptions,
     ExploreResult, TargetKind, classify_explore_node, classify_target, collect_section_notes,
@@ -80,6 +80,7 @@ pub use url::{BRIDGE_CURRENT_KEY, BRIDGE_CURRENT_URL, FigmaTarget, is_bridge_onl
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
 mod metadata;
 mod original_image;
+mod reference_compose;
 pub use assets::{
     AssetExportOutcome, AssetFormat, AssetManifest, AssetManifestEntry, AssetRequest,
     AssetSelection, AssetStatus, MAX_ASSET_BYTES, PNG_EXPORT_FIELD, SVG_EXPORT_FIELD,

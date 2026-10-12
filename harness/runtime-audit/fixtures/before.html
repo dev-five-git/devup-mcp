@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  A 360px screen widened by hand, as reported: the root and the cards follow
+  the viewport, but the badge background, the QR tile and the notice keep
+  their 360px coordinates, the badge text was moved to the right edge, and the
+  1px rule is still a mask sized `contain`. Every relation holds at 360px and
+  parts at any other width.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>before</title>
+    <style>
+      html, body { margin: 0; }
+      body { font: 14px/20px sans-serif; }
+      p { margin: 0; white-space: nowrap; }
+      .abs { position: absolute; }
+      .rule {
+        -webkit-mask-image: url(/rule.svg); mask-image: url(/rule.svg);
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        -webkit-mask-position: center; mask-position: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-testid="screen" style="position: relative; width: 100%; height: 760px; overflow: hidden; background: #fff">
+      <div class="abs" data-testid="card" style="left: 20px; width: calc(100% - 40px); top: 193px; height: 200px; background: #f9fafb"></div>
+      <p class="abs" style="left: 36px; top: 209px">School</p>
+      <div class="abs" data-testid="badge" style="left: 259.89px; width: 64.11px; top: 210px; height: 22px; background: #ecfdf3"></div>
+      <p class="abs" data-testid="badge-text" style="right: 45.56px; top: 214px; font-size: 11px; line-height: 14px">20 left</p>
+      <div class="abs rule" data-testid="divider" style="left: 35.5px; width: calc(100% - 71px); top: 360.5px; height: 1px; background: #e5e7eb; -webkit-mask-size: contain; mask-size: contain"></div>
+      <div class="abs" data-testid="food-card" style="left: 20px; width: calc(100% - 40px); top: 420px; height: 80px; background: #f9fafb"></div>
+      <div class="abs" data-testid="qr" style="left: 276px; width: 48px; top: 436px; height: 48px; background: #f3f4f6"></div>
+      <p class="abs" data-testid="notice" style="left: 55.5px; width: 249px; top: 710px; text-align: center">Staff can help on site</p>
+    </div>
+  </body>
+</html>

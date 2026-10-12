@@ -15,7 +15,7 @@ use tokio::{sync::Notify, time::Instant};
 
 use super::{DevupServer, operation::PendingOperation};
 
-const CALL_TIMEOUT: Duration = Duration::from_secs(90);
+const CALL_TIMEOUT: Duration = devup_mcp_figma::READ_TIME_LIMIT;
 const JOB_LIFETIME: Duration = Duration::from_secs(30 * 60);
 const RESULT_RETENTION: Duration = Duration::from_secs(5 * 60);
 const MAX_JOBS: usize = 8;
@@ -269,6 +269,7 @@ impl AssetJob {
                         "byteLength",
                         "sha256",
                         "errorCode",
+                        "errorDetail",
                         "outputPath",
                         "path",
                     ] {

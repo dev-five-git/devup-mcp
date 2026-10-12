@@ -1328,6 +1328,135 @@ fn variable_collection_uses_catalog_then_batched_resources() {
 }
 
 #[test]
+fn a_file_theme_reads_the_library_resources_its_nodes_use_and_its_variables_alias() {
+    let mut request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
+    request.resource_scope = ResourceScope::File;
+    let mut collector = CollectorSession::new(request);
+    let CollectorStep::Call(metadata_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(&metadata_call.id, metadata("FRAME", &[], 1))
+        .unwrap();
+    let CollectorStep::Call(snapshot_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    // The node pads with a local variable and fills with a library one.
+    collector
+        .accept(
+            &snapshot_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "fileKey": "FileKey123", "version": "v1", "rootIds": ["1:2"],
+                    "nodes": [{"id": "1:2", "type": "FRAME", "fields": {
+                        "name": "Frame", "childrenIds": [],
+                        "boundVariables": {"paddingLeft": {"type": "VARIABLE_ALIAS", "id": "VariableID:1:1"}},
+                        "fills": [{"type": "SOLID", "boundVariables": {"color": {"type": "VARIABLE_ALIAS", "id": "VariableID:lib/2:2"}}, "extra": {}, "fieldErrors": {}}]
+                    }}]
+                }),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(catalog_call) = collector.advance().unwrap() else {
+        panic!()
+    };
+    collector
+        .accept(
+            &catalog_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "collections": [{"id": "c1", "name": "Local", "defaultModeId": "m", "modes": [{"modeId": "m", "name": "Mobile"}]}],
+                    "variableIds": ["VariableID:1:1"], "styles": [],
+                    "localComplete": true, "usedRemoteComplete": false
+                }),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(local_batch) = collector.advance().unwrap() else {
+        panic!()
+    };
+    // The local variable aliases a library primitive no node binds.
+    collector
+        .accept(
+            &local_batch.id,
+            UpstreamResult {
+                raw: json!({"variables": [{"id": "VariableID:1:1", "name": "containerX", "variableCollectionId": "c1",
+                    "valuesByMode": {"m": {"type": "VARIABLE_ALIAS", "id": "VariableID:lib/3:3"}}}], "styles": []}),
+            },
+        )
+        .unwrap();
+    let CollectorStep::Call(library_call) = collector.advance().unwrap() else {
+        panic!("the library resources should be read after the catalog")
+    };
+    let code = library_call.call.arguments()["code"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        code.contains("VariableID:lib/2:2"),
+        "the bound library variable is read"
+    );
+    assert!(
+        code.contains("VariableID:lib/3:3"),
+        "the aliased library variable is read"
+    );
+    assert!(
+        !code.contains("\"VariableID:1:1\""),
+        "the local variable is not read again"
+    );
+    collector
+        .accept(
+            &library_call.id,
+            UpstreamResult {
+                raw: json!({
+                    "collections": [{"id": "lib", "name": "Library", "defaultModeId": "x", "modes": [{"modeId": "x", "name": "Mode 1"}]}],
+                    "variables": [
+                        {"id": "VariableID:lib/2:2", "name": "gray", "remote": true, "variableCollectionId": "lib", "valuesByMode": {"x": {"r": 0, "g": 0, "b": 0, "a": 1}}},
+                        {"id": "VariableID:lib/3:3", "name": "spacing20", "remote": true, "variableCollectionId": "lib", "valuesByMode": {"x": {"type": "VARIABLE_ALIAS", "id": "VariableID:lib/4:4"}}},
+                        // What the read followed: the primitive the spacing aliases.
+                        {"id": "VariableID:lib/4:4", "name": "base20", "remote": true, "variableCollectionId": "lib", "valuesByMode": {"x": 20}}
+                    ],
+                    "styles": [], "unresolved": []
+                }),
+            },
+        )
+        .unwrap();
+    let step = collector.advance().unwrap();
+    let CollectorStep::Complete(parts) = step else {
+        panic!("collection should finish after the library resources: {step:?}")
+    };
+    let raw = &parts.variables.as_ref().unwrap().raw;
+    let ids = |key: &str| {
+        raw[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value["id"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        ids("variables"),
+        [
+            "VariableID:1:1",
+            "VariableID:lib/2:2",
+            "VariableID:lib/3:3",
+            "VariableID:lib/4:4"
+        ]
+    );
+    assert_eq!(
+        ids("usedRemoteVariables"),
+        [
+            "VariableID:lib/2:2",
+            "VariableID:lib/3:3",
+            "VariableID:lib/4:4"
+        ]
+    );
+    assert_eq!(ids("collections"), ["c1", "lib"]);
+    assert_eq!(raw["localComplete"], true);
+    assert_eq!(raw["usedRemoteComplete"], true);
+}
+
+#[test]
 fn accepts_the_official_xml_metadata_envelope_without_inventing_values() {
     let request = CollectionRequest::new(target("1:2"), CollectionScope::Node);
     let mut collector = CollectorSession::new(request);

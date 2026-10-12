@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Patch"
+  },
+  "note": "Three `responsiveTsx` merges that drew something other than the widths, found by the new merge contract. A layout prop set at a narrow width, dropped at a middle one and set again wider is now cleared at the middle width; the single `\"initial\"` after the last value kept the narrow value there, which hid a layer only the tablet draws at every width. Siblings that share a name keep their own places in the order, so a title stays between its two quote marks instead of following both. A node drawn as different layout elements at different widths (a `VStack` at mobile, a `Box` at desktop) has what each element does by itself written out (`flexDir`, centring, `display`), so the first width's element no longer stacks the others.",
+  "date": "2026-10-12T06:40:00+09:00"
+}

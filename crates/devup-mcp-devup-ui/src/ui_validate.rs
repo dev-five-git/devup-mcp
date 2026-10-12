@@ -177,8 +177,32 @@ fn validate_source(
     visitor.visit_program(&parsed.program);
     violations.extend(visitor.violations);
     let checked_tokens = visitor.checked_tokens;
+    let attributes = crate::provenance::attributes::generated_attributes(tsx);
+    let elements = crate::provenance::attributes::opening_elements(tsx);
     for violation in &mut violations {
         let [start, end] = violation.byte_range;
+        if let Some(attribute) = attributes
+            .iter()
+            .find(|attribute| attribute.start <= start && end <= attribute.end)
+        {
+            violation
+                .context
+                .insert("elementIndex".into(), serde_json::json!(attribute.element));
+            violation
+                .context
+                .insert("element".into(), serde_json::json!(attribute.tag));
+            violation
+                .context
+                .insert("attribute".into(), serde_json::json!(attribute.name));
+        } else if let Some(element) = elements
+            .iter()
+            .filter(|element| element.start <= start && end <= element.end)
+            .min_by_key(|element| element.end - element.start)
+        {
+            violation
+                .context
+                .insert("elementIndex".into(), serde_json::json!(element.ordinal));
+        }
         let prefix = tsx.get(..start).unwrap_or("");
         violation.context.insert(
             "line".into(),

@@ -370,6 +370,36 @@ mod tests {
         assert_eq!(document.nodes.len(), 2);
     }
 
+    /// The bridge answers a file's page list in the words `get_metadata` uses,
+    /// so both paths' answers go through this parser - names holding ": " or a
+    /// line break included.
+    #[test]
+    fn the_bridges_page_list_reads_as_the_top_level_pages() {
+        let catalog = json!({ "nodes": [
+            { "id": "0:1", "type": "PAGE", "fields": { "name": "A : STORY" } },
+            { "id": "12:3", "type": "PAGE", "fields": { "name": "두 번째\n페이지" } },
+        ]});
+        let raw = crate::bridge::wrap_as_top_level_pages(&catalog, &crate::BridgeServed::default())
+            .expect("a page catalog wraps");
+        let result = metadata_from_result_for_target(
+            &UpstreamResult { raw },
+            "85CgSws3o5XsLv7aAwWJyS",
+            None,
+        )
+        .expect("the page list parses");
+        let MetadataResult::TopLevelPages(pages) = result else {
+            panic!("expected the top-level pages, got {result:?}");
+        };
+        let pages: Vec<_> = pages
+            .iter()
+            .map(|page| (page.id.as_str(), page.name.as_deref()))
+            .collect();
+        assert_eq!(
+            pages,
+            [("0:1", Some("A : STORY")), ("12:3", Some("두 번째 페이지"))]
+        );
+    }
+
     #[test]
     fn prose_without_any_element_is_still_rejected() {
         assert!(parse("Currently selected nodes:\n- 3997:48764: A : STORY-INTRO").is_none());

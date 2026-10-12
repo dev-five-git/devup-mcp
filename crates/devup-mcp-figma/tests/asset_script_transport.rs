@@ -35,6 +35,7 @@ const bytes = Uint8Array.from({length: input.length}, (_, i) => 65 + i % 26);
 let exports = 0, writes = 0;
 const figma = {
   fileKey: 'fixture',
+  editorType: 'dev',
   base64Encode: value => Buffer.from(value).toString('base64'),
   getNodeByIdAsync: async () => ({exportAsync: async settings => {
     exports++;
@@ -133,4 +134,26 @@ fn bridge_does_not_hide_export_failure_or_bypass_byte_limit() {
         assert_eq!(result["data"]["errorCode"], error);
         assert_eq!(result["writes"], 0);
     }
+}
+
+#[test]
+fn a_failed_export_says_what_figma_said() {
+    let (request, result) = execute(AssetFormat::Svg, 11, false, true);
+    let response = UpstreamResult {
+        raw: json!({"content": [{"type": "text", "text": result["data"].to_string()}]}),
+    };
+    let AssetExportOutcome::Entry(asset) =
+        asset_export_from_result(&response, "fixture", Some("v1"), &request).unwrap()
+    else {
+        panic!("a failed export is one entry")
+    };
+    assert_eq!(asset.status, AssetStatus::Failed);
+    let detail = asset
+        .error_detail
+        .expect("the failure carries Figma's words");
+    assert!(detail.starts_with("export failed after "), "{detail}");
+    assert!(
+        detail.contains("(editor: dev): renderer failed"),
+        "{detail}"
+    );
 }
