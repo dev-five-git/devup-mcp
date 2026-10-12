@@ -286,6 +286,49 @@ fn a_frame_laid_out_differently_by_width_keeps_each_direction() {
     assert!(merged.verified, "{:?}\n{}", merged.gaps, merged.tsx);
 }
 
+/// The same component at the same variant at both widths, its label
+/// overridden at desktop: each width's own `tsx` writes its own label, and
+/// the module's reference draws whatever the component file draws.
+#[test]
+fn a_component_reference_is_not_verified_through_its_body() {
+    let merged = merged(|index, nodes| {
+        let card = format!("card:{index}");
+        let button = format!("button:{index}");
+        let text = format!("button-label:{index}");
+        let characters = ["A", "B"][index];
+        nodes[&card]["fields"]["childrenIds"] = json!([format!("label:{index}"), button]);
+        nodes.insert(
+            button.clone(),
+            json!({"id":button,"type":"INSTANCE","fields":{
+            "name":"Button","parentId":card,"width":80,"height":32,
+            "layoutSizingHorizontal":"FIXED","layoutSizingVertical":"FIXED",
+            "componentProperties":{"Property 1":{"type":"VARIANT","value":"primary"}},
+            "childrenIds":[text]}}),
+        );
+        nodes.insert(
+            text.clone(),
+            json!({"id":text,"type":"TEXT","fields":{
+            "name":"label","parentId":button,"characters":characters,"fontSize":14,
+            "lineHeight":{"unit":"PIXELS","value":20},"width":10,"height":20,
+            "textAutoResize":"WIDTH_AND_HEIGHT"}}),
+        );
+        if index == 0 {
+            nodes.insert(
+                "main".into(),
+                json!({"id":"main","type":"COMPONENT",
+                "fields":{"name":"Button","width":80,"height":32}}),
+            );
+        }
+    });
+    assert!(merged.tsx.contains("<Button"), "{}", merged.tsx);
+    assert!(!merged.verified, "{}", merged.tsx);
+    assert!(
+        reasons(&merged).contains(&"component-body-unverified"),
+        "{:?}",
+        merged.gaps
+    );
+}
+
 /// A layer hidden at every width is drawn at none, so the module leaves it
 /// out as each width's own `tsx` does, asset reference and all.
 #[test]

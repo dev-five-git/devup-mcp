@@ -87,8 +87,9 @@ pl={["36.5px", "initial"]}                    // mobile sets it, nothing else do
 px={[null, "184px", null, null, "initial"]}   // slot 0 is null: nothing to clear yet
 ```
 
-Two limits of that device are worth knowing, because they are the reference's
-and this repo follows them rather than quietly improving on them.
+Two limits of that device are worth knowing, because they are the reference's.
+This repo keeps the first and departs from the second, for the reason given
+there.
 
 *Only layout props are cleared.* `SPECIAL_PROPS_WITH_INITIAL` lists display,
 position, transform, `w`/`h`, `textAlign`, the flex and grid props, the offsets,
@@ -194,7 +195,8 @@ collects what could not be represented.
 snapshot carries and `divergences` names every place their shapes part company
 — the input to the toggle branch. `slot_of_width` is `getBreakpointByWidth`,
 and `merge_slots` is `mergePropsToResponsive` folded together with
-`optimizeResponsiveValue`, carrying both of its limits deliberately.
+`optimizeResponsiveValue`, carrying its first limit deliberately and clearing
+every dropped width rather than only the one after the last value.
 `tests/responsive_merge.rs` checks it against all 15 arrays of `popup`, all 4
 of `notice`, and the five widths the plugin's own unit test pins.
 

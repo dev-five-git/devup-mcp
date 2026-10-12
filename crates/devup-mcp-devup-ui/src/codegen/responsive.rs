@@ -1585,9 +1585,11 @@ fn wraps_a_reference(tree: &Tree) -> bool {
 /// must agree: the same elements, each with the same element name and the
 /// same settled values, every value one the width's own contract verifies,
 /// the same text, and no element of the width left over. A component
-/// reference stands for the instance's whole subtree; the instance's own
-/// variant and placement are what is compared. An element no collected
-/// width draws is read at none of them, so its values are not verified.
+/// reference stands for the instance's whole subtree. Its name, variant and
+/// placement are compared, but what it draws belongs to a file this module
+/// does not contain, so a module that shows one is not verified. An element
+/// no collected width draws is read at none of them, so its values are not
+/// verified.
 ///
 /// This reads the code; it does not render it. It is what makes the merged
 /// attributes as verified as the per-width ones, and no more.
@@ -2020,6 +2022,14 @@ impl WidthCheck<'_> {
                 );
             }
         }
+        // The reference draws whatever its component's own file draws, which
+        // this module does not contain, and an instance can override its
+        // component's text, size or paint where the reference cannot say so.
+        // Matching the name and variant is not the same drawing.
+        gaps.push(
+            json!({"reason":"component-body-unverified","slot":slot,"widthNodeId":node,
+            "component":component,"drawnElements":drawn.len()}),
+        );
         drawn
     }
 }
