@@ -34,6 +34,9 @@ pub(super) struct Tree {
     /// A JSX comment to write immediately above this node, naming the
     /// component it was spelled out from.
     pub leading_comment: Option<String>,
+    /// In a responsive merge, the node each slot's width drew this element
+    /// from and that node's text; empty everywhere else.
+    pub slots: Vec<Option<(String, Option<String>)>>,
 }
 
 #[derive(Clone, Debug)]
@@ -408,7 +411,7 @@ fn instance_property_name(raw: &str) -> String {
 
 /// The component an instance refers to: the longest `COMPONENT` name the
 /// instance's own name starts with, which is how `render_node` resolves it.
-fn referenced_component_name(snapshot: &Snapshot, view_name: Option<&str>) -> String {
+pub(super) fn referenced_component_name(snapshot: &Snapshot, view_name: Option<&str>) -> String {
     snapshot
         .nodes
         .values()
@@ -436,27 +439,7 @@ fn project_tree_inner(
         // body is one masked Box, so the reference costs a file and an import
         // and says less than the Box does. The plugin does the same, and marks
         // the spot with a `{/* <Logo /> */}` comment.
-        let mut props = BTreeMap::new();
-        for (raw, definition) in view
-            .value("componentProperties")
-            .and_then(Value::as_object)
-            .into_iter()
-            .flatten()
-        {
-            if definition.get("type").and_then(Value::as_str) != Some("VARIANT") {
-                continue;
-            }
-            let name = instance_property_name(raw);
-            if RESERVED_VARIANT_KEYS
-                .iter()
-                .any(|reserved| name.eq_ignore_ascii_case(reserved))
-            {
-                continue;
-            }
-            if let Some(value) = definition.get("value").and_then(Value::as_str) {
-                props.insert(name, value.to_owned());
-            }
-        }
+        let mut props = instance_variant_props(&view);
         let mut expanded = project_tree_inner(snapshot, node, options, is_render_root, false)?;
         if is_asset_leaf(&expanded) || style::non_rendering_asset_reason(snapshot, node).is_some() {
             // Spelling the shape out loses which component it came from, and
@@ -480,23 +463,7 @@ fn project_tree_inner(
         // Where the instance sits. `<Header />` has nowhere to put this, so the
         // renderer gives it a Box; keeping the values here lets them merge
         // across widths first.
-        if view.string("layoutPositioning") == Some("ABSOLUTE") {
-            let mut placement = Vec::new();
-            layout::push_layout_props(
-                snapshot,
-                node,
-                "Box",
-                &mut placement,
-                options.root_layout,
-                is_render_root,
-                None,
-            );
-            for (name, PropValue::String(value)) in placement {
-                if POSITION_PROPS.contains(&name.as_str()) || (name == "w" && value == "100%") {
-                    props.insert(name, value);
-                }
-            }
-        }
+        props.extend(instance_placement(snapshot, node, options, is_render_root));
         return Ok(Tree {
             node_id: node.id.clone(),
             node_name: view.name().unwrap_or_default().to_owned(),
@@ -509,6 +476,7 @@ fn project_tree_inner(
             visible_when: visible_when(&view),
             drawn_when: Vec::new(),
             leading_comment: None,
+            slots: Vec::new(),
         });
     }
     let asset = style::asset_kind(snapshot, node);
@@ -645,7 +613,67 @@ fn project_tree_inner(
         visible_when: visible_when(&view),
         drawn_when: Vec::new(),
         leading_comment: None,
+        slots: Vec::new(),
     })
+}
+
+/// The variant an instance picked, by the name a reference to its component
+/// passes it as.
+pub(super) fn instance_variant_props(
+    view: &devup_mcp_figma::TypedNode<'_>,
+) -> BTreeMap<String, String> {
+    let mut props = BTreeMap::new();
+    for (raw, definition) in view
+        .value("componentProperties")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flatten()
+    {
+        if definition.get("type").and_then(Value::as_str) != Some("VARIANT") {
+            continue;
+        }
+        let name = instance_property_name(raw);
+        if RESERVED_VARIANT_KEYS
+            .iter()
+            .any(|reserved| name.eq_ignore_ascii_case(reserved))
+        {
+            continue;
+        }
+        if let Some(value) = definition.get("value").and_then(Value::as_str) {
+            props.insert(name, value.to_owned());
+        }
+    }
+    props
+}
+
+/// Where a referenced instance sits in its parent: what the `Box` wrapped
+/// around the reference carries, since the reference has nowhere to put it.
+pub(super) fn instance_placement(
+    snapshot: &Snapshot,
+    node: &RawNode,
+    options: &CodegenOptions,
+    is_render_root: bool,
+) -> BTreeMap<String, String> {
+    if node.typed_view().string("layoutPositioning") != Some("ABSOLUTE") {
+        return BTreeMap::new();
+    }
+    let mut placement = Vec::new();
+    layout::push_layout_props(
+        snapshot,
+        node,
+        "Box",
+        &mut placement,
+        options.root_layout,
+        is_render_root,
+        None,
+    );
+    placement
+        .into_iter()
+        .filter_map(|(name, PropValue::String(value))| {
+            (POSITION_PROPS.contains(&name.as_str()) || (name == "w" && value == "100%"))
+                .then_some((name, value))
+        })
+        .collect()
 }
 
 fn merge_source_node_ids(

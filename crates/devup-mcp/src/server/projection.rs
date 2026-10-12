@@ -2128,8 +2128,15 @@ async fn project_operation(
                     "state":"produced","projection":responsive_quality,
                     "fidelity":{"scope":"breakpoint-source-projections","sourceOutput":"tsx","breakpoints":breakpoint_fidelity,
                         "syntaxValid":devup_mcp_devup_ui::validation::validate_tsx(&module).is_ok(),
-                        "mergedMappingVerified":false,"unrepresentedCount":merged.unrepresented.len(),
-                        "note":"Breakpoint reports describe their source projections; they do not certify the merged responsive module. Review responsiveUnrepresented and projectionIssues."}});
+                        "mergedMappingVerified":merged.verified,"unrepresentedCount":merged.unrepresented.len(),
+                        "mergeGapCount":merged.gaps.len(),
+                        "mergeGaps":merged.gaps.iter().take(20).collect::<Vec<_>>(),
+                        "note":if merged.verified {
+                            "Read at each collected width's slot, the merged module writes that width's own verified tsx: the same elements, values and text. This reads the code; it is not a rendering."
+                        } else {
+                            "Read at each collected width's slot, the merged module does not write that width's own verified tsx everywhere; mergeGaps names where. Review responsiveUnrepresented and projectionIssues."
+                        }},
+                    "_propertyContract":merged.contract});
 
                 if !merged.unrepresented.is_empty() {
                     for note in &merged.unrepresented {
@@ -3183,11 +3190,12 @@ fn audit_delivered_properties(value: &mut Value) {
                 "message":"Source layout obligations lack verified emitted mappings, even if every generated attribute has provenance."}));
         }
         if field == "responsiveTsx"
-            && value["outputResults"][field]["fidelity"]["mergedMappingVerified"] == false
+            && value["outputResults"][field]["fidelity"]["mergedMappingVerified"] != true
         {
             missing.push(json!({"reason":"unverified-responsive-merge",
                 "propertyMappingVerified":false,
-                "message":"The responsive merge has no verified final provenance contract, including for an attribute-free module."}));
+                "gaps":value["outputResults"][field]["fidelity"]["mergeGaps"],
+                "message":"Read at some width's slot, the merged module does not write that width's own verified tsx; gaps names where."}));
         }
         value["outputResults"][field]["mappingComplete"] = json!(missing.is_empty());
         if missing.is_empty() {
@@ -3598,23 +3606,22 @@ mod w1_regressions {
     }
 
     #[tokio::test]
-    async fn r13_empty_responsive_still_reports_unverified_merge_stage() {
+    async fn r13_agreeing_widths_verify_the_responsive_merge() {
         let mut op = operation(&["responsiveTsx"]);
         if let PendingOperation::Export { all_screens, .. } = &mut op {
             *all_screens = true;
         }
         let result = project(responsive_payload(), op).await.unwrap();
-        assert_eq!(result["mappingComplete"], false);
+        let responsive = &result["outputResults"]["responsiveTsx"];
+        assert_eq!(responsive["mappingComplete"], true, "{result}");
+        assert_eq!(responsive["fidelity"]["mergedMappingVerified"], true);
         assert!(
-            result["projectionIssues"]
+            !result["projectionIssues"]
                 .as_array()
-                .unwrap()
-                .iter()
-                .any(|d| d["details"]["unmappedProperties"]
-                    .as_array()
-                    .is_some_and(|props| props
-                        .iter()
-                        .any(|p| p["reason"] == "unverified-responsive-merge")))
+                .into_iter()
+                .flatten()
+                .any(|d| d["details"]["output"] == "responsiveTsx"
+                    && d["code"] == "DEVUP_CODEGEN_PROPERTY_UNMAPPED")
         );
     }
 
@@ -3624,16 +3631,38 @@ mod w1_regressions {
         if let PendingOperation::Export { all_screens, .. } = &mut op {
             *all_screens = true;
         }
+        // Only the mobile width is filled. devup-ui keeps a value into the
+        // wider slots, so the desktop width is drawn red where it is not.
         let mut data = responsive_payload();
-        for node in data.snapshot.nodes.values_mut() {
-            node.fields.insert(
-                "fills".into(),
-                json!([{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]),
-            );
-        }
+        data.snapshot.nodes.get_mut("1:1").unwrap().fields.insert(
+            "fills".into(),
+            json!([{"type":"SOLID","color":{"r":1,"g":0,"b":0}}]),
+        );
         let result = project(data.clone(), op.clone()).await.unwrap();
         assert!(result["responsiveTsx"].is_string());
         assert_eq!(result["mappingComplete"], false);
+        let merge = result["projectionIssues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|d| {
+                d["details"]["unmappedProperties"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+            })
+            .find(|p| p["reason"] == "unverified-responsive-merge")
+            .unwrap();
+        assert!(
+            merge["gaps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|gap| gap["property"] == "bg"
+                    && gap["slot"] == 4
+                    && gap["widthNodeId"] == "1:2"),
+            "{merge}"
+        );
         assert_ne!(
             result["outputResults"]["responsiveTsx"]["projection"],
             "exact"
@@ -3935,7 +3964,7 @@ mod w1_regressions {
         let fidelity = &result["outputResults"]["responsiveTsx"]["fidelity"];
         assert_eq!(fidelity["scope"], "breakpoint-source-projections");
         assert_eq!(fidelity["breakpoints"].as_array().unwrap().len(), 2);
-        assert_eq!(fidelity["mergedMappingVerified"], false);
+        assert_eq!(fidelity["mergedMappingVerified"], true);
     }
 
     #[tokio::test]
