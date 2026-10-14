@@ -10,6 +10,22 @@ use crate::{
 
 pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetExportDiagnostics {
+    pub method: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_error: Option<String>,
+    pub stages: Vec<AssetExportStage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetExportStage {
+    pub stage: String,
+    pub elapsed_ms: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AssetFormat {
@@ -100,6 +116,8 @@ pub struct AssetManifestEntry {
     /// the message Figma or the transport gave. Bounded to 500 characters.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_detail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub export_diagnostics: Option<AssetExportDiagnostics>,
     /// Where the generated code refers to this asset, `/icons/x.svg` or
     /// `/images/x.png`, filled in by the server from the code generator's
     /// naming so the bytes can be written where the code will look.
@@ -457,6 +475,7 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
         output_path: None,
         error_code,
         error_detail: None,
+        export_diagnostics: None,
         path: None,
     }
 }
@@ -610,6 +629,7 @@ pub fn asset_export_from_result(
             output_path: None,
             error_code: descriptor.error_code,
             error_detail: bounded(descriptor.error_detail),
+            export_diagnostics: descriptor.export_diagnostics,
             path: None,
         })));
     }
@@ -673,6 +693,7 @@ pub fn asset_export_from_result(
         output_path: None,
         error_code: None,
         error_detail: None,
+        export_diagnostics: descriptor.export_diagnostics,
         path: None,
     })))
 }
@@ -738,6 +759,7 @@ pub fn exported_asset_from_bytes(
         output_path: None,
         error_code: None,
         error_detail: None,
+        export_diagnostics: None,
         path: None,
     })
 }
@@ -761,6 +783,8 @@ struct AssetExportDescriptor {
     #[serde(default)]
     error_detail: Option<String>,
     #[serde(default)]
+    export_diagnostics: Option<AssetExportDiagnostics>,
+    #[serde(default)]
     cursor: Option<LargeValueCursor>,
 }
 
@@ -771,9 +795,17 @@ fn bounded(text: Option<String>) -> Option<String> {
 }
 
 fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {
-    if let Ok(descriptor) = serde_json::from_value::<AssetExportDescriptor>(value.clone())
+    if let Ok(mut descriptor) = serde_json::from_value::<AssetExportDescriptor>(value.clone())
         && descriptor.kind == "devupAssetExport"
     {
+        if let Some(diagnostics) = &mut descriptor.export_diagnostics {
+            diagnostics.native_error = bounded(diagnostics.native_error.take());
+            diagnostics.method = diagnostics.method.chars().take(80).collect();
+            diagnostics.stages.truncate(16);
+            for stage in &mut diagnostics.stages {
+                stage.stage = stage.stage.chars().take(80).collect();
+            }
+        }
         return Some(descriptor);
     }
     match value {
@@ -784,6 +816,10 @@ fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {
             .and_then(|value| find_descriptor(&value)),
         _ => None,
     }
+}
+
+pub(crate) fn asset_export_diagnostics(result: &UpstreamResult) -> Option<AssetExportDiagnostics> {
+    find_descriptor(&result.raw)?.export_diagnostics
 }
 
 /// How an upstream carried the exported asset.

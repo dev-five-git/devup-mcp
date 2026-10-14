@@ -533,6 +533,7 @@ fn an_svg_over_the_inline_cap_arrives_in_fragments() {
                     "assetId":"1:1:node","nodeId":"1:1","field":"node",
                     "imageHash":null,"format":"svg","scale":1,
                     "status":"chunked","byteLength":svg.len(),"sha256":sha256,
+                    "exportDiagnostics":{"method":"geometry","nativeError":"renderer failed","stages":[{"stage":"native-export","elapsedMs":10},{"stage":"geometry-fallback","elapsedMs":1}]},
                     "cursor":{"nextOffset":0,"maxChunkBytes":24},"errorCode":null
                 }).to_string()}]}),
             },
@@ -584,6 +585,19 @@ fn an_svg_over_the_inline_cap_arrives_in_fragments() {
     assert_eq!(exported.asset_id, "1:1:node");
     assert_eq!(exported.field, "node");
     assert_eq!(exported.byte_length, Some(svg.len()));
+    assert_eq!(
+        exported.export_diagnostics.as_ref().unwrap().method,
+        "geometry"
+    );
+    assert_eq!(
+        exported
+            .export_diagnostics
+            .as_ref()
+            .unwrap()
+            .native_error
+            .as_deref(),
+        Some("renderer failed")
+    );
     assert_eq!(exported.mime_type.as_deref(), Some("image/svg+xml"));
     assert_eq!(
         STANDARD

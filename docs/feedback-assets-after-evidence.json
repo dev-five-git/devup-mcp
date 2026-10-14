@@ -1,0 +1,1408 @@
+{
+  "at": "2026-10-14T09:38:58.437Z",
+  "environment": "new local binary through existing bridge relay; direct credentials disabled",
+  "initialize": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "protocolVersion": "2025-06-18",
+      "capabilities": {
+        "resources": {},
+        "tools": {}
+      },
+      "serverInfo": {
+        "name": "devup-mcp",
+        "version": "0.14.0"
+      },
+      "instructions": "Build identity: identify deployments by server.commit/buildId, not version alone; server.displayVersion combines version and buildId. Reconnect the MCP server if the expected build differs. server.updateAvailable reports whether a newer release exists; state \"unknown\" means the check is disabled, not yet run, or could not reach the network, and it never blocks a call.\n1. devup-mcp is the primary source for turning a Figma design into code. Do not replace it with another source.\n1a. Connection order: bridge -> direct. Call devup_figma_auth status before asking anyone to log in: the Devup Bridge plugin needs no login, and with one attached devup_figma_export takes no url.\n2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; a complete response marks it with deliverable.isFinal.\n2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this workspace lacks and installs the ones it carries.\n3. Request only the outputs you will read, and read the rest of the rules before your second call: resources/read \"devup://guide/usage\" carries output sizing, verification boundaries, SECTION batching, asset placement and delivery. It is a resource so that a caller who never touches Figma never pays for it."
+    }
+  },
+  "auth": {
+    "connected": true,
+    "status": "connected",
+    "activePath": "bridge",
+    "preferredPath": "bridge",
+    "paths": {
+      "bridge": {
+        "available": true,
+        "role": "relay",
+        "listening": false,
+        "port": 1993,
+        "host": {
+          "pid": 11656,
+          "version": "0.14.0",
+          "buildId": "b7018cd967ef0c976ac56027e11681589c5286b1",
+          "thisProcess": false
+        },
+        "attachedFiles": [
+          {
+            "fileKey": "YVPOYYXZJpOayp0QlCdIVT",
+            "fileName": "프라임 by 데브파이브",
+            "currentPage": {
+              "id": "9:67",
+              "name": "디자인 시스템 및 UI"
+            },
+            "selection": [],
+            "selectionCount": 0
+          }
+        ],
+        "attachedFilesNote": "The files the attached plugins have open, with the page in view and what is selected on it - as the devup-mcp holding the bridge port sees them, so every devup-mcp on this machine shows the same list. fileKey is null for a plugin that could not report it (Figma fills figma.fileKey only for a manifest declaring enablePrivatePluginApi, which older builds lack); such a plugin serves reads only while it is the only one attached, because with two there is no way to tell which file is meant.",
+        "reason": "Another devup-mcp on this machine (pid 11656, version 0.14.0, build b7018cd967ef0c976ac56027e11681589c5286b1) holds the bridge port 1993 and the plugins attach to it; this process reads through it. Reads for the files listed in attachedFiles spend no Figma allowance and need no login. With exactly one attached, devup_figma_export, devup_figma_search and devup_figma_explore take no url: they read the file it has open, and export and explore start from the node selected in Figma."
+      },
+      "direct": {
+        "available": false,
+        "credentialSource": "none",
+        "credentialSourceNote": "Where the OAuth *client registration* credential (client_id/client_secret) came from: cli-arg, env, credential-store, or none. This is not the user's access token — that is tokenState, and whether the direct path is usable right now is available. \"none\" only means no pre-registered client is injected, so login registers dynamically under registrationClientName; a signed-in session that registered that way reads credentialSource \"none\" with tokenState \"valid\", which is normal.",
+        "tokenState": "absent",
+        "callbackPort": {
+          "port": null,
+          "free": null
+        },
+        "registrationClientName": {
+          "value": "Codex",
+          "isDefault": true,
+          "note": "client_name Dynamic Client Registration will send. Figma matches it against its catalog allowlist exactly. The default is Codex, which the allowlist admits, so login works from a Codex install with no extra flags; Figma attributes that registration to Codex, not to devup-mcp. Once your own client is admitted through https://www.figma.com/mcp-catalog/, pass its name via --figma-client-name or DEVUP_FIGMA_CLIENT_NAME."
+        },
+        "reason": "No access token is stored. Run devup_figma_auth { action: \"login\" } to authorize the direct path. Separately, no pre-registered client registration credential is injected (credentialSource \"none\"), so login falls back to Dynamic Client Registration under the allowlisted client_name in registrationClientName. If that returns 403 the allowlist rejected the name — register a client credential you obtained yourself via devup_figma_auth { action: \"configure\", clientId, clientSecret }, or join the Figma MCP Catalog waitlist (https://www.figma.com/mcp-catalog/). While a bridge plugin is attached it serves every read, and this path only re-reads what the plugin answers short: data Figma withholds while the file is out of sight, a reference PNG the plugin cannot draw as get_screenshot does, a read an older plugin does not know."
+      }
+    },
+    "nextAction": {
+      "tool": "devup_figma_export",
+      "arguments": {
+        "outputs": [
+          "tsx"
+        ]
+      },
+      "note": "One Devup Bridge plugin is attached, so no url is needed: the export reads the file it has open and the node selected in Figma - select exactly one frame first (0 selected now), or pass frameIds with that frame's node id. devup_figma_search and devup_figma_explore take no url either."
+    },
+    "server": {
+      "version": "0.14.0",
+      "buildId": "18d113f6728f-dirty",
+      "commit": "18d113f6728f",
+      "displayVersion": "0.14.0+18d113f6728f-dirty",
+      "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+      "updateAvailable": {
+        "current": "0.14.0",
+        "state": "unknown",
+        "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call.",
+        "autoUpdate": {
+          "state": "disabled",
+          "stagedForNextStart": false,
+          "asset": "devup-mcp-windows-x86_64.exe",
+          "installedPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\target\\debug\\devup-mcp.exe",
+          "installedPathNote": "The path of the file, not a statement about the version. A directory named after a version is the host's, fixed when it installed; self-update replaces the file inside it and never renames the directory. Read server.commit/buildId for what is actually running.",
+          "note": "Staging is off (DEVUP_MCP_NO_AUTO_UPDATE). The release check still reports a difference.",
+          "disableWith": "DEVUP_MCP_NO_AUTO_UPDATE"
+        }
+      }
+    }
+  },
+  "svg": {
+    "request": {
+      "url": "https://www.figma.com/design/YVPOYYXZJpOayp0QlCdIVT/x?node-id=I44%3A8533%3B10%3A973",
+      "outputs": [
+        "assetManifest"
+      ],
+      "assetRequests": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "format": "svg",
+          "scale": 1,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.svg"
+        }
+      ],
+      "delivery": "inline",
+      "refresh": true
+    },
+    "status": "complete",
+    "failures": [],
+    "source": {
+      "kind": "bridge",
+      "fileKey": "YVPOYYXZJpOayp0QlCdIVT",
+      "nodeId": "I44:8533;10:973",
+      "version": null,
+      "bridgePort": 1993,
+      "fileName": "프라임 by 데브파이브",
+      "pageName": "디자인 시스템 및 UI",
+      "bridgeReads": 2
+    },
+    "server": {
+      "version": "0.14.0",
+      "buildId": "18d113f6728f-dirty",
+      "commit": "18d113f6728f",
+      "displayVersion": "0.14.0+18d113f6728f-dirty",
+      "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+      "updateAvailable": {
+        "current": "0.14.0",
+        "state": "unknown",
+        "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call.",
+        "autoUpdate": {
+          "state": "disabled",
+          "stagedForNextStart": false,
+          "asset": "devup-mcp-windows-x86_64.exe",
+          "installedPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\target\\debug\\devup-mcp.exe",
+          "installedPathNote": "The path of the file, not a statement about the version. A directory named after a version is the host's, fixed when it installed; self-update replaces the file inside it and never renames the directory. Read server.commit/buildId for what is actually running.",
+          "note": "Staging is off (DEVUP_MCP_NO_AUTO_UPDATE). The release check still reports a difference.",
+          "disableWith": "DEVUP_MCP_NO_AUTO_UPDATE"
+        }
+      }
+    },
+    "manifest": {
+      "version": 1,
+      "assets": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "nodeId": "I44:8533;10:973",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "format": "svg",
+          "scale": 1,
+          "status": "exported",
+          "byteLength": 29799,
+          "sha256": "a1a7b554cff70a76781545065a0d933f78fa85abef4360ac5a4e32f84b849d4a",
+          "mimeType": "image/svg+xml",
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.svg",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "layerName": "Logo"
+        }
+      ],
+      "diagnostics": []
+    },
+    "job": {
+      "jobId": "asset-42e8ee7329009d38",
+      "budget": {
+        "frameIds": [],
+        "allScreens": false,
+        "frameCount": 1,
+        "frameOutputUnits": 1,
+        "planningSecondsPerUnit": [
+          5,
+          20
+        ],
+        "planningSeconds": [
+          5,
+          20
+        ],
+        "isGuarantee": false,
+        "initialReplyBudgetSeconds": 1,
+        "note": "Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."
+      },
+      "state": "complete",
+      "stage": "finished",
+      "assets": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "status": "exported",
+          "byteLength": 29799,
+          "sha256": "a1a7b554cff70a76781545065a0d933f78fa85abef4360ac5a4e32f84b849d4a",
+          "errorCode": null,
+          "errorDetail": null,
+          "exportDiagnostics": null,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.svg",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "fileState": "written",
+          "requestedOutputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.svg"
+        }
+      ],
+      "completedCalls": 2,
+      "calls": [
+        {
+          "stage": "snapshot",
+          "detail": {
+            "script": "FastSnapshotEnvelope",
+            "nodeId": "I44:8533;10:973",
+            "rootIds": null,
+            "pagination": {
+              "maxEnvelopeBytes": 0,
+              "offset": 0,
+              "maxPayloadBytes": 15000,
+              "maxFieldBytes": 4096
+            }
+          },
+          "state": "received",
+          "startedMs": 0,
+          "timeoutMs": 90000,
+          "elapsedMs": 6
+        },
+        {
+          "stage": "asset-export",
+          "detail": {
+            "assetId": "I44:8533;10:973:node",
+            "nodeId": "I44:8533;10:973"
+          },
+          "state": "received",
+          "startedMs": 7,
+          "timeoutMs": 190000,
+          "elapsedMs": 32
+        },
+        {
+          "stage": "projection-and-write",
+          "state": "complete",
+          "startedMs": 41,
+          "elapsedMs": 12
+        }
+      ],
+      "elapsedMs": 53,
+      "lastError": null,
+      "checkpointScope": "server-process",
+      "retentionSeconds": 1800,
+      "resultRetentionSeconds": 300,
+      "callTimeoutSeconds": 90,
+      "assetTimeoutMs": 180000,
+      "nextActionReason": "This job has finished; status polling repeats the retained result. No corrective action is available.",
+      "nextAction": null
+    },
+    "verified": {
+      "byteLength": 29799,
+      "sha256": "a1a7b554cff70a76781545065a0d933f78fa85abef4360ac5a4e32f84b849d4a",
+      "hasSvgRoot": true,
+      "pathCount": 1
+    }
+  },
+  "png": {
+    "request": {
+      "url": "https://www.figma.com/design/YVPOYYXZJpOayp0QlCdIVT/x?node-id=I44%3A8533%3B10%3A973",
+      "outputs": [
+        "assetManifest"
+      ],
+      "assetRequests": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "format": "png",
+          "scale": 2,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.png"
+        }
+      ],
+      "delivery": "inline",
+      "refresh": true
+    },
+    "status": "complete",
+    "failures": [],
+    "source": {
+      "kind": "bridge",
+      "fileKey": "YVPOYYXZJpOayp0QlCdIVT",
+      "nodeId": "I44:8533;10:973",
+      "version": null,
+      "bridgePort": 1993,
+      "fileName": "프라임 by 데브파이브",
+      "pageName": "디자인 시스템 및 UI",
+      "bridgeReads": 2
+    },
+    "server": {
+      "version": "0.14.0",
+      "buildId": "18d113f6728f-dirty",
+      "commit": "18d113f6728f",
+      "displayVersion": "0.14.0+18d113f6728f-dirty",
+      "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+      "updateAvailable": {
+        "current": "0.14.0",
+        "state": "unknown",
+        "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call.",
+        "autoUpdate": {
+          "state": "disabled",
+          "stagedForNextStart": false,
+          "asset": "devup-mcp-windows-x86_64.exe",
+          "installedPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\target\\debug\\devup-mcp.exe",
+          "installedPathNote": "The path of the file, not a statement about the version. A directory named after a version is the host's, fixed when it installed; self-update replaces the file inside it and never renames the directory. Read server.commit/buildId for what is actually running.",
+          "note": "Staging is off (DEVUP_MCP_NO_AUTO_UPDATE). The release check still reports a difference.",
+          "disableWith": "DEVUP_MCP_NO_AUTO_UPDATE"
+        }
+      }
+    },
+    "manifest": {
+      "version": 1,
+      "assets": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "nodeId": "I44:8533;10:973",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "format": "png",
+          "scale": 2,
+          "status": "exported",
+          "byteLength": 3027,
+          "sha256": "2c6df7c87c35587020402cf324c4cebebc73f10425b2c8096703f95981e62b1a",
+          "mimeType": "image/png",
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.png",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "layerName": "Logo"
+        }
+      ],
+      "diagnostics": []
+    },
+    "job": {
+      "jobId": "asset-3082377ecd44b645",
+      "budget": {
+        "frameIds": [],
+        "allScreens": false,
+        "frameCount": 1,
+        "frameOutputUnits": 1,
+        "planningSecondsPerUnit": [
+          5,
+          20
+        ],
+        "planningSeconds": [
+          5,
+          20
+        ],
+        "isGuarantee": false,
+        "initialReplyBudgetSeconds": 1,
+        "note": "Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."
+      },
+      "state": "complete",
+      "stage": "finished",
+      "assets": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "status": "exported",
+          "byteLength": 3027,
+          "sha256": "2c6df7c87c35587020402cf324c4cebebc73f10425b2c8096703f95981e62b1a",
+          "errorCode": null,
+          "errorDetail": null,
+          "exportDiagnostics": null,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.png",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "fileState": "written",
+          "requestedOutputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.png"
+        }
+      ],
+      "completedCalls": 2,
+      "calls": [
+        {
+          "stage": "snapshot",
+          "detail": {
+            "script": "FastSnapshotEnvelope",
+            "nodeId": "I44:8533;10:973",
+            "rootIds": null,
+            "pagination": {
+              "maxEnvelopeBytes": 0,
+              "offset": 0,
+              "maxPayloadBytes": 15000,
+              "maxFieldBytes": 4096
+            }
+          },
+          "state": "received",
+          "startedMs": 0,
+          "timeoutMs": 90000,
+          "elapsedMs": 5
+        },
+        {
+          "stage": "asset-export",
+          "detail": {
+            "assetId": "I44:8533;10:973:node",
+            "nodeId": "I44:8533;10:973"
+          },
+          "state": "received",
+          "startedMs": 6,
+          "timeoutMs": 190000,
+          "elapsedMs": 11
+        },
+        {
+          "stage": "projection-and-write",
+          "state": "complete",
+          "startedMs": 18,
+          "elapsedMs": 4
+        }
+      ],
+      "elapsedMs": 41,
+      "lastError": null,
+      "checkpointScope": "server-process",
+      "retentionSeconds": 1800,
+      "resultRetentionSeconds": 300,
+      "callTimeoutSeconds": 90,
+      "assetTimeoutMs": 180000,
+      "nextActionReason": "This job has finished; status polling repeats the retained result. No corrective action is available.",
+      "nextAction": null
+    },
+    "verified": {
+      "byteLength": 3027,
+      "sha256": "2c6df7c87c35587020402cf324c4cebebc73f10425b2c8096703f95981e62b1a",
+      "magic": "89504e470d0a1a0a"
+    }
+  },
+  "pdf": {
+    "request": {
+      "url": "https://www.figma.com/design/YVPOYYXZJpOayp0QlCdIVT/x?node-id=I44%3A8533%3B10%3A973",
+      "outputs": [
+        "assetManifest"
+      ],
+      "assetRequests": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "format": "pdf",
+          "scale": 1,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.pdf"
+        }
+      ],
+      "delivery": "inline",
+      "refresh": true
+    },
+    "status": "complete",
+    "failures": [],
+    "source": {
+      "kind": "bridge",
+      "fileKey": "YVPOYYXZJpOayp0QlCdIVT",
+      "nodeId": "I44:8533;10:973",
+      "version": null,
+      "bridgePort": 1993,
+      "fileName": "프라임 by 데브파이브",
+      "pageName": "디자인 시스템 및 UI",
+      "bridgeReads": 2
+    },
+    "server": {
+      "version": "0.14.0",
+      "buildId": "18d113f6728f-dirty",
+      "commit": "18d113f6728f",
+      "displayVersion": "0.14.0+18d113f6728f-dirty",
+      "identityGuidance": "Identify deployments by commit/buildId, not version alone. If the expected commit/buildId differs, reconnect or restart the client MCP server connection after updating the binary.",
+      "updateAvailable": {
+        "current": "0.14.0",
+        "state": "unknown",
+        "note": "The newest release is not known: the check has not run yet, or it could not reach the network. This is an absent answer, not a failure, and it never delays a call.",
+        "autoUpdate": {
+          "state": "disabled",
+          "stagedForNextStart": false,
+          "asset": "devup-mcp-windows-x86_64.exe",
+          "installedPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\target\\debug\\devup-mcp.exe",
+          "installedPathNote": "The path of the file, not a statement about the version. A directory named after a version is the host's, fixed when it installed; self-update replaces the file inside it and never renames the directory. Read server.commit/buildId for what is actually running.",
+          "note": "Staging is off (DEVUP_MCP_NO_AUTO_UPDATE). The release check still reports a difference.",
+          "disableWith": "DEVUP_MCP_NO_AUTO_UPDATE"
+        }
+      }
+    },
+    "manifest": {
+      "version": 1,
+      "assets": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "nodeId": "I44:8533;10:973",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "format": "pdf",
+          "scale": 1,
+          "status": "exported",
+          "byteLength": 23434,
+          "sha256": "8d8f51e6a28d390dae076880d545978de1e34042c5e3ed233d4582cbe94ab30b",
+          "mimeType": "application/pdf",
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.pdf",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "layerName": "Logo"
+        }
+      ],
+      "diagnostics": []
+    },
+    "job": {
+      "jobId": "asset-fc7792894ff20aa2",
+      "budget": {
+        "frameIds": [],
+        "allScreens": false,
+        "frameCount": 1,
+        "frameOutputUnits": 1,
+        "planningSecondsPerUnit": [
+          5,
+          20
+        ],
+        "planningSeconds": [
+          5,
+          20
+        ],
+        "isGuarantee": false,
+        "initialReplyBudgetSeconds": 1,
+        "note": "Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."
+      },
+      "state": "complete",
+      "stage": "finished",
+      "assets": [
+        {
+          "assetId": "I44:8533;10:973:node",
+          "status": "exported",
+          "byteLength": 23434,
+          "sha256": "8d8f51e6a28d390dae076880d545978de1e34042c5e3ed233d4582cbe94ab30b",
+          "errorCode": null,
+          "errorDetail": null,
+          "exportDiagnostics": null,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.pdf",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "fileState": "written",
+          "requestedOutputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\prime-after.pdf"
+        }
+      ],
+      "completedCalls": 2,
+      "calls": [
+        {
+          "stage": "snapshot",
+          "detail": {
+            "script": "FastSnapshotEnvelope",
+            "nodeId": "I44:8533;10:973",
+            "rootIds": null,
+            "pagination": {
+              "maxEnvelopeBytes": 0,
+              "offset": 0,
+              "maxPayloadBytes": 15000,
+              "maxFieldBytes": 4096
+            }
+          },
+          "state": "received",
+          "startedMs": 0,
+          "timeoutMs": 90000,
+          "elapsedMs": 5
+        },
+        {
+          "stage": "asset-export",
+          "detail": {
+            "assetId": "I44:8533;10:973:node",
+            "nodeId": "I44:8533;10:973"
+          },
+          "state": "received",
+          "startedMs": 6,
+          "timeoutMs": 190000,
+          "elapsedMs": 22
+        },
+        {
+          "stage": "projection-and-write",
+          "state": "complete",
+          "startedMs": 30,
+          "elapsedMs": 9
+        }
+      ],
+      "elapsedMs": 44,
+      "lastError": null,
+      "checkpointScope": "server-process",
+      "retentionSeconds": 1800,
+      "resultRetentionSeconds": 300,
+      "callTimeoutSeconds": 90,
+      "assetTimeoutMs": 180000,
+      "nextActionReason": "This job has finished; status polling repeats the retained result. No corrective action is available.",
+      "nextAction": null
+    },
+    "verified": {
+      "byteLength": 23434,
+      "sha256": "8d8f51e6a28d390dae076880d545978de1e34042c5e3ed233d4582cbe94ab30b",
+      "magic": "255044462d312e37"
+    }
+  },
+  "normal": {
+    "request": {
+      "url": "https://www.figma.com/design/YVPOYYXZJpOayp0QlCdIVT/x?node-id=44-8516",
+      "outputs": [
+        "assetManifest"
+      ],
+      "assetRequests": [
+        {
+          "assetId": "I38:6538;30:1937;30:843:node",
+          "format": "svg",
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\normal-after.svg"
+        }
+      ],
+      "delivery": "inline",
+      "refresh": true
+    },
+    "status": "partial",
+    "manifest": {
+      "version": 1,
+      "assets": [
+        {
+          "assetId": "44:8075:fills:0",
+          "nodeId": "44:8075",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "eb6cc0e517cf9e730a2f75500082d80b2c7dd0d3",
+          "status": "available",
+          "path": "/images/image-1-44-8075-087baca7eb2b.png",
+          "layerName": "image 1"
+        },
+        {
+          "assetId": "44:8096:fills:0",
+          "nodeId": "44:8096",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "eb6cc0e517cf9e730a2f75500082d80b2c7dd0d3",
+          "status": "available",
+          "path": "/images/image-1-44-8096-410755be3b63.png",
+          "layerName": "image 1"
+        },
+        {
+          "assetId": "44:8531:fills:0",
+          "nodeId": "44:8531",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "eb6cc0e517cf9e730a2f75500082d80b2c7dd0d3",
+          "status": "available",
+          "path": "/images/image-1-44-8531-3d7bf84be8c0.png",
+          "layerName": "image 1"
+        },
+        {
+          "assetId": "45:10190:fills:0",
+          "nodeId": "45:10190",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "eb6cc0e517cf9e730a2f75500082d80b2c7dd0d3",
+          "status": "available",
+          "path": "/images/image-1-45-10190-0df2fb19878a.png",
+          "layerName": "image 1"
+        },
+        {
+          "assetId": "45:9302:fills:0",
+          "nodeId": "45:9302",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "eb6cc0e517cf9e730a2f75500082d80b2c7dd0d3",
+          "status": "available",
+          "path": "/images/image-1-45-9302-376d79456528.png",
+          "layerName": "image 1"
+        },
+        {
+          "assetId": "45:9829:fills:0",
+          "nodeId": "45:9829",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "eb6cc0e517cf9e730a2f75500082d80b2c7dd0d3",
+          "status": "available",
+          "path": "/images/image-1-45-9829-546048f5bea6.png",
+          "layerName": "image 1"
+        },
+        {
+          "assetId": "I38:6538;30:1937;30:843:node",
+          "nodeId": "I38:6538;30:1937;30:843",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "format": "svg",
+          "scale": 1,
+          "status": "exported",
+          "byteLength": 448,
+          "sha256": "90bf095b1fd8a11f81c106b166381e20d7f268e49c4e08b47839504ff1dc1b7f",
+          "mimeType": "image/svg+xml",
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\normal-after.svg",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I38:6538;30:1937;30:847:node",
+          "nodeId": "I38:6538;30:1937;30:847",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I38:6561;10:973:node",
+          "nodeId": "I38:6561;10:973",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I38:6562;15:2119:node",
+          "nodeId": "I38:6562;15:2119",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-a1a00f37468d.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I38:6983;38:6750;38:6989;35:4241;44:7867;44:7844:node",
+          "nodeId": "I38:6983;38:6750;38:6989;35:4241;44:7867;44:7844",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/upload--I38-6983-38-6750-38-6989-35-4241-44-7867-44-7844-3101498fe41a.svg",
+          "layerName": "upload "
+        },
+        {
+          "assetId": "I38:6983;38:6750;38:7083;35:4241;44:7765;10:1056:node",
+          "nodeId": "I38:6983;38:6750;38:7083;35:4241;44:7765;10:1056",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/leftIconSlot-I38-6983-38-6750-38-7083-35-4241-44-7765-10-1056.svg",
+          "layerName": "leftIconSlot"
+        },
+        {
+          "assetId": "I38:6983;38:6750;38:7233;34:4023;38:7232;44:7250:node",
+          "nodeId": "I38:6983;38:6750;38:7233;34:4023;38:7232;44:7250",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/calendar-I38-6983-38-6750-38-7233-34-4023-38-7232-44-7250.svg",
+          "layerName": "calendar"
+        },
+        {
+          "assetId": "I38:6983;38:7141:node",
+          "nodeId": "I38:6983;38:7141",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-top-a96665e60ffb.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:7716;44:7595;17:2197:node",
+          "nodeId": "I44:7716;44:7595;17:2197",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8082;30:1937;30:843:node",
+          "nodeId": "I44:8082;30:1937;30:843",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8082;30:1937;30:847:node",
+          "nodeId": "I44:8082;30:1937;30:847",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8142;34:4023;44:8155;44:7250:node",
+          "nodeId": "I44:8093;38:6750;44:8142;34:4023;44:8155;44:7250",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/calendar-I44-8093-38-6750-44-8142-34-4023-44-8155-44-7250.svg",
+          "layerName": "calendar"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8142;34:4023;44:8157;35:4190:node",
+          "nodeId": "I44:8093;38:6750;44:8142;34:4023;44:8157;35:4190",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/check-I44-8093-38-6750-44-8142-34-4023-44-8157-35-4190.svg",
+          "layerName": "check"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8144;35:4241;44:8165;10:1056:node",
+          "nodeId": "I44:8093;38:6750;44:8144;35:4241;44:8165;10:1056",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/leftIconSlot-I44-8093-38-6750-44-8144-35-4241-44-8165-10-1056.svg",
+          "layerName": "leftIconSlot"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8144;35:4241;44:8492;44:7250;44:7884:node",
+          "nodeId": "I44:8093;38:6750;44:8144;35:4241;44:8492;44:7250;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I44-8093-38-6750-44-8144-35-4241-44-8492-44-7250-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8171;44:7844:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8171;44:7844",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/upload--I44-8093-38-6750-44-8146-35-4241-44-8171-44-7844-e5260ff20b72.svg",
+          "layerName": "upload "
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8173;44:7919;44:7884:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8173;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I44-8093-38-6750-44-8146-35-4241-44-8173-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8173;44:8046:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8173;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I44-8093-38-6750-44-8146-35-4241-44-8173-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8174;44:7915:fills:0",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8174;44:7915",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "72d08cb7433b312abbccac3ca15e7802b950cf53",
+          "status": "available",
+          "path": "/images/Frame-153-I44-8093-38-6750-44-8146-35-4241-44-8174-44-7915-aa1a0fa271d9.png",
+          "layerName": "Frame 153"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8174;44:7919;44:7884:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8174;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I44-8093-38-6750-44-8146-35-4241-44-8174-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8175;44:7919;44:7884:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8175;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I44-8093-38-6750-44-8146-35-4241-44-8175-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8175;44:8046:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8175;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I44-8093-38-6750-44-8146-35-4241-44-8175-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8176;44:7919;44:7884:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8176;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I44-8093-38-6750-44-8146-35-4241-44-8176-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8176;44:8046:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8176;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I44-8093-38-6750-44-8146-35-4241-44-8176-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8177;44:7919;44:7884:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8177;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I44-8093-38-6750-44-8146-35-4241-44-8177-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I44:8093;38:6750;44:8146;35:4241;44:8177;44:8046:node",
+          "nodeId": "I44:8093;38:6750;44:8146;35:4241;44:8177;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I44-8093-38-6750-44-8146-35-4241-44-8177-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I44:8093;38:7141:node",
+          "nodeId": "I44:8093;38:7141",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-top-a96665e60ffb.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8094;44:7595;17:2197:node",
+          "nodeId": "I44:8094;44:7595;17:2197",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8098;10:973:node",
+          "nodeId": "I44:8098;10:973",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I44:8099;15:2119:node",
+          "nodeId": "I44:8099;15:2119",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-a1a00f37468d.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I44:8517;30:1937;30:843:node",
+          "nodeId": "I44:8517;30:1937;30:843",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8517;30:1937;30:847:node",
+          "nodeId": "I44:8517;30:1937;30:847",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8528;38:7141:node",
+          "nodeId": "I44:8528;38:7141",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-bottom-5c4a63048d55.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8529;44:7595;17:2197:node",
+          "nodeId": "I44:8529;44:7595;17:2197",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I44:8533;10:973:node",
+          "nodeId": "I44:8533;10:973",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-----2-c5733c80dbd0.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I44:8534;15:2119:node",
+          "nodeId": "I44:8534;15:2119",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-a1a00f37468d.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I45:10176;32:1457;30:843:node",
+          "nodeId": "I45:10176;32:1457;30:843",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:10176;32:1457;30:847:node",
+          "nodeId": "I45:10176;32:1457;30:847",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:10186;45:9592:node",
+          "nodeId": "I45:10186;45:9592",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-bottom-5c4a63048d55.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10238;35:4241;45:10259;10:1056:node",
+          "nodeId": "I45:10186;45:9593;45:10238;35:4241;45:10259;10:1056",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/leftIconSlot-I45-10186-45-9593-45-10238-35-4241-45-10259-10-1056.svg",
+          "layerName": "leftIconSlot"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10238;35:4241;45:10565;44:7250;44:7884:node",
+          "nodeId": "I45:10186;45:9593;45:10238;35:4241;45:10565;44:7250;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I45-10186-45-9593-45-10238-35-4241-45-10565-44-7250-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10265;44:7844:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10265;44:7844",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/upload--I45-10186-45-9593-45-10240-35-4241-45-10265-44-7844-aa34980f5d19.svg",
+          "layerName": "upload "
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10581;44:7919;44:7884:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10581;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I45-10186-45-9593-45-10240-35-4241-45-10581-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10581;44:8046:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10581;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I45-10186-45-9593-45-10240-35-4241-45-10581-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10582;44:7915:fills:0",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10582;44:7915",
+          "field": "fills/0",
+          "sourceKind": "image-fill",
+          "imageHash": "72d08cb7433b312abbccac3ca15e7802b950cf53",
+          "status": "available",
+          "path": "/images/Frame-153-I45-10186-45-9593-45-10240-35-4241-45-10582-44-7915-021a4dd74827.png",
+          "layerName": "Frame 153"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10582;44:7919;44:7884:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10582;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I45-10186-45-9593-45-10240-35-4241-45-10582-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10583;44:7919;44:7884:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10583;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I45-10186-45-9593-45-10240-35-4241-45-10583-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10583;44:8046:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10583;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I45-10186-45-9593-45-10240-35-4241-45-10583-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10584;44:7919;44:7884:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10584;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I45-10186-45-9593-45-10240-35-4241-45-10584-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10584;44:8046:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10584;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I45-10186-45-9593-45-10240-35-4241-45-10584-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10585;44:7919;44:7884:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10585;44:7919;44:7884",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/x-circle-fill-I45-10186-45-9593-45-10240-35-4241-45-10585-44-7919-44-7884.svg",
+          "layerName": "x-circle-fill"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10240;35:4241;45:10585;44:8046:node",
+          "nodeId": "I45:10186;45:9593;45:10240;35:4241;45:10585;44:8046",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/file-I45-10186-45-9593-45-10240-35-4241-45-10585-44-8046.svg",
+          "layerName": "file"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10543;34:4023;45:10537;44:7250:node",
+          "nodeId": "I45:10186;45:9593;45:10543;34:4023;45:10537;44:7250",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/calendar-I45-10186-45-9593-45-10543-34-4023-45-10537-44-7250.svg",
+          "layerName": "calendar"
+        },
+        {
+          "assetId": "I45:10186;45:9593;45:10543;34:4023;45:10539;35:4190:node",
+          "nodeId": "I45:10186;45:9593;45:10543;34:4023;45:10539;35:4190",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/check-I45-10186-45-9593-45-10543-34-4023-45-10539-35-4190.svg",
+          "layerName": "check"
+        },
+        {
+          "assetId": "I45:10188;44:7606;17:2197:node",
+          "nodeId": "I45:10188;44:7606;17:2197",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:10192;32:1293:node",
+          "nodeId": "I45:10192;32:1293",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Frame-65-I45-10192-32-1293-79150035ece8.svg",
+          "layerName": "Frame 65"
+        },
+        {
+          "assetId": "I45:10193;83:29449:node",
+          "nodeId": "I45:10193;83:29449",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-a1a00f37468d.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I45:9288;32:1457;30:843:node",
+          "nodeId": "I45:9288;32:1457;30:843",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9288;32:1457;30:847:node",
+          "nodeId": "I45:9288;32:1457;30:847",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9299;45:9592:node",
+          "nodeId": "I45:9299;45:9592",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-bottom-5c4a63048d55.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9300;44:7606;17:2197:node",
+          "nodeId": "I45:9300;44:7606;17:2197",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9304;32:1293:node",
+          "nodeId": "I45:9304;32:1293",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Frame-65-I45-9304-32-1293-8a73aafe4e0b.svg",
+          "layerName": "Frame 65"
+        },
+        {
+          "assetId": "I45:9305;83:29449:node",
+          "nodeId": "I45:9305;83:29449",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-a1a00f37468d.svg",
+          "layerName": "Logo"
+        },
+        {
+          "assetId": "I45:9815;32:1457;30:843:node",
+          "nodeId": "I45:9815;32:1457;30:843",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9815;32:1457;30:847:node",
+          "nodeId": "I45:9815;32:1457;30:847",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9825;45:9592:node",
+          "nodeId": "I45:9825;45:9592",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-bottom-5c4a63048d55.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9825;45:9593;45:9875;34:4023;45:9888;44:7250:node",
+          "nodeId": "I45:9825;45:9593;45:9875;34:4023;45:9888;44:7250",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/calendar-I45-9825-45-9593-45-9875-34-4023-45-9888-44-7250.svg",
+          "layerName": "calendar"
+        },
+        {
+          "assetId": "I45:9825;45:9593;45:9877;35:4241;45:9898;10:1056:node",
+          "nodeId": "I45:9825;45:9593;45:9877;35:4241;45:9898;10:1056",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/leftIconSlot-I45-9825-45-9593-45-9877-35-4241-45-9898-10-1056.svg",
+          "layerName": "leftIconSlot"
+        },
+        {
+          "assetId": "I45:9825;45:9593;45:9879;35:4241;45:9904;44:7844:node",
+          "nodeId": "I45:9825;45:9593;45:9879;35:4241;45:9904;44:7844",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/upload--I45-9825-45-9593-45-9879-35-4241-45-9904-44-7844-fdb29d15698e.svg",
+          "layerName": "upload "
+        },
+        {
+          "assetId": "I45:9827;44:7606;17:2197:node",
+          "nodeId": "I45:9827;44:7606;17:2197",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "layerName": "Arrow"
+        },
+        {
+          "assetId": "I45:9831;32:1293:node",
+          "nodeId": "I45:9831;32:1293",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Frame-65-I45-9831-32-1293-3ab9d7e1a90c.svg",
+          "layerName": "Frame 65"
+        },
+        {
+          "assetId": "I45:9832;83:29449:node",
+          "nodeId": "I45:9832;83:29449",
+          "field": "node",
+          "sourceKind": "vector-node",
+          "status": "available",
+          "path": "/icons/Logo-a1a00f37468d.svg",
+          "layerName": "Logo"
+        }
+      ],
+      "diagnostics": []
+    },
+    "job": {
+      "jobId": "asset-e8be48abb3b5dd24",
+      "budget": {
+        "frameIds": [],
+        "allScreens": false,
+        "frameCount": 1,
+        "frameOutputUnits": 1,
+        "planningSecondsPerUnit": [
+          5,
+          20
+        ],
+        "planningSeconds": [
+          5,
+          20
+        ],
+        "isGuarantee": false,
+        "initialReplyBudgetSeconds": 1,
+        "note": "Planning estimate only. Paging and upstream throttling are measured per call; poll this job instead of waiting for the whole batch. Split frameIds into one-frame calls to isolate slow frames."
+      },
+      "state": "complete",
+      "stage": "finished",
+      "assets": [
+        {
+          "assetId": "I38:6538;30:1937;30:843:node",
+          "status": "exported",
+          "byteLength": 448,
+          "sha256": "90bf095b1fd8a11f81c106b166381e20d7f268e49c4e08b47839504ff1dc1b7f",
+          "errorCode": null,
+          "errorDetail": null,
+          "exportDiagnostics": null,
+          "outputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\normal-after.svg",
+          "path": "/icons/Arrow-right-8875316fc89f.svg",
+          "fileState": "written",
+          "requestedOutputPath": "C:\\Users\\devfivedevleader\\orca\\workspaces\\devup-mcp\\feedback-assets\\fixtures\\local-tools\\normal-after.svg"
+        }
+      ],
+      "completedCalls": 2,
+      "calls": [
+        {
+          "stage": "snapshot",
+          "detail": {
+            "script": "FastSnapshotEnvelope",
+            "nodeId": "44:8516",
+            "rootIds": null,
+            "pagination": {
+              "maxEnvelopeBytes": 0,
+              "offset": 0,
+              "maxPayloadBytes": 15000,
+              "maxFieldBytes": 4096
+            }
+          },
+          "state": "received",
+          "startedMs": 0,
+          "timeoutMs": 90000,
+          "elapsedMs": 4395
+        },
+        {
+          "stage": "asset-export",
+          "detail": {
+            "assetId": "I38:6538;30:1937;30:843:node",
+            "nodeId": "I38:6538;30:1937;30:843"
+          },
+          "state": "received",
+          "startedMs": 5072,
+          "timeoutMs": 190000,
+          "elapsedMs": 4
+        },
+        {
+          "stage": "projection-and-write",
+          "state": "complete",
+          "startedMs": 5251,
+          "elapsedMs": 258
+        }
+      ],
+      "elapsedMs": 5509,
+      "lastError": null,
+      "checkpointScope": "server-process",
+      "retentionSeconds": 1800,
+      "resultRetentionSeconds": 300,
+      "callTimeoutSeconds": 90,
+      "assetTimeoutMs": 180000,
+      "nextActionReason": "This job has finished; status polling repeats the retained result. No corrective action is available.",
+      "nextAction": null
+    }
+  }
+}

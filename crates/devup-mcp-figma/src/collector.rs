@@ -254,7 +254,8 @@ pub struct CollectorSession {
     large_values: BTreeMap<(String, String), LargeValueAssembler>,
     /// An SVG or PNG export announced as too large for one answer, by the
     /// key its fragments arrive under, until the last of them has.
-    chunked_assets: BTreeMap<(String, String), AssetRequest>,
+    chunked_assets:
+        BTreeMap<(String, String), (AssetRequest, Option<crate::AssetExportDiagnostics>)>,
     /// The pages of a paginated theme so far, merged, until the last one.
     fast_theme_pages: Option<Value>,
     fast_theme_page_count: usize,
@@ -331,7 +332,7 @@ impl CollectorSession {
         self.request.asset_selections.iter().map(|selection| {
             match self.asset_results.iter().find(|asset| asset.asset_id == selection.asset_id) {
                 Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,
-                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code}),
+                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics}),
                 None => serde_json::json!({"assetId":selection.asset_id,"status":"pending"}),
             }
         }).collect()
@@ -753,7 +754,13 @@ impl CollectorSession {
             };
             self.record_asset_failure(
                 *request,
-                "DEVUP_ASSET_EXPORT_FAILED",
+                if error.message.contains("DEVUP_ASSET_TIMEOUT:")
+                    || error.details["reason"] == "timeout"
+                {
+                    "DEVUP_ASSET_TIMEOUT"
+                } else {
+                    "DEVUP_ASSET_EXPORT_FAILED"
+                },
                 Some(error.message.clone()),
             );
             return Ok(true);
@@ -767,7 +774,11 @@ impl CollectorSession {
             let ReadToolCall::LargeValue { options, .. } = pending.planned.call else {
                 return Err(invalid_call("large value call format is invalid."));
             };
-            self.record_large_value_unsupported(&options, "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM")?;
+            self.record_large_value_unsupported(
+                &options,
+                "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM",
+                Some(&error.message),
+            )?;
             return Ok(true);
         }
         if pending.kind == CallKind::Snapshot
@@ -1535,7 +1546,11 @@ impl CollectorSession {
                     "large value unsupported response does not match the request.",
                 ));
             }
-            return self.record_large_value_unsupported(options, &unsupported.error_code);
+            return self.record_large_value_unsupported(
+                options,
+                &unsupported.error_code,
+                unsupported.error_detail.as_deref(),
+            );
         }
         let LargeValueResult::Fragment(fragment) = result else {
             unreachable!()
@@ -1558,12 +1573,13 @@ impl CollectorSession {
                 .large_values
                 .remove(&key)
                 .ok_or_else(|| invalid_call("large value assembler is missing."))?;
-            if let Some(request) = self.chunked_assets.remove(&key) {
+            if let Some((request, diagnostics)) = self.chunked_assets.remove(&key) {
                 // The fragments were an SVG or PNG export, not a field: the
                 // bytes are the asset, and go where a one-answer export would.
                 let bytes = assembler.finish_bytes()?;
-                self.asset_results
-                    .push(exported_asset_from_bytes(&request, &bytes)?);
+                let mut asset = exported_asset_from_bytes(&request, &bytes)?;
+                asset.export_diagnostics = diagnostics;
+                self.asset_results.push(asset);
                 return Ok(());
             }
             let descriptor = assembler.descriptor().clone();
@@ -1592,18 +1608,24 @@ impl CollectorSession {
         &mut self,
         options: &LargeValueReadOptions,
         error_code: &str,
+        error_detail: Option<&str>,
     ) -> Result<(), DevupError> {
         let key = (options.node_id.clone(), options.field.clone());
         let assembler = self
             .large_values
             .remove(&key)
             .ok_or_else(|| invalid_call("large value assembler is missing."))?;
-        if let Some(request) = self.chunked_assets.remove(&key) {
+        if let Some((request, _)) = self.chunked_assets.remove(&key) {
             self.record_asset_failure(
                 request,
-                "DEVUP_ASSET_EXPORT_FAILED",
+                if error_detail.is_some_and(|detail| detail.contains("DEVUP_ASSET_TIMEOUT:")) {
+                    "DEVUP_ASSET_TIMEOUT"
+                } else {
+                    "DEVUP_ASSET_EXPORT_FAILED"
+                },
                 Some(format!(
-                    "reading the export back in fragments failed: {error_code}"
+                    "reading the export back in fragments failed: {}",
+                    error_detail.unwrap_or(error_code)
                 )),
             );
             return Ok(());
@@ -1682,7 +1704,13 @@ impl CollectorSession {
                         descriptor,
                     )?,
                 );
-                self.chunked_assets.insert(key, request.as_ref().clone());
+                self.chunked_assets.insert(
+                    key,
+                    (
+                        request.as_ref().clone(),
+                        crate::assets::asset_export_diagnostics(&result),
+                    ),
+                );
                 self.enqueue(
                     ReadToolCall::large_value(&self.request.target.file_key, options.clone()),
                     Some(options.node_id),
@@ -1775,6 +1803,7 @@ impl CollectorSession {
             output_path: None,
             error_code: Some(error_code.to_owned()),
             error_detail,
+            export_diagnostics: None,
             path: None,
         });
     }

@@ -3,7 +3,8 @@
 // here so the direct path and the Devup Bridge read the same document.
 figma.skipInvisibleInstanceChildren = false;
 const options = "__DEVUP_LARGE_VALUE__";
-const node = await figma.getNodeByIdAsync(options.nodeId);
+"__DEVUP_ASSET_RENDER_HELPERS__";
+const node = await devupLookupAssetNode(options.nodeId);
 if (!node) throw new Error("DEVUP_NODE_NOT_FOUND");
 
 const textSegmentManifest = "__DEVUP_TEXT_SEGMENT_MANIFEST__";
@@ -158,7 +159,7 @@ let exportedBytes = null;
 try {
   if (options.field === "$export:svg") {
     if (typeof node.exportAsync !== "function") throw new Error("unsupported");
-    const svg = await node.exportAsync({ format: "SVG_STRING" });
+    const svg = await devupRenderAsset(node, { format: "SVG_STRING" }, Math.max(1, (Number(options.timeoutMs) || 90000) - 5000));
     if (typeof svg !== "string") throw new Error("unsupported");
     exportedBytes = utf8Encode(svg);
   } else if (typeof options.field === "string" && options.field.startsWith("$export:png")) {
@@ -180,7 +181,7 @@ try {
   } else {
     throw new Error("unsupported");
   }
-} catch (_) {
+} catch (error) {
   return {
     kind: "devupLargeValueUnsupported",
     fileKey: figma.fileKey || "",
@@ -190,6 +191,7 @@ try {
     byteLength: options.byteLength,
     sha256: options.sha256,
     errorCode: "DEVUP_FIELD_UNSUPPORTED_BY_UPSTREAM",
+    errorDetail: `${options.field} failed: ${error.message || error}`.slice(0, 500),
   };
 }
 

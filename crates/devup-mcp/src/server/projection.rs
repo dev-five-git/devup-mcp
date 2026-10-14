@@ -1456,8 +1456,8 @@ async fn project_operation(
                 .filter(|asset| asset.status == AssetStatus::Failed)
             {
                 let mut failure = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,
-                    "errorCode":asset.error_code,"message":"Asset export failed. Re-collect this asset from its URL.",
-                    "retryable":true});
+                    "errorCode":asset.error_code,"message":"Asset export failed; inspect errorDetail before retrying.",
+                    "retryable":asset.error_code.as_deref() == Some("DEVUP_ASSET_TIMEOUT")});
                 if let Some(detail) = &asset.error_detail {
                     failure["errorDetail"] = json!(detail);
                     if let Some(hint) = devup_mcp_figma::figma_unreachable_hint(detail) {
@@ -2474,6 +2474,11 @@ async fn project_operation(
                 // name - which, for two icons of one layer name, it would get
                 // wrong.
                 for asset in &mut manifest.assets {
+                    if asset.status == AssetStatus::Failed {
+                        asset.path = None;
+                        asset.output_path = None;
+                        continue;
+                    }
                     if asset.path.is_none() {
                         // An image fill is named from the node it is painted
                         // on and which fill it is, which holds for a layout
@@ -6186,6 +6191,44 @@ mod w1_regressions {
             *strict = true;
         }
         assert!(project(data, strict_op).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn nested_asset_failure_preserves_details_without_promising_a_path_or_retry() {
+        for (code, detail, retryable) in [
+            (
+                "DEVUP_ASSET_EXPORT_FAILED",
+                "export failed after 10400 ms: Unable to establish connection to Figma after 10 seconds",
+                false,
+            ),
+            (
+                "DEVUP_ASSET_EXPORT_FAILED",
+                "native export: renderer failed; geometry fallback unsupported: mask requires native export",
+                false,
+            ),
+            (
+                "DEVUP_ASSET_TIMEOUT",
+                "export exceeded 180000 ms asset budget",
+                true,
+            ),
+        ] {
+            let mut data = payload();
+            data.assets.push(serde_json::from_value(json!({"assetId":"1:1:fills:0","nodeId":"1:1",
+                "field":"fills/0","sourceKind":"image","status":"failed","errorCode":code,
+                "errorDetail":detail,"path":"/icons/not-generated.svg","outputPath":"C:/not-generated.svg"})).unwrap());
+            let result = project(data, operation(&["assetManifest"])).await.unwrap();
+            assert_eq!(result["status"], "partial");
+            assert_eq!(result["failures"][0]["retryable"], retryable);
+            assert_eq!(result["failures"][0]["errorDetail"], detail);
+            let asset = &result["assetManifest"]["assets"][0];
+            assert_eq!(asset["status"], "failed");
+            assert!(asset["path"].is_null() && asset["outputPath"].is_null());
+            assert_eq!(
+                result["assetSummary"]["unavailable"][0]["errorDetail"],
+                detail
+            );
+            assert!(result["outputPaths"].as_object().unwrap().is_empty());
+        }
     }
 
     #[tokio::test]

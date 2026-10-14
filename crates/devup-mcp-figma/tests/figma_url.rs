@@ -131,3 +131,44 @@ fn errors_do_not_echo_query_secrets() {
     assert!(!rendered.contains("oauth-code"));
     assert!(!rendered.contains("access_token"));
 }
+
+#[test]
+fn nested_instance_ids_decode_once_and_roundtrip_on_all_routes() {
+    for route in [
+        "https://www.figma.com/design/FileKey123/x",
+        "https://www.figma.com/branch/FileKey123/BranchKey456/x",
+        "figma-bridge://current",
+    ] {
+        for id in [
+            "I44%3A8533%3B10%3A973",
+            "I44-8533;10-973",
+            "I44:8533;10:1214;10:996",
+        ] {
+            let target = FigmaTarget::parse(&format!("{route}?node-id={id}")).unwrap();
+            let link = target.link(target.node_id.as_deref());
+            let parsed = FigmaTarget::parse(&link).unwrap();
+            assert_eq!(parsed.node_id, target.node_id, "{link}");
+            assert!(link.contains("%3B"));
+        }
+    }
+}
+
+#[test]
+fn malformed_nested_ids_cannot_alias_real_nodes() {
+    for id in [
+        "I44:8533",
+        "44:8533;10:973",
+        "I44:8533;",
+        "I44:8533;;10:973",
+        "I44:8533;I10:973",
+        "I44:8533;10:973:node",
+        "I44%253A8533%253B10%253A973",
+        "I44:8533;10-973-1",
+        "I44:8533;10:abc",
+    ] {
+        assert!(
+            FigmaTarget::parse(&format!("figma-bridge://current?node-id={id}")).is_err(),
+            "{id}"
+        );
+    }
+}
