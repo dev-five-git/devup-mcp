@@ -20,9 +20,7 @@
 //! therefore a report, not a switch.
 //!
 //! The rules here are ported from `devup-figma-plugin` at the commit this
-//! repo's corpus pins — `src/codegen/responsive/` — and `docs/
-//! responsive-merge-rules.md` says which function each came from and where
-//! this repo deliberately differs.
+//! repo's corpus pins — `src/codegen/responsive/`.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
