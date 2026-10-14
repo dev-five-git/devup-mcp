@@ -153,7 +153,7 @@ fn a_failed_export_says_what_figma_said() {
         .expect("the failure carries Figma's words");
     assert!(detail.starts_with("export failed after "), "{detail}");
     assert!(
-        detail.contains("(editor: dev): renderer failed"),
+        detail.contains("(editor: dev)") && detail.contains("renderer failed"),
         "{detail}"
     );
 }

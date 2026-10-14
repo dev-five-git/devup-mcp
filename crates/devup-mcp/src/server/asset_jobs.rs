@@ -173,7 +173,7 @@ impl AssetJob {
         for progress in &mut state.assets {
             if let Some(asset) = assets.iter().find(|a| progress["assetId"] == a.asset_id) {
                 *progress = json!({"assetId":asset.asset_id,"status":asset.status,"byteLength":asset.byte_length,
-                    "sha256":asset.sha256,"errorCode":asset.error_code});
+                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics});
             }
         }
         state.stage = "projection-and-write";
@@ -210,6 +210,11 @@ impl AssetJob {
             ),
             _ => ("acquisition", json!({"kind":"resource-or-metadata"})),
         };
+        let call_timeout = if call.is_asset_read() {
+            devup_mcp_figma::asset_timeout() + Duration::from_secs(10)
+        } else {
+            CALL_TIMEOUT
+        };
         loop {
             let began = Instant::now();
             {
@@ -218,10 +223,10 @@ impl AssetJob {
                 if state.calls.len() == 128 {
                     state.calls.remove(0);
                 }
-                state.calls.push(json!({"stage":stage,"detail":detail,"state":"running","startedMs":self.started.elapsed().as_millis() as u64}));
+                state.calls.push(json!({"stage":stage,"detail":detail,"state":"running","startedMs":self.started.elapsed().as_millis() as u64,"timeoutMs":call_timeout.as_millis() as u64}));
             }
             let result = match server
-                .call_waiting_out_a_spent_allowance(call.clone(), Some(CALL_TIMEOUT))
+                .call_waiting_out_a_spent_allowance(call.clone(), Some(call_timeout))
                 .await
             {
                 Ok(result) => match super::operation::upstream_error(&result.raw) {
@@ -270,6 +275,7 @@ impl AssetJob {
                         "sha256",
                         "errorCode",
                         "errorDetail",
+                        "exportDiagnostics",
                         "outputPath",
                         "path",
                     ] {
@@ -318,6 +324,15 @@ impl AssetJob {
 
     fn response(&self) -> Result<Value, DevupError> {
         let state = self.state.lock().unwrap();
+        let mut calls = state.calls.clone();
+        for call in &mut calls {
+            if call["state"] == "running" {
+                call["elapsedMs"] = json!(
+                    (self.started.elapsed().as_millis() as u64)
+                        .saturating_sub(call["startedMs"].as_u64().unwrap_or(0))
+                );
+            }
+        }
         let assets: Vec<_> = state
             .assets
             .iter()
@@ -360,9 +375,10 @@ impl AssetJob {
             json!({"tool":"devup_figma_export","arguments":{"jobId":self.id,"jobAction":if state.state=="paused" {"resume"} else {"status"}}})
         };
         let job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
-            "completedCalls":state.completed_calls,"calls":state.calls,"elapsedMs":self.started.elapsed().as_millis() as u64,
+            "completedCalls":state.completed_calls,"calls":calls,"elapsedMs":self.started.elapsed().as_millis() as u64,
             "lastError":state.error,"checkpointScope":"server-process","retentionSeconds":JOB_LIFETIME.as_secs(),
             "resultRetentionSeconds":RESULT_RETENTION.as_secs(),"callTimeoutSeconds":CALL_TIMEOUT.as_secs(),
+            "assetTimeoutMs":devup_mcp_figma::asset_timeout().as_millis() as u64,
             "nextActionReason":if terminal && next_action.is_null() { Some("This job has finished; status polling repeats the retained result. No corrective action is available.") } else { None },
             "nextAction":next_action});
         // Preserve the existing error contract for code-only upstream refusals,
@@ -474,6 +490,14 @@ mod tests {
                 job.response().unwrap()["exportJob"]["nextAction"]["arguments"]["jobAction"],
                 "status"
             );
+            job.state
+                .lock()
+                .unwrap()
+                .calls
+                .push(json!({"stage":"asset-export","state":"running","startedMs":0}));
+            let progress = job.response().unwrap();
+            assert!(progress["exportJob"]["calls"][0]["elapsedMs"].is_u64());
+            assert!(progress["exportJob"]["assetTimeoutMs"].is_u64());
             let next = if correction {
                 json!({"tool":"devup_figma_export","arguments":{"url":"https://www.figma.com/design/test?node-id=1-1","frameIds":["2:1"]}})
             } else {
