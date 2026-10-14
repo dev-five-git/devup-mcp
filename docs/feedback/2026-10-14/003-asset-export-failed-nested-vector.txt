@@ -1,0 +1,27 @@
+[devup-mcp feedback #003] 중첩 인스턴스 내부 벡터(로고) 에셋 내보내기가 DEVUP_ASSET_EXPORT_FAILED 로 반복 실패
+
+일시: 2026-10-14
+버전: devup-mcp 0.14.0 (commit b7018cd967ef), 브리지 경로
+대상: Figma "프라임 by 데브파이브" (YVPOYYXZJpOayp0QlCdIVT), 견적문의 화면 44:8516 > 헤더 인스턴스 44:8533
+에셋: I44:8533;10:973:node (layerName "Logo", sourceKind vector-node, PRIME by DEVFIVE 로고)
+
+증상
+- assetRequests 로 svg / png(scale 2) / pdf 3가지 포맷을 요청했지만 모두 status=failed,
+  errorCode=DEVUP_ASSET_EXPORT_FAILED, fileState=not-written. 파일이 한 개도 쓰이지 않음.
+- 요청 URL을 44:8533(컴포넌트 단독) / 44:8516(화면 전체) 두 가지로 바꿔도 동일.
+- 같은 화면의 다른 벡터(Arrow, 44:8534 Logo 등)는 manifest 에 status=available 로 잡히는데,
+  유독 I44:8533;10:973 만 내보내기 단계에서 실패. asset-export 단계가 약 10초 걸린 뒤 실패(타임아웃 의심).
+- 실패 메시지가 "Re-collect this asset from its URL." 뿐이라 원인(타임아웃/플러그인 예외/노드 타입)을 알 수 없고,
+  재시도해도 동일하게 실패하므로 retryable:true 표시가 오히려 오해를 만듦.
+- manifest path 가 /icons/Logo-----2-c5733c80dbd0.svg 로 나와 있어, 실제 파일이 없는데도 경로만 존재하는 것처럼 보임.
+- node-id 에 인스턴스 내부 ID(I44%3A8533%3B10%3A973)를 URL로 직접 주면 "Figma node-id format is invalid" 로 거부됨.
+  즉 중첩 인스턴스 내부 노드만 단독으로 내보낼 우회 경로가 없음.
+
+기대 동작
+- 실패 원인(타임아웃, 플러그인 exportAsync 예외, 마스크/불리언 연산 노드 등)을 errorDetail 로 노출.
+- 벡터 노드 export 실패 시 fallback: 부모 프레임/인스턴스 단위 exportAsync, 또는 플러그인에서 vectorPaths 로 SVG 합성.
+- 인스턴스 내부 노드 ID 도 URL/assetRequests 단독 지정으로 허용 (colon/semicolon 인코딩 처리).
+- 실패한 에셋은 manifest path 를 비우거나 status=failed 와 함께 path 를 "미생성" 으로 명시.
+
+우회
+- 사용자가 Figma 에서 직접 SVG 로 내보내 public/icons 에 배치.

@@ -1,0 +1,47 @@
+[devup-mcp 수정용 추천 프롬프트 #004] 중첩 인스턴스 내부 벡터 에셋 내보내기 실패 (DEVUP_ASSET_EXPORT_FAILED)
+
+관련 리포트: 003-asset-export-failed-nested-vector.txt
+대상 버전: devup-mcp 0.14.0 (commit b7018cd967ef), 브리지 경로
+
+=== 아래를 devup-mcp 저장소의 에이전트에게 그대로 전달 ===
+
+devup-mcp의 devup_figma_export 에서, 인스턴스 내부(중첩) 벡터 노드를 assetRequests 로 내보내면
+항상 DEVUP_ASSET_EXPORT_FAILED 로 실패하는 버그를 고쳐라.
+
+[재현]
+- Figma 파일: YVPOYYXZJpOayp0QlCdIVT ("프라임 by 데브파이브"), 페이지 "디자인 시스템 및 UI"
+- url: https://www.figma.com/design/YVPOYYXZJpOayp0QlCdIVT/x?node-id=44-8533  (또는 44-8516)
+- assetRequests: [{ assetId: "I44:8533;10:973:node", format: "svg" | "png"(scale 2) | "pdf", outputPath: <절대경로> }]
+- 결과: status=failed, errorCode=DEVUP_ASSET_EXPORT_FAILED, fileState=not-written.
+  asset-export 단계가 약 10초 소요된 뒤 실패(타임아웃 의심). svg/png/pdf 모두 동일. 재시도해도 동일.
+- 같은 화면의 다른 벡터(Arrow, 44:8534 Logo)는 manifest 에서 available 로 잡힘.
+- node-id 에 인스턴스 내부 ID(I44%3A8533%3B10%3A973)를 url 로 직접 주면 "Figma node-id format is invalid".
+
+[해결해야 할 것]
+1. 원인 규명: 브리지 플러그인의 exportAsync 호출이 왜 실패/타임아웃되는지 로그로 확인.
+   (인스턴스 내부 노드, 마스크/불리언 연산, 큰 벡터, 폰트 의존 등 후보를 하나씩 검증하고 실제 원인을 보고할 것.
+   추측으로 고치지 말고 재현 후 수정 전/후 결과를 비교할 것.)
+2. 실패 시 fallback 구현: 노드 단위 exportAsync 가 실패하면 부모 인스턴스/프레임 단위로 내보낸 뒤 해당 노드 영역을 잘라내거나,
+   vectorPaths/fillGeometry 로 SVG 를 합성해서라도 파일을 생성한다.
+3. 인스턴스 내부 노드 ID 를 url/assetRequests 단독 지정으로 허용한다.
+   (콜론/세미콜론 인코딩 처리, "I..;.." 형식 파싱.)
+4. 오류 응답 개선:
+   - errorDetail 에 실제 원인(timeout / plugin exception message / unsupported node type) 포함.
+   - 반복해도 같은 결과인 실패에는 retryable:true 를 붙이지 않는다.
+   - 실패한 에셋은 assetManifest 의 path 를 비우거나 "미생성" 으로 표시한다.
+     (현재는 /icons/Logo-----2-c5733c80dbd0.svg 처럼 파일이 없는데 경로만 있는 것처럼 보임.)
+5. 타임아웃 값이 원인이면 에셋 단위로 늘리거나 설정 가능하게 하고, 진행 중에는 단계별 경과 시간을 노출한다.
+
+[검증 기준]
+- 위 재현 케이스로 outputPath 에 유효한 SVG 파일이 실제로 써지고, <svg> 루트와 path 를 포함한다.
+- 실패를 강제로 만들었을 때 errorDetail 과 manifest 가 위 4번 요구대로 나온다.
+- 기존 정상 에셋(Arrow 등) 내보내기가 회귀하지 않는다.
+- 회귀 테스트(중첩 인스턴스 내부 벡터 export, 인스턴스 내부 ID 파싱)를 추가한다.
+
+[하지 말 것]
+- 실패를 성공으로 보고하거나 빈/placeholder 파일을 써서 통과시키지 말 것.
+- 다른 디자인의 로고로 대체하지 말 것.
+
+=== 끝 ===
+
+[참고] 사용자 쪽 임시 우회: Figma 에서 해당 레이어를 SVG 로 직접 내보내 apps/prime/public/icons/logo-prime.svg 에 배치.

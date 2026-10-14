@@ -1,0 +1,25 @@
+{
+    "received":  "2026-10-14",
+    "sources":  [
+                    {
+                        "file":  "001-devupjson-theme-conflict.txt",
+                        "sha256":  "439d21a184f95e23c49c34ccb82d74422a12a8637c433bd11916345781f7fc22"
+                    },
+                    {
+                        "file":  "002-missing-links-interactions.txt",
+                        "sha256":  "1994a12d7e679258a60952e7f86a1faae162cdbeabfcc27c9d7f56dd127b3470"
+                    },
+                    {
+                        "file":  "003-asset-export-failed-nested-vector.txt",
+                        "sha256":  "50a779d27a3a12daad465a2e689c06e78e58cf0a7e755f0f98f7d5de1ad1081d"
+                    },
+                    {
+                        "file":  "004-recommended-prompt-asset-export-fix.txt",
+                        "sha256":  "f8efa89b103495b4b4d1b620289a8ffeeaf9e53f02b2c7cd2073d95f3841ed8c"
+                    },
+                    {
+                        "file":  "005-one-shot-improvements.txt",
+                        "sha256":  "75e51337e852784358ed395899a2616cb2113a0a8439d9cb995941d9b3799933"
+                    }
+                ]
+}

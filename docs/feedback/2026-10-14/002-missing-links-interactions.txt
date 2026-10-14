@@ -1,0 +1,122 @@
+[devup-mcp 개선 제안 #002] 생성 코드에 링크/네비게이션/인터랙션이 전혀 없음 (GNB, CTA 버튼 등)
+
+일시: 2026-10-14
+버전: devup-mcp 0.14.0 (commit b7018cd967ef), 브리지 경로
+대상: Figma "프라임 by 데브파이브" (YVPOYYXZJpOayp0QlCdIVT), 메인 Section 38:5796 및 유지관리 33:3908
+프로젝트: apps/prime (Next App Router, devup-ui)
+
+증상
+- devup_figma_export 의 tsx 는 정적 마크업만 낸다. 클릭 가능한 요소(GNB 메뉴, 로고, 견적문의 버튼,
+  CTA, "전체 보기", 푸터 약관 링크, 포트폴리오 카드, 캐러셀 화살표)가 모두 <Text>/<Center>/<Flex> 로만
+  나오고 <Link href>, <button>, onClick 이 없다.
+- 이 결과를 그대로 컴포넌트화하면 화면은 비슷해 보여도 어디도 이동하지 않는다.
+- 응답의 status/quality/projectionIssues/reviewChecklist 어디에도 "클릭 가능해 보이는데 링크가
+  없다"는 경고가 없다. 서버는 이 누락을 스스로 알지 못하고, 에이전트도 알림이 없으면 놓친다.
+
+실제 누락 사례 (apps/prime/src/components)
+- layout/Header.tsx: 로고, 소개, 서비스, 포트폴리오, SEO · GEO, 고객센터, 견적문의 전부 링크 없음.
+  활성 메뉴 표시(서비스 3px primary 밑줄)도 현재 경로와 무관한 고정값.
+- layout/Footer.tsx: 개인정보 처리방침, 이용약관 링크 없음 (/privacy, /terms 라우트는 존재).
+- pages/main/HeroSection.tsx: "구축 사례 보기", "견적문의" 버튼 링크 없음.
+- pages/main/PortfolioSection.tsx: "전체 보기" 링크 없음, 좌우 화살표 동작 없음.
+- pages/main/PortfolioCard.tsx: 카드 전체가 클릭 영역이어야 하나 링크 없음 (/portfolio/[id] 존재).
+- pages/main/TrackRecordSection.tsx: "인증 및 수상 내역 전체 보기" 링크 없음.
+- pages/main/ConsultSection.tsx: "견적 문의하기" 버튼 링크 없음.
+- pages/services/ServicePage.tsx: <Link href="/inquiry"> 가 있으나 app/inquiry 라우트가 없다
+  (존재하지 않는 목적지로의 링크).
+
+원인 추정
+1. Figma 노드에서 "버튼/링크" 의미(프로토타입 reaction, 컴포넌트 variant, 레이어 이름)를 읽지 않거나
+   읽어도 tsx 로 투영하지 않는다. 프로토타입 navigate 대상이 있어도 href 로 변환되지 않는다.
+2. 코드 생성 결과에 의미적 역할(role: link/button/nav/tab) 정보가 없다. 시각 속성 중심이다.
+3. projectionIssues 가 레이아웃/토큰 손실만 보고하고 "인터랙션 손실" 범주가 없다.
+4. 프로젝트의 실제 라우트 목록과 대조하는 단계가 없다.
+
+개선 제안
+A. 도구(서버) 측
+ 1. 프로토타입 reaction(ON_CLICK -> NAVIGATE/OVERLAY/OPEN_URL)이 있는 노드는 tsx 에 힌트를 남긴다.
+    예: // @devup-nav target="38:5796" url="..." 주석, 또는 outputs 에 interactions 항목 추가.
+ 2. 신규 projectionIssue 코드 DEVUP_CODEGEN_INTERACTION_UNMAPPED 추가.
+    - 버튼/링크처럼 보이는 노드(이름이 Button/CTA/Link/Menu/Tab, 컴포넌트 인스턴스 이름, 짧은 텍스트 +
+      배경색 + 라운드 박스, 화살표 아이콘 동반 등)를 휴리스틱으로 찾아 목록화한다.
+    - 위 요소에는 reviewChecklist 의 required 항목으로 "href/onClick 을 직접 연결하라"를 넣는다.
+ 3. 응답에 interactiveCandidates 배열 추가: { nodeId, name, text, role(link|button|tab|nav),
+    reason, hasPrototypeTarget }. 에이전트가 체크리스트처럼 하나씩 처리하게 한다.
+ 4. GNB/푸터처럼 여러 화면에서 반복되는 구조(공통 인스턴스)는 "공유 컴포넌트 후보"로 표시하고
+    링크는 한 번만 연결하라고 안내한다.
+ 5. projectRoot 가 주어지면 라우트 인벤토리(Next app/ 디렉터리)를 devup_project_context 의 새 scope
+    (예: routes)로 제공한다. 버튼 텍스트와 라우트를 매칭한 제안 표를 낸다.
+    예: "포트폴리오" -> /portfolio, "개인정보 처리방침" -> /privacy, "고객센터" -> /support/faq.
+ 6. devup_ui_validate 에 인터랙션 규칙 추가:
+    - 클릭 가능한 이름을 가진 요소(견적문의, 전체 보기 등)가 <Link>/<a>/<button> 바깥에 있으면 warning.
+    - <Link href> 의 정적 경로가 projectRoot 의 라우트에 없으면 error (예: /inquiry).
+    - 활성 상태(탭/GNB 밑줄)가 하드코딩이면 info 로 usePathname 사용을 권장.
+ 7. devup_feature_trace 에 "페이지 간 이동 그래프" 출력: Figma 프로토타입 연결과 코드 href 를 비교해
+    누락/불일치를 표로 반환.
+
+B. 프롬프트/스킬 측 (devfive-frontend 스킬, MCP instructions)
+ 1. 스킬에 "링크 연결 체크리스트" 절 추가:
+    - 내보낸 tsx 는 정적이다. 컴포넌트화 후 GNB, 푸터, CTA, 카드, "전체 보기", 탭, breadcrumb 의
+      이동 대상을 반드시 연결한다.
+    - 내부 이동은 next/link 의 <Link>, 외부는 <a rel>, 동작은 <button type="button"> 사용.
+      <Text>/<Center> 에 onClick 만 붙이지 않는다 (접근성).
+    - 활성 메뉴는 usePathname 으로 계산한다. 서버 컴포넌트 유지를 위해 활성 판정만 작은 클라이언트
+      컴포넌트로 분리한다.
+    - 목적지 라우트가 없으면 링크를 만들기 전에 라우트를 만들거나 사용자에게 확인한다.
+ 2. MCP instructions 에 한 줄 추가:
+    "devup_figma_export 의 tsx 에는 링크와 이벤트가 없다. 완료로 보고하기 전에 interactiveCandidates 를
+     모두 처리하고 devup_ui_validate 로 링크 규칙을 확인하라."
+ 3. 완료 보고 규칙: "화면이 있다"와 "동작한다"를 구분한다. 클릭 가능한 요소 수와 연결된 요소 수를
+    함께 보고한다.
+
+C. 에이전트용 추천 프롬프트
+ "Figma export 결과를 컴포넌트로 옮긴 뒤 다음을 수행하라.
+  1) 텍스트가 짧고 박스/배경/화살표가 붙은 요소, GNB/푸터/탭/카드/CTA 를 모두 나열한다.
+  2) 각 요소의 목적지를 apps/<app>/src/app 의 실제 라우트와 대조해 표로 만든다.
+  3) 목적지가 있으면 <Link href> 로 감싸고, 없으면 사용자에게 알린다. 임의의 경로를 만들지 않는다.
+  4) 활성 상태는 usePathname 으로 계산한다.
+  5) 링크 개수와 라우트 존재 여부를 검증한 뒤에만 완료라고 보고한다."
+
+검증 방법 (제안)
+- 회귀 시나리오: 프라임 메인 38:5207 export -> interactiveCandidates 에 GNB 메뉴 5개, 견적문의,
+  구축 사례 보기, 전체 보기 2개, 카드 4개, 푸터 링크 2개가 잡히는지 확인.
+- validate 시나리오: ServicePage 의 href="/inquiry" 가 라우트 없음 error 로 잡히는지 확인.
+
+우선순위
+ 1) B-1/B-2 (스킬/instructions 문구) - 즉시 적용 가능, 비용 낮음
+ 2) A-5, A-6 (라우트 인벤토리 + validate 링크 규칙) - 재발 방지 효과 큼
+ 3) A-1~A-3 (export 단계의 프로토타입/후보 출력) - 근본 해결
+
+추가 사례 (2026-10-14, 링크 보정 작업 중 확인)
+1. 존재하지 않는 /inquiry 가 5곳(ServicePage, portfolio/[id], seo-geo, support/faq, support/reservation)에
+   퍼져 있었다. 한 번 잘못 정해진 목적지가 복사되며 전파된다. -> A-6 의 "라우트 없는 href = error"
+   규칙이 있었다면 첫 생성 시점에 잡혔다. 실제 라우트 /support/reservation 으로 일괄 치환함.
+2. 포트폴리오 카드 4개가 모두 /portfolio 로만 연결 가능했다. 상세 페이지(/portfolio/[id])는 id 체계가
+   하드코딩 단일 PROJECT 라서 카드별 id 로 연결할 데이터가 없다. -> 링크 대상 데이터(목록/ID) 부재도
+   "연결 불가 사유"로 보고해야 한다. interactiveCandidates 에 targetResolved: false 같은 필드 필요.
+3. devup-ui 컴포넌트에 as={Link} + href 를 쓰면 타입 오류(TS2322, href 없음)가 난다. 에이전트가 이 패턴을
+   시도했다가 실패했다. -> 스킬/가이드에 "Link 로 감싸고 내부에 Box/Flex 배치" 권장 패턴을 명시.
+   (PortfolioCard 처럼 flex=1 이 필요하면 Link 에 style 로 flex 를 준다.)
+4. 에이전트 도구 실수: PowerShell 에서 node -e 다중행 인용, head/rg 부재, 대괄호 경로([id]) 와일드카드
+   해석으로 여러 번 실패했다. -> 가이드에 Windows/PowerShell 에서는 파일을 직접 쓰고,
+   [id] 경로는 -LiteralPath 를 쓰라는 주의를 넣을 만하다.
+5. 헤더 "소개" 메뉴의 목적지가 Figma 에 없다(소개 페이지 라우트 없음). 임시로 "/" 로 연결했다.
+   -> 목적지 미정 항목은 임의 연결 대신 사용자 확인 목록으로 반환해야 한다.
+6. 활성 메뉴(GNB 밑줄)는 여전히 하드코딩이다. usePathname 기반 처리는 미적용.
+7. 검증 사례: 렌더된 메인 HTML 에서 href 집계로 연결 결과 확인 가능
+   (/portfolio x7, /support/reservation x3, /privacy, /terms, /seo-geo, /services/maintenance,
+   /support/faq). 이 "렌더 href 집계"를 devup_ui_validate 또는 별도 도구의 링크 리포트로 제공하면
+   "클릭 요소 N개 중 연결 M개" 보고가 자동화된다.
+
+8. 메인 비교 중 확인: Figma 메인 Section(38:5796)은 Desktop(1440) / 992~1280 / Mobile(360) 3개 프레임이다.
+   section export 는 selection_required 후보 목록만 주고, 반응형 변형 간의 관계(같은 화면의 breakpoint 변형)를
+   알려주지 않는다. 에이전트가 Desktop 만 옮기면 다른 폭에서 "너무 다르다"가 된다.
+   -> 제안: 같은 이름/구조의 프레임을 breakpoint 그룹으로 묶어 responsiveGroups 로 반환하고,
+      responsiveTsx 출력을 쓰도록 안내 + 완료 보고에 "구현한 breakpoint / 남은 breakpoint" 를 요구한다.
+9. export 의 tsx 는 fontSize/fontWeight/lineHeight 를 typography 토큰과 중복 출력하고, 자동 레이아웃 fill 폭은
+   LAYOUT_UNCOVERED 로 누락된다(예: 수상 카드 6장 flex=1 이 고정 210px 로 구현됨).
+   -> 토큰과 동일한 중복 속성은 생략, fill/hug 는 flex/alignSelf 로 매핑.
+10. 메인의 시각 일치 여부는 아직 스크린샷 비교(devup_visual_compare)로 검증하지 못했다. 코드 구조 비교만으로는
+   "화면이 다르다"는 사용자 판단을 반박/확인할 수 없다. -> 완료 조건에 시각 비교를 포함하도록 가이드화.
+
+(이 파일은 계속 수집 중. 추가 사례가 나오면 아래에 덧붙인다.)
