@@ -615,6 +615,8 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 결과에는 `tsx`와 함께 `status`, `quality`, `cache`, `collection`, `source`가 포함됩니다. import 목록과 사용 token은 별도 키로 보내지 않습니다 — 각각 TSX의 첫 줄과 본문의 `$token`이 이미 같은 내용을 담고 있어, 응답에 두 번 싣는 만큼이 그대로 낭비였습니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. 변수 token은 비어 있지 않은 Figma `codeSyntax.WEB`을 우선하고, 없으면 변수 경로의 마지막 이름을 정규화합니다. 따라서 TSX의 `$token`, `devup.json` key와 source map이 같은 이름을 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
 
+대형 화면의 진단 details와 verdict/layout 메타데이터는 `metadataDelivery.uri`가 가리키는 `projection-details.json` resource로 전달할 수 있습니다. inline에는 이슈 개수·ID·severity와 검토 안내를 유지하고, 각 `fullDetailsResource.jsonPointer` 또는 `metadataPreviewFields`의 pointer로 원본을 찾습니다. preview의 생략 개수·상한은 명시하며, 필수 체크리스트에 따라 resource를 읽기 전에는 검증을 완료로 보고하지 마십시오. 코드·theme·에셋 파일과 resource byte/hash 계약은 동일합니다.
+
 ### Figma → devup.json
 
 `outputs: ["tsx", "devupJson"]`와 `devupJsonMode: "used-only"`를 함께 지정하면 생성 코드가 실제 참조하는 토큰과 typography 의존성만 반환합니다. `projectRoot`에 기존 theme가 있으면 `themeDiff`가 없는 정의와 이름 충돌을 보고하고, `devupJsonMode: "missing-only"`는 기존 값을 보존한 추가분만 반환합니다. 기본값은 `full`입니다. 읽을 수 없는 스타일은 `skippedStyles`와 이름·노드 ID가 있는 경고로 분리하며, strict 모드는 거절합니다. 변수/미지정 fontSize의 백분율 lineHeight는 문자열로 보존합니다.

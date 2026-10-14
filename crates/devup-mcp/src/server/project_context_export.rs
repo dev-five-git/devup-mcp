@@ -123,7 +123,9 @@ pub(crate) fn attach(result: &mut Value, root: &str) {
         .map_or(usize::MAX, |v| v.len());
     let budget = 65_536usize.min(
         super::super::delivery::MAX_INLINE_TOTAL_BYTES
-            .saturating_sub(wire_bytes.saturating_add(8192))
+            // Review, skills, theme-validation and job metadata are attached
+            // around this boundary and are also duplicated in MCP content.
+            .saturating_sub(wire_bytes.saturating_add(32_768))
             / 3,
     );
     if budget < 2048 {

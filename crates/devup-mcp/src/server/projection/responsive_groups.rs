@@ -6,10 +6,12 @@ use devup_mcp_figma::ExploreCandidate;
 
 pub fn discover(candidates: &[ExploreCandidate], artifact_id: &str) -> Vec<Value> {
     let mut buckets = BTreeMap::<(Option<String>, String), Vec<&ExploreCandidate>>::new();
-    for candidate in candidates
-        .iter()
-        .filter(|candidate| candidate.node.is_screen_candidate())
-    {
+    for candidate in candidates.iter().filter(|candidate| {
+        candidate.node.is_screen_candidate()
+            || (candidate.node.visible
+                && candidate.node.node_type == "FRAME"
+                && is_breakpoint_name(&candidate.node.name))
+    }) {
         let name = candidate.node.name.trim().to_ascii_lowercase();
         let family = if is_breakpoint_name(&name) {
             "@breakpoint-labels".into()
@@ -38,6 +40,33 @@ pub fn discover(candidates: &[ExploreCandidate], artifact_id: &str) -> Vec<Value
                 "why":"Export these related widths together. The merge will report structural differences and unrepresented properties."},
             "completionRequirement":"Report implemented breakpoints and remaining breakpoints; generated code alone does not verify the application at those widths."}))
     }).collect()
+}
+
+pub fn from_roots(payload: &CollectedPayload, artifact_id: &str) -> Vec<Value> {
+    let candidates = payload
+        .snapshot
+        .roots
+        .iter()
+        .filter_map(|id| {
+            let node =
+                devup_mcp_figma::ExploreNode::try_from(payload.snapshot.nodes.get(id)?).ok()?;
+            node.parent_id.as_ref()?;
+            Some(devup_mcp_figma::ExploreCandidate {
+                canonical_url: payload.target.link(Some(id)),
+                node,
+                score: 0,
+                selection_reasons: vec!["captured-root".into()],
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut groups = discover(&candidates, artifact_id);
+    for group in &mut groups {
+        group["nextAction"]["arguments"]
+            .as_object_mut()
+            .unwrap()
+            .remove("frameIds");
+    }
+    groups
 }
 
 fn width_slot(width: f64) -> Option<usize> {
@@ -78,7 +107,11 @@ pub fn completion(result: &mut Map<String, Value>, selected: &[String], all_scre
         for frame in group["breakpoints"].as_array().into_iter().flatten() {
             let id = frame["nodeId"].as_str().unwrap_or_default();
             let included = exported_ids.contains(id)
-                || (merged && (all_screens || selected.iter().any(|node| node == id)));
+                || (merged
+                    && (all_screens
+                        || selected.is_empty()
+                        || selected.iter().any(|node| node == id)))
+                || (result["source"]["nodeId"] == id && result.get("tsx").is_some());
             if included {
                 exported.push(frame.clone());
             } else {

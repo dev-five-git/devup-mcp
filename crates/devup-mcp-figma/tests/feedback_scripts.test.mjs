@@ -70,3 +70,11 @@ for (const name of ['snapshot', 'fast_snapshot']) {
     assert.equal(nodes.find(n => n.id === '1:3').fieldErrors.mainComponentId, 'actual identity lookup exception');
   });
 }
+
+test('direct Desktop capture includes a numeric range sibling and excludes unrelated frames', async () => {
+  const section = {id:'0:1',type:'SECTION',children:[]};
+  const make = (id,name,width) => ({id,name,width,height:900,type:'FRAME',parent:section,children:[]});
+  section.children = [make('1:1','Desktop',1440),make('1:2','992~1280',992),make('1:3','Mobile',360),make('1:4','Frame 14',992),make('1:5','1280~992',992)];
+  const result = await script('fast_snapshot', {__DEVUP_ROOT_IDS__:['1:1'],__DEVUP_SNAPSHOT__:{}})({fileKey:'fixture',getNodeByIdAsync:async id=>section.children.find(n=>n.id===id),variables:{}});
+  assert.deepEqual(new Set(result.snapshot.rootIds),new Set(['1:1','1:2','1:3']));
+});

@@ -342,6 +342,23 @@ fn view_component_role(node: &RawNode) -> Option<Role> {
 fn widget_composition(snapshot: &Snapshot, node: &RawNode) -> Option<&'static str> {
     let view = node.typed_view();
     let text = node_text(snapshot, &node.id).to_lowercase();
+    // Prime's checkbox CAPTCHA is a flattened, unnamed 304x78 image. Its
+    // dimensions suggest review, not a verified provider or image content.
+    if matches!((view.number("width"),view.number("height")),(Some(w),Some(h)) if (w-304.0).abs()<=1.0 && (h-78.0).abs()<=1.0)
+        && view
+            .value("fills")
+            .and_then(Value::as_array)
+            .is_some_and(|fills| {
+                fills.iter().any(|p| {
+                    p["type"] == "IMAGE"
+                        && p["visible"] != false
+                        && p["opacity"].as_f64().is_none_or(|o| o > 0.0)
+                        && p["imageHash"].as_str().is_some_and(|hash| !hash.is_empty())
+                })
+            })
+    {
+        return Some("captcha-sized-opaque-image-provider-and-content-unverified");
+    }
     if ["card number", "카드 번호", "mm/yy", "cvc", "cvv"]
         .iter()
         .filter(|s| text.contains(**s))
@@ -656,6 +673,12 @@ pub(super) fn attach(result: &mut Value, snapshot: &Snapshot) {
         .is_some_and(|v| !v.is_empty())
     {
         questions.push(json!({"topic":"third-party-widgets","question":"Confirm widget provider and existing integration/env key names without sharing values."}));
+        if result["deliverable"].is_object() {
+            result["deliverable"]["isFinal"] = json!(false);
+            result["deliverable"]["note"] = json!(
+                "Widget candidates require provider confirmation and functional integration; a static image does not establish widget behavior."
+            );
+        }
     }
     result["ambiguityQuestions"] = json!(questions);
     result["completionEvidence"] = json!({"behavior":"unverified","visual":"unverified","required":["Report candidate, wired and tested counts with unresolved reasons.","Run devup_ui_validate with real route inventory and inspect source/rendered href coverage.","Render at each implemented viewport with project fonts/assets loaded and capture a screenshot; call devup_visual_compare against referencePng. Report skipped comparisons and remaining viewports explicitly."],

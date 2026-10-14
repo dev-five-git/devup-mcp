@@ -4,6 +4,6 @@
     "crates/devup-mcp-figma/Cargo.toml": "Patch",
     "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
   },
-  "note": "Integrate the settled theme, nested asset and interaction feedback work. Flag constant underlines on navigation candidates as unverified info, keep interaction output schemas compatible with MCP clients, bound text diagnostic excerpts with explicit truncation, verify large used-only theme/code output resource hashes against saved files after interaction hints, and run nested asset/async component identity plus original-image source regressions in existing CI. Include a read-only new-binary Prime verification driver and document exact local/live limitations.",
+  "note": "Integrate the settled theme, nested asset and interaction feedback work. Flag constant navigation underlines as unverified info, preserve MCP schema compatibility, bound text diagnostic excerpts, deliver complete bulky diagnostics/verdict/layout metadata through hash-verified resources with explicit preview omissions and required review, and reserve context headroom for final MCP wire sizing. Discover tall named breakpoint wrappers and provide valid direct-frame responsive guidance without claiming implementation. Verify final code/theme/file/resource hashes and enforce nested asset/async identity source regressions in existing CI; include a read-only Prime verification driver and exact coverage/limitations.",
   "date": "2026-10-14T10:15:00Z"
 }

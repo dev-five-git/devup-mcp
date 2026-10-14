@@ -1,7 +1,6 @@
 // Read-only Prime acquisition and source validation through an explicitly named
 // local binary. Generated evidence/assets stay inside the integration checkout.
 import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -19,17 +18,35 @@ const pending = new Map();
 let nextId = 0;
 let stderrBytes = 0;
 child.stderr.on('data', b => { stderrBytes += b.length; });
-createInterface({ input: child.stdout }).on('line', line => {
-  const reply = JSON.parse(line);
+let stdoutPending = Buffer.alloc(0);
+let malformedCaptured = false;
+child.stdout.on('data', chunk => {
+  stdoutPending = Buffer.concat([stdoutPending, chunk]);
+  let end;
+  while ((end = stdoutPending.indexOf(10)) >= 0) {
+    const line = stdoutPending.subarray(0, end).toString('utf8');
+    stdoutPending = stdoutPending.subarray(end + 1);
+    consumeLine(line);
+  }
+});
+function consumeLine(line) {
+  let reply;
+  try { reply = JSON.parse(line); }
+  catch (error) {
+    if (!malformedCaptured) { writeFileSync(join(out, 'malformed-stdout.txt'), line); malformedCaptured = true; }
+    for (const p of pending.values()) { clearTimeout(p.timer); p.reject(Error(`Malformed stdio JSON during ${p.label}: ${error.message}; ${Buffer.byteLength(line)} bytes captured`)); }
+    pending.clear();
+    return;
+  }
   const request = pending.get(reply.id);
   if (request) { clearTimeout(request.timer); pending.delete(reply.id); request.resolve(reply); }
-});
+}
 child.on('error', error => { for (const p of pending.values()) p.reject(error); });
 function rpc(method, params) {
   return new Promise((resolve, reject) => {
     const id = ++nextId;
     const timer = setTimeout(() => { pending.delete(id); reject(Error(`${method} timed out after 60 seconds`)); }, 60000);
-    pending.set(id, { resolve, reject, timer });
+    pending.set(id, { resolve, reject, timer, label: `${method}${params?.name ? ` ${params.name}` : ''}` });
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
   });
 }
@@ -70,10 +87,12 @@ async function resource(link) {
 function summary(reply) {
   const r = reply.data;
   return { status: r.status, error: r.error, server: r.server, wireBytes: reply.wireBytes,
-    source: r.source, quality: r.quality, collection: r.collection, responsiveGroups: r.responsiveGroups,
+    fieldBytes: Object.fromEntries(Object.entries(r).map(([key, value]) => [key, Buffer.byteLength(JSON.stringify(value))])),
+    metadataDelivery: r.metadataDelivery,
+    source: r.source, quality: r.quality, collection: r.collection, selection: r.selection, verificationScope: r.verificationScope, responsiveGroups: r.responsiveGroups,
     breakpointCompletion: r.breakpointCompletion, interactionCoverage: r.interactionCoverage,
     interactionEvidenceLimits: r.interactionEvidenceLimits, candidates: r.interactiveCandidates,
-    sharedComponentCandidates: r.sharedComponentCandidates, widgetCandidates: r.widgetCandidates,
+    sharedComponentCandidates: r.sharedComponentCandidates, widgetCandidates: r.widgetCandidates, stateAndIconDetails: r.stateAndIconDetails,
     ambiguityQuestions: r.ambiguityQuestions, reviewChecklist: r.reviewChecklist,
     devupJsonMode: r.devupJsonMode, skippedStyles: r.skippedStyles, unresolvedUsedTokens: r.unresolvedUsedTokens,
     themeDiff: r.themeDiff, projectContext: r.projectContext, completionEvidence: r.completionEvidence };
@@ -99,15 +118,20 @@ try {
       assert.equal(record.file.validSignature, true);
     }
     console.log(JSON.stringify({ asset: format, status: reply.data.status, file: record.file, error: reply.data.error }));
+    assert.ok(record.file?.validSignature, `${format} asset was not exported to a valid file`);
   }
   for (const [name, arguments_] of [
+    ['inquiry', { url: url('44:8516'), outputs: ['tsx'], delivery: 'auto', refresh: true }],
     ['section', { url: url('38:5796'), outputs: ['tsx'], delivery: 'auto', refresh: true }],
+    ['desktop-default', { url: url('38:5207'), outputs: ['tsx', 'devupJson'], delivery: 'auto', refresh: true }],
     ['desktop-used', { url: url('38:5207'), outputs: ['tsx', 'devupJson', 'sourceMap', 'rawSnapshot'], debug: true, devupJsonMode: 'used-only', delivery: 'auto', refresh: true,
       outputPaths: { tsx: join(out, 'desktop.tsx'), devupJson: join(out, 'desktop-devup.json') } }],
     ['maintenance', { url: url('33:3908'), outputs: ['tsx'], delivery: 'auto', refresh: true }],
   ]) {
     const reply = await exported({ ...arguments_, projectRoot });
     const record = evidence.exports[name] = summary(reply);
+    assert.ok(!record.error, `${name} export failed: ${JSON.stringify(record.error)}`);
+    assert.ok(record.wireBytes <= 1024 * 1024, `${name} tool envelope exceeds 1 MiB: ${record.wireBytes}`);
     record.resources = [];
     for (const link of reply.data.resources ?? []) {
       const bytes = await resource(link);
@@ -121,6 +145,15 @@ try {
       if (link.name === 'tsx') record.codeHints = { interactionCommentCount: (bytes.toString().match(/\/\/ @devup-interaction /g) ?? []).length };
     }
     console.log(JSON.stringify({ export: name, status: record.status, wireBytes: record.wireBytes, candidates: record.interactionCoverage, error: record.error }));
+    if (name === 'section' || name === 'desktop-used') {
+      const action = reply.data.responsiveGroups?.[0]?.nextAction;
+      if (action) {
+        const guided = await exported({ ...action.arguments, projectRoot });
+        record.responsiveGuidance = { status: guided.data.status, error: guided.data.error, wireBytes: guided.wireBytes, breakpointCompletion: guided.data.breakpointCompletion };
+        assert.ok(!guided.data.error, `${name} responsive guidance failed: ${JSON.stringify(guided.data.error)}`);
+        assert.ok(guided.wireBytes <= 1024*1024);
+      }
+    }
   }
   const arrowPath = join(out, 'normal-arrow.svg');
   const arrowReply = await exported({ url: url('I38:6538;30:1937;30:843'), outputs: ['assetManifest'], assetRequests: [{ assetId: 'I38:6538;30:1937;30:843:node', format: 'svg', scale: 1, outputPath: arrowPath }], delivery: 'auto', refresh: true });

@@ -112,6 +112,11 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
 /// Add `summary` and, only when something needs review, `reviewChecklist`.
 pub(super) fn attach(result: &mut Value) {
     let mut items = vec![];
+    if result["metadataDelivery"]["requiresFullDetailRead"] == true {
+        items.push(json!({"severity":"required","scope":"response","code":"PROJECTION_DETAILS_RESOURCE",
+            "what":"Complete projection diagnostic details are delivered as a resource.",
+            "how":"Read metadataDelivery.uri and follow each fullDetailsResource.jsonPointer before accepting evidence; inline issues retain identities and severity but summarize details."}));
+    }
     collect(result, "response", &mut items);
     if let Some(frames) = result["frames"].as_array() {
         for frame in frames {

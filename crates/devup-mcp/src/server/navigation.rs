@@ -27,6 +27,7 @@ fn literal(a: &JSXAttribute<'_>) -> Option<String> {
 struct Collector<'s> {
     source: &'s str,
     linked_ancestors: usize,
+    link_ancestors: usize,
     form_ancestors: usize,
     nav_ancestors: usize,
     link_names: BTreeSet<String>,
@@ -77,8 +78,7 @@ fn fixed_visual_marker(attrs: &BTreeMap<&str, &JSXAttribute<'_>>) -> bool {
     }
     values.get("borderBottom").is_some_and(|v| {
         v.split_whitespace()
-            .next()
-            .is_some_and(|width| ["1px", "2px", "3px", "4px"].contains(&width))
+            .any(|width| ["1px", "2px", "3px", "4px"].contains(&width))
             && v.split_whitespace().any(|s| s == "solid")
             && !v.contains("transparent")
     }) || (values
@@ -211,11 +211,12 @@ impl<'a> Visit<'a> for Collector<'_> {
             || attrs.get("data-state").is_some_and(|a| {
                 literal(a).is_some_and(|s| ["active", "selected"].contains(&s.as_str()))
             });
-        let visual_marker = candidate
-            && !active
-            && (self.nav_ancestors > 0 || nav || is_link || role.as_deref() == Some("tab"))
+        let visual_marker = !active
+            && ((candidate
+                && (self.nav_ancestors > 0 || nav || is_link || role.as_deref() == Some("tab")))
+                || self.link_ancestors > 0)
             && fixed_visual_marker(&attrs);
-        if candidate || active {
+        if candidate || active || visual_marker {
             self.elements.push(json!({"element":name,"name":accessible_name.trim(),"line":line,"offset":element.span.start,
                 "candidate":candidate,"wired":wired || self.linked_ancestors>0,"href":href,"dynamicHref":attrs.contains_key("href") && href.is_none(),
                 "nodeId":attrs.get("data-figma-node-id").and_then(|a|literal(a)),
@@ -227,10 +228,12 @@ impl<'a> Visit<'a> for Collector<'_> {
         // A dynamic Link is still a semantic ancestor, but its destination remains unresolved.
         let parent_control = is_link || native;
         self.linked_ancestors += usize::from(parent_control);
+        self.link_ancestors += usize::from(is_link);
         self.form_ancestors += usize::from(form_action);
         self.nav_ancestors += usize::from(nav);
         walk::walk_jsx_element(self, element);
         self.linked_ancestors -= usize::from(parent_control);
+        self.link_ancestors -= usize::from(is_link);
         self.form_ancestors -= usize::from(form_action);
         self.nav_ancestors -= usize::from(nav);
     }

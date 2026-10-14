@@ -29,8 +29,15 @@ if (roots.length === 1 && roots[0].type === "SECTION") {
 // the copy shows in the responsive array. Sorting the family by name here put
 // tablet's values where the reference has desktop's.
 const BREAKPOINT_NAMES = ["mobile", "tablet", "desktop"];
-const breakpointRank = (node) =>
-  BREAKPOINT_NAMES.indexOf(String(node.name || "").trim().toLowerCase());
+const breakpointRank = (node) => {
+  const name = String(node.name || "").trim().toLowerCase();
+  const known = BREAKPOINT_NAMES.indexOf(name);
+  if (known >= 0) return known;
+  const range = name.match(/^(\d+)\s*[~–]\s*(\d+)$/);
+  if (!range) return -1;
+  const start = Number(range[1]), end = Number(range[2]);
+  return Number.isSafeInteger(start) && Number.isSafeInteger(end) && start > 0 && end >= start && end <= 0xffffffff ? 1 : -1;
+};
 if (roots.length === 1 && breakpointRank(roots[0]) >= 0) {
   const parent = roots[0].parent;
   if (parent && parent.type === "SECTION" && "children" in parent) {

@@ -332,6 +332,77 @@ fn feedback_fixed_navigation_underline_is_an_unverified_info_candidate() {
 }
 
 #[test]
+fn feedback_prime_link_center_text_marker_respects_border_order_and_dynamic_pathname() {
+    let source = r#"import Link from 'next/link'; const Header=()=> <nav><Link href='/services'><Center borderBottom='solid 3px $primary'><Text>서비스</Text></Center></Link><Link href='/privacy'><Center borderBottom={pathname === '/privacy' ? 'solid 3px $primary' : 'none'}><Text>Privacy</Text></Center></Link><Center borderBottom='solid 3px $primary'><Text>Decorative</Text></Center></nav>"#;
+    let report = navigation::report(source, &json!({}), None);
+    let markers = report["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|f| f["rule"] == "fixed-navigation-marker")
+        .collect::<Vec<_>>();
+    assert_eq!(markers.len(), 1);
+    assert_eq!(markers[0]["element"], "Center");
+    assert_eq!(markers[0]["severity"], "info");
+    assert_eq!(report["coverage"]["candidateCount"], 2);
+    assert_eq!(report["coverage"]["runtimeVerified"], false);
+    assert!(
+        !report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["rule"] == "hardcoded-active-state")
+    );
+}
+
+#[test]
+fn feedback_opaque_prime_captcha_image_is_only_a_review_candidate() {
+    let mut data = design();
+    let root = data.nodes.get_mut("widget").unwrap();
+    root.node_type = "RECTANGLE".into();
+    root.fields.clear();
+    root.fields.insert("name".into(), json!("image 1"));
+    root.fields.insert("width".into(), json!(304));
+    root.fields.insert("height".into(), json!(78));
+    root.fields.insert(
+        "fills".into(),
+        json!([{"type":"IMAGE","imageHash":"captured-image-hash"}]),
+    );
+    let evidence = interactions::evidence(&data, &["widget".into()]);
+    assert!(
+        evidence["widgetCandidates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w["nodeId"] == "widget"
+                && w["verified"] == false
+                && w["reason"] == "captcha-sized-opaque-image-provider-and-content-unverified")
+    );
+    data.roots = vec!["widget".into()];
+    let mut result = json!({"tsx":"const View=()=> <Box/>;","deliverable":{"isFinal":true}});
+    interactions::attach(&mut result, &data);
+    assert_eq!(result["deliverable"]["isFinal"], false);
+    assert_eq!(result["interactionCoverage"]["candidateCount"], 0);
+    for paint in [
+        json!({"type":"SOLID"}),
+        json!({"type":"IMAGE","imageHash":"source","visible":false}),
+        json!({"type":"IMAGE","imageHash":"source","opacity":0.0}),
+    ] {
+        data.nodes
+            .get_mut("widget")
+            .unwrap()
+            .fields
+            .insert("fills".into(), json!([paint]));
+        assert!(
+            interactions::evidence(&data, &["widget".into()])["widgetCandidates"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
 fn feedback_validation_limits_do_not_claim_absence_or_success() {
     let source = r#"import Link from 'next/link'; const Screen=()=> <><Link href={destination}>Dynamic</Link><a href='https://example.com'>External</a><a href='#section'>Hash</a><a href='/logo.svg'>Asset</a><Text>Database table</Text></>"#;
     for inventory in [
