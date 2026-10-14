@@ -102,7 +102,19 @@ pub struct ThemeOutput {
     pub diagnostics: Vec<Diagnostic>,
     pub conflicts: Vec<ThemeConflict>,
     pub unresolved_variables: Vec<ThemeUnresolvedVariable>,
+    #[serde(default)]
+    pub skipped_styles: Vec<ThemeSkippedStyle>,
     pub source_map: SourceMap,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThemeSkippedStyle {
+    pub style_id: String,
+    pub name: String,
+    pub reason: String,
+    #[serde(default)]
+    pub node_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,6 +179,7 @@ pub fn generate_devup_json(
     let mut diagnostics = Vec::new();
     let mut conflicts = Vec::new();
     let mut unresolved_variables = Vec::new();
+    let mut skipped_styles = Vec::new();
     let mut source_entries = Vec::new();
     let collections = snapshot
         .collections
@@ -438,6 +451,26 @@ pub fn generate_devup_json(
         })
         .collect::<Vec<_>>();
     for style in &styles {
+        if style.style_type == "TEXT"
+            && let Some(reason) = typography_problem(&style.value)
+        {
+            skipped_styles.push(ThemeSkippedStyle {
+                style_id: style.id.clone(),
+                name: style.name.clone(),
+                reason: reason.clone(),
+                node_ids: Vec::new(),
+            });
+            diagnostics.push(Diagnostic {
+                code: "DEVUP_THEME_STYLE_SKIPPED".into(),
+                message: format!("Text style '{}' ({}) was skipped: {reason}", style.name, style.id),
+                resource_kind: Some("style".into()), resource_id: Some(style.id.clone()),
+                severity: Some(DiagnosticSeverity::Warning), recoverable: Some(true),
+                fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
+                details: Some(json!({"styleName":style.name,"styleId":style.id,"reason":reason,"output":"devupJson"})),
+                ..Diagnostic::default()
+            });
+            continue;
+        }
         let (level, token) = style_token(&style.name);
         let level = level.min(5);
         match style.style_type.as_str() {
@@ -673,14 +706,16 @@ pub fn generate_devup_json(
     })?;
     output.push('\n');
 
-    let completeness =
-        if scope == ThemeScope::File && snapshot.local_complete && snapshot.used_remote_complete {
-            Completeness::FullLocalPlusUsedRemote
-        } else if variable_count > 0 || !styles.is_empty() {
-            Completeness::UsedTokens
-        } else {
-            Completeness::ResolvedValuesOnly
-        };
+    let completeness = if !skipped_styles.is_empty() || !unresolved_variables.is_empty() {
+        Completeness::ResolvedValuesOnly
+    } else if scope == ThemeScope::File && snapshot.local_complete && snapshot.used_remote_complete
+    {
+        Completeness::FullLocalPlusUsedRemote
+    } else if variable_count > 0 || !styles.is_empty() {
+        Completeness::UsedTokens
+    } else {
+        Completeness::ResolvedValuesOnly
+    };
     unresolved_variables.sort_by(|left, right| {
         left.variable_id
             .cmp(&right.variable_id)
@@ -693,7 +728,7 @@ pub fn generate_devup_json(
         counts: ThemeCounts {
             collections: snapshot.collections.len(),
             variables: variable_count,
-            styles: styles.len(),
+            styles: styles.len() - skipped_styles.len(),
             modes: snapshot
                 .collections
                 .iter()
@@ -704,12 +739,49 @@ pub fn generate_devup_json(
         diagnostics,
         conflicts,
         unresolved_variables,
+        skipped_styles,
         source_map: SourceMap {
             version: 1,
             entries: source_entries,
             ..SourceMap::empty()
         },
     })
+}
+
+// A missing size is representable (including percentage line height). An
+// unreadable style or malformed metric is not; isolate it rather than invent
+// a default typography entry or reject all the other resources.
+fn typography_problem(style: &Value) -> Option<String> {
+    let Some(object) = style.as_object() else {
+        return Some("style value is not an object".into());
+    };
+    fn unreadable(value: &Value) -> bool {
+        match value {
+            Value::Object(object) => {
+                ["$unsupported", "$undefined", "$truncated", "$error"]
+                    .iter()
+                    .any(|marker| object.contains_key(*marker))
+                    || object.values().any(unreadable)
+            }
+            Value::Array(values) => values.iter().any(unreadable),
+            _ => false,
+        }
+    }
+    if unreadable(style) || object.values().any(unreadable) {
+        return Some("style contains an unreadable field; recollect the style".into());
+    }
+    for metric in ["lineHeight", "letterSpacing"] {
+        if let Some(value) = object.get(metric).filter(|v| !v.is_null()) {
+            let unit = value.get("unit").and_then(Value::as_str);
+            if unit != Some("AUTO")
+                && (value.get("value").and_then(Value::as_f64).is_none()
+                    || !matches!(unit, Some("PERCENT" | "PIXELS")))
+            {
+                return Some(format!("{metric} has no representable unit/value"));
+            }
+        }
+    }
+    None
 }
 
 /// A text style's value as devup-ui reads it — the plugin's

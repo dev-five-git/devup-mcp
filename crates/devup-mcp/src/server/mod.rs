@@ -1548,6 +1548,12 @@ impl DevupServer {
         let asset_public_root =
             validation::validate_public_root(workflow.asset_public_root.as_deref())
                 .map_err(to_mcp_error)?;
+        projection::theme_export::validate(
+            &input.devup_json_mode,
+            &input.outputs,
+            input.project_root.as_deref(),
+        )
+        .map_err(to_mcp_error)?;
         if asset_public_root.is_some()
             && input.page_scaffold.is_none()
             && !input
@@ -1754,6 +1760,10 @@ impl DevupServer {
                             root_layout,
                             asset_names_per_node: input.asset_names_per_node,
                             scope: input.scope,
+                            theme_options: projection::theme_export::ThemeExportOptions {
+                                mode: input.devup_json_mode,
+                                project_root: input.project_root.clone(),
+                            },
                             strict: input.strict,
                             output_paths: input.output_paths,
                             page_scaffold: input.page_scaffold,
@@ -1797,6 +1807,10 @@ impl DevupServer {
                     root_layout,
                     asset_names_per_node: input.asset_names_per_node,
                     scope: input.scope,
+                    theme_options: projection::theme_export::ThemeExportOptions {
+                        mode: input.devup_json_mode,
+                        project_root: input.project_root.clone(),
+                    },
                     strict: input.strict,
                     output_paths: input.output_paths,
                     page_scaffold: input.page_scaffold,
@@ -1894,6 +1908,10 @@ impl DevupServer {
             root_layout,
             asset_names_per_node: input.asset_names_per_node,
             scope: input.scope,
+            theme_options: projection::theme_export::ThemeExportOptions {
+                mode: input.devup_json_mode,
+                project_root: input.project_root.clone(),
+            },
             strict: input.strict,
             output_paths: input.output_paths,
             page_scaffold: input.page_scaffold,
@@ -3105,6 +3123,7 @@ mod section_retry_tests {
             root_layout: RootLayout::Standalone,
             asset_names_per_node: true,
             scope: "node".into(),
+            theme_options: Default::default(),
             strict: false,
             output_paths: Default::default(),
             page_scaffold: None,

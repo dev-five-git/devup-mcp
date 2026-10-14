@@ -284,7 +284,24 @@ impl DivergenceReason {
 
 fn rank_of(name: &str) -> Option<usize> {
     let name = name.trim().to_ascii_lowercase();
-    BREAKPOINT_NAMES.iter().position(|known| *known == name)
+    BREAKPOINT_NAMES
+        .iter()
+        .position(|known| *known == name)
+        .or_else(|| {
+            // Some Sections label their middle design by a width range instead
+            // of "tablet". Recognize only explicit numeric ranges; a number in
+            // an unrelated screen name is not a breakpoint declaration.
+            let (start, end) = name.split_once(['~', '–'])?;
+            let (start, end) = (
+                start.trim().parse::<u32>().ok()?,
+                end.trim().parse::<u32>().ok()?,
+            );
+            (start > 0 && end >= start).then_some(1)
+        })
+}
+
+pub fn is_breakpoint_name(name: &str) -> bool {
+    rank_of(name).is_some()
 }
 
 /// Whether roots with these names and widths could be a breakpoint family.

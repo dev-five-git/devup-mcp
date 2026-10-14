@@ -28,6 +28,9 @@ pub struct CodegenOptions {
     pub include_diagnostics: bool,
     pub inline_instances: bool,
     pub text_style_tokens: std::collections::BTreeMap<String, String>,
+    /// Materialized typography values from the same resources as devup.json.
+    /// Names alone cannot prove that a local font property is redundant.
+    pub typography_values: BTreeMap<String, serde_json::Value>,
     pub variable_tokens: std::collections::BTreeMap<String, String>,
     pub root_layout: RootLayout,
     /// Name every asset after the node it came from, rather than after its
@@ -74,6 +77,36 @@ impl CodegenOptions {
         self.text_style_tokens = named_tokens(styles, "styles");
         self.variable_tokens = named_tokens(variables, "variables");
         self.length_tokens = length_tokens(variables);
+        let mut snapshot = variables
+            .and_then(|result| crate::theme::variable_snapshot_from_result(result).ok())
+            .unwrap_or_else(|| {
+                serde_json::from_value(serde_json::json!({})).expect("empty variable snapshot")
+            });
+        if let Some(styles) =
+            styles.and_then(|result| crate::theme::variable_snapshot_from_result(result).ok())
+        {
+            for style in styles.styles {
+                if !snapshot
+                    .styles
+                    .iter()
+                    .any(|existing| existing.id == style.id)
+                {
+                    snapshot.styles.push(style);
+                }
+            }
+        }
+        self.typography_values =
+            crate::theme::generate_devup_json(&snapshot, crate::theme::ThemeScope::File)
+                .ok()
+                .and_then(|output| serde_json::from_str::<serde_json::Value>(&output.json).ok())
+                .and_then(|value| {
+                    value
+                        .pointer("/theme/typography")
+                        .and_then(serde_json::Value::as_object)
+                        .cloned()
+                })
+                .map(|values| values.into_iter().collect())
+                .unwrap_or_default();
         self
     }
 }
@@ -1073,6 +1106,7 @@ fn generate_node_marked(
         asset_names_per_node: options.asset_names_per_node,
         inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
+        typography_values: options.typography_values.clone(),
         variable_tokens: options.variable_tokens.clone(),
         length_tokens: options.length_tokens.clone(),
         root_layout: options.root_layout,
@@ -1419,6 +1453,7 @@ struct Context {
     inline_instances: bool,
     instance_boolean_properties: Vec<BTreeMap<String, bool>>,
     text_style_tokens: std::collections::BTreeMap<String, String>,
+    typography_values: BTreeMap<String, serde_json::Value>,
     variable_tokens: std::collections::BTreeMap<String, String>,
     length_tokens: BTreeMap<String, LengthToken>,
     root_layout: RootLayout,
@@ -1697,6 +1732,7 @@ fn render_node(
     text::push_text_props(
         &view,
         &context.text_style_tokens,
+        &context.typography_values,
         &context.variable_tokens,
         &mut context.used_tokens,
         &mut props,
@@ -1794,6 +1830,7 @@ fn render_node(
         let children = text::render_text_children(
             &view,
             &context.text_style_tokens,
+            &context.typography_values,
             &context.variable_tokens,
             &mut context.used_tokens,
             depth + 1,

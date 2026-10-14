@@ -1,5 +1,9 @@
 #[path = "page_scaffold.rs"]
 pub(crate) mod page_scaffold;
+#[path = "projection/responsive_groups.rs"]
+mod responsive_groups;
+#[path = "projection/theme_export.rs"]
+pub(crate) mod theme_export;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -345,6 +349,12 @@ pub(super) async fn apply_delivery(
         let coupled = reprojection_arguments.is_some_and(|a| {
             a.get("pageScaffold").is_some()
                 || a["assetRequests"].as_array().is_some_and(|a| !a.is_empty())
+                || (matches!(
+                    a["devupJsonMode"].as_str(),
+                    Some("used-only" | "missing-only")
+                ) && a["outputs"]
+                    .as_array()
+                    .is_some_and(|outputs| outputs.iter().any(|output| output == "devupJson")))
         });
         let mut args = reprojection_arguments.cloned().unwrap_or_else(|| json!({}));
         if !coupled {
@@ -374,9 +384,19 @@ pub(super) async fn apply_delivery(
         if args.get("pageScaffold").is_some() {
             args["pageScaffold"]["write"] = json!(false);
         }
+        if matches!(
+            args["devupJsonMode"].as_str(),
+            Some("used-only" | "missing-only")
+        ) && args.get("pageScaffold").is_none()
+            && !args["assetRequests"]
+                .as_array()
+                .is_some_and(|requests| !requests.is_empty())
+        {
+            args.as_object_mut().unwrap().remove("outputPaths");
+        }
         let example = json!({"tool":"devup_figma_export","arguments":args});
         result["nextAction"] = json!({"tool":"devup_figma_export","arguments":args,"example":example,
-            "how":if coupled { "Read the linked resources. Preserve coupled asset requests and paths in this resource reprojection; splitting them can change generated URLs." }
+            "how":if coupled { "Read the linked resources. Preserve coupled code/theme outputs and asset requests/paths in this resource reprojection; splitting them can change token selection or generated URLs." }
                 else if field == "responsiveTsx" { "Read the linked resource or reproject this responsive output with the same breakpoint selection. A responsive merge requires multiple source screens." }
                 else { "Read the linked resources, or compare the same artifact using this single-screen, single-output reprojection. No new Figma acquisition is required. Inline errors retain R12 resource recovery arguments." },
             "sizeEstimate":{"outputBytes":bytes,"minimumWireBytes":escaped_bytes * 2,
@@ -1364,6 +1384,7 @@ async fn project_operation(
             root_layout,
             asset_names_per_node,
             scope,
+            theme_options,
             strict,
             output_paths,
             page_scaffold,
@@ -1418,6 +1439,7 @@ async fn project_operation(
                 "componentName":component_name,"includeDiagnostics":include_diagnostics,
                 "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
                 "assetNamesPerNode":asset_names_per_node,"scope":scope,"strict":strict,
+                "devupJsonMode":if theme_options.mode.is_empty() {"full"} else {&theme_options.mode},"projectRoot":theme_options.project_root,
                 "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
                 "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
                 "delivery":"resource",
@@ -1577,6 +1599,15 @@ async fn project_operation(
             } else {
                 None
             };
+            if let Some(candidates) = &section_candidates {
+                result.insert(
+                    "responsiveGroups".into(),
+                    json!(responsive_groups::discover(
+                        candidates,
+                        &artifact.artifact_id
+                    )),
+                );
+            }
             if let Some(candidates) = &section_candidates
                 && frame_ids.is_empty()
                 && !all_screens
@@ -1635,6 +1666,7 @@ async fn project_operation(
                             "rootLayout": if root_layout == devup_mcp_devup_ui::codegen::RootLayout::Embedded { "embedded" } else { "standalone" },
                             "assetNamesPerNode": asset_names_per_node,
                             "scope": scope,
+                            "devupJsonMode":if theme_options.mode.is_empty() {"full"} else {&theme_options.mode},"projectRoot":theme_options.project_root,
                             "strict": strict,
                             "debug": outputs.iter().any(|output| super::validation::DIAGNOSIS_OUTPUTS.contains(&output.as_str())),
                             "outputPaths": output_paths,
@@ -1712,6 +1744,7 @@ async fn project_operation(
                 if scaffold_requested {
                     page_scaffold::selection_guidance(&mut result);
                 }
+                responsive_groups::completion(&mut result, &frame_ids, all_screens);
                 return Ok(Value::Object(result));
             }
 
@@ -2282,9 +2315,43 @@ async fn project_operation(
                 let variables = payload.variables.as_ref().ok_or_else(|| unavailable_output(payload, "devupJson",
                     "No variable/style resources were collected. Re-collect from the URL with devupJson in outputs and the desired scope."))?;
                 let variables = variable_snapshot_from_result(variables)?;
-                let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+                let mut output = theme_export::generate(
+                    &variables,
+                    parse_scope(&scope)?,
+                    &theme_options,
+                    &result,
+                )?;
+                theme_export::prepare(&mut output, &theme_options, &mut result, payload, strict)?;
                 theme_conflict_count = output.conflicts.len();
-                theme_unresolved_count = output.unresolved_variables.len();
+                theme_unresolved_count =
+                    output.unresolved_variables.len() + output.skipped_styles.len();
+                theme_unresolved_count += result
+                    .get("unresolvedUsedTokens")
+                    .and_then(Value::as_array)
+                    .map_or(0, Vec::len);
+                if let Some(diff) = result.get("themeDiff") {
+                    let conflicts = diff["existingTypographyConflicts"].as_array();
+                    theme_conflict_count += conflicts.map_or(0, Vec::len);
+                    for conflict in conflicts.into_iter().flatten() {
+                        warnings.push(json!({"code":"DEVUP_THEME_EXISTING_TYPOGRAPHY_CONFLICT",
+                            "message":format!("Existing typography token '{}' differs from Figma; the project's value is preserved and visual fidelity needs review.", conflict["token"].as_str().unwrap_or_default()),
+                            "details":conflict,"severity":"warning"}));
+                    }
+                }
+                warnings.extend(
+                    output
+                        .diagnostics
+                        .iter()
+                        .filter(|d| d.code == "DEVUP_THEME_STYLE_SKIPPED")
+                        .map(|d| json!(d)),
+                );
+                projection_diagnostics.extend(
+                    output
+                        .diagnostics
+                        .iter()
+                        .filter(|d| d.code == "DEVUP_THEME_STYLE_SKIPPED")
+                        .cloned(),
+                );
                 devup_json_source_map = Some(output.source_map.clone());
                 if output_paths.contains_key("devupJson") {
                     pending_text_outputs.insert("devupJson".to_owned(), output.json.clone());
@@ -2638,6 +2705,7 @@ async fn project_operation(
                     }
                 }
             }
+            responsive_groups::completion(&mut result, &frame_ids, all_screens);
             result.insert(
                 "placementContracts".into(),
                 json!(
@@ -3345,6 +3413,7 @@ fn attach_diagnostic_screens(value: &mut Value, owners: &BTreeMap<String, Option
 #[cfg(test)]
 mod w1_regressions {
     include!("projection/design_drift_tests.rs");
+    include!("projection/feedback_theme_tests.rs");
     use super::super::artifacts::ArtifactRequestKey;
     use super::*;
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
@@ -5358,6 +5427,7 @@ mod w1_regressions {
             root_layout: Default::default(),
             asset_names_per_node: true,
             scope: "node".into(),
+            theme_options: Default::default(),
             strict: false,
             output_paths: BTreeMap::new(),
             page_scaffold: None,
