@@ -211,8 +211,8 @@ impl BuiltinScript {
                 .expect("snapshot options serialize");
         let root_ids = serde_json::to_string(inputs.root_ids.unwrap_or(&default_root_ids))
             .expect("root ids serialize");
-        let large_value =
-            serde_json::to_string(inputs.large_value.unwrap_or(&LargeValueReadOptions {
+        let mut large_value =
+            serde_json::to_value(inputs.large_value.unwrap_or(&LargeValueReadOptions {
                 node_id: String::new(),
                 field: String::new(),
                 offset: 0,
@@ -222,6 +222,13 @@ impl BuiltinScript {
                 version: None,
             }))
             .expect("large value options serialize");
+        if large_value["field"]
+            .as_str()
+            .is_some_and(|field| field.starts_with("$export:"))
+        {
+            large_value["timeoutMs"] = json!(crate::asset_timeout().as_millis() as u64);
+        }
+        let large_value = large_value.to_string();
         let asset = inputs
             .asset
             .map(|(request, version)| {
@@ -232,6 +239,7 @@ impl BuiltinScript {
                     "imageHash": request.image_hash,
                     "format": request.format,
                     "scale": request.scale,
+                    "timeoutMs": crate::asset_timeout().as_millis() as u64,
                     "version": version
                 })
             })
@@ -240,6 +248,14 @@ impl BuiltinScript {
         let theme = serde_json::to_string(&json!({ "offset": inputs.theme_offset.unwrap_or(0) }))
             .expect("theme page options serialize");
         source
+            .replace(
+                "\"__DEVUP_COMPONENT_IDENTITY_HELPERS__\"",
+                include_str!("scripts/component_identity_helpers.js"),
+            )
+            .replace(
+                "\"__DEVUP_ASSET_RENDER_HELPERS__\"",
+                include_str!("scripts/asset_render_helpers.js"),
+            )
             .replace(
                 "\"__DEVUP_LARGE_VALUE_HELPERS__\"",
                 include_str!("scripts/large_value_helpers.js"),
@@ -926,7 +942,15 @@ impl<S: CredentialStore> FigmaUpstream for RemoteFigmaClient<S> {
         }
         let result = self
             .sessions
-            .call_tool(&session, &call, self.call_tool_timeout)
+            .call_tool(
+                &session,
+                &call,
+                if call.is_asset_read() {
+                    crate::asset_timeout::asset_transport_timeout()
+                } else {
+                    self.call_tool_timeout
+                },
+            )
             .await?;
         let raw = serde_json::to_value(result)
             .map_err(|error| map_upstream_error(UpstreamFailureContext::Decode, error))?;
@@ -989,6 +1013,11 @@ impl BuiltinScript {
 }
 
 impl ReadToolCall {
+    /// An asset rendition or a fragment of one, rather than a document field.
+    pub fn is_asset_read(&self) -> bool {
+        matches!(self, Self::AssetExport { .. })
+            || matches!(self, Self::LargeValue { options, .. } if options.field.starts_with("$export:"))
+    }
     /// 이 읽기가 향하는 파일.
     pub fn file_key(&self) -> &str {
         match self {
@@ -1096,10 +1125,17 @@ impl ReadToolCall {
                 params: json!({ "theme": { "offset": offset } }),
             },
 
-            Self::LargeValue { options, .. } => BridgeJob {
-                script: BuiltinScript::LargeValue.plugin_name(),
-                params: json!({ "nodeId": options.node_id, "largeValue": options }),
-            },
+            Self::LargeValue { options, .. } => {
+                let mut params = json!({ "nodeId": options.node_id, "largeValue": options });
+                if self.is_asset_read() {
+                    params["largeValue"]["timeoutMs"] =
+                        json!(crate::asset_timeout().as_millis() as u64);
+                }
+                BridgeJob {
+                    script: BuiltinScript::LargeValue.plugin_name(),
+                    params,
+                }
+            }
 
             Self::AssetExport {
                 version, request, ..
@@ -1115,6 +1151,7 @@ impl ReadToolCall {
                         "imageHash": request.image_hash,
                         "format": request.format,
                         "scale": request.scale,
+                        "timeoutMs": crate::asset_timeout().as_millis() as u64,
                         "version": version,
                     },
                 }),

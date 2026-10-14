@@ -27,7 +27,15 @@ fn items_from_issues(scope: &str, issues: &[Value], out: &mut Vec<Value>) {
         let lossy = members
             .iter()
             .any(|m| matches!(text(&m["fidelityImpact"]), "lossy" | "failed"));
-        let nodes: Vec<&Value> = members.iter().map(|m| &m["nodeId"]).collect();
+        let nodes: Vec<&Value> = members
+            .iter()
+            .flat_map(|m| {
+                m["details"]["nodeIds"]
+                    .as_array()
+                    .map(|a| a.iter().collect::<Vec<_>>())
+                    .unwrap_or_else(|| vec![&m["nodeId"]])
+            })
+            .collect();
         let first = members[0];
         let how = first["details"]["nextAction"]
             .as_str()
@@ -37,7 +45,7 @@ fn items_from_issues(scope: &str, issues: &[Value], out: &mut Vec<Value>) {
                 "Compare the generated property with the raw Figma value for these nodes (export rawSnapshot with debug: true) before shipping.".into()
             });
         out.push(json!({
-            "severity": if lossy { "required" } else { "recommended" },
+            "severity": if lossy || code.starts_with("DEVUP_CODEGEN_INTERACTION_") { "required" } else { "recommended" },
             "scope": scope,
             "code": code,
             "count": members.len(),
@@ -63,6 +71,26 @@ fn has_line_height(value: &Value) -> bool {
 }
 
 fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
+    for (field, code, what, how) in [
+        (
+            "widgetCandidates",
+            "WIDGET_INTEGRATION_REQUIRED",
+            "External widget candidates require provider integration.",
+            "Confirm provider, existing integration and env key names without values; implement and test the widget behavior.",
+        ),
+        (
+            "sharedComponentCandidates",
+            "SHARED_COMPONENT_REVIEW",
+            "Repeated component instances may differ across screens.",
+            "Review instance labels, menu counts and variants together; confirm the authoritative versions, reuse shared components and wire navigation once.",
+        ),
+    ] {
+        if response[field].as_array().is_some_and(|a| !a.is_empty()) {
+            out.push(
+                json!({"severity":"required","scope":scope,"code":code,"what":what,"how":how}),
+            );
+        }
+    }
     if let Some(issues) = response["projectionIssues"].as_array() {
         items_from_issues(scope, issues, out);
     }
@@ -84,6 +112,11 @@ fn collect(response: &Value, scope: &str, out: &mut Vec<Value>) {
 /// Add `summary` and, only when something needs review, `reviewChecklist`.
 pub(super) fn attach(result: &mut Value) {
     let mut items = vec![];
+    if result["metadataDelivery"]["requiresFullDetailRead"] == true {
+        items.push(json!({"severity":"required","scope":"response","code":"PROJECTION_DETAILS_RESOURCE",
+            "what":"Complete projection diagnostic details are delivered as a resource.",
+            "how":"Read metadataDelivery.uri and follow each fullDetailsResource.jsonPointer before accepting evidence; inline issues retain identities and severity but summarize details."}));
+    }
     collect(result, "response", &mut items);
     if let Some(frames) = result["frames"].as_array() {
         for frame in frames {
@@ -108,8 +141,15 @@ pub(super) fn attach(result: &mut Value) {
                 "required":required,"recommended":recommended,"next":next}),
         );
         if !items.is_empty() {
-            items.sort_by_key(|i| i["severity"] != "required");
+            items.sort_by_key(|i| {
+                (
+                    i["severity"] != "required",
+                    !text(&i["code"]).starts_with("DEVUP_CODEGEN_INTERACTION_"),
+                )
+            });
+            let omitted = items.len().saturating_sub(MAX_ITEMS);
             items.truncate(MAX_ITEMS);
+            object.get_mut("summary").unwrap()["omittedReviewItems"] = json!(omitted);
             object.insert("reviewChecklist".into(), json!(items));
         }
     }

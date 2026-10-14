@@ -106,7 +106,7 @@ use tokio_tungstenite::{
 
 use super::{
     AttachedFile, BridgeIssue, BridgePeer, BridgeServed, BridgeState, Connected, Failure,
-    JOB_TIMEOUT, LinkState, PluginContext, Waiting,
+    LinkState, PluginContext, Waiting,
     holder::{self, PortOwner},
     secret::{self, RelaySecret, Side},
     shut_down, unavailable,
@@ -432,6 +432,8 @@ impl RelayConnection {
         params: Value,
     ) -> Result<(Value, BridgeServed), Failure> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
+        let budget = super::job_timeout(script, &params) + RELAY_SLACK;
+        let is_asset = super::job_is_asset_read(script, &params);
         let (tx, rx) = oneshot::channel();
         self.pending
             .lock()
@@ -447,7 +449,7 @@ impl RelayConnection {
         if self.outbox.send(job.to_string()).is_err() {
             return Err(self.gone());
         }
-        match timeout(JOB_TIMEOUT + RELAY_SLACK, rx).await {
+        match timeout(budget, rx).await {
             Ok(Ok(Answer::Data(data, served))) => Ok((data, served)),
             // 호스트가 붙인 문구를 그대로 올린다. 스크립트가 던진 DEVUP_* 코드도
             // 그 안에 있고, 위쪽 분기는 그 문자열로 판정한다. 호스트가 이미 다시
@@ -458,9 +460,15 @@ impl RelayConnection {
                 DevupError::new(ErrorCode::DevupFigmaDirectUnavailable, message, false)
             })),
             Ok(Err(_)) => Err(self.gone()),
-            Err(_) => Err(Failure::Final(unavailable(
-                "the Devup Bridge plugin did not answer in time",
-            ))),
+            Err(_) => Err(Failure::Final(unavailable(format!(
+                "{}Devup Bridge relay {script} did not answer after {} ms",
+                if is_asset {
+                    "DEVUP_ASSET_TIMEOUT: "
+                } else {
+                    ""
+                },
+                budget.as_millis()
+            )))),
         }
     }
 

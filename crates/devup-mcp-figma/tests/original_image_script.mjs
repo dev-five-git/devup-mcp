@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { createHash } from 'node:crypto';
 
 const source = readFileSync(new URL('../src/scripts/assets.js', import.meta.url), 'utf8')
+  .replace('"__DEVUP_ASSET_RENDER_HELPERS__"', readFileSync(new URL('../src/scripts/asset_render_helpers.js', import.meta.url), 'utf8'))
   .replace('"__DEVUP_LARGE_VALUE_HELPERS__"', readFileSync(new URL('../src/scripts/large_value_helpers.js', import.meta.url), 'utf8'));
 const bytes = Uint8Array.from([255, 216, 255, 224, 1, 2, 3]);
 async function read(overrides = {}, api = {}) {

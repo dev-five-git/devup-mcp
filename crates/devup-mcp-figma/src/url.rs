@@ -120,7 +120,12 @@ impl FigmaTarget {
             format!("https://www.figma.com/design/{}/devup", self.file_key)
         };
         match node_id {
-            Some(node_id) => format!("{base}?node-id={}", node_id.replace(':', "-")),
+            Some(node_id) => {
+                let mut url = Url::parse(&base).expect("target link is a valid URL");
+                url.query_pairs_mut()
+                    .append_pair("node-id", &node_id.replace(':', "-"));
+                url.to_string()
+            }
             None => base,
         }
     }
@@ -147,26 +152,27 @@ fn validate_key(key: &str) -> Result<(), DevupError> {
 }
 
 fn normalize_node_id(node_id: &str) -> Result<String, DevupError> {
-    let normalized = if node_id.contains(':') {
-        node_id.to_owned()
-    } else if let Some((left, right)) = node_id.split_once('-') {
-        format!("{left}:{right}")
+    // query_pairs has decoded percent escapes exactly once. Instance descendants
+    // have an I prefix and a semicolon-separated chain of ordinary node IDs.
+    let (prefix, body) = node_id
+        .strip_prefix('I')
+        .map_or(("", node_id), |body| ("I", body));
+    let segments = body.split(';').collect::<Vec<_>>();
+    let valid = if prefix.is_empty() {
+        segments.len() == 1
     } else {
-        return Err(DevupError::unsupported_file(
-            "Figma node-id format is invalid.",
-        ));
-    };
-
-    let mut parts = normalized.split(':');
-    let valid = matches!((parts.next(), parts.next(), parts.next()), (Some(left), Some(right), None)
-        if !left.is_empty()
-            && !right.is_empty()
-            && left.bytes().all(|byte| byte.is_ascii_digit())
-            && right.bytes().all(|byte| byte.is_ascii_digit()));
+        segments.len() >= 2
+    } && segments.iter().all(|segment| {
+        let parts = segment.split([':', '-']).collect::<Vec<_>>();
+        parts.len() == 2
+            && parts
+                .iter()
+                .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+    });
     if !valid {
         return Err(DevupError::unsupported_file(
             "Figma node-id format is invalid.",
         ));
     }
-    Ok(normalized)
+    Ok(format!("{prefix}{}", body.replace('-', ":")))
 }

@@ -182,7 +182,8 @@ function variantDefinitions(node, name) {
   );
 }
 
-function snapshotNode(node) {
+"__DEVUP_COMPONENT_IDENTITY_HELPERS__";
+async function snapshotNode(node) {
   const fields = {};
   const extra = {};
   const fieldErrors = {};
@@ -232,6 +233,7 @@ function snapshotNode(node) {
       fieldErrors.styledTextSegments = String(error && error.message ? error.message : error);
     }
   }
+  await devupReadComponentIdentity(node, fields, fieldErrors);
   return { id: node.id, type: node.type, fields, extra, fieldErrors };
 }
 
@@ -247,7 +249,7 @@ const nodes = [];
 const nodeBudget = maxPayloadBytes - 1024;
 let payloadBytes = 2;
 for (let index = offset; index < allNodes.length; index += 1) {
-  const node = shrinkNodeToBudget(snapshotNode(allNodes[index]), nodeBudget);
+  const node = shrinkNodeToBudget(await snapshotNode(allNodes[index]), nodeBudget);
   const nodeBytes = jsonByteLength(node) + (nodes.length ? 1 : 0);
   if (nodes.length && payloadBytes + nodeBytes > nodeBudget) break;
   nodes.push(node);

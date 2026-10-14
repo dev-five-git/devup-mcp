@@ -108,3 +108,29 @@ fn different_names_are_never_merged_on_width_alone() {
 fn a_lone_frame_is_not_a_family() {
     assert_eq!(merged_slots(&[("777:510", "AUTH-01", 1920.0)]), None);
 }
+
+#[test]
+fn explicit_width_range_label_merges_with_mobile_and_desktop() {
+    let frames = [
+        ("m", "Mobile", 360.0),
+        ("t", "992~1280", 1280.0),
+        ("d", "Desktop", 1440.0),
+    ];
+    assert!(
+        devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(
+            &frames
+                .iter()
+                .map(|(_, name, width)| (*name, *width))
+                .collect::<Vec<_>>()
+        )
+    );
+    assert_eq!(merged_slots(&frames), Some(vec![0, 3, 4]));
+}
+
+#[test]
+fn unrelated_numbered_screens_are_not_breakpoint_labels() {
+    assert_eq!(
+        merged_slots(&[("a", "Screen 992", 992.0), ("b", "Screen 1440", 1440.0)]),
+        None
+    );
+}

@@ -84,6 +84,59 @@ fn fixture_project_root() -> String {
     )
 }
 
+#[tokio::test]
+async fn feedback_navigation_rules_and_routes_scope_reach_mcp_clients() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!(
+        "feedback-mcp-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    std::fs::create_dir_all(root.join("app/(public)/portfolio/[id]"))?;
+    std::fs::write(root.join("package.json"), "{}")?;
+    std::fs::write(
+        root.join("app/(public)/portfolio/[id]/page.tsx"),
+        "export default function Page(){return <main/>}",
+    )?;
+    let routes = call_tool(
+        "devup_project_context",
+        json!({"scope":"routes","projectRoot":root.to_string_lossy()}),
+    )
+    .await?
+    .structured_content
+    .unwrap();
+    assert!(
+        routes["routes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["route"] == "/portfolio/[id]")
+    );
+    let output=call_tool("devup_ui_validate",json!({"projectRoot":root.to_string_lossy(),"tsx":"import Link from 'next/link'; const C=()=> <><Link href='/inquiry'>견적문의</Link><Text>전체 보기</Text></>","renderedHtml":"<a href='/portfolio/real'>A</a><a href='/portfolio/real'>B</a>"})).await?.structured_content.unwrap();
+    assert_eq!(output["ok"], false);
+    assert_eq!(output["okReason"], "error-violations");
+    assert_eq!(output["violationCounts"]["error"], 1);
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "missing-static-route" && v["href"] == "/inquiry")
+    );
+    assert!(
+        output["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "interaction-unmapped" && v["severity"] == "warning")
+    );
+    assert_eq!(
+        output["navigation"]["renderedHrefs"]["counts"]["/portfolio/real"],
+        2
+    );
+    std::fs::remove_dir_all(root)?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------
 // devup_project_context
 // ---------------------------------------------------------------------

@@ -1,5 +1,9 @@
 #[path = "page_scaffold.rs"]
 pub(crate) mod page_scaffold;
+#[path = "projection/responsive_groups.rs"]
+mod responsive_groups;
+#[path = "projection/theme_export.rs"]
+pub(crate) mod theme_export;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -285,6 +289,156 @@ pub(super) struct DeliveryAttachment {
     reservation: OutputReservation,
 }
 
+/// Keep complete diagnostic evidence readable without duplicating it into a
+/// multi-megabyte tool envelope. Only resource delivery changes these details;
+/// diagnostic identities/counts/severities and verdicts remain inline.
+fn resource_diagnostic_details(
+    result: &mut Value,
+    outputs: &mut Vec<ProjectedOutput>,
+    artifact_id: &str,
+) -> Result<(), DevupError> {
+    const FIELDS: [&str; 3] = ["diagnostics", "projectionIssues", "projectionEvidence"];
+    const BULKY: [&str; 5] = [
+        "verdictScope",
+        "projectionReview",
+        "placementContracts",
+        "outputResults",
+        "widthBehavior",
+    ];
+    let mut full = json!({"response":{},"frames":[]});
+    for field in FIELDS.into_iter().chain(BULKY) {
+        if let Some(value) = result.get(field) {
+            full["response"][field] = value.clone();
+        }
+    }
+    if let Some(frames) = result["frames"].as_array() {
+        for frame in frames {
+            let mut record = json!({"nodeId":frame["nodeId"]});
+            for field in FIELDS.into_iter().chain(BULKY) {
+                if let Some(value) = frame.get(field) {
+                    record[field] = value.clone();
+                }
+            }
+            full["frames"].as_array_mut().unwrap().push(record);
+        }
+    }
+    let bytes = encode_projected_json(&full)?;
+    if bytes.len() <= super::delivery::MAX_INLINE_OUTPUT_BYTES / 2 {
+        return Ok(());
+    }
+    let output = ProjectedOutput::text("projection-details.json", "application/json", bytes);
+    let uri = output.manifest_uri(artifact_id);
+    fn preview(
+        value: &Value,
+        depth: usize,
+        path: &str,
+        omissions: &mut Map<String, Value>,
+    ) -> Value {
+        let (original, returned) = match value {
+            Value::Array(v) => (v.len(), if depth > 0 { v.len().min(8) } else { 0 }),
+            Value::Object(v) => (v.len(), if depth > 0 { v.len().min(32) } else { 0 }),
+            Value::String(v) => (v.chars().count(), v.chars().count().min(320)),
+            _ => (0, 0),
+        };
+        if original > returned {
+            omissions.insert(path.into(), json!({"originalCount":original,"returnedCount":returned,"omittedCount":original-returned}));
+        }
+        match value {
+            Value::String(s) => json!(s.chars().take(320).collect::<String>()),
+            Value::Array(items) if depth > 0 => json!(
+                items
+                    .iter()
+                    .take(8)
+                    .enumerate()
+                    .map(|(i, v)| preview(v, depth - 1, &format!("{path}/{i}"), omissions))
+                    .collect::<Vec<_>>()
+            ),
+            Value::Object(items) if depth > 0 => Value::Object(
+                items
+                    .iter()
+                    .take(32)
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            preview(
+                                v,
+                                depth - 1,
+                                &format!("{path}/{}", k.replace('~', "~0").replace('/', "~1")),
+                                omissions,
+                            ),
+                        )
+                    })
+                    .collect(),
+            ),
+            Value::Array(items) => json!({"state":"resource-details","entryCount":items.len()}),
+            Value::Object(items) => json!({"state":"resource-details","entryCount":items.len()}),
+            _ => value.clone(),
+        }
+    }
+    fn summarize(value: &mut Value, prefix: &str) {
+        for field in FIELDS {
+            if let Some(items) = value[field].as_array_mut() {
+                for (index, item) in items.iter_mut().enumerate() {
+                    let Some(details) = item.get_mut("details").filter(|d| d.is_object()) else {
+                        continue;
+                    };
+                    let mut summary = Map::new();
+                    // Preserve small source values (notably FILL/HUG) and
+                    // contracts; only bulky detail values need a resource.
+                    for (key, value) in details.as_object().unwrap() {
+                        if value.to_string().len() <= 512
+                            || (key == "originalValue" && value.to_string().len() <= 1024)
+                        {
+                            summary.insert(key.clone(), value.clone());
+                        }
+                    }
+                    for key in [
+                        "classification",
+                        "nextAction",
+                        "output",
+                        "nodeIds",
+                        "candidateCount",
+                        "state",
+                        "propertyMappingVerified",
+                    ] {
+                        if let Some(value) = details.get(key) {
+                            summary.insert(key.into(), value.clone());
+                        }
+                    }
+                    if Value::Object(summary.clone()) == *details {
+                        continue;
+                    }
+                    // Share the long URI once at the response root rather
+                    // than repeating it for every diagnostic in both MCP forms.
+                    summary.insert("fullDetailsResource".into(), json!({"uriPath":"/metadataDelivery/uri","jsonPointer":format!("{prefix}/{field}/{index}/details")}));
+                    *details = Value::Object(summary);
+                }
+            }
+        }
+        for field in BULKY {
+            if let Some(original) = value
+                .get(field)
+                .filter(|v| v.to_string().len() > 16_384)
+                .cloned()
+            {
+                let mut omissions = Map::new();
+                value[field] = preview(&original, 3, "", &mut omissions);
+                value["metadataPreviewFields"][field] = json!({"truncated":true,"uriPath":"/metadataDelivery/uri","jsonPointer":format!("{prefix}/{field}"),"originalBytes":original.to_string().len(),"omissions":omissions,"maxArrayEntries":8,"maxObjectEntries":32,"maxStringChars":320,"maxDepth":3});
+            }
+        }
+    }
+    summarize(result, "/response");
+    if let Some(frames) = result["frames"].as_array_mut() {
+        for (index, frame) in frames.iter_mut().enumerate() {
+            summarize(frame, &format!("/frames/{index}"));
+        }
+    }
+    result["metadataDelivery"] = json!({"mode":"resource-details","uri":uri,"name":"projection-details.json","fields":FIELDS.into_iter().chain(BULKY).collect::<Vec<_>>(),"requiresFullDetailRead":true,
+        "note":"Diagnostic identities, counts, severity and verdicts remain inline; complete original details are in this resource. Read it before accepting projection evidence or final completeness."});
+    outputs.push(output);
+    Ok(())
+}
+
 pub(super) async fn apply_delivery(
     result: &mut Value,
     mode: DeliveryMode,
@@ -345,6 +499,12 @@ pub(super) async fn apply_delivery(
         let coupled = reprojection_arguments.is_some_and(|a| {
             a.get("pageScaffold").is_some()
                 || a["assetRequests"].as_array().is_some_and(|a| !a.is_empty())
+                || (matches!(
+                    a["devupJsonMode"].as_str(),
+                    Some("used-only" | "missing-only")
+                ) && a["outputs"]
+                    .as_array()
+                    .is_some_and(|outputs| outputs.iter().any(|output| output == "devupJson")))
         });
         let mut args = reprojection_arguments.cloned().unwrap_or_else(|| json!({}));
         if !coupled {
@@ -374,9 +534,19 @@ pub(super) async fn apply_delivery(
         if args.get("pageScaffold").is_some() {
             args["pageScaffold"]["write"] = json!(false);
         }
+        if matches!(
+            args["devupJsonMode"].as_str(),
+            Some("used-only" | "missing-only")
+        ) && args.get("pageScaffold").is_none()
+            && !args["assetRequests"]
+                .as_array()
+                .is_some_and(|requests| !requests.is_empty())
+        {
+            args.as_object_mut().unwrap().remove("outputPaths");
+        }
         let example = json!({"tool":"devup_figma_export","arguments":args});
         result["nextAction"] = json!({"tool":"devup_figma_export","arguments":args,"example":example,
-            "how":if coupled { "Read the linked resources. Preserve coupled asset requests and paths in this resource reprojection; splitting them can change generated URLs." }
+            "how":if coupled { "Read the linked resources. Preserve coupled code/theme outputs and asset requests/paths in this resource reprojection; splitting them can change token selection or generated URLs." }
                 else if field == "responsiveTsx" { "Read the linked resource or reproject this responsive output with the same breakpoint selection. A responsive merge requires multiple source screens." }
                 else { "Read the linked resources, or compare the same artifact using this single-screen, single-output reprojection. No new Figma acquisition is required. Inline errors retain R12 resource recovery arguments." },
             "sizeEstimate":{"outputBytes":bytes,"minimumWireBytes":escaped_bytes * 2,
@@ -385,12 +555,31 @@ pub(super) async fn apply_delivery(
                 "binary":binary,
                 "basis":"Existing output UTF-8/binary bytes; minimumWireBytes doubles its JSON encoding (base64 for PNG). This lower bound excludes metadata/diagnostics. The new projection's full MCP response has not been measured and can still exceed the limit."}});
     }
+    resource_diagnostic_details(result, &mut outputs, &artifact.artifact_id)?;
     let projection_key = projection_key(&outputs);
     materialize_asset_resource_references(result, &mut outputs, &artifact.artifact_id)?;
     let reservation = artifact_store
         .reserve_outputs(&artifact.artifact_id, &projection_key, outputs)
         .await?;
     let manifests = reservation.manifests().to_vec();
+    if let Some(old_uri) = result["metadataDelivery"]["uri"]
+        .as_str()
+        .map(str::to_owned)
+        && let Some(manifest) = manifests
+            .iter()
+            .find(|m| m.name == "projection-details.json")
+        && old_uri != manifest.manifest_uri
+    {
+        fn rebind(value: &mut Value, old: &str, new: &str) {
+            match value {
+                Value::String(s) if s == old => *s = new.to_owned(),
+                Value::Array(items) => items.iter_mut().for_each(|v| rebind(v, old, new)),
+                Value::Object(items) => items.values_mut().for_each(|v| rebind(v, old, new)),
+                _ => {}
+            }
+        }
+        rebind(result, &old_uri, &manifest.manifest_uri);
+    }
     let result = result.as_object_mut().ok_or_else(|| {
         DevupError::new(
             ErrorCode::DevupFigmaHandoffInvalid,
@@ -450,6 +639,13 @@ pub(super) async fn apply_delivery(
                 .collect(),
         ),
     );
+    // Resource promotion must also bound the final metadata envelope.
+    if let Err(error) =
+        choose_delivery_for_result(DeliveryMode::Inline, &Value::Object(result.clone()), &[])
+    {
+        reservation.rollback();
+        return Err(error);
+    }
     Ok(Some(DeliveryAttachment { reservation }))
 }
 
@@ -1364,6 +1560,7 @@ async fn project_operation(
             root_layout,
             asset_names_per_node,
             scope,
+            theme_options,
             strict,
             output_paths,
             page_scaffold,
@@ -1418,6 +1615,7 @@ async fn project_operation(
                 "componentName":component_name,"includeDiagnostics":include_diagnostics,
                 "rootLayout":match root_layout { devup_mcp_devup_ui::codegen::RootLayout::Standalone => "standalone", devup_mcp_devup_ui::codegen::RootLayout::Embedded => "embedded" },
                 "assetNamesPerNode":asset_names_per_node,"scope":scope,"strict":strict,
+                "devupJsonMode":if theme_options.mode.is_empty() {"full"} else {&theme_options.mode},"projectRoot":theme_options.project_root,
                 "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
                 "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
                 "delivery":"resource",
@@ -1456,8 +1654,8 @@ async fn project_operation(
                 .filter(|asset| asset.status == AssetStatus::Failed)
             {
                 let mut failure = json!({"assetId":asset.asset_id,"nodeId":asset.node_id,
-                    "errorCode":asset.error_code,"message":"Asset export failed. Re-collect this asset from its URL.",
-                    "retryable":true});
+                    "errorCode":asset.error_code,"message":"Asset export failed; inspect errorDetail before retrying.",
+                    "retryable":asset.error_code.as_deref() == Some("DEVUP_ASSET_TIMEOUT")});
                 if let Some(detail) = &asset.error_detail {
                     failure["errorDetail"] = json!(detail);
                     if let Some(hint) = devup_mcp_figma::figma_unreachable_hint(detail) {
@@ -1577,6 +1775,20 @@ async fn project_operation(
             } else {
                 None
             };
+            if let Some(candidates) = &section_candidates {
+                result.insert(
+                    "responsiveGroups".into(),
+                    json!(responsive_groups::discover(
+                        candidates,
+                        &artifact.artifact_id
+                    )),
+                );
+            } else {
+                let groups = responsive_groups::from_roots(payload, &artifact.artifact_id);
+                if !groups.is_empty() {
+                    result.insert("responsiveGroups".into(), json!(groups));
+                }
+            }
             if let Some(candidates) = &section_candidates
                 && frame_ids.is_empty()
                 && !all_screens
@@ -1635,6 +1847,7 @@ async fn project_operation(
                             "rootLayout": if root_layout == devup_mcp_devup_ui::codegen::RootLayout::Embedded { "embedded" } else { "standalone" },
                             "assetNamesPerNode": asset_names_per_node,
                             "scope": scope,
+                            "devupJsonMode":if theme_options.mode.is_empty() {"full"} else {&theme_options.mode},"projectRoot":theme_options.project_root,
                             "strict": strict,
                             "debug": outputs.iter().any(|output| super::validation::DIAGNOSIS_OUTPUTS.contains(&output.as_str())),
                             "outputPaths": output_paths,
@@ -1712,6 +1925,7 @@ async fn project_operation(
                 if scaffold_requested {
                     page_scaffold::selection_guidance(&mut result);
                 }
+                responsive_groups::completion(&mut result, &frame_ids, all_screens);
                 return Ok(Value::Object(result));
             }
 
@@ -2282,9 +2496,43 @@ async fn project_operation(
                 let variables = payload.variables.as_ref().ok_or_else(|| unavailable_output(payload, "devupJson",
                     "No variable/style resources were collected. Re-collect from the URL with devupJson in outputs and the desired scope."))?;
                 let variables = variable_snapshot_from_result(variables)?;
-                let output = generate_devup_json(&variables, parse_scope(&scope)?)?;
+                let mut output = theme_export::generate(
+                    &variables,
+                    parse_scope(&scope)?,
+                    &theme_options,
+                    &result,
+                )?;
+                theme_export::prepare(&mut output, &theme_options, &mut result, payload, strict)?;
                 theme_conflict_count = output.conflicts.len();
-                theme_unresolved_count = output.unresolved_variables.len();
+                theme_unresolved_count =
+                    output.unresolved_variables.len() + output.skipped_styles.len();
+                theme_unresolved_count += result
+                    .get("unresolvedUsedTokens")
+                    .and_then(Value::as_array)
+                    .map_or(0, Vec::len);
+                if let Some(diff) = result.get("themeDiff") {
+                    let conflicts = diff["existingTypographyConflicts"].as_array();
+                    theme_conflict_count += conflicts.map_or(0, Vec::len);
+                    for conflict in conflicts.into_iter().flatten() {
+                        warnings.push(json!({"code":"DEVUP_THEME_EXISTING_TYPOGRAPHY_CONFLICT",
+                            "message":format!("Existing typography token '{}' differs from Figma; the project's value is preserved and visual fidelity needs review.", conflict["token"].as_str().unwrap_or_default()),
+                            "details":conflict,"severity":"warning"}));
+                    }
+                }
+                warnings.extend(
+                    output
+                        .diagnostics
+                        .iter()
+                        .filter(|d| d.code == "DEVUP_THEME_STYLE_SKIPPED")
+                        .map(|d| json!(d)),
+                );
+                projection_diagnostics.extend(
+                    output
+                        .diagnostics
+                        .iter()
+                        .filter(|d| d.code == "DEVUP_THEME_STYLE_SKIPPED")
+                        .cloned(),
+                );
                 devup_json_source_map = Some(output.source_map.clone());
                 if output_paths.contains_key("devupJson") {
                     pending_text_outputs.insert("devupJson".to_owned(), output.json.clone());
@@ -2474,6 +2722,11 @@ async fn project_operation(
                 // name - which, for two icons of one layer name, it would get
                 // wrong.
                 for asset in &mut manifest.assets {
+                    if asset.status == AssetStatus::Failed {
+                        asset.path = None;
+                        asset.output_path = None;
+                        continue;
+                    }
                     if asset.path.is_none() {
                         // An image fill is named from the node it is painted
                         // on and which fill it is, which holds for a layout
@@ -2638,6 +2891,7 @@ async fn project_operation(
                     }
                 }
             }
+            responsive_groups::completion(&mut result, &frame_ids, all_screens);
             result.insert(
                 "placementContracts".into(),
                 json!(
@@ -2877,9 +3131,10 @@ async fn project_operation(
                 result.insert("resolutionSemantics".into(), semantics);
             }
             let mut value = Value::Object(std::mem::take(&mut result));
-            attach_diagnostic_screens(&mut value, &owners);
             rewrite_result_asset_references(&mut value, &replacements);
             audit_delivered_properties(&mut value);
+            super::interactions::attach(&mut value, &payload.snapshot);
+            attach_diagnostic_screens(&mut value, &owners);
             super::verdict_scope::attach(&mut value);
             attach_verification_scope(&mut value, &responsive_widths);
             if strict && value["mappingComplete"] == false {
@@ -3345,6 +3600,7 @@ fn attach_diagnostic_screens(value: &mut Value, owners: &BTreeMap<String, Option
 #[cfg(test)]
 mod w1_regressions {
     include!("projection/design_drift_tests.rs");
+    include!("projection/feedback_theme_tests.rs");
     use super::super::artifacts::ArtifactRequestKey;
     use super::*;
     use devup_mcp_figma::{CollectionRequest, CollectionScope};
@@ -5358,6 +5614,7 @@ mod w1_regressions {
             root_layout: Default::default(),
             asset_names_per_node: true,
             scope: "node".into(),
+            theme_options: Default::default(),
             strict: false,
             output_paths: BTreeMap::new(),
             page_scaffold: None,
@@ -6109,6 +6366,97 @@ mod w1_regressions {
 
     include!("projection_fingerprint_tests.rs");
 
+    #[tokio::test]
+    async fn feedback_interaction_hints_match_saved_files_and_resource_hashes() {
+        for section_case in [false, true] {
+            let mut baseline_op = operation(&["tsx", "sourceMap"]);
+            if section_case && let PendingOperation::Export { frame_ids, .. } = &mut baseline_op {
+                *frame_ids = vec!["1:1".into()];
+            }
+            let baseline = project(
+                if section_case { section(2) } else { payload() },
+                baseline_op,
+            )
+            .await
+            .unwrap();
+            let mut data = if section_case { section(2) } else { payload() };
+            let node = data.snapshot.nodes.get_mut("1:1").unwrap();
+            node.fields.insert("name".into(), json!("CTA Button"));
+            node.fields
+                .insert("variantProperties".into(), json!({"State":"disabled"}));
+            node.fields.insert("reactions".into(),json!([{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"URL","url":"https://example.com/confirmed"}]}]));
+            let target = std::env::temp_dir().join(format!(
+                "feedback-hints-{}-{}.tsx",
+                std::process::id(),
+                rand::random::<u64>()
+            ));
+            let mut op = operation(&["tsx", "sourceMap"]);
+            if let PendingOperation::Export {
+                delivery,
+                output_paths,
+                frame_ids,
+                ..
+            } = &mut op
+            {
+                *delivery = DeliveryMode::Resource;
+                if section_case {
+                    *frame_ids = vec!["1:1".into()];
+                }
+                output_paths.insert(
+                    if section_case { "frame:1:1:tsx" } else { "tsx" }.into(),
+                    target.to_string_lossy().into(),
+                );
+            }
+            let store = ArtifactStore::default();
+            let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+                data.target.clone(),
+                CollectionScope::Node,
+            ));
+            let artifact = store.insert(key, data).await.unwrap();
+            let result = complete_operation(
+                op,
+                &artifact.payload,
+                "fixture",
+                &artifact,
+                &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+                &store,
+            )
+            .await
+            .unwrap();
+            let manifest = store
+                .output_manifests()
+                .await
+                .into_iter()
+                .find(|m| m.mime_type == "text/typescript")
+                .unwrap();
+            let mut bytes = vec![];
+            for index in 0..manifest.chunk_count {
+                bytes.extend(
+                    store
+                        .read_output_chunk(&manifest.artifact_id, &manifest.output_id, index)
+                        .await
+                        .unwrap(),
+                );
+            }
+            assert_eq!(bytes, std::fs::read(&target).unwrap());
+            assert_eq!(bytes.len(), manifest.raw_bytes);
+            assert_eq!(sha256_hex(&bytes), manifest.sha256);
+            let code = String::from_utf8(bytes).unwrap();
+            assert!(code.contains("// @devup-interaction "));
+            assert!(code.contains("https://example.com/confirmed"));
+            assert!(code.contains("disabled"));
+            assert!(!code.contains("href="));
+            assert_eq!(result["deliverable"]["isFinal"], false);
+            assert_eq!(result["mappingComplete"], baseline["mappingComplete"]);
+            assert!(
+                result["interactiveCandidates"]
+                    .as_array()
+                    .is_some_and(|a| !a.is_empty())
+            );
+            std::fs::remove_file(target).unwrap();
+        }
+    }
+
     async fn project(
         payload: CollectedPayload,
         operation: PendingOperation,
@@ -6186,6 +6534,44 @@ mod w1_regressions {
             *strict = true;
         }
         assert!(project(data, strict_op).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn nested_asset_failure_preserves_details_without_promising_a_path_or_retry() {
+        for (code, detail, retryable) in [
+            (
+                "DEVUP_ASSET_EXPORT_FAILED",
+                "export failed after 10400 ms: Unable to establish connection to Figma after 10 seconds",
+                false,
+            ),
+            (
+                "DEVUP_ASSET_EXPORT_FAILED",
+                "native export: renderer failed; geometry fallback unsupported: mask requires native export",
+                false,
+            ),
+            (
+                "DEVUP_ASSET_TIMEOUT",
+                "export exceeded 180000 ms asset budget",
+                true,
+            ),
+        ] {
+            let mut data = payload();
+            data.assets.push(serde_json::from_value(json!({"assetId":"1:1:fills:0","nodeId":"1:1",
+                "field":"fills/0","sourceKind":"image","status":"failed","errorCode":code,
+                "errorDetail":detail,"path":"/icons/not-generated.svg","outputPath":"C:/not-generated.svg"})).unwrap());
+            let result = project(data, operation(&["assetManifest"])).await.unwrap();
+            assert_eq!(result["status"], "partial");
+            assert_eq!(result["failures"][0]["retryable"], retryable);
+            assert_eq!(result["failures"][0]["errorDetail"], detail);
+            let asset = &result["assetManifest"]["assets"][0];
+            assert_eq!(asset["status"], "failed");
+            assert!(asset["path"].is_null() && asset["outputPath"].is_null());
+            assert_eq!(
+                result["assetSummary"]["unavailable"][0]["errorDetail"],
+                detail
+            );
+            assert!(result["outputPaths"].as_object().unwrap().is_empty());
+        }
     }
 
     #[tokio::test]

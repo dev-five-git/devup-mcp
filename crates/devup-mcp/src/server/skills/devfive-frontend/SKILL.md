@@ -17,6 +17,65 @@ description: |
 
 Common coding conventions for DevFive frontend projects (puzzle-fit, girok-space, etc.).
 
+## Links, controls and completion evidence
+
+`devup_figma_export` produces static visual markup. Its `interactiveCandidates`
+are a review list, and `deliverable.isFinal` never proves working navigation or
+forms. Resolve GNB, logo, footer, CTA, cards, “view all”, tabs and breadcrumbs
+before reporting functional completion. Preserve checkbox/radio semantics and
+selected/disabled/active variants; an icon or widget screenshot is not behavior.
+`@devup-interaction` TSX comments preserve prototype/state hints; they do not wire
+events or implement runtime state. Validation separates semantic controls, native
+checkbox/radio toggling and application wiring; report those counts by their scope.
+
+1. Supply `projectRoot` with the export to review `projectContext.ui` reuse
+   evidence, routes, `routeSuggestions`, and `envKeyNames` (names only, never
+   request or print values). Alternatively read `devup_project_context` scope
+   `ui` or `routes`. Check each candidate against the actual application's routes.
+   Suggestions are heuristics, not approved destinations. A dynamic detail page
+   also needs real per-card IDs/data; report missing data as an unresolved reason.
+2. Reuse existing Header/Footer/widgets after comparing props and design variants.
+   Review `sharedComponentCandidates` for menu counts, labels and states that
+   differ between screens. Ask which version applies before making it site-wide.
+   Review `ambiguityQuestions` together in the first response, including unresolved
+   destinations, shared variants, logos and third-party widget providers.
+3. Use `next/link` for internal navigation, `<a>` for external URLs (when opening a
+   new tab, set `rel="noopener noreferrer"`), and `<button type="button">` for local
+   actions. Use native checkbox/radio inputs with labels, keyboard support and
+   state. Do not add only `onClick` to Text/Center/Flex. Never make up `/inquiry`,
+   use `/` as a temporary unknown destination, or use `href="#"` as completion.
+   If no route or action is established, ask for the destination or authorization
+   to create the required route before wiring it.
+4. Wrap devup-ui layout with Link: `<Link href={confirmedRoute}><Flex>…</Flex></Link>`.
+   Do not assume `as={Link}` accepts `href`; that pattern can fail with TS2322.
+   A card link that must grow can use `style={{ flex: 1 }}` on Link. Calculate active
+   navigation from `usePathname` in a small client component while preserving
+   surrounding Server Components. Selected/disabled form state must use real state.
+5. Run `devup_ui_validate` on the implemented source with `projectRoot`. Missing
+   static App Router hrefs are errors when route evidence is complete; unmapped
+   action candidates are warnings and literal active attributes are info. Custom
+   routing, dynamic hrefs, wrappers and supplied file bundles can remain unverified.
+   Pass caller-captured `renderedHtml` to inspect rendered anchor href counts.
+   Source counts and rendered counts have different scopes; neither proves clicks.
+   Test actual navigation, keyboard activation, tab/form/carousel state and widgets.
+6. Render with the project's browser environment, fonts, assets and widget setup,
+   capture the implemented viewport, then call `devup_visual_compare` against the
+   matching Figma `referencePng`. Inspect `stateAndIconDetails`: chip border/radius/
+   padding, round versus square checks, outline versus filled icons and all relevant
+   states. Repeat at each implemented viewport/state; source structure alone is not
+   visual evidence. Report unavailable render environments or comparisons precisely.
+
+Completion reports must distinguish “implemented visually”, “wired in source”,
+“tested in browser”, and “visually compared”. Include candidate/wired/tested counts,
+unresolved targets and data, widget status, implemented/remaining breakpoints, visual
+comparison results and skipped checks. Do not claim success from export status alone.
+
+On Windows/PowerShell, write multiline Node scripts to a UTF-8 file and run the file
+instead of nested `node -e` quoting. Use `Get-Content -LiteralPath` and
+`Set-Content -LiteralPath` for `[id]` paths. Prefer `rg` when installed; otherwise
+use `Get-ChildItem`/`Select-String` and `Select-Object -First` instead of assuming
+`rg` or Unix `head` is available. Keep environment values out of tool output.
+
 ## Prerequisites
 
 > **CRITICAL: Load required skills mentioned here.**

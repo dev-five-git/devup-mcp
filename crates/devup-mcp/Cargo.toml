@@ -17,6 +17,7 @@ devup-mcp-figma = { path = "../devup-mcp-figma" }
 devup-mcp-visual = { path = "../devup-mcp-visual" }
 oxc_allocator.workspace = true
 oxc_ast.workspace = true
+oxc_ast_visit.workspace = true
 oxc_parser.workspace = true
 oxc_span.workspace = true
 dunce.workspace = true
@@ -26,6 +27,7 @@ rand.workspace = true
 # dev-dependency for the axum-backed test servers; a normal dependency serves
 # both, so the duplicate entry below is gone.
 reqwest.workspace = true
+quick-xml.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

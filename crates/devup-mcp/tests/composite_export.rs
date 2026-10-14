@@ -1231,7 +1231,15 @@ async fn r3_assert_resume(timeout_first: bool) -> anyhow::Result<()> {
     let mut paused = call(&client, "devup_figma_export", args.clone()).await?;
     if timeout_first {
         assert_eq!(paused["assetJob"]["state"], "running");
-        tokio::time::advance(std::time::Duration::from_secs(91)).await;
+        let timeout_ms = paused["assetJob"]["calls"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()["timeoutMs"]
+            .as_u64()
+            .unwrap();
+        assert!(timeout_ms >= paused["assetJob"]["assetTimeoutMs"].as_u64().unwrap());
+        tokio::time::advance(std::time::Duration::from_millis(timeout_ms + 1000)).await;
         paused = call(
             &client,
             "devup_figma_export",
@@ -1457,7 +1465,14 @@ async fn r3_cancelled_client_recovers_retained_asset_job() -> anyhow::Result<()>
     let id = &recovered["assetJob"]["jobId"];
     assert!(id.is_string());
     assert_eq!(upstream.snapshots.load(Ordering::SeqCst), 1);
-    tokio::time::advance(std::time::Duration::from_secs(91)).await;
+    let timeout_ms = recovered["assetJob"]["calls"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()["timeoutMs"]
+        .as_u64()
+        .unwrap();
+    tokio::time::advance(std::time::Duration::from_millis(timeout_ms + 1000)).await;
     let paused = call(&client, "devup_figma_export", json!({"jobId":id})).await?;
     assert_eq!(paused["assetJob"]["state"], "paused");
     let complete = call(

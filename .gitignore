@@ -24,3 +24,6 @@
 # directory, which was cleared overnight and took the previous copies with it.
 /fixtures/local-tools/
 
+/docs/
+/feedback.txt
+/devup-mcp-feedback/

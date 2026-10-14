@@ -22,6 +22,16 @@ mod ui_tests;
 #[path = "project_context_ui.rs"]
 mod ui;
 
+#[path = "project_context_export.rs"]
+mod export;
+pub(super) use export::attach as attach_export_context;
+pub(super) use export::export_context;
+
+pub(super) fn routes_for_validation(project_root: Option<&str>) -> Value {
+    project_root.map(export_context).map(|v|v["ui"].clone())
+        .unwrap_or_else(||json!({"found":false,"reason":"No explicit projectRoot supplied; route validation skipped."}))
+}
+
 use super::project_root::{
     PROJECT_ROOT_NOT_FOUND_MESSAGE, display_path, find_dirs_named, find_files_named,
     find_project_root, guardrail_object, json_files_in, not_found_response,
@@ -213,10 +223,10 @@ pub async fn run(
     project_root: Option<&str>,
     filter: Option<&str>,
 ) -> Result<Value, DevupError> {
-    if !["theme", "api", "db", "ui", "all"].contains(&scope) {
+    if !["theme", "api", "db", "ui", "routes", "all"].contains(&scope) {
         return Err(DevupError::new(
             ErrorCode::DevupInvalidInput,
-            "scope must be theme, api, db, ui, or all (ui is opt-in).",
+            "scope must be theme, api, db, ui, routes, or all (ui/routes are opt-in).",
             false,
         ));
     }
@@ -246,6 +256,12 @@ pub async fn run(
         "api" => Ok(api_scope(&root, filter)),
         "db" => Ok(db_scope(&root, filter)),
         "ui" => Ok(ui::run(&root, filter)),
+        "routes" => {
+            let mut inventory = ui::run(&root, filter);
+            inventory.as_object_mut().unwrap().remove("components");
+            inventory["scope"] = json!("routes");
+            Ok(inventory)
+        }
         "all" => {
             let mut all = Map::new();
             all.insert("found".to_owned(), Value::Bool(true));

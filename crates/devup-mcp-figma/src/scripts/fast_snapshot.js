@@ -29,8 +29,15 @@ if (roots.length === 1 && roots[0].type === "SECTION") {
 // the copy shows in the responsive array. Sorting the family by name here put
 // tablet's values where the reference has desktop's.
 const BREAKPOINT_NAMES = ["mobile", "tablet", "desktop"];
-const breakpointRank = (node) =>
-  BREAKPOINT_NAMES.indexOf(String(node.name || "").trim().toLowerCase());
+const breakpointRank = (node) => {
+  const name = String(node.name || "").trim().toLowerCase();
+  const known = BREAKPOINT_NAMES.indexOf(name);
+  if (known >= 0) return known;
+  const range = name.match(/^(\d+)\s*[~–]\s*(\d+)$/);
+  if (!range) return -1;
+  const start = Number(range[1]), end = Number(range[2]);
+  return Number.isSafeInteger(start) && Number.isSafeInteger(end) && start > 0 && end >= start && end <= 0xffffffff ? 1 : -1;
+};
 if (roots.length === 1 && breakpointRank(roots[0]) >= 0) {
   const parent = roots[0].parent;
   if (parent && parent.type === "SECTION" && "children" in parent) {
@@ -258,7 +265,8 @@ function serialize(value, resource = false, seen = new WeakSet(), depth = 0) {
   return result;
 }
 
-function snapshotNode(node) {
+"__DEVUP_COMPONENT_IDENTITY_HELPERS__";
+async function snapshotNode(node) {
   const fields = {};
   const fieldErrors = {};
   if (node.parent) fields.parentId = node.parent.id;
@@ -338,6 +346,7 @@ function snapshotNode(node) {
       fieldErrors.styledTextSegments = String(error && error.message ? error.message : error);
     }
   }
+  await devupReadComponentIdentity(node, fields, fieldErrors);
   // `extra` and `fieldErrors` are `#[serde(default)]` on the Rust `RawNode`,
   // so an empty one is the same as an absent one on the wire.
   const snapshotted = { id: node.id, type: node.type, fields };
@@ -529,11 +538,11 @@ async function collectResources(nodes) {
 
 // Packs as many nodes as fit under `budget`, starting at `offset`. Same
 // dynamic, byte-budget-driven pagination the legacy cursor snapshot uses.
-function packPage(budget) {
+async function packPage(budget) {
   const pageNodes = [];
   let payloadBytes = 2;
   for (let index = offset; index < allNodes.length; index += 1) {
-    const snapshotted = snapshotNode(allNodes[index]);
+    const snapshotted = await snapshotNode(allNodes[index]);
     const nodeBytes = jsonByteLength(snapshotted) + (pageNodes.length ? 1 : 0);
     if (pageNodes.length && payloadBytes + nodeBytes > budget) break;
     pageNodes.push(snapshotted);
@@ -611,7 +620,7 @@ function buildEnvelope(pageNodes, resources) {
 let nodeBudget = maxPayloadBytes - 1024;
 let built = null;
 for (let attempt = 0; attempt < 5; attempt += 1) {
-  const { pageNodes, packedBytes } = packPage(nodeBudget);
+  const { pageNodes, packedBytes } = await packPage(nodeBudget);
   if (pageNodes.length === 0) throw new Error("DEVUP_SNAPSHOT_RANGE_INVALID");
   const candidate = buildEnvelope(pageNodes, await collectResources(pageNodes));
   if (candidate.bytes <= MAX_TEXT_ENVELOPE_BYTES) {
