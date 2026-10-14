@@ -1,0 +1,8 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
+  },
+  "note": "Keep independent theme tokens when a text style is unreadable, report named style/node diagnostics, support used-only themes and existing-theme missing-token diffs, elide proven typography duplicates, and discover responsive frame groups with breakpoint completion guidance while preserving percentage and fill/hug mappings.",
+  "date": "2026-10-14T18:39:56+09:00"
+}

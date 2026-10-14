@@ -4,14 +4,31 @@
 figma.skipInvisibleInstanceChildren = false;
 const options = "__DEVUP_ASSET__";
 "__DEVUP_LARGE_VALUE_HELPERS__";
+"__DEVUP_ASSET_RENDER_HELPERS__";
 
 const started = Date.now();
 let stage = "lookup";
+let nodeType = "unknown";
+const timeoutMs = Math.min(600000, Math.max(1000, Number(options.timeoutMs) || 90000));
+const exportDiagnostics = { method: "native", stages: [] };
+function observe(stage, elapsedMs, nativeError) {
+  exportDiagnostics.stages.push({ stage, elapsedMs });
+  if (nativeError) exportDiagnostics.nativeError = nativeError;
+  if (stage === "geometry-fallback") exportDiagnostics.method = "geometry";
+}
+async function timed(work) {
+  let timer;
+  try {
+    return await Promise.race([work(), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`DEVUP_ASSET_TIMEOUT: ${stage} exceeded ${timeoutMs} ms asset budget`)), Math.max(0, timeoutMs - (Date.now() - started)));
+    })]);
+  } finally { clearTimeout(timer); }
+}
 
 function describe(error) {
   const message = error && typeof error.message === "string" ? error.message : String(error);
   const editor = typeof figma.editorType === "string" ? ` (editor: ${figma.editorType})` : "";
-  return `${stage} failed after ${Date.now() - started} ms${editor}: ${message}`.slice(0, 500);
+  return `${stage} failed after ${Date.now() - started} ms${editor} (node: ${options.nodeId}, type: ${nodeType}): ${message}`.slice(0, 500);
 }
 
 function failed(errorCode, errorDetail) {
@@ -29,6 +46,7 @@ function failed(errorCode, errorDetail) {
     byteLength: null,
     sha256: null,
     errorCode,
+    exportDiagnostics,
     ...(errorDetail ? { errorDetail } : {}),
   };
 }
@@ -42,9 +60,11 @@ try {
   if (original && options.transport !== "bridge") {
     return failed("DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE");
   }
-  const node = await figma.getNodeByIdAsync(options.nodeId);
+  const node = await timed(() => devupLookupAssetNode(options.nodeId));
+  observe("lookup", Date.now() - started);
+  nodeType = node && node.type || "unknown";
   if (!node || (!original && typeof node.exportAsync !== "function")) {
-    return failed("DEVUP_ASSET_UNSUPPORTED_BY_UPSTREAM");
+    return failed("DEVUP_ASSET_UNSUPPORTED_BY_UPSTREAM", describe(new Error(node ? "node has no exportAsync" : "node not found")));
   }
   if (original || (typeof options.field === "string" && options.field.startsWith("fills/"))) {
     const index = Number(options.field.slice(original ? "$original-image/fills/".length : "fills/".length));
@@ -62,7 +82,7 @@ try {
     stage = "reading the original image";
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
-    const bytes = await image.getBytesAsync();
+    const bytes = await timed(() => image.getBytesAsync());
     if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
       return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 8388608`);
     }
@@ -73,7 +93,7 @@ try {
       : starts([82,73,70,70]) && bytes[8] === 87 && bytes[9] === 69 && bytes[10] === 66 && bytes[11] === 80 ? "image/webp"
       : null;
     if (!mimeType) return failed("DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED");
-    const size = await image.getSizeAsync();
+    const size = await timed(() => image.getSizeAsync());
     return {
       ...failed(null), status: "exported", kind: "devupOriginalImage",
       representation: "original-image-v1", format: null, scale: null,
@@ -99,8 +119,14 @@ try {
     settings.constraint = { type: "SCALE", value: scale };
   }
   stage = "export";
-  const exported = await node.exportAsync(settings);
+  const remaining = Math.max(1, timeoutMs - (Date.now() - started));
+  // Reserve up to five seconds for read-only geometry after a hung renderer.
+  // A late native answer has no file writer and cannot replace the fallback.
+  const nativeBudget = inlineSvg ? Math.max(1, remaining - Math.min(5000, Math.floor(remaining / 5))) : remaining;
+  const exported = await timed(() => devupRenderAsset(node, settings, nativeBudget, observe));
+  if (Date.now() - started >= timeoutMs) throw new Error(`DEVUP_ASSET_TIMEOUT: export exceeded ${timeoutMs} ms asset budget`);
   stage = "encode";
+  const encodeBegan = Date.now();
   const svgText = inlineSvg && typeof exported === "string" ? exported : null;
   const bytes =
     svgText === null
@@ -112,6 +138,7 @@ try {
     return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${format} at scale ${scale} is ${bytes.length} bytes; one answer carries 1 to 8388608`);
   }
   const sha256 = devupSha256(bytes);
+  observe("encode", Date.now() - encodeBegan);
   // figma.io is an extension of the remote MCP, not the native Plugin API.
   // The bridge returns JSON over its local socket and has no attachment
   // writer. Carry its bounded bytes inline, without exporting again for each
@@ -145,6 +172,7 @@ try {
       sha256,
       cursor: { nextOffset: 0, maxChunkBytes: DEVUP_LARGE_VALUE_CHUNK_BYTES },
       errorCode: null,
+      exportDiagnostics,
     };
   }
   if (hasFileWriter) {
@@ -170,7 +198,8 @@ try {
     ...(!hasFileWriter && svgText === null ? { data: figma.base64Encode(bytes) } : {}),
     text: svgText,
     errorCode: null,
+    exportDiagnostics,
   };
 } catch (error) {
-  return failed(original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
+  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
 }

@@ -34,7 +34,7 @@ pub(crate) const SEARCH_MATCH_KINDS: [&str; 3] = ["exact", "normalized", "fuzzy"
 
 pub(crate) const ASSET_FORMATS: [&str; 4] = ["png", "jpg", "svg", "pdf"];
 
-pub(crate) const PROJECT_CONTEXT_SCOPES: [&str; 4] = ["theme", "api", "db", "all"];
+pub(crate) const PROJECT_CONTEXT_SCOPES: [&str; 5] = ["theme", "api", "db", "routes", "all"];
 
 pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
     "db-entity",

@@ -546,6 +546,7 @@ fn project_tree_inner(
     text::push_text_props(
         &view,
         &options.text_style_tokens,
+        &options.typography_values,
         &options.variable_tokens,
         &mut used_tokens,
         &mut props,
@@ -596,6 +597,7 @@ fn project_tree_inner(
         text::render_text_children(
             &view,
             &options.text_style_tokens,
+            &options.typography_values,
             &options.variable_tokens,
             &mut used_tokens,
             0,

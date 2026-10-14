@@ -85,6 +85,8 @@ pub struct LargeValueUnsupported {
     pub byte_length: usize,
     pub sha256: String,
     pub error_code: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_detail: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

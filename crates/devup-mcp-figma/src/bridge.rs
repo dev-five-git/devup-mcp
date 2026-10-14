@@ -829,6 +829,9 @@ impl BridgeState {
         params: Value,
     ) -> Result<(Value, BridgeServed), Failure> {
         let request_id = self.next_request_id();
+        let budget = job_timeout(script, &params);
+        let is_asset = job_is_asset_read(script, &params);
+        let requested_node = params["nodeId"].as_str().unwrap_or("unknown").to_owned();
         let (tx, rx) = oneshot::channel();
 
         let served = {
@@ -882,7 +885,7 @@ impl BridgeState {
             pending: &self.pending,
             request_id,
         };
-        match timeout(JOB_TIMEOUT, rx).await {
+        match timeout(budget, rx).await {
             Ok(Ok(result)) => match (result.data, result.error) {
                 // 스크립트가 던진 DEVUP_* 코드는 그대로 올린다. 원격 경로와 같은
                 // 문자열이어야 위쪽 분기가 동일하게 동작한다.
@@ -896,9 +899,15 @@ impl BridgeState {
             Ok(Err(_)) => Err(Failure::Interrupted(unavailable(
                 "the Devup Bridge plugin disconnected mid-read",
             ))),
-            Err(_) => Err(Failure::Final(unavailable(
-                "the Devup Bridge plugin did not answer in time",
-            ))),
+            Err(_) => Err(Failure::Final(unavailable(format!(
+                "{}Devup Bridge {script} did not answer after {} ms (node: {requested_node})",
+                if is_asset {
+                    "DEVUP_ASSET_TIMEOUT: "
+                } else {
+                    ""
+                },
+                budget.as_millis()
+            )))),
         }
     }
 
@@ -910,6 +919,31 @@ impl BridgeState {
         }
         self.plugins_changed(inner);
     }
+}
+
+pub(super) fn job_timeout(script: &str, params: &Value) -> Duration {
+    if job_is_asset_read(script, params) {
+        let options = if script == "assets" {
+            &params["asset"]
+        } else {
+            &params["largeValue"]
+        };
+        let millis = options["timeoutMs"]
+            .as_u64()
+            .filter(|v| (1000..=600000).contains(v))
+            .unwrap_or(90000);
+        Duration::from_millis(millis) + Duration::from_secs(5)
+    } else {
+        JOB_TIMEOUT
+    }
+}
+
+pub(super) fn job_is_asset_read(script: &str, params: &Value) -> bool {
+    script == "assets"
+        || (script == "largeValue"
+            && params["largeValue"]["field"]
+                .as_str()
+                .is_some_and(|field| field.starts_with("$export:")))
 }
 
 /// 한 번에 담을 수 있는 양. 로컬 소켓이라 공식 MCP 의 자름을 따를 이유가 없다.

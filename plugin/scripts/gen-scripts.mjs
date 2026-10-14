@@ -46,6 +46,10 @@ const PARAMS = {
  * id 리터럴이다. 치환하면 페이지네이션이 조용히 깨진다.
  */
 const INCLUDES = {
+  __DEVUP_COMPONENT_IDENTITY_HELPERS__: () =>
+    readFileSync(join(scriptDir, 'component_identity_helpers.js'), 'utf8'),
+  __DEVUP_ASSET_RENDER_HELPERS__: () =>
+    readFileSync(join(scriptDir, 'asset_render_helpers.js'), 'utf8'),
   __DEVUP_LARGE_VALUE_HELPERS__: () =>
     readFileSync(join(scriptDir, 'large_value_helpers.js'), 'utf8'),
   __DEVUP_PLUGIN_API_MANIFEST__: () =>
@@ -87,7 +91,7 @@ function transform(file) {
 const files = readdirSync(scriptDir)
   .filter((f) => f.endsWith('.js'))
   // 단독 실행되지 않고 다른 스크립트에 인클루드되기만 한다.
-  .filter((f) => f !== 'large_value_helpers.js')
+  .filter((f) => !['large_value_helpers.js', 'asset_render_helpers.js', 'component_identity_helpers.js'].includes(f))
   .sort()
 
 // 본문은 손대지 않은 JavaScript다. `.ts` 로 내보내면 검증된 스크립트가 strict

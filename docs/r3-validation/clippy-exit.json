@@ -1,4 +1,0 @@
-{
-  "command": "cargo clippy --workspace --all-targets -j 2 -- -D warnings",
-  "exitCode": 0
-}

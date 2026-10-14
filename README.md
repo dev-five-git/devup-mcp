@@ -615,7 +615,15 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 결과에는 `tsx`와 함께 `status`, `quality`, `cache`, `collection`, `source`가 포함됩니다. import 목록과 사용 token은 별도 키로 보내지 않습니다 — 각각 TSX의 첫 줄과 본문의 `$token`이 이미 같은 내용을 담고 있어, 응답에 두 번 싣는 만큼이 그대로 낭비였습니다. Auto Layout은 `Flex`, 일반 container는 `Box`, text는 `Text`로 변환하고 theme binding이 있으면 JSX prop에서 `$token`을 우선 사용합니다. 변수 token은 비어 있지 않은 Figma `codeSyntax.WEB`을 우선하고, 없으면 변수 경로의 마지막 이름을 정규화합니다. 따라서 TSX의 `$token`, `devup.json` key와 source map이 같은 이름을 사용합니다. `rootLayout` 기본값인 `standalone`은 선택한 root의 크기·위치 제약까지 포함하고 Figma instance의 실제 자식 상태를 펼쳐 정의되지 않은 component 참조를 만들지 않습니다. 이미 레이아웃을 소유한 React 부모 안에 삽입할 때는 `rootLayout: "embedded"`로 root의 외부 크기·위치 제약만 생략합니다.
 
+대형 화면의 진단 details와 verdict/layout 메타데이터는 `metadataDelivery.uri`가 가리키는 `projection-details.json` resource로 전달할 수 있습니다. inline에는 이슈 개수·ID·severity와 검토 안내를 유지하고, 각 `fullDetailsResource.jsonPointer` 또는 `metadataPreviewFields`의 pointer로 원본을 찾습니다. preview의 생략 개수·상한은 명시하며, 필수 체크리스트에 따라 resource를 읽기 전에는 검증을 완료로 보고하지 마십시오. 코드·theme·에셋 파일과 resource byte/hash 계약은 동일합니다.
+
 ### Figma → devup.json
+
+`outputs: ["tsx", "devupJson"]`와 `devupJsonMode: "used-only"`를 함께 지정하면 생성 코드가 실제 참조하는 토큰과 typography 의존성만 반환합니다. `projectRoot`에 기존 theme가 있으면 `themeDiff`가 없는 정의와 이름 충돌을 보고하고, `devupJsonMode: "missing-only"`는 기존 값을 보존한 추가분만 반환합니다. 기본값은 `full`입니다. 읽을 수 없는 스타일은 `skippedStyles`와 이름·노드 ID가 있는 경고로 분리하며, strict 모드는 거절합니다. 변수/미지정 fontSize의 백분율 lineHeight는 문자열로 보존합니다.
+
+코드 출력은 정적입니다. `interactiveCandidates`, 프로토타입/상태 TSX 주석, `ambiguityQuestions`, 필수 `reviewChecklist`를 실제 라우트와 동작에 연결하고 `devup_ui_validate`로 검증해야 합니다. `projectRoot`는 기존 UI/라우트와 환경 키 **이름**만 병합합니다. `devup_project_context`의 `routes` scope와 validator의 `renderedHtml` href 집계는 정적 증거이며 클릭 성공을 증명하지 않습니다. 고정 navigation 밑줄은 활성 상태를 단정하지 않고 info 검토 후보로 보고합니다. `responsiveGroups`와 `breakpointCompletion`은 export한 폭과 남은 폭을 구분하며, 구현/시각 검증은 별도입니다.
+
+중첩 `I44:8533;10:973` 노드 ID도 URL/assetRequests로 지정할 수 있습니다. SVG native export 실패 시 지원되는 실제 subtree geometry만 read-only로 복구하며, 지원되지 않는 mask/paint/effect는 실패 원인을 보존합니다. 실패한 에셋에는 생성 경로를 표시하지 않습니다. `DEVUP_ASSET_TIMEOUT_MS`는 1000–600000 ms 범위이며 기본값은 90000 ms입니다. 진단에 단계별 시간이 포함되며 Figma 내부 renderer timeout 자체를 바꾸지는 않습니다. 새 스크립트를 적용하려면 갱신된 bridge host와 재빌드한 plugin을 함께 사용하십시오.
 
 ```json
 {
@@ -701,7 +709,7 @@ devup://artifact/{artifactId}/outputs/{outputId}/chunks/{index}
 
 모든 공개 TSX generator는 반환 전에 Rust의 고정된 TypeScript+JSX parser를 통과합니다. parser 오류는 디자인 원문을 노출하지 않고 byte range와 오류 category만 반환합니다. 응답의 `fidelity`는 생성된 mapping 수가 아니라 수집한 source snapshot에서 독립적으로 계산한 node/text segment/variable/style/asset/layout 기대 집합을 분모로 사용하고, 내부 validator가 각 항목을 `emitted | flattened | ignored` 중 정확히 하나로 검증했는지와 축별 coverage·typed impact count를 담습니다. component set, non-default variant selector와 inline instance도 최종 변환 후 source identity별 provenance를 다시 만들며, 반복된 동일 text segment는 하나의 mapping을 재사용하지 않고 occurrence별로 소비하고 multiline·중첩 text와 asset identity를 검증합니다. 알 수 없는 codegen warning/error도 각각 최소 `approximated`/`failed`로 보수적으로 판정하며, `strict`는 syntax, source-derived trace coverage, lossy/failed impact를 함께 검사합니다.
 
-브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다. renderer pinning, 기본 0.5% threshold, diff PNG와 개인정보 취급 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
+브라우저 시각 회귀는 MCP 서버가 임의 명령을 실행하지 않고 소비자 repository가 실제 font/asset/DevupUI 환경으로 `actual.png`를 만든 뒤 순수 Rust `devup-mcp-visual`로 비교합니다.
 
 ### 렌더링 하네스 — 생성 코드를 Figma가 그린 PNG와 비교
 
@@ -733,7 +741,7 @@ node scripts/render.mjs              # 빌드·캡처·비교, 화면별 임계�
 
 Section 링크에서 TSX를 요청하면 먼저 내부 screen frame 후보와 canonical URL을 `selection_required`로 반환합니다. `frameIds`로 검토한 frame만 고르거나 `allScreens: true`로 모든 화면을 시각 순서대로 batch export할 수 있으며 두 옵션은 동시에 사용할 수 없습니다. `sourceMap`은 `nodeId`·원본 `property`·`generatedProperty`·`resolution`으로 필드→생성 속성을 설명하는 sidecar입니다. TSX 문자/바이트 오프셋은 제공하지 않습니다. 생성 코드 발췌는 진단의 `generatedSource`를 확인합니다. devup.json은 JSON pointer를 사용합니다. `assetManifest`는 image hash/vector/export provenance를 항상 열거하고, `assetRequests`로 명시한 항목만 권장 1–3개, 최대 6개·scale 1~4 범위에서 read-only SVG/PNG export합니다. `assetRequests`를 쓰는 호출은 `outputs`에 `assetManifest`가 함께 있어야 하며, 빠뜨리면 거절됩니다. `outputPath`를 지정하면 binary를 해당 파일로 디코딩하고 응답의 base64를 제거하며, 생략하면 후속 소비를 위해 base64가 memory-only artifact와 해당 MCP 응답에 남을 수 있습니다.
 
-자산 6개 초과 요청은 인증·수집·파일 쓰기 전에 거절하며 `recommendedBatchSize`, `maxAssetCount`, `recommendedAssetRequests`, `remainingAssetRequests`로 분할을 안내합니다. 느린 자산 호출은 1초 대기 후 `assetJob.jobId`, 단계별 호출 기록, 자산별 수집/파일 상태를 먼저 반환합니다. `{"jobId":"..."}`로 조회하고, `paused`이면 `{"jobId":"...","jobAction":"resume"}`로 미완료 호출만 재개합니다. 동일 인자를 다시 보내면 유실된 최초 응답의 작업을 찾습니다. 클라이언트 타임아웃은 작업을 취소하지 않습니다. 체크포인트는 **같은 서버 프로세스에서 최대 30분**, 완료 결과는 5분 보존하며 서버 재시작 후에는 복구되지 않습니다. 개별 upstream 호출은 90초에 일시정지합니다. 자산 `exported`는 검증된 바이트 수집이며, `fileState=written`은 실제 파일 바이트까지 확인한 결과입니다. 상세 계약은 [R3 자산 작업과 근거](docs/r3-asset-jobs-and-evidence.md)를 참조하세요.
+자산 6개 초과 요청은 인증·수집·파일 쓰기 전에 거절하며 `recommendedBatchSize`, `maxAssetCount`, `recommendedAssetRequests`, `remainingAssetRequests`로 분할을 안내합니다. 느린 자산 호출은 1초 대기 후 `assetJob.jobId`, 단계별 호출 기록, 자산별 수집/파일 상태를 먼저 반환합니다. `{"jobId":"..."}`로 조회하고, `paused`이면 `{"jobId":"...","jobAction":"resume"}`로 미완료 호출만 재개합니다. 동일 인자를 다시 보내면 유실된 최초 응답의 작업을 찾습니다. 클라이언트 타임아웃은 작업을 취소하지 않습니다. 체크포인트는 **같은 서버 프로세스에서 최대 30분**, 완료 결과는 5분 보존하며 서버 재시작 후에는 복구되지 않습니다. 개별 upstream 호출은 90초에 일시정지합니다. 자산 `exported`는 검증된 바이트 수집이며, `fileState=written`은 실제 파일 바이트까지 확인한 결과입니다.
 
 **`assetManifest`는 목록일 뿐 파일을 쓰지 않습니다.** 파일을 얻으려면 `assetRequests`로 다시 부르되, 그 호출은 **`artifactId`가 아니라 원래 `url`로** 해야 합니다. 자산 캡처 없이 수집된 artifact는 자산 요청을 처리할 수 없기 때문입니다. 그 조합으로 부르면 무엇이 없는지와 어떻게 복구하는지를 담아 거절합니다:
 
@@ -1011,7 +1019,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 **이 도구는 스스로 그리지 않습니다.** 브라우저를 띄우지도, 명령을 실행하지도 않습니다. `actual.png`는 소비자 repository가 자기 font·asset·DevupUI 환경에서 만들어 건네는 것이고, 여기서는 순수 Rust로 픽셀만 비교합니다. 경로는 allowlist 안이어야 합니다.
 
-그래서 **통과 여부보다 판정 근거가 중요합니다.** renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면, 픽셀이 일치해 `visual.passed`가 `true`여도 최종 판정은 `inconclusive`입니다 — 무엇으로 그린 그림인지 모르는 채 "같다"고 말하는 것은 보증이 아니기 때문입니다. renderer pinning과 환경 manifest 계약은 [`docs/visual-renderer-contract.md`](docs/visual-renderer-contract.md)에 있습니다.
+그래서 **통과 여부보다 판정 근거가 중요합니다.** renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면, 픽셀이 일치해 `visual.passed`가 `true`여도 최종 판정은 `inconclusive`입니다 — 무엇으로 그린 그림인지 모르는 채 "같다"고 말하는 것은 보증이 아니기 때문입니다.
 
 서버가 스스로 증명할 수 있는 것은 서버가 채웁니다. reference를 `artifactId`로 주고 manifest에 `referenceResource`를 빠뜨리면, 이 서버가 Figma에서 받아 들고 있는 그 PNG의 해시로 채우고 `environment.filledByServer`에 적습니다. 경로로 준 reference는 소비자의 파일이라 채우지 않습니다. 나머지 manifest 항목은 여전히 소비자가 말해야 합니다.
 
@@ -1037,7 +1045,7 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 
 `ingest`는 그린 폭에서 찍혀 검증된 스크린샷마다 **바로 부를 수 있는 `devup_visual_compare` 호출**을 `visualComparisons[]`로 돌려줍니다. audit이 아는 것 — 스크린샷 경로(`actual`·`actualPng`), viewport, 실행기가 신고한 브라우저 버전(`renderer`), OS·locale·timezone, 그 run에 환경 오류가 있었는지(`environmentStatus`) — 은 채워져 있고, 소비자만 말할 수 있는 것(reference의 `artifactId`, `tsxResource`, `themePath`, `assetDirectory`, `devupUiVersion`, `fontManifest`)은 `consumerMustAdd`가 이름으로 댑니다. 그대로 불러도 `inconclusive`가 될 사정 — scale 1이 아닌 캡처, viewport보다 긴 페이지의 full-page 캡처, 환경 오류 — 은 `blockers`가 미리 말합니다. 예전에는 audit 스크린샷을 비교기에 넣으면 이 항목들이 비어 언제나 `inconclusive`였습니다.
 
-360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다. 계약 전체는 [`docs/runtime-audit-contract.md`](docs/runtime-audit-contract.md)에 있습니다.
+360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다.
 
 ## 읽기 전용·개인정보 보호
 
@@ -1083,9 +1091,7 @@ Figma Remote MCP에서는 `JSON_REST_V1` export가 허용되지 않으므로 hos
 - vector, mask, image, absolute layout과 일부 effect는 diagnostics를 포함한 제한적 fallback입니다.
 - Figma Remote MCP의 `use_figma` tool contract가 바뀌면 live smoke test와 adapter 갱신이 필요합니다.
 
-상세 설계는 [`docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md`](docs/superpowers/specs/2026-08-30-figma-remote-mcp-design.md)를 참고하세요.
 
-`docs/superpowers/` 아래의 plan·spec은 **작성 시점의 기록**이지 현재 API 문서가 아닙니다. 예를 들어 위에서 제거했다고 적은 `devup_figma_to_ui`/`devup_figma_to_json`을 그 문서들은 아직 현재 도구처럼 기술합니다. 현재 도구 목록과 동작의 기준은 이 README와 서버가 게시하는 스키마·tool description입니다.
 
 ### 생성 코드의 배치 계약
 
@@ -1101,7 +1107,7 @@ absolute 자식이 있는 프레임은 생성 코드가 containing block을 만�
 
 `quality.assets`는 자산 바이트 수집 품질이며 manifest 생성 성공을 뜻하지 않습니다. `assetSummary.description`과 `excludedCount`가 미수집·부분 수집·숨김 제외를 설명합니다. 바이트 수집을 요청하지 않았다면 `not-collected` 요약과 `quality.assets: not-requested`가 함께 올 수 있습니다.
 
-배치 응답의 `recommendedBatchSize`는 최대 3, `maxFrameCount`는 6, `maxFrameOutputUnits`는 12입니다. 자세한 정의는 [R1 응답 계약](docs/r1-result-contract.md)을 참고하세요.
+배치 응답의 `recommendedBatchSize`는 최대 3, `maxFrameCount`는 6, `maxFrameOutputUnits`는 12입니다.
 
 
 ### R8 provenance, scrolling and acquisition
@@ -1143,7 +1149,7 @@ R16의 `sourceMap.resolutionSemantics`는 이 라벨 사전과 `axis="mapping-me
 
 R16은 실패한 치수 증명의 `blockedBy`를 추가합니다. 부모 폭 불명(`parent-width-unknown`), 부모 폭 불일치(`parent-width-unequal`), 읽기 오류(`read-error`), 비FIXED sizing(`non-fixed-sizing`), dimension 충돌(`conflicting-dimension-props`)을 구분합니다. 성공 시 null이며 widthPreservation에도 같은 값이 들어갑니다. 첫 차단 이유만 보고하므로 나머지 조건의 통과나 다른 실패 분기의 실행을 뜻하지 않습니다. 자산은 부모 percentage 증명 대신 실제 선택된 render-boundary 증명의 실패 이유를 보고합니다.
 
-최종 응답과 각 frame의 `verdictScope`는 status/projection을 그대로 표시하고 `statusCauses`와 `projectionCauses`로 원인을 요약합니다. projection 원인은 nodeId/screenId/output/code/property와 미해결 component를 가리키므로, width/height가 verified여도 horizontal/vertical이 approximated인 화면의 전체 판정을 바로 설명합니다. `diagnosticIndex`는 같은 객체의 projectionIssues 인덱스입니다. includeDiagnostics=false 및 resource delivery에도 요약이 유지됩니다. 자세한 범위는 [R16 응답 계약](docs/r16/response-contract.md)을 참고합니다.
+최종 응답과 각 frame의 `verdictScope`는 status/projection을 그대로 표시하고 `statusCauses`와 `projectionCauses`로 원인을 요약합니다. projection 원인은 nodeId/screenId/output/code/property와 미해결 component를 가리키므로, width/height가 verified여도 horizontal/vertical이 approximated인 화면의 전체 판정을 바로 설명합니다. `diagnosticIndex`는 같은 객체의 projectionIssues 인덱스입니다. includeDiagnostics=false 및 resource delivery에도 요약이 유지됩니다.
 
 ABSOLUTE 진단의 `components`는 height/width/horizontal/vertical별 state·fidelityImpact·원본 값·생성 값·검증 이유를 제공합니다. `resolutionConditions`에는 남은 근사 항목의 해소 조건만 들어갑니다. CENTER는 원본 중심 오프셋, left/top 50%, translate 및 실제 생성 부모 좌표 기준까지 확인해야 검증됩니다. MIN은 원본 오프셋과 생성 px를 비교합니다. MAX는 크기 검증을 전제로 parentSize-offset-size와 right/bottom 여백을 비교합니다. 제약 필드 전체가 없는 이전 캡처는 `constraintDeclared=false`로 표시하며 생성된 로컬 오프셋만 비교하고 반응형 제약을 추정하지 않습니다. 증명되지 않은 MAX/STRETCH/SCALE, 누락 geometry 또는 필드 오류는 근사로 남습니다. 명시적 FIXED 높이 보존은 percentage 너비의 동등성을 증명하지 않습니다.
 
