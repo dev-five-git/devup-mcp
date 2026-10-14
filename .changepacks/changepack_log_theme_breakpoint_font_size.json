@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "A `devupJson` theme no longer refuses a text style whose percentage line height cannot be one pixel advance. A style whose font size is bound to a variable whose modes are named for breakpoints - Mobile, Tablet, Desktop or PC, or a number - becomes a responsive typography entry, one slot per mode with the size that mode resolves to (Mobile at the first slot, Tablet at the third, 768px, Desktop and PC at the fifth, 1280px). A percentage line height on a size bound to a variable, or with no size, is written as it is (`150%`), which CSS scales with whatever size applies; a fixed size keeps the whole-pixel advance Figma draws. Modes that are not breakpoints keep the variable's token for the size. On the devup Test file the whole-file theme, refused before, now comes out, and devup-ui 1.0.79 compiles its `test` style to 16px under 768px and 24px from 768px, both at `line-height: 150%`.",
-  "date": "2026-10-11T21:34:00+09:00"
-}

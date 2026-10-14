@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "A whole-file export that also collects the document (`scope: \"file\"` with `rawPayload`, `assetManifest` or other outputs besides `devupJson`) now produces the same theme as a theme-only export, and its collection is complete. Its theme knew only the file's own variables: the library variables and styles its nodes use, and those its variables alias, were never read, so `themeCompleteness` was `used-tokens` and a local spacing aliasing a library primitive was unresolved. They are now read after the file's own catalog and joined to it. Figma's variable suggestions (`inferredVariables`) are no longer read as bindings, which had added library colours the design does not use. The legacy snapshot no longer reads the synchronous `mainComponent`, `masterComponent` and `instances` getters Figma refuses under dynamic-page access, nor a variant's `componentPropertyDefinitions`, which only its set has: 677 field errors on the devup Test file, which marked the collection partial. A used-resource read also keeps the variables it followed through aliases instead of dropping them.",
-  "date": "2026-10-12T01:00:00+09:00"
-}
