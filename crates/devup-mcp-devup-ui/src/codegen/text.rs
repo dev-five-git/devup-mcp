@@ -12,6 +12,7 @@ use super::{
 pub(super) fn push_text_props(
     view: &TypedNode<'_>,
     text_style_tokens: &BTreeMap<String, String>,
+    typography_values: &BTreeMap<String, Value>,
     variable_tokens: &BTreeMap<String, String>,
     used_tokens: &mut BTreeSet<String>,
     props: &mut Vec<Prop>,
@@ -22,6 +23,7 @@ pub(super) fn push_text_props(
     let segment = default_segment(view);
     let typography = segment
         .and_then(|value| value.get("textStyleId"))
+        .or_else(|| view.value("textStyleId"))
         .and_then(Value::as_str)
         .and_then(|id| text_style_tokens.get(id));
     let value = |field: &str| {
@@ -146,6 +148,9 @@ pub(super) fn push_text_props(
         );
         string_prop(props, "paintOrder", "stroke fill");
     }
+    if let Some(value) = typography.and_then(|token| typography_values.get(token)) {
+        elide_typography_duplicates(props, value);
+    }
     if let Some(list) = segment
         .and_then(|value| value.get("listOptions"))
         .and_then(Value::as_object)
@@ -160,6 +165,40 @@ pub(super) fn push_text_props(
         string_prop(props, "my", "0px");
         string_prop(props, "pl", "1.5em");
     }
+}
+
+fn elide_typography_duplicates(props: &mut Vec<Prop>, typography: &Value) {
+    // A responsive property can be omitted only when every effective slot
+    // defines that same value, including the first width. Never select an
+    // active viewport from a text node's own width.
+    let values = match typography {
+        Value::Object(value) => vec![value],
+        Value::Array(slots) if slots.first().is_some_and(Value::is_object) => {
+            let Some(values) = slots
+                .iter()
+                .filter(|slot| !slot.is_null())
+                .map(Value::as_object)
+                .collect::<Option<Vec<_>>>()
+            else {
+                return;
+            };
+            values
+        }
+        _ => return,
+    };
+    props.retain(|(name, PropValue::String(value))| {
+        if !matches!(name.as_str(), "fontSize" | "fontWeight" | "lineHeight") {
+            return true;
+        }
+        !values.iter().all(|values| {
+            values.get(name).is_some_and(|expected| {
+                expected.as_str().is_some_and(|expected| expected == value)
+                    || expected
+                        .as_f64()
+                        .is_some_and(|expected| value.parse::<f64>().ok() == Some(expected))
+            })
+        })
+    });
 }
 
 fn is_resolved_value(value: &Value) -> bool {
@@ -279,6 +318,7 @@ fn replace_prop(props: &mut Vec<Prop>, name: &str, value: String) {
 pub(super) fn render_text_children(
     view: &TypedNode<'_>,
     text_style_tokens: &BTreeMap<String, String>,
+    typography_values: &BTreeMap<String, Value>,
     variable_tokens: &BTreeMap<String, String>,
     used_tokens: &mut BTreeSet<String>,
     depth: usize,
@@ -337,6 +377,18 @@ pub(super) fn render_text_children(
                 .iter()
                 .any(|(default_name, default_value)| default_name == name && default_value == value)
         });
+        // A different run style establishes its own metrics. Equal metrics
+        // can be omitted there; same-style runs keep local overrides relative
+        // to the parent, even when a run happens to equal the token again.
+        if segment_props.iter().any(|(name, _)| name == "typography")
+            && let Some(value) = segment
+                .get("textStyleId")
+                .and_then(Value::as_str)
+                .and_then(|id| text_style_tokens.get(id))
+                .and_then(|token| typography_values.get(token))
+        {
+            elide_typography_duplicates(&mut segment_props, value);
+        }
         let content = escape_jsx_text(value);
         if segment_props.is_empty() {
             if content.is_empty() {

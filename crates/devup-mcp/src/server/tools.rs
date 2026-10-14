@@ -67,6 +67,13 @@ pub struct FigmaExportInput {
         "enum": super::validation::EXPORT_OUTPUTS,
     })))]
     pub outputs: Vec<String>,
+    /// full preserves the complete collected theme. used-only keeps tokens
+    /// referenced by generated code and their dependencies. missing-only
+    /// returns additions absent from projectRoot's existing devup.json and
+    /// preserves existing names/values. The latter two require a code output.
+    #[serde(default = "default_devup_json_mode")]
+    #[schemars(extend("enum" = ["full", "used-only", "missing-only"]))]
+    pub devup_json_mode: String,
     /// Saved designFingerprints sidecar JSON text. Request designChanges to compare
     /// captured converter inputs; this does not verify rendered pixels or code on disk.
     #[serde(default)]
@@ -172,6 +179,10 @@ pub struct FigmaExportInput {
     /// responsiveTsx.
     #[serde(default)]
     pub width_policy: Option<WidthPolicyInput>,
+}
+
+fn default_devup_json_mode() -> String {
+    "full".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -32,6 +32,7 @@ pub enum PendingOperation {
         root_layout: RootLayout,
         asset_names_per_node: bool,
         scope: String,
+        theme_options: super::projection::theme_export::ThemeExportOptions,
         strict: bool,
         output_paths: BTreeMap<String, String>,
         page_scaffold: Option<super::projection::page_scaffold::PageScaffoldOptions>,

@@ -52,6 +52,7 @@ pub(crate) fn property_derivations(
             "text" => text::push_text_props(
                 &node.typed_view(),
                 &options.text_style_tokens,
+                &options.typography_values,
                 &options.variable_tokens,
                 &mut tokens,
                 &mut props,
