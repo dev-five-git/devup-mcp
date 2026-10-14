@@ -1,7 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "Expose bounded interaction, prototype, state, shared-component and widget evidence in Figma exports, with required wiring review and completion evidence. Merge existing UI/route inventories and environment key names without values; validate semantic controls and static destinations, report source/rendered href coverage and compare explicit prototype navigation bindings in feature traces. Add frontend guidance for accessible links, unresolved destinations, visual verification and Windows tooling.",
-  "date": "2026-10-14T09:45:00+00:00"
-}

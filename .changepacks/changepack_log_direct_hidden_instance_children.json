@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "The direct path now reads the same document the Devup Bridge does. Figma's own MCP runs scripts with hidden layers inside instances left out of `children`, `findAll` and `getNodeByIdAsync`, and with pages not loaded until something loads them; the plugin sees both. On the devup Test file the direct path's whole-file theme missed the variables and text styles bound on 106 hidden instance layers and on the second page (252 variables and 133 styles against 264 and 135), and a component instance exported through it held 4 nodes where the bridge held 8. Every script that reads nodes now starts with `figma.skipInvisibleInstanceChildren = false`, and the whole-file theme loads every page before it scans. The two paths' themes and that instance's code are now byte-identical.",
-  "date": "2026-10-12T03:00:00+09:00"
-}

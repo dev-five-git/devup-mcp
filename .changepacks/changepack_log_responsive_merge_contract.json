@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "`responsiveTsx` now carries a verified property contract. The merged module is read at each collected width's slot (every array resolved as devup-ui resolves it, elements hidden there skipped) and compared with that width converted on its own: the same elements, the same settled values, every value one the width's own contract verifies, the same text, and nothing of the width left over. A component reference is checked by the component it names and the variant the width's instance picked, but what it draws belongs to the component's own file, which the module does not contain, and an instance can override its text or size; a module that shows one is therefore not verified (`component-body-unverified`). Only when every width agrees is `outputResults.responsiveTsx.fidelity.mergedMappingVerified` true; otherwise `mergeGaps` names the width, node and property where they part company, and the `unverified-responsive-merge` entry carries them. Before, the flag was always false, so every multi-width export reported `mapping-incomplete` whatever the module said. This compares code, not a rendering. A layer hidden at every width that has it is now left out of the module, as `tsx` leaves it out, instead of being written with `display: none`.",
-  "date": "2026-10-12T05:20:00+09:00"
-}

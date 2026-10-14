@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor",
-    "crates/devup-mcp/Cargo.toml": "Minor"
-  },
-  "note": "A `devupJson` length variable in a collection whose modes are all breakpoints (Mobile, Tablet, Desktop or PC, or a number) is now one `length` token in every theme, a responsive array with a slot per mode (`containerX: [\"20px\", null, \"40px\"]`), or the value alone when every mode has the same one. Before, as in the plugin, each mode was a theme key of its own (`theme.length.mobile`), which devup-ui reads as a `data-theme`: the token had a value only on a page that set that theme, and in a whole-file theme it was undefined in the default one. A theme that already has its own token of the same name keeps it, and the clash is reported in `conflicts`. Colours stay keyed by mode, since devup-ui takes no array for a colour.",
-  "date": "2026-10-11T23:55:00+09:00"
-}

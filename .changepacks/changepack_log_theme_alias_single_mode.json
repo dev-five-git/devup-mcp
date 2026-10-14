@@ -1,8 +1,0 @@
-{
-  "changes": {
-    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch",
-    "crates/devup-mcp/Cargo.toml": "Patch"
-  },
-  "note": "A `devupJson` variable that aliases a variable in another collection with a single mode (a library's primitives, say) now takes that variable's one value instead of being reported unresolved and left out of the theme: the alias's mode id belongs to the aliasing collection, so it was never found in the other one. An alias into a collection with several modes stays unresolved, since which of them applies is set by the consumer. A whole-file theme also reads the library variables that variables alias even when no node binds them (and what those alias in turn), and puts them in the theme; before, only library variables bound on a node were read, so such an alias had no target. On the devup Test file `containerX` (Mobile/Tablet, aliasing two library spacings) now comes out as 20px and 40px, the values Figma resolves on the nodes bound to it.",
-  "date": "2026-10-11T22:20:00+09:00"
-}
