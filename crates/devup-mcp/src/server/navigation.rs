@@ -28,9 +28,65 @@ struct Collector<'s> {
     source: &'s str,
     linked_ancestors: usize,
     form_ancestors: usize,
+    nav_ancestors: usize,
     link_names: BTreeSet<String>,
     elements: Vec<Value>,
     diagnostics: Vec<Value>,
+}
+
+// Only literal visual markers on a navigation candidate warrant this hint.
+// A marker can be decorative; its presence never establishes active state.
+fn fixed_visual_marker(attrs: &BTreeMap<&str, &JSXAttribute<'_>>) -> bool {
+    let mut values = BTreeMap::<String, String>::new();
+    for (key, attribute) in attrs {
+        if let Some(value) = literal(attribute) {
+            values.insert((*key).into(), value);
+        } else if let Some(JSXAttributeValue::ExpressionContainer(container)) = &attribute.value {
+            match &container.expression {
+                JSXExpression::NumericLiteral(n) => {
+                    values.insert((*key).into(), n.value.to_string());
+                }
+                JSXExpression::ObjectExpression(object) if *key == "style" => {
+                    // Spread/computed properties can override a literal marker.
+                    if object
+                        .properties
+                        .iter()
+                        .any(|p| !matches!(p, ObjectPropertyKind::ObjectProperty(p) if !p.computed))
+                    {
+                        continue;
+                    }
+                    for property in &object.properties {
+                        if let ObjectPropertyKind::ObjectProperty(property) = property
+                            && let Some(key) = property.key.static_name()
+                        {
+                            match &property.value {
+                                Expression::StringLiteral(s) => {
+                                    values.insert(key.into_owned(), s.value.to_string());
+                                }
+                                Expression::NumericLiteral(n) => {
+                                    values.insert(key.into_owned(), n.value.to_string());
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    values.get("borderBottom").is_some_and(|v| {
+        v.split_whitespace()
+            .next()
+            .is_some_and(|width| ["1px", "2px", "3px", "4px"].contains(&width))
+            && v.split_whitespace().any(|s| s == "solid")
+            && !v.contains("transparent")
+    }) || (values
+        .get("borderBottomWidth")
+        .is_some_and(|v| ["1", "2", "3", "4", "1px", "2px", "3px", "4px"].contains(&v.as_str()))
+        && values
+            .get("borderBottomColor")
+            .is_some_and(|v| !v.is_empty() && v != "transparent"))
 }
 
 fn boolean(a: &JSXAttribute<'_>) -> Option<bool> {
@@ -69,7 +125,7 @@ impl<'a> Visit<'a> for Collector<'_> {
             .iter()
             .filter_map(|a| {
                 if let JSXAttributeItem::Attribute(a) = a {
-                    Some((a.name.span().source_text(self.source), a))
+                    Some((a.name.span().source_text(self.source), a.as_ref()))
                 } else {
                     None
                 }
@@ -121,6 +177,12 @@ impl<'a> Visit<'a> for Collector<'_> {
             .and_then(|a| literal(a))
             .unwrap_or(own_text);
         let role = attrs.get("role").and_then(|a| literal(a));
+        let nav = name == "nav"
+            || role.as_deref() == Some("navigation")
+            || matches!(
+                super::interactions::label_role(name),
+                Some(super::interactions::Role::Nav)
+            );
         let candidate = is_link
             || native
             || handler
@@ -149,21 +211,28 @@ impl<'a> Visit<'a> for Collector<'_> {
             || attrs.get("data-state").is_some_and(|a| {
                 literal(a).is_some_and(|s| ["active", "selected"].contains(&s.as_str()))
             });
+        let visual_marker = candidate
+            && !active
+            && (self.nav_ancestors > 0 || nav || is_link || role.as_deref() == Some("tab"))
+            && fixed_visual_marker(&attrs);
         if candidate || active {
             self.elements.push(json!({"element":name,"name":accessible_name.trim(),"line":line,"offset":element.span.start,
                 "candidate":candidate,"wired":wired || self.linked_ancestors>0,"href":href,"dynamicHref":attrs.contains_key("href") && href.is_none(),
                 "nodeId":attrs.get("data-figma-node-id").and_then(|a|literal(a)),
                 "semanticControl":is_link || native,"nativeToggleOnly":native_toggle && !wired,"disabled":disabled,
                 "staticActive":active,"nonSemanticClick":handler && matches!(name,"div"|"span"|"Box"|"Flex"|"Text"|"Center"|"Grid"),
+                "fixedVisualNavigationMarker":visual_marker,
                 "ancestorControl":self.linked_ancestors>0,"isLink":is_link}));
         }
         // A dynamic Link is still a semantic ancestor, but its destination remains unresolved.
         let parent_control = is_link || native;
         self.linked_ancestors += usize::from(parent_control);
         self.form_ancestors += usize::from(form_action);
+        self.nav_ancestors += usize::from(nav);
         walk::walk_jsx_element(self, element);
         self.linked_ancestors -= usize::from(parent_control);
         self.form_ancestors -= usize::from(form_action);
+        self.nav_ancestors -= usize::from(nav);
     }
 }
 
@@ -272,6 +341,13 @@ pub(super) fn report(source: &str, inventory: &Value, rendered_html: Option<&str
                 "Active state is literal; verify route/state-based selection. For GNB use usePathname in a small client component.",
             );
         }
+        if element["fixedVisualNavigationMarker"] == true {
+            finding(
+                "fixed-navigation-marker",
+                "info",
+                "Navigation candidate has a constant underline/highlight; it may be decorative. Confirm its purpose and, if it denotes the active menu, derive it from route/state (usePathname for GNB). Active state and runtime behavior remain unverified.",
+            );
+        }
         if let Some(href) = element["href"]
             .as_str()
             .filter(|_| element["isLink"] == true)
@@ -326,7 +402,7 @@ pub(super) fn report(source: &str, inventory: &Value, rendered_html: Option<&str
     json!({"findings":findings,"sourceHrefs":hrefs,"renderedHrefs":rendered,
         "coverage":{"candidateCount":candidates.len(),"wiredCount":wired,"semanticControlCount":semantic,"nativeToggleOnlyCount":native_toggles,"dynamicTargetCount":dynamic,"runtimeVerified":false,"sourceParsed":evidence["parsed"]},
         "elements":evidence["elements"],"diagnostics":evidence["diagnostics"],"routeCheck":{"ran":usable,"reason":if usable{"Selected application App Router inventory; rewrites, middleware, basePath and public resources require explicit review."}else{"No complete single-application route inventory; missing-route errors skipped."}},
-        "limitations":["Counts are static source candidates, not a census of rendered controls; components, loops, wrappers and runtime state may differ.","Literal active attributes are evidence; visual underlines without semantic state cannot be classified reliably.","Rendered href counts are separate evidence and never establish click success or one-to-one source coverage."]})
+        "limitations":["Counts are static source candidates, not a census of rendered controls; components, loops, wrappers and runtime state may differ.","Literal active attributes are evidence; constant navigation underlines are review candidates only, and other visual markers may be unclassified.","Rendered href counts are separate evidence and never establish click success or one-to-one source coverage."]})
 }
 
 pub(super) fn attach_validation(result: &mut Value, input: &super::tools::UiValidateInput) {
@@ -337,6 +413,7 @@ pub(super) fn attach_validation(result: &mut Value, input: &super::tools::UiVali
                 "interaction-accessibility",
                 "missing-static-route",
                 "hardcoded-active-state",
+                "fixed-navigation-marker",
             ]
             .map(|r| json!(r)),
         );

@@ -617,6 +617,12 @@ codex mcp add figma --url https://mcp.figma.com/mcp
 
 ### Figma → devup.json
 
+`outputs: ["tsx", "devupJson"]`와 `devupJsonMode: "used-only"`를 함께 지정하면 생성 코드가 실제 참조하는 토큰과 typography 의존성만 반환합니다. `projectRoot`에 기존 theme가 있으면 `themeDiff`가 없는 정의와 이름 충돌을 보고하고, `devupJsonMode: "missing-only"`는 기존 값을 보존한 추가분만 반환합니다. 기본값은 `full`입니다. 읽을 수 없는 스타일은 `skippedStyles`와 이름·노드 ID가 있는 경고로 분리하며, strict 모드는 거절합니다. 변수/미지정 fontSize의 백분율 lineHeight는 문자열로 보존합니다.
+
+코드 출력은 정적입니다. `interactiveCandidates`, 프로토타입/상태 TSX 주석, `ambiguityQuestions`, 필수 `reviewChecklist`를 실제 라우트와 동작에 연결하고 `devup_ui_validate`로 검증해야 합니다. `projectRoot`는 기존 UI/라우트와 환경 키 **이름**만 병합합니다. `devup_project_context`의 `routes` scope와 validator의 `renderedHtml` href 집계는 정적 증거이며 클릭 성공을 증명하지 않습니다. 고정 navigation 밑줄은 활성 상태를 단정하지 않고 info 검토 후보로 보고합니다. `responsiveGroups`와 `breakpointCompletion`은 export한 폭과 남은 폭을 구분하며, 구현/시각 검증은 별도입니다.
+
+중첩 `I44:8533;10:973` 노드 ID도 URL/assetRequests로 지정할 수 있습니다. SVG native export 실패 시 지원되는 실제 subtree geometry만 read-only로 복구하며, 지원되지 않는 mask/paint/effect는 실패 원인을 보존합니다. 실패한 에셋에는 생성 경로를 표시하지 않습니다. `DEVUP_ASSET_TIMEOUT_MS`는 1000–600000 ms 범위이며 기본값은 90000 ms입니다. 진단에 단계별 시간이 포함되며 Figma 내부 renderer timeout 자체를 바꾸지는 않습니다. 새 스크립트를 적용하려면 갱신된 bridge host와 재빌드한 plugin을 함께 사용하십시오.
+
 ```json
 {
   "url": "https://www.figma.com/design/<file-key>/<name>?node-id=1-2",

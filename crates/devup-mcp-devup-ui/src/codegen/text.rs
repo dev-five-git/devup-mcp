@@ -700,6 +700,20 @@ pub(super) fn whitespace_collapse_diagnostic(
     if !collapses {
         return None;
     }
+    let mut details = serde_json::json!({
+        "originalValue": characters.chars().take(800).collect::<String>(),
+        "classification": "css-whitespace-collapse",
+        "whiteSpace": if view.number("maxLines") == Some(1.0) { "nowrap" } else { "normal" },
+        "nextAction": "Review intentional spaces or tabs in Figma and choose an explicit whitespace-preserving style if required."
+    });
+    let count = characters.chars().count();
+    if count > 800 {
+        details["originalValueTruncated"] = serde_json::json!(true);
+        details["originalValueCharCount"] = serde_json::json!(count);
+        details["fullValueSource"] = serde_json::json!(
+            "The original node characters in rawSnapshot; generated TSX retains the complete text."
+        );
+    }
     Some(devup_mcp_figma::Diagnostic {
         code: "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE".into(),
         node_id: Some(view.id().to_owned()),
@@ -707,12 +721,7 @@ pub(super) fn whitespace_collapse_diagnostic(
         message: "Text characters are retained in JSX, but CSS collapses source spaces or tabs."
             .into(),
         fidelity_impact: Some(devup_mcp_figma::FidelityImpact::Lossy),
-        details: Some(serde_json::json!({
-            "originalValue": characters,
-            "classification": "css-whitespace-collapse",
-            "whiteSpace": if view.number("maxLines") == Some(1.0) { "nowrap" } else { "normal" },
-            "nextAction": "Review intentional spaces or tabs in Figma and choose an explicit whitespace-preserving style if required."
-        })),
+        details: Some(details),
         ..devup_mcp_figma::Diagnostic::default()
     })
 }

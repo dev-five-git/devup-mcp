@@ -296,6 +296,42 @@ fn feedback_validation_catches_missing_routes_unmapped_actions_and_active_state(
 }
 
 #[test]
+fn feedback_fixed_navigation_underline_is_an_unverified_info_candidate() {
+    let source = r#"import Link from 'next/link'; const Header=()=> <nav><Link href='/services' style={{borderBottom:'3px solid red'}}>서비스</Link><Link href='/privacy' borderBottomWidth={3} borderBottomColor='$primary'>Privacy</Link><Link href='/terms' style={{borderBottom: active ? '3px solid red' : 'none'}}>Terms</Link><Link href='/about' style={{...props,borderBottom:'3px solid red'}}>About</Link><Link href='/selected' aria-current='page' borderBottom='3px solid red'>Selected</Link></nav>"#;
+    let report = navigation::report(source, &json!({}), None);
+    let findings = report["findings"].as_array().unwrap();
+    assert_eq!(
+        findings
+            .iter()
+            .filter(|f| f["rule"] == "fixed-navigation-marker" && f["severity"] == "info")
+            .count(),
+        2
+    );
+    assert_eq!(
+        findings
+            .iter()
+            .filter(|f| f["rule"] == "hardcoded-active-state")
+            .count(),
+        1
+    );
+    assert_eq!(report["coverage"]["runtimeVerified"], false);
+    assert!(
+        report["elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["fixedVisualNavigationMarker"] == true)
+            .all(|e| e["staticActive"] == false)
+    );
+    let decorative = navigation::report(
+        "const Card=()=> <Box style={{borderBottom:'3px solid red'}}>Decorative heading</Box>",
+        &json!({}),
+        None,
+    );
+    assert!(decorative["findings"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn feedback_validation_limits_do_not_claim_absence_or_success() {
     let source = r#"import Link from 'next/link'; const Screen=()=> <><Link href={destination}>Dynamic</Link><a href='https://example.com'>External</a><a href='#section'>Hash</a><a href='/logo.svg'>Asset</a><Text>Database table</Text></>"#;
     for inventory in [

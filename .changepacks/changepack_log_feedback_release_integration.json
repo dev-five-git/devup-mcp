@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch",
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
+  },
+  "note": "Integrate the settled theme, nested asset and interaction feedback work. Flag constant underlines on navigation candidates as unverified info, keep interaction output schemas compatible with MCP clients, bound text diagnostic excerpts with explicit truncation, verify large used-only theme/code output resource hashes against saved files after interaction hints, and run nested asset/async component identity plus original-image source regressions in existing CI. Include a read-only new-binary Prime verification driver and document exact local/live limitations.",
+  "date": "2026-10-14T10:15:00Z"
+}

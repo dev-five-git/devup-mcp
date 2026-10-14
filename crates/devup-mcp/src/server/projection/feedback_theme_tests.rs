@@ -62,6 +62,54 @@ async fn feedback_theme_used_only_is_derived_from_emitted_typography() {
 }
 
 #[tokio::test]
+async fn feedback_integrated_large_code_hints_theme_and_resources_match_saved_bytes() {
+    let mut data = feedback_theme_payload();
+    let node = data.snapshot.nodes.get_mut("1:1").unwrap();
+    node.fields.insert("name".into(), json!("CTA Button"));
+    node.fields.insert("characters".into(), json!("견적문의 ".repeat(25_000)));
+    node.fields.insert("reactions".into(), json!([{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"URL","url":"https://example.com/confirmed"}]}]));
+    let directory = std::env::temp_dir().join(format!("feedback-integrated-{}", rand::random::<u64>()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let mut op = operation(&["tsx", "devupJson", "sourceMap"]);
+    if let PendingOperation::Export { theme_options, output_paths, delivery, .. } = &mut op {
+        theme_options.mode = "used-only".into();
+        *delivery = DeliveryMode::Auto;
+        for (key, file) in [("tsx", "screen.tsx"), ("devupJson", "devup.json")] {
+            output_paths.insert(key.into(), directory.join(file).to_string_lossy().into());
+        }
+    }
+    let store = ArtifactStore::default();
+    let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(data.target.clone(), CollectionScope::Node));
+    let artifact = store.insert(key, data).await.unwrap();
+    let result = complete_operation(op, &artifact.payload, "fixture", &artifact,
+        &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(), &store).await.unwrap();
+    let manifests = store.output_manifests().await;
+    assert!(!manifests.is_empty(), "Large code must use resource delivery");
+    for (name, file) in [("tsx", "screen.tsx"), ("devupJson", "devup.json")] {
+        let manifest = manifests.iter().find(|m| m.name == name).unwrap();
+        let mut bytes = vec![];
+        for index in 0..manifest.chunk_count {
+            bytes.extend(store.read_output_chunk(&manifest.artifact_id, &manifest.output_id, index).await.unwrap());
+        }
+        assert_eq!(bytes, std::fs::read(directory.join(file)).unwrap());
+        assert_eq!(bytes.len(), manifest.raw_bytes);
+        assert_eq!(sha256_hex(&bytes), manifest.sha256);
+    }
+    let code = std::fs::read_to_string(directory.join("screen.tsx")).unwrap();
+    assert!(code.contains("// @devup-interaction "));
+    assert!(code.contains("https://example.com/confirmed"));
+    let theme: Value = serde_json::from_slice(&std::fs::read(directory.join("devup.json")).unwrap()).unwrap();
+    assert_eq!(theme["theme"]["typography"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["body"]);
+    assert!(code.contains("typography=\"body\""));
+    let diagnostic = result["diagnostics"].as_array().unwrap().iter().find(|d| d["code"] == "DEVUP_CODEGEN_TEXT_WHITESPACE_COLLAPSE").unwrap();
+    assert_eq!(diagnostic["details"]["originalValueTruncated"], true);
+    assert_eq!(diagnostic["details"]["originalValueCharCount"], 125_000);
+    let wire = serde_json::to_vec(&super::super::tool_result(result.clone())).unwrap();
+    assert!(wire.len() <= super::super::delivery::MAX_INLINE_TOTAL_BYTES, "wire {}", wire.len());
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[tokio::test]
 async fn feedback_theme_missing_only_preserves_project_and_reports_conflict() {
     let directory = std::env::temp_dir().join(format!("devup-theme-feedback-{}", rand::random::<u64>()));
     std::fs::create_dir_all(&directory).unwrap();

@@ -80,8 +80,13 @@ pub(super) fn output_schema() -> std::sync::Arc<serde_json::Map<String, Value>> 
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
     candidate.as_object_mut().unwrap().remove("$schema");
+    // Value's schemars schema is a bare true; MCP clients require objects at
+    // every schema position. These values are structured action/state objects.
+    candidate["properties"]["prototypeActions"]["items"] =
+        json!({"type":"object","additionalProperties":{}});
+    candidate["properties"]["states"] = json!({"type":"object","additionalProperties":{}});
     definitions.insert("InteractiveCandidate".into(), candidate);
-    std::sync::Arc::new(json!({"type":"object","additionalProperties":true,"properties":{"interactiveCandidates":{"type":"array","items":{"$ref":"#/$defs/InteractiveCandidate"}}},"$defs":definitions}).as_object().unwrap().clone())
+    std::sync::Arc::new(json!({"type":"object","additionalProperties":{},"properties":{"interactiveCandidates":{"type":"array","items":{"$ref":"#/$defs/InteractiveCandidate"}}},"$defs":definitions}).as_object().unwrap().clone())
 }
 
 fn str_field<'a>(node: &'a RawNode, field: &str) -> &'a str {
