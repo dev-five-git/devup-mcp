@@ -2950,9 +2950,10 @@ async fn project_operation(
                 result.insert("resolutionSemantics".into(), semantics);
             }
             let mut value = Value::Object(std::mem::take(&mut result));
-            attach_diagnostic_screens(&mut value, &owners);
             rewrite_result_asset_references(&mut value, &replacements);
             audit_delivered_properties(&mut value);
+            super::interactions::attach(&mut value, &payload.snapshot);
+            attach_diagnostic_screens(&mut value, &owners);
             super::verdict_scope::attach(&mut value);
             attach_verification_scope(&mut value, &responsive_widths);
             if strict && value["mappingComplete"] == false {
@@ -6183,6 +6184,97 @@ mod w1_regressions {
     }
 
     include!("projection_fingerprint_tests.rs");
+
+    #[tokio::test]
+    async fn feedback_interaction_hints_match_saved_files_and_resource_hashes() {
+        for section_case in [false, true] {
+            let mut baseline_op = operation(&["tsx", "sourceMap"]);
+            if section_case && let PendingOperation::Export { frame_ids, .. } = &mut baseline_op {
+                *frame_ids = vec!["1:1".into()];
+            }
+            let baseline = project(
+                if section_case { section(2) } else { payload() },
+                baseline_op,
+            )
+            .await
+            .unwrap();
+            let mut data = if section_case { section(2) } else { payload() };
+            let node = data.snapshot.nodes.get_mut("1:1").unwrap();
+            node.fields.insert("name".into(), json!("CTA Button"));
+            node.fields
+                .insert("variantProperties".into(), json!({"State":"disabled"}));
+            node.fields.insert("reactions".into(),json!([{"trigger":{"type":"ON_CLICK"},"actions":[{"type":"URL","url":"https://example.com/confirmed"}]}]));
+            let target = std::env::temp_dir().join(format!(
+                "feedback-hints-{}-{}.tsx",
+                std::process::id(),
+                rand::random::<u64>()
+            ));
+            let mut op = operation(&["tsx", "sourceMap"]);
+            if let PendingOperation::Export {
+                delivery,
+                output_paths,
+                frame_ids,
+                ..
+            } = &mut op
+            {
+                *delivery = DeliveryMode::Resource;
+                if section_case {
+                    *frame_ids = vec!["1:1".into()];
+                }
+                output_paths.insert(
+                    if section_case { "frame:1:1:tsx" } else { "tsx" }.into(),
+                    target.to_string_lossy().into(),
+                );
+            }
+            let store = ArtifactStore::default();
+            let key = ArtifactRequestKey::from_collection(&CollectionRequest::new(
+                data.target.clone(),
+                CollectionScope::Node,
+            ));
+            let artifact = store.insert(key, data).await.unwrap();
+            let result = complete_operation(
+                op,
+                &artifact.payload,
+                "fixture",
+                &artifact,
+                &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+                &store,
+            )
+            .await
+            .unwrap();
+            let manifest = store
+                .output_manifests()
+                .await
+                .into_iter()
+                .find(|m| m.mime_type == "text/typescript")
+                .unwrap();
+            let mut bytes = vec![];
+            for index in 0..manifest.chunk_count {
+                bytes.extend(
+                    store
+                        .read_output_chunk(&manifest.artifact_id, &manifest.output_id, index)
+                        .await
+                        .unwrap(),
+                );
+            }
+            assert_eq!(bytes, std::fs::read(&target).unwrap());
+            assert_eq!(bytes.len(), manifest.raw_bytes);
+            assert_eq!(sha256_hex(&bytes), manifest.sha256);
+            let code = String::from_utf8(bytes).unwrap();
+            assert!(code.contains("// @devup-interaction "));
+            assert!(code.contains("https://example.com/confirmed"));
+            assert!(code.contains("disabled"));
+            assert!(!code.contains("href="));
+            assert_eq!(result["deliverable"]["isFinal"], false);
+            assert_eq!(result["mappingComplete"], baseline["mappingComplete"]);
+            assert!(
+                result["interactiveCandidates"]
+                    .as_array()
+                    .is_some_and(|a| !a.is_empty())
+            );
+            std::fs::remove_file(target).unwrap();
+        }
+    }
 
     async fn project(
         payload: CollectedPayload,

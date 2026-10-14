@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-14",
+  "platform": "Windows PowerShell, rustc 1.98 toolchain selected by repository",
+  "feedback": {
+    "002-missing-links-interactions.txt": "1994A12D7E679258A60952E7F86A1FAAE162CDBEABFCC27C9D7F56DD127B3470",
+    "005-one-shot-improvements.txt": "75E51337E852784358ED395899A2616CB2113A0A8439D9CB995941D9B3799933"
+  },
+  "checks": [
+    {
+      "command": "cargo test --locked -p devup-mcp --lib -- --skip symlink_escape_refused_before_read",
+      "exitCode": 0,
+      "passed": 423,
+      "filtered": 1,
+      "log": "library-tests.txt"
+    },
+    {
+      "command": "cargo test --locked -p devup-mcp --test ground_truth_tools --test module_boundaries --test export_project_theme --test stdio_smoke",
+      "exitCode": 0,
+      "passed": 22,
+      "suites": {"ground_truth_tools": 16, "module_boundaries": 1, "export_project_theme": 3, "stdio_smoke": 2},
+      "log": "integration-tests.txt"
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "exitCode": 0,
+      "log": "clippy.txt"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exitCode": 0,
+      "log": "fmt-check.txt",
+      "note": "Successful rustfmt check emits no output."
+    }
+  ],
+  "knownEnvironmentLimitation": {
+    "test": "server::visual_compare::tests::symlink_escape_refused_before_read",
+    "observedInInitialUnfilteredRun": "Windows error 1314: A required privilege is not held by the client, at visual_compare.rs symlink creation.",
+    "handling": "Excluded by exact name from final library run; unrelated implementation left unchanged. No full unfiltered pass claimed."
+  },
+  "liveVerification": {
+    "primeFigmaNodes": "not run in this worker",
+    "realRenderedHrefCensus": "not run; synthetic supplied HTML exercised",
+    "browserClicksAndWidgets": "not run; source evidence remains runtimeVerified=false",
+    "primeVisualCompare": "not run; actual browser screenshot and matching referencePng required",
+    "identityAcquisition": "Companion asset worker adds mainComponentId/mainComponentName/mainComponentSetId; live plugin reload and fresh acquisition required."
+  }
+}

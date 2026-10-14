@@ -330,6 +330,11 @@ async fn design(input: &FeatureTraceInput, artifacts: &ArtifactStore) -> Design 
                 .node_id
                 .as_deref());
             if let Some(node) = node {
+                let interaction_candidates = serde_json::to_value(super::interactions::candidates(
+                    &artifact.payload.snapshot,
+                    &[node.to_owned()],
+                ))
+                .unwrap();
                 match generate_component(
                     &artifact.payload.snapshot,
                     node,
@@ -338,10 +343,12 @@ async fn design(input: &FeatureTraceInput, artifacts: &ArtifactStore) -> Design 
                     Ok(output) => {
                         let mut design = design_source(&output.tsx);
                         design.evidence = json!({"source":"cached-artifact","artifactId":artifact.artifact_id,"nodeId":node,"sourceMap":output.source_map,"designFingerprints":design_fingerprints(&artifact.payload.snapshot),"staleness":"unknown: cached snapshot has not been compared with live Figma"});
+                        design.evidence["interactiveCandidates"] = interaction_candidates;
                         return design;
                     }
                     Err(e) => {
                         return Design {
+                            evidence: json!({"source":"cached-artifact","interactiveCandidates":interaction_candidates}),
                             diagnostics: vec![json!({"reason":e.to_string()})],
                             ..Design::default()
                         };
@@ -367,6 +374,26 @@ async fn design(input: &FeatureTraceInput, artifacts: &ArtifactStore) -> Design 
     {
         let mut design = design_source(source);
         design.evidence = json!({"source":"caller-supplied-componentTsx","nodeId":input.figma_node_id,"provenance":"UNVERIFIED: caller associates this export with the node; no cached artifact validates that association"});
+        // oxc identifies actual comments so string literals cannot spoof hints.
+        let allocator = Allocator::default();
+        let parsed = Parser::new(&allocator, source, SourceType::tsx()).parse();
+        let hints = if parsed.diagnostics.is_empty() && !parsed.panicked {
+            parsed
+                .program
+                .comments
+                .iter()
+                .filter_map(|c| {
+                    c.span
+                        .source_text(source)
+                        .strip_prefix("// @devup-interaction ")
+                })
+                .filter_map(|s| serde_json::from_str::<Value>(s).ok())
+                .filter(|v| v["nodeId"].is_string() && v["prototypeActions"].is_array())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+        design.evidence["interactiveCandidates"] = json!(hints);
         return design;
     }
     Design {
@@ -700,6 +727,7 @@ pub(super) async fn run(
     if (supplied(&input.operation_id) || supplied(&input.api_path)) && selected_ops.is_empty() {
         chain.push(hop("component-api",json!({"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method}),Value::Null,json!({}),Some("Explicit operation anchor was not found in project OpenAPI endpoints.")));
     }
+    let mut navigation_sources = vec![];
     for file in &selected_files {
         let source = match read(&root.join(file)) {
             Ok(s) => s,
@@ -714,6 +742,7 @@ pub(super) async fn run(
                 continue;
             }
         };
+        navigation_sources.push((file.clone(), source.clone()));
         let (calls, configs) = stack_diff::parse::client_references(&source);
         if calls.is_empty() && configs.is_empty() {
             chain.push(hop("component-api",json!(file),Value::Null,json!({}),Some("No supported literal API reference in this file; helpers, wrappers and dynamic calls are not resolved.")));
@@ -999,9 +1028,24 @@ pub(super) async fn run(
         &anchor_status,
         ui["truncation"]["truncated"] == true,
     );
+    let mut navigation_graph = super::navigation::graph(
+        &design.evidence["interactiveCandidates"],
+        &navigation_sources,
+        &input.navigation_targets,
+    );
+    navigation_graph["sourceRoute"] = json!(input.route_path);
+    if let Some(route) = &input.route_path
+        && let Some(edges) = navigation_graph["codeEdges"].as_array_mut()
+    {
+        for edge in edges {
+            edge["sourceFile"] = edge["from"].clone();
+            edge["from"] = json!(route);
+        }
+    }
     Ok(bound(
         json!({"status":"OK","summary":summary,"projectRoot":root,"anchors":{"routePath":input.route_path,"figmaNodeId":input.figma_node_id,"artifactId":input.artifact_id,"operationId":input.operation_id,"apiPath":input.api_path,"method":input.method,"componentPath":input.component_path,"tableName":input.table_name},"requirement":input.requirement,"acceptanceMatrix":acceptance,
         "chain":chain,"artifacts":traced_artifacts.into_values().collect::<Vec<_>>(),"sourceOwnership":ownership,"reuseCandidates":reuse,"designContract":comparisons,"requiredStates":states,
+        "navigationGraph":navigation_graph,
         "designEvidence":design.evidence,"designDiagnostics":design.diagnostics,"diagnostics":diagnostics,
         "inventoryEvidence":{"uiTruncation":ui["truncation"],"uiLimits":ui["limits"],"uiDiagnostics":ui["diagnostics"],"uiExcludedPaths":ui["excludedPaths"],"unparsedFiles":ui["unparsedFiles"],"api":{"found":api["found"],"excludedPaths":api["excludedPaths"],"authorityNote":api["authorityNote"],"issues":array(&api["specs"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()},
             "db":{"found":db["found"],"excludedPaths":db["excludedPaths"],"authorityNote":db["authorityNote"],"issues":array(&db["tables"]).iter().filter(|v|v.get("parseError").is_some()||v.get("readError").is_some()).collect::<Vec<_>>()}

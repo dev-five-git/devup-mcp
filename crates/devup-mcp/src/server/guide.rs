@@ -35,12 +35,12 @@ pub const INSTRUCTIONS: &str = concat!(
     "1a. Connection order: bridge -> direct. Call devup_figma_auth status before asking anyone to log in: the Devup ",
     "Bridge plugin needs no login, and with one attached devup_figma_export takes no url.\n",
     "2. When the goal is implementation, call devup_figma_export first and take tsx. That is the deliverable; ",
-    "a complete response marks it with deliverable.isFinal.\n",
+    "deliverable.isFinal describes export readiness. TSX has no wired links/events: resolve interactiveCandidates, ",
+    "run devup_ui_validate and report wired/tested counts before functional completion.\n",
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
     "workspace lacks and installs the ones it carries.\n",
-    "3. Request only the outputs you will read, and read the rest of the rules before your second call: ",
-    "resources/read \"devup://guide/usage\" carries output sizing, verification boundaries, SECTION batching, ",
-    "asset placement and delivery. It is a resource so that a caller who never touches Figma never pays for it."
+    "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
+    "for output sizing, verification boundaries, SECTION batching, assets and delivery."
 );
 
 /// The rules that moved out of `instructions`, verbatim in meaning. This is a

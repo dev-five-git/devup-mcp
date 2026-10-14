@@ -5,8 +5,12 @@ pub mod delivery;
 mod design_drift;
 mod diagnostics;
 mod feature_trace;
+#[cfg(test)]
+mod feedback_interactions_tests;
 mod field_select;
 mod guide;
+mod interactions;
+mod navigation;
 pub mod operation;
 pub mod output;
 mod pacing;
@@ -1477,7 +1481,7 @@ impl DevupServer {
                        tsx expands every instance into primitives while componentTsx keeps them as <Name /> references, so requesting both gives the same screen twice and the difference between them is each component's body. responsiveTsx merges every width the capture carries into one module whose differing values are devup-ui responsive arrays, and is produced whenever there is more than one width. \
                        `assetManifest` lists the assets and their ids and writes nothing. To get files, call again with `assetRequests`, giving each entry an `outputPath` under an allowed write root - and make that call with the original `url` rather than `artifactId`, because an acquisition made without asset capture cannot serve asset requests. By default manifest `path` and TSX references remain placeholders. Opt in with `assetPublicRoot`, an existing absolute local directory served at URL /, together with assetRequests.outputPath in this call (saved output mappings are not part of artifacts): files below that root map to percent-encoded relative URLs in manifest and all TSX outputs. Identical exported bytes share one canonical path/outputPath; inspect the returned paths. assetNamesPerNode remains true by default; matching names alone never trigger deduplication. \
                        Reuse a previous acquisition with `artifactId` from `cache` to project further outputs without calling Figma again. Omitted frameIds/allScreens reuse the stored Section selection; explicit selection overrides it. Debug outputs can use resource delivery in auto mode: read the linked resources or follow nextAction to reproject inline. sourceMap is a node/field/generatedProperty/resolution map without offsets; source.generatedOutput identifies the annotated output. Even when reusing artifactId, sourceMap requires tsx, componentTsx or devupJson in outputs in the same call. Example: {\"artifactId\":\"<artifactId>\",\"outputs\":[\"tsx\",\"rawSnapshot\",\"sourceMap\"],\"debug\":true}",
-        output_schema = permissive_object_output_schema()
+        output_schema = interactions::output_schema()
     )]
     async fn devup_figma_export(
         &self,
@@ -1960,7 +1964,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, Vespertide models/*.json tables/columns, or UI component/props/import/route reuse evidence (scope: theme | api | db | ui | all) — read-only, no session cache, never guesses. UI is opt-in and excluded from all: large monorepo inventories must not pollute token context. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
+        description = "Read a project's real devup.json theme tokens, openapi.json endpoints/schemas, Vespertide models/*.json tables/columns, or UI component/props/import/route reuse evidence (scope: theme | api | db | ui | routes | all) — read-only, no session cache, never guesses. UI/routes are opt-in and excluded from all. Routes inventories Next App Router pages with package authority and scan limits. Identify deployments by server.commit/buildId, not version alone; server.displayVersion is a readable version+buildId.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_project_context(
@@ -1988,7 +1992,7 @@ impl DevupServer {
     #[tool(
         description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
                        `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. `themeNotes` summarizes each encountered empty token category once. \
-                       `checkedTokens` counts $token references this TSX makes and `availableTokenCount` counts tokens devup.json defines; they count different things and are not a ratio, which `tokens` restates by name.",
+                       Navigation rules also report unmapped action candidates/accessibility warnings, missing static App Router href errors when projectRoot inventory is complete, and literal active-state info. Dynamic hrefs/custom routing and incomplete bundles remain unverified. Optional renderedHtml reports captured anchor counts separately from source coverage; neither proves runtime behavior. `checkedTokens` counts references and `availableTokenCount` counts definitions; they are not a ratio.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_ui_validate(
@@ -2096,6 +2100,7 @@ impl DevupServer {
             }
         }
         attach_layout_and_source_links(&mut result, &input);
+        navigation::attach_validation(&mut result, &input);
         if !report.ok {
             result.as_object_mut().unwrap().extend(
                 validation_guidance::guidance(&input, &report, theme_lookup.theme.as_ref())
@@ -2493,6 +2498,11 @@ fn with_project_checks(
     project_root: Option<&str>,
     lookup: &skills::Lookup,
 ) -> Value {
+    if result.get("interactionCoverage").is_some()
+        && let Some(root) = project_root
+    {
+        project_context::attach_export_context(&mut result, root);
+    }
     review::attach(&mut result);
     const OUTPUTS: [&str; 3] = ["tsx", "componentTsx", "responsiveTsx"];
     let mut generated: Vec<(String, String)> = OUTPUTS
