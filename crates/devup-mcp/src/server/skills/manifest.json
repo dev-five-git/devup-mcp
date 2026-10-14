@@ -33,8 +33,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 18796,
-          "sha256": "3343b5a022c38c22adbb6ada50dc80b83a6a30154edc2c6594aa240b4bbbeb61"
+          "bytes": 23164,
+          "sha256": "e86558e78bbd7259e0fe2d281a087c42e84da7795f6b4316ae2bc73d8422508a"
         },
         {
           "path": "references/critical-rules.md",

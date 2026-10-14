@@ -243,7 +243,7 @@ pub struct FigmaExploreInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectContextInput {
-    /// theme | api | db | ui | all. UI reuse evidence is opt-in and excluded from all to avoid large monorepo inventories polluting token context. UI filter: literal case-sensitive substring of component path, exported/local name, route path or page path. UI is read-only and reports output caps, unparsed files and unresolved evidence.
+    /// theme | api | db | ui | routes | all. UI/routes are opt-in and excluded from all. Routes reuse the authoritative Next App Router UI inventory. UI filter: literal case-sensitive substring of component path, exported/local name, route path or page path. Reports caps and unresolved evidence.
     #[schemars(extend("enum" = super::validation::PROJECT_CONTEXT_SCOPES.into_iter().chain(["ui"]).collect::<Vec<_>>()))]
     pub scope: String,
     #[serde(default)]
@@ -262,6 +262,9 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    /// Optional caller-supplied browser HTML (max 2 MiB); reports anchor href counts separately from static source coverage. Never fetches a URL or executes HTML.
+    #[serde(default)]
+    pub rendered_html: Option<String>,
     #[serde(default)]
     pub tsx: String,
     /// Optional supplied-source bundle: at most 64 entries and 1 MiB total
@@ -411,6 +414,9 @@ pub struct VisualCompareInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
 pub struct FeatureTraceInput {
+    /// Explicit Figma destination node ID -> code route/URL bindings. No route is inferred from a Figma node ID or name.
+    #[serde(default)]
+    pub navigation_targets: BTreeMap<String, String>,
     pub project_root: Option<String>,
     pub route_path: Option<String>,
     pub figma_node_id: Option<String>,

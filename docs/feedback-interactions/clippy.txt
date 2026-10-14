@@ -1,0 +1,9 @@
+cargo :    Compiling devup-mcp v0.14.0 (C:\Users\devfivedevleader\orca\workspaces\devup-mcp\feedback-interactions\crate
+s\devup-mcp)
+위치 줄:4 문자:1
++ cargo clippy --locked --workspace --all-targets --all-features -- -D  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling de...ates\devup-mcp):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.63s

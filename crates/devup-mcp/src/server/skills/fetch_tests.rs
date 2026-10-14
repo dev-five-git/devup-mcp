@@ -185,6 +185,71 @@ async fn own_external_and_unknown_skills_never_fetch() {
     std::fs::remove_dir_all(project).unwrap();
 }
 
+#[tokio::test]
+async fn feedback_frontend_rules_survive_available_and_failed_upstreams_without_duplicates() {
+    for response in [
+        Ok(FetchedSkill {
+            contents: b"---\nname: obsolete-upstream\n---\n# No navigation rules here\n".to_vec(),
+            etag: "old".into(),
+        }),
+        Err(SkillFetchError::Network("offline".into())),
+    ] {
+        let (project, policy) = policy("frontend-feedback");
+        let upstream = FakeUpstream::new(response);
+        let installed = install_with(
+            &policy,
+            &lookup(&project),
+            &["devfive-frontend".into()],
+            &upstream,
+        )
+        .await
+        .unwrap();
+        let written = &installed["installed"][0];
+        assert_eq!(written["source"], "embedded");
+        assert_eq!(
+            written["reason"],
+            "authored in this repository; no upstream"
+        );
+        let body = std::fs::read_to_string(written["paths"][0].as_str().unwrap()).unwrap();
+        for required in [
+            "Links, controls and completion evidence",
+            "interactiveCandidates",
+            "<Link href={confirmedRoute}><Flex>",
+            "usePathname",
+            "TS2322",
+            "-LiteralPath",
+            "node -e",
+            "devup_visual_compare",
+            "candidate/wired/tested counts",
+        ] {
+            assert!(body.contains(required), "missing {required}");
+        }
+        assert_eq!(
+            body.matches("## Links, controls and completion evidence")
+                .count(),
+            1
+        );
+        assert!(!body.contains("obsolete-upstream"));
+        assert!(upstream.urls.lock().unwrap().is_empty());
+        let again = install_with(
+            &policy,
+            &lookup(&project),
+            &["devfive-frontend".into()],
+            &upstream,
+        )
+        .await
+        .unwrap();
+        assert_eq!(again["alreadyPresent"][0], "devfive-frontend");
+        assert_eq!(
+            body,
+            std::fs::read_to_string(written["paths"][0].as_str().unwrap()).unwrap()
+        );
+        assert!(upstream.urls.lock().unwrap().is_empty());
+        drop(policy);
+        std::fs::remove_dir_all(project).unwrap();
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn the_entire_install_has_one_four_second_fetch_budget() {
     struct Stalled;
