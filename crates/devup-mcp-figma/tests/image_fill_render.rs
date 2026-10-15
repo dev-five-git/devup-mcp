@@ -346,3 +346,23 @@ fn source_and_generated_plugin_image_fill_contracts() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn direct_leaf_filename_uses_runtime_parent_names_when_snapshot_has_no_ancestors() {
+    let mut snapshot = snapshot();
+    snapshot.nodes.retain(|id, _| id == "sample");
+    snapshot.roots = vec!["sample".into()];
+    let mut asset = exported_asset_from_bytes(&request(AssetRenderMode::Node), &png(4, 4)).unwrap();
+    asset.render_info.as_mut().unwrap()["layerHierarchy"] =
+        json!(["예시 화면", "Gallery / ..\\CON:", "Rectangle 32"]);
+    let mut assets = vec![asset];
+    annotate_assets(&snapshot, &mut assets);
+    let name = assets[0].suggested_filename.as_ref().unwrap();
+    assert!(
+        name.starts_with("예시-화면-gallery-con-rectangle-32-"),
+        "{name}"
+    );
+    assert!(!name.contains(['/', '\\', ':']));
+    assert!(!name.contains(".."));
+    assert!(name.len() < 160);
+}

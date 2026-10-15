@@ -62,10 +62,15 @@ function renderInfo(node, paint) {
   const finite = n => typeof n === "number" && Number.isFinite(n) && n > 0;
   const effects = Array.isArray(node.effects) ? node.effects : null;
   const ancestors = [];
+  const boundedName = name => [...name].slice(0, 128).join("");
+  const layerHierarchy = [typeof node.name === "string" ? boundedName(node.name) : "layer"];
   const seen = new Set();
   let branch = node;
   for (let parent = node.parent; parent && ancestors.length < 32 && !seen.has(parent); parent = parent.parent) {
     seen.add(parent);
+    if (layerHierarchy.length < 4 && typeof parent.name === "string" && parent.name.length && !["PAGE", "DOCUMENT"].includes(parent.type)) {
+      layerHierarchy.push(boundedName(parent.name));
+    }
     ancestors.push({ type: parent.type || "unknown", clipsContent: parent.clipsContent ?? null,
       isMask: parent.isMask ?? null, effects: Array.isArray(parent.effects) ? parent.effects : null,
       siblingMaskPresent: Array.isArray(parent.children) ? parent.children.some(n => n !== branch && n.isMask === true) : null });
@@ -73,6 +78,7 @@ function renderInfo(node, paint) {
   }
   return {
     representation: renderMode === "fill" ? "original-fill" : "native-node",
+    layerHierarchy: layerHierarchy.reverse(),
     scope: renderMode === "fill" ? "selected-paint-original-bytes" : "exact-node-subtree",
     exportSettings: renderMode === "node" ? { contentsOnly: true, useAbsoluteBounds: false } : null,
     requestedScale: options.scale,

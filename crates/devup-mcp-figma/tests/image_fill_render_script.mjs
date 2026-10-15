@@ -115,4 +115,13 @@ for (const implementation of ['source', 'compiled-plugin']) {
     const {result}=await run({}, {parent});
     assert.equal(result.exportDiagnostics.renderInfo.sourceProperties.ancestors[1].siblingMaskPresent,false);
   });
+  test(`${implementation}: direct-leaf exports carry a bounded readable parent name path`, async () => {
+    const parent={type:'FRAME',name:'Gallery',children:[],parent:{type:'FRAME',name:'예시 화면',
+      parent:{type:'FRAME',name:'x'.repeat(1000),parent:{type:'PAGE',name:'Page'}}}};
+    const {result}=await run({}, {name:'Rectangle 32',parent});
+    const names=result.exportDiagnostics.renderInfo.layerHierarchy;
+    assert.deepEqual(names,['x'.repeat(128),'예시 화면','Gallery','Rectangle 32']);
+    assert.equal(names.length,4);
+    assert.ok(names.every(name=>[...name].length<=128));
+  });
 }

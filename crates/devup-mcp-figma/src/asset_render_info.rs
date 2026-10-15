@@ -17,6 +17,26 @@ fn size(width: Option<f64>, height: Option<f64>) -> Value {
     }
 }
 
+fn filename_part(name: &str) -> String {
+    let mut slug = String::new();
+    for c in name.nfc() {
+        if c.is_alphanumeric() {
+            slug.extend(c.to_lowercase());
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+        if slug.len() >= 24 {
+            break;
+        }
+    }
+    let slug = slug.trim_matches('-');
+    if slug.is_empty() {
+        "layer".to_owned()
+    } else {
+        slug.to_owned()
+    }
+}
+
 pub(crate) fn measured_info(
     mode: AssetRenderMode,
     format: AssetFormat,
@@ -150,29 +170,34 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
                 break;
             };
             if parts.len() < 4 {
-                let mut slug = String::new();
-                for c in n.typed_view().string("name").unwrap_or("layer").nfc() {
-                    if c.is_alphanumeric() {
-                        slug.extend(c.to_lowercase());
-                    } else if !slug.is_empty() && !slug.ends_with('-') {
-                        slug.push('-');
-                    }
-                    if slug.len() >= 24 {
-                        break;
-                    }
-                }
-                let slug = slug.trim_matches('-');
-                parts.push(if slug.is_empty() {
-                    "layer".to_owned()
-                } else {
-                    slug.to_owned()
-                });
+                parts.push(filename_part(
+                    n.typed_view().string("name").unwrap_or("layer"),
+                ));
             }
             current = n
                 .typed_view()
                 .string("parentId")
                 .map(str::to_owned)
                 .or_else(|| parents.get(&id).cloned());
+        }
+        // A selected leaf's snapshot can omit its ancestors. The export script
+        // already traverses them read-only; use its bounded name path when it
+        // provides more context than this snapshot, through the same sanitizer.
+        if let Some(hierarchy) = asset
+            .render_info
+            .as_ref()
+            .and_then(|info| info["layerHierarchy"].as_array())
+        {
+            let runtime_parts = hierarchy
+                .iter()
+                .rev()
+                .filter_map(Value::as_str)
+                .take(4)
+                .map(filename_part)
+                .collect::<Vec<_>>();
+            if runtime_parts.len() > parts.len() {
+                parts = runtime_parts;
+            }
         }
         parts.reverse();
         let identity = Sha256::digest(asset.asset_id.as_bytes())
