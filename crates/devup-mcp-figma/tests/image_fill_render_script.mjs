@@ -41,8 +41,8 @@ for (const implementation of ['source', 'compiled-plugin']) {
     return {result, exports, reads, settings, node};
   }
 
-  test(`${implementation}: omitted and explicit node modes preserve native crop, transforms, blur and mask routing`, async () => {
-    for (const renderMode of [undefined, 'node']) {
+  test(`${implementation}: explicit node modes preserve native crop, transforms, blur and mask routing`, async () => {
+    for (const renderMode of ['node']) {
       const {result, exports, reads, settings} = await run({renderMode, scale:2});
       assert.equal(result.status,'exported');
       assert.equal(result.renderMode,'node');
@@ -131,7 +131,7 @@ for (const implementation of ['source', 'compiled-plugin']) {
     absoluteTransform:[[1,0,10],[0,1,20]],relativeTransform:[[1,0,10],[0,1,20]],parent:{type:'PAGE',children:[]}});
   const sourceApi = (size={width:100,height:80}, bytes=raw) => ({getImageByHash:()=>({getSizeAsync:async()=>size,getBytesAsync:async()=>bytes})});
   test(`${implementation}: WebP acquisition uses native PNG at requested scale and preserves optional dimensions`, async () => {
-    const {result,exports,reads,settings}=await run({format:'webp',scale:3,quality:12,lossless:false},safe(),sourceApi());
+    const {result,exports,reads,settings}=await run({renderMode:'node',format:'webp',scale:3,quality:12,lossless:false},safe(),sourceApi());
     assert.equal(exports,1); assert.equal(reads,0); assert.equal(settings.format,'PNG');
     assert.deepEqual(settings.constraint,{type:'SCALE',value:3}); assert.equal(result.mimeType,'image/png');
     assert.equal(result.format,'webp'); assert.equal(result.exportDiagnostics.renderInfo.representation,'native-node');

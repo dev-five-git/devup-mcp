@@ -167,8 +167,16 @@ try {
     // The scale rides on the field - `$export:png@2` - so the re-export is
     // the same bytes the asset script announced, hash for hash.
     if (typeof node.exportAsync !== "function") throw new Error("unsupported");
-    const scale = Math.min(4, Math.max(1, Math.floor(Number(options.field.split("@")[1]) || 1)));
-    const png = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
+    const scale = Number(options.field.split("@")[1] || 2);
+    if (!Number.isFinite(scale) || scale <= 0 || scale > 4) throw new Error("invalid scale");
+    const parts = options.field.split("@");
+    let capture = node;
+    if (parts[2] === "visible") {
+      const seen = new Set();
+      while (capture && capture.id !== parts[3] && !seen.has(capture) && seen.size < 64) { seen.add(capture); capture = capture.parent; }
+      if (!capture || capture.id !== parts[3] || ["PAGE", "DOCUMENT"].includes(capture.type)) throw new Error("invalid visible scope");
+    } else if (parts.length > 2) throw new Error("invalid export field");
+    const png = await capture.exportAsync({ format: "PNG", contentsOnly: true, useAbsoluteBounds: false, constraint: { type: "SCALE", value: scale } });
     exportedBytes = png instanceof Uint8Array ? png : new Uint8Array(png);
   } else if (
     options.field === "styledTextSegments" &&

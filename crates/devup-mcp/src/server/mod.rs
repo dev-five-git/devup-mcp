@@ -2115,7 +2115,7 @@ impl DevupServer {
             project_context::theme_for_validation(input.project_root.as_deref())
                 .map_err(to_mcp_error)?
         };
-        let report = if let Some(files) = &input.files {
+        let mut report = if let Some(files) = &input.files {
             validate_bundle(files, theme_lookup.theme.as_ref(), input.strict).map_err(invalid)?
         } else {
             devup_mcp_devup_ui::ui_validate::validate_devup_ui_tsx(
@@ -2124,6 +2124,36 @@ impl DevupServer {
                 input.strict,
             )
         };
+        if input.asset_policies.len() > 4096 {
+            return Err(invalid("assetPolicies exceeds 4096 entries.".into()));
+        }
+        let sources = input
+            .files
+            .as_ref()
+            .map(|files| {
+                files
+                    .iter()
+                    .map(|file| (file.path.as_str(), file.content.as_str()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_else(|| vec![("", input.tsx.as_str())]);
+        for (name, tsx) in sources {
+            for diagnostic in
+                devup_mcp_devup_ui::codegen::validate_asset_effects(tsx, &input.asset_policies)
+            {
+                let mut context = diagnostic
+                    .details
+                    .and_then(|v| v.as_object().cloned())
+                    .unwrap_or_default();
+                if !name.is_empty() {
+                    context.insert("sourceName".into(), json!(name));
+                }
+                report.violations.push(devup_mcp_devup_ui::ui_validate::Violation {rule:"double-effect",severity:devup_mcp_devup_ui::ui_validate::Severity::Warning,byte_range:[0,0],context,message:diagnostic.message,suggestion:Some("Remove the repeated CSS effect, or acquire original-source and apply that effect in CSS.".into())});
+                if input.strict {
+                    report.ok = false;
+                }
+            }
+        }
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three

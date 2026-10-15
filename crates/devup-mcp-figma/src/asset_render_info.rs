@@ -44,17 +44,49 @@ fn filename_part(name: &str) -> String {
     }
 }
 
+fn asset_excluded(snapshot: &Snapshot, node_id: &str, field: &str) -> bool {
+    let Some(node) = snapshot.nodes.get(node_id) else {
+        return false;
+    };
+    crate::asset_exclusion_reason(node).is_some()
+        || field
+            .strip_prefix("fills/")
+            .and_then(|s| s.parse::<usize>().ok())
+            .and_then(|i| node.typed_view().value("fills")?.get(i))
+            .is_some_and(|p| {
+                p["visible"] == false || p["opacity"].as_f64().is_some_and(|n| n <= 0.0)
+            })
+}
+
+fn effective_scale(pixels: &Value, node: &Value) -> Value {
+    match (
+        pixels["width"].as_f64(),
+        pixels["height"].as_f64(),
+        node["width"].as_f64(),
+        node["height"].as_f64(),
+    ) {
+        (Some(w), Some(h), Some(nw), Some(nh)) if w > 0.0 && h > 0.0 && nw > 0.0 && nh > 0.0 => {
+            json!({"x":w/nw,"y":h/nh,"minimum":(w/nw).min(h/nh)})
+        }
+        _ => Value::Null,
+    }
+}
+
 pub(crate) fn measured_info(
     mode: AssetRenderMode,
     format: AssetFormat,
-    scale: u8,
+    scale: f64,
     observed: Option<Value>,
     bytes: Option<&[u8]>,
 ) -> Value {
     let mut info = observed
         .filter(Value::is_object)
         .unwrap_or_else(|| json!({}));
-    info["requestedScale"] = json!(scale);
+    info["requestedScale"] = if scale.fract() == 0.0 {
+        json!(scale as u64)
+    } else {
+        json!(scale)
+    };
     let effective = if info["representation"]
         .as_str()
         .is_some_and(|s| s.starts_with("original-fill"))
@@ -64,14 +96,20 @@ pub(crate) fn measured_info(
         mode
     };
     info["scaleSemantics"] = json!(match (effective, format) {
-        (AssetRenderMode::Fill, AssetFormat::Webp) => "intrinsic-source-transcoded-no-resize",
-        (AssetRenderMode::Fill, _) => "intrinsic-original-bytes-no-resize",
+        (AssetRenderMode::Fill | AssetRenderMode::OriginalSource, AssetFormat::Webp) =>
+            "intrinsic-source-transcoded-no-resize",
+        (AssetRenderMode::Fill | AssetRenderMode::OriginalSource, _) =>
+            "intrinsic-original-bytes-no-resize",
         (_, AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp) =>
             "native-node-SCALE-constraint",
         _ => "not-applied-to-vector-document",
     });
     if info.get("representation").is_none() {
-        info["representation"] = json!("unknown");
+        info["representation"] = json!(if mode.is_original() {
+            "original-fill"
+        } else {
+            "unknown"
+        });
     }
     info["outputSize"] = bytes
         .filter(|_| {
@@ -93,7 +131,7 @@ pub(crate) fn measured_info(
             let mut limits = image::Limits::default();
             limits.max_image_width = Some(crate::MAX_WEBP_DIMENSION);
             limits.max_image_height = Some(crate::MAX_WEBP_DIMENSION);
-            limits.max_alloc = Some(64 * 1024 * 1024);
+            limits.max_alloc = Some(128 * 1024 * 1024);
             reader.limits(limits);
             reader.into_dimensions().ok()
         })
@@ -193,6 +231,8 @@ fn compare(info: &mut Value) {
         "original-fill-transcoded" => "transcoded-fill",
         "native-node" => "node-render",
         "native-node-transcoded" => "transcoded-node-render",
+        "native-visible" => "visible-scoped-capture",
+        "native-visible-transcoded" => "transcoded-visible-scoped-capture",
         "geometry-fallback" => "geometry-fallback",
         "not-exported" => "not-exported",
         _ => "unknown",
@@ -206,9 +246,51 @@ fn compare(info: &mut Value) {
             info[key] = info["sourceProperties"][source].clone();
         }
     }
-    info["visibleSourceRatio"] = Value::Null;
-    info["visibleSourceRatioEvidence"] =
-        json!("not-computed; transform-coefficients-are-not-visible-percentages");
+    info["sourcePixelSize"] = info["sourceSize"].clone();
+    info["nodeBox"] = info["nodeSize"].clone();
+    if representation.starts_with("original-fill")
+        && info["sourcePixelSize"].is_null()
+        && info["resize"]["applied"] != true
+    {
+        info["sourcePixelSize"] = info["outputSize"].clone();
+        info["sourceSize"] = info["outputSize"].clone();
+        info["sourceSizeEvidence"] = info["dimensionEvidence"].clone();
+    }
+    let source_ratio = info["sourcePixelSize"]["aspectRatio"].as_f64();
+    let node_ratio = info["nodeBox"]["aspectRatio"].as_f64();
+    info["visibleSourceRatio"] = match (
+        info["scaleMode"]
+            .as_str()
+            .filter(|_| info["sourceProperties"]["rotation"].as_f64() == Some(0.0)),
+        source_ratio,
+        node_ratio,
+    ) {
+        (Some("FIT"), Some(_), Some(_)) => json!({"width":1.0,"height":1.0}),
+        (Some("FILL"), Some(source), Some(node)) if source > 0.0 && node > 0.0 => {
+            json!({"width":(node/source).min(1.0),"height":(source/node).min(1.0)})
+        }
+        _ => Value::Null,
+    };
+    info["visibleSourceRatioEvidence"] = json!(if info["visibleSourceRatio"].is_null() {
+        "unknown; crop/rotation/mask coverage requires geometry; transform-coefficients-are-not-visible-percentages"
+    } else {
+        "centered-FILL-or-FIT-source-and-layout-aspect-ratios; node-shape-and-ancestor-coverage-excluded"
+    });
+    info["sourceEffectiveScale"] = effective_scale(&info["sourcePixelSize"], &info["nodeBox"]);
+    info["outputEffectiveScale"] = effective_scale(
+        &info["outputSize"],
+        if representation.starts_with("native-visible") {
+            &info["captureBox"]
+        } else {
+            &info["nodeBox"]
+        },
+    );
+    info["effectiveScale"] = if representation.starts_with("original-fill") {
+        info["sourceEffectiveScale"].clone()
+    } else {
+        info["outputEffectiveScale"].clone()
+    };
+    info["recommendedBitmapScale"] = json!({"default":2,"minimum":1.5,"maximum":3});
     if info["extraFills"].is_null() {
         info["extraFills"] = Value::Null;
     }
@@ -219,9 +301,84 @@ fn compare(info: &mut Value) {
     let measured = info["byteEvidence"].is_object() && representation != "not-exported";
     let native = matches!(
         representation.as_str(),
-        "native-node" | "native-node-transcoded"
+        "native-node" | "native-node-transcoded" | "native-visible" | "native-visible-transcoded"
     );
-    info["effectsBakedIntoAsset"] = json!(measured && native && !info["outputSize"].is_null());
+    info["effectsBakedIntoAsset"] = if measured && !info["outputSize"].is_null() {
+        if native {
+            json!(true)
+        } else if representation.starts_with("original-fill") {
+            json!(false)
+        } else {
+            Value::Null
+        }
+    } else if representation == "not-exported" {
+        json!(false)
+    } else {
+        Value::Null
+    };
+    info["effectsBaked"] = info["effectsBakedIntoAsset"].clone();
+    info["effectsAppliedBy"] = if !measured {
+        json!("unknown")
+    } else if native {
+        json!("asset")
+    } else if representation.starts_with("original-fill") {
+        json!("css")
+    } else {
+        json!("unknown")
+    };
+    info["cropApplied"] = if representation.starts_with("original-fill") && measured {
+        json!(false)
+    } else if measured && native {
+        if info["scaleMode"] == "CROP" {
+            json!(true)
+        } else if let (Some(w), Some(h)) = (
+            info["visibleSourceRatio"]["width"].as_f64(),
+            info["visibleSourceRatio"]["height"].as_f64(),
+        ) {
+            json!(w < 1.0 || h < 1.0)
+        } else {
+            Value::Null
+        }
+    } else {
+        Value::Null
+    };
+    let mut additional = Vec::new();
+    if info["cropApplied"] == true {
+        additional.push("visible-crop-only");
+    }
+    if native && info["requestedScale"].as_f64().is_some_and(|s| s > 3.0) {
+        additional.push("bitmap-scale-above-recommended-range");
+    }
+    if native && info["requestedScale"].as_f64().is_some_and(|s| s <= 1.0) {
+        additional.push("low-resolution-bitmap");
+    }
+    if representation.starts_with("original-fill")
+        && info["sourceEffectiveScale"]["minimum"]
+            .as_f64()
+            .is_some_and(|s| s < 1.5)
+    {
+        additional.push("source-resolution-below-1.5x-display");
+    }
+    if representation.starts_with("original-fill")
+        && info["outputEffectiveScale"]["minimum"]
+            .as_f64()
+            .is_some_and(|s| s < 1.5)
+    {
+        additional.push("output-resolution-below-1.5x-display");
+    }
+    for warning in additional {
+        if !info["warnings"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(warning))
+        {
+            info["warnings"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!(warning));
+        }
+    }
+
     info["bakedEffects"] = if info["effectsBakedIntoAsset"] == true {
         info["effects"]
             .as_array()
@@ -278,10 +435,13 @@ fn compare(info: &mut Value) {
     }
     // Exactness is scoped to the returned representation, never canvas parity.
     let exact = measured
-        && matches!(representation.as_str(), "native-node" | "original-fill")
+        && matches!(
+            representation.as_str(),
+            "native-node" | "native-visible" | "original-fill"
+        )
         && info["dimensionEvidence"] == "encoded-byte-header";
     let transcoded = representation.ends_with("-transcoded") && measured;
-    let lossless = info["compression"]["lossless"] == true;
+    let lossless = info["compression"]["lossless"] == true && info["resize"]["applied"] != true;
     info["fidelity"] = json!(if transcoded {
         if lossless {
             "lossless-pixels"
@@ -293,17 +453,25 @@ fn compare(info: &mut Value) {
     } else {
         "unverified"
     });
-    info["fidelityScope"] = json!(if transcoded && native {
-        "decoded-native-node-PNG-to-WebP; source-PNG-byte-identity-not-preserved"
-    } else if transcoded {
-        "decoded-original-fill-to-WebP; crop-transform-effects-unapplied; source-byte-identity-not-preserved"
-    } else if exact && native {
-        "native-node-export-at-requested-settings"
-    } else if exact {
-        "original-source-bytes"
-    } else {
-        "unknown"
-    });
+    info["fidelityScope"] = json!(
+        if transcoded && representation.starts_with("native-visible") {
+            "decoded-selected-ancestor-subtree-PNG-to-WebP; outside-scope-compositing-unverified"
+        } else if transcoded && info["compression"]["codec"] == "explicit-source-codec-conversion" {
+            "decoded-full-original-source-explicit-codec-conversion; source-byte-identity-not-preserved"
+        } else if transcoded && native {
+            "decoded-native-node-PNG-to-WebP; source-PNG-byte-identity-not-preserved"
+        } else if transcoded {
+            "decoded-original-fill-to-WebP; crop-transform-effects-unapplied; source-byte-identity-not-preserved"
+        } else if exact && representation == "native-visible" {
+            "selected-ancestor-subtree-native-export; outside-scope-compositing-unverified"
+        } else if exact && native {
+            "native-node-export-at-requested-settings"
+        } else if exact {
+            "original-source-bytes"
+        } else {
+            "unknown"
+        }
+    );
     info["fidelityEvidence"] = if exact {
         info["byteEvidence"].clone()
     } else {
@@ -313,21 +481,35 @@ fn compare(info: &mut Value) {
     info["canvasFidelityReason"] = json!(
         "No independent matching canvas reference was compared; source identity and native node export do not prove ancestor compositing equality."
     );
-    info["dimensionValidation"] = match (
-        info["nodeSize"]["width"].as_f64(),
-        info["nodeSize"]["height"].as_f64(),
-        info["outputSize"]["width"].as_f64(),
-        info["outputSize"]["height"].as_f64(),
-    ) {
-        (Some(w), Some(h), Some(ow), Some(oh)) => {
-            let scale = if info["scaleSemantics"] == "intrinsic-original-bytes-no-resize" {
-                1.0
+    info["dimensionValidation"] = if representation.starts_with("original-fill") {
+        json!({"status":"not-applicable","scope":"intrinsic-full-source or explicitly resized derivative; compare effective scale against display box"})
+    } else {
+        match (
+            (if representation.starts_with("native-visible") {
+                &info["captureBox"]
             } else {
-                info["requestedScale"].as_f64().unwrap_or(1.0)
-            };
-            json!({"expectedLayoutPixels":{"width":w*scale,"height":h*scale},"actualPixels":{"width":ow,"height":oh},"status":if (ow-w*scale).abs() <= 1.0 && (oh-h*scale).abs() <= 1.0 {"match"} else {"mismatch"},"scope":"layout-box; native effects or rotation can extend rendered bounds"})
+                &info["nodeSize"]
+            })["width"]
+                .as_f64(),
+            (if representation.starts_with("native-visible") {
+                &info["captureBox"]
+            } else {
+                &info["nodeSize"]
+            })["height"]
+                .as_f64(),
+            info["outputSize"]["width"].as_f64(),
+            info["outputSize"]["height"].as_f64(),
+        ) {
+            (Some(w), Some(h), Some(ow), Some(oh)) => {
+                let scale = if info["scaleSemantics"] == "intrinsic-original-bytes-no-resize" {
+                    1.0
+                } else {
+                    info["requestedScale"].as_f64().unwrap_or(1.0)
+                };
+                json!({"expectedLayoutPixels":{"width":w*scale,"height":h*scale},"actualPixels":{"width":ow,"height":oh},"status":if (ow-w*scale).abs() <= 1.0 && (oh-h*scale).abs() <= 1.0 {"match"} else {"mismatch"},"scope":"layout-box; native effects or rotation can extend rendered bounds"})
+            }
+            _ => json!({"status":"unknown"}),
         }
-        _ => json!({"status":"unknown"}),
     };
     if info["dimensionValidation"]["status"] == "mismatch"
         && !info["warnings"]
@@ -340,6 +522,72 @@ fn compare(info: &mut Value) {
             .unwrap()
             .push(json!("output-dimensions-differ-from-layout"));
     }
+}
+
+/// Naming uses hierarchy and source identity, independently of binary delivery.
+pub fn suggested_asset_filename(snapshot: &Snapshot, asset: &AssetManifestEntry) -> Option<String> {
+    let node = snapshot.nodes.get(&asset.node_id)?;
+    let mut parts = Vec::new();
+    let mut current = Some(node.id.clone());
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(id) = current {
+        if !seen.insert(id.clone()) || seen.len() > 32 {
+            break;
+        }
+        let Some(n) = snapshot.nodes.get(&id) else {
+            break;
+        };
+        if parts.len() < 4 {
+            parts.push(filename_part(
+                n.typed_view().string("name").unwrap_or("layer"),
+            ));
+        }
+        current = n
+            .typed_view()
+            .string("parentId")
+            .map(str::to_owned)
+            .or_else(|| {
+                snapshot
+                    .nodes
+                    .values()
+                    .find(|p| p.typed_view().child_ids().any(|child| child == id))
+                    .map(|p| p.id.clone())
+            });
+    }
+    if let Some(hierarchy) = asset
+        .render_info
+        .as_ref()
+        .and_then(|i| i["layerHierarchy"].as_array())
+    {
+        let runtime = hierarchy
+            .iter()
+            .rev()
+            .filter_map(Value::as_str)
+            .take(4)
+            .map(filename_part)
+            .collect::<Vec<_>>();
+        if runtime.len() > parts.len() {
+            parts = runtime;
+        }
+    }
+    parts.reverse();
+    let identity = hash(asset.asset_id.as_bytes());
+    Some(format!(
+        "{}-{}-{}.{}",
+        parts.join("-"),
+        &identity[..16],
+        if asset.render_mode.is_original()
+            || asset
+                .render_info
+                .as_ref()
+                .is_some_and(|i| i["representation"] == "original-fill")
+        {
+            "fill"
+        } else {
+            "node"
+        },
+        asset.format.unwrap_or(AssetFormat::Png).extension()
+    ))
 }
 
 /// Add snapshot context and safe filename suggestions without changing byte identity
@@ -401,26 +649,7 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
             }
         }
         parts.reverse();
-        let identity = Sha256::digest(asset.asset_id.as_bytes())
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>();
-        asset.suggested_filename = Some(format!(
-            "{}-{}-{}.{}",
-            parts.join("-"),
-            &identity[..16],
-            if asset.render_mode == AssetRenderMode::Fill
-                || asset
-                    .render_info
-                    .as_ref()
-                    .is_some_and(|i| i["representation"] == "original-fill")
-            {
-                "fill"
-            } else {
-                "node"
-            },
-            asset.format.unwrap_or(AssetFormat::Png).extension()
-        ));
+        asset.suggested_filename = suggested_asset_filename(snapshot, asset);
         let bytes = asset
             .data_base64
             .as_deref()
@@ -434,7 +663,7 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
         let mut info = measured_info(
             asset.render_mode,
             asset.format.unwrap_or(AssetFormat::Png),
-            asset.scale.unwrap_or(1),
+            asset.scale.unwrap_or(2.0),
             observed,
             bytes.as_deref(),
         );
@@ -452,12 +681,25 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
                 "isMask":view.value("isMask"), "context":"snapshot-only-ancestor-mask-scope-unknown"});
         }
         info["sourceKind"] = json!(asset.source_kind);
+        info["sourceVisibility"] = json!(if asset.source_kind == "image-fill"
+            && asset_excluded(snapshot, &asset.node_id, &asset.field)
+        {
+            "hidden-or-transparent-in-document; source-read-independent-of-visibility"
+        } else {
+            "not-excluded-by-acquired-properties"
+        });
         info["recommendedFormat"] = json!(if asset.source_kind == "vector-node" {
             "svg"
         } else {
             "webp"
         });
-        info["recommendedRenderMode"] = json!("node");
+        info["recommendedRenderMode"] = json!(if asset.source_kind == "image-fill" {
+            "original-source"
+        } else {
+            "node"
+        });
+        info["instancePath"] = json!(parts);
+        info["suggestedFilename"] = json!(asset.suggested_filename);
         info["formatRecommendationEvidence"] = json!(if asset.source_kind == "vector-node" {
             "Vector asset: retain SVG when the native export is usable; inspect effects and embedded rasters."
         } else {
@@ -496,6 +738,9 @@ pub fn image_fill_audit(snapshot: &Snapshot, captures: &[AssetManifestEntry]) ->
     let mut node_count = 0;
     let mut reason_counts = std::collections::BTreeMap::<String, usize>::new();
     for node in snapshot.nodes.values() {
+        if !crate::assets::in_scope(snapshot, &node.id) {
+            continue;
+        }
         let view = node.typed_view();
         let Some(fills) = view.value("fills").and_then(Value::as_array) else {
             continue;
@@ -569,11 +814,15 @@ pub fn image_fill_audit(snapshot: &Snapshot, captures: &[AssetManifestEntry]) ->
             entries.push(json!({"assetId":id,"nodeId":node.id,"fillIndex":index,"sourceKind":"image-fill",
                 "status":capture.map(|a|a.status),"format":capture.and_then(|a|a.format),"quality":capture.and_then(|a|a.quality),"lossless":capture.and_then(|a|a.lossless),
                 "nodeSize":size(view.number("width"), view.number("height")),"nodeSizeEvidence":"acquired-node-layout",
+                "sourcePixelSize":info.map(|i|&i["sourcePixelSize"]),"nodeBox":size(view.number("width"),view.number("height")),
                 "sourceSize":info.map(|i|&i["sourceSize"]),"sourceSizeEvidence":info.map(|i|i["sourceSizeEvidence"].clone()).filter(|v|!v.is_null()).unwrap_or(json!("unknown; original source not inspected")),
                 "outputSize":info.map(|i|&i["outputSize"]),"outputSizeEvidence":info.map(|i|i["dimensionEvidence"].clone()).filter(|v|!v.is_null()).unwrap_or(json!("unknown; no validated capture")),
                 "scaleMode":paint.get("scaleMode"),"imageTransform":paint.get("imageTransform"),
-                "visibleSourceRatio":null,"visibleSourceRatioEvidence":"not-computed; transform-coefficients-are-not-visible-percentages",
-                "effects":view.value("effects"),"recommendedFormat":"webp","recommendedRenderMode":"node",
+                "visibleSourceRatio":info.map(|i|&i["visibleSourceRatio"]),"visibleSourceRatioEvidence":info.map(|i|&i["visibleSourceRatioEvidence"]),
+                "instancePath":info.map(|i|&i["instancePath"]),"suggestedFilename":capture.and_then(|a|a.suggested_filename.as_ref()),
+                "effectiveScale":info.map(|i|&i["effectiveScale"]),"sourceEffectiveScale":info.map(|i|&i["sourceEffectiveScale"]),"outputEffectiveScale":info.map(|i|&i["outputEffectiveScale"]),
+                "cropApplied":info.map(|i|&i["cropApplied"]),"effectsBaked":info.map(|i|&i["effectsBaked"]),"effectsAppliedBy":info.map(|i|&i["effectsAppliedBy"]),
+                "effects":view.value("effects"),"recommendedFormat":"webp","recommendedRenderMode":"original-source",
                 "recommendationEvidence":"IMAGE paint; raster content type unknown. Use lossless for text/crisp edges, inspect lossy quality; alpha preserved. Retain usable SVG for vectors.",
                 "renderInfo":info,
                 "fidelity":info.map(|i| &i["fidelity"]),"fidelityScope":info.map(|i| &i["fidelityScope"]),

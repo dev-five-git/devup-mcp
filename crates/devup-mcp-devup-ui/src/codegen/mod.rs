@@ -2,6 +2,7 @@ mod animation;
 mod compat;
 mod component;
 mod evidence;
+mod image;
 mod layout;
 mod property_derivations;
 pub(crate) use property_derivations::property_derivations;
@@ -21,6 +22,9 @@ pub use component::{
     generate_component_set_target, generate_inlined_component_instance, generate_legacy_component,
     generate_node, normalize_component_name, render_component_registration_snapshot,
     render_component_source,
+};
+pub use image::{
+    AssetPixelSize, AssetRepresentationPolicy, AssetVariant, asset_css_map, validate_asset_effects,
 };
 pub(crate) use layout::{
     centers_lone_space_between_child, derived_padding, export_box, folded_mask_dimensions,

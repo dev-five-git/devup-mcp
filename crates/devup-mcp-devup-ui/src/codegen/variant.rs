@@ -479,7 +479,7 @@ fn project_tree_inner(
             slots: Vec::new(),
         });
     }
-    let asset = style::asset_kind(snapshot, node);
+    let asset = super::image::asset_kind(snapshot, node, &options.asset_policies);
     let inferred_mode = view
         .value("inferredAutoLayout")
         .and_then(Value::as_object)
@@ -527,6 +527,7 @@ fn project_tree_inner(
         options.root_layout,
         is_render_root,
         None,
+        super::image::original_image(node, &options.asset_policies),
     );
     let mut used_tokens = BTreeSet::new();
     style::push_style_props(
@@ -537,6 +538,9 @@ fn project_tree_inner(
         &mut props,
         &mut used_tokens,
         style::StyleOptions {
+            reserve_image_content: !(is_render_root
+                && options.root_layout == super::RootLayout::Embedded),
+            asset_policies: &options.asset_policies,
             variable_tokens: &options.variable_tokens,
             length_tokens: &options.length_tokens,
             asset_names_per_node: options.asset_names_per_node,
@@ -603,7 +607,7 @@ fn project_tree_inner(
             0,
         )
     });
-    Ok(Tree {
+    let tree = Tree {
         node_id: node.id.clone(),
         node_name: view.name().unwrap_or_default().to_owned(),
         source_node_ids: BTreeSet::from([node.id.clone()]),
@@ -616,7 +620,8 @@ fn project_tree_inner(
         drawn_when: Vec::new(),
         leading_comment: None,
         slots: Vec::new(),
-    })
+    };
+    Ok(super::image::project_tree(tree, snapshot, node, options))
 }
 
 /// The variant an instance picked, by the name a reference to its component
@@ -668,6 +673,7 @@ pub(super) fn instance_placement(
         options.root_layout,
         is_render_root,
         None,
+        super::image::original_image(node, &options.asset_policies),
     );
     placement
         .into_iter()

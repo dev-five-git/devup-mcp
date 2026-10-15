@@ -25,12 +25,16 @@ fn collector_exports_only_explicit_assets_and_preserves_snapshot_on_export_failu
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
     let mut request = CollectionRequest::new(target, CollectionScope::Node);
     request.asset_selections = vec![AssetSelection {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
         asset_id: "1:1:fills:0".to_owned(),
         format: AssetFormat::Png,
-        scale: 2,
+        scale: 2.0,
     }];
     let mut collector = CollectorSession::new(request);
     let CollectorStep::Call(metadata) = collector.advance().unwrap() else {
@@ -127,6 +131,10 @@ fn an_svg_payload_inlined_beside_the_descriptor_is_decoded_from_its_text() {
         raw: json!({"content": [{"type": "text", "text": descriptor.to_string()}]}),
     };
     let request = AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -135,7 +143,7 @@ fn an_svg_payload_inlined_beside_the_descriptor_is_decoded_from_its_text() {
         field: "node".to_owned(),
         image_hash: None,
         format: AssetFormat::Svg,
-        scale: 1,
+        scale: 1.0,
     };
 
     let AssetExportOutcome::Entry(entry) =
@@ -170,6 +178,10 @@ fn a_missing_asset_payload_reports_the_shapes_that_were_present() {
         raw: json!({"content": [{"type": "text", "text": descriptor.to_string()}]}),
     };
     let request = AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -178,7 +190,7 @@ fn a_missing_asset_payload_reports_the_shapes_that_were_present() {
         field: "node".to_owned(),
         image_hash: None,
         format: AssetFormat::Svg,
-        scale: 1,
+        scale: 1.0,
     };
 
     let error = asset_export_from_result(&result, "FileKey123", Some("v1"), &request)
@@ -273,6 +285,10 @@ fn requesting_a_hidden_asset_is_rejected_with_the_reason() {
     let error = validate_asset_requests(
         &hidden_asset_snapshot(),
         &[AssetRequest {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
@@ -281,7 +297,7 @@ fn requesting_a_hidden_asset_is_rejected_with_the_reason() {
             field: "fills/0".to_owned(),
             image_hash: Some("image-hash-123".to_owned()),
             format: AssetFormat::Png,
-            scale: 1,
+            scale: 1.0,
         }],
     )
     .expect_err("a hidden node cannot be exported, so the request must be refused");
@@ -429,6 +445,10 @@ fn asset_leaf_with_one_non_tiled_image_fill_is_a_png_asset() {
 fn exported_asset_validates_descriptor_bytes_hash_and_requested_settings() {
     let bytes = b"synthetic-png";
     let request = AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -437,7 +457,7 @@ fn exported_asset_validates_descriptor_bytes_hash_and_requested_settings() {
         field: "fills/1".to_owned(),
         image_hash: Some("image-hash-123".to_owned()),
         format: AssetFormat::Png,
-        scale: 2,
+        scale: 2.0,
     };
     let result = UpstreamResult {
         raw: json!({"content": [
@@ -487,12 +507,16 @@ fn an_svg_over_the_inline_cap_arrives_in_fragments() {
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
     let mut request = CollectionRequest::new(target, CollectionScope::Node);
     request.asset_selections = vec![AssetSelection {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
         asset_id: "1:1:node".to_owned(),
         format: AssetFormat::Svg,
-        scale: 1,
+        scale: 1.0,
     }];
     let mut collector = CollectorSession::new(request);
     let CollectorStep::Call(metadata) = collector.advance().unwrap() else {
@@ -642,12 +666,16 @@ fn a_png_over_the_attachment_cap_arrives_in_fragments() {
         FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-1").unwrap();
     let mut request = CollectionRequest::new(target, CollectionScope::Node);
     request.asset_selections = vec![AssetSelection {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
         asset_id: "1:1:fills:0".to_owned(),
         format: AssetFormat::Png,
-        scale: 2,
+        scale: 2.0,
     }];
     let mut collector = CollectorSession::new(request);
     let CollectorStep::Call(metadata) = collector.advance().unwrap() else {
@@ -757,7 +785,7 @@ fn a_png_over_the_attachment_cap_arrives_in_fragments() {
     assert_eq!(exported.asset_id, "1:1:fills:0");
     assert_eq!(exported.field, "fills/0");
     assert_eq!(exported.format, Some(AssetFormat::Png));
-    assert_eq!(exported.scale, Some(2));
+    assert_eq!(exported.scale, Some(2.0));
     assert_eq!(exported.byte_length, Some(png.len()));
     assert_eq!(exported.mime_type.as_deref(), Some("image/png"));
     assert_eq!(
@@ -776,6 +804,10 @@ fn a_png_over_the_attachment_cap_arrives_in_fragments() {
 #[test]
 fn only_svg_and_png_exports_are_carried_in_fragments() {
     let request = AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -784,7 +816,7 @@ fn only_svg_and_png_exports_are_carried_in_fragments() {
         field: "node".to_owned(),
         image_hash: None,
         format: AssetFormat::Pdf,
-        scale: 1,
+        scale: 1.0,
     };
     let result = json!({"content": [{"type": "text", "text": json!({
         "kind":"devupAssetExport","fileKey":"FileKey123","version":"v1",
@@ -877,12 +909,16 @@ fn a_frame_holding_one_picture_is_exported_as_the_node_not_a_fill_it_lacks() {
             diagnostics: Vec::new(),
         },
         &[AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
             asset_id: "1:frame:node".to_owned(),
             format: AssetFormat::Png,
-            scale: 1,
+            scale: 1.0,
         }],
     )
     .expect("the frame is exportable");

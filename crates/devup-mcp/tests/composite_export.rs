@@ -593,7 +593,7 @@ async fn explicit_asset_request_exports_once_and_returns_validated_binary() -> a
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["tsx", "assetManifest"],
-            "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
+            "assetRequests": [{"assetId":"1:3:fills:0","renderMode":"node","format":"png","scale":2}]
         }),
     )
     .await?;
@@ -640,7 +640,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
             "outputs": ["assetManifest"],
             "delivery": "resource",
             "assetRequests": [{
-                "assetId":"1:3:fills:0",
+                "assetId":"1:3:fills:0","renderMode":"node",
                 "format":"png",
                 "scale":2,
                 "outputPath": output_path.to_string_lossy()
@@ -729,7 +729,7 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
             "outputs": ["assetManifest"],
             "delivery": "resource",
             "assetRequests": [{
-                "assetId":"1:3:fills:0",
+                "assetId":"1:3:fills:0","renderMode":"node",
                 "format":"png",
                 "scale":2,
                 "outputPath": output_path.to_string_lossy()
@@ -855,7 +855,7 @@ async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::R
         json!({
             "url": "https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
             "outputs": ["assetManifest"],
-            "assetRequests": [{"assetId":"1:3:fills:0","format":"png","scale":2}]
+            "assetRequests": [{"assetId":"1:3:fills:0","renderMode":"node","format":"png","scale":2}]
         }),
     )
     .await?;
@@ -865,8 +865,8 @@ async fn artifact_reuse_rejects_a_different_asset_format_or_scale() -> anyhow::R
     assert_eq!(upstream.calls.load(Ordering::SeqCst), 2);
 
     for request in [
-        json!({"assetId":"1:3:fills:0","format":"svg","scale":2}),
-        json!({"assetId":"1:3:fills:0","format":"png","scale":1}),
+        json!({"assetId":"1:3:fills:0","renderMode":"node","format":"svg","scale":2}),
+        json!({"assetId":"1:3:fills:0","renderMode":"node","format":"png","scale":1}),
     ] {
         let reused = client
             .call_tool(
@@ -1102,7 +1102,7 @@ fn asset_export_result(
     let descriptor = json!({
         "kind":"devupAssetExport","fileKey":"FileKey123","version":version,
         "assetId":request.asset_id,"nodeId":request.node_id,"field":request.field,
-        "imageHash":request.image_hash,"format":request.format,"scale":request.scale,
+        "imageHash":request.image_hash,"format":request.format,"scale":request.scale,"renderMode":request.render_mode,
         "status":"exported","byteLength":bytes.len(),
         "sha256":"294ad7145322ec19f8250cca8480a933f1ce8c9e2ad1038e7ae8930d55a6598a"
     });
@@ -1138,7 +1138,7 @@ async fn p3_public_root_mapping_survives_resource_delivery_and_file_writes() -> 
         "url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2",
         "outputs":["tsx","assetManifest"], "delivery":"resource", "assetPublicRoot":root,
         "outputPaths":{"tsx":code_path},
-        "assetRequests":[{"assetId":"1:3:fills:0","format":"png","scale":2,"outputPath":output_path}]
+        "assetRequests":[{"assetId":"1:3:fills:0","renderMode":"node","format":"png","scale":2,"outputPath":output_path}]
     })).await?;
     let resources = result.structured_content.as_ref().unwrap()["resources"]
         .as_array()
@@ -1236,7 +1236,7 @@ async fn r3_assert_resume(timeout_first: bool) -> anyhow::Result<()> {
     });
     let client = ().serve(ct).await?;
     let args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2", "outputs":["assetManifest"],
-        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+        "assetRequests":[{"assetId":"1:2:fills:1","renderMode":"node"},{"assetId":"1:3:fills:0","renderMode":"node"}]});
     let mut paused = call(&client, "devup_figma_export", args.clone()).await?;
     if timeout_first {
         assert_eq!(paused["assetJob"]["state"], "running");
@@ -1379,7 +1379,7 @@ async fn r3_sixteen_assets_succeed_in_recommended_batches() -> anyhow::Result<()
     });
     let client = ().serve(ct).await?;
     let assets: Vec<_> = (10..26)
-        .map(|i| json!({"assetId":format!("1:{i}:fills:0")}))
+        .map(|i| json!({"assetId":format!("1:{i}:fills:0"),"renderMode":"node"}))
         .collect();
     for batch in assets.chunks(3) {
         let mut result = call(
@@ -1427,7 +1427,7 @@ async fn r3_different_output_job_does_not_wait_on_unresumable_owner() -> anyhow:
     });
     let client = ().serve(ct).await?;
     let mut args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],
-        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+        "assetRequests":[{"assetId":"1:2:fills:1","renderMode":"node"},{"assetId":"1:3:fills:0","renderMode":"node"}]});
     let owner = call(&client, "devup_figma_export", args.clone()).await?;
     assert_eq!(owner["assetJob"]["state"], "paused");
     args["outputs"] = json!(["tsx", "assetManifest"]);
@@ -1463,7 +1463,7 @@ async fn r3_cancelled_client_recovers_retained_asset_job() -> anyhow::Result<()>
     });
     let client = ().serve(ct).await?;
     let args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],
-        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+        "assetRequests":[{"assetId":"1:2:fills:1","renderMode":"node"},{"assetId":"1:3:fills:0","renderMode":"node"}]});
     let dropped = tokio::time::timeout(
         std::time::Duration::from_millis(100),
         call(&client, "devup_figma_export", args.clone()),
@@ -1509,7 +1509,7 @@ async fn r3_distinct_resource_jobs_keep_both_manifests_readable() -> anyhow::Res
     });
     let client = ().serve(ct).await?;
     let mut args = json!({"url":"https://www.figma.com/design/FileKey123/Fixture?node-id=1-2","outputs":["assetManifest"],"delivery":"resource",
-        "assetRequests":[{"assetId":"1:2:fills:1"},{"assetId":"1:3:fills:0"}]});
+        "assetRequests":[{"assetId":"1:2:fills:1","renderMode":"node"},{"assetId":"1:3:fills:0","renderMode":"node"}]});
     let owner = call(&client, "devup_figma_export", args.clone()).await?;
     assert_eq!(owner["assetJob"]["state"], "paused");
     args["outputs"] = json!(["tsx", "assetManifest"]);

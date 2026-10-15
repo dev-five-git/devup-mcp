@@ -33,7 +33,7 @@ use crate::{
 const LARGE_SUBTREE_THRESHOLD: usize = 200;
 
 const MAX_PENDING_CALLS: usize = 4;
-pub const MAX_COLLECTED_ASSET_BYTES: usize = 24 * 1024 * 1024;
+pub const MAX_COLLECTED_ASSET_BYTES: usize = 128 * 1024 * 1024;
 // The byte budget below measures the *request* — the IDs — and the ceiling
 // that matters is on the *response*: the official MCP cuts a text result at
 // 20,480 UTF-8 bytes (measured; see `scripts/fast_snapshot.js`) and appends
@@ -342,9 +342,9 @@ impl CollectorSession {
     pub fn asset_progress(&self) -> Vec<Value> {
         self.request.asset_selections.iter().map(|selection| {
             match self.asset_results.iter().find(|asset| asset.asset_id == selection.asset_id) {
-                Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,"format":asset.format,"scale":asset.scale,"quality":asset.quality,"lossless":asset.lossless,
+                Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,"format":asset.format,"scale":asset.scale,"quality":asset.quality,"lossless":asset.lossless,"usageAspectRatio":asset.usage_aspect_ratio,"maxWidth":asset.max_width,"srcset":asset.srcset,"visibleScopeNodeId":asset.visible_scope_node_id,
                     "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"renderInfo":asset.render_info}),
-                None => serde_json::json!({"assetId":selection.asset_id,"renderMode":selection.render_mode,"format":selection.format,"scale":selection.scale,"quality":selection.quality,"lossless":selection.lossless,"status":"pending"}),
+                None => serde_json::json!({"assetId":selection.asset_id,"renderMode":selection.render_mode,"format":selection.format,"scale":selection.scale,"quality":selection.quality,"lossless":selection.lossless,"usageAspectRatio":selection.usage_aspect_ratio,"maxWidth":selection.max_width,"srcset":selection.srcset,"visibleScopeNodeId":selection.visible_scope_node_id,"status":"pending"}),
             }
         }).collect()
     }
@@ -488,27 +488,46 @@ impl CollectorSession {
                 self.asset_plan_initialized = true;
                 if self.request.web_ready_images {
                     let census = crate::discover_web_ready_assets(&snapshot);
-                    if census.len() > 4096 {
-                        return Err(invalid_call(
-                            "web-ready-images exceeds 4096 image fills; select a smaller frame or Section selection.",
-                        ));
-                    }
                     self.request.asset_selections = census
                         .iter()
                         .map(|a| AssetSelection {
+                            usage_aspect_ratio: None,
+                            max_width: snapshot
+                                .nodes
+                                .get(&a.node_id)
+                                .and_then(|n| n.typed_view().number("width"))
+                                .filter(|w| w.is_finite() && *w > 0.0)
+                                .map(|w| (w * 2.0).ceil().clamp(1.0, 8192.0) as u32),
+                            srcset: false,
+                            visible_scope_node_id: None,
                             asset_id: a.asset_id.clone(),
                             format: crate::AssetFormat::Webp,
-                            scale: 1,
-                            render_mode: crate::AssetRenderMode::Node,
-                            quality: Some(80),
+                            scale: 2.0,
+                            render_mode: crate::AssetRenderMode::OriginalSource,
+                            quality: Some(85),
                             lossless: Some(false),
                         })
                         .collect();
-                    for asset in census.iter().filter(|a| a.status == AssetStatus::Failed) {
+                    for (index, asset) in census.iter().enumerate() {
+                        if asset.image_hash.is_some() && index < 4096 {
+                            continue;
+                        }
                         let mut failure = asset.clone();
+                        failure.status = AssetStatus::Failed;
+                        if index >= 4096 {
+                            failure.error_code = Some("DEVUP_ASSET_PLAN_LIMIT".into());
+                            failure.error_detail=Some("Preset scheduling is bounded to4096 IMAGE sources; recollect failed IDs in a smaller scope.".into());
+                        } else if asset.image_hash.is_none() {
+                            failure.error_code = Some("DEVUP_ORIGINAL_SOURCE_UNAVAILABLE".into());
+                            failure.error_detail = Some(
+                                "The acquired IMAGE paint has no resolvable source hash.".into(),
+                            );
+                        }
+                        failure.render_mode = crate::AssetRenderMode::OriginalSource;
                         failure.format = Some(crate::AssetFormat::Webp);
-                        failure.scale = Some(1);
-                        failure.quality = Some(80);
+                        failure.scale = Some(2.0);
+                        failure.max_width = self.request.asset_selections[index].max_width;
+                        failure.quality = Some(85);
                         failure.lossless = Some(false);
                         self.asset_results.push(failure);
                     }
@@ -529,7 +548,7 @@ impl CollectorSession {
             // batch has settled. The ordinary pending-call bound still applies.
             if self.asset_byte_budget_exhausted {
                 while let Some(request) = self.asset_plan.pop_front() {
-                    self.record_asset_failure(request, "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The 24 MiB retained asset budget was reached. Export failed IDs in smaller custom batches or select a smaller frame.".into()));
+                    self.record_asset_failure(request, "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The 128 MiB retained asset budget was reached. Export failed IDs in smaller custom batches or select a smaller frame.".into()));
                 }
             }
             let mut nodes = BTreeSet::new();
@@ -546,7 +565,7 @@ impl CollectorSession {
             self.assets_scheduled = self.asset_plan.is_empty();
             for request in batch {
                 if self.asset_byte_budget_exhausted {
-                    self.record_asset_failure(request, "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The 24 MiB retained asset budget was reached. Export the failed asset IDs in smaller custom batches or select a smaller frame.".into()));
+                    self.record_asset_failure(request, "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The 128 MiB retained asset budget was reached. Export the failed asset IDs in smaller custom batches or select a smaller frame.".into()));
                     continue;
                 }
                 self.enqueue(
@@ -1823,6 +1842,14 @@ impl CollectorSession {
                 );
                 return Ok(());
             }
+            Err(error) if request.render_mode == crate::AssetRenderMode::OriginalSource => {
+                self.record_asset_failure(
+                    request.as_ref().clone(),
+                    "DEVUP_ASSET_SOURCE_POSTPROCESS_FAILED",
+                    Some(error.message),
+                );
+                return Ok(());
+            }
             Err(error) => return Err(error),
         };
         let exported = match outcome {
@@ -1923,13 +1950,17 @@ impl CollectorSession {
 
     fn retain_asset(&mut self, mut asset: AssetManifestEntry) {
         if asset.status == AssetStatus::Exported {
-            let bytes = asset.byte_length.unwrap_or_default();
+            let bytes = asset
+                .byte_length
+                .unwrap_or_default()
+                .saturating_add(asset.variants.iter().map(|v| v.byte_length).sum::<usize>());
             if self.retained_asset_bytes.saturating_add(bytes) > MAX_COLLECTED_ASSET_BYTES {
                 self.asset_byte_budget_exhausted = true;
                 asset.status = AssetStatus::Failed;
                 asset.error_code = Some("DEVUP_ASSET_TOTAL_BYTES_EXCEEDED".into());
-                asset.error_detail = Some("The 24 MiB retained asset budget was reached. Export failed IDs in smaller custom batches or select a smaller frame.".into());
+                asset.error_detail = Some("The 128 MiB retained asset budget was reached. Export failed IDs in smaller custom batches or select a smaller frame.".into());
                 asset.data_base64 = None;
+                asset.variants.clear();
                 asset.byte_length = None;
                 asset.sha256 = None;
                 asset.mime_type = None;
@@ -1960,6 +1991,11 @@ impl CollectorSession {
         self.record_asset_diagnostic(&request, error_code, error_detail.as_deref());
         let source_kind = crate::assets::source_kind_of(&request).to_owned();
         self.asset_results.push(AssetManifestEntry {
+            usage_aspect_ratio: request.usage_aspect_ratio,
+            max_width: request.max_width,
+            srcset: request.srcset,
+            visible_scope_node_id: request.visible_scope_node_id.clone(),
+            variants: Vec::new(),
             render_mode: request.render_mode,
             quality: request.quality,
             lossless: request.lossless,
@@ -2855,12 +2891,16 @@ mod w5_tests {
         let mut collector =
             CollectorSession::new(CollectionRequest::new(target, CollectionScope::Node));
         let request = AssetRequest {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             asset_id: "synthetic:fills:0".into(),
             node_id: "synthetic".into(),
             field: "fills/0".into(),
             image_hash: Some("source".into()),
             format: crate::AssetFormat::Png,
-            scale: 1,
+            scale: 1.0,
             render_mode: crate::AssetRenderMode::Node,
             quality: None,
             lossless: None,

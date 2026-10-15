@@ -20,6 +20,10 @@ fn vector() -> Value {
 
 fn execute(node: Value, format: AssetFormat, mode: &str, writer: bool) -> (AssetRequest, Value) {
     let request = AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -28,7 +32,7 @@ fn execute(node: Value, format: AssetFormat, mode: &str, writer: bool) -> (Asset
         field: "node".into(),
         image_hash: None,
         format,
-        scale: 2,
+        scale: 2.0,
     };
     let call = ReadToolCall::asset_export("fixture", None, request.clone());
     let result = run(call.arguments()["code"].clone(), node, mode, writer);

@@ -145,10 +145,12 @@ fn image_filled_asset_container_preserves_text_children() {
     );
 
     // The fill names the node it came from, so two different images cannot
-    // claim the same file. The name has a space, hence the quoting.
-    assert!(tsx.contains("bg=\"url('/images/Book cover.png') center/cover no-repeat\""));
+    // claim the same file. An original-source paint is an image layer below
+    // live text, rather than a flattened export of the entire container.
+    assert!(tsx.contains("src=\"/images/Book cover.png\""));
+    assert!(tsx.contains("objectFit=\"cover\""));
     assert!(tsx.contains("Preserved title"));
-    assert!(!tsx.contains("<Image"));
+    assert!(tsx.contains("<Image"));
 }
 
 #[test]

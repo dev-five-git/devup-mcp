@@ -188,7 +188,15 @@ fn weighted_flexible_tracks_do_not_replace_hug_auto_or_fixed_tracks() {
         assert_eq!(details["sourceImageSize"], Value::Null);
         assert_eq!(details["verification"]["state"], "unverified");
         assert_eq!(details["layout"]["zeroMinimumColumns"], true);
-        assert_eq!(details["generatedSizing"], json!(["h=\"90px\""]));
+        assert_eq!(
+            details["generatedSizing"],
+            json!([
+                "aspectRatio=\"160 / 90\"",
+                "h=\"90px\"",
+                "minH=\"0\"",
+                "minW=\"0\""
+            ])
+        );
     }
 }
 

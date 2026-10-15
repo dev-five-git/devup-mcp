@@ -23,7 +23,16 @@ expression: actual
         >
           Hello World!
         </Text>
-        <Image h="500px" src="/images/image.png" w="100%" />
+        <Image
+          aspectRatio="1280 / 500"
+          h="500px"
+          minH="0"
+          minW="0"
+          objectFit="cover"
+          objectPos="center"
+          src="/images/image.png"
+          w="100%"
+        />
       </Center>
     </VStack>
   )

@@ -5,9 +5,8 @@ use serde_json::{Value, json};
 
 use super::{CodegenOptions, CodegenOutput, style};
 
-/// Report uncertainty using emitted elements, never source-image dimensions
-/// guessed from a Figma node's measured frame. Fixed CSS dimensions already
-/// reserve space and do not need invented HTML intrinsic width/height props.
+/// Report uncertainty using emitted layout and acquired pixel evidence.
+/// A measured node frame alone never proves intrinsic source dimensions.
 pub(super) fn image_layout_diagnostics(
     snapshot: &Snapshot,
     output: &CodegenOutput,
@@ -202,13 +201,15 @@ pub(super) fn image_layout_diagnostics(
                     details: Some(json!({
                         "classification":"intrinsic-image-layout",
                         "nodeSize":{"width":view.number("width"),"height":view.number("height"),"horizontal":view.string("layoutSizingHorizontal"),"vertical":view.string("layoutSizingVertical")},
-                        "sourceImageSize":null,
-                        "sourceImageSizeReason":"The collected node dimensions describe the Figma frame, not decoded source-image pixels.",
+                        "sourceImageSize":output.source_map.asset_css_mappings.iter().find(|m|m["nodeId"]==node.id).map(|m|&m["sourcePixelSize"]),
+                        "outputImageSize":output.source_map.asset_css_mappings.iter().find(|m|m["nodeId"]==node.id).map(|m|&m["outputPixelSize"]),
+                        "intrinsicAttributes":element.attributes.iter().filter(|(a,_)|matches!(a.name.as_str(),"width"|"height")).map(|(a,_)|a.source.clone()).collect::<Vec<_>>(),
+                        "sourceImageSizeReason":"Pixel sizes come only from supplied acquisition evidence; node dimensions alone describe the layout frame.",
                         "generatedSizing":sizing(element),
                         "layout":{"nodeId":parent.id,"mode":mode,"generatedSizing":sizing(parent_element),"zeroMinimumColumns":columns.is_some_and(|css| css.contains("minmax(0,"))},
                         "verification":{"state":"unverified","reasonCode":"browser-intrinsic-layout-not-measured"},
                         "nextAction":"Preserve explicit fixed dimensions or source-supported aspect ratio; measure rendered card sizes with the chosen assets. Zero-minimum fractional columns protect track allocation but do not establish image height or crop fidelity.",
-                        "evidenceLimit":"Potential CSS intrinsic-size dependency, not a measured cause or proof of unequal cards. HTML intrinsic dimensions are not inferred."
+                        "evidenceLimit":"Potential CSS intrinsic-size dependency, not a measured cause or proof of unequal cards. Intrinsic attributes use acquired pixels when available."
                     })),
                     ..Diagnostic::default()
                 });

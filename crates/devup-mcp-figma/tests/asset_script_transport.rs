@@ -15,6 +15,10 @@ fn execute(
     export_fails: bool,
 ) -> (AssetRequest, Value) {
     let request = AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -23,7 +27,7 @@ fn execute(
         field: "node".to_owned(),
         image_hash: None,
         format,
-        scale: 2,
+        scale: 2.0,
     };
     let call = ReadToolCall::asset_export("fixture", Some("v1".to_owned()), request.clone());
     let code = call.arguments()["code"].as_str().unwrap().to_owned();
@@ -130,7 +134,11 @@ fn bridge_does_not_hide_export_failure_or_bypass_byte_limit() {
     for (length, fails, error) in [
         (3, true, "DEVUP_ASSET_EXPORT_FAILED"),
         (0, false, "DEVUP_ASSET_RESPONSE_TOO_LARGE"),
-        (8 * 1024 * 1024 + 1, false, "DEVUP_ASSET_RESPONSE_TOO_LARGE"),
+        (
+            80 * 1024 * 1024 + 1,
+            false,
+            "DEVUP_ASSET_RESPONSE_TOO_LARGE",
+        ),
     ] {
         let (_, result) = execute(AssetFormat::Png, length, false, fails);
         assert_eq!(result["data"]["status"], "failed");

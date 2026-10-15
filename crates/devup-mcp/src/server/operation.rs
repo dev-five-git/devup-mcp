@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 
 use super::{artifacts::ArtifactRequestKey, delivery::DeliveryMode};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PendingOperation {
     Collect,
     Artifact {

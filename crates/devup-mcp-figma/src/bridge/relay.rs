@@ -100,7 +100,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_tungstenite::{
-    WebSocketStream, client_async,
+    WebSocketStream, client_async_with_config,
     tungstenite::{self, Message, client::IntoClientRequest},
 };
 
@@ -222,7 +222,10 @@ pub(super) async fn relay_socket(
     if headers.contains_key(ORIGIN) {
         return StatusCode::FORBIDDEN.into_response();
     }
-    upgrade.on_upgrade(move |socket| serve_relay(state, socket))
+    upgrade
+        .max_message_size(128 * 1024 * 1024)
+        .max_frame_size(128 * 1024 * 1024)
+        .on_upgrade(move |socket| serve_relay(state, socket))
 }
 
 async fn next_server_json(socket: &mut WebSocket) -> Option<Value> {
@@ -554,7 +557,20 @@ async fn open(port: u16, path: &str) -> Result<ClientSocket, Unopened> {
     let request = format!("ws://127.0.0.1:{port}{path}")
         .into_client_request()
         .map_err(|error| Unopened::Other(error.to_string()))?;
-    match timeout(PROBE_TIMEOUT, client_async(request, stream)).await {
+    match timeout(
+        PROBE_TIMEOUT,
+        client_async_with_config(
+            request,
+            stream,
+            Some(
+                tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
+                    .max_message_size(Some(128 * 1024 * 1024))
+                    .max_frame_size(Some(128 * 1024 * 1024)),
+            ),
+        ),
+    )
+    .await
+    {
         Ok(Ok((socket, _))) => Ok(socket),
         Ok(Err(tungstenite::Error::Http(response))) if response.status().as_u16() == 404 => {
             Err(Unopened::NotFound)

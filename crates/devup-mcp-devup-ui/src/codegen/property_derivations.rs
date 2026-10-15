@@ -32,16 +32,20 @@ pub(crate) fn property_derivations(
                 options.root_layout,
                 is_root,
                 options.width_policy.as_ref(),
+                super::image::original_image(node, &options.asset_policies),
             ),
             "style" => {
                 style_derivations = style::push_style_props(
                     snapshot,
                     node,
                     component,
-                    style::asset_kind(snapshot, node),
+                    super::image::asset_kind(snapshot, node, &options.asset_policies),
                     &mut props,
                     &mut tokens,
                     style::StyleOptions {
+                        reserve_image_content: !(is_root
+                            && options.root_layout == super::RootLayout::Embedded),
+                        asset_policies: &options.asset_policies,
                         variable_tokens: &options.variable_tokens,
                         length_tokens: &options.length_tokens,
                         asset_names_per_node: options.asset_names_per_node,
@@ -163,9 +167,9 @@ mod tests {
         for (positioning, value, path, prefix) in [
             (
                 "ABSOLUTE",
-                "contain",
-                "image-paint-scale",
-                "push_object_fit:",
+                "fill",
+                "native-raster-boundary",
+                "Native raster boundary:",
             ),
             (
                 "AUTO",
@@ -188,7 +192,17 @@ mod tests {
                 &snapshot,
                 &snapshot.nodes["c"],
                 "Image",
-                &CodegenOptions::default(),
+                &CodegenOptions {
+                    // This regression covers the explicit native export boundary.
+                    asset_policies: BTreeMap::from([(
+                        "c".into(),
+                        super::super::AssetRepresentationPolicy {
+                            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                            ..Default::default()
+                        },
+                    )]),
+                    ..Default::default()
+                },
                 false,
             );
             let fit = evidence

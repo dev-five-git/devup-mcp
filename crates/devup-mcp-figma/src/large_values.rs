@@ -272,7 +272,12 @@ fn validate_descriptor(descriptor: &LargeValueDescriptor) -> Result<(), DevupErr
     if descriptor.node_id.is_empty()
         || descriptor.field.is_empty()
         || descriptor.byte_length == 0
-        || descriptor.byte_length > MAX_LARGE_VALUE_BYTES
+        || descriptor.byte_length
+            > if descriptor.field.starts_with("$export:png@") {
+                crate::MAX_ASSET_BYTES
+            } else {
+                MAX_LARGE_VALUE_BYTES
+            }
         || descriptor.sha256.len() != 64
         || !descriptor
             .sha256

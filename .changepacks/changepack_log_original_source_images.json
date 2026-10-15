@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor",
+    "crates/devup-mcp-figma/Cargo.toml": "Minor",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Minor"
+  },
+  "note": "Acquire complete image sources by default and apply visual effects through CSS with explicit asset provenance. Offer explicit native-node and scoped ancestor captures, fractional bitmap scales with a 2x default, and bounded source-based WebP resizing and responsive variants. Deliver image audits, per-instance filenames and CSS maps consistently through files, resources and resumable jobs. Preserve explicit legacy fill contracts and usable SVG vectors.",
+  "date": "2026-10-15T00:00:00+00:00"
+}

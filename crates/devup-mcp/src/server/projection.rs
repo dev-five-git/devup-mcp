@@ -1,3 +1,5 @@
+#[path = "projection/asset_policy.rs"]
+mod asset_policy;
 #[path = "page_scaffold.rs"]
 pub(crate) mod page_scaffold;
 #[path = "projection/responsive_groups.rs"]
@@ -68,6 +70,11 @@ fn reconcile_asset_paths(
             sha256_hex(&bytes),
             asset.format.map(|format| format.extension()),
             asset.mime_type.clone(),
+            asset
+                .variants
+                .iter()
+                .map(|v| (v.sha256.clone(), v.width, v.height))
+                .collect::<Vec<_>>(),
         );
         groups.entry(key).or_default().push(index);
     }
@@ -103,6 +110,14 @@ fn reconcile_asset_paths(
                 output_paths.insert(asset.asset_id.clone(), output.clone());
             }
             let old_path = std::mem::replace(&mut asset.path, path.clone());
+            if let (Some(old), Some(new)) = (&old_path, &path)
+                && !asset.variants.is_empty()
+            {
+                replacements.insert(
+                    asset_policy::variant_path(old),
+                    asset_policy::variant_path(new),
+                );
+            }
             if let (Some(old), Some(new)) = (old_path, path.as_ref())
                 && old != *new
                 && let Some(previous) = replacements.insert(old, new.clone())
@@ -127,12 +142,15 @@ fn rewrite_asset_references(code: &str, paths: &BTreeMap<String, String>) -> Str
         let rest = &code[cursor..];
         let matched = paths.iter().find(|(old, _)| {
             rest.starts_with(old.as_str())
-                && cursor > 0
-                && matches!(code.as_bytes()[cursor - 1], b'"' | b'\'' | b'(')
+                && (cursor == 0
+                    || matches!(
+                        code.as_bytes()[cursor - 1],
+                        b'"' | b'\'' | b'(' | b' ' | b','
+                    ))
                 && rest
                     .as_bytes()
                     .get(old.len())
-                    .is_some_and(|next| matches!(next, b'"' | b'\'' | b')'))
+                    .is_none_or(|next| matches!(next, b'"' | b'\'' | b')' | b' ' | b','))
         });
         if let Some((old, new)) = matched {
             result.push_str(new);
@@ -157,11 +175,15 @@ fn rewrite_result_asset_references(value: &mut Value, paths: &BTreeMap<String, S
                         | "responsiveTsx"
                         | "generatedProperty"
                         | "generatedSource"
+                        | "srcSet"
                 ) {
                     match value {
                         Value::String(code) => {
-                            *code =
+                            *code = if key == "srcSet" {
+                                rewrite_asset_references(code, paths)
+                            } else {
                                 rewrite_asset_references(&with_host_safe_asset_paths(code), paths)
+                            }
                         }
                         Value::Array(items) => {
                             for item in items {
@@ -176,6 +198,12 @@ fn rewrite_result_asset_references(value: &mut Value, paths: &BTreeMap<String, S
                             }
                         }
                         _ => rewrite_result_asset_references(value, paths),
+                    }
+                } else if matches!(key.as_str(), "assetPath" | "path") {
+                    if let Value::String(path) = value
+                        && let Some(replacement) = paths.get(path)
+                    {
+                        *path = replacement.clone();
                     }
                 } else if !matches!(key.as_str(), "rawSnapshot" | "rawPayload" | "originalValue") {
                     rewrite_result_asset_references(value, paths);
@@ -240,6 +268,7 @@ pub(super) fn projected_outputs_from_result(
         ("assetManifest", "asset-manifest.json"),
         ("imageFillAudit", "image-fill-audit.json"),
         ("imageAudit", "image-audit.json"),
+        ("assetCssMap", "asset-css-map.json"),
         ("webReadyImages", "web-ready-images.json"),
         ("pageScaffold", "page-scaffold.json"),
     ] {
@@ -606,6 +635,7 @@ pub(super) async fn apply_delivery(
     for (field, name) in [
         ("imageFillAudit", "image-fill-audit.json"),
         ("imageAudit", "image-audit.json"),
+        ("assetCssMap", "asset-css-map.json"),
     ] {
         if let Some(audit) = result.get_mut(field).and_then(Value::as_object_mut) {
             audit.remove("assets");
@@ -732,6 +762,23 @@ fn materialize_asset_resource_references(
             .expect("asset checked above")["format"]
             .clone();
         let hash = sha256_hex(&output.bytes);
+        for asset in assets.iter_mut() {
+            for variant in asset
+                .get_mut("variants")
+                .and_then(Value::as_array_mut)
+                .into_iter()
+                .flatten()
+            {
+                if variant["sha256"].as_str() == Some(hash.as_str())
+                    && variant["mimeType"] == output.mime_type
+                    && variant["byteLength"].as_u64() == Some(output.bytes.len() as u64)
+                {
+                    let variant = variant.as_object_mut().expect("variant object");
+                    variant.remove("dataBase64");
+                    variant.insert("resource".into(),json!({"uri":output.manifest_uri(artifact_id),"mimeType":output.mime_type,"byteLength":output.bytes.len(),"sha256":hash}));
+                }
+            }
+        }
         for asset in assets.iter_mut().filter(|asset| {
             asset["status"] == "exported"
                 && asset["sha256"].as_str() == Some(hash.as_str())
@@ -768,65 +815,79 @@ fn materialize_asset_resource_references(
 fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutput>, DevupError> {
     let mut outputs = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
-    for (index, asset) in manifest.assets.iter().enumerate() {
-        if asset.status != AssetStatus::Exported {
-            continue;
+    let invalid =
+        |message: &str| DevupError::new(ErrorCode::DevupSnapshotUnsupported, message, false);
+    for (index, asset) in manifest
+        .assets
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| a.status == AssetStatus::Exported)
+    {
+        let mut renditions = vec![(
+            asset.data_base64.as_deref(),
+            asset.byte_length,
+            asset.sha256.as_deref(),
+            asset.mime_type.as_deref(),
+            None,
+        )];
+        renditions.extend(asset.variants.iter().map(|v| {
+            (
+                v.data_base64.as_deref(),
+                Some(v.byte_length),
+                Some(v.sha256.as_str()),
+                Some(v.mime_type.as_str()),
+                Some(v),
+            )
+        }));
+        for (data, length, hash, mime, variant) in renditions {
+            let data =
+                data.ok_or_else(|| invalid("The exported asset binary is not in the artifact."))?;
+            if data.len() > devup_mcp_figma::MAX_ASSET_BYTES.div_ceil(3) * 4 {
+                return Err(invalid("Asset base64 exceeds its encoded budget."));
+            }
+            let bytes = STANDARD
+                .decode(data)
+                .map_err(|_| invalid("The exported asset binary base64 is invalid."))?;
+            let mime = mime.ok_or_else(|| invalid("The exported asset has no MIME type."))?;
+            if length != Some(bytes.len()) || hash != Some(sha256_hex(&bytes).as_str()) {
+                return Err(invalid("The exported asset length or hash does not match."));
+            }
+            if let Some(variant) = variant {
+                if mime != "image/webp" || !variant.density.is_finite() || variant.density <= 1.0 {
+                    return Err(invalid("Invalid srcset derivative identity."));
+                }
+                let reader = image::ImageReader::new(std::io::Cursor::new(&bytes))
+                    .with_guessed_format()
+                    .map_err(|_| invalid("Invalid variant codec."))?;
+                if reader.into_dimensions().ok() != Some((variant.width, variant.height)) {
+                    return Err(invalid("Variant encoded dimensions do not match."));
+                }
+            }
+            let extension = if variant.is_some() {
+                "webp"
+            } else {
+                asset
+                    .format
+                    .map_or("bin", devup_mcp_figma::AssetFormat::extension)
+            };
+            if !seen.insert((sha256_hex(&bytes), extension.to_owned(), mime.to_owned())) {
+                continue;
+            }
+            let mut output = ProjectedOutput::asset(
+                format!(
+                    "asset-{}{}.{extension}",
+                    index + 1,
+                    if variant.is_some() { "-2x" } else { "" }
+                ),
+                mime,
+                bytes,
+                &asset.asset_id,
+            );
+            output.asset_metadata = Some(
+                json!({"assets":manifest.assets.iter().filter(|other|other.status==AssetStatus::Exported&&(other.sha256.as_deref()==hash || other.variants.iter().any(|v|Some(v.sha256.as_str())==hash))).map(|other|json!({"assetId":other.asset_id,"nodeId":other.node_id,"renderMode":other.render_mode,"format":other.format,"scale":other.scale,"quality":other.quality,"lossless":other.lossless,"maxWidth":other.max_width,"srcset":other.srcset,"visibleScopeNodeId":other.visible_scope_node_id,"renderInfo":other.render_info,"suggestedFilename":other.suggested_filename})).collect::<Vec<_>>(),"density":variant.map(|v|v.density)}),
+            );
+            outputs.push(output);
         }
-        let data = asset.data_base64.as_deref().ok_or_else(|| {
-            DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "The exported asset binary is not in the artifact.",
-                false,
-            )
-        })?;
-        let bytes = STANDARD.decode(data.as_bytes()).map_err(|_| {
-            DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "The exported asset binary base64 is invalid.",
-                false,
-            )
-        })?;
-        let mime_type = asset.mime_type.as_deref().ok_or_else(|| {
-            DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "The exported asset has no MIME type.",
-                false,
-            )
-        })?;
-        let expected_hash = asset.sha256.as_deref().ok_or_else(|| {
-            DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "The exported asset has no hash.",
-                false,
-            )
-        })?;
-        if asset.byte_length != Some(bytes.len()) || expected_hash != sha256_hex(&bytes) {
-            return Err(DevupError::new(
-                ErrorCode::DevupSnapshotUnsupported,
-                "The exported asset length or hash does not match.",
-                false,
-            ));
-        }
-        let extension = asset
-            .format
-            .map_or("bin", devup_mcp_figma::AssetFormat::extension);
-        if !seen.insert((sha256_hex(&bytes), extension, mime_type)) {
-            continue;
-        }
-        let mut output = ProjectedOutput::asset(
-            format!("asset-{}.{extension}", index + 1),
-            mime_type,
-            bytes,
-            &asset.asset_id,
-        );
-        // Identical verified bytes may share a resource. Retain the individual
-        // mode and node observations for every alias rather than losing provenance.
-        output.asset_metadata = Some(json!({"assets":manifest.assets.iter().filter(|other| {
-            other.status == AssetStatus::Exported && other.sha256 == asset.sha256
-                && other.format == asset.format && other.mime_type == asset.mime_type
-        }).map(|other| json!({"assetId":other.asset_id,"renderMode":other.render_mode,
-            "format":other.format,"scale":other.scale,"quality":other.quality,"lossless":other.lossless,"renderInfo":other.render_info,"suggestedFilename":other.suggested_filename})).collect::<Vec<_>>()}));
-        outputs.push(output);
     }
     Ok(outputs)
 }
@@ -839,7 +900,7 @@ fn host_safe_file_name(name: &str) -> String {
     let mut slug = stem
         .chars()
         .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_') {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '@') {
                 c
             } else {
                 '-'
@@ -908,9 +969,26 @@ fn with_host_safe_asset_paths(code: &str) -> String {
         };
         let after = at + prefix.len();
         safe.push_str(&rest[..after]);
-        let end = rest[after..]
+        let mut end = rest[after..]
             .find(['"', '\'', ')'])
             .map_or(rest.len(), |offset| after + offset);
+        // srcSet contains several URLs followed by numeric density/width
+        // descriptors. Keep each URL separate while retaining spaces inside
+        // ordinary quoted layer filenames.
+        let candidate = &rest[after..end];
+        let first = candidate
+            .split_once(',')
+            .map_or(candidate, |(first, _)| first)
+            .trim_end();
+        if let Some((filename, descriptor)) = first.rsplit_once(char::is_whitespace)
+            && descriptor
+                .strip_suffix('x')
+                .or_else(|| descriptor.strip_suffix('w'))
+                .and_then(|n| n.parse::<f64>().ok())
+                .is_some_and(|n| n.is_finite() && n > 0.0)
+        {
+            end = after + filename.trim_end().len();
+        }
         safe.push_str(&host_safe_file_name(&rest[after..end]));
         rest = &rest[end..];
     }
@@ -1060,7 +1138,12 @@ fn asset_summary(
         }
     }
     snapshot.nodes.retain(|id, _| reachable.contains(id));
-    let mut assets = devup_mcp_figma::discover_asset_manifest(&snapshot).assets;
+    let mut assets = asset_policy::discovery(
+        &snapshot,
+        &payload.assets,
+        artifact.capabilities.web_ready_images,
+    )
+    .assets;
     for captured in payload
         .assets
         .iter()
@@ -1625,6 +1708,10 @@ async fn project_operation(
                     .iter()
                     .filter_map(|a| {
                         Some(devup_mcp_figma::AssetSelection {
+                            usage_aspect_ratio: a.usage_aspect_ratio,
+                            max_width: a.max_width,
+                            srcset: a.srcset,
+                            visible_scope_node_id: a.visible_scope_node_id.clone(),
                             asset_id: a.asset_id.clone(),
                             format: a.format?,
                             scale: a.scale?,
@@ -1648,6 +1735,8 @@ async fn project_operation(
                     }
                 }
             }
+            let asset_policies =
+                asset_policy::policies(&payload.snapshot, &payload.assets, asset_names_per_node);
             let selected_fields = super::field_select::expand(&fields);
             page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
             super::validation::validate_width_policy_nodes(
@@ -1672,18 +1761,31 @@ async fn project_operation(
                 || outputs
                     .iter()
                     .any(|o| matches!(o.as_str(), "tsx" | "componentTsx" | "responsiveTsx")))
+                && payload
+                    .assets
+                    .iter()
+                    .any(|a| a.render_mode == devup_mcp_figma::AssetRenderMode::Fill)
+            {
+                return Err(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "Legacy fill captures remain separate from code generation; use original-source for CSS projection or renderMode node for native assets.",
+                    false,
+                ));
+            }
+            if (scaffold_requested
+                || outputs
+                    .iter()
+                    .any(|o| matches!(o.as_str(), "tsx" | "componentTsx" | "responsiveTsx")))
                 && payload.assets.iter().any(|a| {
-                    a.render_mode == devup_mcp_figma::AssetRenderMode::Fill
-                        || (a.render_mode == devup_mcp_figma::AssetRenderMode::Auto
-                            && a.render_info.as_ref().is_some_and(|i| {
-                                i["representation"] == "original-fill"
-                                    && i["autoDecision"]["eligible"] != true
-                            }))
+                    a.render_mode == devup_mcp_figma::AssetRenderMode::Visible
+                        && a.render_info.as_ref().is_some_and(|i| {
+                            i["captureNodeId"].as_str() != Some(a.node_id.as_str())
+                        })
                 })
             {
                 return Err(DevupError::new(
                     ErrorCode::DevupInvalidInput,
-                    "This artifact contains original fill captures; generated code consumes node renditions. Recollect with renderMode node before requesting code outputs.",
+                    "Visible ancestor captures cannot replace leaf code at leaf dimensions; request assetManifest or explicitly generate the selected parent.",
                     false,
                 ));
             }
@@ -1713,7 +1815,7 @@ async fn project_operation(
                 "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
                 "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
                 "delivery":"resource",
-                "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,"quality":a.quality,"lossless":a.lossless,"renderMode":a.render_mode,
+                "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,"quality":a.quality,"lossless":a.lossless,"renderMode":a.render_mode,"usageAspectRatio":a.usage_aspect_ratio,"maxWidth":a.max_width,"srcset":a.srcset,"visibleScopeNodeId":a.visible_scope_node_id,
                     "outputPath":asset_output_paths.get(&a.asset_id)})).collect::<Vec<_>>()
             });
             if let Some(previous) = &previous_design_fingerprints {
@@ -1813,6 +1915,18 @@ async fn project_operation(
                 "imageFillAudit".into(),
                 devup_mcp_figma::image_fill_audit(&payload.snapshot, &payload.assets),
             );
+            let mut audit_assets = devup_mcp_figma::discover_image_fill_assets(&payload.snapshot);
+            for captured in &payload.assets {
+                if let Some(existing) = audit_assets
+                    .iter_mut()
+                    .find(|a| a.asset_id == captured.asset_id)
+                {
+                    *existing = captured.clone();
+                }
+            }
+            let audit_css =
+                asset_policy::css_map(&payload.snapshot, &audit_assets, asset_names_per_node);
+            asset_policy::enrich_audit(result.get_mut("imageFillAudit").unwrap(), &audit_css);
             result.get_mut("imageFillAudit").unwrap()["collectionCompleteness"] = json!({"state":completeness_report.state,"snapshotState":completeness_report.snapshot.state,"resourcesState":completeness_report.resources.state,"unresolvedResources":completeness_report.resources.unresolved_count,"failedScreens":payload.failures.len()});
             result.get_mut("imageFillAudit").unwrap()["resourceCompleteness"] =
                 json!(payload.completeness);
@@ -1978,7 +2092,7 @@ async fn project_operation(
                             "outputPaths": output_paths,
                             "assetPublicRoot": asset_public_root,
                             "assetRequests": asset_captures.iter().map(|capture| json!({
-                                "assetId":capture.asset_id,"format":capture.format,"scale":capture.scale,"quality":capture.quality,"lossless":capture.lossless,"renderMode":capture.render_mode,
+                                "assetId":capture.asset_id,"format":capture.format,"scale":capture.scale,"quality":capture.quality,"lossless":capture.lossless,"renderMode":capture.render_mode,"usageAspectRatio":capture.usage_aspect_ratio,"maxWidth":capture.max_width,"srcset":capture.srcset,"visibleScopeNodeId":capture.visible_scope_node_id,
                                 "outputPath":asset_output_paths.get(&capture.asset_id)
                             })).collect::<Vec<_>>()
                         }
@@ -2208,6 +2322,7 @@ async fn project_operation(
                             payload,
                             &candidate.node.node_id,
                             &CodegenOptions {
+                                asset_policies: asset_policies.clone(),
                                 component_name: frame_component_name.clone(),
                                 include_diagnostics,
                                 inline_instances: field == "tsx",
@@ -2375,6 +2490,7 @@ async fn project_operation(
                 && let Some(merged) = merge_breakpoints(
                     &responsive_snapshot,
                     &CodegenOptions {
+                        asset_policies: asset_policies.clone(),
                         component_name: component_name_for_components.clone(),
                         include_diagnostics,
                         inline_instances: false,
@@ -2430,6 +2546,7 @@ async fn project_operation(
                         &responsive_snapshot,
                         root_id,
                         &CodegenOptions {
+                            asset_policies: asset_policies.clone(),
                             inline_instances: true,
                             root_layout,
                             asset_names_per_node,
@@ -2554,6 +2671,7 @@ async fn project_operation(
                     &payload.snapshot,
                     node_id,
                     &CodegenOptions {
+                        asset_policies: asset_policies.clone(),
                         component_name,
                         include_diagnostics,
                         inline_instances: true,
@@ -2609,6 +2727,7 @@ async fn project_operation(
                     payload,
                     node_id,
                     &CodegenOptions {
+                        asset_policies: asset_policies.clone(),
                         component_name: component_name_for_components.clone(),
                         include_diagnostics: false,
                         inline_instances: false,
@@ -2842,8 +2961,13 @@ async fn project_operation(
                         "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
                     )
                 });
-            if manifest_requested || reconcile_captured_assets || scaffold_requested {
-                let mut manifest = devup_mcp_figma::discover_asset_manifest(&payload.snapshot);
+            if manifest_requested
+                || reconcile_captured_assets
+                || scaffold_requested
+                || outputs.iter().any(|o| o == "assetCssMap")
+            {
+                let mut manifest =
+                    asset_policy::discovery(&payload.snapshot, &payload.assets, web_ready_images);
                 for exported in &payload.assets {
                     if let Some(existing) = manifest
                         .assets
@@ -2887,35 +3011,11 @@ async fn project_operation(
                         continue;
                     }
                     if asset.path.is_none() {
-                        if asset.render_mode == devup_mcp_figma::AssetRenderMode::Fill {
-                            asset.path = asset
-                                .suggested_filename
-                                .as_ref()
-                                .map(|name| format!("/images/{name}"));
-                            continue;
-                        }
-                        // An image fill is named from the node it is painted
-                        // on and which fill it is, which holds for a layout
-                        // box carrying a photograph as much as for a node
-                        // drawn entirely from a file. Anything else is named
-                        // after the node itself.
-                        asset.path = match asset
-                            .field
-                            .strip_prefix("fills/")
-                            .and_then(|index| index.parse::<usize>().ok())
-                        {
-                            Some(fill_index) => devup_mcp_devup_ui::codegen::image_fill_path(
-                                &payload.snapshot,
-                                &asset.node_id,
-                                fill_index,
-                                asset_names_per_node,
-                            ),
-                            None => devup_mcp_devup_ui::codegen::asset_path(
-                                &payload.snapshot,
-                                &asset.node_id,
-                                asset_names_per_node,
-                            ),
-                        };
+                        asset.path = asset_policy::canonical_path(
+                            &payload.snapshot,
+                            asset,
+                            asset_names_per_node,
+                        );
                     }
                 }
                 // Where the bytes will be written, if a layer name is one a
@@ -2937,6 +3037,13 @@ async fn project_operation(
                             && asset.render_mode == capture.render_mode
                             && asset.quality == capture.quality
                             && asset.lossless == capture.lossless
+                            && asset.usage_aspect_ratio == capture.usage_aspect_ratio
+                            && asset.max_width == capture.max_width
+                            && asset.srcset == capture.srcset
+                            && capture
+                                .visible_scope_node_id
+                                .as_ref()
+                                .is_none_or(|id| asset.visible_scope_node_id.as_ref() == Some(id))
                             && matches!(asset.status, AssetStatus::Exported | AssetStatus::Failed)
                     }) {
                         return Err(DevupError::new(
@@ -3299,6 +3406,38 @@ async fn project_operation(
                     .retain(|label, _| labels.contains(label.as_str()));
                 result.insert("resolutionSemantics".into(), semantics);
             }
+            if let Some(manifest) = &mut pending_asset_manifest {
+                for asset in &mut manifest.assets {
+                    if let Some(path) = &asset.path {
+                        for variant in &mut asset.variants {
+                            variant.path = Some(asset_policy::variant_path(path));
+                        }
+                    }
+                }
+                let css_map = asset_policy::css_map(
+                    &payload.snapshot,
+                    &manifest.assets,
+                    asset_names_per_node,
+                );
+                for field in ["imageAudit", "imageFillAudit"] {
+                    if let Some(audit) = result.get_mut(field) {
+                        asset_policy::enrich_audit(audit, &css_map);
+                    }
+                }
+                if web_ready_images || outputs.iter().any(|o| o == "assetCssMap") {
+                    result.insert("assetCssMap".into(), css_map.clone());
+                }
+                for field in ["imageAudit", "assetCssMap"] {
+                    if output_paths.contains_key(field)
+                        && let Some(body) = result.get(field)
+                    {
+                        pending_text_outputs.insert(
+                            field.into(),
+                            serde_json::to_string_pretty(body).unwrap_or_default(),
+                        );
+                    }
+                }
+            }
             let mut value = Value::Object(std::mem::take(&mut result));
             rewrite_result_asset_references(&mut value, &replacements);
             audit_delivered_properties(&mut value);
@@ -3356,6 +3495,7 @@ async fn project_operation(
                 "designFingerprints",
                 "referencePng",
                 "imageAudit",
+                "assetCssMap",
             ] {
                 if result.contains_key(field) {
                     supported_keys.push(field.to_owned());
@@ -3437,6 +3577,23 @@ async fn project_operation(
                         output_policy.resolve(path)?,
                         bytes,
                     ));
+                    for variant in &asset.variants {
+                        let variant_path = asset_policy::variant_path(path);
+                        let bytes = STANDARD
+                            .decode(variant.data_base64.as_deref().unwrap_or_default())
+                            .map_err(|_| {
+                                DevupError::new(
+                                    ErrorCode::DevupSnapshotUnsupported,
+                                    "Invalid variant base64.",
+                                    false,
+                                )
+                            })?;
+                        planned_outputs.push((
+                            format!("asset:{}@2x", asset.asset_id),
+                            output_policy.resolve(&variant_path)?,
+                            bytes,
+                        ));
+                    }
                 }
             }
             if page_scaffold.as_ref().is_some_and(|options| !options.write) {
@@ -3507,6 +3664,15 @@ async fn project_operation(
                     };
                     asset.output_path = Some(path.to_owned());
                     asset.data_base64 = None;
+                    for variant in &mut asset.variants {
+                        if let Some(path) = written_paths
+                            .get(&format!("asset:{}@2x", asset.asset_id))
+                            .and_then(Value::as_str)
+                        {
+                            variant.output_path = Some(path.into());
+                            variant.data_base64 = None;
+                        }
+                    }
                 }
                 for (path, others) in &shared_names {
                     manifest.diagnostics.push(Diagnostic {
@@ -3552,7 +3718,7 @@ async fn project_operation(
                     "total":asset_captures.len(),"exported":captures.len()-failed,"failed":failed,
                     "complete":failed == 0 && captures.len() == asset_captures.len() && payload.failures.is_empty() && completeness_report.snapshot.state == devup_mcp_figma::CompletenessState::Complete,
                     "collectionCompleteness":completeness_report.snapshot.state,
-                    "coverage":"in-scope acquired descendants plus generated native raster boundaries; consult collectionCompleteness for acquisition gaps",
+                    "coverage":"all acquired in-scope IMAGE paints including hidden/failed dispositions; consult collectionCompleteness for acquisition gaps","defaultRenderMode":"original-source","quality":85,"requestedScale":2,"effectsAppliedBy":"css","cssMap":"asset-css-map.json",
                     "plan":captures}));
             }
             if scaffold_requested {
@@ -4458,7 +4624,7 @@ mod w1_regressions {
                 assert!(
                     code.contains("\"initial\"")
                         || (!desktop.contains("visibility=\"hidden\"")
-                            && desktop.contains("\"block\"")),
+                            && code.contains("\"block\"")),
                     "desktop must restore paint: {code}"
                 );
                 assert!(code.contains("/images/"), "desktop paint retained: {code}");
@@ -4882,13 +5048,74 @@ mod w1_regressions {
             if let PendingOperation::Export {
                 frame_ids,
                 include_diagnostics,
+                delivery,
                 ..
             } = &mut op
             {
                 *frame_ids = ids.into_iter().map(str::to_owned).collect();
                 *include_diagnostics = false;
+                *delivery = DeliveryMode::Auto;
             }
-            let result = project(data, op).await.unwrap();
+            let store = ArtifactStore::default();
+            let artifact = store
+                .insert(
+                    ArtifactRequestKey::from_collection(&CollectionRequest::new(
+                        data.target.clone(),
+                        CollectionScope::Node,
+                    )),
+                    data,
+                )
+                .await
+                .unwrap();
+            let mut result = complete_operation(
+                op,
+                &artifact.payload,
+                "fixture",
+                &artifact,
+                &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+                &store,
+            )
+            .await
+            .unwrap();
+            // Rich image evidence can promote this response to resources. Read
+            // the retained complete diagnostic payload before asserting geometry.
+            if let Some(resource) = store
+                .output_manifests()
+                .await
+                .into_iter()
+                .find(|m| m.name == "projection-details.json")
+            {
+                let mut bytes = Vec::new();
+                for index in 0..resource.chunk_count {
+                    bytes.extend(
+                        store
+                            .read_resource_output(
+                                &artifact.artifact_id,
+                                &resource.output_id,
+                                Some(index),
+                            )
+                            .await
+                            .unwrap()
+                            .1,
+                    );
+                }
+                let details: Value = serde_json::from_slice(&bytes).unwrap();
+                for (field, value) in details["response"].as_object().unwrap() {
+                    result[field] = value.clone();
+                }
+                for frame in result["frames"].as_array_mut().into_iter().flatten() {
+                    if let Some(full) = details["frames"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|full| full["nodeId"] == frame["nodeId"])
+                    {
+                        for (field, value) in full.as_object().unwrap() {
+                            frame[field] = value.clone();
+                        }
+                    }
+                }
+            }
             let issues = result["projectionIssues"].as_array().unwrap();
             for issue in issues
                 .iter()
@@ -5225,6 +5452,10 @@ mod w1_regressions {
         data.assets.push(
             devup_mcp_figma::exported_asset_from_bytes(
                 &devup_mcp_figma::AssetRequest {
+                    usage_aspect_ratio: None,
+                    max_width: None,
+                    srcset: false,
+                    visible_scope_node_id: None,
                     render_mode: devup_mcp_figma::AssetRenderMode::Node,
                     quality: None,
                     lossless: None,
@@ -5233,7 +5464,7 @@ mod w1_regressions {
                     field: "node".into(),
                     image_hash: None,
                     format: devup_mcp_figma::AssetFormat::Svg,
-                    scale: 1,
+                    scale: 1.0,
                 },
                 b"<svg/>",
             )
@@ -5493,6 +5724,10 @@ mod w1_regressions {
         data.assets.push(
             devup_mcp_figma::exported_asset_from_bytes(
                 &devup_mcp_figma::AssetRequest {
+                    usage_aspect_ratio: None,
+                    max_width: None,
+                    srcset: false,
+                    visible_scope_node_id: None,
                     render_mode: devup_mcp_figma::AssetRenderMode::Node,
                     quality: None,
                     lossless: None,
@@ -5501,7 +5736,7 @@ mod w1_regressions {
                     field: "node".into(),
                     image_hash: None,
                     format: devup_mcp_figma::AssetFormat::Svg,
-                    scale: 1,
+                    scale: 1.0,
                 },
                 b"<svg/>",
             )
@@ -5552,6 +5787,176 @@ mod w1_regressions {
         assert_eq!(args["frameIds"], json!(["1:1"]));
     }
 
+    fn original_source_payload() -> CollectedPayload {
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image::RgbaImage::from_fn(800, 500, |x, y| {
+            image::Rgba([(x % 255) as u8, (y % 255) as u8, 127, 179])
+        }))
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+        let mut data = p3_asset_payload(png.get_ref());
+        data.assets.clear();
+        data.snapshot.nodes.remove("1:3");
+        data.snapshot
+            .nodes
+            .get_mut("1:1")
+            .unwrap()
+            .fields
+            .insert("childrenIds".into(), json!(["1:2"]));
+        let node = data.snapshot.nodes.get_mut("1:2").unwrap();
+        node.fields.insert("width".into(), json!(120.1));
+        node.fields.insert("height".into(), json!(80));
+        node.fields.insert(
+            "effects".into(),
+            json!([{"type":"LAYER_BLUR","radius":12,"visible":true}]),
+        );
+        let req = devup_mcp_figma::AssetRequest {
+            usage_aspect_ratio: Some(1.0),
+            max_width: Some(300),
+            srcset: true,
+            visible_scope_node_id: None,
+            quality: Some(85),
+            lossless: Some(true),
+            render_mode: devup_mcp_figma::AssetRenderMode::OriginalSource,
+            asset_id: "1:2:fills:0".into(),
+            node_id: "1:2".into(),
+            field: "fills/0".into(),
+            image_hash: Some("1:2".into()),
+            format: devup_mcp_figma::AssetFormat::Webp,
+            scale: 2.0,
+        };
+        let result = devup_mcp_figma::UpstreamResult {
+            raw: json!({"kind":"devupAssetExport","fileKey":"W1Fixture","version":null,"assetId":req.asset_id,"nodeId":req.node_id,"field":req.field,"imageHash":req.image_hash,"format":"webp","scale":2,"renderMode":"original-source","usageAspectRatio":1,"maxWidth":300,"srcset":true,"visibleScopeNodeId":null,"status":"exported","mimeType":"image/png","byteLength":png.get_ref().len(),"sha256":sha256_hex(png.get_ref()),"data":STANDARD.encode(png.get_ref()),"exportDiagnostics":{"method":"original-fill","stages":[],"renderInfo":{"representation":"original-fill","nodeSize":{"width":120.1,"height":80,"aspectRatio":120.1/80.0},"sourceProperties":{"scaleMode":"FILL","rotation":0,"effects":[{"type":"LAYER_BLUR","radius":12}]}}}}),
+        };
+        let devup_mcp_figma::AssetExportOutcome::Entry(entry) =
+            devup_mcp_figma::asset_export_from_result(&result, "W1Fixture", None, &req).unwrap()
+        else {
+            panic!("entry")
+        };
+        data.assets.push(*entry);
+        data
+    }
+
+    #[tokio::test]
+    async fn original_source_variants_css_and_public_files_share_actual_byte_paths() {
+        let root =
+            std::env::temp_dir().join(format!("devup-original-public-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&root).unwrap();
+        let root = crate::test_paths::canonical(&root);
+        let base = root.join("images").join("source.webp");
+        let css = root.join("asset-css-map.json");
+        let mut op = operation(&["tsx", "assetManifest", "assetCssMap", "imageAudit"]);
+        if let PendingOperation::Export {
+            asset_output_paths,
+            asset_public_root,
+            output_paths,
+            ..
+        } = &mut op
+        {
+            asset_output_paths.insert("1:2:fills:0".into(), base.to_string_lossy().into());
+            *asset_public_root = Some(root.clone());
+            output_paths.insert("assetCssMap".into(), css.to_string_lossy().into());
+        }
+        let value = project(original_source_payload(), op).await.unwrap();
+        let asset = &value["assetManifest"]["assets"][0];
+        let path = asset["path"].as_str().unwrap();
+        assert_eq!(path, "/images/source.webp");
+        assert_eq!(asset["variants"][0]["path"], "/images/source@2x.webp");
+        let base_image = image::open(&base).unwrap();
+        let twice = image::open(root.join("images/source@2x.webp")).unwrap();
+        assert_eq!(base_image.width(), 121);
+        assert_eq!(twice.width(), 241);
+        let code = value["tsx"].as_str().unwrap();
+        assert!(code.contains(path));
+        assert!(code.contains("/images/source@2x.webp"), "{code}");
+        assert!(code.contains("blur(12px)"));
+        assert!(code.contains("srcSet="));
+        let map: Value = serde_json::from_slice(&std::fs::read(&css).unwrap()).unwrap();
+        assert_eq!(
+            std::fs::read(&css).unwrap(),
+            serde_json::to_vec_pretty(&value["assetCssMap"]).unwrap(),
+            "written CSS mapping must match the inline JSON encoding byte-for-byte"
+        );
+        assert_eq!(map["assets"][0]["effectsBaked"], false);
+        assert_eq!(map["assets"][0]["assetPath"], path);
+        assert_eq!(
+            value["imageAudit"]["assets"][0]["aspectRatioComparison"]["nodeVsUsage"],
+            "mismatch"
+        );
+        assert!(
+            value["imageAudit"]["assets"][0]["aspectRatioComparison"]["usageEvidence"]
+                .as_str()
+                .unwrap()
+                .contains("caller-declared")
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn original_source_variant_and_css_map_resources_recover_without_reacquiring() {
+        let store = ArtifactStore::default();
+        let data = original_source_payload();
+        let artifact = store
+            .insert(
+                ArtifactRequestKey::from_collection(&CollectionRequest::new(
+                    data.target.clone(),
+                    CollectionScope::Node,
+                )),
+                data,
+            )
+            .await
+            .unwrap();
+        let mut op = operation(&["tsx", "assetManifest", "assetCssMap"]);
+        if let PendingOperation::Export { delivery, .. } = &mut op {
+            *delivery = DeliveryMode::Resource;
+        }
+        let value = complete_operation(
+            op,
+            &artifact.payload,
+            "fixture",
+            &artifact,
+            &OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap(),
+            &store,
+        )
+        .await
+        .unwrap();
+        let manifests = store.output_manifests().await;
+        assert!(manifests.iter().any(|m| m.name == "asset-css-map.json"));
+        assert_eq!(
+            manifests
+                .iter()
+                .filter(|m| m.mime_type == "image/webp")
+                .count(),
+            2
+        );
+        for manifest in manifests.iter().filter(|m| m.mime_type == "image/webp") {
+            let mut bytes = Vec::new();
+            for index in 0..manifest.chunk_count {
+                bytes.extend(
+                    store
+                        .read_resource_output(
+                            &artifact.artifact_id,
+                            &manifest.output_id,
+                            Some(index),
+                        )
+                        .await
+                        .unwrap()
+                        .1,
+                );
+            }
+            assert_eq!(
+                image::guess_format(&bytes).unwrap(),
+                image::ImageFormat::WebP
+            );
+            assert_eq!(sha256_hex(&bytes), manifest.sha256);
+        }
+        assert_eq!(
+            value["nextAction"]["arguments"]["artifactId"],
+            artifact.artifact_id
+        );
+        assert!(value["assetCssMap"]["assets"].is_null());
+    }
+
     fn p3_asset_payload(second_bytes: &[u8]) -> CollectedPayload {
         let mut data = payload();
         data.snapshot
@@ -5596,12 +6001,16 @@ mod w1_regressions {
                 data.assets.push(
                     devup_mcp_figma::exported_asset_from_bytes(
                         &devup_mcp_figma::AssetRequest {
+                            usage_aspect_ratio: None,
+                            max_width: None,
+                            srcset: false,
+                            visible_scope_node_id: None,
                             asset_id: format!("{id}:fills:0"),
                             node_id: id.into(),
                             field: "fills/0".into(),
                             image_hash: Some(id.into()),
                             format: devup_mcp_figma::AssetFormat::Png,
-                            scale: 1,
+                            scale: 1.0,
                             render_mode: mode,
                             quality: None,
                             lossless: None,
@@ -5803,12 +6212,16 @@ mod w1_regressions {
             node.id = id.clone();
             data.snapshot.nodes.insert(id.clone(), node);
             let request = devup_mcp_figma::AssetRequest {
+                usage_aspect_ratio: None,
+                max_width: None,
+                srcset: false,
+                visible_scope_node_id: None,
                 asset_id: format!("{id}:fills:0"),
                 node_id: id.clone(),
                 field: "fills/0".into(),
                 image_hash: Some(id),
                 format: devup_mcp_figma::AssetFormat::Webp,
-                scale: 1,
+                scale: 1.0,
                 render_mode: devup_mcp_figma::AssetRenderMode::Node,
                 quality: Some(43),
                 lossless: Some(false),
@@ -5848,7 +6261,11 @@ mod w1_regressions {
         assert_eq!(row["nodeSize"]["width"], 40.0);
         assert_eq!(row["outputSize"]["width"], 40.0);
         assert_eq!(row["recommendedFormat"], "webp");
-        assert_eq!(row["visibleSourceRatio"], Value::Null);
+        assert_eq!(row["visibleSourceRatio"]["known"], false);
+        assert_eq!(
+            row["visibleSourceRatio"]["reason"],
+            "baked-render-source-coverage-unverified"
+        );
         assert!(
             row["visibleSourceRatioEvidence"]
                 .as_str()
@@ -5998,6 +6415,10 @@ mod w1_regressions {
             .assets
             .iter()
             .map(|a| devup_mcp_figma::AssetSelection {
+                usage_aspect_ratio: None,
+                max_width: None,
+                srcset: false,
+                visible_scope_node_id: None,
                 asset_id: a.asset_id.clone(),
                 format: a.format.unwrap(),
                 scale: a.scale.unwrap(),
@@ -7430,12 +7851,16 @@ mod w1_regressions {
         let mut op = operation(&["assetManifest"]);
         if let PendingOperation::Export { asset_captures, .. } = &mut op {
             asset_captures.push(devup_mcp_figma::AssetSelection {
+                usage_aspect_ratio: None,
+                max_width: None,
+                srcset: false,
+                visible_scope_node_id: None,
                 render_mode: devup_mcp_figma::AssetRenderMode::Node,
                 quality: None,
                 lossless: None,
                 asset_id: "1:1:fills:0".into(),
                 format: devup_mcp_figma::AssetFormat::Png,
-                scale: 1,
+                scale: 1.0,
             });
         }
         let result = project(data, op).await.unwrap();

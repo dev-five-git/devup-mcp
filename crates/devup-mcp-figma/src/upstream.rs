@@ -235,6 +235,7 @@ impl BuiltinScript {
                 json!({
                     "assetId": request.asset_id,
                     "renderMode": request.render_mode,
+                    "usageAspectRatio":request.usage_aspect_ratio,"maxWidth":request.max_width,"srcset":request.srcset,"visibleScopeNodeId":request.visible_scope_node_id,
                     "nodeId": request.node_id,
                     "field": request.field,
                     "imageHash": request.image_hash,
@@ -1150,6 +1151,7 @@ impl ReadToolCall {
                         "transport": "bridge",
                         "assetId": request.asset_id,
                     "renderMode": request.render_mode,
+                    "usageAspectRatio":request.usage_aspect_ratio,"maxWidth":request.max_width,"srcset":request.srcset,"visibleScopeNodeId":request.visible_scope_node_id,
                         "nodeId": request.node_id,
                         "field": request.field,
                         "imageHash": request.image_hash,

@@ -8,16 +8,26 @@ use crate::{
     UpstreamResult,
 };
 
-pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_ASSET_BYTES: usize = 80 * 1024 * 1024;
 
-/// The default preserves the native node export used before modes were exposed.
+/// Full source acquisition is the default; rendered modes are explicit.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AssetRenderMode {
+    /// Legacy source-byte contract: matching codec and scale 1.
     Fill,
     Auto,
     #[default]
+    #[serde(rename = "original-source")]
+    OriginalSource,
     Node,
+    Visible,
+}
+
+impl AssetRenderMode {
+    pub fn is_original(self) -> bool {
+        matches!(self, Self::Fill | Self::OriginalSource)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,9 +92,18 @@ pub enum AssetStatus {
     Chunked,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetRequest {
+    /// Optional caller-declared use-site ratio; never measured browser evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_aspect_ratio: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_width: Option<u32>,
+    #[serde(default)]
+    pub srcset: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible_scope_node_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,12 +115,21 @@ pub struct AssetRequest {
     pub field: String,
     pub image_hash: Option<String>,
     pub format: AssetFormat,
-    pub scale: u8,
+    pub scale: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetSelection {
+    /// Optional caller-declared use-site ratio; never measured browser evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_aspect_ratio: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_width: Option<u32>,
+    #[serde(default)]
+    pub srcset: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible_scope_node_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -110,17 +138,28 @@ pub struct AssetSelection {
     pub render_mode: AssetRenderMode,
     pub asset_id: String,
     pub format: AssetFormat,
-    pub scale: u8,
+    pub scale: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetManifestEntry {
+    /// Optional caller-declared use-site ratio; never measured browser evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_aspect_ratio: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_width: Option<u32>,
+    #[serde(default)]
+    pub srcset: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible_scope_node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<AssetVariant>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quality: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lossless: Option<bool>,
-    #[serde(default)]
+    #[serde(default = "legacy_descriptor_mode")]
     pub render_mode: AssetRenderMode,
     /// Observations and explicit unknowns; dimensions are measured from bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -137,7 +176,7 @@ pub struct AssetManifestEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<AssetFormat>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scale: Option<u8>,
+    pub scale: Option<f64>,
     pub status: AssetStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub byte_length: Option<usize>,
@@ -164,12 +203,30 @@ pub struct AssetManifestEntry {
     pub path: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetManifest {
     pub version: u32,
     pub assets: Vec<AssetManifestEntry>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// A bounded derivative of the acquired source; no hidden upscaling.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetVariant {
+    pub density: f64,
+    pub width: u32,
+    pub height: u32,
+    pub byte_length: usize,
+    pub sha256: String,
+    pub mime_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_base64: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -285,18 +342,98 @@ pub fn discover_image_fill_assets(snapshot: &Snapshot) -> Vec<AssetManifestEntry
     assets
 }
 
-/// Paint census plus the native raster boundaries consumed by generated code.
+/// Every acquired IMAGE paint, including hidden/failed dispositions.
 pub fn discover_web_ready_assets(snapshot: &Snapshot) -> Vec<AssetManifestEntry> {
-    let mut assets = discover_image_fill_assets(snapshot);
-    assets.extend(
-        discover_asset_manifest(snapshot)
-            .assets
-            .into_iter()
-            .filter(|a| a.source_kind == "image-node"),
-    );
-    assets.sort_by(|a, b| a.asset_id.cmp(&b.asset_id));
-    assets.dedup_by(|a, b| a.asset_id == b.asset_id);
-    assets
+    discover_image_fill_assets(snapshot)
+}
+
+fn direct_node_candidate(snapshot: &Snapshot, asset_id: &str) -> Option<AssetManifestEntry> {
+    let id = asset_id.strip_suffix(":node")?;
+    let node = snapshot.nodes.get(id)?;
+    // Snapshot membership alone is insufficient: context nodes may be acquired
+    // outside the selected roots. Walk only roots and their actual child edges.
+    if !in_scope(snapshot, id) {
+        return None;
+    }
+    if matches!(node.typed_view().node_type(), "PAGE" | "DOCUMENT") {
+        return None;
+    }
+    let mut entry = manifest_entry(node, AssetNode::Svg);
+    entry.source_kind = "node".into();
+    Some(entry)
+}
+
+pub(crate) fn in_scope(snapshot: &Snapshot, wanted: &str) -> bool {
+    let mut pending = snapshot.roots.clone();
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        if id == wanted {
+            return true;
+        }
+        if let Some(node) = snapshot.nodes.get(&id) {
+            pending.extend(node.typed_view().child_ids().map(str::to_owned));
+        }
+    }
+    false
+}
+
+fn visible_scope(
+    snapshot: &Snapshot,
+    node_id: &str,
+    explicit: Option<&str>,
+) -> Result<String, DevupError> {
+    let mut current = node_id.to_owned();
+    let mut seen = std::collections::BTreeSet::new();
+    loop {
+        if !seen.insert(current.clone()) {
+            break;
+        }
+        if explicit == Some(current.as_str()) && in_scope(snapshot, &current) {
+            return Ok(current);
+        }
+        let parent = snapshot
+            .nodes
+            .values()
+            .find(|n| n.typed_view().child_ids().any(|id| id == current));
+        let Some(parent) = parent else {
+            break;
+        };
+        current = parent.id.clone();
+        if explicit.is_none() && in_scope(snapshot, &current) {
+            return Ok(current);
+        }
+    }
+    Err(invalid(
+        "Visible capture requires an acquired ancestor scope. Recollect the parent frame URL, then supply nodeId and visibleScopeNodeId for that node or an in-scope ancestor; outside-scope context is unavailable.",
+    ))
+}
+
+pub fn validate_asset_options(
+    format: AssetFormat,
+    mode: AssetRenderMode,
+    scale: f64,
+    max_width: Option<u32>,
+    srcset: bool,
+) -> Result<(), DevupError> {
+    if !scale.is_finite() || scale <= 0.0 || scale > 4.0 {
+        return Err(invalid(
+            "Asset scale must be finite, greater than zero and at most 4; rendered bitmaps default to 2 and recommend 1.5 to 3.",
+        ));
+    }
+    if max_width.is_some_and(|w| w == 0 || w > crate::MAX_WEBP_DIMENSION)
+        || ((max_width.is_some() || srcset)
+            && (format != AssetFormat::Webp
+                || !mode.is_original()
+                || mode == AssetRenderMode::Fill))
+    {
+        return Err(invalid(
+            "maxWidth (1..8192) and srcset require original-source WebP; legacy fill preserves its no-resize contract.",
+        ));
+    }
+    Ok(())
 }
 
 fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetNode> {
@@ -573,6 +710,11 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
     };
 
     AssetManifestEntry {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
+        variants: Vec::new(),
         render_mode: AssetRenderMode::Node,
         quality: None,
         lossless: None,
@@ -612,18 +754,63 @@ pub fn validate_asset_requests(
     let mut seen = std::collections::BTreeSet::new();
     for request in requests {
         crate::validate_webp_options(request.format, request.quality, request.lossless)?;
-        if request.scale == 0 || request.scale > 4 || !seen.insert(request.asset_id.as_str()) {
+        if request
+            .usage_aspect_ratio
+            .is_some_and(|r| !r.is_finite() || r <= 0.0 || r > 10000.0)
+        {
+            return Err(invalid(
+                "usageAspectRatio must be finite and positive, at most10000.",
+            ));
+        }
+        validate_asset_options(
+            request.format,
+            request.render_mode,
+            request.scale,
+            request.max_width,
+            request.srcset,
+        )?;
+        if request.scale == 0.0 || request.scale > 4.0 || !seen.insert(request.asset_id.as_str()) {
             return Err(invalid(
                 "asset request has an invalid scale or a duplicate ID.",
             ));
         }
+        let direct = direct_node_candidate(snapshot, &request.asset_id);
         let Some(candidate) = available
             .assets
             .iter()
             .find(|asset| asset.asset_id == request.asset_id)
+            .or(direct.as_ref())
         else {
             return Err(invalid("The requested asset is not in the snapshot."));
         };
+        if let Some(node) = snapshot.nodes.get(&request.node_id) {
+            if !request.render_mode.is_original()
+                && ["width", "height"].into_iter().any(|key| {
+                    node.typed_view()
+                        .number(key)
+                        .is_some_and(|n| !n.is_finite() || n <= 0.0)
+                })
+            {
+                return Err(invalid(
+                    "Native capture dimensions must be finite and positive.",
+                ));
+            }
+            if request.srcset
+                && node
+                    .typed_view()
+                    .number("width")
+                    .is_none_or(|w| !w.is_finite() || w <= 0.0)
+            {
+                return Err(invalid(
+                    "srcset requires a known positive node display width.",
+                ));
+            }
+        }
+        if !in_scope(snapshot, &request.node_id) {
+            return Err(invalid(
+                "The requested node is outside the acquired snapshot scope.",
+            ));
+        }
         if candidate.node_id != request.node_id
             || candidate.field != request.field
             || candidate.image_hash != request.image_hash
@@ -636,7 +823,7 @@ pub fn validate_asset_requests(
                     request.format,
                     AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
                 )
-                || request.scale != 1)
+                || request.scale != 1.0)
         {
             return Err(invalid(
                 "renderMode fill requires an image-fill, png or jpg matching the original codec, and scale 1; PNG/JPG preserve original bytes; explicit WebP transcodes PNG/JPEG source without resizing.",
@@ -645,7 +832,41 @@ pub fn validate_asset_requests(
         // Reject what the manifest already knows cannot be exported, so the
         // reason travels with the rejection instead of arriving later as an
         // opaque failure from inside Figma.
-        if candidate.status == AssetStatus::Failed {
+        if request.render_mode == AssetRenderMode::OriginalSource
+            && (!request.field.starts_with("fills/")
+                || request.image_hash.is_none()
+                || !matches!(
+                    request.format,
+                    AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
+                ))
+        {
+            return Err(invalid(
+                "original-source requires a resolvable IMAGE fill; request renderMode node explicitly for native raster boundaries, or retain SVG for vectors.",
+            ));
+        }
+        if request.render_mode == AssetRenderMode::Visible {
+            visible_scope(
+                snapshot,
+                &request.node_id,
+                request.visible_scope_node_id.as_deref(),
+            )?;
+            if !matches!(
+                request.format,
+                AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
+            ) {
+                return Err(invalid("Visible scoped captures require PNG, JPG or WebP."));
+            }
+        }
+        if request.render_mode != AssetRenderMode::Visible
+            && request.visible_scope_node_id.is_some()
+        {
+            return Err(invalid(
+                "visibleScopeNodeId applies only to renderMode visible.",
+            ));
+        }
+        if candidate.status == AssetStatus::Failed
+            && request.render_mode != AssetRenderMode::OriginalSource
+        {
             return Err(invalid(
                 "The requested asset cannot be exported: the node is hidden in Figma.",
             ));
@@ -667,20 +888,37 @@ pub fn resolve_asset_selections(
     let requests = selections
         .iter()
         .map(|selection| {
-            if selection.scale == 0
-                || selection.scale > 4
+            if selection.scale == 0.0
+                || selection.scale > 4.0
                 || !seen.insert(selection.asset_id.as_str())
             {
                 return Err(invalid(
                     "asset selection has an invalid scale or a duplicate ID.",
                 ));
             }
+            let direct = direct_node_candidate(snapshot, &selection.asset_id);
             let asset = manifest
                 .assets
                 .iter()
                 .find(|asset| asset.asset_id == selection.asset_id)
-                .ok_or_else(|| invalid("The selected asset is not in the snapshot."))?;
+                .or(direct.as_ref())
+                .ok_or_else(|| {
+                    invalid("The selected asset or nodeId is not in the acquired snapshot scope.")
+                })?;
+            let capture_scope = if selection.render_mode == AssetRenderMode::Visible {
+                Some(visible_scope(
+                    snapshot,
+                    &asset.node_id,
+                    selection.visible_scope_node_id.as_deref(),
+                )?)
+            } else {
+                selection.visible_scope_node_id.clone()
+            };
             Ok(AssetRequest {
+                usage_aspect_ratio: selection.usage_aspect_ratio,
+                max_width: selection.max_width,
+                srcset: selection.srcset,
+                visible_scope_node_id: capture_scope,
                 asset_id: asset.asset_id.clone(),
                 node_id: asset.node_id.clone(),
                 field: asset.field.clone(),
@@ -715,13 +953,62 @@ pub fn asset_export_from_result(
         || descriptor.format != request.format
         || descriptor.scale != request.scale
         || descriptor.render_mode != request.render_mode
+        || descriptor.max_width != request.max_width
+        || descriptor.usage_aspect_ratio != request.usage_aspect_ratio
+        || descriptor.srcset != request.srcset
+        || descriptor.visible_scope_node_id != request.visible_scope_node_id
     {
         return Err(invalid(
             "asset descriptor target or version does not match the request.",
         ));
     }
+    if descriptor.status == AssetStatus::Exported {
+        let info = descriptor
+            .export_diagnostics
+            .as_ref()
+            .and_then(|d| d.render_info.as_ref());
+        if request.render_mode == AssetRenderMode::OriginalSource
+            && (info.is_none_or(|i| i["representation"] != "original-fill")
+                || descriptor
+                    .export_diagnostics
+                    .as_ref()
+                    .is_none_or(|d| d.method != "original-fill"))
+        {
+            return Err(invalid(
+                "Original-source export lacks full-source acquisition provenance; native renditions cannot substitute.",
+            ));
+        }
+        if request.render_mode == AssetRenderMode::Visible
+            && info.is_none_or(|i| {
+                i["representation"] != "native-visible"
+                    || i["captureNodeId"].as_str() != request.visible_scope_node_id.as_deref()
+                    || i["contextScope"] != "selected-ancestor-subtree"
+            })
+        {
+            return Err(invalid(
+                "Visible capture lacks bound selected-ancestor scope provenance.",
+            ));
+        }
+    }
+    if matches!(
+        request.render_mode,
+        AssetRenderMode::Node | AssetRenderMode::Visible
+    ) && descriptor
+        .export_diagnostics
+        .as_ref()
+        .and_then(|d| d.render_info.as_ref())
+        .is_some_and(|i| {
+            i["representation"]
+                .as_str()
+                .is_some_and(|r| r.starts_with("original-fill"))
+        })
+    {
+        return Err(invalid(
+            "Native capture cannot substitute original fill bytes; explicit renderMode fill or original-source is required.",
+        ));
+    }
     if request.format == AssetFormat::Webp
-        && request.render_mode != AssetRenderMode::Fill
+        && !request.render_mode.is_original()
         && descriptor
             .export_diagnostics
             .as_ref()
@@ -736,7 +1023,7 @@ pub fn asset_export_from_result(
             "Node/auto WebP requires a native PNG rendition. Original-fill WebP conversion requires explicit renderMode fill at scale 1; no native provenance was assigned.",
         ));
     }
-    if (request.render_mode == AssetRenderMode::Fill
+    if (request.render_mode.is_original()
         || descriptor
             .export_diagnostics
             .as_ref()
@@ -764,7 +1051,19 @@ pub fn asset_export_from_result(
         // same bytes that were announced.
         let field = match request.format {
             AssetFormat::Svg => SVG_EXPORT_FIELD.to_owned(),
-            AssetFormat::Png | AssetFormat::Webp => format!("{PNG_EXPORT_FIELD}@{}", request.scale),
+            AssetFormat::Png | AssetFormat::Webp => {
+                let mut field = format!("{PNG_EXPORT_FIELD}@{}", request.scale);
+                if request.render_mode == AssetRenderMode::Visible {
+                    field.push_str(&format!(
+                        "@visible@{}",
+                        request
+                            .visible_scope_node_id
+                            .as_deref()
+                            .ok_or_else(|| invalid("Visible capture scope is missing."))?
+                    ));
+                }
+                field
+            }
             _ => {
                 return Err(invalid(
                     "only an SVG or PNG export is carried in fragments.",
@@ -783,6 +1082,11 @@ pub fn asset_export_from_result(
     if descriptor.status == AssetStatus::Failed {
         return Ok(AssetExportOutcome::Entry(consistent_entry(
             AssetManifestEntry {
+                usage_aspect_ratio: request.usage_aspect_ratio,
+                max_width: request.max_width,
+                srcset: request.srcset,
+                visible_scope_node_id: request.visible_scope_node_id.clone(),
+                variants: Vec::new(),
                 render_mode: request.render_mode,
                 quality: request.quality,
                 lossless: request.lossless,
@@ -819,7 +1123,7 @@ pub fn asset_export_from_result(
     }
     let payload = if request.format == AssetFormat::Webp {
         find_payload(&result.raw, "image/png").or_else(|| {
-            (request.render_mode == AssetRenderMode::Fill)
+            (request.render_mode.is_original())
                 .then(|| {
                     ["image/jpeg", "image/gif", "image/webp"]
                         .into_iter()
@@ -827,6 +1131,10 @@ pub fn asset_export_from_result(
                 })
                 .flatten()
         })
+    } else if request.render_mode == AssetRenderMode::OriginalSource {
+        ["image/png", "image/jpeg", "image/webp", "image/gif"]
+            .into_iter()
+            .find_map(|mime| find_payload(&result.raw, mime))
     } else {
         find_payload(&result.raw, request.format.mime_type())
     }
@@ -879,11 +1187,12 @@ pub fn asset_export_from_result(
     }
     if request.format != AssetFormat::Webp
         && (request.render_mode == AssetRenderMode::Fill
-            || descriptor
-                .export_diagnostics
-                .as_ref()
-                .and_then(|d| d.render_info.as_ref())
-                .is_some_and(|i| i["representation"] == "original-fill"))
+            || (request.render_mode == AssetRenderMode::Auto
+                && descriptor
+                    .export_diagnostics
+                    .as_ref()
+                    .and_then(|d| d.render_info.as_ref())
+                    .is_some_and(|i| i["representation"] == "original-fill")))
         && image::guess_format(&bytes).ok()
             != Some(match request.format {
                 AssetFormat::Png => image::ImageFormat::Png,
@@ -909,7 +1218,7 @@ pub fn asset_export_from_result(
             Some(info.clone()),
             Some(&bytes),
         );
-        if request.scale != 1
+        if request.scale != 1.0
             || info["autoDecision"]["eligible"] != true
             || info["autoDecision"]["selected"] != "fill"
             || !info["autoDecision"]["reasons"]
@@ -928,6 +1237,11 @@ pub fn asset_export_from_result(
         crate::webp::finish(
             request,
             AssetManifestEntry {
+                usage_aspect_ratio: request.usage_aspect_ratio,
+                max_width: request.max_width,
+                srcset: request.srcset,
+                visible_scope_node_id: request.visible_scope_node_id.clone(),
+                variants: Vec::new(),
                 render_mode: request.render_mode,
                 quality: None,
                 lossless: None,
@@ -992,6 +1306,7 @@ fn consistent_entry(mut entry: AssetManifestEntry) -> Box<AssetManifestEntry> {
     }
     if let Some(info) = &mut entry.render_info {
         info["sourceKind"] = json!(entry.source_kind);
+        info["usageAspectRatio"] = json!(entry.usage_aspect_ratio);
     }
     if let Some(diagnostics) = &mut entry.export_diagnostics {
         diagnostics.render_info = entry.render_info.clone();
@@ -1011,7 +1326,7 @@ pub const PNG_EXPORT_FIELD: &str = "$export:png";
 /// What an asset export call answered with: the asset, exported or failed,
 /// or the announcement of an SVG too large for one answer, to be read back
 /// in fragments.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AssetExportOutcome {
     Entry(Box<AssetManifestEntry>),
     Chunked(LargeValueDescriptor),
@@ -1024,12 +1339,22 @@ pub fn exported_asset_from_bytes(
     request: &AssetRequest,
     bytes: &[u8],
 ) -> Result<AssetManifestEntry, DevupError> {
+    if request.render_mode == AssetRenderMode::OriginalSource {
+        return Err(invalid(
+            "Original-source requires a full-source acquisition descriptor; node fragments cannot substitute.",
+        ));
+    }
     if bytes.is_empty() || bytes.len() > MAX_ASSET_BYTES {
         return Err(invalid("asset export binary length is out of range."));
     }
     crate::webp::finish(
         request,
         AssetManifestEntry {
+            usage_aspect_ratio: request.usage_aspect_ratio,
+            max_width: request.max_width,
+            srcset: request.srcset,
+            visible_scope_node_id: request.visible_scope_node_id.clone(),
+            variants: Vec::new(),
             render_mode: request.render_mode,
             quality: None,
             lossless: None,
@@ -1062,11 +1387,23 @@ pub fn exported_asset_from_bytes(
     )
 }
 
+fn legacy_descriptor_mode() -> AssetRenderMode {
+    AssetRenderMode::Node
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AssetExportDescriptor {
-    #[serde(default)]
+    #[serde(default = "legacy_descriptor_mode")]
     render_mode: AssetRenderMode,
+    #[serde(default)]
+    max_width: Option<u32>,
+    #[serde(default)]
+    usage_aspect_ratio: Option<f64>,
+    #[serde(default)]
+    srcset: bool,
+    #[serde(default)]
+    visible_scope_node_id: Option<String>,
     kind: String,
     file_key: String,
     version: Option<String>,
@@ -1075,7 +1412,7 @@ struct AssetExportDescriptor {
     field: String,
     image_hash: Option<String>,
     format: AssetFormat,
-    scale: u8,
+    scale: f64,
     status: AssetStatus,
     byte_length: Option<usize>,
     sha256: Option<String>,

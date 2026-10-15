@@ -43,8 +43,9 @@ pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
     "openapi-client",
 ];
 
-pub(crate) const EXPORT_OUTPUTS: [&str; 13] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 14] = [
     "imageAudit",
+    "assetCssMap",
     "tsx",
     "componentTsx",
     "responsiveTsx",
@@ -81,6 +82,7 @@ pub(super) fn validate_artifact_projection(
                 | "designChanges"
                 | "assetManifest"
                 | "imageAudit"
+                | "assetCssMap"
                 | "referencePng"
         )
     });
@@ -275,10 +277,25 @@ pub(super) fn parse_asset_requests(
     let mut selections = Vec::with_capacity(requests.len());
     let mut output_paths = std::collections::BTreeMap::new();
     for request in requests {
-        if request.asset_id.trim().is_empty()
-            || request.scale == 0
-            || request.scale > 4
-            || !seen.insert(request.asset_id.as_str())
+        let asset_id = match (
+            request.asset_id.trim().is_empty(),
+            request.node_id.as_deref(),
+        ) {
+            (false, None) => request.asset_id.clone(),
+            (true, Some(id)) if !id.trim().is_empty() => format!("{id}:node"),
+            _ => {
+                return Err(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "Supply exactly one of assetId or nodeId.",
+                    false,
+                ));
+            }
+        };
+        if !request.scale.is_finite()
+            || asset_id.trim().is_empty()
+            || request.scale == 0.0
+            || request.scale > 4.0
+            || !seen.insert(asset_id.clone())
         {
             return Err(DevupError::new(
                 ErrorCode::DevupInvalidInput,
@@ -301,13 +318,18 @@ pub(super) fn parse_asset_requests(
             }
         };
         let render_mode = match request.render_mode.as_str() {
+            "original-source" if matches!(format, AssetFormat::Svg | AssetFormat::Pdf) => {
+                devup_mcp_figma::AssetRenderMode::Node
+            }
+            "original-source" => devup_mcp_figma::AssetRenderMode::OriginalSource,
+            "visible" => devup_mcp_figma::AssetRenderMode::Visible,
             "node" => devup_mcp_figma::AssetRenderMode::Node,
             "fill" => devup_mcp_figma::AssetRenderMode::Fill,
             "auto" => devup_mcp_figma::AssetRenderMode::Auto,
             _ => {
                 return Err(DevupError::new(
                     ErrorCode::DevupInvalidInput,
-                    "renderMode must be fill, node or auto.",
+                    "renderMode must be original-source, fill, node, visible or auto.",
                     false,
                 ));
             }
@@ -317,7 +339,7 @@ pub(super) fn parse_asset_requests(
             && (!matches!(
                 format,
                 AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
-            ) || request.scale != 1)
+            ) || request.scale != 1.0)
         {
             return Err(DevupError::new(
                 ErrorCode::DevupInvalidInput,
@@ -325,11 +347,32 @@ pub(super) fn parse_asset_requests(
                 false,
             ));
         }
+        if request
+            .usage_aspect_ratio
+            .is_some_and(|r| !r.is_finite() || r <= 0.0 || r > 10000.0)
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "usageAspectRatio must be finite, positive and at most10000.",
+                false,
+            ));
+        }
+        devup_mcp_figma::validate_asset_options(
+            format,
+            render_mode,
+            request.scale,
+            request.max_width,
+            request.srcset,
+        )?;
         selections.push(AssetSelection {
+            usage_aspect_ratio: request.usage_aspect_ratio,
+            max_width: request.max_width,
+            srcset: request.srcset,
+            visible_scope_node_id: request.visible_scope_node_id.clone(),
             quality: request.quality,
             lossless: request.lossless,
             render_mode,
-            asset_id: request.asset_id.clone(),
+            asset_id: asset_id.clone(),
             format,
             scale: request.scale,
         });
@@ -342,7 +385,7 @@ pub(super) fn parse_asset_requests(
             } else {
                 path.clone()
             };
-            output_paths.insert(request.asset_id.clone(), path);
+            output_paths.insert(asset_id, path);
         }
     }
     Ok((selections, output_paths))
@@ -362,7 +405,21 @@ pub(super) fn validate_asset_render_outputs(
     {
         return Err(DevupError::new(
             ErrorCode::DevupInvalidInput,
-            "Original fill bytes cannot replace the node-rendered assets used by generated code. Export renderMode fill separately with outputs:[assetManifest]; use renderMode node for code outputs.",
+            "Legacy fill captures remain separate from generated code; use original-source for CSS projection or renderMode node.",
+            false,
+        ));
+    }
+    if requests.iter().any(|a| a.render_mode == "visible")
+        && outputs.iter().any(|o| {
+            matches!(
+                o.as_str(),
+                "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+            )
+        })
+    {
+        return Err(DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "Visible ancestor captures require assetManifest-only outputs; export nodeId for that parent intentionally before generating parent code. A parent bitmap cannot replace a leaf at leaf dimensions.",
             false,
         ));
     }
@@ -631,7 +688,7 @@ mod p3_tests {
         let base = json!({"assetId":"sample:fills:0"});
         assert_eq!(
             parse(base.clone()).unwrap().0[0].render_mode,
-            devup_mcp_figma::AssetRenderMode::Node
+            devup_mcp_figma::AssetRenderMode::OriginalSource
         );
         let fill = json!({"assetId":"sample:fills:0","renderMode":"fill","format":"png","scale":1});
         assert_eq!(
@@ -662,6 +719,48 @@ mod p3_tests {
             input[field] = value;
             assert!(parse(input).is_err());
         }
+    }
+
+    #[test]
+    fn original_source_defaults_fractional_node_and_resize_schema_are_real_inputs() {
+        let parse =
+            |v: serde_json::Value| parse_asset_requests(&[serde_json::from_value(v).unwrap()]);
+        let (defaults, _) = parse(json!({"assetId":"picture:fills:0"})).unwrap();
+        assert_eq!(defaults[0].scale, 2.0);
+        assert_eq!(
+            defaults[0].render_mode,
+            devup_mcp_figma::AssetRenderMode::OriginalSource
+        );
+        let (node, _) = parse(json!({"nodeId":"card","renderMode":"node","scale":1.5})).unwrap();
+        assert_eq!(node[0].asset_id, "card:node");
+        assert_eq!(node[0].scale, 1.5);
+        let (source,_)=parse(json!({"assetId":"picture:fills:0","format":"webp","maxWidth":300,"srcset":true,"usageAspectRatio":1.25})).unwrap();
+        assert_eq!(source[0].max_width, Some(300));
+        assert!(source[0].srcset);
+        assert_eq!(source[0].usage_aspect_ratio, Some(1.25));
+        for bad in [
+            json!({"nodeId":"card","assetId":"other"}),
+            json!({"assetId":"picture:fills:0","scale":-1}),
+            json!({"assetId":"picture:fills:0","scale":0}),
+            json!({"assetId":"picture:fills:0","scale":4.1}),
+            json!({"assetId":"picture:fills:0","format":"webp","maxWidth":0}),
+            json!({"assetId":"picture:fills:0","format":"webp","usageAspectRatio":-1}),
+        ] {
+            assert!(parse(bad).is_err());
+        }
+        let schema = serde_json::to_value(schemars::schema_for!(FigmaAssetRequestInput)).unwrap();
+        assert_eq!(schema["properties"]["scale"]["type"], "number");
+        assert_eq!(schema["properties"]["scale"]["default"], 2.0);
+        assert!(
+            schema["properties"]["renderMode"]["enum"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("visible"))
+        );
+        assert_eq!(
+            schema["properties"]["renderMode"]["default"],
+            "original-source"
+        );
     }
 
     #[test]
