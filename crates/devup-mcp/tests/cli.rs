@@ -574,3 +574,18 @@ fn r5_batch_summary_without_discovery_counts_is_incomplete() {
     assert_eq!(result["status"], "partial");
     assert_eq!(result["inventoryComplete"], false);
 }
+
+#[test]
+fn image_batch_merge_keeps_original_and_node_modes_distinct_even_for_equal_bytes() {
+    let batch = |mode: &str| {
+        serde_json::json!({"source":{"fileKey":"fixture","version":"1"},
+        "assetSummary":{"discovery":"complete","discoveredCount":1,"collectedCount":1,"unavailable":[]},
+        "assetManifest":{"assets":[{"assetId":"sample:fills:0","status":"exported","renderMode":mode,
+            "sha256":"a".repeat(64),"byteLength":8}]}})
+    };
+    let result = devup_mcp::asset_batches::merge(&[batch("node"), batch("fill")]).unwrap();
+    assert_eq!(result["conflictCount"], 1);
+    let captures = result["assets"][0]["captures"].as_array().unwrap();
+    assert_eq!(captures.len(), 2);
+    assert_ne!(captures[0]["renderMode"], captures[1]["renderMode"]);
+}

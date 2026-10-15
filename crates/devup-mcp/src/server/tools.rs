@@ -204,6 +204,13 @@ pub struct WidthPolicyInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaAssetRequestInput {
+    /// node (default) exports the exact node subtree via Figma; ancestor canvas
+    /// appearance is unverified. fill reads original bytes, bridge only, scale 1,
+    /// png/jpg matching the intrinsic codec; no crop, transform, effects or masks.
+    /// Request fill separately with assetManifest; generated code uses node assets.
+    #[serde(default = "default_asset_render_mode")]
+    #[schemars(extend("enum" = ["fill", "node"]))]
+    pub render_mode: String,
     pub asset_id: String,
     #[serde(default = "default_asset_format")]
     #[schemars(extend("enum" = super::validation::ASSET_FORMATS))]
@@ -212,6 +219,10 @@ pub struct FigmaAssetRequestInput {
     pub scale: u8,
     #[serde(default)]
     pub output_path: Option<String>,
+}
+
+fn default_asset_render_mode() -> String {
+    "node".to_owned()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

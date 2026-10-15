@@ -13,7 +13,7 @@ use devup_mcp_figma::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, OwnedMutexGuard, watch};
 
@@ -267,6 +267,8 @@ pub struct ArtifactStoreStats {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachedOutputManifest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_metadata: Option<Value>,
     pub artifact_id: String,
     pub output_id: String,
     pub name: String,
@@ -801,6 +803,7 @@ impl ArtifactStore {
                 format!("devup://artifact/{artifact_id}/outputs/{output_id}/manifest");
             staged.push(AttachedOutput {
                 manifest: AttachedOutputManifest {
+                    asset_metadata: output.asset_metadata,
                     artifact_id: artifact_id.to_owned(),
                     output_id: output_id.clone(),
                     name: output.name,
@@ -1430,6 +1433,7 @@ pub(crate) mod w3_tests {
                 all_screens: false,
             });
             request.asset_selections = vec![AssetSelection {
+                render_mode: devup_mcp_figma::AssetRenderMode::Node,
                 asset_id: "asset".into(),
                 format: AssetFormat::Png,
                 scale: 2,
@@ -1465,6 +1469,8 @@ pub(crate) mod w3_tests {
         asset_format.asset_selections[0].format = AssetFormat::Svg;
         let mut asset_scale = populated();
         asset_scale.asset_selections[0].scale = 3;
+        let mut asset_mode = populated();
+        asset_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Fill;
         let mut asset_id = populated();
         asset_id.asset_selections[0].asset_id = "elsewhere".into();
 
@@ -1485,6 +1491,7 @@ pub(crate) mod w3_tests {
             section,
             asset_format,
             asset_scale,
+            asset_mode,
             asset_id,
         ]
         .iter()
@@ -1738,6 +1745,7 @@ pub(crate) mod w3_tests {
     fn w3_asset_capture_validation_reports_only_missing_exact_variants() {
         let mut request = request();
         let captured = AssetSelection {
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
             scale: 1,
@@ -1759,15 +1767,36 @@ pub(crate) mod w3_tests {
             .unwrap_err();
         assert_eq!(
             error.details["missingAssetCaptures"],
-            json!([{"assetId":"2:2:node", "format":"svg", "scale":2}])
+            json!([{"assetId":"2:2:node", "format":"svg", "scale":2,"renderMode":"node"}])
         );
         assert!(!error.retryable);
+    }
+
+    #[test]
+    fn artifact_node_capture_cannot_serve_original_fill_mode() {
+        let mut request = request();
+        let node: AssetSelection =
+            serde_json::from_value(json!({"assetId":"sample:fills:0","format":"png","scale":1}))
+                .unwrap();
+        request.asset_selections = vec![node.clone()];
+        let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
+        let fill = AssetSelection {
+            render_mode: devup_mcp_figma::AssetRenderMode::Fill,
+            ..node
+        };
+        assert!(!capabilities.supports_asset_captures(std::slice::from_ref(&fill)));
+        let error = capabilities.validate_asset_captures(&[fill]).unwrap_err();
+        assert_eq!(
+            error.details["missingAssetCaptures"][0]["renderMode"],
+            "fill"
+        );
     }
 
     #[test]
     fn w3_missing_asset_capture_has_actionable_details() {
         let capabilities = ArtifactRequestKey::from_collection(&request()).capabilities();
         let selection = AssetSelection {
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
             scale: 1,

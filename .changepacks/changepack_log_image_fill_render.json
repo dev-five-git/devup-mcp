@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch",
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
+  },
+  "note": "Expose explicit image asset renderMode node and fill while preserving native node export by default. Report original-fill unapplied properties, export scope, verified pixel dimensions, scale semantics and aspect-ratio unknowns or mismatches. Provide safe hierarchy-based filename suggestions, prevent raster component-instance path collisions, and retain mode identity and observations across jobs, cached artifacts, files and resources. Refuse unsupported original-fill settings and raw-fill substitution into generated node-asset code.",
+  "date": "2026-10-15T00:00:00+00:00"
+}

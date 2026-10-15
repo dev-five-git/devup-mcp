@@ -32,6 +32,10 @@ function describe(error) {
 }
 
 function failed(errorCode, errorDetail) {
+  if (errorCode && exportDiagnostics.renderInfo) {
+    exportDiagnostics.renderInfo.attemptedRepresentation = exportDiagnostics.renderInfo.representation;
+    exportDiagnostics.renderInfo.representation = "not-exported";
+  }
   return {
     kind: "devupAssetExport",
     fileKey: figma.fileKey || "",
@@ -42,6 +46,7 @@ function failed(errorCode, errorDetail) {
     imageHash: options.imageHash,
     format: options.format,
     scale: options.scale,
+    renderMode,
     status: "failed",
     byteLength: null,
     sha256: null,
@@ -52,20 +57,61 @@ function failed(errorCode, errorDetail) {
 }
 
 const original = typeof options.field === "string" && options.field.startsWith("$original-image/fills/");
+const renderMode = options.renderMode === undefined ? (original ? "fill" : "node") : options.renderMode;
+function renderInfo(node, paint) {
+  const finite = n => typeof n === "number" && Number.isFinite(n) && n > 0;
+  const effects = Array.isArray(node.effects) ? node.effects : null;
+  const ancestors = [];
+  const seen = new Set();
+  let branch = node;
+  for (let parent = node.parent; parent && ancestors.length < 32 && !seen.has(parent); parent = parent.parent) {
+    seen.add(parent);
+    ancestors.push({ type: parent.type || "unknown", clipsContent: parent.clipsContent ?? null,
+      isMask: parent.isMask ?? null, effects: Array.isArray(parent.effects) ? parent.effects : null,
+      siblingMaskPresent: Array.isArray(parent.children) ? parent.children.some(n => n !== branch && n.isMask === true) : null });
+    branch = parent;
+  }
+  return {
+    representation: renderMode === "fill" ? "original-fill" : "native-node",
+    scope: renderMode === "fill" ? "selected-paint-original-bytes" : "exact-node-subtree",
+    exportSettings: renderMode === "node" ? { contentsOnly: true, useAbsoluteBounds: false } : null,
+    requestedScale: options.scale,
+    scaleSemantics: renderMode === "fill" ? "intrinsic-original-bytes-no-resize"
+      : ["png", "jpg"].includes(options.format) ? "native-node-SCALE-constraint" : "not-applied-to-vector-document",
+    nodeSize: finite(node.width) && finite(node.height) ? {width:node.width, height:node.height, aspectRatio:node.width/node.height} : null,
+    outputSize: null, dimensionEvidence: "unknown-until-byte-inspection", aspectRatioComparison: "unknown",
+    sourceProperties: { scaleMode: paint ? paint.scaleMode ?? null : null,
+      imageTransform: paint ? paint.imageTransform ?? null : null,
+      rotation: paint ? paint.rotation ?? null : null, filters: paint ? paint.filters ?? null : null,
+      opacity: paint ? paint.opacity ?? null : null, effects,
+      blurEffects: effects ? effects.filter(e => e.visible !== false && String(e.type).includes("BLUR")) : null,
+      isMask: node.isMask ?? null, clipsContent: node.clipsContent ?? null, ancestors },
+    unappliedProperties: renderMode === "fill" ? ["scaleMode", "imageTransform", "rotation", "filters", "paintOpacity", "nodeGeometry", "nodeTransforms", "nodeEffectsIncludingBlur", "nodeAndAncestorMasks", "ancestorClipsAndEffects"] : [],
+    warnings: renderMode === "fill" ? ["original-fill-properties-unapplied", "aspect-ratio-unknown"]
+      : ["ancestor-canvas-appearance-unverified", "aspect-ratio-unknown"],
+    fidelity: "unverified",
+  };
+}
 try {
+  if (!["fill", "node"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
+  if (!original && renderMode === "fill" &&
+      (!String(options.field).startsWith("fills/") || !["png", "jpg"].includes(options.format) || options.scale !== 1)) {
+    return failed("DEVUP_ASSET_FILL_SETTINGS_UNSUPPORTED", "Original fill requires fills/N, png or jpg matching its codec, and scale 1; no resizing or transcoding.");
+  }
   // Original uploads are a different representation from node renditions.
   // Only the local bridge opts in: the remote MCP's bounded text envelope
   // cannot carry arbitrary original bytes, and its file writer is not a
   // general binary transport. Never silently return a node PNG instead.
-  if (original && options.transport !== "bridge") {
-    return failed("DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE");
+  if ((original || renderMode === "fill") && options.transport !== "bridge") {
+    return failed(original ? "DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE" : "DEVUP_ASSET_FILL_REQUIRES_BRIDGE");
   }
   const node = await timed(() => devupLookupAssetNode(options.nodeId));
   observe("lookup", Date.now() - started);
   nodeType = node && node.type || "unknown";
-  if (!node || (!original && typeof node.exportAsync !== "function")) {
+  if (!node || (renderMode === "node" && typeof node.exportAsync !== "function")) {
     return failed("DEVUP_ASSET_UNSUPPORTED_BY_UPSTREAM", describe(new Error(node ? "node has no exportAsync" : "node not found")));
   }
+  let selectedPaint = null;
   if (original || (typeof options.field === "string" && options.field.startsWith("fills/"))) {
     const index = Number(options.field.slice(original ? "$original-image/fills/".length : "fills/".length));
     const fills = "fills" in node && Array.isArray(node.fills) ? node.fills : [];
@@ -74,11 +120,14 @@ try {
     if (!paint || imageHash !== options.imageHash) {
       return failed("DEVUP_ASSET_SOURCE_CHANGED");
     }
+    selectedPaint = paint;
   } else if (options.field !== "node") {
     return failed("DEVUP_ASSET_FIELD_UNSUPPORTED");
   }
+  exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
 
-  if (original) {
+  if (original || renderMode === "fill") {
+    exportDiagnostics.method = "original-fill";
     stage = "reading the original image";
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
@@ -93,6 +142,12 @@ try {
       : starts([82,73,70,70]) && bytes[8] === 87 && bytes[9] === 69 && bytes[10] === 66 && bytes[11] === 80 ? "image/webp"
       : null;
     if (!mimeType) return failed("DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED");
+    exportDiagnostics.renderInfo.originalMimeType = mimeType;
+    if (!original && mimeType !== { png: "image/png", jpg: "image/jpeg" }[options.format]) {
+      return failed("DEVUP_ASSET_FILL_CODEC_MISMATCH", `Original fill codec is ${mimeType}, but ${options.format} was requested; choose the matching format or renderMode node. No transcoding was performed.`);
+    }
+    if (!original) return { ...failed(null), status: "exported", mimeType,
+      byteLength: bytes.length, sha256: devupSha256(bytes), data: figma.base64Encode(bytes) };
     const size = await timed(() => image.getSizeAsync());
     return {
       ...failed(null), status: "exported", kind: "devupOriginalImage",
@@ -114,7 +169,7 @@ try {
   // inline copy is bounded well under the text-response limit; anything
   // larger is reported rather than silently truncated.
   const inlineSvg = format === "SVG";
-  const settings = { format: inlineSvg ? "SVG_STRING" : format };
+  const settings = { format: inlineSvg ? "SVG_STRING" : format, contentsOnly: true, useAbsoluteBounds: false };
   if (format === "PNG" || format === "JPG") {
     settings.constraint = { type: "SCALE", value: scale };
   }
@@ -123,7 +178,17 @@ try {
   // Reserve up to five seconds for read-only geometry after a hung renderer.
   // A late native answer has no file writer and cannot replace the fallback.
   const nativeBudget = inlineSvg ? Math.max(1, remaining - Math.min(5000, Math.floor(remaining / 5))) : remaining;
-  const exported = await timed(() => devupRenderAsset(node, settings, nativeBudget, observe));
+  const nativeBegan = Date.now();
+  // Image-filled nodes must use Figma's renderer for crop, filters, effects,
+  // transforms and masks within this subtree. Never substitute raw fill bytes
+  // or geometry on renderer failure. The canvas outside this node is unverified.
+  const exported = await timed(() => selectedPaint ? node.exportAsync(settings)
+    : devupRenderAsset(node, settings, nativeBudget, observe));
+  if (selectedPaint) observe("native", Date.now() - nativeBegan);
+  if (exportDiagnostics.method === "geometry") {
+    exportDiagnostics.renderInfo.representation = "geometry-fallback";
+    exportDiagnostics.renderInfo.warnings.push("geometry-fallback-not-native-render");
+  }
   if (Date.now() - started >= timeoutMs) throw new Error(`DEVUP_ASSET_TIMEOUT: export exceeded ${timeoutMs} ms asset budget`);
   stage = "encode";
   const encodeBegan = Date.now();
@@ -167,6 +232,7 @@ try {
       imageHash: options.imageHash,
       format: options.format,
       scale,
+      renderMode,
       status: "chunked",
       byteLength: bytes.length,
       sha256,
@@ -188,6 +254,7 @@ try {
     imageHash: options.imageHash,
     format: options.format,
     scale,
+    renderMode,
     status: "exported",
     byteLength: bytes.length,
     sha256,
@@ -201,5 +268,5 @@ try {
     exportDiagnostics,
   };
 } catch (error) {
-  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
+  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original || renderMode === "fill" ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
 }

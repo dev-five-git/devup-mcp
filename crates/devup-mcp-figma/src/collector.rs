@@ -332,8 +332,8 @@ impl CollectorSession {
         self.request.asset_selections.iter().map(|selection| {
             match self.asset_results.iter().find(|asset| asset.asset_id == selection.asset_id) {
                 Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,
-                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics}),
-                None => serde_json::json!({"assetId":selection.asset_id,"status":"pending"}),
+                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"renderInfo":asset.render_info}),
+                None => serde_json::json!({"assetId":selection.asset_id,"renderMode":selection.render_mode,"status":"pending"}),
             }
         }).collect()
     }
@@ -1578,7 +1578,19 @@ impl CollectorSession {
                 // bytes are the asset, and go where a one-answer export would.
                 let bytes = assembler.finish_bytes()?;
                 let mut asset = exported_asset_from_bytes(&request, &bytes)?;
+                if let Some(observed) = diagnostics.as_ref().and_then(|d| d.render_info.clone()) {
+                    asset.render_info = Some(crate::asset_render_info::measured_info(
+                        request.render_mode,
+                        request.format,
+                        request.scale,
+                        Some(observed),
+                        Some(&bytes),
+                    ));
+                }
                 asset.export_diagnostics = diagnostics;
+                if let Some(diagnostics) = &mut asset.export_diagnostics {
+                    diagnostics.render_info = asset.render_info.clone();
+                }
                 self.asset_results.push(asset);
                 return Ok(());
             }
@@ -1788,6 +1800,9 @@ impl CollectorSession {
         self.record_asset_diagnostic(&request, error_code, error_detail.as_deref());
         let source_kind = crate::assets::source_kind_of(&request).to_owned();
         self.asset_results.push(AssetManifestEntry {
+            render_mode: request.render_mode,
+            render_info: None,
+            suggested_filename: None,
             asset_id: request.asset_id,
             node_id: request.node_id,
             field: request.field,

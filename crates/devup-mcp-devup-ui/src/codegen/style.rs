@@ -1007,17 +1007,25 @@ pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) ->
     let view = node.typed_view();
     let name = view.name().unwrap_or("Asset");
     let identity = asset_identity(node);
+    let raster_instance =
+        view.node_type() == "INSTANCE" && asset_kind(snapshot, node) == Some(AssetKind::Png);
     let shared = per_node
         || snapshot.nodes.values().any(|other| {
             other.id != node.id
                 && other.typed_view().name() == Some(name)
-                && asset_identity(other) != identity
+                && (asset_identity(other) != identity || raster_instance)
                 && asset_kind(snapshot, other).is_some()
         });
     if !shared {
         return name.to_owned();
     }
     match identity {
+        // Raster instances can override the image, crop, size and effects while
+        // retaining the same component variant. Only verified exported bytes
+        // establish reuse; a shared variant name cannot establish identity.
+        Some(variant) if raster_instance => {
+            format!("{name}={variant}-{}", node.id.replace([':', ';'], "-"))
+        }
         Some(variant) => format!("{name}={variant}"),
         None => format!("{name}-{}", node.id.replace([':', ';'], "-")),
     }

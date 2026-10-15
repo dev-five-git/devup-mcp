@@ -297,7 +297,28 @@ pub(super) fn parse_asset_requests(
                 ));
             }
         };
+        let render_mode = match request.render_mode.as_str() {
+            "node" => devup_mcp_figma::AssetRenderMode::Node,
+            "fill" => devup_mcp_figma::AssetRenderMode::Fill,
+            _ => {
+                return Err(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "renderMode must be fill or node.",
+                    false,
+                ));
+            }
+        };
+        if render_mode == devup_mcp_figma::AssetRenderMode::Fill
+            && (!matches!(format, AssetFormat::Png | AssetFormat::Jpg) || request.scale != 1)
+        {
+            return Err(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "renderMode fill requires scale 1 and png or jpg matching the original codec; original bytes are never resized or transcoded.",
+                false,
+            ));
+        }
         selections.push(AssetSelection {
+            render_mode,
             asset_id: request.asset_id.clone(),
             format,
             scale: request.scale,
@@ -307,6 +328,27 @@ pub(super) fn parse_asset_requests(
         }
     }
     Ok((selections, output_paths))
+}
+
+pub(super) fn validate_asset_render_outputs(
+    requests: &[FigmaAssetRequestInput],
+    outputs: &[String],
+) -> Result<(), DevupError> {
+    if requests.iter().any(|a| a.render_mode == "fill")
+        && outputs.iter().any(|o| {
+            matches!(
+                o.as_str(),
+                "tsx" | "componentTsx" | "responsiveTsx" | "pageScaffold"
+            )
+        })
+    {
+        return Err(DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "Original fill bytes cannot replace the node-rendered assets used by generated code. Export renderMode fill separately with outputs:[assetManifest]; use renderMode node for code outputs.",
+            false,
+        ));
+    }
+    Ok(())
 }
 
 // A bad `scope` or `rootLayout` used to be reported as DEVUP_THEME_CONFLICT,
@@ -534,6 +576,47 @@ pub(super) fn public_asset_url(
 #[cfg(test)]
 mod p3_tests {
     use super::*;
+
+    #[test]
+    fn image_mode_input_preserves_default_and_refuses_unimplemented_settings() {
+        let parse = |value: serde_json::Value| {
+            parse_asset_requests(&[serde_json::from_value(value).unwrap()])
+        };
+        let base = json!({"assetId":"sample:fills:0"});
+        assert_eq!(
+            parse(base.clone()).unwrap().0[0].render_mode,
+            devup_mcp_figma::AssetRenderMode::Node
+        );
+        let fill = json!({"assetId":"sample:fills:0","renderMode":"fill","format":"png","scale":1});
+        assert_eq!(
+            parse(fill.clone()).unwrap().0[0].render_mode,
+            devup_mcp_figma::AssetRenderMode::Fill
+        );
+        let request = serde_json::from_value(fill.clone()).unwrap();
+        assert!(
+            validate_asset_render_outputs(
+                std::slice::from_ref(&request),
+                &["assetManifest".into()]
+            )
+            .is_ok()
+        );
+        for output in ["tsx", "componentTsx", "responsiveTsx", "pageScaffold"] {
+            assert!(
+                validate_asset_render_outputs(std::slice::from_ref(&request), &[output.into()])
+                    .is_err()
+            );
+        }
+        for (field, value) in [
+            ("renderMode", json!("unknown")),
+            ("format", json!("svg")),
+            ("format", json!("pdf")),
+            ("scale", json!(2)),
+        ] {
+            let mut input = fill.clone();
+            input[field] = value;
+            assert!(parse(input).is_err());
+        }
+    }
 
     #[test]
     fn p3_error_variants_are_audited_at_the_mcp_boundary() {

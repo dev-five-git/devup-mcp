@@ -10,10 +10,21 @@ use crate::{
 
 pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 
+/// The default preserves the native node export used before modes were exposed.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AssetRenderMode {
+    Fill,
+    #[default]
+    Node,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetExportDiagnostics {
     pub method: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub render_info: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_error: Option<String>,
     pub stages: Vec<AssetExportStage>,
@@ -70,6 +81,8 @@ pub enum AssetStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetRequest {
+    #[serde(default)]
+    pub render_mode: AssetRenderMode,
     pub asset_id: String,
     pub node_id: String,
     pub field: String,
@@ -81,6 +94,8 @@ pub struct AssetRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetSelection {
+    #[serde(default)]
+    pub render_mode: AssetRenderMode,
     pub asset_id: String,
     pub format: AssetFormat,
     pub scale: u8,
@@ -89,6 +104,14 @@ pub struct AssetSelection {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetManifestEntry {
+    #[serde(default)]
+    pub render_mode: AssetRenderMode,
+    /// Observations and explicit unknowns; dimensions are measured from bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub render_info: Option<Value>,
+    /// A safe hierarchy-based suggestion, never an automatic write destination.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_filename: Option<String>,
     pub asset_id: String,
     pub node_id: String,
     pub field: String,
@@ -179,6 +202,7 @@ pub fn discover_asset_manifest(snapshot: &Snapshot) -> AssetManifest {
     }
 
     assets.sort_by(|left, right| left.asset_id.cmp(&right.asset_id));
+    crate::asset_render_info::annotate_assets(snapshot, &mut assets);
     AssetManifest {
         version: 1,
         assets,
@@ -460,6 +484,9 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
     };
 
     AssetManifestEntry {
+        render_mode: AssetRenderMode::Node,
+        render_info: None,
+        suggested_filename: None,
         asset_id,
         node_id: node.id.clone(),
         field,
@@ -508,6 +535,15 @@ pub fn validate_asset_requests(
         {
             return Err(invalid("asset request does not match the snapshot source."));
         }
+        if request.render_mode == AssetRenderMode::Fill
+            && (!request.field.starts_with("fills/")
+                || !matches!(request.format, AssetFormat::Png | AssetFormat::Jpg)
+                || request.scale != 1)
+        {
+            return Err(invalid(
+                "renderMode fill requires an image-fill, png or jpg matching the original codec, and scale 1; original bytes are never resized or transcoded.",
+            ));
+        }
         // Reject what the manifest already knows cannot be exported, so the
         // reason travels with the rejection instead of arriving later as an
         // opaque failure from inside Figma.
@@ -552,6 +588,7 @@ pub fn resolve_asset_selections(
                 image_hash: asset.image_hash.clone(),
                 format: selection.format,
                 scale: selection.scale,
+                render_mode: selection.render_mode,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -575,9 +612,15 @@ pub fn asset_export_from_result(
         || descriptor.image_hash != request.image_hash
         || descriptor.format != request.format
         || descriptor.scale != request.scale
+        || descriptor.render_mode != request.render_mode
     {
         return Err(invalid(
             "asset descriptor target or version does not match the request.",
+        ));
+    }
+    if request.render_mode == AssetRenderMode::Fill && descriptor.status == AssetStatus::Chunked {
+        return Err(invalid(
+            "original fill bytes cannot use node re-export fragments.",
         ));
     }
     let source_kind = source_kind_of(request);
@@ -613,25 +656,39 @@ pub fn asset_export_from_result(
         return Ok(AssetExportOutcome::Chunked(descriptor));
     }
     if descriptor.status == AssetStatus::Failed {
-        return Ok(AssetExportOutcome::Entry(Box::new(AssetManifestEntry {
-            asset_id: request.asset_id.clone(),
-            node_id: request.node_id.clone(),
-            field: request.field.clone(),
-            source_kind: source_kind.to_owned(),
-            image_hash: request.image_hash.clone(),
-            format: Some(request.format),
-            scale: Some(request.scale),
-            status: AssetStatus::Failed,
-            byte_length: None,
-            sha256: None,
-            mime_type: None,
-            data_base64: None,
-            output_path: None,
-            error_code: descriptor.error_code,
-            error_detail: bounded(descriptor.error_detail),
-            export_diagnostics: descriptor.export_diagnostics,
-            path: None,
-        })));
+        return Ok(AssetExportOutcome::Entry(consistent_entry(
+            AssetManifestEntry {
+                render_mode: request.render_mode,
+                render_info: Some(crate::asset_render_info::measured_info(
+                    request.render_mode,
+                    request.format,
+                    request.scale,
+                    descriptor
+                        .export_diagnostics
+                        .as_ref()
+                        .and_then(|d| d.render_info.clone()),
+                    None,
+                )),
+                suggested_filename: None,
+                asset_id: request.asset_id.clone(),
+                node_id: request.node_id.clone(),
+                field: request.field.clone(),
+                source_kind: source_kind.to_owned(),
+                image_hash: request.image_hash.clone(),
+                format: Some(request.format),
+                scale: Some(request.scale),
+                status: AssetStatus::Failed,
+                byte_length: None,
+                sha256: None,
+                mime_type: None,
+                data_base64: None,
+                output_path: None,
+                error_code: descriptor.error_code,
+                error_detail: bounded(descriptor.error_detail),
+                export_diagnostics: descriptor.export_diagnostics,
+                path: None,
+            },
+        )));
     }
     let payload = find_payload(&result.raw, request.format.mime_type()).ok_or_else(|| {
         // Which shapes the response *did* carry. Without this the failure is
@@ -677,25 +734,51 @@ pub fn asset_export_from_result(
             "asset export binary length or hash does not match.",
         ));
     }
-    Ok(AssetExportOutcome::Entry(Box::new(AssetManifestEntry {
-        asset_id: request.asset_id.clone(),
-        node_id: request.node_id.clone(),
-        field: request.field.clone(),
-        source_kind: source_kind.to_owned(),
-        image_hash: request.image_hash.clone(),
-        format: Some(request.format),
-        scale: Some(request.scale),
-        status: AssetStatus::Exported,
-        byte_length: Some(bytes.len()),
-        sha256: descriptor.sha256,
-        mime_type: Some(request.format.mime_type().to_owned()),
-        data_base64: Some(data),
-        output_path: None,
-        error_code: None,
-        error_detail: None,
-        export_diagnostics: descriptor.export_diagnostics,
-        path: None,
-    })))
+    if request.render_mode == AssetRenderMode::Fill
+        && image::guess_format(&bytes).ok()
+            != Some(match request.format {
+                AssetFormat::Png => image::ImageFormat::Png,
+                AssetFormat::Jpg => image::ImageFormat::Jpeg,
+                _ => return Err(invalid("original fill format is unsupported.")),
+            })
+    {
+        return Err(invalid(
+            "original fill bytes do not match the requested codec.",
+        ));
+    }
+    Ok(AssetExportOutcome::Entry(consistent_entry(
+        AssetManifestEntry {
+            render_mode: request.render_mode,
+            render_info: Some(crate::asset_render_info::measured_info(
+                request.render_mode,
+                request.format,
+                request.scale,
+                descriptor
+                    .export_diagnostics
+                    .as_ref()
+                    .and_then(|d| d.render_info.clone()),
+                Some(&bytes),
+            )),
+            suggested_filename: None,
+            asset_id: request.asset_id.clone(),
+            node_id: request.node_id.clone(),
+            field: request.field.clone(),
+            source_kind: source_kind.to_owned(),
+            image_hash: request.image_hash.clone(),
+            format: Some(request.format),
+            scale: Some(request.scale),
+            status: AssetStatus::Exported,
+            byte_length: Some(bytes.len()),
+            sha256: descriptor.sha256,
+            mime_type: Some(request.format.mime_type().to_owned()),
+            data_base64: Some(data),
+            output_path: None,
+            error_code: None,
+            error_detail: None,
+            export_diagnostics: descriptor.export_diagnostics,
+            path: None,
+        },
+    )))
 }
 
 /// The virtual field a fragmented SVG export is read under: the large-value
@@ -713,6 +796,18 @@ pub fn source_kind_of(request: &AssetRequest) -> &'static str {
     } else {
         "vector-node"
     }
+}
+
+fn consistent_entry(mut entry: AssetManifestEntry) -> Box<AssetManifestEntry> {
+    if entry.status == AssetStatus::Failed
+        && let Some(info) = &mut entry.render_info
+    {
+        info["representation"] = json!("not-exported");
+    }
+    if let Some(diagnostics) = &mut entry.export_diagnostics {
+        diagnostics.render_info = entry.render_info.clone();
+    }
+    Box::new(entry)
 }
 
 pub const SVG_EXPORT_FIELD: &str = "$export:svg";
@@ -744,6 +839,15 @@ pub fn exported_asset_from_bytes(
         return Err(invalid("asset export binary length is out of range."));
     }
     Ok(AssetManifestEntry {
+        render_mode: request.render_mode,
+        render_info: Some(crate::asset_render_info::measured_info(
+            request.render_mode,
+            request.format,
+            request.scale,
+            None,
+            Some(bytes),
+        )),
+        suggested_filename: None,
         asset_id: request.asset_id.clone(),
         node_id: request.node_id.clone(),
         field: request.field.clone(),
@@ -767,6 +871,8 @@ pub fn exported_asset_from_bytes(
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AssetExportDescriptor {
+    #[serde(default)]
+    render_mode: AssetRenderMode,
     kind: String,
     file_key: String,
     version: Option<String>,
@@ -799,6 +905,15 @@ fn find_descriptor(value: &Value) -> Option<AssetExportDescriptor> {
         && descriptor.kind == "devupAssetExport"
     {
         if let Some(diagnostics) = &mut descriptor.export_diagnostics {
+            if diagnostics
+                .render_info
+                .as_ref()
+                .is_some_and(|v| v.to_string().len() > 16 * 1024)
+            {
+                diagnostics.render_info = Some(
+                    json!({"representation":"unknown", "warnings":["render-observations-exceeded-limit"]}),
+                );
+            }
             diagnostics.native_error = bounded(diagnostics.native_error.take());
             diagnostics.method = diagnostics.method.chars().take(80).collect();
             diagnostics.stages.truncate(16);

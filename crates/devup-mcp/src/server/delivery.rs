@@ -57,6 +57,7 @@ pub struct ProjectedOutput {
     pub is_binary: bool,
     pub(crate) resource_id: String,
     pub(crate) asset_id: Option<String>,
+    pub(crate) asset_metadata: Option<Value>,
 }
 
 impl ProjectedOutput {
@@ -68,6 +69,7 @@ impl ProjectedOutput {
             is_binary: false,
             resource_id: random_resource_id(),
             asset_id: None,
+            asset_metadata: None,
         }
     }
 
@@ -79,6 +81,7 @@ impl ProjectedOutput {
             is_binary: true,
             resource_id: random_resource_id(),
             asset_id: None,
+            asset_metadata: None,
         }
     }
 
@@ -95,6 +98,7 @@ impl ProjectedOutput {
             is_binary: true,
             resource_id: random_resource_id(),
             asset_id: Some(asset_id.into()),
+            asset_metadata: None,
         }
     }
 

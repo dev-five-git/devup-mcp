@@ -1491,6 +1491,15 @@ impl DevupServer {
         projection::page_scaffold::validate(input.page_scaffold.as_ref(), &input.outputs)
             .map_err(to_mcp_error)?;
         validation::validate_asset_budget(&input.asset_requests).map_err(to_mcp_error)?;
+        validation::validate_asset_render_outputs(&input.asset_requests, &input.outputs)
+            .map_err(to_mcp_error)?;
+        if input.page_scaffold.is_some() {
+            validation::validate_asset_render_outputs(
+                &input.asset_requests,
+                &["pageScaffold".into()],
+            )
+            .map_err(to_mcp_error)?;
+        }
         if let Some(id) = workflow.job_id.as_deref() {
             if input.url.is_some()
                 || input.artifact_id.is_some()

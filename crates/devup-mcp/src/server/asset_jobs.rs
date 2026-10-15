@@ -137,7 +137,7 @@ impl AssetJobs {
                 assets: request
                     .asset_selections
                     .iter()
-                    .map(|a| json!({"assetId":a.asset_id,"status":"pending"}))
+                    .map(|a| json!({"assetId":a.asset_id,"renderMode":a.render_mode,"status":"pending"}))
                     .collect(),
                 calls: Vec::new(),
                 completed_calls: 0,
@@ -173,7 +173,7 @@ impl AssetJob {
         for progress in &mut state.assets {
             if let Some(asset) = assets.iter().find(|a| progress["assetId"] == a.asset_id) {
                 *progress = json!({"assetId":asset.asset_id,"status":asset.status,"byteLength":asset.byte_length,
-                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics});
+                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"renderInfo":asset.render_info});
             }
         }
         state.stage = "projection-and-write";
@@ -264,9 +264,24 @@ impl AssetJob {
 
     fn finish(&self, result: Result<Value, DevupError>) {
         let mut state = self.state.lock().unwrap();
-        if let Ok(value) = &result
-            && let Some(assets) = value["assetManifest"]["assets"].as_array()
-        {
+        if let Ok(value) = &result {
+            let assets = value["assetManifest"]["assets"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .chain(
+                    value["resources"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .flat_map(|resource| {
+                            resource["assetMetadata"]["assets"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                        }),
+                )
+                .collect::<Vec<_>>();
             for progress in &mut state.assets {
                 if let Some(asset) = assets.iter().find(|a| a["assetId"] == progress["assetId"]) {
                     for field in [
@@ -276,12 +291,19 @@ impl AssetJob {
                         "errorCode",
                         "errorDetail",
                         "exportDiagnostics",
+                        "renderMode",
+                        "renderInfo",
+                        "suggestedFilename",
                         "outputPath",
                         "path",
                     ] {
                         if let Some(v) = asset.get(field) {
                             progress[field] = v.clone();
                         }
+                    }
+                    if progress["exportDiagnostics"].is_object() {
+                        progress["exportDiagnostics"]["renderInfo"] =
+                            progress["renderInfo"].clone();
                     }
                 }
             }
@@ -464,6 +486,70 @@ impl DevupServer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_modes_have_distinct_jobs_and_same_mode_recovers_its_job() {
+        let selection = devup_mcp_figma::AssetSelection {
+            asset_id: "sample:fills:0".into(),
+            format: devup_mcp_figma::AssetFormat::Png,
+            scale: 1,
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+        };
+        let mut request = CollectionRequest::new(
+            devup_mcp_figma::FigmaTarget::parse(
+                "https://www.figma.com/design/Fixture/Example?node-id=1-1",
+            )
+            .unwrap(),
+            devup_mcp_figma::CollectionScope::Node,
+        );
+        request.asset_selections = vec![selection];
+        let operation = PendingOperation::Export {
+            outputs: vec!["assetManifest".into()],
+            previous_design_fingerprints: None,
+            component_name: None,
+            include_diagnostics: false,
+            root_layout: devup_mcp_devup_ui::codegen::RootLayout::default(),
+            asset_names_per_node: true,
+            scope: "node".into(),
+            theme_options: Default::default(),
+            strict: false,
+            output_paths: Default::default(),
+            page_scaffold: None,
+            frame_ids: vec![],
+            all_screens: false,
+            asset_captures: request.asset_selections.clone(),
+            asset_output_paths: Default::default(),
+            asset_public_root: None,
+            fields: vec![],
+            delivery: super::super::delivery::DeliveryMode::Auto,
+            width_policy: None,
+        };
+        let jobs = AssetJobs::default();
+        let (node, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(created);
+        let (same, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(!created);
+        assert_eq!(node.id, same.id);
+        request.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Fill;
+        let (fill, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(created);
+        assert_ne!(node.id, fill.id);
+        assert_eq!(fill.state.lock().unwrap().assets[0]["renderMode"], "fill");
+        fill.finish(Ok(
+            json!({"resources":[{"assetMetadata":{"assets":[{"assetId":"sample:fills:0",
+            "renderMode":"fill","renderInfo":{"outputSize":{"width":32,"height":16}},
+            "suggestedFilename":"gallery-picture-fill.png"}]}}]}),
+        ));
+        let progress = fill.response().unwrap();
+        assert_eq!(
+            progress["assetJob"]["assets"][0]["renderInfo"]["outputSize"]["width"],
+            32
+        );
+        assert_eq!(
+            progress["assetJob"]["assets"][0]["suggestedFilename"],
+            "gallery-picture-fill.png"
+        );
+    }
 
     #[test]
     fn r10_terminal_jobs_never_offer_repeated_status_as_next_action() {

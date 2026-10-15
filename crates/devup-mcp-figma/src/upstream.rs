@@ -234,6 +234,7 @@ impl BuiltinScript {
             .map(|(request, version)| {
                 json!({
                     "assetId": request.asset_id,
+                    "renderMode": request.render_mode,
                     "nodeId": request.node_id,
                     "field": request.field,
                     "imageHash": request.image_hash,
@@ -1146,6 +1147,7 @@ impl ReadToolCall {
                     "asset": {
                         "transport": "bridge",
                         "assetId": request.asset_id,
+                    "renderMode": request.render_mode,
                         "nodeId": request.node_id,
                         "field": request.field,
                         "imageHash": request.image_hash,
