@@ -93,7 +93,7 @@ pub struct FigmaExportWorkflowInput {
     pub job_id: Option<String>,
     /// status (default) or resume a paused asset job without repeating accepted reads.
     #[serde(default)]
-    #[schemars(extend("enum" = ["status", "resume"]))]
+    #[schemars(extend("enum" = ["status", "resume", "cancel"]))]
     pub job_action: Option<String>,
 }
 
@@ -713,6 +713,7 @@ impl DevupServer {
             match collector.advance()? {
                 CollectorStep::Call(planned) => {
                     let call_id = planned.id.clone();
+                    let asset_read = planned.call.is_asset_read();
                     let section_index_call = matches!(
                         &planned.call,
                         ReadToolCall::Snapshot {
@@ -785,7 +786,34 @@ impl DevupServer {
                                         outputs,
                                     )?;
                                 }
-                                collector.accept(&call_id, result)?;
+                                if asset_read {
+                                    static ENCODERS: std::sync::OnceLock<
+                                        std::sync::Arc<tokio::sync::Semaphore>,
+                                    > = std::sync::OnceLock::new();
+                                    let permit = ENCODERS
+                                        .get_or_init(|| {
+                                            std::sync::Arc::new(tokio::sync::Semaphore::new(2))
+                                        })
+                                        .clone()
+                                        .acquire_owned()
+                                        .await
+                                        .map_err(|_| {
+                                            DevupError::new(
+                                                ErrorCode::DevupInvalidInput,
+                                                "Asset postprocessing is unavailable.",
+                                                false,
+                                            )
+                                        })?;
+                                    let (returned, accepted) = tokio::task::spawn_blocking(move || {
+                                        let _permit = permit;
+                                        let accepted = collector.accept(&call_id, result);
+                                        (collector, accepted)
+                                    }).await.map_err(|_| DevupError::new(ErrorCode::DevupInvalidInput, "Asset postprocessing worker failed; repeat the request.", false))?;
+                                    collector = returned;
+                                    accepted?;
+                                } else {
+                                    collector.accept(&call_id, result)?;
+                                }
                             }
                         },
                         Err(error) if collector.reject(&call_id, &error)? => continue,
@@ -1487,10 +1515,26 @@ impl DevupServer {
         &self,
         Parameters(workflow): Parameters<FigmaExportWorkflowInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        let input = workflow.input;
+        let mut input = workflow.input;
+        if input.preset.as_deref() == Some("web-ready-images") {
+            for output in ["assetManifest", "imageAudit"] {
+                if !input.outputs.iter().any(|o| o == output) {
+                    input.outputs.push(output.into());
+                }
+            }
+        }
         projection::page_scaffold::validate(input.page_scaffold.as_ref(), &input.outputs)
             .map_err(to_mcp_error)?;
         validation::validate_asset_budget(&input.asset_requests).map_err(to_mcp_error)?;
+        validation::validate_asset_render_outputs(&input.asset_requests, &input.outputs)
+            .map_err(to_mcp_error)?;
+        if input.page_scaffold.is_some() {
+            validation::validate_asset_render_outputs(
+                &input.asset_requests,
+                &["pageScaffold".into()],
+            )
+            .map_err(to_mcp_error)?;
+        }
         if let Some(id) = workflow.job_id.as_deref() {
             if input.url.is_some()
                 || input.artifact_id.is_some()
@@ -1502,6 +1546,7 @@ impl DevupServer {
                 || !input.frame_ids.is_empty()
                 || input.all_screens
                 || input.width_policy.is_some()
+                || input.preset.is_some()
             {
                 return Err(to_mcp_error(DevupError::new(
                     ErrorCode::DevupInvalidInput,
@@ -1513,10 +1558,11 @@ impl DevupServer {
             match workflow.job_action.as_deref().unwrap_or("status") {
                 "status" => {}
                 "resume" => job.resume(),
+                "cancel" => job.cancel(),
                 _ => {
                     return Err(to_mcp_error(DevupError::new(
                         ErrorCode::DevupInvalidInput,
-                        "jobAction must be status or resume.",
+                        "jobAction must be status, resume or cancel.",
                         false,
                     )));
                 }
@@ -1549,6 +1595,36 @@ impl DevupServer {
                 false,
             )));
         }
+        let web_ready_images = match input.preset.as_deref() {
+            None => false,
+            Some("web-ready-images") => true,
+            Some(_) => {
+                return Err(to_mcp_error(DevupError::new(
+                    ErrorCode::DevupInvalidInput,
+                    "preset must be web-ready-images.",
+                    false,
+                )));
+            }
+        };
+        if web_ready_images && !input.asset_requests.is_empty() {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "web-ready-images cannot override custom assetRequests. Export the preset and custom requests separately; no requested work was started.",
+                false,
+            )));
+        }
+        if web_ready_images
+            && !input
+                .outputs
+                .iter()
+                .any(|o| o == "assetManifest" || o == "pageScaffold")
+        {
+            return Err(to_mcp_error(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                "web-ready-images requires outputs including assetManifest or pageScaffold for reusable assets and completeness.",
+                false,
+            )));
+        }
         let asset_public_root =
             validation::validate_public_root(workflow.asset_public_root.as_deref())
                 .map_err(to_mcp_error)?;
@@ -1559,6 +1635,7 @@ impl DevupServer {
         )
         .map_err(to_mcp_error)?;
         if asset_public_root.is_some()
+            && !web_ready_images
             && input.page_scaffold.is_none()
             && !input
                 .asset_requests
@@ -1674,6 +1751,13 @@ impl DevupServer {
                 .get_for_export(artifact_id)
                 .await
                 .map_err(to_mcp_error)?;
+            if web_ready_images && !artifact.capabilities.web_ready_images {
+                return Err(to_mcp_error(DevupError::new(
+                    ErrorCode::DevupFigmaHandoffInvalid,
+                    "This artifact did not acquire web-ready-images. Repeat with the original url and preset to capture the complete image plan.",
+                    false,
+                )));
+            }
             let (asset_selections, asset_output_paths) =
                 parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
             if artifact.capabilities.kind == ArtifactKind::SectionIndex
@@ -1749,6 +1833,7 @@ impl DevupServer {
                     CollectionRequest::new(artifact.payload.target.clone(), collection_scope);
                 request.resource_scope = ResourceScope::Used;
                 request.asset_selections = asset_selections.clone();
+                request.web_ready_images = web_ready_images;
                 request.reference_png = reference_png_requested;
                 request.section = Some(SectionReadOptions {
                     frame_ids: input.frame_ids.clone(),
@@ -1775,6 +1860,7 @@ impl DevupServer {
                             frame_ids: input.frame_ids,
                             all_screens: input.all_screens,
                             asset_captures: asset_selections,
+                            web_ready_images,
                             asset_output_paths,
                             asset_public_root: asset_public_root.clone(),
                             fields: input.fields.clone(),
@@ -1822,6 +1908,7 @@ impl DevupServer {
                     frame_ids: input.frame_ids,
                     all_screens: input.all_screens,
                     asset_captures: asset_selections,
+                    web_ready_images,
                     asset_output_paths,
                     asset_public_root: asset_public_root.clone(),
                     fields: input.fields.clone(),
@@ -1890,6 +1977,7 @@ impl DevupServer {
         let (asset_selections, asset_output_paths) =
             parse_asset_requests(&input.asset_requests).map_err(to_mcp_error)?;
         request.asset_selections = asset_selections.clone();
+        request.web_ready_images = web_ready_images;
         request.reference_png = reference_png_requested;
         request.resource_scope = if collection_scope == CollectionScope::File {
             ResourceScope::File
@@ -1923,6 +2011,7 @@ impl DevupServer {
             frame_ids,
             all_screens: input.all_screens,
             asset_captures: asset_selections,
+            web_ready_images,
             asset_output_paths,
             asset_public_root: asset_public_root.clone(),
             fields: input.fields.clone(),
@@ -2149,7 +2238,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Compare consumer-produced actual PNG with exactly one reference PNG path or cached artifactId. Paths must be allowlisted. Never renders, launches a browser, or runs commands. Default threshold is 0.005 (0.5 percent). Supply the content-free visual renderer contract environment manifest; absent, incomplete, or invalid environment yields verdict inconclusive even when visual.passed is true. Optional diff PNG uses auto|inline|resource delivery.",
+        description = "Compare actual PNG with one reference PNG path, cached artifactId referencePng, or {artifactId,assetId} captured native-node PNG asset. Asset comparisons validate retained reference bytes and report asset pixel scope without requiring a browser environment; raw-fill and unknown captures cannot be references. Paths must be allowlisted. Never renders or runs commands. Default threshold is 0.005. Page comparisons require a valid environment manifest for a conclusive verdict. Optional diff PNG uses auto|inline|resource delivery.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_visual_compare(
@@ -3140,6 +3229,7 @@ mod section_retry_tests {
             frame_ids,
             all_screens: false,
             asset_captures: vec![],
+            web_ready_images: false,
             asset_output_paths: Default::default(),
             asset_public_root: None,
             fields: vec![],

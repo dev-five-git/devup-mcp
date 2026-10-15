@@ -648,14 +648,20 @@ pub(super) fn push_style_props(
         // The exported asset has its own painted bounds. The live-container
         // outside-edge correction does not establish how to compose those.
         push_strokes(&view, None, props, used_tokens, variable_tokens);
-        push_effects(
-            &view,
-            component,
-            props,
-            used_tokens,
-            variable_tokens,
-            lengths,
-        );
+        // Native PNGs flatten this entire subtree, including its own blur and
+        // shadows. Layout ancestors still render their effects in their own
+        // branch below. SVG masks are alpha masks rather than raster pictures;
+        // retain their existing compositing policy.
+        if asset != AssetKind::Png {
+            push_effects(
+                &view,
+                component,
+                props,
+                used_tokens,
+                variable_tokens,
+                lengths,
+            );
+        }
         // An export carries the node's own opacity: Figma writes it into the
         // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
         // as well it is applied twice - a decoration at 0.2 came out at 0.04,
@@ -1007,17 +1013,25 @@ pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) ->
     let view = node.typed_view();
     let name = view.name().unwrap_or("Asset");
     let identity = asset_identity(node);
+    let raster_instance =
+        view.node_type() == "INSTANCE" && asset_kind(snapshot, node) == Some(AssetKind::Png);
     let shared = per_node
         || snapshot.nodes.values().any(|other| {
             other.id != node.id
                 && other.typed_view().name() == Some(name)
-                && asset_identity(other) != identity
+                && (asset_identity(other) != identity || raster_instance)
                 && asset_kind(snapshot, other).is_some()
         });
     if !shared {
         return name.to_owned();
     }
     match identity {
+        // Raster instances can override the image, crop, size and effects while
+        // retaining the same component variant. Only verified exported bytes
+        // establish reuse; a shared variant name cannot establish identity.
+        Some(variant) if raster_instance => {
+            format!("{name}={variant}-{}", node.id.replace([':', ';'], "-"))
+        }
         Some(variant) => format!("{name}={variant}"),
         None => format!("{name}-{}", node.id.replace([':', ';'], "-")),
     }

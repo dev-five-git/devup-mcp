@@ -69,6 +69,9 @@ fn original_bytes_are_opted_in_only_by_the_bridge_transport() {
         "file",
         Some("v1".into()),
         AssetRequest {
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
             asset_id: "n:original:2".into(),
             node_id: "n".into(),
             field: "$original-image/fills/2".into(),

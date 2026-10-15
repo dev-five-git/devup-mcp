@@ -13,7 +13,7 @@ use devup_mcp_figma::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, OwnedMutexGuard, watch};
 
@@ -34,6 +34,7 @@ pub struct ArtifactRequestKey {
     explore: Option<ExploreReadOptions>,
     section: Option<SectionReadOptions>,
     asset_selections: Vec<AssetSelection>,
+    web_ready_images: bool,
     reference_png: bool,
 }
 
@@ -46,11 +47,22 @@ impl ArtifactRequestKey {
         }
         let mut asset_selections = request.asset_selections.clone();
         asset_selections.sort_by(|left, right| {
-            (&left.asset_id, left.format, left.scale).cmp(&(
-                &right.asset_id,
-                right.format,
-                right.scale,
-            ))
+            (
+                &left.asset_id,
+                left.format,
+                left.scale,
+                left.render_mode,
+                left.quality,
+                left.lossless,
+            )
+                .cmp(&(
+                    &right.asset_id,
+                    right.format,
+                    right.scale,
+                    right.render_mode,
+                    right.quality,
+                    right.lossless,
+                ))
         });
         asset_selections.dedup();
         Self {
@@ -66,6 +78,7 @@ impl ArtifactRequestKey {
             explore: request.explore.clone(),
             section,
             asset_selections,
+            web_ready_images: request.web_ready_images,
             reference_png: request.reference_png,
         }
     }
@@ -95,6 +108,7 @@ impl ArtifactRequestKey {
             collection_scope: self.scope,
             resource_scope: self.resource_scope,
             asset_capture_count: self.asset_selections.len(),
+            web_ready_images: self.web_ready_images,
             asset_captures: self.asset_selections.clone(),
             reference_png: self.reference_png,
             section_selection: self.section.clone(),
@@ -169,6 +183,7 @@ pub struct ArtifactCapabilities {
     pub collection_scope: CollectionScope,
     pub resource_scope: ResourceScope,
     pub asset_capture_count: usize,
+    pub web_ready_images: bool,
     pub reference_png: bool,
     /// Last validated Section selection; projection callers restore this when no selection is supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -267,6 +282,8 @@ pub struct ArtifactStoreStats {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachedOutputManifest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_metadata: Option<Value>,
     pub artifact_id: String,
     pub output_id: String,
     pub name: String,
@@ -801,6 +818,7 @@ impl ArtifactStore {
                 format!("devup://artifact/{artifact_id}/outputs/{output_id}/manifest");
             staged.push(AttachedOutput {
                 manifest: AttachedOutputManifest {
+                    asset_metadata: output.asset_metadata,
                     artifact_id: artifact_id.to_owned(),
                     output_id: output_id.clone(),
                     name: output.name,
@@ -1012,6 +1030,23 @@ impl ArtifactStore {
         mut capabilities: ArtifactCapabilities,
         payload: CollectedPayload,
     ) -> Result<ArtifactLookup, DevupError> {
+        if request_key.web_ready_images {
+            capabilities.asset_captures = payload
+                .assets
+                .iter()
+                .filter_map(|a| {
+                    Some(AssetSelection {
+                        asset_id: a.asset_id.clone(),
+                        format: a.format?,
+                        scale: a.scale?,
+                        render_mode: a.render_mode,
+                        quality: a.quality,
+                        lossless: a.lossless,
+                    })
+                })
+                .collect();
+            capabilities.asset_capture_count = capabilities.asset_captures.len();
+        }
         if payload.metadata.get("sectionIndex").is_some()
             && payload.metadata.get("selectedRootIds").is_none()
         {
@@ -1430,6 +1465,9 @@ pub(crate) mod w3_tests {
                 all_screens: false,
             });
             request.asset_selections = vec![AssetSelection {
+                render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                quality: None,
+                lossless: None,
                 asset_id: "asset".into(),
                 format: AssetFormat::Png,
                 scale: 2,
@@ -1465,11 +1503,25 @@ pub(crate) mod w3_tests {
         asset_format.asset_selections[0].format = AssetFormat::Svg;
         let mut asset_scale = populated();
         asset_scale.asset_selections[0].scale = 3;
+        let mut asset_mode = populated();
+        asset_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Fill;
+        let mut asset_auto_mode = populated();
+        asset_auto_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Auto;
         let mut asset_id = populated();
         asset_id.asset_selections[0].asset_id = "elsewhere".into();
+        let mut quality = populated();
+        quality.asset_selections[0].quality = Some(43);
+        let mut lossless = populated();
+        lossless.asset_selections[0].lossless = Some(true);
+        let mut preset = populated();
+        preset.web_ready_images = true;
 
         let empty = sha256_hex(&[]);
         let digests = [
+            quality,
+            lossless,
+            preset,
+            asset_auto_mode,
             populated(),
             branch_key,
             file_key,
@@ -1485,6 +1537,7 @@ pub(crate) mod w3_tests {
             section,
             asset_format,
             asset_scale,
+            asset_mode,
             asset_id,
         ]
         .iter()
@@ -1738,6 +1791,9 @@ pub(crate) mod w3_tests {
     fn w3_asset_capture_validation_reports_only_missing_exact_variants() {
         let mut request = request();
         let captured = AssetSelection {
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
             scale: 1,
@@ -1745,6 +1801,14 @@ pub(crate) mod w3_tests {
         request.asset_selections = vec![captured.clone()];
         let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
         assert!(capabilities.validate_asset_captures(&[]).is_ok());
+        assert!(!capabilities.supports_asset_captures(&[AssetSelection {
+            quality: Some(80),
+            ..captured.clone()
+        }]));
+        assert!(!capabilities.supports_asset_captures(&[AssetSelection {
+            lossless: Some(true),
+            ..captured.clone()
+        }]));
         assert!(
             capabilities
                 .validate_asset_captures(std::slice::from_ref(&captured))
@@ -1759,15 +1823,40 @@ pub(crate) mod w3_tests {
             .unwrap_err();
         assert_eq!(
             error.details["missingAssetCaptures"],
-            json!([{"assetId":"2:2:node", "format":"svg", "scale":2}])
+            json!([{"assetId":"2:2:node", "format":"svg", "scale":2,"renderMode":"node"}])
         );
         assert!(!error.retryable);
+    }
+
+    #[test]
+    fn artifact_node_capture_cannot_serve_original_fill_mode() {
+        let mut request = request();
+        let node: AssetSelection =
+            serde_json::from_value(json!({"assetId":"sample:fills:0","format":"png","scale":1}))
+                .unwrap();
+        request.asset_selections = vec![node.clone()];
+        let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
+        let fill = AssetSelection {
+            render_mode: devup_mcp_figma::AssetRenderMode::Fill,
+            quality: None,
+            lossless: None,
+            ..node
+        };
+        assert!(!capabilities.supports_asset_captures(std::slice::from_ref(&fill)));
+        let error = capabilities.validate_asset_captures(&[fill]).unwrap_err();
+        assert_eq!(
+            error.details["missingAssetCaptures"][0]["renderMode"],
+            "fill"
+        );
     }
 
     #[test]
     fn w3_missing_asset_capture_has_actionable_details() {
         let capabilities = ArtifactRequestKey::from_collection(&request()).capabilities();
         let selection = AssetSelection {
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
             scale: 1,

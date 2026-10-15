@@ -161,6 +161,28 @@ does not exist yet. Read `assetManifest` for the asset IDs, then call
 `outputPath` under an allowed write root, and make the path in the code match
 the path you wrote.
 
+For web images, request `format:"webp"`, integer `quality:0..100` (default 80)
+and `lossless:true|false` (default false). Native node exports acquire Figma PNG
+at the requested scale before server conversion; Figma has no native WebP export.
+Lossless quality controls compression effort; lossy quality controls RGB quality,
+with alpha preserved in both modes. Inspect crisp text/edges and retain usable SVG
+for vectors. Explicit fill WebP transcodes PNG/JPEG source at intrinsic size,
+without applying crop/effects; PNG/JPG fill exports preserve matching original bytes.
+GIF/WebP/animated or higher-bit-depth source conversion is refused with recovery advice.
+WebP conversion bounds are 8192 pixels per side, 4194304 pixels total, 64 MiB decoder
+allocation and 1 MiB total inflated compressed PNG metadata. Metadata is not preserved.
+
+`preset:"web-ready-images"` acquires every in-scope descendant IMAGE paint and
+generated raster boundary as native node WebP, quality 80, scale 1. It adds
+assetManifest/imageAudit, schedules at most six assets per batch and keeps every
+hidden/failed disposition. Use assetPublicRoot for written `.webp` files and mapped
+code, or resource delivery for reusable bytes. Custom assetRequests must be separate
+so the preset cannot override them. Poll exportJob; resume paused work or cancel
+with jobAction. Accepted results/checkpoints live in this server process for the
+reported retention period. The preset refuses more than 4096 captures and reports
+explicit remaining failures when its 24 MiB retained asset budget is exhausted.
+Read imageAudit/webReadyImages completeness and per-asset failures before deployment.
+
 ## 12. Prefer resource delivery for assets and large outputs
 
 With `delivery: "resource"`, devup-mcp returns `devup://artifact/...` resource

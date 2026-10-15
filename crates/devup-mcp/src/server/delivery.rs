@@ -57,6 +57,7 @@ pub struct ProjectedOutput {
     pub is_binary: bool,
     pub(crate) resource_id: String,
     pub(crate) asset_id: Option<String>,
+    pub(crate) asset_metadata: Option<Value>,
 }
 
 impl ProjectedOutput {
@@ -68,6 +69,7 @@ impl ProjectedOutput {
             is_binary: false,
             resource_id: random_resource_id(),
             asset_id: None,
+            asset_metadata: None,
         }
     }
 
@@ -79,6 +81,7 @@ impl ProjectedOutput {
             is_binary: true,
             resource_id: random_resource_id(),
             asset_id: None,
+            asset_metadata: None,
         }
     }
 
@@ -95,6 +98,7 @@ impl ProjectedOutput {
             is_binary: true,
             resource_id: random_resource_id(),
             asset_id: Some(asset_id.into()),
+            asset_metadata: None,
         }
     }
 
@@ -244,9 +248,10 @@ pub(super) fn with_inline_recovery(mut error: DevupError, arguments: Value) -> D
         return error;
     }
     let outputs = arguments["outputs"].as_array().cloned().unwrap_or_default();
-    let coupled_assets = arguments["assetRequests"]
-        .as_array()
-        .is_some_and(|assets| !assets.is_empty());
+    let coupled_assets = arguments["preset"] == "web-ready-images"
+        || arguments["assetRequests"]
+            .as_array()
+            .is_some_and(|assets| !assets.is_empty());
     let mut split = Vec::new();
     if outputs.len() > 1 && !coupled_assets {
         for output in &outputs {

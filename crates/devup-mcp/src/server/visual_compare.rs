@@ -21,8 +21,18 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum VisualReference {
+    Asset(AssetReference),
     Artifact(ArtifactReference),
     Path(PathReference),
+}
+/// A validated native Figma node PNG captured by devup_figma_export. Raw fill
+/// captures cannot serve as a reference for their own canvas appearance.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]
+pub struct AssetReference {
+    pub artifact_id: String,
+    pub asset_id: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -194,6 +204,42 @@ pub(super) async fn compare(
         _ => None,
     };
     let (reference, provenance, artifact) = match &input.reference {
+        VisualReference::Asset(r) => {
+            if r.asset_id.trim().is_empty() {
+                return Err(invalid(
+                    "assetId must identify a captured native PNG asset.",
+                ));
+            }
+            let artifact = store.get_for_export(&r.artifact_id).await?;
+            let asset = artifact.payload.assets.iter().find(|a| a.asset_id == r.asset_id)
+                .ok_or_else(|| invalid("Reference asset is not captured in this artifact; export it with renderMode node and format png first."))?;
+            let info = asset.render_info.as_ref();
+            if asset.status != devup_mcp_figma::AssetStatus::Exported
+                || asset.format != Some(devup_mcp_figma::AssetFormat::Png)
+                || asset.mime_type.as_deref() != Some("image/png")
+                || info.is_none_or(|i| i["representation"] != "native-node")
+            {
+                return Err(invalid(
+                    "Asset reference requires a successful native-node PNG capture; raw fills, fallback geometry, failed or unknown captures are not canvas references.",
+                ));
+            }
+            let bytes = STANDARD
+                .decode(asset.data_base64.as_deref().unwrap_or_default())
+                .map_err(|_| invalid("Reference asset base64 is invalid."))?;
+            if bytes.is_empty()
+                || bytes.len() > 16 * 1024 * 1024
+                || asset.byte_length != Some(bytes.len())
+                || asset.sha256.as_deref() != Some(hash(&bytes).as_str())
+            {
+                return Err(invalid(
+                    "Reference asset length or hash mismatch; reacquire it.",
+                ));
+            }
+            let provenance = json!({"kind":"asset","artifactId":r.artifact_id,"assetId":r.asset_id,"nodeId":asset.node_id,
+                "referenceSha256":asset.sha256,"target":artifact.payload.target,"sourceVersion":artifact.payload.source_version,
+                "renderMode":asset.render_mode,"renderInfo":asset.render_info,"scope":"native-node-export; ancestor canvas compositing unverified"});
+            (bytes, provenance, Some(artifact))
+        }
         VisualReference::Artifact(r) => {
             let artifact = store.get_for_export(&r.artifact_id).await?;
             let png = artifact.payload.reference_png.as_ref().ok_or_else(|| DevupError::with_details(
@@ -228,11 +274,32 @@ pub(super) async fn compare(
         }
     };
     let actual = actual_target.read_bounded(16 * 1024 * 1024)?;
+    let actual_hash = hash(&actual);
+    let asset_comparison = matches!(&input.reference, VisualReference::Asset(_));
+    let webp_actual = image::guess_format(&actual).ok() == Some(image::ImageFormat::WebP);
+    if webp_actual && !asset_comparison {
+        return Err(invalid(
+            "WebP actuals require a native PNG asset reference (artifactId plus assetId). Page/card screenshots and their environment checks continue to require PNG.",
+        ));
+    }
     let include_diff = input.include_diff;
     let reference_hash = hash(&reference);
-    let (report, diff) = tokio::task::spawn_blocking(move || compare_png_bytes(&reference,&actual,&options,include_diff))
+    let (report, diff) = tokio::task::spawn_blocking(move || {
+        let actual = if webp_actual {
+            use image::ImageDecoder;
+            let mut limits = image::Limits::default(); limits.max_image_width=Some(8192); limits.max_image_height=Some(8192); limits.max_alloc=Some(64*1024*1024);
+            let mut decoder=image::codecs::webp::WebPDecoder::new(std::io::Cursor::new(actual)).map_err(|_| "Invalid WebP actual.")?;
+            decoder.set_limits(limits).map_err(|_| "WebP actual exceeds bounded decode limits.")?;
+            if decoder.has_animation() {return Err("Animated WebP actuals cannot establish a static asset comparison; provide a static WebP or an explicit PNG screenshot.");}
+            let (w,h)=decoder.dimensions();
+            if u64::from(w)*u64::from(h)>devup_mcp_figma::MAX_WEBP_PIXELS { return Err("WebP actual exceeds 4194304 decoded pixels."); }
+            let image=image::DynamicImage::from_decoder(decoder).map_err(|_| "Malformed WebP actual.")?;
+            let mut png=std::io::Cursor::new(Vec::new());image.write_to(&mut png,image::ImageFormat::Png).map_err(|_| "WebP comparison pixel preparation failed.")?;png.into_inner()
+        } else {actual};
+        compare_png_bytes(&reference,&actual,&options,include_diff).map_err(|_| "Invalid PNG or threshold; PNG limits are 16 MiB compressed, 8192 pixels per axis, and 64 MiB decoded.")
+    })
         .await.map_err(|_| invalid("PNG comparison could not complete."))?
-        .map_err(|_| invalid("Invalid PNG or threshold; PNG limits are 16 MiB compressed, 8192 pixels per axis, and 64 MiB decoded."))?;
+        .map_err(invalid)?;
     if report.status == VisualStatus::InvalidDimensions {
         return Err(DevupError::with_details(
             ErrorCode::DevupCodegenFailed,
@@ -255,7 +322,11 @@ pub(super) async fn compare(
         });
         filled.push("referenceResource");
     }
-    let mut environment = assess_environment(&input, report.reference_dimensions, &reference_hash);
+    let mut environment = if asset_comparison {
+        json!({"status":"valid","scope":"asset-pixels-only","issues":[],"trust":"server-validated native PNG reference and allowlisted actual raster; no browser environment required"})
+    } else {
+        assess_environment(&input, report.reference_dimensions, &reference_hash)
+    };
     if !filled.is_empty() {
         environment["filledByServer"] = json!(filled);
     }
@@ -272,6 +343,25 @@ pub(super) async fn compare(
     visual["passed"] = json!(passed);
     let mut result =
         json!({"verdict":verdict,"visual":visual,"environment":environment,"reference":provenance});
+    result["comparisonScope"] = json!(if asset_comparison {
+        "asset-pixels-against-native-node-export"
+    } else {
+        "consumer-render-against-reference"
+    });
+    result["actual"] = json!({"path":actual_target.display_path(),"sha256":actual_hash});
+    result["actual"]["mimeType"] = json!(if webp_actual {
+        "image/webp"
+    } else {
+        "image/png"
+    });
+    result["actual"]["pixelMetricsInput"] = json!(if webp_actual {
+        "decoded-WebP; temporary PNG encoding for comparison"
+    } else {
+        "PNG"
+    });
+    if asset_comparison {
+        result["canvasFidelity"] = json!("unverified-outside-reference-node-subtree");
+    }
     if let Some(bytes) = diff {
         result["diffPng"] = json!({"mimeType":"image/png","dataBase64":STANDARD.encode(&bytes)});
         let outputs = vec![ProjectedOutput::binary("diff.png", "image/png", bytes)];
@@ -408,6 +498,155 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(r["verdict"], "inconclusive");
+    }
+
+    async fn asset_store(representation: &str, broken_hash: bool) -> (ArtifactStore, String) {
+        let store = ArtifactStore::default();
+        let mut payload = super::super::artifacts::w3_tests::payload();
+        let bytes = STANDARD.decode(WHITE).unwrap();
+        payload.assets.push(serde_json::from_value(json!({"assetId":"picture:fills:0","nodeId":"picture","field":"fills/0","sourceKind":"image-fill",
+            "format":"png","scale":1,"status":"exported","mimeType":"image/png","byteLength":bytes.len(),"dataBase64":WHITE,
+            "sha256":if broken_hash {"0".repeat(64)}else{hash(&bytes)},"renderInfo":{"representation":representation}})).unwrap());
+        let artifact = store
+            .insert(
+                ArtifactRequestKey::from_collection(&super::super::artifacts::w3_tests::request()),
+                payload,
+            )
+            .await
+            .unwrap();
+        (store, artifact.artifact_id.clone())
+    }
+
+    #[tokio::test]
+    async fn asset_comparison_has_validated_native_reference_and_pixel_scope() {
+        let f = fixture();
+        let (store, id) = asset_store("native-node", false).await;
+        let i = json!({"actual":"actual.png","reference":{"artifactId":id,"assetId":"picture:fills:0"},"threshold":0});
+        let matched = run(i.clone(), &f.policy(), &store).await.unwrap();
+        assert_eq!(matched["verdict"], "pass");
+        assert_eq!(matched["reference"]["assetId"], "picture:fills:0");
+        assert_eq!(matched["reference"]["referenceSha256"], reference_hash());
+        assert_eq!(matched["actual"]["sha256"], reference_hash());
+        assert_eq!(
+            matched["comparisonScope"],
+            "asset-pixels-against-native-node-export"
+        );
+        f.png("actual.png", BLACK);
+        let mismatch = run(i.clone(), &f.policy(), &store).await.unwrap();
+        assert_eq!(mismatch["verdict"], "fail");
+        assert_eq!(mismatch["visual"]["changedRatio"], 1.0);
+        f.png("actual.png", WIDE);
+        assert!(
+            run(i.clone(), &f.policy(), &store)
+                .await
+                .unwrap_err()
+                .message
+                .contains("dimensions")
+        );
+        std::fs::write(f.0.join("actual.png"), b"invalid PNG").unwrap();
+        assert!(
+            run(i, &f.policy(), &store)
+                .await
+                .unwrap_err()
+                .message
+                .contains("Invalid PNG")
+        );
+    }
+
+    #[tokio::test]
+    async fn webp_actual_uses_native_png_reference_and_keeps_original_byte_hash_and_scope() {
+        let f = fixture();
+        let (store, id) = asset_store("native-node", false).await;
+        let mut renditions = Vec::new();
+        for (png, verdict) in [(WHITE, "pass"), (BLACK, "fail")] {
+            let request = devup_mcp_figma::AssetRequest {
+                asset_id: "picture:fills:0".into(),
+                node_id: "picture".into(),
+                field: "fills/0".into(),
+                image_hash: Some("source".into()),
+                format: devup_mcp_figma::AssetFormat::Webp,
+                scale: 1,
+                render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                quality: Some(80),
+                lossless: Some(true),
+            };
+            let asset = devup_mcp_figma::exported_asset_from_bytes(
+                &request,
+                &STANDARD.decode(png).unwrap(),
+            )
+            .unwrap();
+            let bytes = STANDARD.decode(asset.data_base64.unwrap()).unwrap();
+            renditions.push(bytes.clone());
+            std::fs::write(f.0.join("actual.webp"), &bytes).unwrap();
+            let value=run(json!({"actual":"actual.webp","reference":{"artifactId":id,"assetId":"picture:fills:0"},"threshold":0}),&f.policy(),&store).await.unwrap();
+            assert_eq!(value["verdict"], verdict);
+            assert_eq!(value["actual"]["mimeType"], "image/webp");
+            assert_eq!(value["actual"]["sha256"], hash(&bytes));
+            assert_eq!(
+                value["comparisonScope"],
+                "asset-pixels-against-native-node-export"
+            );
+            assert_eq!(
+                value["reference"]["renderInfo"]["representation"],
+                "native-node"
+            );
+        }
+        let error = run(
+            json!({"actual":"actual.webp","reference":{"path":"reference.png"}}),
+            &f.policy(),
+            &store,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.message.contains("Page/card screenshots"));
+        fn chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
+            let mut out = kind.to_vec();
+            out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            out.extend_from_slice(data);
+            if !data.len().is_multiple_of(2) {
+                out.push(0);
+            }
+            out
+        }
+        let mut animation = b"WEBP".to_vec();
+        animation.extend(chunk(b"VP8X", &[2, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        animation.extend(chunk(b"ANIM", &[0, 0, 0, 0, 0, 0]));
+        for encoded in renditions {
+            let mut frame = vec![0; 16];
+            frame[12] = 100;
+            frame.extend_from_slice(&encoded[12..]);
+            animation.extend(chunk(b"ANMF", &frame));
+        }
+        let mut encoded = b"RIFF".to_vec();
+        encoded.extend_from_slice(&(animation.len() as u32).to_le_bytes());
+        encoded.extend(animation);
+        std::fs::write(f.0.join("animated.webp"), encoded).unwrap();
+        let error=run(json!({"actual":"animated.webp","reference":{"artifactId":id,"assetId":"picture:fills:0"},"threshold":0}),&f.policy(),&store).await.unwrap_err();
+        assert!(error.message.contains("Animated WebP"), "{}", error.message);
+    }
+
+    #[tokio::test]
+    async fn asset_comparison_rejects_missing_raw_unknown_and_corrupt_reference() {
+        let f = fixture();
+        for (representation, broken) in [
+            ("original-fill", false),
+            ("unknown", false),
+            ("not-exported", false),
+            ("native-node", true),
+        ] {
+            let (store, id) = asset_store(representation, broken).await;
+            let i = json!({"actual":"actual.png","reference":{"artifactId":id,"assetId":"picture:fills:0"}});
+            assert!(run(i, &f.policy(), &store).await.is_err());
+            let missing =
+                json!({"actual":"actual.png","reference":{"artifactId":id,"assetId":"missing"}});
+            assert!(
+                run(missing, &f.policy(), &store)
+                    .await
+                    .unwrap_err()
+                    .message
+                    .contains("not captured")
+            );
+        }
     }
     #[tokio::test]
     async fn threshold_pass_and_fail() {

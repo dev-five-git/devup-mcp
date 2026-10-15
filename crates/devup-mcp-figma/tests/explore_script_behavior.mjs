@@ -380,4 +380,5 @@ test("R17 Section preview exhaustion is distinct from absent text", async () => 
 // The existing CI entry point also enforces asset and async identity source
 // regressions; no workflow change is needed to include these suites.
 import './original_image_script.mjs';
+import './image_fill_render_script.mjs';
 import './feedback_scripts.test.mjs';

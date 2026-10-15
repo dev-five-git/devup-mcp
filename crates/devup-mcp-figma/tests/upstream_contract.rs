@@ -111,6 +111,9 @@ fn asset_export_uses_only_compiled_read_only_export_settings() {
         "file-key",
         Some("v1".to_owned()),
         devup_mcp_figma::AssetRequest {
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
             asset_id: "1:2:node".to_owned(),
             node_id: "1:2".to_owned(),
             field: "node".to_owned(),

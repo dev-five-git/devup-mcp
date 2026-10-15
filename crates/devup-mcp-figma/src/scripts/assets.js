@@ -32,6 +32,13 @@ function describe(error) {
 }
 
 function failed(errorCode, errorDetail) {
+  if (errorCode && exportDiagnostics.renderInfo) {
+    exportDiagnostics.renderInfo.attemptedRepresentation = exportDiagnostics.renderInfo.representation;
+    exportDiagnostics.renderInfo.representation = "not-exported";
+    exportDiagnostics.renderInfo.renderedAs = "not-exported";
+    exportDiagnostics.renderInfo.effectsBakedIntoAsset = false;
+    exportDiagnostics.renderInfo.fidelity = "unverified";
+  }
   return {
     kind: "devupAssetExport",
     fileKey: figma.fileKey || "",
@@ -42,6 +49,7 @@ function failed(errorCode, errorDetail) {
     imageHash: options.imageHash,
     format: options.format,
     scale: options.scale,
+    renderMode,
     status: "failed",
     byteLength: null,
     sha256: null,
@@ -52,20 +60,118 @@ function failed(errorCode, errorDetail) {
 }
 
 const original = typeof options.field === "string" && options.field.startsWith("$original-image/fills/");
+const renderMode = options.renderMode === undefined ? (original ? "fill" : "node") : options.renderMode;
+let effectiveMode = renderMode === "auto" ? "node" : renderMode;
+function renderInfo(node, paint) {
+  const finite = n => typeof n === "number" && Number.isFinite(n) && n > 0;
+  const effects = Array.isArray(node.effects) ? node.effects : null;
+  const ancestors = [];
+  const boundedName = name => [...name].slice(0, 128).join("");
+  const layerHierarchy = [typeof node.name === "string" ? boundedName(node.name) : "layer"];
+  const seen = new Set();
+  let branch = node;
+  for (let parent = node.parent; parent && ancestors.length < 32 && !seen.has(parent); parent = parent.parent) {
+    seen.add(parent);
+    if (layerHierarchy.length < 4 && typeof parent.name === "string" && parent.name.length && !["PAGE", "DOCUMENT"].includes(parent.type)) {
+      layerHierarchy.push(boundedName(parent.name));
+    }
+    ancestors.push({ type: parent.type || "unknown", clipsContent: parent.clipsContent ?? null,
+      isMask: parent.isMask ?? null, effects: Array.isArray(parent.effects) ? parent.effects : null,
+      opacity: parent.opacity ?? null, blendMode: parent.blendMode ?? null, visible: parent.visible ?? null,
+      siblingMaskPresent: Array.isArray(parent.children) ? parent.children.some(n => n !== branch && n.isMask === true) : null });
+    branch = parent;
+  }
+  return {
+    sourceKind: paint ? "image-fill" : options.imageHash ? "image-node" : "vector-node",
+    renderedAs: effectiveMode === "fill" ? "raw-fill" : "node-render",
+    representation: effectiveMode === "fill" ? "original-fill" : "native-node",
+    layerHierarchy: layerHierarchy.reverse(),
+    scope: effectiveMode === "fill" ? "selected-paint-original-bytes" : "exact-node-subtree",
+    exportSettings: effectiveMode === "node" ? { contentsOnly: true, useAbsoluteBounds: false } : null,
+    requestedScale: options.scale,
+    scaleSemantics: effectiveMode === "fill" ? "intrinsic-original-bytes-no-resize"
+      : ["png", "jpg"].includes(options.format) ? "native-node-SCALE-constraint" : "not-applied-to-vector-document",
+    nodeSize: finite(node.width) && finite(node.height) ? {width:node.width, height:node.height, aspectRatio:node.width/node.height} : null,
+    outputSize: null, dimensionEvidence: "unknown-until-byte-inspection", aspectRatioComparison: "unknown",
+    scaleMode: paint ? paint.scaleMode ?? null : null,
+    imageTransform: paint ? paint.imageTransform ?? null : null,
+    // A transform matrix is not a visible-area percentage. Rotation, fit,
+    // clipping and source geometry are needed to determine visible coverage.
+    visibleSourceRatio: null, visibleSourceRatioEvidence: "not-computed",
+    effects,
+    extraFills: Array.isArray(node.fills) ? Math.max(0, node.fills.filter(p => p.visible !== false).length - (paint ? 1 : 0)) : null,
+    effectsBakedIntoAsset: effectiveMode === "node" && ["png", "jpg"].includes(options.format) && effects !== null,
+    bakedEffects: effectiveMode === "node" && ["png", "jpg"].includes(options.format) && effects ? effects.filter(e => e.visible !== false) : [],
+    instanceOverride: "unknown", instanceOverrideEvidence: "no-component-paint-comparison",
+    sourceProperties: { scaleMode: paint ? paint.scaleMode ?? null : null,
+      imageTransform: paint ? paint.imageTransform ?? null : null,
+      rotation: paint ? paint.rotation ?? null : null, filters: paint ? paint.filters ?? null : null,
+      opacity: paint ? paint.opacity ?? null : null, effects,
+      blurEffects: effects ? effects.filter(e => e.visible !== false && String(e.type).includes("BLUR")) : null,
+      isMask: node.isMask ?? null, clipsContent: node.clipsContent ?? null, ancestors },
+    unappliedProperties: effectiveMode === "fill" ? ["scaleMode", "imageTransform", "rotation", "filters", "paintOpacity", "nodeGeometry", "nodeTransforms", "nodeEffectsIncludingBlur", "nodeAndAncestorMasks", "ancestorClipsAndEffects"] : [],
+    warnings: effectiveMode === "fill" ? ["original-fill-properties-unapplied", "aspect-ratio-unknown"]
+      : ["ancestor-canvas-appearance-unverified", "aspect-ratio-unknown"],
+    fidelity: "unverified",
+  };
+}
+
+// Unknown properties fail closed. Identity alone cannot establish canvas
+// equality, and auto never infers source dimensions from the transform.
+function rawSafety(node, paint, info) {
+  const reasons = [];
+  const require = (condition, reason) => { if (!condition) reasons.push(reason); };
+  const identity = t => Array.isArray(t) && t.length === 2 && t.every((r,i) => Array.isArray(r) && r.length === 3 && r.every((v,j) => v === [[1,0,0],[0,1,0]][i][j]));
+  const unrotated = t => Array.isArray(t) && t.length === 2 && t.every(r => Array.isArray(r) && r.length === 3 && r.every(Number.isFinite)) && t[0][0] === 1 && t[1][1] === 1 && t[0][1] === 0 && t[1][0] === 0 && Number.isInteger(t[0][2]) && Number.isInteger(t[1][2]);
+  require(options.transport === "bridge", "raw-requires-bridge");
+  require(options.scale === 1 && ["png","jpg"].includes(options.format), "raw-requires-unscaled-raster");
+  require(!!paint && paint.visible === true && paint.opacity === 1 && paint.blendMode === "NORMAL", "paint-compositing-or-unknown");
+  require(paint && paint.scaleMode === "FILL" && identity(paint.imageTransform) && paint.rotation === 0, "paint-transform-or-unknown");
+  require(paint && paint.filters && Object.values(paint.filters).every(v => v === 0), "image-filters-or-unknown");
+  require(Array.isArray(node.fills) && node.fills.length === 1, "multiple-fills-or-unknown");
+  require(node.type === "RECTANGLE" && node.cornerRadius === 0 && Array.isArray(node.strokes) && node.strokes.length === 0 && (!node.children || node.children.length === 0), "node-geometry-or-unknown");
+  // RectangleNode has no clipsContent in the Plugin API. Its absence is
+  // non-applicable for this geometry, rather than missing Frame evidence.
+  require(Array.isArray(node.effects) && node.effects.length === 0 && node.isMask === false && (node.clipsContent === undefined || node.clipsContent === false) && node.opacity === 1 && node.visible === true && node.blendMode === "NORMAL", "node-effects-mask-compositing-or-unknown");
+  require(unrotated(node.absoluteTransform) && unrotated(node.relativeTransform), "node-transform-or-unknown");
+  require(info.sourceProperties.ancestors.length > 0 && info.sourceProperties.ancestors.some(p => ["PAGE","DOCUMENT"].includes(p.type)), "ancestor-chain-incomplete");
+  require(info.sourceProperties.ancestors.every(p => p.siblingMaskPresent === false), "ancestor-sibling-mask-or-unknown");
+  for (const p of info.sourceProperties.ancestors.filter(p => !["PAGE","DOCUMENT"].includes(p.type))) {
+    require(p.clipsContent === false && p.isMask === false && p.siblingMaskPresent === false && Array.isArray(p.effects) && p.effects.length === 0 && p.opacity === 1 && p.visible === true && ["NORMAL","PASS_THROUGH"].includes(p.blendMode), "ancestor-dependency-or-unknown");
+  }
+  return { eligible: reasons.length === 0, reasons: [...new Set(reasons)], evidence: "explicit-plugin-properties; intrinsic-dimensions-and-codec-required" };
+}
+
+function overrideEvidence(node, info) {
+  let count = 0;
+  for (let parent = node; parent && count++ < 32; parent = parent.parent) {
+    if (parent.type === "INSTANCE" && Array.isArray(parent.overrides)) {
+      const evidence = parent.overrides.find(o => o.id === node.id && Array.isArray(o.overriddenFields) && o.overriddenFields.includes("fills"));
+      if (evidence) { info.instanceOverride = true; info.instanceOverrideEvidence = { kind: "figma-instance-overrides", instanceId: parent.id, nodeId: node.id, overriddenFields: ["fills"] }; return; }
+    }
+    if (["PAGE","DOCUMENT"].includes(parent.type)) break;
+  }
+}
 try {
+  if (!["fill", "node", "auto"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
+  if (!original && renderMode === "fill" &&
+      (!String(options.field).startsWith("fills/") || !["png", "jpg", "webp"].includes(options.format) || options.scale !== 1)) {
+    return failed("DEVUP_ASSET_FILL_SETTINGS_UNSUPPORTED", "Original fill requires fills/N, png or jpg matching its codec, and scale 1; no resizing or transcoding.");
+  }
   // Original uploads are a different representation from node renditions.
   // Only the local bridge opts in: the remote MCP's bounded text envelope
   // cannot carry arbitrary original bytes, and its file writer is not a
   // general binary transport. Never silently return a node PNG instead.
-  if (original && options.transport !== "bridge") {
-    return failed("DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE");
+  if ((original || renderMode === "fill") && options.transport !== "bridge") {
+    return failed(original ? "DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE" : "DEVUP_ASSET_FILL_REQUIRES_BRIDGE");
   }
   const node = await timed(() => devupLookupAssetNode(options.nodeId));
   observe("lookup", Date.now() - started);
   nodeType = node && node.type || "unknown";
-  if (!node || (!original && typeof node.exportAsync !== "function")) {
+  if (!node || (renderMode === "node" && typeof node.exportAsync !== "function")) {
     return failed("DEVUP_ASSET_UNSUPPORTED_BY_UPSTREAM", describe(new Error(node ? "node has no exportAsync" : "node not found")));
   }
+  let selectedPaint = null;
   if (original || (typeof options.field === "string" && options.field.startsWith("fills/"))) {
     const index = Number(options.field.slice(original ? "$original-image/fills/".length : "fills/".length));
     const fills = "fills" in node && Array.isArray(node.fills) ? node.fills : [];
@@ -74,15 +180,55 @@ try {
     if (!paint || imageHash !== options.imageHash) {
       return failed("DEVUP_ASSET_SOURCE_CHANGED");
     }
+    selectedPaint = paint;
   } else if (options.field !== "node") {
     return failed("DEVUP_ASSET_FIELD_UNSUPPORTED");
   }
+  exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
+  overrideEvidence(node, exportDiagnostics.renderInfo);
+  let observedSourceSize = null;
+  let sizeTimer;
+  if (selectedPaint) {
+    try {
+      const image = figma.getImageByHash(options.imageHash);
+      const size = image && await Promise.race([image.getSizeAsync(), new Promise(resolve => {
+        sizeTimer = setTimeout(() => resolve(null), 250);
+      })]);
+      observedSourceSize = size && size.width > 0 && size.height > 0 && Number.isFinite(size.width) && Number.isFinite(size.height)
+        ? { ...size, aspectRatio: size.width / size.height } : null;
+    } catch (_error) { /* Optional diagnostics never consume the native export budget. */ }
+    finally { clearTimeout(sizeTimer); }
+  }
+  let autoBytes = null;
+  if (renderMode === "auto") {
+    const safety = rawSafety(node, selectedPaint, exportDiagnostics.renderInfo);
+    if (safety.eligible) {
+      try {
+        const image = figma.getImageByHash(options.imageHash);
+        const sourceSize = observedSourceSize;
+        if (!sourceSize || sourceSize.width !== node.width || sourceSize.height !== node.height) safety.reasons.push("intrinsic-dimensions-mismatch-or-unknown");
+        else {
+          autoBytes = await timed(() => image.getBytesAsync());
+          const codec = autoBytes[0] === 137 && autoBytes[1] === 80 && autoBytes[2] === 78 && autoBytes[3] === 71 ? "png" : autoBytes[0] === 255 && autoBytes[1] === 216 && autoBytes[2] === 255 ? "jpg" : "unknown";
+          if (codec !== options.format) safety.reasons.push("source-codec-mismatch-or-unknown");
+        }
+      } catch (_error) { safety.reasons.push("source-inspection-unavailable"); }
+    }
+    safety.eligible = safety.reasons.length === 0;
+    effectiveMode = safety.eligible ? "fill" : "node";
+    exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
+    overrideEvidence(node, exportDiagnostics.renderInfo);
+    exportDiagnostics.renderInfo.autoDecision = { ...safety, selected: effectiveMode };
+  }
+  exportDiagnostics.renderInfo.sourceSize = observedSourceSize;
+  exportDiagnostics.renderInfo.sourceSizeEvidence = observedSourceSize ? "Figma-image-getSizeAsync" : "unknown";
 
-  if (original) {
+  if (original || effectiveMode === "fill") {
+    exportDiagnostics.method = "original-fill";
     stage = "reading the original image";
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
-    const bytes = await timed(() => image.getBytesAsync());
+    const bytes = autoBytes || await timed(() => image.getBytesAsync());
     if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
       return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 8388608`);
     }
@@ -93,6 +239,12 @@ try {
       : starts([82,73,70,70]) && bytes[8] === 87 && bytes[9] === 69 && bytes[10] === 66 && bytes[11] === 80 ? "image/webp"
       : null;
     if (!mimeType) return failed("DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED");
+    exportDiagnostics.renderInfo.originalMimeType = mimeType;
+    if (!original && options.format !== "webp" && mimeType !== { png: "image/png", jpg: "image/jpeg" }[options.format]) {
+      return failed("DEVUP_ASSET_FILL_CODEC_MISMATCH", `Original fill codec is ${mimeType}, but ${options.format} was requested; choose the matching format or renderMode node. No transcoding was performed.`);
+    }
+    if (!original) return { ...failed(null), status: "exported", mimeType,
+      byteLength: bytes.length, sha256: devupSha256(bytes), data: figma.base64Encode(bytes) };
     const size = await timed(() => image.getSizeAsync());
     return {
       ...failed(null), status: "exported", kind: "devupOriginalImage",
@@ -102,7 +254,8 @@ try {
     };
   }
 
-  const format = String(options.format || "").toUpperCase();
+  // WebP is encoded by the server from this exact PNG; Figma has no native WebP export.
+  const format = options.format === "webp" ? "PNG" : String(options.format || "").toUpperCase();
   if (!["PNG", "JPG", "SVG", "PDF"].includes(format)) {
     return failed("DEVUP_ASSET_FORMAT_UNSUPPORTED");
   }
@@ -114,7 +267,7 @@ try {
   // inline copy is bounded well under the text-response limit; anything
   // larger is reported rather than silently truncated.
   const inlineSvg = format === "SVG";
-  const settings = { format: inlineSvg ? "SVG_STRING" : format };
+  const settings = { format: inlineSvg ? "SVG_STRING" : format, contentsOnly: true, useAbsoluteBounds: false };
   if (format === "PNG" || format === "JPG") {
     settings.constraint = { type: "SCALE", value: scale };
   }
@@ -123,7 +276,19 @@ try {
   // Reserve up to five seconds for read-only geometry after a hung renderer.
   // A late native answer has no file writer and cannot replace the fallback.
   const nativeBudget = inlineSvg ? Math.max(1, remaining - Math.min(5000, Math.floor(remaining / 5))) : remaining;
-  const exported = await timed(() => devupRenderAsset(node, settings, nativeBudget, observe));
+  const nativeBegan = Date.now();
+  // Image-filled nodes must use Figma's renderer for crop, filters, effects,
+  // transforms and masks within this subtree. Never substitute raw fill bytes
+  // or geometry on renderer failure. The canvas outside this node is unverified.
+  const exported = await timed(() => selectedPaint ? node.exportAsync(settings)
+    : devupRenderAsset(node, settings, nativeBudget, observe));
+  if (selectedPaint) observe("native", Date.now() - nativeBegan);
+  if (exportDiagnostics.method === "geometry") {
+    exportDiagnostics.renderInfo.representation = "geometry-fallback";
+    exportDiagnostics.renderInfo.renderedAs = "geometry-fallback";
+    exportDiagnostics.renderInfo.effectsBakedIntoAsset = false;
+    exportDiagnostics.renderInfo.warnings.push("geometry-fallback-not-native-render");
+  }
   if (Date.now() - started >= timeoutMs) throw new Error(`DEVUP_ASSET_TIMEOUT: export exceeded ${timeoutMs} ms asset budget`);
   stage = "encode";
   const encodeBegan = Date.now();
@@ -167,6 +332,7 @@ try {
       imageHash: options.imageHash,
       format: options.format,
       scale,
+      renderMode,
       status: "chunked",
       byteLength: bytes.length,
       sha256,
@@ -176,7 +342,7 @@ try {
     };
   }
   if (hasFileWriter) {
-    figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${String(options.format).toLowerCase()}`, bytes);
+    figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${format.toLowerCase()}`, bytes);
   }
   return {
     kind: "devupAssetExport",
@@ -188,6 +354,7 @@ try {
     imageHash: options.imageHash,
     format: options.format,
     scale,
+    renderMode,
     status: "exported",
     byteLength: bytes.length,
     sha256,
@@ -201,5 +368,5 @@ try {
     exportDiagnostics,
   };
 } catch (error) {
-  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
+  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original || renderMode === "fill" ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
 }

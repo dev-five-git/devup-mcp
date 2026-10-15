@@ -661,7 +661,16 @@ async fn resource_asset_manifest_reconstructs_the_exact_independent_binary() -> 
         result.structured_content.as_ref().unwrap()["assetJob"]["assets"][0]["fileState"],
         "written"
     );
-    assert_eq!(summaries.len(), 2, "manifest plus one binary asset");
+    assert_eq!(
+        summaries.len(),
+        3,
+        "asset manifest, image-fill audit and one binary asset"
+    );
+    assert!(
+        summaries
+            .iter()
+            .any(|r| r["name"] == "image-fill-audit.json")
+    );
     let manifest_uri = summaries
         .iter()
         .find(|item| item["name"] == "asset-manifest.json")

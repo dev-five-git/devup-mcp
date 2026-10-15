@@ -79,15 +79,19 @@ pub struct SourceMap {
 impl Serialize for SourceMap {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut map = serializer.serialize_struct("SourceMap", 3)?;
+        let mut map = serializer.serialize_struct("SourceMap", 4)?;
         map.serialize_field("version", &self.version)?;
         map.serialize_field("entries", &self.property_entries())?;
         map.serialize_field("resolutionSemantics", &resolution_semantics())?;
+        map.serialize_field("rasterizedAssets", &self.rasterized_assets())?;
         map.end()
     }
 }
 
 impl SourceMap {
+    pub fn rasterized_assets(&self) -> Vec<serde_json::Value> {
+        self.entries.iter().filter(|e| e.resolution == "effects-baked-into-asset").map(|e| json!({"nodeId":e.node_id,"assetId":e.asset_id,"effectsBakedIntoAsset":true,"scope":"native-raster-node-subtree","evidence":"codegen-native-raster-asset-contract","cssEffectsSuppressed":true})).collect()
+    }
     pub fn property_entries(&self) -> Vec<ProvenanceEntry> {
         self.entries
             .iter()
@@ -1803,6 +1807,13 @@ pub(crate) fn finalize_tsx(
                 asset_id: Some(asset.asset_id.clone()),
                 resolution: "asset".to_owned(),
             });
+            if asset_kind(snapshot, node) == Some(AssetKind::Png) {
+                let mut entry = entries.last().unwrap().clone();
+                entry.property = Some("effects".into());
+                entry.resolution = "effects-baked-into-asset".into();
+                entry.calculation = Some("Native raster export flattens the node subtree; CSS blur and shadow are omitted at this boundary. Ancestor layout effects remain separate.".into());
+                entries.push(entry);
+            }
         }
 
         if node.node_type == "TEXT" {

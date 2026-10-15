@@ -1,0 +1,9 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Patch",
+    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
+  },
+  "note": "Preserve native node export by default and offer explicit fill and conservative auto asset modes. Auto requires proven geometry/context safety, matching intrinsic dimensions and codec, and unscaled output before returning original bytes. Report source/representation properties, effects baked into rasters, unapplied properties, measured dimensions/aspect, scoped fidelity evidence, canvas unknowns and evidence-based instance overrides consistently across manifests, jobs, cache and resources. Keep hierarchy-based filenames and distinguish per-instance assets. Suppress duplicate blur/shadow at flattened raster code boundaries with public sourceMap provenance; report complex live background composition as unsupported for automatic fidelity. Include a complete bounded image-fill audit with separate node/fill counts and resource delivery for large detail lists. Support validated per-asset PNG visual comparisons against retained native Figma node references. Refuse incompatible fill settings, native fragment substitution and unsafe raw captures in generated code. Add bounded portable lossy/lossless WebP postprocessing with measured PNG savings and explicit transcoded source provenance, quality/lossless capture identity, alpha preservation, complete image audits, and scheduled web-ready image presets with resumable/cancellable jobs. Map real WebP files coherently into generated pages and compare WebP assets against retained native PNG references. Preserve fixed grid tracks and use zero-minimum fractional columns to prevent intrinsic image sizes from expanding flexible columns.",
+  "date": "2026-10-15T00:00:00+00:00"
+}

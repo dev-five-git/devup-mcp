@@ -33,6 +33,7 @@ use crate::{
 const LARGE_SUBTREE_THRESHOLD: usize = 200;
 
 const MAX_PENDING_CALLS: usize = 4;
+pub const MAX_COLLECTED_ASSET_BYTES: usize = 24 * 1024 * 1024;
 // The byte budget below measures the *request* — the IDs — and the ceiling
 // that matters is on the *response*: the official MCP cuts a text result at
 // 20,480 UTF-8 bytes (measured; see `scripts/fast_snapshot.js`) and appends
@@ -72,6 +73,7 @@ pub struct CollectionRequest {
     pub section: Option<SectionReadOptions>,
     pub cached_section_index: Option<SectionIndex>,
     pub asset_selections: Vec<AssetSelection>,
+    pub web_ready_images: bool,
     pub reference_png: bool,
 }
 
@@ -101,6 +103,7 @@ impl CollectionRequest {
             section: None,
             cached_section_index: None,
             asset_selections: Vec::new(),
+            web_ready_images: false,
             reference_png: false,
         }
     }
@@ -260,7 +263,11 @@ pub struct CollectorSession {
     fast_theme_pages: Option<Value>,
     fast_theme_page_count: usize,
     asset_results: Vec<AssetManifestEntry>,
+    retained_asset_bytes: usize,
+    asset_byte_budget_exhausted: bool,
     assets_scheduled: bool,
+    asset_plan_initialized: bool,
+    asset_plan: VecDeque<AssetRequest>,
     reference_png: Option<ReferencePng>,
     reference_png_scheduled: bool,
     stats: CollectionStats,
@@ -284,7 +291,7 @@ pub struct CollectorSession {
 
 impl CollectorSession {
     pub fn new(request: CollectionRequest) -> Self {
-        let assets_scheduled = request.asset_selections.is_empty();
+        let assets_scheduled = request.asset_selections.is_empty() && !request.web_ready_images;
         let reference_png_scheduled = !request.reference_png;
         Self {
             request,
@@ -307,7 +314,11 @@ impl CollectorSession {
             fast_theme_pages: None,
             fast_theme_page_count: 0,
             asset_results: Vec::new(),
+            retained_asset_bytes: 0,
+            asset_byte_budget_exhausted: false,
             assets_scheduled,
+            asset_plan_initialized: false,
+            asset_plan: VecDeque::new(),
             reference_png: None,
             reference_png_scheduled,
             stats: CollectionStats::default(),
@@ -331,9 +342,9 @@ impl CollectorSession {
     pub fn asset_progress(&self) -> Vec<Value> {
         self.request.asset_selections.iter().map(|selection| {
             match self.asset_results.iter().find(|asset| asset.asset_id == selection.asset_id) {
-                Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,
-                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics}),
-                None => serde_json::json!({"assetId":selection.asset_id,"status":"pending"}),
+                Some(asset) => serde_json::json!({"assetId":asset.asset_id,"status":asset.status,"format":asset.format,"scale":asset.scale,"quality":asset.quality,"lossless":asset.lossless,
+                    "byteLength":asset.byte_length,"sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"renderInfo":asset.render_info}),
+                None => serde_json::json!({"assetId":selection.asset_id,"renderMode":selection.render_mode,"format":selection.format,"scale":selection.scale,"quality":selection.quality,"lossless":selection.lossless,"status":"pending"}),
             }
         }).collect()
     }
@@ -473,9 +484,71 @@ impl CollectorSession {
             && self.queued.is_empty()
         {
             let snapshot = merge_chunks(self.snapshot_chunks.values().cloned().collect())?;
-            let requests = resolve_asset_selections(&snapshot, &self.request.asset_selections)?;
-            self.assets_scheduled = true;
-            for request in requests {
+            if !self.asset_plan_initialized {
+                self.asset_plan_initialized = true;
+                if self.request.web_ready_images {
+                    let census = crate::discover_web_ready_assets(&snapshot);
+                    if census.len() > 4096 {
+                        return Err(invalid_call(
+                            "web-ready-images exceeds 4096 image fills; select a smaller frame or Section selection.",
+                        ));
+                    }
+                    self.request.asset_selections = census
+                        .iter()
+                        .map(|a| AssetSelection {
+                            asset_id: a.asset_id.clone(),
+                            format: crate::AssetFormat::Webp,
+                            scale: 1,
+                            render_mode: crate::AssetRenderMode::Node,
+                            quality: Some(80),
+                            lossless: Some(false),
+                        })
+                        .collect();
+                    for asset in census.iter().filter(|a| a.status == AssetStatus::Failed) {
+                        let mut failure = asset.clone();
+                        failure.format = Some(crate::AssetFormat::Webp);
+                        failure.scale = Some(1);
+                        failure.quality = Some(80);
+                        failure.lossless = Some(false);
+                        self.asset_results.push(failure);
+                    }
+                }
+                let selections = self
+                    .request
+                    .asset_selections
+                    .iter()
+                    .filter(|s| !self.asset_results.iter().any(|a| a.asset_id == s.asset_id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for batch in selections.chunks(6) {
+                    self.asset_plan
+                        .extend(resolve_asset_selections(&snapshot, batch)?);
+                }
+            }
+            // A later batch is scheduled only after every call/fragment in this
+            // batch has settled. The ordinary pending-call bound still applies.
+            if self.asset_byte_budget_exhausted {
+                while let Some(request) = self.asset_plan.pop_front() {
+                    self.record_asset_failure(request, "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The 24 MiB retained asset budget was reached. Export failed IDs in smaller custom batches or select a smaller frame.".into()));
+                }
+            }
+            let mut nodes = BTreeSet::new();
+            let mut batch = Vec::new();
+            let remaining = self.asset_plan.len();
+            for _ in 0..remaining {
+                let request = self.asset_plan.pop_front().unwrap();
+                if batch.len() < 6 && nodes.insert(request.node_id.clone()) {
+                    batch.push(request);
+                } else {
+                    self.asset_plan.push_back(request);
+                }
+            }
+            self.assets_scheduled = self.asset_plan.is_empty();
+            for request in batch {
+                if self.asset_byte_budget_exhausted {
+                    self.record_asset_failure(request, "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The 24 MiB retained asset budget was reached. Export the failed asset IDs in smaller custom batches or select a smaller frame.".into()));
+                    continue;
+                }
                 self.enqueue(
                     ReadToolCall::asset_export(
                         &self.request.target.file_key,
@@ -1055,7 +1128,12 @@ impl CollectorSession {
         self.section_fallback_roots.clear();
         self.screen_failures.clear();
         self.asset_results.clear();
-        self.assets_scheduled = self.request.asset_selections.is_empty();
+        self.retained_asset_bytes = 0;
+        self.asset_byte_budget_exhausted = false;
+        self.assets_scheduled =
+            self.request.asset_selections.is_empty() && !self.request.web_ready_images;
+        self.asset_plan_initialized = false;
+        self.asset_plan.clear();
         self.reference_png = None;
         self.reference_png_scheduled = !self.request.reference_png;
         self.stats.transport = "legacy-cursor".to_owned();
@@ -1576,10 +1654,58 @@ impl CollectorSession {
             if let Some((request, diagnostics)) = self.chunked_assets.remove(&key) {
                 // The fragments were an SVG or PNG export, not a field: the
                 // bytes are the asset, and go where a one-answer export would.
-                let bytes = assembler.finish_bytes()?;
-                let mut asset = exported_asset_from_bytes(&request, &bytes)?;
+                let bytes = match assembler.finish_bytes() {
+                    Ok(bytes) => bytes,
+                    Err(error) if request.format == crate::AssetFormat::Webp => {
+                        self.record_asset_failure(
+                            request,
+                            "DEVUP_ASSET_WEBP_POSTPROCESS_FAILED",
+                            Some(error.message),
+                        );
+                        return Ok(());
+                    }
+                    Err(error) => return Err(error),
+                };
+                let mut asset = match exported_asset_from_bytes(&request, &bytes) {
+                    Ok(asset) => asset,
+                    Err(error) if request.format == crate::AssetFormat::Webp => {
+                        self.record_asset_failure(
+                            request,
+                            "DEVUP_ASSET_WEBP_POSTPROCESS_FAILED",
+                            Some(error.message),
+                        );
+                        return Ok(());
+                    }
+                    Err(error) => return Err(error),
+                };
+                if let Some(mut observed) = diagnostics.as_ref().and_then(|d| d.render_info.clone())
+                {
+                    if request.format == crate::AssetFormat::Webp {
+                        // Preserve postprocessing evidence and measure the final bytes,
+                        // not the PNG fragments from which they were encoded.
+                        if let Some(info) = &asset.render_info {
+                            for key in ["representation", "compression", "transcoded"] {
+                                observed[key] = info[key].clone();
+                            }
+                        }
+                    }
+                    let output = asset
+                        .data_base64
+                        .as_deref()
+                        .and_then(|s| STANDARD.decode(s).ok());
+                    asset.render_info = Some(crate::asset_render_info::measured_info(
+                        request.render_mode,
+                        request.format,
+                        request.scale,
+                        Some(observed),
+                        output.as_deref(),
+                    ));
+                }
                 asset.export_diagnostics = diagnostics;
-                self.asset_results.push(asset);
+                if let Some(diagnostics) = &mut asset.export_diagnostics {
+                    diagnostics.render_info = asset.render_info.clone();
+                }
+                self.retain_asset(asset);
                 return Ok(());
             }
             let descriptor = assembler.descriptor().clone();
@@ -1677,12 +1803,29 @@ impl CollectorSession {
         else {
             return Err(invalid_call("asset call format is invalid."));
         };
-        let exported = match asset_export_from_result(
+        if self.asset_byte_budget_exhausted {
+            self.record_asset_failure(request.as_ref().clone(), "DEVUP_ASSET_TOTAL_BYTES_EXCEEDED", Some("The retained asset byte budget was reached; export this ID in a smaller batch.".into()));
+            return Ok(());
+        }
+        let outcome = asset_export_from_result(
             &result,
             &planned.expected_file_key,
             version.as_deref(),
             request,
-        )? {
+        );
+        let outcome = match outcome {
+            Ok(outcome) => outcome,
+            Err(error) if request.format == crate::AssetFormat::Webp => {
+                self.record_asset_failure(
+                    request.as_ref().clone(),
+                    "DEVUP_ASSET_WEBP_POSTPROCESS_FAILED",
+                    Some(error.message),
+                );
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        };
+        let exported = match outcome {
             AssetExportOutcome::Entry(entry) => *entry,
             AssetExportOutcome::Chunked(descriptor) => {
                 let key = (descriptor.node_id.clone(), descriptor.field.clone());
@@ -1726,7 +1869,7 @@ impl CollectorSession {
                 .unwrap_or_else(|| "DEVUP_ASSET_EXPORT_FAILED".to_owned());
             self.record_asset_diagnostic(request, &error_code, exported.error_detail.as_deref());
         }
-        self.asset_results.push(exported);
+        self.retain_asset(exported);
         Ok(())
     }
 
@@ -1778,6 +1921,35 @@ impl CollectorSession {
         Ok(())
     }
 
+    fn retain_asset(&mut self, mut asset: AssetManifestEntry) {
+        if asset.status == AssetStatus::Exported {
+            let bytes = asset.byte_length.unwrap_or_default();
+            if self.retained_asset_bytes.saturating_add(bytes) > MAX_COLLECTED_ASSET_BYTES {
+                self.asset_byte_budget_exhausted = true;
+                asset.status = AssetStatus::Failed;
+                asset.error_code = Some("DEVUP_ASSET_TOTAL_BYTES_EXCEEDED".into());
+                asset.error_detail = Some("The 24 MiB retained asset budget was reached. Export failed IDs in smaller custom batches or select a smaller frame.".into());
+                asset.data_base64 = None;
+                asset.byte_length = None;
+                asset.sha256 = None;
+                asset.mime_type = None;
+                if let Some(info) = &mut asset.render_info {
+                    info["representation"] = json!("not-exported");
+                    info["renderedAs"] = json!("not-exported");
+                    info["byteEvidence"] = Value::Null;
+                    info["fidelity"] = json!("unverified");
+                    info["effectsBakedIntoAsset"] = json!(false);
+                }
+                if let Some(diagnostics) = &mut asset.export_diagnostics {
+                    diagnostics.render_info = asset.render_info.clone();
+                }
+            } else {
+                self.retained_asset_bytes += bytes;
+            }
+        }
+        self.asset_results.push(asset);
+    }
+
     fn record_asset_failure(
         &mut self,
         request: AssetRequest,
@@ -1788,6 +1960,11 @@ impl CollectorSession {
         self.record_asset_diagnostic(&request, error_code, error_detail.as_deref());
         let source_kind = crate::assets::source_kind_of(&request).to_owned();
         self.asset_results.push(AssetManifestEntry {
+            render_mode: request.render_mode,
+            quality: request.quality,
+            lossless: request.lossless,
+            render_info: None,
+            suggested_filename: None,
             asset_id: request.asset_id,
             node_id: request.node_id,
             field: request.field,
@@ -2670,6 +2847,43 @@ fn used_resource_batch_fits(batch: &ResourceBatch, budget: BatchBudget) -> bool 
 #[cfg(test)]
 mod w5_tests {
     use super::*;
+    #[test]
+    fn aggregate_budget_keeps_successes_and_exact_failure_options_and_stops_remaining_reads() {
+        let target =
+            FigmaTarget::parse("https://www.figma.com/design/FileKey123/Fixture?node-id=1-2")
+                .unwrap();
+        let mut collector =
+            CollectorSession::new(CollectionRequest::new(target, CollectionScope::Node));
+        let request = AssetRequest {
+            asset_id: "synthetic:fills:0".into(),
+            node_id: "synthetic".into(),
+            field: "fills/0".into(),
+            image_hash: Some("source".into()),
+            format: crate::AssetFormat::Png,
+            scale: 1,
+            render_mode: crate::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
+        };
+        let mut asset =
+            crate::exported_asset_from_bytes(&request, b"synthetic byte-budget boundary").unwrap();
+        collector.retained_asset_bytes = MAX_COLLECTED_ASSET_BYTES - asset.byte_length.unwrap();
+        collector.retain_asset(asset.clone());
+        assert_eq!(collector.asset_results[0].status, AssetStatus::Exported);
+        asset.asset_id = "second:fills:0".into();
+        asset.quality = Some(41);
+        asset.lossless = Some(true);
+        asset.format = Some(crate::AssetFormat::Webp);
+        collector.retain_asset(asset);
+        let failed = &collector.asset_results[1];
+        assert_eq!(failed.status, AssetStatus::Failed);
+        assert_eq!(failed.quality, Some(41));
+        assert_eq!(failed.lossless, Some(true));
+        assert!(failed.data_base64.is_none());
+        assert!(failed.sha256.is_none());
+        assert!(collector.asset_byte_budget_exhausted);
+        assert_eq!(collector.retained_asset_bytes, MAX_COLLECTED_ASSET_BYTES);
+    }
     use std::{
         io::Write,
         process::{Command, Stdio},

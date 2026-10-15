@@ -32,6 +32,8 @@ pub(super) struct AssetJob {
     budget: Value,
     state: Mutex<JobState>,
     resume: Notify,
+    cancellation: Notify,
+    cancelled: std::sync::atomic::AtomicBool,
 }
 
 struct JobState {
@@ -131,13 +133,15 @@ impl AssetJobs {
                 _ => unreachable!(),
             },
             resume: Notify::new(),
+            cancellation: Notify::new(),
+            cancelled: std::sync::atomic::AtomicBool::new(false),
             state: Mutex::new(JobState {
                 state: "running",
                 stage: "acquisition",
                 assets: request
                     .asset_selections
                     .iter()
-                    .map(|a| json!({"assetId":a.asset_id,"status":"pending"}))
+                    .map(|a| json!({"assetId":a.asset_id,"renderMode":a.render_mode,"format":a.format,"scale":a.scale,"quality":a.quality,"lossless":a.lossless,"status":"pending"}))
                     .collect(),
                 calls: Vec::new(),
                 completed_calls: 0,
@@ -159,6 +163,13 @@ impl AssetJobs {
 }
 
 impl AssetJob {
+    pub(super) fn cancel(&self) {
+        if self.state.lock().unwrap().finished.is_none() {
+            self.cancelled
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            self.cancellation.notify_one();
+        }
+    }
     pub(super) fn resume(&self) {
         let mut state = self.state.lock().unwrap();
         if state.state == "paused" {
@@ -170,10 +181,15 @@ impl AssetJob {
 
     pub(super) fn captured(&self, assets: &[devup_mcp_figma::AssetManifestEntry]) {
         let mut state = self.state.lock().unwrap();
+        for asset in assets {
+            if !state.assets.iter().any(|a| a["assetId"] == asset.asset_id) {
+                state.assets.push(json!({"assetId":asset.asset_id}));
+            }
+        }
         for progress in &mut state.assets {
             if let Some(asset) = assets.iter().find(|a| progress["assetId"] == a.asset_id) {
                 *progress = json!({"assetId":asset.asset_id,"status":asset.status,"byteLength":asset.byte_length,
-                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics});
+                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"format":asset.format,"scale":asset.scale,"quality":asset.quality,"lossless":asset.lossless,"renderInfo":asset.render_info});
             }
         }
         state.stage = "projection-and-write";
@@ -264,9 +280,24 @@ impl AssetJob {
 
     fn finish(&self, result: Result<Value, DevupError>) {
         let mut state = self.state.lock().unwrap();
-        if let Ok(value) = &result
-            && let Some(assets) = value["assetManifest"]["assets"].as_array()
-        {
+        if let Ok(value) = &result {
+            let assets = value["assetManifest"]["assets"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .chain(
+                    value["resources"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .flat_map(|resource| {
+                            resource["assetMetadata"]["assets"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                        }),
+                )
+                .collect::<Vec<_>>();
             for progress in &mut state.assets {
                 if let Some(asset) = assets.iter().find(|a| a["assetId"] == progress["assetId"]) {
                     for field in [
@@ -276,12 +307,23 @@ impl AssetJob {
                         "errorCode",
                         "errorDetail",
                         "exportDiagnostics",
+                        "renderMode",
+                        "format",
+                        "scale",
+                        "quality",
+                        "lossless",
+                        "renderInfo",
+                        "suggestedFilename",
                         "outputPath",
                         "path",
                     ] {
                         if let Some(v) = asset.get(field) {
                             progress[field] = v.clone();
                         }
+                    }
+                    if progress["exportDiagnostics"].is_object() {
+                        progress["exportDiagnostics"]["renderInfo"] =
+                            progress["renderInfo"].clone();
                     }
                 }
             }
@@ -315,7 +357,13 @@ impl AssetJob {
             );
             call["state"] = json!(if result.is_ok() { "complete" } else { "failed" });
         }
-        state.state = if result.is_ok() { "complete" } else { "failed" };
+        state.state = if self.cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+            "cancelled"
+        } else if result.is_ok() {
+            "complete"
+        } else {
+            "failed"
+        };
         state.stage = "finished";
         state.error = result.as_ref().err().cloned();
         state.result = Some(result);
@@ -349,6 +397,11 @@ impl AssetJob {
                         "pending"
                     });
                 }
+                if state.assets.len() > 32 {
+                    asset["renderInfoSummary"] = json!({"representation":asset["renderInfo"]["representation"],"outputSize":asset["renderInfo"]["outputSize"],"fidelity":asset["renderInfo"]["fidelity"],"compression":asset["renderInfo"]["compression"]});
+                    asset.as_object_mut().unwrap().remove("renderInfo");
+                    asset.as_object_mut().unwrap().remove("exportDiagnostics");
+                }
                 asset
             })
             .collect();
@@ -375,6 +428,9 @@ impl AssetJob {
             json!({"tool":"devup_figma_export","arguments":{"jobId":self.id,"jobAction":if state.state=="paused" {"resume"} else {"status"}}})
         };
         let job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
+            "assetProgress":{"total":state.assets.len(),"exported":state.assets.iter().filter(|a|a["status"]=="exported").count(),"failed":state.assets.iter().filter(|a|a["status"]=="failed").count(),
+                "pending":state.assets.iter().filter(|a|a["status"]=="pending").count(),"maxAssetsPerBatch":6,"maxRetainedAssetBytes":24*1024*1024,
+                "observations":if state.assets.len()>32 {"summarized; full observations in completed manifest/audit resources"}else{"full"}},
             "completedCalls":state.completed_calls,"calls":calls,"elapsedMs":self.started.elapsed().as_millis() as u64,
             "lastError":state.error,"checkpointScope":"server-process","retentionSeconds":JOB_LIFETIME.as_secs(),
             "resultRetentionSeconds":RESULT_RETENTION.as_secs(),"callTimeoutSeconds":CALL_TIMEOUT.as_secs(),
@@ -436,7 +492,7 @@ impl DevupServer {
             let server = self.clone();
             let worker = job.clone();
             tokio::spawn(async move {
-                let result = tokio::time::timeout(
+                let acquisition = tokio::time::timeout(
                     JOB_LIFETIME,
                     server.start_operation_scoped_tracked(
                         operation,
@@ -445,15 +501,18 @@ impl DevupServer {
                         None,
                         Some(&worker),
                     ),
-                )
-                .await
-                .unwrap_or_else(|_| {
+                );
+                let result = tokio::select! {
+                    result = acquisition => result.unwrap_or_else(|_| {
                     Err(DevupError::new(
                         ErrorCode::DevupFigmaHandoffExpired,
                         "Export job checkpoint expired after 30 minutes.",
                         false,
                     ))
-                });
+                    }),
+                    _ = worker.cancellation.notified() => Err(DevupError::new(ErrorCode::DevupInvalidInput,
+                        "Export job cancelled. No later batches will run; already accepted upstream reads may finish remotely. Start a new request to collect remaining assets.", false)),
+                };
                 worker.finish(result);
             });
         }
@@ -466,6 +525,112 @@ mod tests {
     use super::*;
 
     #[test]
+    fn image_modes_have_distinct_jobs_and_same_mode_recovers_its_job() {
+        let selection = devup_mcp_figma::AssetSelection {
+            asset_id: "sample:fills:0".into(),
+            format: devup_mcp_figma::AssetFormat::Png,
+            scale: 1,
+            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
+        };
+        let mut request = CollectionRequest::new(
+            devup_mcp_figma::FigmaTarget::parse(
+                "https://www.figma.com/design/Fixture/Example?node-id=1-1",
+            )
+            .unwrap(),
+            devup_mcp_figma::CollectionScope::Node,
+        );
+        request.asset_selections = vec![selection];
+        let operation = PendingOperation::Export {
+            outputs: vec!["assetManifest".into()],
+            previous_design_fingerprints: None,
+            component_name: None,
+            include_diagnostics: false,
+            root_layout: devup_mcp_devup_ui::codegen::RootLayout::default(),
+            asset_names_per_node: true,
+            scope: "node".into(),
+            theme_options: Default::default(),
+            strict: false,
+            output_paths: Default::default(),
+            page_scaffold: None,
+            frame_ids: vec![],
+            all_screens: false,
+            asset_captures: request.asset_selections.clone(),
+            web_ready_images: false,
+            asset_output_paths: Default::default(),
+            asset_public_root: None,
+            fields: vec![],
+            delivery: super::super::delivery::DeliveryMode::Auto,
+            width_policy: None,
+        };
+        let jobs = AssetJobs::default();
+        let (node, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(created);
+        let (same, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(!created);
+        assert_eq!(node.id, same.id);
+        request.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Fill;
+        let (fill, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(created);
+        assert_ne!(node.id, fill.id);
+        request.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Auto;
+        let (automatic, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(created);
+        assert_ne!(automatic.id, node.id);
+        assert_ne!(automatic.id, fill.id);
+        request.asset_selections[0].format = devup_mcp_figma::AssetFormat::Webp;
+        request.asset_selections[0].quality = Some(20);
+        request.asset_selections[0].lossless = Some(false);
+        let (quality20, _) = jobs.acquire(&operation, &request, false).unwrap();
+        request.asset_selections[0].quality = Some(21);
+        let (quality21, _) = jobs.acquire(&operation, &request, false).unwrap();
+        assert_ne!(quality20.id, quality21.id);
+        request.asset_selections[0].lossless = Some(true);
+        let (lossless, _) = jobs.acquire(&operation, &request, false).unwrap();
+        assert_ne!(lossless.id, quality21.id);
+        request.asset_selections.clear();
+        request.web_ready_images = true;
+        let (cached_preset, _) = jobs.acquire(&operation, &request, false).unwrap();
+        cached_preset.captured(&[serde_json::from_value(json!({"assetId":"cached:fills:0","nodeId":"cached","field":"fills/0","sourceKind":"image-fill",
+            "format":"webp","scale":1,"quality":80,"lossless":false,"status":"failed","errorCode":"DEVUP_ASSET_NODE_HIDDEN"})).unwrap()]);
+        let cached = cached_preset.response().unwrap();
+        assert_eq!(cached["assetJob"]["assets"].as_array().unwrap().len(), 1);
+        assert_eq!(cached["assetJob"]["assets"][0]["quality"], 80);
+        cached_preset.state.lock().unwrap().state = "paused";
+        cached_preset.resume();
+        assert_eq!(cached_preset.state.lock().unwrap().state, "running");
+        cached_preset.cancel();
+        cached_preset.finish(Err(DevupError::new(
+            ErrorCode::DevupInvalidInput,
+            "cancelled synthetic pending preset",
+            false,
+        )));
+        let cancelled = cached_preset.response().unwrap_err();
+        assert_eq!(cancelled.details["assetJob"]["state"], "cancelled");
+        assert!(cancelled.details["assetJob"]["nextAction"].is_null());
+        assert_eq!(
+            automatic.state.lock().unwrap().assets[0]["renderMode"],
+            "auto"
+        );
+        assert_eq!(fill.state.lock().unwrap().assets[0]["renderMode"], "fill");
+        fill.finish(Ok(
+            json!({"resources":[{"assetMetadata":{"assets":[{"assetId":"sample:fills:0",
+            "renderMode":"fill","renderInfo":{"outputSize":{"width":32,"height":16}},
+            "suggestedFilename":"gallery-picture-fill.png"}]}}]}),
+        ));
+        let progress = fill.response().unwrap();
+        assert_eq!(
+            progress["assetJob"]["assets"][0]["renderInfo"]["outputSize"]["width"],
+            32
+        );
+        assert_eq!(
+            progress["assetJob"]["assets"][0]["suggestedFilename"],
+            "gallery-picture-fill.png"
+        );
+    }
+
+    #[test]
     fn r10_terminal_jobs_never_offer_repeated_status_as_next_action() {
         for correction in [false, true] {
             let job = AssetJob {
@@ -474,6 +639,8 @@ mod tests {
                 budget: json!({}),
                 started: Instant::now(),
                 resume: Notify::new(),
+                cancellation: Notify::new(),
+                cancelled: std::sync::atomic::AtomicBool::new(false),
                 paths: BTreeMap::new(),
                 state: Mutex::new(JobState {
                     state: "running",
@@ -538,6 +705,8 @@ mod tests {
             budget: json!({}),
             started: Instant::now(),
             resume: Notify::new(),
+            cancellation: Notify::new(),
+            cancelled: std::sync::atomic::AtomicBool::new(false),
             paths: BTreeMap::from([
                 ("a".into(), path_text.clone()),
                 ("b".into(), path_text.clone()),

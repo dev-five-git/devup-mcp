@@ -17,7 +17,6 @@ expression: actual
       zIndex="0"
     >
       <Image
-        filter="blur(12px)"
         h="100%"
         pos="absolute"
         right="-108.01px"

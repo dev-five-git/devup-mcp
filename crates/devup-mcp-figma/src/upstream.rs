@@ -234,10 +234,13 @@ impl BuiltinScript {
             .map(|(request, version)| {
                 json!({
                     "assetId": request.asset_id,
+                    "renderMode": request.render_mode,
                     "nodeId": request.node_id,
                     "field": request.field,
                     "imageHash": request.image_hash,
                     "format": request.format,
+                    "quality": request.quality,
+                    "lossless": request.lossless,
                     "scale": request.scale,
                     "timeoutMs": crate::asset_timeout().as_millis() as u64,
                     "version": version
@@ -1146,10 +1149,13 @@ impl ReadToolCall {
                     "asset": {
                         "transport": "bridge",
                         "assetId": request.asset_id,
+                    "renderMode": request.render_mode,
                         "nodeId": request.node_id,
                         "field": request.field,
                         "imageHash": request.image_hash,
                         "format": request.format,
+                        "quality": request.quality,
+                        "lossless": request.lossless,
                         "scale": request.scale,
                         "timeoutMs": crate::asset_timeout().as_millis() as u64,
                         "version": version,

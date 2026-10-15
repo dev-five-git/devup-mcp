@@ -114,6 +114,14 @@ pub(crate) fn prepare_assets(
             asset_paths
                 .entry(asset.asset_id.clone())
                 .or_insert_with(|| {
+                    let path = if asset.format == Some(devup_mcp_figma::AssetFormat::Webp) {
+                        std::path::Path::new(path)
+                            .with_extension("webp")
+                            .to_string_lossy()
+                            .into_owned()
+                    } else {
+                        path.clone()
+                    };
                     public
                         .join(path.trim_start_matches('/'))
                         .to_string_lossy()

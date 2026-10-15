@@ -1,6 +1,8 @@
 mod asset_timeout;
 mod assets;
+mod webp;
 pub use asset_timeout::asset_timeout;
+pub use webp::{MAX_WEBP_DIMENSION, MAX_WEBP_PIXELS, validate_webp_options};
 mod bridge;
 mod collector;
 mod credentials;
@@ -80,14 +82,17 @@ pub use upstream::{
 };
 pub use url::{BRIDGE_CURRENT_KEY, BRIDGE_CURRENT_URL, FigmaTarget, is_bridge_only_key};
 pub use variables::{ResourceBatch, ResourceStyleRef, UnresolvedResource};
+mod asset_render_info;
 mod metadata;
 mod original_image;
 mod reference_compose;
+pub use asset_render_info::{annotate_assets, image_fill_audit};
 pub use assets::{
     AssetExportDiagnostics, AssetExportOutcome, AssetExportStage, AssetFormat, AssetManifest,
-    AssetManifestEntry, AssetRequest, AssetSelection, AssetStatus, MAX_ASSET_BYTES,
-    PNG_EXPORT_FIELD, SVG_EXPORT_FIELD, asset_exclusion_reason, asset_export_from_result,
-    discover_asset_manifest, exported_asset_from_bytes, resolve_asset_selections, source_kind_of,
+    AssetManifestEntry, AssetRenderMode, AssetRequest, AssetSelection, AssetStatus,
+    MAX_ASSET_BYTES, PNG_EXPORT_FIELD, SVG_EXPORT_FIELD, asset_exclusion_reason,
+    asset_export_from_result, discover_asset_manifest, discover_image_fill_assets,
+    discover_web_ready_assets, exported_asset_from_bytes, resolve_asset_selections, source_kind_of,
     validate_asset_requests,
 };
 pub use original_image::{OriginalImage, original_image_from_result};
