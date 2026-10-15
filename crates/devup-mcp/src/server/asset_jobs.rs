@@ -141,7 +141,7 @@ impl AssetJobs {
                 assets: request
                     .asset_selections
                     .iter()
-                    .map(|a| json!({"assetId":a.asset_id,"renderMode":a.render_mode,"format":a.format,"scale":a.scale,"quality":a.quality,"lossless":a.lossless,"status":"pending"}))
+                    .map(|a| json!({"assetId":a.asset_id,"renderMode":a.render_mode,"format":a.format,"scale":a.scale,"quality":a.quality,"lossless":a.lossless,"usageAspectRatio":a.usage_aspect_ratio,"maxWidth":a.max_width,"srcset":a.srcset,"visibleScopeNodeId":a.visible_scope_node_id,"status":"pending"}))
                     .collect(),
                 calls: Vec::new(),
                 completed_calls: 0,
@@ -189,7 +189,7 @@ impl AssetJob {
         for progress in &mut state.assets {
             if let Some(asset) = assets.iter().find(|a| progress["assetId"] == a.asset_id) {
                 *progress = json!({"assetId":asset.asset_id,"status":asset.status,"byteLength":asset.byte_length,
-                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"format":asset.format,"scale":asset.scale,"quality":asset.quality,"lossless":asset.lossless,"renderInfo":asset.render_info});
+                    "sha256":asset.sha256,"errorCode":asset.error_code,"errorDetail":asset.error_detail,"exportDiagnostics":asset.export_diagnostics,"renderMode":asset.render_mode,"format":asset.format,"scale":asset.scale,"quality":asset.quality,"lossless":asset.lossless,"usageAspectRatio":asset.usage_aspect_ratio,"maxWidth":asset.max_width,"srcset":asset.srcset,"visibleScopeNodeId":asset.visible_scope_node_id,"renderInfo":asset.render_info});
             }
         }
         state.stage = "projection-and-write";
@@ -364,6 +364,24 @@ impl AssetJob {
         } else {
             "failed"
         };
+        // A terminal job cannot leave acquisition rows promising future work.
+        // Preserve successfully acquired rows if a later projection/write failed.
+        for asset in &mut state.assets {
+            if asset["status"] == "pending" {
+                asset["status"] = json!("failed");
+                asset["acquisitionState"] = json!("not-attempted");
+                asset["errorCode"] = result
+                    .as_ref()
+                    .err()
+                    .map(|e| json!(e.code))
+                    .unwrap_or_else(|| json!("DEVUP_ASSET_NOT_ATTEMPTED"));
+                asset["errorDetail"] = result
+                    .as_ref()
+                    .err()
+                    .map(|e| json!(e.message))
+                    .unwrap_or_else(|| json!("The job finished before this asset was acquired."));
+            }
+        }
         state.stage = "finished";
         state.error = result.as_ref().err().cloned();
         state.result = Some(result);
@@ -429,7 +447,7 @@ impl AssetJob {
         };
         let job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
             "assetProgress":{"total":state.assets.len(),"exported":state.assets.iter().filter(|a|a["status"]=="exported").count(),"failed":state.assets.iter().filter(|a|a["status"]=="failed").count(),
-                "pending":state.assets.iter().filter(|a|a["status"]=="pending").count(),"maxAssetsPerBatch":6,"maxRetainedAssetBytes":24*1024*1024,
+                "pending":state.assets.iter().filter(|a|a["status"]=="pending").count(),"maxAssetsPerBatch":6,"maxRetainedAssetBytes":devup_mcp_figma::MAX_COLLECTED_ASSET_BYTES,
                 "observations":if state.assets.len()>32 {"summarized; full observations in completed manifest/audit resources"}else{"full"}},
             "completedCalls":state.completed_calls,"calls":calls,"elapsedMs":self.started.elapsed().as_millis() as u64,
             "lastError":state.error,"checkpointScope":"server-process","retentionSeconds":JOB_LIFETIME.as_secs(),
@@ -527,9 +545,13 @@ mod tests {
     #[test]
     fn image_modes_have_distinct_jobs_and_same_mode_recovers_its_job() {
         let selection = devup_mcp_figma::AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             asset_id: "sample:fills:0".into(),
             format: devup_mcp_figma::AssetFormat::Png,
-            scale: 1,
+            scale: 1.0,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
@@ -589,6 +611,28 @@ mod tests {
         request.asset_selections[0].lossless = Some(true);
         let (lossless, _) = jobs.acquire(&operation, &request, false).unwrap();
         assert_ne!(lossless.id, quality21.id);
+        let variant_jobs = AssetJobs::default();
+        let mut ids = std::collections::BTreeSet::new();
+        for variant in 0..6 {
+            let mut changed = request.clone();
+            match variant {
+                0 => changed.asset_selections[0].max_width = Some(240),
+                1 => changed.asset_selections[0].srcset = true,
+                2 => changed.asset_selections[0].scale = 1.5,
+                3 => changed.asset_selections[0].visible_scope_node_id = Some("parent".into()),
+                4 => changed.asset_selections[0].usage_aspect_ratio = Some(1.25),
+                _ => {
+                    changed.asset_selections[0].render_mode =
+                        devup_mcp_figma::AssetRenderMode::OriginalSource
+                }
+            }
+            let (job, created) = variant_jobs.acquire(&operation, &changed, false).unwrap();
+            assert!(created);
+            assert!(ids.insert(job.id.clone()));
+            let (same, created) = variant_jobs.acquire(&operation, &changed, false).unwrap();
+            assert!(!created);
+            assert_eq!(same.id, job.id);
+        }
         request.asset_selections.clear();
         request.web_ready_images = true;
         let (cached_preset, _) = jobs.acquire(&operation, &request, false).unwrap();
@@ -650,7 +694,7 @@ mod tests {
                     error: None,
                     result: None,
                     finished: None,
-                    assets: vec![],
+                    assets: vec![json!({"assetId":"pending:fills:0","status":"pending"})],
                 }),
             };
             assert_eq!(
@@ -679,6 +723,17 @@ mod tests {
             let error = job.response().unwrap_err();
             assert_eq!(error.details["exportJob"]["nextAction"], next);
             assert_eq!(error.details["assetJob"]["nextAction"], next);
+            assert_eq!(error.details["assetJob"]["assets"][0]["status"], "failed");
+            assert_eq!(
+                error.details["assetJob"]["assets"][0]["acquisitionState"],
+                "not-attempted"
+            );
+            assert_eq!(error.details["assetJob"]["assetProgress"]["pending"], 0);
+            assert_eq!(error.details["assetJob"]["assetProgress"]["failed"], 1);
+            assert_eq!(
+                error.details["assetJob"]["assetProgress"]["maxRetainedAssetBytes"],
+                devup_mcp_figma::MAX_COLLECTED_ASSET_BYTES
+            );
             if !correction {
                 assert!(error.details["exportJob"]["nextActionReason"].is_string());
             }

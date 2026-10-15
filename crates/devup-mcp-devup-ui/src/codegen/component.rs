@@ -1880,7 +1880,12 @@ fn render_node(
             &context.asset_policies,
             context.asset_names_per_node,
         );
-        super::image::render_affine_image(&props, &mapping, depth)
+        super::image::render_affine_image(
+            &props,
+            &mapping,
+            depth,
+            !(depth == 0 && context.root_layout == RootLayout::Embedded),
+        )
     } else {
         None
     };

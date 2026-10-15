@@ -444,6 +444,7 @@ pub(super) enum StyleDerivation {
     SvgMaskPolicy,
     InFlowExportBoundary,
     ImagePaintScale,
+    NativeRaster,
     WidthPolicyLine,
 }
 
@@ -453,6 +454,7 @@ impl StyleDerivation {
             Self::SvgMaskPolicy => "svg-mask-policy",
             Self::InFlowExportBoundary => "in-flow-export-boundary",
             Self::ImagePaintScale => "image-paint-scale",
+            Self::NativeRaster => "native-raster-boundary",
             Self::WidthPolicyLine => "width-policy-straight-line",
         }
     }
@@ -478,6 +480,10 @@ impl StyleDerivation {
                     "fills",
                 ],
                 "In-flow export boundary: offset=(render.x-bounds.x, render.y-bounds.y); exported size=(render.width, render.height). Image uses objectFit=none and objectPos=offset; mask uses maskSize=exported size and maskPos=offset. Absolute/free-layout placement is handled by layout.",
+            ),
+            Self::NativeRaster => (
+                vec!["isAsset", "fills", "absoluteRenderBounds"],
+                "Native raster boundary: use the already rendered pixel box without applying the source IMAGE paint fit a second time; in-flow export offsets override this placement when present.",
             ),
             Self::ImagePaintScale => (
                 vec!["isAsset", "fills"],
@@ -644,7 +650,7 @@ pub(super) fn push_style_props(
         } else if asset != AssetKind::Png {
             push_object_fit(&view, props, &mut derivations);
         } else {
-            string_prop(props, "objectFit", "fill");
+            derivations.push(props, "objectFit", "fill", StyleDerivation::NativeRaster);
             let mapping =
                 super::image::map_for(snapshot, node, image_index, asset_policies, per_node);
             super::image::apply_image_props(props, &mapping);

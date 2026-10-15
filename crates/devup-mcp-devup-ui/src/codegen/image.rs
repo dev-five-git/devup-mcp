@@ -712,7 +712,12 @@ fn element(component: &str, props: &[Prop], children: Option<&str>, depth: usize
     }
 }
 
-pub(super) fn render_affine_image(props: &[Prop], mapping: &Value, depth: usize) -> Option<String> {
+pub(super) fn render_affine_image(
+    props: &[Prop],
+    mapping: &Value,
+    depth: usize,
+    reserve_content: bool,
+) -> Option<String> {
     mapping["css"]["image"]["transform"].as_str()?;
     let image_names = [
         "src",
@@ -765,8 +770,10 @@ pub(super) fn render_affine_image(props: &[Prop], mapping: &Value, depth: usize)
     ] {
         string_prop(&mut clip, name, value);
     }
-    for (dimension, css) in [("width", "w"), ("height", "h")] {
-        if !outer.iter().any(|(n, _)| n == css || n == "boxSize")
+    for (dimension, css, axis) in [("width", "w", "horizontal"), ("height", "h", "vertical")] {
+        if reserve_content
+            && mapping["layoutSizing"][axis] == "HUG"
+            && !outer.iter().any(|(n, _)| n == css || n == "boxSize")
             && let Some(value) = mapping["nodeBox"][dimension].as_f64()
         {
             string_prop(&mut clip, css, format!("{}px", number(value)));
@@ -1065,8 +1072,11 @@ pub(super) fn project_tree(
         .into_iter()
         .map(|(n, v)| (n.into(), v.into()))
         .collect();
-        for (dimension, css) in [("width", "w"), ("height", "h")] {
-            if !tree.props.contains_key(css)
+        for (dimension, css, axis) in [("width", "w", "horizontal"), ("height", "h", "vertical")] {
+            if mapping["layoutSizing"][axis] == "HUG"
+                && !(options.root_layout == super::RootLayout::Embedded
+                    && snapshot.roots.contains(&node.id))
+                && !tree.props.contains_key(css)
                 && !tree.props.contains_key("boxSize")
                 && let Some(value) = mapping["nodeBox"][dimension].as_f64()
             {

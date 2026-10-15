@@ -1902,8 +1902,25 @@ fn add_flattened_resource_entries(
                         .is_some_and(|n| projects_as_asset(snapshot, n)))
             {
                 let source = &tsx[range.start..range.end];
-                let source = &source[..source.find('>').map_or(source.len(), |end| end + 1)];
-                if let Some((start, end)) = token_prop_range(source, &needle) {
+                // Original images can move their solid/gradient token into an
+                // owned paint layer. Only inspect this node's opening elements;
+                // a descendant's identical token cannot prove its parent's fill.
+                let token_range = attributes::opening_elements(source)
+                    .into_iter()
+                    .filter(|opening| {
+                        !emitted_ranges.iter().any(|(other, child)| {
+                            other != candidate_id
+                                && range.start <= child.start
+                                && child.end <= range.end
+                                && child.start <= range.start + opening.start
+                                && range.start + opening.end <= child.end
+                        })
+                    })
+                    .find_map(|opening| {
+                        token_prop_range(&source[opening.start..opening.end], &needle)
+                            .map(|(start, end)| (opening.start + start, opening.start + end))
+                    });
+                if let Some((start, end)) = token_range {
                     entries.push(generated_entry(
                         range.start + start,
                         range.start + end,

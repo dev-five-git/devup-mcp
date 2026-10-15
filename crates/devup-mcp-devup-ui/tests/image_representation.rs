@@ -595,3 +595,46 @@ fn responsive_crop_variants_keep_scalar_html_attributes_and_affine_clip() {
     assert!(merged.tsx.contains("overflow=\"hidden\""));
     assert!(merged.tsx.contains("translate(-50%, -20%)"));
 }
+
+#[test]
+fn affine_fill_width_follows_flex_parent_and_embedded_hug_keeps_host_control() {
+    let mut photo = node("CROP", json!([[0.5, 0, 0.25], [0, 0.5, 0.1]]));
+    photo["fields"]["parentId"] = json!("root");
+    photo["fields"]["layoutSizingHorizontal"] = json!("FILL");
+    photo["fields"]["layoutGrow"] = json!(1);
+    let snapshot: Snapshot = serde_json::from_value(json!({"fileKey":"synthetic","roots":["root"],"diagnostics":[],"nodes":{
+        "root":{"id":"root","type":"FRAME","fields":{"layoutMode":"HORIZONTAL","width":600,"height":100,"childrenIds":["photo"]}},
+        "photo":photo
+    }})).unwrap();
+    let options = CodegenOptions {
+        asset_policies: BTreeMap::from([("photo:fills:0".into(), source())]),
+        ..Default::default()
+    };
+    let output = generate_component(&snapshot, "root", &options).unwrap();
+    assert!(output.tsx.contains("flex=\"1\""), "{}", output.tsx);
+    assert!(!output.tsx.contains("w=\"200px\""), "{}", output.tsx);
+    assert!(output.tsx.contains("w=\"100%\""), "{}", output.tsx);
+
+    let mut photo = node("CROP", json!([[0.5, 0, 0.25], [0, 0.5, 0.1]]));
+    photo["fields"]["layoutSizingHorizontal"] = json!("HUG");
+    photo["fields"]["layoutSizingVertical"] = json!("HUG");
+    let snapshot: Snapshot = serde_json::from_value(
+        json!({"fileKey":"synthetic","roots":["photo"],"nodes":{"photo":photo},"diagnostics":[]}),
+    )
+    .unwrap();
+    let embedded = generate_component(
+        &snapshot,
+        "photo",
+        &CodegenOptions {
+            root_layout: devup_mcp_devup_ui::codegen::RootLayout::Embedded,
+            ..options
+        },
+    )
+    .unwrap();
+    assert!(
+        !embedded.tsx.contains("w=\"200px\"") && !embedded.tsx.contains("h=\"100px\""),
+        "{}",
+        embedded.tsx
+    );
+    assert!(embedded.tsx.contains("width=\"800\"") && embedded.tsx.contains("height=\"600\""));
+}

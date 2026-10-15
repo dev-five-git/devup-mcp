@@ -111,6 +111,10 @@ fn asset_export_uses_only_compiled_read_only_export_settings() {
         "file-key",
         Some("v1".to_owned()),
         devup_mcp_figma::AssetRequest {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
@@ -119,7 +123,7 @@ fn asset_export_uses_only_compiled_read_only_export_settings() {
             field: "node".to_owned(),
             image_hash: None,
             format: devup_mcp_figma::AssetFormat::Svg,
-            scale: 1,
+            scale: 1.0,
         },
     );
     let code = call.arguments()["code"].as_str().unwrap().to_owned();

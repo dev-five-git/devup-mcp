@@ -14,12 +14,16 @@ use serde_json::{Value, json};
 
 fn request(mode: AssetRenderMode) -> AssetRequest {
     AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         asset_id: "sample:fills:0".into(),
         node_id: "sample".into(),
         field: "fills/0".into(),
         image_hash: Some("source".into()),
         format: AssetFormat::Png,
-        scale: 1,
+        scale: 1.0,
         render_mode: mode,
         quality: None,
         lossless: None,
@@ -284,7 +288,7 @@ fn absent_dimension_evidence_is_unknown_and_document_scale_is_not_claimed() {
     assert_eq!(info["aspectRatioComparison"], "unknown");
     assert_eq!(info["representation"], "unknown");
     request.format = AssetFormat::Svg;
-    request.scale = 3;
+    request.scale = 3.0;
     let info = exported_asset_from_bytes(&request, b"<svg/>")
         .unwrap()
         .render_info
@@ -369,12 +373,16 @@ fn duplicate_names_have_safe_stable_hierarchy_suggestions_and_enriched_measureme
 }
 
 #[test]
-fn selection_defaults_to_node_and_refuses_unsupported_fill_settings() {
+fn selection_defaults_to_original_source_and_refuses_unsupported_fill_settings() {
     let default: AssetSelection =
         serde_json::from_value(json!({"assetId":"sample:fills:0","format":"png","scale":1}))
             .unwrap();
-    assert_eq!(default.render_mode, AssetRenderMode::Node);
+    assert_eq!(default.render_mode, AssetRenderMode::OriginalSource);
     let fill = AssetSelection {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: AssetRenderMode::Fill,
         quality: None,
         lossless: None,
@@ -386,7 +394,7 @@ fn selection_defaults_to_node_and_refuses_unsupported_fill_settings() {
     );
     for selection in [
         AssetSelection {
-            scale: 2,
+            scale: 2.0,
             ..fill.clone()
         },
         AssetSelection {
@@ -564,4 +572,47 @@ fn auto_raw_receiver_requires_dimension_and_decision_evidence() {
         entry.render_info.unwrap()["scaleSemantics"],
         "intrinsic-original-bytes-no-resize"
     );
+}
+
+#[test]
+fn original_source_never_accepts_missing_mode_native_provenance_or_node_fragments() {
+    for format in [AssetFormat::Png, AssetFormat::Jpg, AssetFormat::Webp] {
+        let mut req = request(AssetRenderMode::OriginalSource);
+        req.scale = 1.5;
+        req.format = format;
+        let valid = execute(&req);
+        for mutation in 0..6 {
+            let mut raw = valid.clone();
+            match mutation {
+                0 => {
+                    raw["data"].as_object_mut().unwrap().remove("renderMode");
+                }
+                1 => {
+                    raw["data"]["exportDiagnostics"]["renderInfo"]["representation"] =
+                        json!("native-node");
+                }
+                2 => {
+                    raw["data"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("exportDiagnostics");
+                }
+                3 => {
+                    raw["data"]["exportDiagnostics"]["method"] = json!("native");
+                }
+                4 => {
+                    raw["data"]["status"] = json!("chunked");
+                    raw["data"]["cursor"] = json!({"nextOffset":0,"maxChunkBytes":12000});
+                }
+                _ => {
+                    raw["data"]["maxWidth"] = json!(120);
+                }
+            }
+            assert!(
+                asset_export_from_result(&UpstreamResult { raw }, "fixture", None, &req).is_err(),
+                "mutation{mutation},format{format:?}"
+            );
+        }
+        assert!(exported_asset_from_bytes(&req, &png(4, 4)).is_err());
+    }
 }

@@ -717,3 +717,38 @@ async fn a_read_is_cleared_from_the_holder_when_the_process_that_asked_goes_away
     reading.await.unwrap().expect("the holder keeps serving");
     assert_eq!(state.pending_reads(), 0);
 }
+
+#[tokio::test]
+async fn original_source_answers_cross_the_old_sixteen_mib_relay_frame_limit() {
+    let host = BridgeServer::start(0).unwrap();
+    let port = host.port();
+    let relay = second_process_on(port);
+    let mut plugin = plugin(port).await;
+    sees_the_plugin(&relay).await;
+    let client = BridgeFigmaClient::new(relay.state()).with_port(port);
+    let request=serde_json::from_value(json!({"assetId":"picture:fills:0","nodeId":"picture","field":"fills/0","imageHash":"source","format":"png","scale":2,"renderMode":"original-source"})).unwrap();
+    let reading = tokio::spawn(async move {
+        client
+            .call_read_tool(ReadToolCall::asset_export(FILE_KEY, None, request))
+            .await
+    });
+    let job = next_text(&mut plugin).await;
+    assert_eq!(job["script"], "assets");
+    // Transport-only synthetic base64 payload; the asset receiver independently
+    // verifies codecs, hash and provenance in original_source/image_fill_render.
+    let size = 17 * 1024 * 1024;
+    answer(
+        &mut plugin,
+        &job,
+        json!({"kind":"syntheticLargeSourceTransport","fileKey":FILE_KEY,"data":"A".repeat(size)}),
+    )
+    .await;
+    let result = tokio::time::timeout(DEADLINE, reading)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let text = result.raw["content"][0]["text"].as_str().unwrap();
+    let value: Value = serde_json::from_str(text).unwrap();
+    assert_eq!(value["data"].as_str().unwrap().len(), size);
+}

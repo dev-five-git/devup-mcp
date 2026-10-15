@@ -546,3 +546,37 @@ async fn stack_diff_rejects_unknown_layer_names() -> anyhow::Result<()> {
     common::tool_error(result?);
     Ok(())
 }
+
+#[tokio::test]
+async fn ui_validate_double_effect_uses_actual_baked_asset_evidence() -> anyhow::Result<()> {
+    let tsx = r#"<Image src='/images/photo.webp' filter='blur(12px)' />"#;
+    for (baked, expected) in [
+        (json!(true), true),
+        (json!(false), false),
+        (Value::Null, false),
+    ] {
+        let result=call_tool("devup_ui_validate",json!({"tsx":tsx,"strict":true,"assetPolicies":{"picture:fills:0":{"renderMode":"node","assetPath":"/images/photo.webp","effectsBaked":baked}}})).await?.structured_content.unwrap();
+        assert_eq!(
+            result["violations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["rule"] == "double-effect"),
+            expected,
+            "{result}"
+        );
+        if expected {
+            assert_eq!(result["ok"], false);
+            assert_eq!(result["okReason"], "strict-warnings");
+        }
+    }
+    let result=call_tool("devup_ui_validate",json!({"tsx":"<Image src='/images/photograph.webp' filter='blur(12px)' />","assetPolicies":{"picture:fills:0":{"renderMode":"node","assetPath":"/images/photo.webp","effectsBaked":true}}})).await?.structured_content.unwrap();
+    assert!(
+        !result["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "double-effect")
+    );
+    Ok(())
+}

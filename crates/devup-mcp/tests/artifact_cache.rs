@@ -464,20 +464,28 @@ async fn cancelled_owner_does_not_poison_later_same_key_acquisitions() -> anyhow
 async fn set_like_capture_and_section_inputs_share_one_cache_key() -> anyhow::Result<()> {
     let store = ArtifactStore::with_limits(limits());
     let png = AssetSelection {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
         asset_id: "1:2:fills:1".to_owned(),
         format: AssetFormat::Png,
-        scale: 2,
+        scale: 2.0,
     };
     let svg = AssetSelection {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
         quality: None,
         lossless: None,
         asset_id: "1:3:fills:1".to_owned(),
         format: AssetFormat::Svg,
-        scale: 1,
+        scale: 1.0,
     };
     let mut left = request("file-one", "1:2");
     left.asset_selections = vec![svg.clone(), png.clone(), png.clone()];

@@ -6,12 +6,16 @@ use std::io::Cursor;
 
 fn request(quality: u8, lossless: bool) -> AssetRequest {
     AssetRequest {
+        usage_aspect_ratio: None,
+        max_width: None,
+        srcset: false,
+        visible_scope_node_id: None,
         asset_id: "image:fills:0".into(),
         node_id: "image".into(),
         field: "fills/0".into(),
         image_hash: Some("source".into()),
         format: AssetFormat::Webp,
-        scale: 2,
+        scale: 2.0,
         render_mode: AssetRenderMode::Node,
         quality: Some(quality),
         lossless: Some(lossless),
@@ -93,7 +97,7 @@ fn fill_conversion_is_labelled_transcoded_and_jpeg_baseline_is_real_png() {
     let source = encode(pixels(12, 8), ImageFormat::Png);
     let mut req = request(80, true);
     req.render_mode = AssetRenderMode::Fill;
-    req.scale = 1;
+    req.scale = 1.0;
     let e = exported_asset_from_bytes(&req, &source).unwrap();
     let info = e.render_info.unwrap();
     assert_eq!(info["representation"], "original-fill-transcoded");
@@ -165,12 +169,12 @@ fn png_chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
 fn pixel_depth_animation_and_compressed_metadata_limits_fail_before_encoding() {
     use std::io::Write;
     let req = request(80, true);
-    let over_pixels = encode(image::RgbaImage::new(2049, 2049), ImageFormat::Png);
+    let over_pixels = encode(image::RgbaImage::new(4097, 4097), ImageFormat::Png);
     assert!(
         exported_asset_from_bytes(&req, &over_pixels)
             .unwrap_err()
             .message
-            .contains("4194304")
+            .contains("16777216")
     );
     let mut deep = Cursor::new(Vec::new());
     DynamicImage::ImageRgba16(image::ImageBuffer::from_pixel(
@@ -266,7 +270,7 @@ fn wrong_native_codec_and_unsupported_fill_codecs_are_actionable_refusals() {
     assert!(exported_asset_from_bytes(&request(80, false), jpg.get_ref()).is_err());
     let mut req = request(80, false);
     req.render_mode = AssetRenderMode::Fill;
-    req.scale = 1;
+    req.scale = 1.0;
     for format in [ImageFormat::Gif, ImageFormat::WebP] {
         let source = encode(pixels(3, 2), format);
         assert!(

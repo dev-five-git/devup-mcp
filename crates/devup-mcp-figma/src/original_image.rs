@@ -18,6 +18,10 @@ impl AssetRequest {
     /// Use `original_image_from_result`, never `asset_export_from_result`.
     pub fn original_image(node_id: &str, fill_index: usize, image_hash: &str) -> Self {
         Self {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: crate::AssetRenderMode::Fill,
             quality: None,
             lossless: None,
@@ -26,7 +30,7 @@ impl AssetRequest {
             field: format!("{FIELD}{fill_index}"),
             image_hash: Some(image_hash.to_owned()),
             format: AssetFormat::Png,
-            scale: 1,
+            scale: 1.0,
         }
     }
 }

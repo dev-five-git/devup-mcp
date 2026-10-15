@@ -39,7 +39,7 @@ test('missing source image is diagnosed distinctly', async () => {
 });
 test('source reads obey the byte cap and do not reinterpret unknown codecs', async () => {
   for (const [data, expected] of [[new Uint8Array(), 'DEVUP_ASSET_RESPONSE_TOO_LARGE'],
-      [new Uint8Array(8 * 1024 * 1024 + 1), 'DEVUP_ASSET_RESPONSE_TOO_LARGE'],
+      [new Uint8Array(80 * 1024 * 1024 + 1), 'DEVUP_ASSET_RESPONSE_TOO_LARGE'],
       [new Uint8Array([1,2,3,4]), 'DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED']]) {
     const result = await read({}, {getImageByHash: () => ({getBytesAsync:async()=>data})});
     assert.equal(result.errorCode, expected);

@@ -1261,7 +1261,10 @@ async fn plugin_socket(
     if !a_plugin_origin(&headers) {
         return StatusCode::FORBIDDEN.into_response();
     }
-    upgrade.on_upgrade(move |socket| handle_plugin(state, socket))
+    upgrade
+        .max_message_size(128 * 1024 * 1024)
+        .max_frame_size(128 * 1024 * 1024)
+        .on_upgrade(move |socket| handle_plugin(state, socket))
 }
 
 async fn handle_plugin(state: BridgeState, mut socket: WebSocket) {

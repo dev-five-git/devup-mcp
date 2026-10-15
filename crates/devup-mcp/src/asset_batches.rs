@@ -151,7 +151,7 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
                                 item["renderMode"].as_str().unwrap_or("node").to_owned(),
                                 hash.to_ascii_lowercase(),
                                 size,
-                                json!({"format":item["format"],"scale":item["scale"],"quality":item["quality"],"lossless":item["lossless"]}).to_string(),
+                                json!({"format":item["format"],"scale":item["scale"],"quality":item["quality"],"lossless":item["lossless"],"maxWidth":item["maxWidth"],"srcset":item["srcset"],"visibleScopeNodeId":item["visibleScopeNodeId"],"variants":item["variants"].as_array().into_iter().flatten().map(|v|json!({"density":v["density"],"width":v["width"],"height":v["height"],"sha256":v["sha256"],"byteLength":v["byteLength"]})).collect::<Vec<_>>()}).to_string(),
                             ),
                             item.clone(),
                         );
@@ -196,7 +196,7 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
             else { unrequested += 1; "unrequested" };
         json!({"assetId":id,"state":state,"reportedWritten":asset.written && state == "collected",
             "outputPaths":asset.paths,"observedReasons":asset.reasons,
-            "captures":asset.captures.into_iter().map(|((render_mode,sha256,byte_length,_), item)| json!({"renderMode":render_mode,"sha256":sha256,"byteLength":byte_length,"format":item["format"],"scale":item["scale"],"quality":item["quality"],"lossless":item["lossless"]})).collect::<Vec<_>>()})
+            "captures":asset.captures.into_iter().map(|((render_mode,sha256,byte_length,_), item)| json!({"renderMode":render_mode,"sha256":sha256,"byteLength":byte_length,"format":item["format"],"scale":item["scale"],"quality":item["quality"],"lossless":item["lossless"],"maxWidth":item["maxWidth"],"srcset":item["srcset"],"visibleScopeNodeId":item["visibleScopeNodeId"],"variants":item["variants"].as_array().into_iter().flatten().map(|v|json!({"density":v["density"],"width":v["width"],"height":v["height"],"sha256":v["sha256"],"byteLength":v["byteLength"]})).collect::<Vec<_>>()})).collect::<Vec<_>>()})
     }).collect::<Vec<_>>();
     let complete = !incomplete
         && incomplete_inventory_batches == 0

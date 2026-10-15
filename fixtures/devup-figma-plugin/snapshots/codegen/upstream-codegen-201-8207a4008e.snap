@@ -31,9 +31,14 @@ expression: actual
           Hello World!
         </Text>
         <Image
+          aspectRatio="1024 / 400"
           flex="1"
           maxH="400px"
           maxW="1024px"
+          minH="0"
+          minW="0"
+          objectFit="cover"
+          objectPos="center"
           src="/images/image.png"
           w="100%"
         />

@@ -54,8 +54,9 @@ pub struct AuthInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaExportInput {
-    /// web-ready-images exports every in-scope IMAGE paint as native node PNG
-    /// followed by WebP (quality 80, lossy, scale 1) in scheduled batches of six.
+    /// web-ready-images acquires every in-scope IMAGE full source as WebP q85,
+    /// capped at display width*2 without upscaling, with asset-css-map.json and
+    /// CSS effects, in sorted scheduled batches of at most six.
     /// Custom assetRequests must be exported separately to avoid preset overrides.
     #[serde(default)]
     #[schemars(extend("enum" = ["web-ready-images"]))]
@@ -210,7 +211,11 @@ pub struct WidthPolicyInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaAssetRequestInput {
-    /// WebP RGB quality, 0..100, default 80. In lossless mode controls compression
+    /// Caller-declared use-site aspect ratio for audit comparison. Browser
+    /// measurements remain unverified; omitted means actual usage unknown.
+    #[serde(default)]
+    pub usage_aspect_ratio: Option<f64>,
+    /// WebP RGB quality, 0..100, default 85. In lossless mode controls compression
     /// effort, preserving decoded RGBA including transparent RGB. WebP only.
     #[serde(default)]
     #[schemars(range(min = 0, max = 100))]
@@ -218,28 +223,40 @@ pub struct FigmaAssetRequestInput {
     /// WebP only; default false. Alpha is preserved in both modes.
     #[serde(default)]
     pub lossless: Option<bool>,
-    /// node (default) exports the exact node subtree via Figma; ancestor canvas
-    /// appearance is unverified. fill reads original bytes, bridge only, scale 1,
-    /// png/jpg matching the intrinsic codec preserve raw bytes; explicit webp
-    /// transcodes a PNG/JPEG source at intrinsic size, without crop/effects/masks.
-    /// Request fill separately with assetManifest; generated code uses node assets.
+    /// original-source (default) acquires the full IMAGE source with effects
+    /// applied by CSS. node explicitly renders that node; visible renders a
+    /// selected in-scope ancestor subtree with outside-scope context unverified.
+    /// Legacy fill requires matching codec and scale 1, with no resizing.
     #[serde(default = "default_asset_render_mode")]
-    /// auto selects original bytes only with proven safe geometry, context,
-    /// intrinsic dimensions, scale 1 and matching codec; otherwise native node.
-    #[schemars(extend("enum" = ["fill", "node", "auto"]))]
+    #[schemars(extend("enum" = ["original-source", "fill", "node", "visible", "auto"]))]
     pub render_mode: String,
+    /// Select a discovered asset, or supply nodeId for any acquired node.
+    #[serde(default)]
     pub asset_id: String,
+    #[serde(default)]
+    pub node_id: Option<String>,
+    /// A proven in-scope ancestor (or the requested node itself) for visible.
+    #[serde(default)]
+    pub visible_scope_node_id: Option<String>,
+    /// Optional no-upscale WebP width cap; original-source only.
+    #[serde(default)]
+    #[schemars(range(min = 1, max = 8192))]
+    pub max_width: Option<u32>,
+    /// Emit name.webp (1x) and name@2x.webp, capped at source resolution.
+    #[serde(default)]
+    pub srcset: bool,
     #[serde(default = "default_asset_format")]
     #[schemars(extend("enum" = super::validation::ASSET_FORMATS))]
     pub format: String,
     #[serde(default = "default_asset_scale")]
-    pub scale: u8,
+    #[schemars(extend("exclusiveMinimum" = 0, "maximum" = 4))]
+    pub scale: f64,
     #[serde(default)]
     pub output_path: Option<String>,
 }
 
 fn default_asset_render_mode() -> String {
-    "node".to_owned()
+    "original-source".to_owned()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -301,6 +318,26 @@ pub struct ProjectContextInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UiValidateInput {
+    /// Actual acquisition policies keyed by assetId, including public assetPath
+    /// and effectsBaked. Missing baking evidence remains unverified.
+    #[serde(default)]
+    #[schemars(with = "std::collections::BTreeMap<String, serde_json::Value>", extend("additionalProperties" = serde_json::json!({
+        "type":"object",
+        "description":"Actual asset acquisition evidence; omitted effectsBaked remains unknown.",
+        "properties":{
+            "renderMode":{"type":"string","enum":["original-source","fill","node","visible","auto"]},
+            "effectsBaked":{"type":["boolean","null"]},
+            "assetPath":{"type":["string","null"]},
+            "sourcePixelSize":{"type":["object","null"],"properties":{"width":{"type":"number","exclusiveMinimum":0},"height":{"type":"number","exclusiveMinimum":0}}},
+            "outputPixelSize":{"type":["object","null"],"properties":{"width":{"type":"number","exclusiveMinimum":0},"height":{"type":"number","exclusiveMinimum":0}}},
+            "nodeBox":{"type":["object","null"],"properties":{"width":{"type":"number","exclusiveMinimum":0},"height":{"type":"number","exclusiveMinimum":0}}},
+            "captureNodeId":{"type":["string","null"]},
+            "captureBox":{"type":["object","null"],"properties":{"width":{"type":"number","exclusiveMinimum":0},"height":{"type":"number","exclusiveMinimum":0}}},
+            "contextScope":{"type":["string","null"]},
+            "variants":{"type":"array","items":{"type":"object","required":["path","width","height","density"],"properties":{"path":{"type":"string"},"width":{"type":"integer","minimum":1},"height":{"type":"integer","minimum":1},"density":{"type":"number","exclusiveMinimum":0}}}}
+        }
+    })))]
+    pub asset_policies: BTreeMap<String, devup_mcp_devup_ui::codegen::AssetRepresentationPolicy>,
     /// Optional caller-supplied browser HTML (max 2 MiB); reports anchor href counts separately from static source coverage. Never fetches a URL or executes HTML.
     #[serde(default)]
     pub rendered_html: Option<String>,
@@ -422,8 +459,8 @@ fn default_asset_format() -> String {
     "png".to_owned()
 }
 
-fn default_asset_scale() -> u8 {
-    1
+fn default_asset_scale() -> f64 {
+    2.0
 }
 
 /// Compare a PNG; this tool never renders or runs commands.

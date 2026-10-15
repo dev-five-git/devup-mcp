@@ -161,27 +161,39 @@ does not exist yet. Read `assetManifest` for the asset IDs, then call
 `outputPath` under an allowed write root, and make the path in the code match
 the path you wrote.
 
-For web images, request `format:"webp"`, integer `quality:0..100` (default 80)
-and `lossless:true|false` (default false). Native node exports acquire Figma PNG
-at the requested scale before server conversion; Figma has no native WebP export.
-Lossless quality controls compression effort; lossy quality controls RGB quality,
-with alpha preserved in both modes. Inspect crisp text/edges and retain usable SVG
-for vectors. Explicit fill WebP transcodes PNG/JPEG source at intrinsic size,
-without applying crop/effects; PNG/JPG fill exports preserve matching original bytes.
-GIF/WebP/animated or higher-bit-depth source conversion is refused with recovery advice.
-WebP conversion bounds are 8192 pixels per side, 4194304 pixels total, 64 MiB decoder
-allocation and 1 MiB total inflated compressed PNG metadata. Metadata is not preserved.
+Image paints default to `renderMode:"original-source"`: acquire the complete source,
+apply crop, blur, rounding and blend in CSS, and inspect `effectsBaked` and
+`effectsAppliedBy`. Original scale never upscales the source. `node` explicitly
+renders that node at scale 2 by default; fractional 1.5 is supported and 1.5–3 is
+recommended. Low-resolution requests remain accepted with explicit warnings.
+`visible` exports a selected acquired ancestor subtree, including that scope's
+clips/masks/rounding. Supply `visibleScopeNodeId`; outside-scope composition stays
+unknown. `nodeId` selects any acquired in-scope node, including parent instances
+that asset discovery did not classify. Keep usable SVG vectors as SVG.
+Legacy `fill` retains matching PNG/JPG bytes at scale 1 and no resizing; explicit
+WebP fill conversion is labelled transcoded. Full-source codec conversions are
+also labelled: a JPEG-to-PNG conversion does not preserve original byte identity.
 
-`preset:"web-ready-images"` acquires every in-scope descendant IMAGE paint and
-generated raster boundary as native node WebP, quality 80, scale 1. It adds
-assetManifest/imageAudit, schedules at most six assets per batch and keeps every
-hidden/failed disposition. Use assetPublicRoot for written `.webp` files and mapped
-code, or resource delivery for reusable bytes. Custom assetRequests must be separate
-so the preset cannot override them. Poll exportJob; resume paused work or cancel
-with jobAction. Accepted results/checkpoints live in this server process for the
-reported retention period. The preset refuses more than 4096 captures and reports
-explicit remaining failures when its 24 MiB retained asset budget is exhausted.
-Read imageAudit/webReadyImages completeness and per-asset failures before deployment.
+For web images request `format:"webp"`, integer `quality:0..100` (default 85),
+with alpha preserved and optional lossless encoding. Optional `maxWidth` caps
+original-source WebP width without upscaling. `srcset:true` emits a base image and
+an available higher-resolution `@2x.webp` derivative; descriptors report actual
+encoded density, including caps. Read sourcePixelSize, outputSize, nodeBox,
+source/output effective scales, savings against source and a real PNG baseline.
+Conversion is bounded to 8192 per side, 16777216 pixels, 128 MiB decode allocation
+and 1 MiB inflated compressed PNG metadata. Animated/unsupported conversion is
+refused rather than silently flattened; metadata is not preserved.
+
+`preset:"web-ready-images"` acquires every in-scope IMAGE paint as full-source
+WebP, quality 85, capped at display width ×2 when known, with CSS effects. It adds
+assetManifest/imageAudit and `asset-css-map.json`, schedules sorted batches of at
+most six and retains hidden, missing-source, failed and limit dispositions.
+Use assetPublicRoot for written `.webp` files and mapped code, or resources for
+reusable bytes. Custom assetRequests remain separate. Poll exportJob; resume
+paused work or cancel with jobAction. Accepted results/checkpoints live in this
+server process for the reported retention period. Scheduling is bounded to4096
+sources and128 MiB retained asset bytes; remaining IDs carry explicit failures
+and can be retried in smaller scopes. Read completeness and failures before use.
 
 ## 12. Prefer resource delivery for assets and large outputs
 

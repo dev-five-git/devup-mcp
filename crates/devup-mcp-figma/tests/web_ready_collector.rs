@@ -31,9 +31,13 @@ fn collector(preset: bool, lossless: bool) -> CollectorSession {
     request.resource_scope = devup_mcp_figma::ResourceScope::Used;
     if !preset {
         request.asset_selections = vec![devup_mcp_figma::AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             asset_id: "pic-0:fills:0".into(),
             format: devup_mcp_figma::AssetFormat::Webp,
-            scale: 2,
+            scale: 2.0,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: Some(43),
             lossless: Some(lossless),
@@ -79,10 +83,11 @@ fn collector(preset: bool, lossless: bool) -> CollectorSession {
 }
 fn export_result(request: &devup_mcp_figma::AssetRequest, chunked: bool) -> UpstreamResult {
     let bytes = png();
+    let chunked = chunked && !request.render_mode.is_original();
     let mut value = json!({"kind":"devupAssetExport","fileKey":"FileKey123","version":"v1","assetId":request.asset_id,
-  "nodeId":request.node_id,"field":request.field,"imageHash":request.image_hash,"format":request.format,"scale":request.scale,"renderMode":request.render_mode,
+  "nodeId":request.node_id,"field":request.field,"imageHash":request.image_hash,"format":request.format,"scale":request.scale,"renderMode":request.render_mode,"maxWidth":request.max_width,"srcset":request.srcset,"visibleScopeNodeId":request.visible_scope_node_id,"usageAspectRatio":request.usage_aspect_ratio,
   "status":if chunked {"chunked"}else{"exported"},"byteLength":bytes.len(),"sha256":hash(&bytes),
-  "exportDiagnostics":{"method":"native","stages":[],"renderInfo":{"representation":"native-node","nodeSize":{"width":8,"height":8,"aspectRatio":1},"effects":[]}}});
+  "exportDiagnostics":{"method":if request.render_mode.is_original(){"original-fill"}else{"native"},"stages":[],"renderInfo":{"representation":if request.render_mode.is_original(){"original-fill"}else{"native-node"},"nodeSize":{"width":8,"height":8,"aspectRatio":1},"effects":[]}}});
     if chunked {
         value["cursor"] = json!({"nextOffset":0,"maxChunkBytes":12000});
     } else {
@@ -144,12 +149,14 @@ fn preset_schedules_bounded_batches_and_retains_nested_hidden_and_multifill_rows
             CollectorStep::Call(call) => match &call.call {
                 ReadToolCall::AssetExport { request, .. } => {
                     assert!(issued.insert(request.asset_id.clone()));
-                    assert!(
-                        chunk_nodes
-                            .insert(request.node_id.clone(), request.asset_id.clone())
-                            .is_none(),
-                        "same-node PNG fragment must not collide"
-                    );
+                    if !request.render_mode.is_original() {
+                        assert!(
+                            chunk_nodes
+                                .insert(request.node_id.clone(), request.asset_id.clone())
+                                .is_none(),
+                            "same-node native PNG fragments must not collide"
+                        );
+                    }
                     collector
                         .accept(&call.id, export_result(request, true))
                         .unwrap();
@@ -167,12 +174,12 @@ fn preset_schedules_bounded_batches_and_retains_nested_hidden_and_multifill_rows
         }
     };
     assert!(
-        parts.assets.len() >= 20,
-        "19 census paints plus code raster boundary: {:?}",
+        parts.assets.len() == 19,
+        "19 IMAGE source census paints: {:?}",
         parts.assets.iter().map(|a| &a.asset_id).collect::<Vec<_>>()
     );
     assert!(parts.assets.iter().any(|a| a.asset_id == "nested:fills:0"));
-    assert!(parts.assets.iter().any(|a| a.asset_id == "boundary:node"));
+    assert!(!parts.assets.iter().any(|a| a.asset_id == "boundary:node"));
     assert!(parts.assets.iter().any(|a| a.asset_id == "pic-0:fills:1"));
     assert_eq!(
         parts
@@ -180,22 +187,22 @@ fn preset_schedules_bounded_batches_and_retains_nested_hidden_and_multifill_rows
             .iter()
             .filter(|a| a.status == AssetStatus::Failed)
             .count(),
-        4
+        1
     );
     for id in ["pic-1:fills:1", "pic-1:fills:2", "pic-14:fills:0"] {
         assert!(
             parts
                 .assets
                 .iter()
-                .any(|a| a.asset_id == id && a.status == AssetStatus::Failed)
+                .any(|a| a.asset_id == id && a.status == AssetStatus::Exported)
         );
     }
     for asset in parts.assets {
-        assert_eq!(asset.quality, Some(80));
+        assert_eq!(asset.quality, Some(85));
         assert_eq!(asset.lossless, Some(false));
         if asset.status == AssetStatus::Exported {
             let info = asset.render_info.unwrap();
-            assert_eq!(info["representation"], "native-node-transcoded");
+            assert_eq!(info["representation"], "original-fill-transcoded");
             assert_eq!(info["fidelity"], "approximate");
             assert_eq!(info["byteEvidence"]["sha256"], asset.sha256.unwrap());
             assert!(info["compression"]["referencePNG"].is_object());
@@ -222,7 +229,8 @@ fn malformed_fragmented_native_png_fails_one_asset_and_keeps_the_entire_preset()
                 ReadToolCall::AssetExport { request, .. } => {
                     if failed_id.is_none() {
                         failed_id = Some(request.asset_id.clone());
-                        let mut result = export_result(request, true);
+                        let mut result = export_result(request, false);
+                        result.raw["data"] = json!(STANDARD.encode(&bad));
                         result.raw["byteLength"] = json!(bad.len());
                         result.raw["sha256"] = json!(hash(&bad));
                         c.accept(&call.id, result).unwrap();
@@ -240,7 +248,7 @@ fn malformed_fragmented_native_png_fails_one_asset_and_keeps_the_entire_preset()
             CollectorStep::AwaitingResults => panic!("unexpected wait"),
         }
     };
-    assert_eq!(parts.assets.len(), 20);
+    assert_eq!(parts.assets.len(), 19);
     let failed = parts
         .assets
         .iter()
@@ -251,7 +259,7 @@ fn malformed_fragmented_native_png_fails_one_asset_and_keeps_the_entire_preset()
         failed.error_code.as_deref(),
         Some("DEVUP_ASSET_WEBP_POSTPROCESS_FAILED")
     );
-    assert_eq!(failed.quality, Some(80));
+    assert_eq!(failed.quality, Some(85));
     assert_eq!(failed.lossless, Some(false));
     assert!(failed.data_base64.is_none());
     assert!(

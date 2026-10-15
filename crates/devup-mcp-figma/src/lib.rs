@@ -23,7 +23,8 @@ mod variables;
 
 pub use collector::{
     CollectedParts, CollectionRequest, CollectionScope, CollectionStats, CollectorSession,
-    CollectorStep, PlannedCall, ReferencePng, ScreenFailure, SectionReadOptions,
+    CollectorStep, MAX_COLLECTED_ASSET_BYTES, PlannedCall, ReferencePng, ScreenFailure,
+    SectionReadOptions,
 };
 
 pub use bridge::{
@@ -86,13 +87,13 @@ mod asset_render_info;
 mod metadata;
 mod original_image;
 mod reference_compose;
-pub use asset_render_info::{annotate_assets, image_fill_audit};
+pub use asset_render_info::{annotate_assets, image_fill_audit, suggested_asset_filename};
 pub use assets::{
     AssetExportDiagnostics, AssetExportOutcome, AssetExportStage, AssetFormat, AssetManifest,
-    AssetManifestEntry, AssetRenderMode, AssetRequest, AssetSelection, AssetStatus,
+    AssetManifestEntry, AssetRenderMode, AssetRequest, AssetSelection, AssetStatus, AssetVariant,
     MAX_ASSET_BYTES, PNG_EXPORT_FIELD, SVG_EXPORT_FIELD, asset_exclusion_reason,
     asset_export_from_result, discover_asset_manifest, discover_image_fill_assets,
     discover_web_ready_assets, exported_asset_from_bytes, resolve_asset_selections, source_kind_of,
-    validate_asset_requests,
+    validate_asset_options, validate_asset_requests,
 };
 pub use original_image::{OriginalImage, original_image_from_result};

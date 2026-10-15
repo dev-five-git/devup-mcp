@@ -560,12 +560,16 @@ mod tests {
         let mut renditions = Vec::new();
         for (png, verdict) in [(WHITE, "pass"), (BLACK, "fail")] {
             let request = devup_mcp_figma::AssetRequest {
+                usage_aspect_ratio: None,
+                max_width: None,
+                srcset: false,
+                visible_scope_node_id: None,
                 asset_id: "picture:fills:0".into(),
                 node_id: "picture".into(),
                 field: "fills/0".into(),
                 image_hash: Some("source".into()),
                 format: devup_mcp_figma::AssetFormat::Webp,
-                scale: 1,
+                scale: 1.0,
                 render_mode: devup_mcp_figma::AssetRenderMode::Node,
                 quality: Some(80),
                 lossless: Some(true),

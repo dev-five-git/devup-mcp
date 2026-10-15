@@ -69,6 +69,10 @@ fn original_bytes_are_opted_in_only_by_the_bridge_transport() {
         "file",
         Some("v1".into()),
         AssetRequest {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
@@ -77,7 +81,7 @@ fn original_bytes_are_opted_in_only_by_the_bridge_transport() {
             field: "$original-image/fills/2".into(),
             image_hash: Some("active".into()),
             format: AssetFormat::Png,
-            scale: 1,
+            scale: 1.0,
         },
     );
     assert_eq!(

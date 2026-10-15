@@ -50,6 +50,7 @@ function failed(errorCode, errorDetail) {
     format: options.format,
     scale: options.scale,
     renderMode,
+    usageAspectRatio: options.usageAspectRatio ?? null, maxWidth: options.maxWidth ?? null, srcset: options.srcset === true, visibleScopeNodeId: options.visibleScopeNodeId ?? null,
     status: "failed",
     byteLength: null,
     sha256: null,
@@ -60,8 +61,8 @@ function failed(errorCode, errorDetail) {
 }
 
 const original = typeof options.field === "string" && options.field.startsWith("$original-image/fills/");
-const renderMode = options.renderMode === undefined ? (original ? "fill" : "node") : options.renderMode;
-let effectiveMode = renderMode === "auto" ? "node" : renderMode;
+const renderMode = options.renderMode === undefined ? (original ? "fill" : ["svg", "pdf"].includes(options.format) ? "node" : "original-source") : options.renderMode;
+let effectiveMode = ["auto", "original-source"].includes(renderMode) ? (renderMode === "auto" ? "node" : "fill") : renderMode;
 function renderInfo(node, paint) {
   const finite = n => typeof n === "number" && Number.isFinite(n) && n > 0;
   const effects = Array.isArray(node.effects) ? node.effects : null;
@@ -153,7 +154,7 @@ function overrideEvidence(node, info) {
   }
 }
 try {
-  if (!["fill", "node", "auto"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
+  if (!["original-source", "fill", "node", "visible", "auto"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
   if (!original && renderMode === "fill" &&
       (!String(options.field).startsWith("fills/") || !["png", "jpg", "webp"].includes(options.format) || options.scale !== 1)) {
     return failed("DEVUP_ASSET_FILL_SETTINGS_UNSUPPORTED", "Original fill requires fills/N, png or jpg matching its codec, and scale 1; no resizing or transcoding.");
@@ -162,13 +163,13 @@ try {
   // Only the local bridge opts in: the remote MCP's bounded text envelope
   // cannot carry arbitrary original bytes, and its file writer is not a
   // general binary transport. Never silently return a node PNG instead.
-  if ((original || renderMode === "fill") && options.transport !== "bridge") {
+  if ((original || ["fill", "original-source"].includes(renderMode)) && options.transport !== "bridge") {
     return failed(original ? "DEVUP_ORIGINAL_IMAGE_REQUIRES_BRIDGE" : "DEVUP_ASSET_FILL_REQUIRES_BRIDGE");
   }
   const node = await timed(() => devupLookupAssetNode(options.nodeId));
   observe("lookup", Date.now() - started);
   nodeType = node && node.type || "unknown";
-  if (!node || (renderMode === "node" && typeof node.exportAsync !== "function")) {
+  if (!node || (["node", "visible"].includes(renderMode) && typeof node.exportAsync !== "function")) {
     return failed("DEVUP_ASSET_UNSUPPORTED_BY_UPSTREAM", describe(new Error(node ? "node has no exportAsync" : "node not found")));
   }
   let selectedPaint = null;
@@ -184,7 +185,33 @@ try {
   } else if (options.field !== "node") {
     return failed("DEVUP_ASSET_FIELD_UNSUPPORTED");
   }
+  if (renderMode === "original-source" && (!selectedPaint || !options.imageHash)) return failed("DEVUP_ORIGINAL_SOURCE_UNAVAILABLE", "No IMAGE fill source exists for this selection. Choose an IMAGE fill or explicitly renderMode node; vector assets should retain SVG.");
+  let captureNode = node;
+  if (renderMode === "visible") {
+    const scopeId = options.visibleScopeNodeId;
+    if (!scopeId) return failed("DEVUP_VISIBLE_CONTEXT_UNAVAILABLE", "Recollect the parent frame and provide visibleScopeNodeId.");
+    const seen = new Set();
+    while (captureNode && captureNode.id !== scopeId && !seen.has(captureNode) && seen.size < 64) {
+      seen.add(captureNode); captureNode = captureNode.parent;
+    }
+    if (!captureNode || captureNode.id !== scopeId || ["PAGE","DOCUMENT"].includes(captureNode.type) || typeof captureNode.exportAsync !== "function") return failed("DEVUP_VISIBLE_SCOPE_UNSUPPORTED", "The selected capture scope is not an exportable ancestor of the requested node.");
+  }
   exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
+  if (renderMode === "visible") {
+    const info = exportDiagnostics.renderInfo;
+    info.representation = "native-visible"; info.renderedAs = "visible-scoped-capture";
+    info.captureNodeId = captureNode.id;
+    info.captureBox = {width:captureNode.width, height:captureNode.height, aspectRatio:captureNode.width/captureNode.height};
+    info.contextScope = "selected-ancestor-subtree";
+    info.captureEffects = Array.isArray(captureNode.effects) ? captureNode.effects : null;
+    info.requestedNodeEffects = info.effects;
+    info.effects = info.captureEffects;
+    info.sourceProperties.captureEffects = info.captureEffects;
+    info.visibleContext = {requestedNodeId:node.id,captureNodeId:captureNode.id,
+      included:["selected-scope-children","selected-scope-clipping","selected-scope-masks","selected-scope-rounding"],
+      outsideScope:"unknown; ancestors, page backdrop and external layers are not included",canvasReferenceCompared:false};
+    info.warnings.push("visible-scoped-capture", "outside-capture-context-unverified");
+  }
   overrideEvidence(node, exportDiagnostics.renderInfo);
   let observedSourceSize = null;
   let sizeTimer;
@@ -229,8 +256,8 @@ try {
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
     const bytes = autoBytes || await timed(() => image.getBytesAsync());
-    if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 8388608`);
+    if (bytes.length === 0 || bytes.length > 80 * 1024 * 1024) {
+      return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 83886080`);
     }
     const starts = values => values.every((value, index) => bytes[index] === value);
     const mimeType = starts([137,80,78,71,13,10,26,10]) ? "image/png"
@@ -240,7 +267,7 @@ try {
       : null;
     if (!mimeType) return failed("DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED");
     exportDiagnostics.renderInfo.originalMimeType = mimeType;
-    if (!original && options.format !== "webp" && mimeType !== { png: "image/png", jpg: "image/jpeg" }[options.format]) {
+    if (!original && renderMode === "fill" && options.format !== "webp" && mimeType !== { png: "image/png", jpg: "image/jpeg" }[options.format]) {
       return failed("DEVUP_ASSET_FILL_CODEC_MISMATCH", `Original fill codec is ${mimeType}, but ${options.format} was requested; choose the matching format or renderMode node. No transcoding was performed.`);
     }
     if (!original) return { ...failed(null), status: "exported", mimeType,
@@ -259,7 +286,8 @@ try {
   if (!["PNG", "JPG", "SVG", "PDF"].includes(format)) {
     return failed("DEVUP_ASSET_FORMAT_UNSUPPORTED");
   }
-  const scale = Math.min(4, Math.max(1, Math.floor(Number(options.scale) || 1)));
+  const scale = Number(options.scale ?? 2);
+  if (!Number.isFinite(scale) || scale <= 0 || scale > 4) return failed("DEVUP_ASSET_SCALE_INVALID");
   // SVG is exported as a string and carried back inline. Figma's remote MCP
   // does not return a written `.svg` as an attachment the way it does a PNG,
   // so writing the file alone left the caller holding a descriptor and no
@@ -280,8 +308,8 @@ try {
   // Image-filled nodes must use Figma's renderer for crop, filters, effects,
   // transforms and masks within this subtree. Never substitute raw fill bytes
   // or geometry on renderer failure. The canvas outside this node is unverified.
-  const exported = await timed(() => selectedPaint ? node.exportAsync(settings)
-    : devupRenderAsset(node, settings, nativeBudget, observe));
+  const exported = await timed(() => renderMode === "visible" ? captureNode.exportAsync(settings)
+    : selectedPaint ? node.exportAsync(settings) : devupRenderAsset(node, settings, nativeBudget, observe));
   if (selectedPaint) observe("native", Date.now() - nativeBegan);
   if (exportDiagnostics.method === "geometry") {
     exportDiagnostics.renderInfo.representation = "geometry-fallback";
@@ -299,8 +327,8 @@ try {
         ? exported
         : new Uint8Array(exported)
       : devupUtf8Encode(svgText);
-  if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
-    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${format} at scale ${scale} is ${bytes.length} bytes; one answer carries 1 to 8388608`);
+  if (bytes.length === 0 || bytes.length > 80 * 1024 * 1024) {
+    return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${format} at scale ${scale} is ${bytes.length} bytes; one answer carries 1 to 83886080`);
   }
   const sha256 = devupSha256(bytes);
   observe("encode", Date.now() - encodeBegan);
@@ -333,6 +361,7 @@ try {
       format: options.format,
       scale,
       renderMode,
+    usageAspectRatio: options.usageAspectRatio ?? null, maxWidth: options.maxWidth ?? null, srcset: options.srcset === true, visibleScopeNodeId: options.visibleScopeNodeId ?? null,
       status: "chunked",
       byteLength: bytes.length,
       sha256,
@@ -355,6 +384,7 @@ try {
     format: options.format,
     scale,
     renderMode,
+    usageAspectRatio: options.usageAspectRatio ?? null, maxWidth: options.maxWidth ?? null, srcset: options.srcset === true, visibleScopeNodeId: options.visibleScopeNodeId ?? null,
     status: "exported",
     byteLength: bytes.length,
     sha256,
@@ -368,5 +398,5 @@ try {
     exportDiagnostics,
   };
 } catch (error) {
-  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original || renderMode === "fill" ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
+  return failed(String(error.message || error).includes("DEVUP_ASSET_TIMEOUT:") ? "DEVUP_ASSET_TIMEOUT" : original || ["fill", "original-source"].includes(renderMode) ? "DEVUP_ORIGINAL_IMAGE_READ_FAILED" : "DEVUP_ASSET_EXPORT_FAILED", describe(error));
 }

@@ -6,7 +6,15 @@ expression: actual
 "export function ObjectFit() {
   return (
     <VStack p="10px">
-      <Image h="500px" objectFit="contain" src="/images/image.png" />
+      <Image
+        aspectRatio="1280 / 500"
+        h="500px"
+        minH="0"
+        minW="0"
+        objectFit="contain"
+        objectPos="center"
+        src="/images/image.png"
+      />
     </VStack>
   )
 }"

@@ -24,7 +24,36 @@ expression: actual
         <VStack maxW="1280px" w="100%">
           <VStack>
             <Flex outline="solid 1px $border" outlineOffset="-1px" overflow="hidden" pos="relative">
-              <Image flex="1" h="640px" objectFit="cover" src="/images/image 22.png" />
+              <Box
+                aspectRatio="1280 / 640"
+                flex="1"
+                h="640px"
+                minH="0"
+                minW="0"
+                pos="relative"
+              >
+                <Box
+                  borderRadius="inherit"
+                  h="100%"
+                  overflow="hidden"
+                  pos="relative"
+                  w="100%"
+                >
+                  <Image
+                    display="block"
+                    h="100%"
+                    left="0"
+                    maxW="none"
+                    objectFit="fill"
+                    pos="absolute"
+                    src="/images/image 22.png"
+                    top="0"
+                    transform="translate(-8.6836621635%, -5.9197301257%) matrix(1.2080793162, 0, 0, 1.2886179867, 0, 0)"
+                    transformOrigin="0 0"
+                    w="100%"
+                   />
+                </Box>
+              </Box>
               <Box left="570px" pos="absolute" top="80px">
                 <MapPin />
               </Box>

@@ -19,7 +19,7 @@ use tokio::sync::{Mutex, OwnedMutexGuard, watch};
 
 use super::delivery::{ProjectedOutput, RESOURCE_CHUNK_BYTES};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactRequestKey {
     file_key: String,
@@ -46,24 +46,8 @@ impl ArtifactRequestKey {
             section.frame_ids.dedup();
         }
         let mut asset_selections = request.asset_selections.clone();
-        asset_selections.sort_by(|left, right| {
-            (
-                &left.asset_id,
-                left.format,
-                left.scale,
-                left.render_mode,
-                left.quality,
-                left.lossless,
-            )
-                .cmp(&(
-                    &right.asset_id,
-                    right.format,
-                    right.scale,
-                    right.render_mode,
-                    right.quality,
-                    right.lossless,
-                ))
-        });
+        asset_selections
+            .sort_by_cached_key(|selection| serde_json::to_string(selection).unwrap_or_default());
         asset_selections.dedup();
         Self {
             file_key: request.target.file_key.clone(),
@@ -176,7 +160,7 @@ pub enum CacheReuseKind {
     RelatedNodeSuperset,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtifactCapabilities {
     pub kind: ArtifactKind,
@@ -233,8 +217,8 @@ impl Default for ArtifactLimits {
             // One collection may fill the whole cache: a scope:file collection of a
             // 5,543-node test file is 63.6 MB, and refusing it failed the export,
             // while the entries it evicts cost only a re-collection.
-            max_entry_bytes: 128 * 1024 * 1024,
-            max_total_bytes: 128 * 1024 * 1024,
+            max_entry_bytes: 384 * 1024 * 1024,
+            max_total_bytes: 384 * 1024 * 1024,
         }
     }
 }
@@ -1036,6 +1020,10 @@ impl ArtifactStore {
                 .iter()
                 .filter_map(|a| {
                     Some(AssetSelection {
+                        usage_aspect_ratio: a.usage_aspect_ratio,
+                        max_width: a.max_width,
+                        srcset: a.srcset,
+                        visible_scope_node_id: a.visible_scope_node_id.clone(),
                         asset_id: a.asset_id.clone(),
                         format: a.format?,
                         scale: a.scale?,
@@ -1465,12 +1453,16 @@ pub(crate) mod w3_tests {
                 all_screens: false,
             });
             request.asset_selections = vec![AssetSelection {
+                usage_aspect_ratio: None,
+                max_width: None,
+                srcset: false,
+                visible_scope_node_id: None,
                 render_mode: devup_mcp_figma::AssetRenderMode::Node,
                 quality: None,
                 lossless: None,
                 asset_id: "asset".into(),
                 format: AssetFormat::Png,
-                scale: 2,
+                scale: 2.0,
             }];
             request
         };
@@ -1502,7 +1494,7 @@ pub(crate) mod w3_tests {
         let mut asset_format = populated();
         asset_format.asset_selections[0].format = AssetFormat::Svg;
         let mut asset_scale = populated();
-        asset_scale.asset_selections[0].scale = 3;
+        asset_scale.asset_selections[0].scale = 3.0;
         let mut asset_mode = populated();
         asset_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Fill;
         let mut asset_auto_mode = populated();
@@ -1516,8 +1508,27 @@ pub(crate) mod w3_tests {
         let mut preset = populated();
         preset.web_ready_images = true;
 
+        let mut max_width = populated();
+        max_width.asset_selections[0].max_width = Some(240);
+        let mut srcset = populated();
+        srcset.asset_selections[0].srcset = true;
+        let mut visible = populated();
+        visible.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Visible;
+        visible.asset_selections[0].visible_scope_node_id = Some("1:1".into());
+        let mut original = populated();
+        original.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::OriginalSource;
+        let mut fractional = populated();
+        fractional.asset_selections[0].scale = 1.5;
+        let mut usage = populated();
+        usage.asset_selections[0].usage_aspect_ratio = Some(1.25);
         let empty = sha256_hex(&[]);
         let digests = [
+            max_width,
+            srcset,
+            visible,
+            original,
+            fractional,
+            usage,
             quality,
             lossless,
             preset,
@@ -1791,17 +1802,25 @@ pub(crate) mod w3_tests {
     fn w3_asset_capture_validation_reports_only_missing_exact_variants() {
         let mut request = request();
         let captured = AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
-            scale: 1,
+            scale: 1.0,
         };
         request.asset_selections = vec![captured.clone()];
         let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
         assert!(capabilities.validate_asset_captures(&[]).is_ok());
         assert!(!capabilities.supports_asset_captures(&[AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             quality: Some(80),
             ..captured.clone()
         }]));
@@ -1815,7 +1834,7 @@ pub(crate) mod w3_tests {
                 .is_ok()
         );
         let missing = AssetSelection {
-            scale: 2,
+            scale: 2.0,
             ..captured.clone()
         };
         let error = capabilities
@@ -1823,7 +1842,7 @@ pub(crate) mod w3_tests {
             .unwrap_err();
         assert_eq!(
             error.details["missingAssetCaptures"],
-            json!([{"assetId":"2:2:node", "format":"svg", "scale":2,"renderMode":"node"}])
+            json!([{"assetId":"2:2:node", "format":"svg", "scale":2.0,"renderMode":"node","srcset":false}])
         );
         assert!(!error.retryable);
     }
@@ -1837,6 +1856,10 @@ pub(crate) mod w3_tests {
         request.asset_selections = vec![node.clone()];
         let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
         let fill = AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Fill,
             quality: None,
             lossless: None,
@@ -1854,12 +1877,16 @@ pub(crate) mod w3_tests {
     fn w3_missing_asset_capture_has_actionable_details() {
         let capabilities = ArtifactRequestKey::from_collection(&request()).capabilities();
         let selection = AssetSelection {
+            usage_aspect_ratio: None,
+            max_width: None,
+            srcset: false,
+            visible_scope_node_id: None,
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
             quality: None,
             lossless: None,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
-            scale: 1,
+            scale: 1.0,
         };
         // The storage-layer validator will be consumed by W1's projection validation.
         let error = capabilities

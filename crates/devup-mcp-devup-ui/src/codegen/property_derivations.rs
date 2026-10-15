@@ -167,9 +167,9 @@ mod tests {
         for (positioning, value, path, prefix) in [
             (
                 "ABSOLUTE",
-                "contain",
-                "image-paint-scale",
-                "push_object_fit:",
+                "fill",
+                "native-raster-boundary",
+                "Native raster boundary:",
             ),
             (
                 "AUTO",
@@ -192,7 +192,17 @@ mod tests {
                 &snapshot,
                 &snapshot.nodes["c"],
                 "Image",
-                &CodegenOptions::default(),
+                &CodegenOptions {
+                    // This regression covers the explicit native export boundary.
+                    asset_policies: BTreeMap::from([(
+                        "c".into(),
+                        super::super::AssetRepresentationPolicy {
+                            render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                            ..Default::default()
+                        },
+                    )]),
+                    ..Default::default()
+                },
                 false,
             );
             let fit = evidence
