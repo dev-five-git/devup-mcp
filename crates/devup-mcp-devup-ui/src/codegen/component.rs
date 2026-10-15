@@ -1242,6 +1242,7 @@ fn finalize_codegen_output(
             "DEVUP_CODEGEN_ABSOLUTE_FALLBACK" => Some("layoutPositioning"),
             "DEVUP_CODEGEN_MASK_FALLBACK" => Some("isMask"),
             "DEVUP_CODEGEN_EFFECT_FALLBACK" => Some("effects"),
+            "DEVUP_CODEGEN_IMAGE_COMPOSITION_UNSUPPORTED" => Some("fills"),
             "DEVUP_CODEGEN_ANIMATION_UNREACHABLE" => Some("reactions"),
             "DEVUP_CODEGEN_VARIANT_CHILD_FALLBACK" => Some("childrenIds"),
             "DEVUP_CODEGEN_TOKEN_NAME_UNRESOLVED" => diagnostic.property.as_deref(),
@@ -2023,6 +2024,29 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
         context.diagnostics.push(diagnostic);
     }
     let candidates = [
+        (
+            style::asset_kind(snapshot, node).is_none()
+                && view
+                    .value("fills")
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|fills| {
+                        fills
+                            .iter()
+                            .any(|p| p["type"] == "IMAGE" && p["visible"] != false)
+                    })
+                && (view.child_ids().next().is_some()
+                    || view
+                        .value("fills")
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|fs| fs.iter().filter(|p| p["visible"] != false).count() > 1)
+                    || view
+                        .value("effects")
+                        .and_then(serde_json::Value::as_array)
+                        .is_some_and(|es| es.iter().any(|e| e["visible"] != false))),
+            "DEVUP_CODEGEN_IMAGE_COMPOSITION_UNSUPPORTED",
+            "This live layout background references a native node rendition that includes the node's other fills, effects and subtree. CSS/live children can repeat that composition. Review the exported PNG and flatten the entire subtree, or export original fill bytes separately and implement the paint transforms/compositing before use; automatic fidelity is unsupported here.",
+            FidelityImpact::Lossy,
+        ),
         (
             view.bool("isMask") == Some(true),
             "DEVUP_CODEGEN_MASK_FALLBACK",

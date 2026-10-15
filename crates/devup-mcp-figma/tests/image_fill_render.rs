@@ -137,7 +137,18 @@ fn compiled_raw_and_native_paths_measure_actual_bytes_and_diagnose_ratios() {
             "LAYER_BLUR"
         );
         assert_eq!(info["sourceProperties"]["isMask"], true);
-        assert_eq!(info["fidelity"], "unverified");
+        assert_eq!(info["fidelity"], "exact");
+        assert_eq!(info["canvasFidelity"], "unverified");
+        assert_eq!(
+            info["fidelityScope"],
+            if mode == AssetRenderMode::Node {
+                "native-node-export-at-requested-settings"
+            } else {
+                "original-source-bytes"
+            }
+        );
+        assert_eq!(info["effectsBakedIntoAsset"], mode == AssetRenderMode::Node);
+        assert_eq!(info["visibleSourceRatio"], Value::Null);
         assert_eq!(
             STANDARD.decode(entry.data_base64.unwrap()).unwrap(),
             if mode == AssetRenderMode::Node {
@@ -179,6 +190,11 @@ fn receiver_rejects_cross_mode_descriptors_and_fill_node_fragment_substitution()
     );
     result["data"]["renderMode"] = json!("fill");
     result["data"]["status"] = json!("chunked");
+    result["data"]["cursor"] = json!({"nextOffset":0,"maxChunkBytes":12000});
+    result["data"]
+        .as_object_mut()
+        .unwrap()
+        .remove("exportDiagnostics");
     assert!(
         asset_export_from_result(&UpstreamResult { raw: result }, "fixture", None, &request)
             .is_err()
@@ -365,4 +381,111 @@ fn direct_leaf_filename_uses_runtime_parent_names_when_snapshot_has_no_ancestors
     assert!(!name.contains(['/', '\\', ':']));
     assert!(!name.contains(".."));
     assert!(name.len() < 160);
+}
+
+#[test]
+fn auto_risky_native_capture_retains_scoped_evidence_and_cache_roundtrip() {
+    let request = request(AssetRenderMode::Auto);
+    let result = execute(&request);
+    assert_eq!(result["exports"], 1);
+    let mut entry = decode(&request, &result);
+    let info = entry.render_info.as_ref().unwrap();
+    assert_eq!(info["renderedAs"], "node-render");
+    assert_eq!(info["autoDecision"]["eligible"], false);
+    assert_eq!(info["effectsBakedIntoAsset"], true);
+    assert!(
+        info["warnings"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("blur-baked-in"))
+    );
+    assert_eq!(info["instanceOverride"], "unknown");
+    let cached: devup_mcp_figma::AssetManifestEntry = serde_json::from_value(json!(entry)).unwrap();
+    assert_eq!(entry, cached);
+    annotate_assets(&snapshot(), std::slice::from_mut(&mut entry));
+    assert_eq!(
+        entry.render_info.as_ref().unwrap()["autoDecision"],
+        cached.render_info.as_ref().unwrap()["autoDecision"]
+    );
+    assert_eq!(
+        entry.render_info,
+        entry.export_diagnostics.as_ref().unwrap().render_info
+    );
+    entry.status = devup_mcp_figma::AssetStatus::Failed;
+    annotate_assets(&snapshot(), std::slice::from_mut(&mut entry));
+    let info = entry.render_info.as_ref().unwrap();
+    assert_eq!(info["renderedAs"], "not-exported");
+    assert_eq!(info["fidelity"], "unverified");
+    assert_eq!(info["effectsBakedIntoAsset"], false);
+    assert!(info["outputSize"].is_null());
+    assert_eq!(
+        entry.render_info,
+        entry.export_diagnostics.as_ref().unwrap().render_info
+    );
+}
+
+#[test]
+fn audit_counts_nodes_and_every_fill_even_below_flattened_assets() {
+    let mut snapshot = snapshot();
+    let node = snapshot.nodes.get_mut("sample").unwrap();
+    node.fields.insert("fills".into(), json!([
+        {"type":"IMAGE","imageHash":"one","scaleMode":"FILL","imageTransform":[[1,0,0],[0,1,0]]},
+        {"type":"IMAGE","imageHash":"two","scaleMode":"FIT","imageTransform":[[0.3,0,0],[0,0.6,0]]},
+        {"type":"GRADIENT_LINEAR","blendMode":"MULTIPLY"}
+    ]));
+    let audit = devup_mcp_figma::image_fill_audit(&snapshot, &[]);
+    assert_eq!(audit["imageFillNodes"], 2);
+    assert_eq!(audit["imageFills"], 3);
+    assert_eq!(audit["total"], 3);
+    assert_eq!(audit["exact"], 0);
+    assert_eq!(audit["unknown"], 3);
+    assert_eq!(audit["needsReview"], 3);
+    assert_eq!(audit["reviewReasonCounts"]["multiple-fills"], 2);
+    assert_eq!(audit["reviewReasonCounts"]["image-transform"], 1);
+    assert!(
+        audit["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|a| a["canvasFidelity"] == "unverified")
+    );
+}
+
+#[test]
+fn auto_raw_receiver_requires_dimension_and_decision_evidence() {
+    let mut result = execute(&request(AssetRenderMode::Fill));
+    result["data"]["renderMode"] = json!("auto");
+    let req = request(AssetRenderMode::Auto);
+    assert!(
+        asset_export_from_result(
+            &UpstreamResult {
+                raw: result.clone()
+            },
+            "fixture",
+            None,
+            &req
+        )
+        .is_err()
+    );
+    let info = &mut result["data"]["exportDiagnostics"]["renderInfo"];
+    info["autoDecision"] = json!({"eligible":true,"selected":"fill","reasons":[]});
+    // Source is 20x10; the node is 4x4. A claimed decision cannot override bytes.
+    assert!(
+        asset_export_from_result(
+            &UpstreamResult {
+                raw: result.clone()
+            },
+            "fixture",
+            None,
+            &req
+        )
+        .is_err()
+    );
+    result["data"]["exportDiagnostics"]["renderInfo"]["nodeSize"] =
+        json!({"width":20,"height":10,"aspectRatio":2});
+    let entry = decode(&req, &result);
+    assert_eq!(
+        entry.render_info.unwrap()["scaleSemantics"],
+        "intrinsic-original-bytes-no-resize"
+    );
 }

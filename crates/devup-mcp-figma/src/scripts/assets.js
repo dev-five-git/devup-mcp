@@ -35,6 +35,9 @@ function failed(errorCode, errorDetail) {
   if (errorCode && exportDiagnostics.renderInfo) {
     exportDiagnostics.renderInfo.attemptedRepresentation = exportDiagnostics.renderInfo.representation;
     exportDiagnostics.renderInfo.representation = "not-exported";
+    exportDiagnostics.renderInfo.renderedAs = "not-exported";
+    exportDiagnostics.renderInfo.effectsBakedIntoAsset = false;
+    exportDiagnostics.renderInfo.fidelity = "unverified";
   }
   return {
     kind: "devupAssetExport",
@@ -58,6 +61,7 @@ function failed(errorCode, errorDetail) {
 
 const original = typeof options.field === "string" && options.field.startsWith("$original-image/fills/");
 const renderMode = options.renderMode === undefined ? (original ? "fill" : "node") : options.renderMode;
+let effectiveMode = renderMode === "auto" ? "node" : renderMode;
 function renderInfo(node, paint) {
   const finite = n => typeof n === "number" && Number.isFinite(n) && n > 0;
   const effects = Array.isArray(node.effects) ? node.effects : null;
@@ -73,33 +77,83 @@ function renderInfo(node, paint) {
     }
     ancestors.push({ type: parent.type || "unknown", clipsContent: parent.clipsContent ?? null,
       isMask: parent.isMask ?? null, effects: Array.isArray(parent.effects) ? parent.effects : null,
+      opacity: parent.opacity ?? null, blendMode: parent.blendMode ?? null, visible: parent.visible ?? null,
       siblingMaskPresent: Array.isArray(parent.children) ? parent.children.some(n => n !== branch && n.isMask === true) : null });
     branch = parent;
   }
   return {
-    representation: renderMode === "fill" ? "original-fill" : "native-node",
+    sourceKind: paint ? "image-fill" : options.imageHash ? "image-node" : "vector-node",
+    renderedAs: effectiveMode === "fill" ? "raw-fill" : "node-render",
+    representation: effectiveMode === "fill" ? "original-fill" : "native-node",
     layerHierarchy: layerHierarchy.reverse(),
-    scope: renderMode === "fill" ? "selected-paint-original-bytes" : "exact-node-subtree",
-    exportSettings: renderMode === "node" ? { contentsOnly: true, useAbsoluteBounds: false } : null,
+    scope: effectiveMode === "fill" ? "selected-paint-original-bytes" : "exact-node-subtree",
+    exportSettings: effectiveMode === "node" ? { contentsOnly: true, useAbsoluteBounds: false } : null,
     requestedScale: options.scale,
-    scaleSemantics: renderMode === "fill" ? "intrinsic-original-bytes-no-resize"
+    scaleSemantics: effectiveMode === "fill" ? "intrinsic-original-bytes-no-resize"
       : ["png", "jpg"].includes(options.format) ? "native-node-SCALE-constraint" : "not-applied-to-vector-document",
     nodeSize: finite(node.width) && finite(node.height) ? {width:node.width, height:node.height, aspectRatio:node.width/node.height} : null,
     outputSize: null, dimensionEvidence: "unknown-until-byte-inspection", aspectRatioComparison: "unknown",
+    scaleMode: paint ? paint.scaleMode ?? null : null,
+    imageTransform: paint ? paint.imageTransform ?? null : null,
+    // A transform matrix is not a visible-area percentage. Rotation, fit,
+    // clipping and source geometry are needed to determine visible coverage.
+    visibleSourceRatio: null, visibleSourceRatioEvidence: "not-computed",
+    effects,
+    extraFills: Array.isArray(node.fills) ? Math.max(0, node.fills.filter(p => p.visible !== false).length - (paint ? 1 : 0)) : null,
+    effectsBakedIntoAsset: effectiveMode === "node" && ["png", "jpg"].includes(options.format) && effects !== null,
+    bakedEffects: effectiveMode === "node" && ["png", "jpg"].includes(options.format) && effects ? effects.filter(e => e.visible !== false) : [],
+    instanceOverride: "unknown", instanceOverrideEvidence: "no-component-paint-comparison",
     sourceProperties: { scaleMode: paint ? paint.scaleMode ?? null : null,
       imageTransform: paint ? paint.imageTransform ?? null : null,
       rotation: paint ? paint.rotation ?? null : null, filters: paint ? paint.filters ?? null : null,
       opacity: paint ? paint.opacity ?? null : null, effects,
       blurEffects: effects ? effects.filter(e => e.visible !== false && String(e.type).includes("BLUR")) : null,
       isMask: node.isMask ?? null, clipsContent: node.clipsContent ?? null, ancestors },
-    unappliedProperties: renderMode === "fill" ? ["scaleMode", "imageTransform", "rotation", "filters", "paintOpacity", "nodeGeometry", "nodeTransforms", "nodeEffectsIncludingBlur", "nodeAndAncestorMasks", "ancestorClipsAndEffects"] : [],
-    warnings: renderMode === "fill" ? ["original-fill-properties-unapplied", "aspect-ratio-unknown"]
+    unappliedProperties: effectiveMode === "fill" ? ["scaleMode", "imageTransform", "rotation", "filters", "paintOpacity", "nodeGeometry", "nodeTransforms", "nodeEffectsIncludingBlur", "nodeAndAncestorMasks", "ancestorClipsAndEffects"] : [],
+    warnings: effectiveMode === "fill" ? ["original-fill-properties-unapplied", "aspect-ratio-unknown"]
       : ["ancestor-canvas-appearance-unverified", "aspect-ratio-unknown"],
     fidelity: "unverified",
   };
 }
+
+// Unknown properties fail closed. Identity alone cannot establish canvas
+// equality, and auto never infers source dimensions from the transform.
+function rawSafety(node, paint, info) {
+  const reasons = [];
+  const require = (condition, reason) => { if (!condition) reasons.push(reason); };
+  const identity = t => Array.isArray(t) && t.length === 2 && t.every((r,i) => Array.isArray(r) && r.length === 3 && r.every((v,j) => v === [[1,0,0],[0,1,0]][i][j]));
+  const unrotated = t => Array.isArray(t) && t.length === 2 && t.every(r => Array.isArray(r) && r.length === 3 && r.every(Number.isFinite)) && t[0][0] === 1 && t[1][1] === 1 && t[0][1] === 0 && t[1][0] === 0 && Number.isInteger(t[0][2]) && Number.isInteger(t[1][2]);
+  require(options.transport === "bridge", "raw-requires-bridge");
+  require(options.scale === 1 && ["png","jpg"].includes(options.format), "raw-requires-unscaled-raster");
+  require(!!paint && paint.visible === true && paint.opacity === 1 && paint.blendMode === "NORMAL", "paint-compositing-or-unknown");
+  require(paint && paint.scaleMode === "FILL" && identity(paint.imageTransform) && paint.rotation === 0, "paint-transform-or-unknown");
+  require(paint && paint.filters && Object.values(paint.filters).every(v => v === 0), "image-filters-or-unknown");
+  require(Array.isArray(node.fills) && node.fills.length === 1, "multiple-fills-or-unknown");
+  require(node.type === "RECTANGLE" && node.cornerRadius === 0 && Array.isArray(node.strokes) && node.strokes.length === 0 && (!node.children || node.children.length === 0), "node-geometry-or-unknown");
+  // RectangleNode has no clipsContent in the Plugin API. Its absence is
+  // non-applicable for this geometry, rather than missing Frame evidence.
+  require(Array.isArray(node.effects) && node.effects.length === 0 && node.isMask === false && (node.clipsContent === undefined || node.clipsContent === false) && node.opacity === 1 && node.visible === true && node.blendMode === "NORMAL", "node-effects-mask-compositing-or-unknown");
+  require(unrotated(node.absoluteTransform) && unrotated(node.relativeTransform), "node-transform-or-unknown");
+  require(info.sourceProperties.ancestors.length > 0 && info.sourceProperties.ancestors.some(p => ["PAGE","DOCUMENT"].includes(p.type)), "ancestor-chain-incomplete");
+  require(info.sourceProperties.ancestors.every(p => p.siblingMaskPresent === false), "ancestor-sibling-mask-or-unknown");
+  for (const p of info.sourceProperties.ancestors.filter(p => !["PAGE","DOCUMENT"].includes(p.type))) {
+    require(p.clipsContent === false && p.isMask === false && p.siblingMaskPresent === false && Array.isArray(p.effects) && p.effects.length === 0 && p.opacity === 1 && p.visible === true && ["NORMAL","PASS_THROUGH"].includes(p.blendMode), "ancestor-dependency-or-unknown");
+  }
+  return { eligible: reasons.length === 0, reasons: [...new Set(reasons)], evidence: "explicit-plugin-properties; intrinsic-dimensions-and-codec-required" };
+}
+
+function overrideEvidence(node, info) {
+  let count = 0;
+  for (let parent = node; parent && count++ < 32; parent = parent.parent) {
+    if (parent.type === "INSTANCE" && Array.isArray(parent.overrides)) {
+      const evidence = parent.overrides.find(o => o.id === node.id && Array.isArray(o.overriddenFields) && o.overriddenFields.includes("fills"));
+      if (evidence) { info.instanceOverride = true; info.instanceOverrideEvidence = { kind: "figma-instance-overrides", instanceId: parent.id, nodeId: node.id, overriddenFields: ["fills"] }; return; }
+    }
+    if (["PAGE","DOCUMENT"].includes(parent.type)) break;
+  }
+}
 try {
-  if (!["fill", "node"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
+  if (!["fill", "node", "auto"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
   if (!original && renderMode === "fill" &&
       (!String(options.field).startsWith("fills/") || !["png", "jpg"].includes(options.format) || options.scale !== 1)) {
     return failed("DEVUP_ASSET_FILL_SETTINGS_UNSUPPORTED", "Original fill requires fills/N, png or jpg matching its codec, and scale 1; no resizing or transcoding.");
@@ -131,13 +185,35 @@ try {
     return failed("DEVUP_ASSET_FIELD_UNSUPPORTED");
   }
   exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
+  overrideEvidence(node, exportDiagnostics.renderInfo);
+  let autoBytes = null;
+  if (renderMode === "auto") {
+    const safety = rawSafety(node, selectedPaint, exportDiagnostics.renderInfo);
+    if (safety.eligible) {
+      try {
+        const image = figma.getImageByHash(options.imageHash);
+        const sourceSize = image && await timed(() => image.getSizeAsync());
+        if (!sourceSize || sourceSize.width !== node.width || sourceSize.height !== node.height) safety.reasons.push("intrinsic-dimensions-mismatch-or-unknown");
+        else {
+          autoBytes = await timed(() => image.getBytesAsync());
+          const codec = autoBytes[0] === 137 && autoBytes[1] === 80 && autoBytes[2] === 78 && autoBytes[3] === 71 ? "png" : autoBytes[0] === 255 && autoBytes[1] === 216 && autoBytes[2] === 255 ? "jpg" : "unknown";
+          if (codec !== options.format) safety.reasons.push("source-codec-mismatch-or-unknown");
+        }
+      } catch (_error) { safety.reasons.push("source-inspection-unavailable"); }
+    }
+    safety.eligible = safety.reasons.length === 0;
+    effectiveMode = safety.eligible ? "fill" : "node";
+    exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
+    overrideEvidence(node, exportDiagnostics.renderInfo);
+    exportDiagnostics.renderInfo.autoDecision = { ...safety, selected: effectiveMode };
+  }
 
-  if (original || renderMode === "fill") {
+  if (original || effectiveMode === "fill") {
     exportDiagnostics.method = "original-fill";
     stage = "reading the original image";
     const image = figma.getImageByHash(options.imageHash);
     if (!image) return failed("DEVUP_ORIGINAL_IMAGE_NOT_FOUND");
-    const bytes = await timed(() => image.getBytesAsync());
+    const bytes = autoBytes || await timed(() => image.getBytesAsync());
     if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
       return failed("DEVUP_ASSET_RESPONSE_TOO_LARGE", `${bytes.length} bytes; one answer carries 1 to 8388608`);
     }
@@ -193,6 +269,8 @@ try {
   if (selectedPaint) observe("native", Date.now() - nativeBegan);
   if (exportDiagnostics.method === "geometry") {
     exportDiagnostics.renderInfo.representation = "geometry-fallback";
+    exportDiagnostics.renderInfo.renderedAs = "geometry-fallback";
+    exportDiagnostics.renderInfo.effectsBakedIntoAsset = false;
     exportDiagnostics.renderInfo.warnings.push("geometry-fallback-not-native-render");
   }
   if (Date.now() - started >= timeoutMs) throw new Error(`DEVUP_ASSET_TIMEOUT: export exceeded ${timeoutMs} ms asset budget`);

@@ -1471,11 +1471,14 @@ pub(crate) mod w3_tests {
         asset_scale.asset_selections[0].scale = 3;
         let mut asset_mode = populated();
         asset_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Fill;
+        let mut asset_auto_mode = populated();
+        asset_auto_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Auto;
         let mut asset_id = populated();
         asset_id.asset_selections[0].asset_id = "elsewhere".into();
 
         let empty = sha256_hex(&[]);
         let digests = [
+            asset_auto_mode,
             populated(),
             branch_key,
             file_key,

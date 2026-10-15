@@ -648,14 +648,20 @@ pub(super) fn push_style_props(
         // The exported asset has its own painted bounds. The live-container
         // outside-edge correction does not establish how to compose those.
         push_strokes(&view, None, props, used_tokens, variable_tokens);
-        push_effects(
-            &view,
-            component,
-            props,
-            used_tokens,
-            variable_tokens,
-            lengths,
-        );
+        // Native PNGs flatten this entire subtree, including its own blur and
+        // shadows. Layout ancestors still render their effects in their own
+        // branch below. SVG masks are alpha masks rather than raster pictures;
+        // retain their existing compositing policy.
+        if asset != AssetKind::Png {
+            push_effects(
+                &view,
+                component,
+                props,
+                used_tokens,
+                variable_tokens,
+                lengths,
+            );
+        }
         // An export carries the node's own opacity: Figma writes it into the
         // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
         // as well it is applied twice - a decoration at 0.2 came out at 0.04,

@@ -231,7 +231,7 @@ fn tools_list_over_raw_stdio_has_no_boolean_schemas_and_object_output_types() ->
         }
     }
     let mode = mode_schema(&export["inputSchema"]).expect("assetRequests renderMode schema");
-    assert_eq!(mode["enum"], json!(["fill", "node"]));
+    assert_eq!(mode["enum"], json!(["fill", "node", "auto"]));
     assert_eq!(mode["default"], "node");
     let mut missing_object_output_type = Vec::new();
 

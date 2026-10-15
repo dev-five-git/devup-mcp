@@ -534,6 +534,15 @@ mod tests {
         let (fill, created) = jobs.acquire(&operation, &request, false).unwrap();
         assert!(created);
         assert_ne!(node.id, fill.id);
+        request.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Auto;
+        let (automatic, created) = jobs.acquire(&operation, &request, false).unwrap();
+        assert!(created);
+        assert_ne!(automatic.id, node.id);
+        assert_ne!(automatic.id, fill.id);
+        assert_eq!(
+            automatic.state.lock().unwrap().assets[0]["renderMode"],
+            "auto"
+        );
         assert_eq!(fill.state.lock().unwrap().assets[0]["renderMode"], "fill");
         fill.finish(Ok(
             json!({"resources":[{"assetMetadata":{"assets":[{"assetId":"sample:fills:0",

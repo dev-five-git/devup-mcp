@@ -209,7 +209,9 @@ pub struct FigmaAssetRequestInput {
     /// png/jpg matching the intrinsic codec; no crop, transform, effects or masks.
     /// Request fill separately with assetManifest; generated code uses node assets.
     #[serde(default = "default_asset_render_mode")]
-    #[schemars(extend("enum" = ["fill", "node"]))]
+    /// auto selects original bytes only with proven safe geometry, context,
+    /// intrinsic dimensions, scale 1 and matching codec; otherwise native node.
+    #[schemars(extend("enum" = ["fill", "node", "auto"]))]
     pub render_mode: String,
     pub asset_id: String,
     #[serde(default = "default_asset_format")]
@@ -409,7 +411,7 @@ fn default_asset_scale() -> u8 {
     1
 }
 
-/// Compare a consumer-produced PNG; this tool never renders or runs commands.
+/// Compare a PNG; this tool never renders or runs commands.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[schemars(extend("additionalProperties" = serde_json::json!({"not": {}})))]

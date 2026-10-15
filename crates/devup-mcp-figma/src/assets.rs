@@ -15,6 +15,7 @@ pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 #[serde(rename_all = "lowercase")]
 pub enum AssetRenderMode {
     Fill,
+    Auto,
     #[default]
     Node,
 }
@@ -618,7 +619,14 @@ pub fn asset_export_from_result(
             "asset descriptor target or version does not match the request.",
         ));
     }
-    if request.render_mode == AssetRenderMode::Fill && descriptor.status == AssetStatus::Chunked {
+    if (request.render_mode == AssetRenderMode::Fill
+        || descriptor
+            .export_diagnostics
+            .as_ref()
+            .and_then(|d| d.render_info.as_ref())
+            .is_some_and(|i| i["representation"] == "original-fill"))
+        && descriptor.status == AssetStatus::Chunked
+    {
         return Err(invalid(
             "original fill bytes cannot use node re-export fragments.",
         ));
@@ -734,7 +742,12 @@ pub fn asset_export_from_result(
             "asset export binary length or hash does not match.",
         ));
     }
-    if request.render_mode == AssetRenderMode::Fill
+    if (request.render_mode == AssetRenderMode::Fill
+        || descriptor
+            .export_diagnostics
+            .as_ref()
+            .and_then(|d| d.render_info.as_ref())
+            .is_some_and(|i| i["representation"] == "original-fill"))
         && image::guess_format(&bytes).ok()
             != Some(match request.format {
                 AssetFormat::Png => image::ImageFormat::Png,
@@ -745,6 +758,35 @@ pub fn asset_export_from_result(
         return Err(invalid(
             "original fill bytes do not match the requested codec.",
         ));
+    }
+    if request.render_mode == AssetRenderMode::Auto
+        && let Some(info) = descriptor
+            .export_diagnostics
+            .as_ref()
+            .and_then(|d| d.render_info.as_ref())
+        && info["representation"] == "original-fill"
+    {
+        let measured = crate::asset_render_info::measured_info(
+            request.render_mode,
+            request.format,
+            request.scale,
+            Some(info.clone()),
+            Some(&bytes),
+        );
+        if request.scale != 1
+            || info["autoDecision"]["eligible"] != true
+            || info["autoDecision"]["selected"] != "fill"
+            || !info["autoDecision"]["reasons"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+            || measured["outputSize"].is_null()
+            || measured["outputSize"]["width"].as_f64() != measured["nodeSize"]["width"].as_f64()
+            || measured["outputSize"]["height"].as_f64() != measured["nodeSize"]["height"].as_f64()
+        {
+            return Err(invalid(
+                "auto raw fill lacks validated safety or intrinsic dimension evidence.",
+            ));
+        }
     }
     Ok(AssetExportOutcome::Entry(consistent_entry(
         AssetManifestEntry {
@@ -803,6 +845,12 @@ fn consistent_entry(mut entry: AssetManifestEntry) -> Box<AssetManifestEntry> {
         && let Some(info) = &mut entry.render_info
     {
         info["representation"] = json!("not-exported");
+        info["renderedAs"] = json!("not-exported");
+        info["fidelity"] = json!("unverified");
+        info["effectsBakedIntoAsset"] = json!(false);
+    }
+    if let Some(info) = &mut entry.render_info {
+        info["sourceKind"] = json!(entry.source_kind);
     }
     if let Some(diagnostics) = &mut entry.export_diagnostics {
         diagnostics.render_info = entry.render_info.clone();

@@ -124,4 +124,55 @@ for (const implementation of ['source', 'compiled-plugin']) {
     assert.equal(names.length,4);
     assert.ok(names.every(name=>[...name].length<=128));
   });
+
+  const safe = () => ({type:'RECTANGLE',width:100,height:80,visible:true,opacity:1,blendMode:'NORMAL',
+    fills:[{type:'IMAGE',imageHash:'source',visible:true,opacity:1,blendMode:'NORMAL',scaleMode:'FILL',imageTransform:[[1,0,0],[0,1,0]],rotation:0,filters:{}}],
+    effects:[],strokes:[],cornerRadius:0,isMask:false,clipsContent:undefined,
+    absoluteTransform:[[1,0,10],[0,1,20]],relativeTransform:[[1,0,10],[0,1,20]],parent:{type:'PAGE',children:[]}});
+  const sourceApi = (size={width:100,height:80}, bytes=raw) => ({getImageByHash:()=>({getSizeAsync:async()=>size,getBytesAsync:async()=>bytes})});
+  test(`${implementation}: auto selects raw only with explicit safe properties, matching dimensions and codec`, async () => {
+    const {result,exports}=await run({renderMode:'auto'},safe(),sourceApi());
+    assert.equal(result.renderMode,'auto'); assert.equal(result.status,'exported'); assert.equal(exports,0);
+    const info=result.exportDiagnostics.renderInfo;
+    assert.equal(info.renderedAs,'raw-fill'); assert.equal(info.autoDecision.eligible,true);
+    assert.deepEqual(info.autoDecision.reasons,[]); assert.equal(info.effectsBakedIntoAsset,false);
+    assert.equal(info.visibleSourceRatio,null); assert.equal(info.fidelity,'unverified');
+  });
+  test(`${implementation}: auto risky and unknown properties use the exact native node`, async () => {
+    const cases = [
+      {effects:[{type:'LAYER_BLUR',radius:12}]}, {effects:[{type:'DROP_SHADOW',radius:6}]},
+      {effects:undefined}, {isMask:true}, {cornerRadius:4}, {opacity:0.5}, {strokes:[{type:'SOLID'}]},
+      {absoluteTransform:[[1,0,0.5],[0,1,0]]},
+      {parent:{type:'FRAME',effects:[],isMask:false,clipsContent:true,opacity:1,visible:true,blendMode:'NORMAL',children:[],parent:{type:'PAGE',children:[]}}},
+      {parent:{type:'PAGE',children:[{isMask:true}]}}, {parent:null},
+      {fills:[...safe().fills,{type:'GRADIENT_LINEAR',blendMode:'MULTIPLY'}]},
+      {fills:[{...safe().fills[0],imageTransform:[[0.5,0,0.25],[0,0.8,0]]}]},
+      {fills:[{...safe().fills[0],imageTransform:undefined}]},
+      {fills:[{...safe().fills[0],scaleMode:'FIT'}]}, {fills:[{...safe().fills[0],scaleMode:'CROP'}]},
+      {fills:[{...safe().fills[0],filters:{contrast:0.2}}]},
+    ];
+    for (const changes of cases) {
+      const {result,exports}=await run({renderMode:'auto'},{...safe(),...changes},sourceApi());
+      assert.equal(result.status,'exported',JSON.stringify(changes)); assert.equal(exports,1);
+      assert.equal(result.exportDiagnostics.renderInfo.renderedAs,'node-render');
+      assert.equal(result.exportDiagnostics.renderInfo.autoDecision.eligible,false);
+      assert.ok(result.exportDiagnostics.renderInfo.autoDecision.reasons.length>0);
+    }
+    for (const [options,api] of [[{scale:2},sourceApi()],[{format:'svg'},sourceApi()],
+      [{},sourceApi({width:200,height:80})],[{},sourceApi(null)],[{},sourceApi(undefined,new Uint8Array([255,216,255]))],
+      [{transport:'remote'},sourceApi()],[{},{getImageByHash:()=>{throw Error('source unavailable');}}]]) {
+      const {result,exports}=await run({renderMode:'auto',...options},safe(),api);
+      assert.equal(result.status,'exported'); assert.equal(exports,1); assert.equal(result.exportDiagnostics.renderInfo.renderedAs,'node-render');
+    }
+  });
+  test(`${implementation}: real override evidence distinguishes per-instance paints; missing comparison stays unknown`, async () => {
+    for (const hash of ['first-image','second-image']) {
+      const {result}=await run({imageHash:hash}, {fills:[{...safe().fills[0],imageHash:hash}],parent:{id:'instance-'+hash,type:'INSTANCE',overrides:[{id:'sample',overriddenFields:['fills']}],children:[]}});
+      const info=result.exportDiagnostics.renderInfo;
+      assert.equal(info.instanceOverride,true); assert.equal(info.instanceOverrideEvidence.kind,'figma-instance-overrides');
+      assert.equal(result.imageHash,hash);
+    }
+    const {result}=await run({}, {parent:{type:'INSTANCE',overrides:[],children:[]}});
+    assert.equal(result.exportDiagnostics.renderInfo.instanceOverride,'unknown');
+  });
 }

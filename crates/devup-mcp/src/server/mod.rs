@@ -2158,7 +2158,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Compare consumer-produced actual PNG with exactly one reference PNG path or cached artifactId. Paths must be allowlisted. Never renders, launches a browser, or runs commands. Default threshold is 0.005 (0.5 percent). Supply the content-free visual renderer contract environment manifest; absent, incomplete, or invalid environment yields verdict inconclusive even when visual.passed is true. Optional diff PNG uses auto|inline|resource delivery.",
+        description = "Compare actual PNG with one reference PNG path, cached artifactId referencePng, or {artifactId,assetId} captured native-node PNG asset. Asset comparisons validate retained reference bytes and report asset pixel scope without requiring a browser environment; raw-fill and unknown captures cannot be references. Paths must be allowlisted. Never renders or runs commands. Default threshold is 0.005. Page comparisons require a valid environment manifest for a conclusive verdict. Optional diff PNG uses auto|inline|resource delivery.",
         output_schema = permissive_object_output_schema()
     )]
     async fn devup_visual_compare(

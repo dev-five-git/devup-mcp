@@ -230,9 +230,13 @@ pub(super) fn projected_outputs_from_result(
         ("designFingerprints", "design-fingerprints.json"),
         ("designChanges", "design-changes.json"),
         ("assetManifest", "asset-manifest.json"),
+        ("imageFillAudit", "image-fill-audit.json"),
         ("pageScaffold", "page-scaffold.json"),
     ] {
         if let Some(value) = result.get(field) {
+            if field == "imageFillAudit" && value["assets"].as_array().is_none_or(Vec::is_empty) {
+                continue;
+            }
             outputs.push(ProjectedOutput::text(
                 name,
                 "application/json",
@@ -587,6 +591,15 @@ pub(super) async fn apply_delivery(
             false,
         )
     })?;
+    if let Some(audit) = result
+        .get_mut("imageFillAudit")
+        .and_then(Value::as_object_mut)
+    {
+        audit.remove("assets");
+        if let Some(manifest) = manifests.iter().find(|m| m.name == "image-fill-audit.json") {
+            audit.insert("detailsResource".into(), json!({"uri":manifest.manifest_uri,"name":manifest.name,"contentHash":manifest.sha256,"requiresFullDetailRead":true}));
+        }
+    }
     for field in [
         "tsx",
         "componentTsx",
@@ -1606,10 +1619,14 @@ async fn project_operation(
                 || outputs
                     .iter()
                     .any(|o| matches!(o.as_str(), "tsx" | "componentTsx" | "responsiveTsx")))
-                && payload
-                    .assets
-                    .iter()
-                    .any(|a| a.render_mode == devup_mcp_figma::AssetRenderMode::Fill)
+                && payload.assets.iter().any(|a| {
+                    a.render_mode == devup_mcp_figma::AssetRenderMode::Fill
+                        || (a.render_mode == devup_mcp_figma::AssetRenderMode::Auto
+                            && a.render_info.as_ref().is_some_and(|i| {
+                                i["representation"] == "original-fill"
+                                    && i["autoDecision"]["eligible"] != true
+                            }))
+                })
             {
                 return Err(DevupError::new(
                     ErrorCode::DevupInvalidInput,
@@ -1732,6 +1749,13 @@ async fn project_operation(
                 None
             };
             let manifest_requested = outputs.iter().any(|output| output == "assetManifest");
+            result.insert(
+                "imageFillAudit".into(),
+                devup_mcp_figma::image_fill_audit(&payload.snapshot, &payload.assets),
+            );
+            result.get_mut("imageFillAudit").unwrap()["collectionCompleteness"] = json!({"state":completeness_report.state,"snapshotState":completeness_report.snapshot.state,"resourcesState":completeness_report.resources.state,"unresolvedResources":completeness_report.resources.unresolved_count,"failedScreens":payload.failures.len()});
+            result.get_mut("imageFillAudit").unwrap()["resourceCompleteness"] =
+                json!(payload.completeness);
             result.insert(
                 "assetSummary".to_owned(),
                 asset_summary(
@@ -1950,7 +1974,19 @@ async fn project_operation(
                     page_scaffold::selection_guidance(&mut result);
                 }
                 responsive_groups::completion(&mut result, &frame_ids, all_screens);
-                return Ok(Value::Object(result));
+                let projected = projected_outputs_from_result(&result)?;
+                let mut response = Value::Object(result);
+                let attachment = apply_delivery(
+                    &mut response,
+                    delivery,
+                    artifact_store,
+                    artifact,
+                    projected,
+                    Some(&recovery_arguments),
+                )
+                .await?;
+                commit_delivery(attachment);
+                return Ok(response);
             }
 
             let mut written_paths = Map::new();
@@ -2131,6 +2167,7 @@ async fn project_operation(
                                 &selected_fields,
                             );
                             frame["sourceMap"] = json!({"version":output.source_map.version,
+                                "rasterizedAssets":output.source_map.rasterized_assets(),
                                 "designFingerprints":design_fingerprints,
                                 "resolutionSemantics":{"axis":"mapping-method","dictionary":"/resolutionSemantics"},
                                 "entries":frame_entries,"source":{"fileKey":vouched_file_key(payload),
@@ -2632,6 +2669,10 @@ async fn project_operation(
             }
 
             if outputs.iter().any(|output| output == "sourceMap") && !section_tsx_projected {
+                let rasterized_assets = tsx_source_map
+                    .as_ref()
+                    .map(|m| m.rasterized_assets())
+                    .unwrap_or_default();
                 let mut tsx_entries: Vec<Value> = tsx_source_map
                     .map(|source_map| source_map.property_entries())
                     .unwrap_or_default()
@@ -2641,6 +2682,7 @@ async fn project_operation(
                 super::field_select::filter_entries(&mut tsx_entries, &selected_fields);
                 let source_map = json!({
                     "version": 2,
+                    "rasterizedAssets":rasterized_assets,
                     "designFingerprints":design_fingerprints,
                     "resolutionSemantics":devup_mcp_devup_ui::provenance::resolution_semantics(),
                     "tsx": tsx_entries,
@@ -5546,6 +5588,133 @@ mod w1_regressions {
     }
 
     #[tokio::test]
+    async fn auto_native_assets_reproject_code_and_audit_without_changing_cached_capture() {
+        let mut encoded = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(40, 40)
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .unwrap();
+        let bytes = encoded.into_inner();
+        let mut data = p3_asset_payload(&bytes);
+        for asset in &mut data.assets {
+            asset.render_mode = devup_mcp_figma::AssetRenderMode::Auto;
+            asset.source_kind = "image-fill".into();
+            asset.data_base64 = Some(STANDARD.encode(&bytes));
+            asset.byte_length = Some(bytes.len());
+            asset.sha256 = Some(sha256_hex(&bytes));
+            asset.render_info = Some(
+                json!({"representation":"native-node","sourceProperties":{"scaleMode":"CROP","imageTransform":[[0.5,0,0],[0,1,0]],"effects":[{"type":"LAYER_BLUR","radius":12}]},"autoDecision":{"eligible":false,"selected":"node","reasons":["paint-transform-or-unknown"]}}),
+            );
+        }
+        let store = ArtifactStore::default();
+        let artifact = store
+            .insert(
+                ArtifactRequestKey::from_collection(&CollectionRequest::new(
+                    data.target.clone(),
+                    CollectionScope::Node,
+                )),
+                data,
+            )
+            .await
+            .unwrap();
+        let before = artifact.payload.assets.clone();
+        let policy = OutputPolicy::from_roots(vec![std::env::temp_dir()]).unwrap();
+        for outputs in [
+            &["tsx", "componentTsx", "assetManifest", "sourceMap"][..],
+            &["assetManifest"][..],
+            &["tsx"][..],
+        ] {
+            let result = complete_operation(
+                operation(outputs),
+                &artifact.payload,
+                "fixture",
+                &artifact,
+                &policy,
+                &store,
+            )
+            .await
+            .unwrap();
+            assert_eq!(result["imageFillAudit"]["total"], 2);
+            assert_eq!(result["imageFillAudit"]["exact"], 0);
+            assert_eq!(result["imageFillAudit"]["unknown"], 2);
+            if outputs.contains(&"assetManifest") {
+                for asset in result["assetManifest"]["assets"].as_array().unwrap() {
+                    assert_eq!(asset["renderMode"], "auto");
+                    assert_eq!(asset["renderInfo"]["renderedAs"], "node-render");
+                    assert_eq!(asset["renderInfo"]["effectsBakedIntoAsset"], true);
+                    assert_eq!(asset["renderInfo"]["canvasFidelity"], "unverified");
+                }
+            }
+            if outputs.contains(&"sourceMap") {
+                let baked = result["sourceMap"]["rasterizedAssets"].as_array().unwrap();
+                assert_eq!(baked.len(), 2);
+                assert!(baked.iter().all(
+                    |a| a["effectsBakedIntoAsset"] == true && a["cssEffectsSuppressed"] == true
+                ));
+            }
+        }
+        assert_eq!(artifact.payload.assets, before);
+    }
+
+    #[tokio::test]
+    async fn large_image_fill_audit_preserves_all_rows_in_resource_with_bounded_inline_summary() {
+        let data = payload();
+        let store = ArtifactStore::default();
+        let artifact = store
+            .insert(
+                ArtifactRequestKey::from_collection(&CollectionRequest::new(
+                    data.target.clone(),
+                    CollectionScope::Node,
+                )),
+                data,
+            )
+            .await
+            .unwrap();
+        let rows = (0..10000).map(|i| json!({"assetId":format!("synthetic-{i}:fills:0"),"nodeId":format!("synthetic-{i}"),"canvasFidelity":"unverified","reviewReasons":["image-transform"],"unknownReasons":["canvas-reference-not-compared","ancestor-dependencies-unknown"]})).collect::<Vec<_>>();
+        let mut result = json!({"status":"partial","imageFillAudit":{"total":rows.len(),"exact":0,"needsReview":rows.len(),"unknown":rows.len(),"summary":"10000 fills require review","assets":rows}});
+        assert!(serde_json::to_vec(&result).unwrap().len() > 1024 * 1024);
+        let outputs = projected_outputs_from_result(result.as_object().unwrap()).unwrap();
+        let attachment = apply_delivery(
+            &mut result,
+            DeliveryMode::Auto,
+            &store,
+            &artifact,
+            outputs,
+            None,
+        )
+        .await
+        .unwrap();
+        commit_delivery(attachment);
+        assert_eq!(result["imageFillAudit"]["total"], 10000);
+        assert!(result["imageFillAudit"]["assets"].is_null());
+        assert!(
+            result["imageFillAudit"]["detailsResource"]["uri"]
+                .as_str()
+                .unwrap()
+                .starts_with("devup://")
+        );
+        assert!(serde_json::to_vec(&result).unwrap().len() < 16384);
+        let resource = store
+            .output_manifests()
+            .await
+            .into_iter()
+            .find(|m| m.name == "image-fill-audit.json")
+            .unwrap();
+        let mut bytes = Vec::new();
+        for index in 0..resource.chunk_count {
+            bytes.extend(
+                store
+                    .read_resource_output(&artifact.artifact_id, &resource.output_id, Some(index))
+                    .await
+                    .unwrap()
+                    .1,
+            );
+        }
+        let full: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(full["assets"].as_array().unwrap().len(), 10000);
+        assert_eq!(full["assets"][9999]["assetId"], "synthetic-9999:fills:0");
+    }
+
+    #[tokio::test]
     async fn p3_public_mapping_and_dedup_rewrite_inline_and_written_tsx() {
         let directory = std::env::temp_dir().join(format!(
             "devup-p3-assets-{}-{}",
@@ -6190,7 +6359,7 @@ mod w1_regressions {
             assert_eq!(bytes.len(), manifest.raw_bytes);
             outputs.insert(manifest.name, String::from_utf8(bytes).unwrap());
         }
-        assert_eq!(outputs.len(), 7); // shared snapshot plus 3 TSX/sourceMap pairs
+        assert_eq!(outputs.len(), 8); // shared snapshot/audit plus 3 TSX/sourceMap pairs
         assert_eq!(
             serde_json::from_str::<Value>(&outputs["raw-snapshot.json"]).unwrap(),
             serde_json::to_value(&artifact.payload.snapshot).unwrap()
@@ -6207,6 +6376,7 @@ mod w1_regressions {
         for frame in result["frames"].as_array().unwrap() {
             assert!(frame["tsx"].is_string());
             assert!(frame["sourceMap"].is_object());
+            assert!(frame["sourceMap"]["rasterizedAssets"].is_array());
         }
         eprintln!(
             "R8 offline 3-frame/9-unit projection: {:?}; no upstream timing inferred",

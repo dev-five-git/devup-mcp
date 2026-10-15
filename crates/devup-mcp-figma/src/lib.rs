@@ -84,7 +84,7 @@ mod asset_render_info;
 mod metadata;
 mod original_image;
 mod reference_compose;
-pub use asset_render_info::annotate_assets;
+pub use asset_render_info::{annotate_assets, image_fill_audit};
 pub use assets::{
     AssetExportDiagnostics, AssetExportOutcome, AssetExportStage, AssetFormat, AssetManifest,
     AssetManifestEntry, AssetRenderMode, AssetRequest, AssetSelection, AssetStatus,

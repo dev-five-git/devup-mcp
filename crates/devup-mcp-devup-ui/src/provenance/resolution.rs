@@ -22,6 +22,7 @@ pub fn resolution_semantics() -> Value {
             "variable-token":"Variable token.",
             "style-token":"Style token.",
             "asset":"Asset prop; binary state separate.",
+            "effects-baked-into-asset":"The native raster subtree export includes its own effects. CSS blur and shadow are suppressed at this asset boundary; layout ancestors retain their effects. This describes the codegen asset contract, not independently measured canvas equality.",
             "variant-selector":"Variant to selector.",
             "unverified-property-mapping":"Generated property unproven.",
             "variable":"Variable to JSON pointer.",

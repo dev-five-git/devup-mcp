@@ -300,10 +300,11 @@ pub(super) fn parse_asset_requests(
         let render_mode = match request.render_mode.as_str() {
             "node" => devup_mcp_figma::AssetRenderMode::Node,
             "fill" => devup_mcp_figma::AssetRenderMode::Fill,
+            "auto" => devup_mcp_figma::AssetRenderMode::Auto,
             _ => {
                 return Err(DevupError::new(
                     ErrorCode::DevupInvalidInput,
-                    "renderMode must be fill or node.",
+                    "renderMode must be fill, node or auto.",
                     false,
                 ));
             }
