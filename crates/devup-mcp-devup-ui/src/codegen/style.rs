@@ -429,6 +429,8 @@ fn same_color(
 /// adding to it does not lengthen every signature it passes through.
 #[derive(Clone, Copy)]
 pub(super) struct StyleOptions<'a> {
+    pub reserve_image_content: bool,
+    pub asset_policies: &'a BTreeMap<String, super::AssetRepresentationPolicy>,
     pub variable_tokens: &'a std::collections::BTreeMap<String, String>,
     pub length_tokens: &'a std::collections::BTreeMap<String, LengthToken>,
     pub asset_names_per_node: bool,
@@ -533,6 +535,8 @@ pub(super) fn push_style_props(
         length_tokens,
         asset_names_per_node: per_node,
         width_policy,
+        asset_policies,
+        reserve_image_content,
     } = style;
     let view = node.typed_view();
     let lengths = Lengths {
@@ -549,6 +553,16 @@ pub(super) fn push_style_props(
         return derivations;
     }
     if let Some(asset) = asset {
+        let image_index = super::image::selected_image_index(node, asset_policies);
+        let image_id = image_index
+            .map(|i| format!("{}:fills:{i}", node.id))
+            .unwrap_or_else(|| node.id.clone());
+        let policy = super::image::policy_for(node, &image_id, asset_policies);
+        let original = asset == AssetKind::Png && image_index.is_some() && policy.original();
+        if policy.incompatible_capture(&node.id) {
+            string_prop(props, "visibility", "hidden");
+            return derivations;
+        }
         let folder = if matches!(asset, AssetKind::Svg | AssetKind::SvgMask) {
             "icons"
         } else {
@@ -559,7 +573,10 @@ pub(super) fn push_style_props(
         } else {
             "png"
         };
-        let source = asset_source(snapshot, node, folder, extension, per_node);
+        let source = (asset == AssetKind::Png)
+            .then(|| policy.asset_path.clone())
+            .flatten()
+            .unwrap_or_else(|| asset_source(snapshot, node, folder, extension, per_node));
         if asset == AssetKind::SvgMask {
             if let SameColor::Color(color) =
                 same_color(snapshot, node, false, Some(variable_tokens))
@@ -596,7 +613,42 @@ pub(super) fn push_style_props(
         } else {
             string_prop(props, "src", source);
         }
-        push_object_fit(&view, props, &mut derivations);
+        if original {
+            let mapping =
+                super::image::map_for(snapshot, node, image_index, asset_policies, per_node);
+            if let Some(path) = mapping["assetPath"].as_str() {
+                string_prop(props, "src", path);
+            }
+            super::image::apply_image_props(props, &mapping);
+            if reserve_image_content {
+                super::image::reserve_hug_content(props, &mapping);
+            }
+            if policy.effects_baked != Some(true) {
+                let node_opacity = view.number("opacity").unwrap_or(1.);
+                let paint_opacity = if mapping["css"]["image"]["transform"].is_null() {
+                    mapping["css"]["image"]["opacity"]
+                        .as_str()
+                        .and_then(|s| s.parse::<f64>().ok())
+                        .unwrap_or(1.)
+                } else {
+                    1.
+                };
+                if node_opacity * paint_opacity < 1. {
+                    string_prop(
+                        props,
+                        "opacity",
+                        format_number(node_opacity * paint_opacity),
+                    );
+                }
+            }
+        } else if asset != AssetKind::Png {
+            push_object_fit(&view, props, &mut derivations);
+        } else {
+            string_prop(props, "objectFit", "fill");
+            let mapping =
+                super::image::map_for(snapshot, node, image_index, asset_policies, per_node);
+            super::image::apply_image_props(props, &mapping);
+        }
         // An export in flow is drawn where it sits in the box the layout gives
         // the node. They coincide for a plain icon; the notice logo is an
         // instance of 1373x98 whose vector is 952x104 at 425px in, and
@@ -604,7 +656,8 @@ pub(super) fn push_style_props(
         // element keeps the layout's box, and the picture is placed inside it
         // at the export's own size and offset. An element the layout
         // positions is placed by its export outright, in `codegen::layout`.
-        if view.string("layoutPositioning") != Some("ABSOLUTE")
+        if !original
+            && view.string("layoutPositioning") != Some("ABSOLUTE")
             && !super::layout::placed_by_a_free_layout(
                 snapshot,
                 node,
@@ -644,23 +697,34 @@ pub(super) fn push_style_props(
                 );
             }
         }
-        push_radius(&view, props);
-        // The exported asset has its own painted bounds. The live-container
-        // outside-edge correction does not establish how to compose those.
-        push_strokes(&view, None, props, used_tokens, variable_tokens);
-        // Native PNGs flatten this entire subtree, including its own blur and
-        // shadows. Layout ancestors still render their effects in their own
-        // branch below. SVG masks are alpha masks rather than raster pictures;
-        // retain their existing compositing policy.
-        if asset != AssetKind::Png {
-            push_effects(
-                &view,
-                component,
-                props,
-                used_tokens,
-                variable_tokens,
-                lengths,
-            );
+        if asset != AssetKind::Png
+            || (policy.effects_baked != Some(true)
+                && (policy.effects_baked == Some(false) || original))
+        {
+            push_radius(&view, props);
+            // The exported asset has its own painted bounds. The live-container
+            // outside-edge correction does not establish how to compose those.
+            push_strokes(&view, None, props, used_tokens, variable_tokens);
+            // Native PNGs flatten this entire subtree, including its own blur and
+            // shadows. Layout ancestors still render their effects in their own
+            // branch below. SVG masks are alpha masks rather than raster pictures;
+            // retain their existing compositing policy.
+            if asset != AssetKind::Png || original || policy.effects_baked == Some(false) {
+                push_effects(
+                    &view,
+                    component,
+                    props,
+                    used_tokens,
+                    variable_tokens,
+                    lengths,
+                );
+            }
+            if !original
+                && policy.effects_baked == Some(false)
+                && let Some(opacity) = view.number("opacity").filter(|n| *n < 1.)
+            {
+                string_prop(props, "opacity", format_number(opacity));
+            }
         }
         // An export carries the node's own opacity: Figma writes it into the
         // SVG as `<g opacity>` and into a PNG's alpha. Written on the element
@@ -843,16 +907,7 @@ fn push_blend_mode(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
     let Some(blend) = view.string("blendMode") else {
         return;
     };
-    let css = match blend {
-        "PASS_THROUGH" | "NORMAL" => None,
-        "LINEAR_BURN" => Some("linearBurn".to_owned()),
-        "COLOR_BURN" => Some("colorBurn".to_owned()),
-        "LINEAR_DODGE" => Some("linear-dodge".to_owned()),
-        "COLOR_DODGE" => Some("color-dodge".to_owned()),
-        "SOFT_LIGHT" => Some("soft-light".to_owned()),
-        "HARD_LIGHT" => Some("hard-light".to_owned()),
-        value => Some(value.to_ascii_lowercase()),
-    };
+    let css = blend_mode(blend);
     if let Some(css) = css {
         string_prop(props, "mixBlendMode", css);
     }
@@ -1019,7 +1074,10 @@ pub(crate) fn asset_stem(snapshot: &Snapshot, node: &RawNode, per_node: bool) ->
         || snapshot.nodes.values().any(|other| {
             other.id != node.id
                 && other.typed_view().name() == Some(name)
-                && (asset_identity(other) != identity || raster_instance)
+                && (asset_identity(other) != identity
+                    || raster_instance
+                    || (fills(node).is_some_and(|fs| fs.iter().any(|p| p["type"] == "IMAGE"))
+                        && fills(other) != fills(node)))
                 && asset_kind(snapshot, other).is_some()
         });
     if !shared {
@@ -1049,7 +1107,7 @@ fn asset_identity(node: &RawNode) -> Option<String> {
     (!values.is_empty()).then(|| values.join(","))
 }
 
-fn paint_css(
+pub(super) fn paint_css(
     snapshot: &Snapshot,
     node: &RawNode,
     paint: &Value,
@@ -1083,18 +1141,20 @@ fn paint_css(
         "GRADIENT_ANGULAR" => gradient_css(node, paint, "angular", variable_tokens),
         "GRADIENT_DIAMOND" => gradient_css(node, paint, "diamond", variable_tokens),
         "IMAGE" => {
-            let source = image_fill_source(snapshot, node, fill_index, per_node);
-            let fit = match paint.get("scaleMode").and_then(Value::as_str) {
-                // image_fill_source names a node.exportAsync rendition, not
-                // the original imageHash bytes. Figma has already applied
-                // imageTransform to that rendition; applying its inverse here
-                // crops and stretches the exported picture a second time.
-                Some("CROP") => "0 0/100% 100% no-repeat",
-                Some("FIT") => "center/contain no-repeat",
-                Some("FILL") => "center/cover no-repeat",
-                Some("TILE") => "repeat",
-                _ => "center/cover no-repeat",
-            };
+            let mapping = super::image::map_for(
+                snapshot,
+                node,
+                Some(fill_index),
+                style.asset_policies,
+                per_node,
+            );
+            let source = mapping["assetPath"]
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| image_fill_source(snapshot, node, fill_index, per_node));
+            let fit = mapping["css"]["background"]
+                .as_str()
+                .or_else(|| (paint["scaleMode"] == "TILE").then_some("repeat"))?;
             Some(format!("url({source}) {fit}"))
         }
         "PATTERN" => {
@@ -1402,12 +1462,11 @@ fn color_from_paint(paint: &Value) -> Option<String> {
     color_from(&color)
 }
 
-fn blend_mode(mode: &str) -> Option<String> {
+pub(super) fn blend_mode(mode: &str) -> Option<String> {
     match mode {
         "PASS_THROUGH" | "NORMAL" => None,
-        "LINEAR_BURN" => Some("linearBurn".to_owned()),
-        "COLOR_BURN" => Some("colorBurn".to_owned()),
-        "LINEAR_DODGE" => Some("linear-dodge".to_owned()),
+        "LINEAR_BURN" | "LINEAR_DODGE" => None,
+        "COLOR_BURN" => Some("color-burn".to_owned()),
         "COLOR_DODGE" => Some("color-dodge".to_owned()),
         "SOFT_LIGHT" => Some("soft-light".to_owned()),
         "HARD_LIGHT" => Some("hard-light".to_owned()),
@@ -1619,7 +1678,7 @@ fn push_radius(view: &TypedNode<'_>, props: &mut Vec<Prop>) {
             .value("arcData")
             .and_then(|value| value.get("innerRadius"))
             .and_then(Value::as_f64)
-            == Some(0.0)
+            .is_none_or(|radius| radius == 0.0)
     {
         string_prop(props, "borderRadius", "50%");
         return;
@@ -1939,6 +1998,39 @@ fn push_effects(
             _ => {}
         }
     }
+}
+
+/// Shared literal effect projection for the public CSS recipe. The renderer
+/// may replace these literals with bound theme tokens from its own resources.
+pub(super) fn image_effect_props(node: &RawNode) -> BTreeMap<String, String> {
+    let mut props = Vec::new();
+    let mut used = BTreeSet::new();
+    let tokens = BTreeMap::new();
+    let lengths = BTreeMap::new();
+    let view = node.typed_view();
+    push_radius(&view, &mut props);
+    push_strokes(&view, None, &mut props, &mut used, &tokens);
+    push_effects(
+        &view,
+        "Box",
+        &mut props,
+        &mut used,
+        &tokens,
+        Lengths {
+            tokens: &lengths,
+            viewport: None,
+        },
+    );
+    if let Some(opacity) = view.number("opacity")
+        && opacity < 1.0
+    {
+        string_prop(&mut props, "opacity", format_number(opacity));
+    }
+    push_blend_mode(&view, &mut props);
+    props
+        .into_iter()
+        .map(|(key, PropValue::String(value))| (key, value))
+        .collect()
 }
 
 /// Whether every visible effect on this node survives `push_effects` without

@@ -1,5 +1,5 @@
-use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component};
-use devup_mcp_figma::{SnapshotChunk, merge_chunks};
+use devup_mcp_devup_ui::codegen::{AssetRepresentationPolicy, CodegenOptions, generate_component};
+use devup_mcp_figma::{AssetRenderMode, SnapshotChunk, merge_chunks};
 use serde_json::json;
 
 #[test]
@@ -12,7 +12,22 @@ fn flattened_subtree_suppresses_own_blur_shadow_and_preserves_layout_ancestor_ef
         {"id":"label","type":"TEXT","fields":{"parentId":"root","characters":"Caption","fontSize":14,"width":80,"height":20}}
     ]})).unwrap();
     let snapshot = merge_chunks(vec![chunk]).unwrap();
-    let output = generate_component(&snapshot, "root", &CodegenOptions::default()).unwrap();
+    let output = generate_component(
+        &snapshot,
+        "root",
+        &CodegenOptions {
+            asset_policies: std::collections::BTreeMap::from([(
+                "wrapper".into(),
+                AssetRepresentationPolicy {
+                    render_mode: AssetRenderMode::Node,
+                    effects_baked: Some(true),
+                    ..Default::default()
+                },
+            )]),
+            ..Default::default()
+        },
+    )
+    .unwrap();
     assert!(output.tsx.contains("blur(2px)"), "{}", output.tsx);
     assert!(!output.tsx.contains("blur(12px)"), "{}", output.tsx);
     assert!(!output.tsx.contains("blur(7px)"), "{}", output.tsx);
@@ -33,7 +48,7 @@ fn flattened_subtree_suppresses_own_blur_shadow_and_preserves_layout_ancestor_ef
 }
 
 #[test]
-fn live_layout_image_background_with_other_fills_children_and_effects_is_explicitly_unsupported() {
+fn live_layout_image_background_with_missing_gradient_stops_is_explicitly_unsupported() {
     let chunk: SnapshotChunk = serde_json::from_value(json!({"fileKey":"synthetic","rootIds":["root"],"nodes":[
         {"id":"root","type":"FRAME","fields":{"name":"Background","width":200,"height":100,"layoutMode":"VERTICAL","childrenIds":["text"],"fills":[{"type":"IMAGE","imageHash":"source","scaleMode":"CROP"},{"type":"GRADIENT_LINEAR","blendMode":"MULTIPLY","gradientStops":[]}],"effects":[{"type":"LAYER_BLUR","radius":8,"visible":true}]}},
         {"id":"text","type":"TEXT","fields":{"parentId":"root","characters":"Live text","fontSize":14,"width":80,"height":20}}

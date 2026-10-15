@@ -1,5 +1,5 @@
-use devup_mcp_devup_ui::codegen::{CodegenOptions, generate_component};
-use devup_mcp_figma::Snapshot;
+use devup_mcp_devup_ui::codegen::{AssetRepresentationPolicy, CodegenOptions, generate_component};
+use devup_mcp_figma::{AssetRenderMode, Snapshot};
 use serde_json::{Value, json};
 
 fn picture(mode: &str, transform: Value, width: u32, height: u32) -> Snapshot {
@@ -19,8 +19,8 @@ fn picture(mode: &str, transform: Value, width: u32, height: u32) -> Snapshot {
     .unwrap()
 }
 
-// The files image_fill_path names are node exports, not getImageByHash bytes.
-// Reapplying any source crop to those files distorts an already cropped image.
+// Explicit native renditions have already applied the source crop. The
+// default source rendition instead needs that crop projected in CSS.
 #[test]
 fn cropped_node_export_does_not_apply_the_source_transform_twice() {
     for (transform, width, height) in [
@@ -30,33 +30,43 @@ fn cropped_node_export_does_not_apply_the_source_transform_twice() {
         (Value::Null, 211, 149),
     ] {
         let snapshot = picture("CROP", transform, width, height);
-        let output = generate_component(&snapshot, "picture", &CodegenOptions::default()).unwrap();
+        let output = generate_component(
+            &snapshot,
+            "picture",
+            &CodegenOptions {
+                asset_policies: std::collections::BTreeMap::from([(
+                    "picture:fills:1".into(),
+                    AssetRepresentationPolicy {
+                        render_mode: AssetRenderMode::Node,
+                        effects_baked: Some(true),
+                        asset_path: Some("/images/Portrait-1.png".into()),
+                        ..Default::default()
+                    },
+                )]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert!(
-            output
-                .tsx
-                .contains("url(/images/Portrait-1.png) 0 0/100% 100% no-repeat"),
+            output.tsx.contains("src=\"/images/Portrait-1.png\""),
             "{}",
             output.tsx
         );
+        assert!(output.tsx.contains("objectFit=\"fill\""));
+        assert!(!output.tsx.contains("transform="));
     }
 }
 
 #[test]
 fn non_crop_background_modes_keep_their_existing_behavior() {
     for (mode, expected) in [
-        ("FILL", "center/cover no-repeat"),
-        ("FIT", "center/contain no-repeat"),
+        ("FILL", "objectFit=\"cover\""),
+        ("FIT", "objectFit=\"contain\""),
         ("TILE", "repeat"),
     ] {
         let snapshot = picture(mode, json!([[0.5, 0, 0.25], [0, 0.8, 0.1]]), 240, 180);
         let output = generate_component(&snapshot, "picture", &CodegenOptions::default()).unwrap();
-        assert!(
-            output
-                .tsx
-                .contains(&format!("url(/images/Portrait-1.png) {expected}")),
-            "{}",
-            output.tsx
-        );
+        assert!(output.tsx.contains(expected), "{}", output.tsx);
     }
 }
 
@@ -70,7 +80,7 @@ fn cropped_export_background_maps_to_its_actual_fill_and_asset() {
             && entry
                 .generated_property
                 .as_deref()
-                .is_some_and(|property| property.contains("0 0/100% 100% no-repeat"))
+                .is_some_and(|property| property.contains("translate(-50%, -12.5%)"))
     }));
     assert!(
         output

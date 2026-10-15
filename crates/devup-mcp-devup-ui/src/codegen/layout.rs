@@ -83,6 +83,7 @@ pub(super) fn push_layout_props(
     root_layout: RootLayout,
     is_render_root: bool,
     policy: Option<&WidthPolicy>,
+    original_source: bool,
 ) {
     let view = node.typed_view();
     let parent = snapshot.nodes.values().find(|candidate| {
@@ -118,7 +119,7 @@ pub(super) fn push_layout_props(
         // Preserve its visual/layout semantics, but do not constrain the host
         // with Figma canvas geometry or root positioning.
     } else if absolute {
-        let is_asset = super::style::asset_kind(snapshot, node).is_some();
+        let is_asset = !original_source && super::style::asset_kind(snapshot, node).is_some();
         // An exported asset is placed by what the export frames. The plugin
         // places it by the node's own box and rotates it again, and the
         // report section's rotated illustration landed 120px low, squeezed
@@ -317,6 +318,7 @@ pub(super) fn push_layout_props(
             .number("rotation")
             .is_some_and(|rotation| rotation.abs() > 0.01)
             && super::style::asset_kind(snapshot, node).is_some()
+            && !original_source
             && let Some(bounds) = layout_box(node)
         {
             if fixed_w {
@@ -518,6 +520,14 @@ pub(super) fn push_layout_props(
     }
     // Whether the height was said outright, which decides below whether the
     // node still needs to be told to take the space its parent leaves.
+    if original_source && absolute {
+        if fixed_w {
+            width = view.number("width").map(px);
+        }
+        if fixed_h {
+            height = view.number("height").map(px);
+        }
+    }
     let wrote_height = height.is_some();
     let wrote_width = width.is_some();
     if let (Some(width), Some(height)) = (&width, &height)
@@ -795,7 +805,8 @@ pub(super) fn push_layout_props(
     // An export is drawn with its rotation in it, so an asset whose bounds
     // the snapshot carries is not rotated again; without the bounds it is
     // placed as the plugin places it, rotation and all.
-    let exported = super::style::asset_kind(snapshot, node).is_some()
+    let exported = !original_source
+        && super::style::asset_kind(snapshot, node).is_some()
         && view.value("absoluteRenderBounds").is_some();
     if let Some(rotation) = view.number("rotation")
         && rotation.abs() > 0.01

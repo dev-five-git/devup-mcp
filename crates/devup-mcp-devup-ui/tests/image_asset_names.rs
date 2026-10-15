@@ -1,5 +1,7 @@
-use devup_mcp_devup_ui::codegen::{CodegenOptions, asset_path, generate_component};
-use devup_mcp_figma::{Snapshot, discover_asset_manifest};
+use devup_mcp_devup_ui::codegen::{
+    AssetRepresentationPolicy, CodegenOptions, asset_path, generate_component, image_fill_path,
+};
+use devup_mcp_figma::{AssetRenderMode, Snapshot, discover_asset_manifest};
 use serde_json::json;
 
 #[test]
@@ -31,11 +33,47 @@ fn raster_instances_with_same_variant_name_and_different_images_have_distinct_co
             &CodegenOptions {
                 asset_names_per_node: per_node,
                 inline_instances: true,
+                asset_policies: std::collections::BTreeMap::from([
+                    (
+                        "first".into(),
+                        AssetRepresentationPolicy {
+                            render_mode: AssetRenderMode::Node,
+                            effects_baked: Some(true),
+                            ..Default::default()
+                        },
+                    ),
+                    (
+                        "second".into(),
+                        AssetRepresentationPolicy {
+                            render_mode: AssetRenderMode::Node,
+                            effects_baked: Some(true),
+                            ..Default::default()
+                        },
+                    ),
+                ]),
                 ..Default::default()
             },
         )
         .unwrap();
         assert!(result.tsx.contains(&first), "{}", result.tsx);
         assert!(result.tsx.contains(&second), "{}", result.tsx);
+        let source = generate_component(
+            &snapshot,
+            "root",
+            &CodegenOptions {
+                asset_names_per_node: per_node,
+                inline_instances: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let first_source = image_fill_path(&snapshot, "first-image", 0, per_node).unwrap();
+        let second_source = image_fill_path(&snapshot, "second-image", 0, per_node).unwrap();
+        assert_ne!(first_source, second_source);
+        assert!(
+            source.tsx.contains(&first_source) && source.tsx.contains(&second_source),
+            "{}",
+            source.tsx
+        );
     }
 }

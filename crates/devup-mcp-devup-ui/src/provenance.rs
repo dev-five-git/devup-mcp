@@ -68,6 +68,9 @@ pub struct ProvenanceEntry {
 pub struct SourceMap {
     pub version: u32,
     pub entries: Vec<ProvenanceEntry>,
+    /// Acquisition policy plus the properties actually emitted for each image.
+    #[serde(default)]
+    pub asset_css_mappings: Vec<serde_json::Value>,
     /// Trusted resource identities retained for in-process fidelity validation.
     /// A deserialized map without this context cannot establish token identity.
     #[serde(skip)]
@@ -79,18 +82,19 @@ pub struct SourceMap {
 impl Serialize for SourceMap {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut map = serializer.serialize_struct("SourceMap", 4)?;
+        let mut map = serializer.serialize_struct("SourceMap", 5)?;
         map.serialize_field("version", &self.version)?;
         map.serialize_field("entries", &self.property_entries())?;
         map.serialize_field("resolutionSemantics", &resolution_semantics())?;
         map.serialize_field("rasterizedAssets", &self.rasterized_assets())?;
+        map.serialize_field("assetCssMappings", &self.asset_css_mappings)?;
         map.end()
     }
 }
 
 impl SourceMap {
     pub fn rasterized_assets(&self) -> Vec<serde_json::Value> {
-        self.entries.iter().filter(|e| e.resolution == "effects-baked-into-asset").map(|e| json!({"nodeId":e.node_id,"assetId":e.asset_id,"effectsBakedIntoAsset":true,"scope":"native-raster-node-subtree","evidence":"codegen-native-raster-asset-contract","cssEffectsSuppressed":true})).collect()
+        self.asset_css_mappings.iter().filter(|m|m["effectsBaked"]==true && m["emitted"]!=false).map(|m|json!({"nodeId":m["nodeId"],"assetId":m["assetId"],"effectsBakedIntoAsset":true,"effectsAppliedBy":"asset","scope":m["contextScope"],"evidence":"supplied-acquisition-representation-policy","cssEffectsSuppressed":true})).collect()
     }
     pub fn property_entries(&self) -> Vec<ProvenanceEntry> {
         self.entries
@@ -193,6 +197,7 @@ impl SourceMap {
         Self {
             version: 2,
             entries: Vec::new(),
+            asset_css_mappings: Vec::new(),
             variable_tokens: BTreeMap::new(),
             style_tokens: BTreeMap::new(),
         }
@@ -1211,6 +1216,17 @@ fn asset_reference_matches(
             return false;
         }
     }
+    if output.source_map.asset_css_mappings.iter().any(|mapping| {
+        mapping["nodeId"] == owner
+            && mapping["assetId"] == asset_id
+            && mapping["assetPath"].as_str().is_some_and(|path| {
+                source == format!("src=\"{path}\"")
+                    || source.contains(&format!("url('{path}')"))
+                    || source.contains(&format!("url({path})"))
+            })
+    }) {
+        return true;
+    }
     [false, true].into_iter().any(|per_node| {
         let path = crate::codegen::asset_path(snapshot, owner, per_node).or_else(|| {
             let index = asset_id.rsplit_once(":fills:")?.1.parse().ok()?;
@@ -1807,13 +1823,6 @@ pub(crate) fn finalize_tsx(
                 asset_id: Some(asset.asset_id.clone()),
                 resolution: "asset".to_owned(),
             });
-            if asset_kind(snapshot, node) == Some(AssetKind::Png) {
-                let mut entry = entries.last().unwrap().clone();
-                entry.property = Some("effects".into());
-                entry.resolution = "effects-baked-into-asset".into();
-                entry.calculation = Some("Native raster export flattens the node subtree; CSS blur and shadow are omitted at this boundary. Ancestor layout effects remain separate.".into());
-                entries.push(entry);
-            }
         }
 
         if node.node_type == "TEXT" {
@@ -1850,6 +1859,7 @@ pub(crate) fn finalize_tsx(
         SourceMap {
             version: 2,
             entries,
+            asset_css_mappings: Vec::new(),
             variable_tokens: variable_tokens.clone(),
             style_tokens: style_tokens.clone(),
         },

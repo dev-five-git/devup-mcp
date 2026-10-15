@@ -603,7 +603,15 @@ fn children_to_map(tree: &Tree) -> Vec<(String, Vec<&Tree>)> {
         if child.component == "Image"
             && let Some(source) = child.props.get("src")
         {
-            key = serde_json::to_string(&(key, source)).expect("image identity is serializable");
+            key = serde_json::to_string(&(
+                key,
+                source,
+                child.props.get("srcSet"),
+                child.props.get("sizes"),
+                child.props.get("width"),
+                child.props.get("height"),
+            ))
+            .expect("image identity is serializable");
         }
         let occurrence = seen.entry(key.clone()).or_insert(0usize);
         grouped.push((format!("{key}#{occurrence}"), vec![child]));

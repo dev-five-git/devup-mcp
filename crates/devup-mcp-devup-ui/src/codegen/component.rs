@@ -24,6 +24,8 @@ pub enum RootLayout {
 
 #[derive(Debug, Clone, Default)]
 pub struct CodegenOptions {
+    /// Actual acquired/requested representation per instance-specific asset id.
+    pub asset_policies: BTreeMap<String, super::AssetRepresentationPolicy>,
     pub component_name: Option<String>,
     pub include_diagnostics: bool,
     pub inline_instances: bool,
@@ -1103,6 +1105,7 @@ fn generate_node_marked(
         root
     };
     let mut context = Context {
+        asset_policies: options.asset_policies.clone(),
         asset_names_per_node: options.asset_names_per_node,
         inline_instances: options.inline_instances,
         text_style_tokens: options.text_style_tokens.clone(),
@@ -1141,6 +1144,7 @@ fn finalize_codegen_output(
     );
     output.tsx = tsx;
     output.source_map = source_map;
+    super::image::attach_evidence(snapshot, options, &mut output);
     crate::provenance::account_for_sizing(snapshot, &mut output);
     validate_tsx(&output.tsx)?;
     if let Some(contract) = super::evidence::placement_contract(snapshot, &output, options, root_id)
@@ -1450,6 +1454,7 @@ fn unresolved_token_bindings(
 
 #[derive(Default)]
 struct Context {
+    asset_policies: BTreeMap<String, super::AssetRepresentationPolicy>,
     asset_names_per_node: bool,
     imports: BTreeSet<String>,
     used_tokens: BTreeSet<String>,
@@ -1570,6 +1575,7 @@ fn render_node(
                 context.root_layout,
                 depth == 0,
                 context.width_policy.as_ref(),
+                super::image::original_image(node, &context.asset_policies),
             );
             props.retain(|(name, value)| {
                 matches!(
@@ -1601,7 +1607,7 @@ fn render_node(
             format!("{}{expression}", "  ".repeat(depth)),
         ));
     }
-    let asset = style::asset_kind(snapshot, node);
+    let asset = super::image::asset_kind(snapshot, node, &context.asset_policies);
     if asset.is_some()
         && let Some(reason) = style::non_rendering_asset_reason(snapshot, node)
     {
@@ -1616,6 +1622,7 @@ fn render_node(
             context.root_layout,
             depth == 0,
             context.width_policy.as_ref(),
+            super::image::original_image(node, &context.asset_policies),
         );
         layout::string_prop(&mut props, "visibility", "hidden");
         let (opening, multiline) = render_props(&props, depth);
@@ -1681,6 +1688,7 @@ fn render_node(
         context.root_layout,
         depth == 0,
         context.width_policy.as_ref(),
+        super::image::original_image(node, &context.asset_policies),
     );
     // A frame with no auto-layout places its children itself, and this keeps
     // them resolvable. Once the gap around them is measurable it is emitted as
@@ -1726,6 +1734,8 @@ fn render_node(
         &mut props,
         &mut context.used_tokens,
         style::StyleOptions {
+            reserve_image_content: !(depth == 0 && context.root_layout == RootLayout::Embedded),
+            asset_policies: &context.asset_policies,
             variable_tokens: &context.variable_tokens,
             length_tokens: &context.length_tokens,
             asset_names_per_node: context.asset_names_per_node,
@@ -1827,10 +1837,58 @@ fn render_node(
     if context.inline_instances && view.node_type() == "INSTANCE" {
         context.instance_boolean_properties.pop();
     }
-    let children = children_result?;
+    let mut children = children_result?;
+    if asset.is_none() && component != "Text" {
+        if let Some(layers) = super::image::render_paint_layers(
+            snapshot,
+            node,
+            style::StyleOptions {
+                reserve_image_content: !(depth == 0 && context.root_layout == RootLayout::Embedded),
+                asset_policies: &context.asset_policies,
+                variable_tokens: &context.variable_tokens,
+                length_tokens: &context.length_tokens,
+                asset_names_per_node: context.asset_names_per_node,
+                width_policy: context.width_policy.as_ref(),
+            },
+            &mut context.used_tokens,
+            depth + 1,
+        ) {
+            props.retain(|(name, _)| {
+                !matches!(
+                    name.as_str(),
+                    "bg" | "bgBlendMode" | "objectFit" | "objectPos"
+                )
+            });
+            if !props.iter().any(|(name, _)| name == "pos") {
+                layout::string_prop(&mut props, "pos", "relative");
+            }
+            layout::string_prop(&mut props, "isolation", "isolate");
+            context.imports.insert("Image".into());
+            context.imports.insert("Box".into());
+            children.splice(0..0, layers);
+        }
+    }
 
     let (opening_props, multiline_props) = render_props(&props, depth);
-    let rendered = if component == "Text" {
+    let image_index = super::image::selected_image_index(node, &context.asset_policies);
+    let affine = if asset == Some(style::AssetKind::Png) && image_index.is_some() {
+        let mapping = super::image::map_for(
+            snapshot,
+            node,
+            image_index,
+            &context.asset_policies,
+            context.asset_names_per_node,
+        );
+        super::image::render_affine_image(&props, &mapping, depth)
+    } else {
+        None
+    };
+    if affine.is_some() {
+        context.imports.insert("Box".into());
+    }
+    let rendered = if let Some(rendered) = affine {
+        rendered
+    } else if component == "Text" {
         let children = text::render_text_children(
             &view,
             &context.text_style_tokens,
@@ -1967,7 +2025,7 @@ fn named_tokens(result: Option<&UpstreamResult>, collection: &str) -> BTreeMap<S
     tokens
 }
 
-fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
+pub(super) fn render_props(props: &[Prop], depth: usize) -> (String, bool) {
     if props.is_empty() {
         return (String::new(), false);
     }
@@ -2028,14 +2086,47 @@ fn add_fallback_diagnostics(snapshot: &Snapshot, node: &RawNode, context: &mut C
     }
     let candidates = [
         (
+            super::image::original_image(node, &context.asset_policies)
+                && matches!(
+                    view.node_type(),
+                    "VECTOR" | "STAR" | "POLYGON" | "BOOLEAN_OPERATION"
+                ),
+            "DEVUP_CODEGEN_IMAGE_SHAPE_UNSUPPORTED",
+            "The original image source does not encode this vector's shape. Use the vector rendition or an explicit CSS mask; source-image rectangle equivalence is unverified.",
+            FidelityImpact::Lossy,
+        ),
+        (
+            view.value("fills")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|fills| {
+                    fills.iter().any(|p| {
+                        p["visible"] != false
+                            && p["type"]
+                                .as_str()
+                                .is_some_and(|t| t.starts_with("GRADIENT_"))
+                            && p["gradientStops"].as_array().is_none_or(|s| s.len() < 2)
+                    })
+                }),
+            "DEVUP_CODEGEN_IMAGE_COMPOSITION_UNSUPPORTED",
+            "A visible gradient has insufficient stops for CSS. Recapture the missing paint geometry or explicitly flatten the entire subtree; this composition cannot be reconstructed from the collected fields.",
+            FidelityImpact::Lossy,
+        ),
+        (
             style::asset_kind(snapshot, node).is_none()
                 && view
                     .value("fills")
                     .and_then(serde_json::Value::as_array)
                     .is_some_and(|fills| {
-                        fills
-                            .iter()
-                            .any(|p| p["type"] == "IMAGE" && p["visible"] != false)
+                        fills.iter().enumerate().any(|(i, p)| {
+                            p["type"] == "IMAGE"
+                                && p["visible"] != false
+                                && !super::image::policy_for(
+                                    node,
+                                    &format!("{}:fills:{i}", node.id),
+                                    &context.asset_policies,
+                                )
+                                .original()
+                        })
                     })
                 && (view.child_ids().next().is_some()
                     || view
