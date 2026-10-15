@@ -75,6 +75,9 @@ pub(crate) fn layout_box(node: &RawNode) -> Option<Box4> {
     box4(node.typed_view().value("absoluteBoundingBox"))
 }
 
+// Root placement, width policy and image representation are independent
+// inputs to this shared layout property writer.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn push_layout_props(
     snapshot: &Snapshot,
     node: &RawNode,

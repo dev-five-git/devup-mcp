@@ -1838,8 +1838,9 @@ fn render_node(
         context.instance_boolean_properties.pop();
     }
     let mut children = children_result?;
-    if asset.is_none() && component != "Text" {
-        if let Some(layers) = super::image::render_paint_layers(
+    if asset.is_none()
+        && component != "Text"
+        && let Some(layers) = super::image::render_paint_layers(
             snapshot,
             node,
             style::StyleOptions {
@@ -1852,21 +1853,21 @@ fn render_node(
             },
             &mut context.used_tokens,
             depth + 1,
-        ) {
-            props.retain(|(name, _)| {
-                !matches!(
-                    name.as_str(),
-                    "bg" | "bgBlendMode" | "objectFit" | "objectPos"
-                )
-            });
-            if !props.iter().any(|(name, _)| name == "pos") {
-                layout::string_prop(&mut props, "pos", "relative");
-            }
-            layout::string_prop(&mut props, "isolation", "isolate");
-            context.imports.insert("Image".into());
-            context.imports.insert("Box".into());
-            children.splice(0..0, layers);
+        )
+    {
+        props.retain(|(name, _)| {
+            !matches!(
+                name.as_str(),
+                "bg" | "bgBlendMode" | "objectFit" | "objectPos"
+            )
+        });
+        if !props.iter().any(|(name, _)| name == "pos") {
+            layout::string_prop(&mut props, "pos", "relative");
         }
+        layout::string_prop(&mut props, "isolation", "isolate");
+        context.imports.insert("Image".into());
+        context.imports.insert("Box".into());
+        children.splice(0..0, layers);
     }
 
     let (opening_props, multiline_props) = render_props(&props, depth);

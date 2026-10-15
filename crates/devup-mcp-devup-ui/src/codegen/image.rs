@@ -308,8 +308,10 @@ struct Projection {
     reasons: Vec<String>,
 }
 fn projection(node: &Value, asset_id: &str, policy: &AssetRepresentationPolicy) -> Projection {
-    let mut out = Projection::default();
-    out.visible = json!({"known":false,"reason":"source-dimensions-unavailable"});
+    let mut out = Projection {
+        visible: json!({"known":false,"reason":"source-dimensions-unavailable"}),
+        ..Projection::default()
+    };
     if !policy.original() {
         out.image.insert("objectFit".into(), "fill".into());
         out.background = Some("0 0/100% 100% no-repeat".into());
@@ -615,10 +617,9 @@ pub fn asset_css_map(
             .or(source_effective.as_ref())
     } else {
         output_effective.as_ref()
-    } {
-        if e["minimum"].as_f64().is_some_and(|n| n < 1.5) {
-            projected.reasons.push("low-resolution-bitmap".into());
-        }
+    } && e["minimum"].as_f64().is_some_and(|n| n < 1.5)
+    {
+        projected.reasons.push("low-resolution-bitmap".into());
     }
     if intrinsic.is_none() {
         projected
