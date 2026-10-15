@@ -32,7 +32,7 @@ pub(crate) const DELIVERY_MODES: [&str; 3] = ["auto", "inline", "resource"];
 
 pub(crate) const SEARCH_MATCH_KINDS: [&str; 3] = ["exact", "normalized", "fuzzy"];
 
-pub(crate) const ASSET_FORMATS: [&str; 4] = ["png", "jpg", "svg", "pdf"];
+pub(crate) const ASSET_FORMATS: [&str; 5] = ["png", "jpg", "svg", "pdf", "webp"];
 
 pub(crate) const PROJECT_CONTEXT_SCOPES: [&str; 5] = ["theme", "api", "db", "routes", "all"];
 
@@ -43,7 +43,8 @@ pub(crate) const STACK_DIFF_LAYERS: [&str; 4] = [
     "openapi-client",
 ];
 
-pub(crate) const EXPORT_OUTPUTS: [&str; 12] = [
+pub(crate) const EXPORT_OUTPUTS: [&str; 13] = [
+    "imageAudit",
     "tsx",
     "componentTsx",
     "responsiveTsx",
@@ -79,6 +80,7 @@ pub(super) fn validate_artifact_projection(
                 | "designFingerprints"
                 | "designChanges"
                 | "assetManifest"
+                | "imageAudit"
                 | "referencePng"
         )
     });
@@ -286,6 +288,7 @@ pub(super) fn parse_asset_requests(
         }
         let format = match request.format.as_str() {
             "png" => AssetFormat::Png,
+            "webp" => AssetFormat::Webp,
             "jpg" | "jpeg" => AssetFormat::Jpg,
             "svg" => AssetFormat::Svg,
             "pdf" => AssetFormat::Pdf,
@@ -309,23 +312,37 @@ pub(super) fn parse_asset_requests(
                 ));
             }
         };
+        devup_mcp_figma::validate_webp_options(format, request.quality, request.lossless)?;
         if render_mode == devup_mcp_figma::AssetRenderMode::Fill
-            && (!matches!(format, AssetFormat::Png | AssetFormat::Jpg) || request.scale != 1)
+            && (!matches!(
+                format,
+                AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
+            ) || request.scale != 1)
         {
             return Err(DevupError::new(
                 ErrorCode::DevupInvalidInput,
-                "renderMode fill requires scale 1 and png or jpg matching the original codec; original bytes are never resized or transcoded.",
+                "renderMode fill requires scale 1: PNG/JPG preserve the matching original codec and bytes; WebP explicitly transcodes PNG/JPEG source without resizing. Use renderMode node for other codecs or visible crop/effects.",
                 false,
             ));
         }
         selections.push(AssetSelection {
+            quality: request.quality,
+            lossless: request.lossless,
             render_mode,
             asset_id: request.asset_id.clone(),
             format,
             scale: request.scale,
         });
         if let Some(path) = &request.output_path {
-            output_paths.insert(request.asset_id.clone(), path.clone());
+            let path = if format == AssetFormat::Webp {
+                std::path::Path::new(path)
+                    .with_extension("webp")
+                    .to_string_lossy()
+                    .into_owned()
+            } else {
+                path.clone()
+            };
+            output_paths.insert(request.asset_id.clone(), path);
         }
     }
     Ok((selections, output_paths))
@@ -577,6 +594,34 @@ pub(super) fn public_asset_url(
 #[cfg(test)]
 mod p3_tests {
     use super::*;
+    #[test]
+    fn webp_options_are_validated_and_paths_use_the_actual_codec_extension() {
+        let base = json!({"assetId":"sample:fills:0","format":"webp","quality":0,"lossless":true,"outputPath":"images/sample.png"});
+        let parsed =
+            parse_asset_requests(&[serde_json::from_value(base.clone()).unwrap()]).unwrap();
+        assert_eq!(parsed.0[0].quality, Some(0));
+        assert_eq!(parsed.0[0].lossless, Some(true));
+        assert!(parsed.1.values().next().unwrap().ends_with(".webp"));
+        for change in [
+            json!({"quality":101}),
+            json!({"format":"png","quality":80}),
+            json!({"format":"jpg","lossless":false}),
+        ] {
+            let mut input = base.clone();
+            for (key, value) in change.as_object().unwrap() {
+                input[key] = value.clone();
+            }
+            assert!(parse_asset_requests(&[serde_json::from_value(input).unwrap()]).is_err());
+        }
+        for invalid in [json!(-1), json!(0.5), json!("80"), json!(256)] {
+            let mut input = base.clone();
+            input["quality"] = invalid;
+            assert!(serde_json::from_value::<FigmaAssetRequestInput>(input).is_err());
+        }
+        let mut input = base;
+        input["lossless"] = json!("true");
+        assert!(serde_json::from_value::<FigmaAssetRequestInput>(input).is_err());
+    }
 
     #[test]
     fn image_mode_input_preserves_default_and_refuses_unimplemented_settings() {

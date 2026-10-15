@@ -54,6 +54,12 @@ pub struct AuthInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaExportInput {
+    /// web-ready-images exports every in-scope IMAGE paint as native node PNG
+    /// followed by WebP (quality 80, lossy, scale 1) in scheduled batches of six.
+    /// Custom assetRequests must be exported separately to avoid preset overrides.
+    #[serde(default)]
+    #[schemars(extend("enum" = ["web-ready-images"]))]
+    pub preset: Option<String>,
     /// The Figma link to export. Optional while exactly one Devup Bridge
     /// plugin is attached: omitted, or `figma-bridge://current`, it is the
     /// file that plugin has open and the node selected in Figma.
@@ -204,9 +210,18 @@ pub struct WidthPolicyInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FigmaAssetRequestInput {
+    /// WebP RGB quality, 0..100, default 80. In lossless mode controls compression
+    /// effort, preserving decoded RGBA including transparent RGB. WebP only.
+    #[serde(default)]
+    #[schemars(range(min = 0, max = 100))]
+    pub quality: Option<u8>,
+    /// WebP only; default false. Alpha is preserved in both modes.
+    #[serde(default)]
+    pub lossless: Option<bool>,
     /// node (default) exports the exact node subtree via Figma; ancestor canvas
     /// appearance is unverified. fill reads original bytes, bridge only, scale 1,
-    /// png/jpg matching the intrinsic codec; no crop, transform, effects or masks.
+    /// png/jpg matching the intrinsic codec preserve raw bytes; explicit webp
+    /// transcodes a PNG/JPEG source at intrinsic size, without crop/effects/masks.
     /// Request fill separately with assetManifest; generated code uses node assets.
     #[serde(default = "default_asset_render_mode")]
     /// auto selects original bytes only with proven safe geometry, context,

@@ -72,7 +72,7 @@ fn batch_file(value: &Value) -> Option<(&'static str, String)> {
 
 #[derive(Default)]
 struct Asset {
-    captures: BTreeMap<(String, String, u64), Value>,
+    captures: BTreeMap<(String, String, u64, String), Value>,
     reasons: BTreeSet<String>,
     paths: BTreeSet<String>,
     written: bool,
@@ -151,6 +151,7 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
                                 item["renderMode"].as_str().unwrap_or("node").to_owned(),
                                 hash.to_ascii_lowercase(),
                                 size,
+                                json!({"format":item["format"],"scale":item["scale"],"quality":item["quality"],"lossless":item["lossless"]}).to_string(),
                             ),
                             item.clone(),
                         );
@@ -195,7 +196,7 @@ pub fn merge(values: &[Value]) -> anyhow::Result<Value> {
             else { unrequested += 1; "unrequested" };
         json!({"assetId":id,"state":state,"reportedWritten":asset.written && state == "collected",
             "outputPaths":asset.paths,"observedReasons":asset.reasons,
-            "captures":asset.captures.into_iter().map(|((render_mode,sha256,byte_length), _)| json!({"renderMode":render_mode,"sha256":sha256,"byteLength":byte_length})).collect::<Vec<_>>()})
+            "captures":asset.captures.into_iter().map(|((render_mode,sha256,byte_length,_), item)| json!({"renderMode":render_mode,"sha256":sha256,"byteLength":byte_length,"format":item["format"],"scale":item["scale"],"quality":item["quality"],"lossless":item["lossless"]})).collect::<Vec<_>>()})
     }).collect::<Vec<_>>();
     let complete = !incomplete
         && incomplete_inventory_batches == 0

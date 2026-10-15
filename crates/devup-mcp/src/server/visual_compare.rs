@@ -276,11 +276,30 @@ pub(super) async fn compare(
     let actual = actual_target.read_bounded(16 * 1024 * 1024)?;
     let actual_hash = hash(&actual);
     let asset_comparison = matches!(&input.reference, VisualReference::Asset(_));
+    let webp_actual = image::guess_format(&actual).ok() == Some(image::ImageFormat::WebP);
+    if webp_actual && !asset_comparison {
+        return Err(invalid(
+            "WebP actuals require a native PNG asset reference (artifactId plus assetId). Page/card screenshots and their environment checks continue to require PNG.",
+        ));
+    }
     let include_diff = input.include_diff;
     let reference_hash = hash(&reference);
-    let (report, diff) = tokio::task::spawn_blocking(move || compare_png_bytes(&reference,&actual,&options,include_diff))
+    let (report, diff) = tokio::task::spawn_blocking(move || {
+        let actual = if webp_actual {
+            use image::ImageDecoder;
+            let mut limits = image::Limits::default(); limits.max_image_width=Some(8192); limits.max_image_height=Some(8192); limits.max_alloc=Some(64*1024*1024);
+            let mut decoder=image::codecs::webp::WebPDecoder::new(std::io::Cursor::new(actual)).map_err(|_| "Invalid WebP actual.")?;
+            decoder.set_limits(limits).map_err(|_| "WebP actual exceeds bounded decode limits.")?;
+            if decoder.has_animation() {return Err("Animated WebP actuals cannot establish a static asset comparison; provide a static WebP or an explicit PNG screenshot.");}
+            let (w,h)=decoder.dimensions();
+            if u64::from(w)*u64::from(h)>devup_mcp_figma::MAX_WEBP_PIXELS { return Err("WebP actual exceeds 4194304 decoded pixels."); }
+            let image=image::DynamicImage::from_decoder(decoder).map_err(|_| "Malformed WebP actual.")?;
+            let mut png=std::io::Cursor::new(Vec::new());image.write_to(&mut png,image::ImageFormat::Png).map_err(|_| "WebP comparison pixel preparation failed.")?;png.into_inner()
+        } else {actual};
+        compare_png_bytes(&reference,&actual,&options,include_diff).map_err(|_| "Invalid PNG or threshold; PNG limits are 16 MiB compressed, 8192 pixels per axis, and 64 MiB decoded.")
+    })
         .await.map_err(|_| invalid("PNG comparison could not complete."))?
-        .map_err(|_| invalid("Invalid PNG or threshold; PNG limits are 16 MiB compressed, 8192 pixels per axis, and 64 MiB decoded."))?;
+        .map_err(invalid)?;
     if report.status == VisualStatus::InvalidDimensions {
         return Err(DevupError::with_details(
             ErrorCode::DevupCodegenFailed,
@@ -304,7 +323,7 @@ pub(super) async fn compare(
         filled.push("referenceResource");
     }
     let mut environment = if asset_comparison {
-        json!({"status":"valid","scope":"asset-pixels-only","issues":[],"trust":"server-validated native PNG reference and allowlisted actual PNG; no browser environment required"})
+        json!({"status":"valid","scope":"asset-pixels-only","issues":[],"trust":"server-validated native PNG reference and allowlisted actual raster; no browser environment required"})
     } else {
         assess_environment(&input, report.reference_dimensions, &reference_hash)
     };
@@ -330,6 +349,16 @@ pub(super) async fn compare(
         "consumer-render-against-reference"
     });
     result["actual"] = json!({"path":actual_target.display_path(),"sha256":actual_hash});
+    result["actual"]["mimeType"] = json!(if webp_actual {
+        "image/webp"
+    } else {
+        "image/png"
+    });
+    result["actual"]["pixelMetricsInput"] = json!(if webp_actual {
+        "decoded-WebP; temporary PNG encoding for comparison"
+    } else {
+        "PNG"
+    });
     if asset_comparison {
         result["canvasFidelity"] = json!("unverified-outside-reference-node-subtree");
     }
@@ -522,6 +551,78 @@ mod tests {
                 .message
                 .contains("Invalid PNG")
         );
+    }
+
+    #[tokio::test]
+    async fn webp_actual_uses_native_png_reference_and_keeps_original_byte_hash_and_scope() {
+        let f = fixture();
+        let (store, id) = asset_store("native-node", false).await;
+        let mut renditions = Vec::new();
+        for (png, verdict) in [(WHITE, "pass"), (BLACK, "fail")] {
+            let request = devup_mcp_figma::AssetRequest {
+                asset_id: "picture:fills:0".into(),
+                node_id: "picture".into(),
+                field: "fills/0".into(),
+                image_hash: Some("source".into()),
+                format: devup_mcp_figma::AssetFormat::Webp,
+                scale: 1,
+                render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                quality: Some(80),
+                lossless: Some(true),
+            };
+            let asset = devup_mcp_figma::exported_asset_from_bytes(
+                &request,
+                &STANDARD.decode(png).unwrap(),
+            )
+            .unwrap();
+            let bytes = STANDARD.decode(asset.data_base64.unwrap()).unwrap();
+            renditions.push(bytes.clone());
+            std::fs::write(f.0.join("actual.webp"), &bytes).unwrap();
+            let value=run(json!({"actual":"actual.webp","reference":{"artifactId":id,"assetId":"picture:fills:0"},"threshold":0}),&f.policy(),&store).await.unwrap();
+            assert_eq!(value["verdict"], verdict);
+            assert_eq!(value["actual"]["mimeType"], "image/webp");
+            assert_eq!(value["actual"]["sha256"], hash(&bytes));
+            assert_eq!(
+                value["comparisonScope"],
+                "asset-pixels-against-native-node-export"
+            );
+            assert_eq!(
+                value["reference"]["renderInfo"]["representation"],
+                "native-node"
+            );
+        }
+        let error = run(
+            json!({"actual":"actual.webp","reference":{"path":"reference.png"}}),
+            &f.policy(),
+            &store,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.message.contains("Page/card screenshots"));
+        fn chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
+            let mut out = kind.to_vec();
+            out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            out.extend_from_slice(data);
+            if !data.len().is_multiple_of(2) {
+                out.push(0);
+            }
+            out
+        }
+        let mut animation = b"WEBP".to_vec();
+        animation.extend(chunk(b"VP8X", &[2, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+        animation.extend(chunk(b"ANIM", &[0, 0, 0, 0, 0, 0]));
+        for encoded in renditions {
+            let mut frame = vec![0; 16];
+            frame[12] = 100;
+            frame.extend_from_slice(&encoded[12..]);
+            animation.extend(chunk(b"ANMF", &frame));
+        }
+        let mut encoded = b"RIFF".to_vec();
+        encoded.extend_from_slice(&(animation.len() as u32).to_le_bytes());
+        encoded.extend(animation);
+        std::fs::write(f.0.join("animated.webp"), encoded).unwrap();
+        let error=run(json!({"actual":"animated.webp","reference":{"artifactId":id,"assetId":"picture:fills:0"},"threshold":0}),&f.policy(),&store).await.unwrap_err();
+        assert!(error.message.contains("Animated WebP"), "{}", error.message);
     }
 
     #[tokio::test]

@@ -55,27 +55,47 @@ pub(crate) fn measured_info(
         .filter(Value::is_object)
         .unwrap_or_else(|| json!({}));
     info["requestedScale"] = json!(scale);
-    let effective = if info["representation"] == "original-fill" {
+    let effective = if info["representation"]
+        .as_str()
+        .is_some_and(|s| s.starts_with("original-fill"))
+    {
         AssetRenderMode::Fill
     } else {
         mode
     };
     info["scaleSemantics"] = json!(match (effective, format) {
+        (AssetRenderMode::Fill, AssetFormat::Webp) => "intrinsic-source-transcoded-no-resize",
         (AssetRenderMode::Fill, _) => "intrinsic-original-bytes-no-resize",
-        (_, AssetFormat::Png | AssetFormat::Jpg) => "native-node-SCALE-constraint",
+        (_, AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp) =>
+            "native-node-SCALE-constraint",
         _ => "not-applied-to-vector-document",
     });
     if info.get("representation").is_none() {
         info["representation"] = json!("unknown");
     }
     info["outputSize"] = bytes
-        .filter(|_| matches!(format, AssetFormat::Png | AssetFormat::Jpg))
+        .filter(|_| {
+            matches!(
+                format,
+                AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
+            )
+        })
         .and_then(|bytes| {
-            image::ImageReader::new(Cursor::new(bytes))
+            if format == AssetFormat::Webp
+                && image::guess_format(bytes).ok() == Some(image::ImageFormat::Png)
+                && crate::webp::validate_png_input(bytes).is_err()
+            {
+                return None;
+            }
+            let mut reader = image::ImageReader::new(Cursor::new(bytes))
                 .with_guessed_format()
-                .ok()?
-                .into_dimensions()
-                .ok()
+                .ok()?;
+            let mut limits = image::Limits::default();
+            limits.max_image_width = Some(crate::MAX_WEBP_DIMENSION);
+            limits.max_image_height = Some(crate::MAX_WEBP_DIMENSION);
+            limits.max_alloc = Some(64 * 1024 * 1024);
+            reader.limits(limits);
+            reader.into_dimensions().ok()
         })
         .map(|(w, h)| size(Some(f64::from(w)), Some(f64::from(h))))
         .unwrap_or(Value::Null);
@@ -142,7 +162,9 @@ fn compare(info: &mut Value) {
             "aspect-ratio-unknown"
         }));
     }
-    if info["scaleSemantics"] == "intrinsic-original-bytes-no-resize" {
+    if info["scaleSemantics"] == "intrinsic-original-bytes-no-resize"
+        || info["scaleSemantics"] == "intrinsic-source-transcoded-no-resize"
+    {
         let warnings = info["warnings"].as_array_mut().unwrap();
         if !warnings.contains(&json!("original-fill-properties-unapplied")) {
             warnings.push(json!("original-fill-properties-unapplied"));
@@ -168,7 +190,9 @@ fn compare(info: &mut Value) {
         .to_owned();
     info["renderedAs"] = json!(match representation.as_str() {
         "original-fill" => "raw-fill",
+        "original-fill-transcoded" => "transcoded-fill",
         "native-node" => "node-render",
+        "native-node-transcoded" => "transcoded-node-render",
         "geometry-fallback" => "geometry-fallback",
         "not-exported" => "not-exported",
         _ => "unknown",
@@ -193,7 +217,10 @@ fn compare(info: &mut Value) {
         info["instanceOverrideEvidence"] = json!("no-component-paint-comparison");
     }
     let measured = info["byteEvidence"].is_object() && representation != "not-exported";
-    let native = representation == "native-node";
+    let native = matches!(
+        representation.as_str(),
+        "native-node" | "native-node-transcoded"
+    );
     info["effectsBakedIntoAsset"] = json!(measured && native && !info["outputSize"].is_null());
     info["bakedEffects"] = if info["effectsBakedIntoAsset"] == true {
         info["effects"]
@@ -222,7 +249,7 @@ fn compare(info: &mut Value) {
             }
         }
     }
-    if representation == "original-fill" {
+    if representation.starts_with("original-fill") {
         let mut specific = Vec::new();
         if info["scaleMode"] == "CROP" {
             specific.push("crop-transform-not-applied");
@@ -253,8 +280,24 @@ fn compare(info: &mut Value) {
     let exact = measured
         && matches!(representation.as_str(), "native-node" | "original-fill")
         && info["dimensionEvidence"] == "encoded-byte-header";
-    info["fidelity"] = json!(if exact { "exact" } else { "unverified" });
-    info["fidelityScope"] = json!(if exact && native {
+    let transcoded = representation.ends_with("-transcoded") && measured;
+    let lossless = info["compression"]["lossless"] == true;
+    info["fidelity"] = json!(if transcoded {
+        if lossless {
+            "lossless-pixels"
+        } else {
+            "approximate"
+        }
+    } else if exact {
+        "exact"
+    } else {
+        "unverified"
+    });
+    info["fidelityScope"] = json!(if transcoded && native {
+        "decoded-native-node-PNG-to-WebP; source-PNG-byte-identity-not-preserved"
+    } else if transcoded {
+        "decoded-original-fill-to-WebP; crop-transform-effects-unapplied; source-byte-identity-not-preserved"
+    } else if exact && native {
         "native-node-export-at-requested-settings"
     } else if exact {
         "original-source-bytes"
@@ -409,6 +452,17 @@ pub fn annotate_assets(snapshot: &Snapshot, assets: &mut [AssetManifestEntry]) {
                 "isMask":view.value("isMask"), "context":"snapshot-only-ancestor-mask-scope-unknown"});
         }
         info["sourceKind"] = json!(asset.source_kind);
+        info["recommendedFormat"] = json!(if asset.source_kind == "vector-node" {
+            "svg"
+        } else {
+            "webp"
+        });
+        info["recommendedRenderMode"] = json!("node");
+        info["formatRecommendationEvidence"] = json!(if asset.source_kind == "vector-node" {
+            "Vector asset: retain SVG when the native export is usable; inspect effects and embedded rasters."
+        } else {
+            "Raster/image paint: WebP is a candidate for photos and raster content; content classification is unknown. Alpha is preserved; use lossless for text, certificates and crisp edges, and inspect lossy RGB quality."
+        });
         if info["extraFills"].is_null() {
             info["extraFills"] = view
                 .value("fills")
@@ -513,6 +567,15 @@ pub fn image_fill_audit(snapshot: &Snapshot, captures: &[AssetManifestEntry]) ->
                 *reason_counts.entry((*reason).to_owned()).or_default() += 1;
             }
             entries.push(json!({"assetId":id,"nodeId":node.id,"fillIndex":index,"sourceKind":"image-fill",
+                "status":capture.map(|a|a.status),"format":capture.and_then(|a|a.format),"quality":capture.and_then(|a|a.quality),"lossless":capture.and_then(|a|a.lossless),
+                "nodeSize":size(view.number("width"), view.number("height")),"nodeSizeEvidence":"acquired-node-layout",
+                "sourceSize":info.map(|i|&i["sourceSize"]),"sourceSizeEvidence":info.map(|i|i["sourceSizeEvidence"].clone()).filter(|v|!v.is_null()).unwrap_or(json!("unknown; original source not inspected")),
+                "outputSize":info.map(|i|&i["outputSize"]),"outputSizeEvidence":info.map(|i|i["dimensionEvidence"].clone()).filter(|v|!v.is_null()).unwrap_or(json!("unknown; no validated capture")),
+                "scaleMode":paint.get("scaleMode"),"imageTransform":paint.get("imageTransform"),
+                "visibleSourceRatio":null,"visibleSourceRatioEvidence":"not-computed; transform-coefficients-are-not-visible-percentages",
+                "effects":view.value("effects"),"recommendedFormat":"webp","recommendedRenderMode":"node",
+                "recommendationEvidence":"IMAGE paint; raster content type unknown. Use lossless for text/crisp edges, inspect lossy quality; alpha preserved. Retain usable SVG for vectors.",
+                "renderInfo":info,
                 "fidelity":info.map(|i| &i["fidelity"]),"fidelityScope":info.map(|i| &i["fidelityScope"]),
                 "canvasFidelity":"unverified","needsReview":true,"reviewReasons":reasons,"unknownReasons":unknown,
                 "instanceOverride":info.map(|i| i["instanceOverride"].clone()).unwrap_or(json!("unknown"))}));

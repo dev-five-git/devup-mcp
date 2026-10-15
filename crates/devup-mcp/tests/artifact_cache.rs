@@ -465,12 +465,16 @@ async fn set_like_capture_and_section_inputs_share_one_cache_key() -> anyhow::Re
     let store = ArtifactStore::with_limits(limits());
     let png = AssetSelection {
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
+        quality: None,
+        lossless: None,
         asset_id: "1:2:fills:1".to_owned(),
         format: AssetFormat::Png,
         scale: 2,
     };
     let svg = AssetSelection {
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
+        quality: None,
+        lossless: None,
         asset_id: "1:3:fills:1".to_owned(),
         format: AssetFormat::Svg,
         scale: 1,

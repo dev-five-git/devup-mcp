@@ -239,6 +239,8 @@ impl BuiltinScript {
                     "field": request.field,
                     "imageHash": request.image_hash,
                     "format": request.format,
+                    "quality": request.quality,
+                    "lossless": request.lossless,
                     "scale": request.scale,
                     "timeoutMs": crate::asset_timeout().as_millis() as u64,
                     "version": version
@@ -1152,6 +1154,8 @@ impl ReadToolCall {
                         "field": request.field,
                         "imageHash": request.image_hash,
                         "format": request.format,
+                        "quality": request.quality,
+                        "lossless": request.lossless,
                         "scale": request.scale,
                         "timeoutMs": crate::asset_timeout().as_millis() as u64,
                         "version": version,

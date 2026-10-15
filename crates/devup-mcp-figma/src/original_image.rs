@@ -19,6 +19,8 @@ impl AssetRequest {
     pub fn original_image(node_id: &str, fill_index: usize, image_hash: &str) -> Self {
         Self {
             render_mode: crate::AssetRenderMode::Fill,
+            quality: None,
+            lossless: None,
             asset_id: format!("{node_id}:original-image-v1:{fill_index}:{image_hash}"),
             node_id: node_id.to_owned(),
             field: format!("{FIELD}{fill_index}"),

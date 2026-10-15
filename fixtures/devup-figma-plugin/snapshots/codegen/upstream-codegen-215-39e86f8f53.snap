@@ -5,7 +5,7 @@ expression: actual
 
 "export function Grid() {
   return (
-    <Grid gap="10px" gridTemplateColumns="repeat(2, 1fr)" gridTemplateRows="repeat(4, 1fr)">
+    <Grid gap="10px" gridTemplateColumns="repeat(2, minmax(0, 1fr))" gridTemplateRows="repeat(4, 1fr)">
       <Box
         bg="#697F9F"
         gridColumn="1 / span 1"

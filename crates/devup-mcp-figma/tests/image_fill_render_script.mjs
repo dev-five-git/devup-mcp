@@ -130,6 +130,22 @@ for (const implementation of ['source', 'compiled-plugin']) {
     effects:[],strokes:[],cornerRadius:0,isMask:false,clipsContent:undefined,
     absoluteTransform:[[1,0,10],[0,1,20]],relativeTransform:[[1,0,10],[0,1,20]],parent:{type:'PAGE',children:[]}});
   const sourceApi = (size={width:100,height:80}, bytes=raw) => ({getImageByHash:()=>({getSizeAsync:async()=>size,getBytesAsync:async()=>bytes})});
+  test(`${implementation}: WebP acquisition uses native PNG at requested scale and preserves optional dimensions`, async () => {
+    const {result,exports,reads,settings}=await run({format:'webp',scale:3,quality:12,lossless:false},safe(),sourceApi());
+    assert.equal(exports,1); assert.equal(reads,0); assert.equal(settings.format,'PNG');
+    assert.deepEqual(settings.constraint,{type:'SCALE',value:3}); assert.equal(result.mimeType,'image/png');
+    assert.equal(result.format,'webp'); assert.equal(result.exportDiagnostics.renderInfo.representation,'native-node');
+    assert.equal(result.exportDiagnostics.renderInfo.sourceSize.width,100);
+    for (const mode of ['node','auto']) {
+      const started=Date.now();
+      const {result,exports}=await run({renderMode:mode},safe(),{getImageByHash:()=>({getSizeAsync:()=>new Promise(()=>{}),getBytesAsync:async()=>raw})});
+      assert.equal(result.status,'exported'); assert.equal(exports,1); assert.equal(result.exportDiagnostics.renderInfo.sourceSize,null);
+      assert.ok(Date.now()-started<1500,'optional source size must not consume native export timeout');
+    }
+    const auto=await run({renderMode:'auto'},safe(),sourceApi());
+    assert.equal(auto.result.exportDiagnostics.renderInfo.sourceSize.width,100);
+    assert.equal(auto.result.exportDiagnostics.renderInfo.sourceSizeEvidence,'Figma-image-getSizeAsync');
+  });
   test(`${implementation}: auto selects raw only with explicit safe properties, matching dimensions and codec`, async () => {
     const {result,exports}=await run({renderMode:'auto'},safe(),sourceApi());
     assert.equal(result.renderMode,'auto'); assert.equal(result.status,'exported'); assert.equal(exports,0);

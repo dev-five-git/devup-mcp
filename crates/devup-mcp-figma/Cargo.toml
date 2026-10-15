@@ -14,9 +14,11 @@ axum = { workspace = true, features = ["ws"] }
 base64.workspace = true
 # 중계 연결의 WebSocket 클라이언트가 스트림으로 읽고 쓴다.
 futures-util.workspace = true
+flate2.workspace = true
 # 중계 연결의 증명(HMAC-SHA256). sha2 와 같은 digest 세대다.
 hmac.workspace = true
 image.workspace = true
+webp.workspace = true
 keyring.workspace = true
 rand.workspace = true
 quick-xml.workspace = true

@@ -34,6 +34,7 @@ pub struct ArtifactRequestKey {
     explore: Option<ExploreReadOptions>,
     section: Option<SectionReadOptions>,
     asset_selections: Vec<AssetSelection>,
+    web_ready_images: bool,
     reference_png: bool,
 }
 
@@ -46,11 +47,22 @@ impl ArtifactRequestKey {
         }
         let mut asset_selections = request.asset_selections.clone();
         asset_selections.sort_by(|left, right| {
-            (&left.asset_id, left.format, left.scale).cmp(&(
-                &right.asset_id,
-                right.format,
-                right.scale,
-            ))
+            (
+                &left.asset_id,
+                left.format,
+                left.scale,
+                left.render_mode,
+                left.quality,
+                left.lossless,
+            )
+                .cmp(&(
+                    &right.asset_id,
+                    right.format,
+                    right.scale,
+                    right.render_mode,
+                    right.quality,
+                    right.lossless,
+                ))
         });
         asset_selections.dedup();
         Self {
@@ -66,6 +78,7 @@ impl ArtifactRequestKey {
             explore: request.explore.clone(),
             section,
             asset_selections,
+            web_ready_images: request.web_ready_images,
             reference_png: request.reference_png,
         }
     }
@@ -95,6 +108,7 @@ impl ArtifactRequestKey {
             collection_scope: self.scope,
             resource_scope: self.resource_scope,
             asset_capture_count: self.asset_selections.len(),
+            web_ready_images: self.web_ready_images,
             asset_captures: self.asset_selections.clone(),
             reference_png: self.reference_png,
             section_selection: self.section.clone(),
@@ -169,6 +183,7 @@ pub struct ArtifactCapabilities {
     pub collection_scope: CollectionScope,
     pub resource_scope: ResourceScope,
     pub asset_capture_count: usize,
+    pub web_ready_images: bool,
     pub reference_png: bool,
     /// Last validated Section selection; projection callers restore this when no selection is supplied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1015,6 +1030,23 @@ impl ArtifactStore {
         mut capabilities: ArtifactCapabilities,
         payload: CollectedPayload,
     ) -> Result<ArtifactLookup, DevupError> {
+        if request_key.web_ready_images {
+            capabilities.asset_captures = payload
+                .assets
+                .iter()
+                .filter_map(|a| {
+                    Some(AssetSelection {
+                        asset_id: a.asset_id.clone(),
+                        format: a.format?,
+                        scale: a.scale?,
+                        render_mode: a.render_mode,
+                        quality: a.quality,
+                        lossless: a.lossless,
+                    })
+                })
+                .collect();
+            capabilities.asset_capture_count = capabilities.asset_captures.len();
+        }
         if payload.metadata.get("sectionIndex").is_some()
             && payload.metadata.get("selectedRootIds").is_none()
         {
@@ -1434,6 +1466,8 @@ pub(crate) mod w3_tests {
             });
             request.asset_selections = vec![AssetSelection {
                 render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                quality: None,
+                lossless: None,
                 asset_id: "asset".into(),
                 format: AssetFormat::Png,
                 scale: 2,
@@ -1475,9 +1509,18 @@ pub(crate) mod w3_tests {
         asset_auto_mode.asset_selections[0].render_mode = devup_mcp_figma::AssetRenderMode::Auto;
         let mut asset_id = populated();
         asset_id.asset_selections[0].asset_id = "elsewhere".into();
+        let mut quality = populated();
+        quality.asset_selections[0].quality = Some(43);
+        let mut lossless = populated();
+        lossless.asset_selections[0].lossless = Some(true);
+        let mut preset = populated();
+        preset.web_ready_images = true;
 
         let empty = sha256_hex(&[]);
         let digests = [
+            quality,
+            lossless,
+            preset,
             asset_auto_mode,
             populated(),
             branch_key,
@@ -1749,6 +1792,8 @@ pub(crate) mod w3_tests {
         let mut request = request();
         let captured = AssetSelection {
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
             scale: 1,
@@ -1756,6 +1801,14 @@ pub(crate) mod w3_tests {
         request.asset_selections = vec![captured.clone()];
         let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
         assert!(capabilities.validate_asset_captures(&[]).is_ok());
+        assert!(!capabilities.supports_asset_captures(&[AssetSelection {
+            quality: Some(80),
+            ..captured.clone()
+        }]));
+        assert!(!capabilities.supports_asset_captures(&[AssetSelection {
+            lossless: Some(true),
+            ..captured.clone()
+        }]));
         assert!(
             capabilities
                 .validate_asset_captures(std::slice::from_ref(&captured))
@@ -1785,6 +1838,8 @@ pub(crate) mod w3_tests {
         let capabilities = ArtifactRequestKey::from_collection(&request).capabilities();
         let fill = AssetSelection {
             render_mode: devup_mcp_figma::AssetRenderMode::Fill,
+            quality: None,
+            lossless: None,
             ..node
         };
         assert!(!capabilities.supports_asset_captures(std::slice::from_ref(&fill)));
@@ -1800,6 +1855,8 @@ pub(crate) mod w3_tests {
         let capabilities = ArtifactRequestKey::from_collection(&request()).capabilities();
         let selection = AssetSelection {
             render_mode: devup_mcp_figma::AssetRenderMode::Node,
+            quality: None,
+            lossless: None,
             asset_id: "2:2:node".into(),
             format: AssetFormat::Svg,
             scale: 1,

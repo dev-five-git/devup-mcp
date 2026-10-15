@@ -16,6 +16,8 @@ fn execute(
 ) -> (AssetRequest, Value) {
     let request = AssetRequest {
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
+        quality: None,
+        lossless: None,
         asset_id: "1:2:node".to_owned(),
         node_id: "1:2".to_owned(),
         field: "node".to_owned(),

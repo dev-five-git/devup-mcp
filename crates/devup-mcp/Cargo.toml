@@ -11,6 +11,7 @@ repository.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
+image.workspace = true
 cap-std.workspace = true
 devup-mcp-devup-ui = { path = "../devup-mcp-devup-ui" }
 devup-mcp-figma = { path = "../devup-mcp-figma" }
@@ -39,8 +40,6 @@ url.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
-# Encodes the screenshots the runtime-audit ingestion tests verify.
-image.workspace = true
 # Also a normal dependency. Tests need it too, to canonicalise an expected path
 # the same way OutputPolicy does — std::fs::canonicalize would return a `\\?\`
 # UNC path on Windows and never match.

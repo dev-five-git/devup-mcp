@@ -81,6 +81,14 @@ fn reconcile_asset_paths(
         let output_path = members
             .iter()
             .find_map(|&index| output_paths.get(&manifest.assets[index].asset_id).cloned());
+        let canonical_path = canonical_path.map(|p| {
+            if manifest.assets[members[0]].format == Some(devup_mcp_figma::AssetFormat::Webp) {
+                p.rsplit_once('.')
+                    .map_or_else(|| format!("{p}.webp"), |(stem, _)| format!("{stem}.webp"))
+            } else {
+                p
+            }
+        });
         let path = if let (Some(root), Some(output)) = (public_root, &output_path) {
             Some(super::validation::public_asset_url(
                 root,
@@ -231,6 +239,8 @@ pub(super) fn projected_outputs_from_result(
         ("designChanges", "design-changes.json"),
         ("assetManifest", "asset-manifest.json"),
         ("imageFillAudit", "image-fill-audit.json"),
+        ("imageAudit", "image-audit.json"),
+        ("webReadyImages", "web-ready-images.json"),
         ("pageScaffold", "page-scaffold.json"),
     ] {
         if let Some(value) = result.get(field) {
@@ -472,6 +482,7 @@ pub(super) async fn apply_delivery(
         "rawPayload",
         "responsiveTsx",
         "assetManifest",
+        "imageAudit",
         "pageScaffold",
         "referencePng",
         "designFingerprints",
@@ -502,6 +513,7 @@ pub(super) async fn apply_delivery(
         };
         let coupled = reprojection_arguments.is_some_and(|a| {
             a.get("pageScaffold").is_some()
+                || a["preset"] == "web-ready-images"
                 || a["assetRequests"].as_array().is_some_and(|a| !a.is_empty())
                 || (matches!(
                     a["devupJsonMode"].as_str(),
@@ -591,13 +603,24 @@ pub(super) async fn apply_delivery(
             false,
         )
     })?;
-    if let Some(audit) = result
-        .get_mut("imageFillAudit")
+    for (field, name) in [
+        ("imageFillAudit", "image-fill-audit.json"),
+        ("imageAudit", "image-audit.json"),
+    ] {
+        if let Some(audit) = result.get_mut(field).and_then(Value::as_object_mut) {
+            audit.remove("assets");
+            if let Some(manifest) = manifests.iter().find(|m| m.name == name) {
+                audit.insert("detailsResource".into(), json!({"uri":manifest.manifest_uri,"name":manifest.name,"contentHash":manifest.sha256,"requiresFullDetailRead":true}));
+            }
+        }
+    }
+    if let Some(plan) = result
+        .get_mut("webReadyImages")
         .and_then(Value::as_object_mut)
     {
-        audit.remove("assets");
-        if let Some(manifest) = manifests.iter().find(|m| m.name == "image-fill-audit.json") {
-            audit.insert("detailsResource".into(), json!({"uri":manifest.manifest_uri,"name":manifest.name,"contentHash":manifest.sha256,"requiresFullDetailRead":true}));
+        plan.remove("plan");
+        if let Some(manifest) = manifests.iter().find(|m| m.name == "web-ready-images.json") {
+            plan.insert("detailsResource".into(), json!({"uri":manifest.manifest_uri,"name":manifest.name,"contentHash":manifest.sha256,"requiresFullDetailRead":true}));
         }
     }
     for field in [
@@ -802,7 +825,7 @@ fn projected_asset_outputs(manifest: &AssetManifest) -> Result<Vec<ProjectedOutp
             other.status == AssetStatus::Exported && other.sha256 == asset.sha256
                 && other.format == asset.format && other.mime_type == asset.mime_type
         }).map(|other| json!({"assetId":other.asset_id,"renderMode":other.render_mode,
-            "renderInfo":other.render_info,"suggestedFilename":other.suggested_filename})).collect::<Vec<_>>()}));
+            "format":other.format,"scale":other.scale,"quality":other.quality,"lossless":other.lossless,"renderInfo":other.render_info,"suggestedFilename":other.suggested_filename})).collect::<Vec<_>>()}));
         outputs.push(output);
     }
     Ok(outputs)
@@ -1588,13 +1611,43 @@ async fn project_operation(
             page_scaffold,
             frame_ids,
             all_screens,
-            asset_captures,
+            mut asset_captures,
+            web_ready_images,
             mut asset_output_paths,
             mut asset_public_root,
             fields,
             delivery,
             width_policy,
         } => {
+            if web_ready_images {
+                asset_captures = payload
+                    .assets
+                    .iter()
+                    .filter_map(|a| {
+                        Some(devup_mcp_figma::AssetSelection {
+                            asset_id: a.asset_id.clone(),
+                            format: a.format?,
+                            scale: a.scale?,
+                            render_mode: a.render_mode,
+                            quality: a.quality,
+                            lossless: a.lossless,
+                        })
+                    })
+                    .collect();
+                if let Some(root) = &asset_public_root {
+                    for capture in &asset_captures {
+                        let name = format!("{}.webp", sha256_hex(capture.asset_id.as_bytes()));
+                        asset_output_paths.insert(
+                            capture.asset_id.clone(),
+                            root.join("images")
+                                .join("web-ready")
+                                .join(name)
+                                .display()
+                                .to_string(),
+                        );
+                    }
+                }
+            }
             let selected_fields = super::field_select::expand(&fields);
             page_scaffold::validate(page_scaffold.as_ref(), &outputs)?;
             super::validation::validate_width_policy_nodes(
@@ -1660,11 +1713,18 @@ async fn project_operation(
                 "outputPaths":output_paths,"frameIds":frame_ids,"allScreens":all_screens,
                 "debug":outputs.iter().any(|o| matches!(o.as_str(), "rawSnapshot" | "rawPayload")),
                 "delivery":"resource",
-                "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,"renderMode":a.render_mode,
+                "assetRequests":asset_captures.iter().map(|a| json!({"assetId":a.asset_id,"format":a.format,"scale":a.scale,"quality":a.quality,"lossless":a.lossless,"renderMode":a.render_mode,
                     "outputPath":asset_output_paths.get(&a.asset_id)})).collect::<Vec<_>>()
             });
             if let Some(previous) = &previous_design_fingerprints {
                 recovery_arguments["previousDesignFingerprints"] = json!(previous);
+            }
+            if web_ready_images {
+                recovery_arguments
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("assetRequests");
+                recovery_arguments["preset"] = json!("web-ready-images");
             }
             if let Some(options) = &page_scaffold {
                 recovery_arguments["pageScaffold"] = json!(options);
@@ -1756,6 +1816,21 @@ async fn project_operation(
             result.get_mut("imageFillAudit").unwrap()["collectionCompleteness"] = json!({"state":completeness_report.state,"snapshotState":completeness_report.snapshot.state,"resourcesState":completeness_report.resources.state,"unresolvedResources":completeness_report.resources.unresolved_count,"failedScreens":payload.failures.len()});
             result.get_mut("imageFillAudit").unwrap()["resourceCompleteness"] =
                 json!(payload.completeness);
+            if payload.metadata.get("sectionIndex").is_some()
+                && payload.metadata.get("selectedRootIds").is_none()
+            {
+                let audit = result.get_mut("imageFillAudit").unwrap();
+                audit["scope"] =
+                    json!("selection-index-only; descendant image paints not acquired");
+                audit["completeness"] = json!("selection-required");
+                audit["inScopeImageFills"] = Value::Null;
+                audit["summary"] = json!(
+                    "Section index only: select frameIds to acquire and audit descendant image fills."
+                );
+            }
+            if outputs.iter().any(|o| o == "imageAudit") {
+                result.insert("imageAudit".into(), result["imageFillAudit"].clone());
+            }
             result.insert(
                 "assetSummary".to_owned(),
                 asset_summary(
@@ -1790,6 +1865,8 @@ async fn project_operation(
                             | "componentTsx"
                             | "responsiveTsx"
                             | "pageScaffold"
+                            | "assetManifest"
+                            | "imageAudit"
                             | "designFingerprints"
                             | "designChanges"
                     )
@@ -1901,7 +1978,7 @@ async fn project_operation(
                             "outputPaths": output_paths,
                             "assetPublicRoot": asset_public_root,
                             "assetRequests": asset_captures.iter().map(|capture| json!({
-                                "assetId":capture.asset_id,"format":capture.format,"scale":capture.scale,"renderMode":capture.render_mode,
+                                "assetId":capture.asset_id,"format":capture.format,"scale":capture.scale,"quality":capture.quality,"lossless":capture.lossless,"renderMode":capture.render_mode,
                                 "outputPath":asset_output_paths.get(&capture.asset_id)
                             })).collect::<Vec<_>>()
                         }
@@ -1910,6 +1987,10 @@ async fn project_operation(
                         result.get_mut("nextAction").expect("nextAction")["example"]["arguments"]
                             .as_object_mut()
                             .expect("example arguments");
+                    if web_ready_images {
+                        arguments.remove("assetRequests");
+                        arguments.insert("preset".into(), json!("web-ready-images"));
+                    }
                     if let Some(previous) = &previous_design_fingerprints {
                         arguments.insert("previousDesignFingerprints".into(), json!(previous));
                     }
@@ -2000,6 +2081,14 @@ async fn project_operation(
             let mut theme_conflict_count = 0;
             let mut theme_unresolved_count = 0;
             let mut pending_text_outputs = std::collections::BTreeMap::new();
+            if output_paths.contains_key("imageAudit")
+                && let Some(audit) = result.get("imageAudit")
+            {
+                pending_text_outputs.insert(
+                    "imageAudit".into(),
+                    serde_json::to_string_pretty(audit).unwrap_or_default(),
+                );
+            }
             if let Some(current) = &design_fingerprints {
                 super::design_drift::attach(
                     &outputs,
@@ -2768,6 +2857,9 @@ async fn project_operation(
                 }
                 devup_mcp_figma::annotate_assets(&payload.snapshot, &mut manifest.assets);
                 manifest.assets.retain(|asset| {
+                    if web_ready_images {
+                        return true;
+                    }
                     if asset.error_code.as_deref() != Some("DEVUP_ASSET_NODE_HIDDEN") {
                         return true;
                     }
@@ -2843,6 +2935,8 @@ async fn project_operation(
                             && asset.format == Some(capture.format)
                             && asset.scale == Some(capture.scale)
                             && asset.render_mode == capture.render_mode
+                            && asset.quality == capture.quality
+                            && asset.lossless == capture.lossless
                             && matches!(asset.status, AssetStatus::Exported | AssetStatus::Failed)
                     }) {
                         return Err(DevupError::new(
@@ -3261,6 +3355,7 @@ async fn project_operation(
                 "sourceMap",
                 "designFingerprints",
                 "referencePng",
+                "imageAudit",
             ] {
                 if result.contains_key(field) {
                     supported_keys.push(field.to_owned());
@@ -3441,6 +3536,24 @@ async fn project_operation(
                     }
                 }
                 result.insert("assetManifest".to_owned(), manifest);
+            }
+            if web_ready_images {
+                let captures = result["assetManifest"]["assets"].as_array().into_iter().flatten()
+                    .filter(|a| asset_captures.iter().any(|c| c.asset_id == a["assetId"].as_str().unwrap_or_default()))
+                    .map(|a| json!({"assetId":a["assetId"],"nodeId":a["nodeId"],"format":a["format"],"scale":a["scale"],
+                        "quality":a["quality"],"lossless":a["lossless"],"renderMode":a["renderMode"],"status":a["status"],
+                        "role":if a["sourceKind"] == "image-fill" {"descendant-image-fill"}else{"generated-code-native-raster-boundary"},
+                        "sha256":a["sha256"],"byteLength":a["byteLength"],"path":a["path"],"outputPath":a["outputPath"],"errorCode":a["errorCode"]})).collect::<Vec<_>>();
+                let failed = captures
+                    .iter()
+                    .filter(|a| a["status"] != "exported")
+                    .count();
+                result.insert("webReadyImages".into(), json!({"preset":"web-ready-images","version":1,"maxAssetsPerBatch":6,
+                    "total":asset_captures.len(),"exported":captures.len()-failed,"failed":failed,
+                    "complete":failed == 0 && captures.len() == asset_captures.len() && payload.failures.is_empty() && completeness_report.snapshot.state == devup_mcp_figma::CompletenessState::Complete,
+                    "collectionCompleteness":completeness_report.snapshot.state,
+                    "coverage":"in-scope acquired descendants plus generated native raster boundaries; consult collectionCompleteness for acquisition gaps",
+                    "plan":captures}));
             }
             if scaffold_requested {
                 page_scaffold::committed_paths(&result, &mut written_paths);
@@ -5113,6 +5226,8 @@ mod w1_regressions {
             devup_mcp_figma::exported_asset_from_bytes(
                 &devup_mcp_figma::AssetRequest {
                     render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                    quality: None,
+                    lossless: None,
                     asset_id: "1:1:node".into(),
                     node_id: "1:1".into(),
                     field: "node".into(),
@@ -5319,6 +5434,17 @@ mod w1_regressions {
         assert_eq!(result["status"], "selection_required");
         assert!(result.get("assetManifest").is_none());
         assert_eq!(result["assetSummary"]["manifestIncluded"], false);
+        for output in ["imageAudit", "assetManifest"] {
+            let result = project(section(2), operation(&[output])).await.unwrap();
+            assert_eq!(result["status"], "selection_required");
+            assert!(
+                result["nextAction"]["example"]["arguments"]["outputs"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|o| o == output)
+            );
+        }
     }
 
     #[test]
@@ -5368,6 +5494,8 @@ mod w1_regressions {
             devup_mcp_figma::exported_asset_from_bytes(
                 &devup_mcp_figma::AssetRequest {
                     render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                    quality: None,
+                    lossless: None,
                     asset_id: "1:1:node".into(),
                     node_id: "1:1".into(),
                     field: "node".into(),
@@ -5475,6 +5603,8 @@ mod w1_regressions {
                             format: devup_mcp_figma::AssetFormat::Png,
                             scale: 1,
                             render_mode: mode,
+                            quality: None,
+                            lossless: None,
                         },
                         &bytes,
                     )
@@ -5655,6 +5785,237 @@ mod w1_regressions {
         assert_eq!(artifact.payload.assets, before);
     }
 
+    fn webp_test_payload(count: usize) -> CollectedPayload {
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(40, 40)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let mut data = p3_asset_payload(png.get_ref());
+        data.assets.clear();
+        data.snapshot.nodes.get_mut("1:1").unwrap().fields.insert(
+            "childrenIds".into(),
+            json!((2..count + 2).map(|i| format!("1:{i}")).collect::<Vec<_>>()),
+        );
+        let prototype = data.snapshot.nodes["1:2"].clone();
+        for i in 2..count + 2 {
+            let id = format!("1:{i}");
+            let mut node = prototype.clone();
+            node.id = id.clone();
+            data.snapshot.nodes.insert(id.clone(), node);
+            let request = devup_mcp_figma::AssetRequest {
+                asset_id: format!("{id}:fills:0"),
+                node_id: id.clone(),
+                field: "fills/0".into(),
+                image_hash: Some(id),
+                format: devup_mcp_figma::AssetFormat::Webp,
+                scale: 1,
+                render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                quality: Some(43),
+                lossless: Some(false),
+            };
+            data.assets
+                .push(devup_mcp_figma::exported_asset_from_bytes(&request, png.get_ref()).unwrap());
+        }
+        data
+    }
+
+    #[tokio::test]
+    async fn webp_image_audit_writes_a_supported_output_and_requires_design_capability() {
+        let root = std::env::temp_dir().join(format!("devup-webp-audit-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("image-audit.json");
+        let mut op = operation(&["imageAudit"]);
+        if let PendingOperation::Export { output_paths, .. } = &mut op {
+            output_paths.insert("imageAudit".into(), path.display().to_string());
+        }
+        let result = project(webp_test_payload(2), op).await.unwrap();
+        let written: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(written["assets"].as_array().unwrap().len(), 2);
+        assert!(
+            result["outputPathResults"]["supportedKeys"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|o| o == "imageAudit")
+        );
+        assert!(
+            result["outputPathResults"]["diagnostics"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let row = &written["assets"][0];
+        assert_eq!(row["nodeSize"]["width"], 40.0);
+        assert_eq!(row["outputSize"]["width"], 40.0);
+        assert_eq!(row["recommendedFormat"], "webp");
+        assert_eq!(row["visibleSourceRatio"], Value::Null);
+        assert!(
+            row["visibleSourceRatioEvidence"]
+                .as_str()
+                .unwrap()
+                .contains("not-visible-percentages")
+        );
+        let data = webp_test_payload(2);
+        let mut request = CollectionRequest::new(data.target.clone(), CollectionScope::File);
+        request.variables_only = true;
+        let store = ArtifactStore::default();
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), data)
+            .await
+            .unwrap();
+        assert!(
+            super::super::validation::validate_artifact_projection(
+                &artifact,
+                &["imageAudit".into()],
+                "file",
+                &[]
+            )
+            .is_err()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn webp_preset_replays_more_than_six_captures_with_public_files_and_coupled_resources() {
+        let root =
+            std::env::temp_dir().join(format!("devup-webp-preset-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&root).unwrap();
+        let root = crate::test_paths::canonical(&root);
+        let data = webp_test_payload(9);
+        let store = ArtifactStore::default();
+        let mut request = CollectionRequest::new(data.target.clone(), CollectionScope::Node);
+        request.web_ready_images = true;
+        let artifact = store
+            .insert(ArtifactRequestKey::from_collection(&request), data)
+            .await
+            .unwrap();
+        assert_eq!(artifact.capabilities.asset_capture_count, 9);
+        assert!(artifact.capabilities.web_ready_images);
+        for mode in [DeliveryMode::Inline, DeliveryMode::Resource] {
+            let mut op = operation(&["tsx", "assetManifest", "imageAudit"]);
+            if let PendingOperation::Export {
+                web_ready_images,
+                asset_public_root,
+                delivery,
+                ..
+            } = &mut op
+            {
+                *web_ready_images = true;
+                *asset_public_root = Some(root.clone());
+                *delivery = mode;
+            }
+            let result = complete_operation(
+                op,
+                &artifact.payload,
+                "fixture",
+                &artifact,
+                &OutputPolicy::from_roots(vec![root.clone()]).unwrap(),
+                &store,
+            )
+            .await
+            .unwrap();
+            assert_eq!(result["webReadyImages"]["total"], 9);
+            assert_eq!(result["webReadyImages"]["failed"], 0);
+            let files = result["outputPaths"].as_object().unwrap();
+            assert_eq!(files.len(), 9);
+            for path in files.values().filter_map(Value::as_str) {
+                assert!(path.ends_with(".webp"));
+                assert_eq!(
+                    image::guess_format(&std::fs::read(path).unwrap()).unwrap(),
+                    image::ImageFormat::WebP
+                );
+            }
+            if mode == DeliveryMode::Inline {
+                assert!(result["tsx"].as_str().unwrap().contains(".webp"));
+                assert_eq!(result["imageAudit"]["assets"].as_array().unwrap().len(), 9);
+                for a in result["assetManifest"]["assets"].as_array().unwrap() {
+                    assert_eq!(a["quality"], 43);
+                    assert!(a["path"].as_str().unwrap().ends_with(".webp"));
+                }
+            } else {
+                assert!(result["imageAudit"]["assets"].is_null());
+                assert!(result["webReadyImages"]["plan"].is_null());
+                let args = &result["nextAction"]["arguments"];
+                assert_eq!(args["preset"], "web-ready-images");
+                assert!(args["assetRequests"].is_null());
+                assert!(
+                    args["outputs"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|o| o == "assetManifest")
+                );
+                let input: super::super::tools::FigmaExportInput =
+                    serde_json::from_value(args.clone()).unwrap();
+                super::super::validation::parse_asset_requests(&input.asset_requests).unwrap();
+            }
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn webp_scaffold_chooses_webp_paths_before_mapping_and_preserves_alias_identity() {
+        let root =
+            std::env::temp_dir().join(format!("devup-webp-scaffold-{}", rand::random::<u64>()));
+        std::fs::create_dir_all(&root).unwrap();
+        for write in [false, true] {
+            let mut op = operation(&["tsx", "assetManifest", "pageScaffold"]);
+            if let PendingOperation::Export {
+                page_scaffold,
+                output_paths,
+                ..
+            } = &mut op
+            {
+                *page_scaffold =
+                    Some(serde_json::from_value(json!({"write":write,"route":"/"})).unwrap());
+                output_paths.insert("pageScaffold".into(), root.display().to_string());
+            }
+            let result = project(webp_test_payload(2), op).await.unwrap();
+            assert!(result["tsx"].as_str().unwrap().contains(".webp"));
+            for asset in result["assetManifest"]["assets"].as_array().unwrap() {
+                assert!(asset["path"].as_str().unwrap().ends_with(".webp"));
+                assert_eq!(asset["quality"], 43);
+                if write {
+                    let bytes = std::fs::read(asset["outputPath"].as_str().unwrap()).unwrap();
+                    assert_eq!(asset["sha256"], sha256_hex(&bytes));
+                }
+            }
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn webp_failed_capture_preserves_options_and_returns_partial_beside_success() {
+        let mut data = webp_test_payload(2);
+        let a = &mut data.assets[1];
+        a.status = AssetStatus::Failed;
+        a.data_base64 = None;
+        a.byte_length = None;
+        a.sha256 = None;
+        a.mime_type = None;
+        a.error_code = Some("DEVUP_ASSET_WEBP_POSTPROCESS_FAILED".into());
+        let selections = data
+            .assets
+            .iter()
+            .map(|a| devup_mcp_figma::AssetSelection {
+                asset_id: a.asset_id.clone(),
+                format: a.format.unwrap(),
+                scale: a.scale.unwrap(),
+                render_mode: a.render_mode,
+                quality: a.quality,
+                lossless: a.lossless,
+            })
+            .collect();
+        let mut op = operation(&["assetManifest"]);
+        if let PendingOperation::Export { asset_captures, .. } = &mut op {
+            *asset_captures = selections;
+        }
+        let result = project(data, op).await.unwrap();
+        assert_eq!(result["status"], "partial");
+        assert_eq!(result["assetManifest"]["assets"][1]["quality"], 43);
+        assert_eq!(result["assetManifest"]["assets"][1]["status"], "failed");
+    }
+
     #[tokio::test]
     async fn large_image_fill_audit_preserves_all_rows_in_resource_with_bounded_inline_summary() {
         let data = payload();
@@ -5670,7 +6031,8 @@ mod w1_regressions {
             .await
             .unwrap();
         let rows = (0..10000).map(|i| json!({"assetId":format!("synthetic-{i}:fills:0"),"nodeId":format!("synthetic-{i}"),"canvasFidelity":"unverified","reviewReasons":["image-transform"],"unknownReasons":["canvas-reference-not-compared","ancestor-dependencies-unknown"]})).collect::<Vec<_>>();
-        let mut result = json!({"status":"partial","imageFillAudit":{"total":rows.len(),"exact":0,"needsReview":rows.len(),"unknown":rows.len(),"summary":"10000 fills require review","assets":rows}});
+        let mut result = json!({"status":"partial","imageFillAudit":{"total":rows.len(),"exact":0,"needsReview":rows.len(),"unknown":rows.len(),"summary":"10000 fills require review","assets":rows},
+            "imageAudit":{"total":rows.len(),"assets":rows}});
         assert!(serde_json::to_vec(&result).unwrap().len() > 1024 * 1024);
         let outputs = projected_outputs_from_result(result.as_object().unwrap()).unwrap();
         let attachment = apply_delivery(
@@ -5685,6 +6047,13 @@ mod w1_regressions {
         .unwrap();
         commit_delivery(attachment);
         assert_eq!(result["imageFillAudit"]["total"], 10000);
+        assert!(result["imageAudit"]["assets"].is_null());
+        assert!(
+            result["imageAudit"]["detailsResource"]["uri"]
+                .as_str()
+                .unwrap()
+                .starts_with("devup://")
+        );
         assert!(result["imageFillAudit"]["assets"].is_null());
         assert!(
             result["imageFillAudit"]["detailsResource"]["uri"]
@@ -5962,6 +6331,7 @@ mod w1_regressions {
             frame_ids: vec![],
             all_screens: false,
             asset_captures: vec![],
+            web_ready_images: false,
             asset_output_paths: BTreeMap::new(),
             asset_public_root: None,
             fields: vec![],
@@ -7061,6 +7431,8 @@ mod w1_regressions {
         if let PendingOperation::Export { asset_captures, .. } = &mut op {
             asset_captures.push(devup_mcp_figma::AssetSelection {
                 render_mode: devup_mcp_figma::AssetRenderMode::Node,
+                quality: None,
+                lossless: None,
                 asset_id: "1:1:fills:0".into(),
                 format: devup_mcp_figma::AssetFormat::Png,
                 scale: 1,

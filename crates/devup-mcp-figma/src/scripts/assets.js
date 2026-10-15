@@ -155,7 +155,7 @@ function overrideEvidence(node, info) {
 try {
   if (!["fill", "node", "auto"].includes(renderMode)) return failed("DEVUP_ASSET_RENDER_MODE_UNSUPPORTED");
   if (!original && renderMode === "fill" &&
-      (!String(options.field).startsWith("fills/") || !["png", "jpg"].includes(options.format) || options.scale !== 1)) {
+      (!String(options.field).startsWith("fills/") || !["png", "jpg", "webp"].includes(options.format) || options.scale !== 1)) {
     return failed("DEVUP_ASSET_FILL_SETTINGS_UNSUPPORTED", "Original fill requires fills/N, png or jpg matching its codec, and scale 1; no resizing or transcoding.");
   }
   // Original uploads are a different representation from node renditions.
@@ -186,13 +186,26 @@ try {
   }
   exportDiagnostics.renderInfo = renderInfo(node, selectedPaint);
   overrideEvidence(node, exportDiagnostics.renderInfo);
+  let observedSourceSize = null;
+  let sizeTimer;
+  if (selectedPaint) {
+    try {
+      const image = figma.getImageByHash(options.imageHash);
+      const size = image && await Promise.race([image.getSizeAsync(), new Promise(resolve => {
+        sizeTimer = setTimeout(() => resolve(null), 250);
+      })]);
+      observedSourceSize = size && size.width > 0 && size.height > 0 && Number.isFinite(size.width) && Number.isFinite(size.height)
+        ? { ...size, aspectRatio: size.width / size.height } : null;
+    } catch (_error) { /* Optional diagnostics never consume the native export budget. */ }
+    finally { clearTimeout(sizeTimer); }
+  }
   let autoBytes = null;
   if (renderMode === "auto") {
     const safety = rawSafety(node, selectedPaint, exportDiagnostics.renderInfo);
     if (safety.eligible) {
       try {
         const image = figma.getImageByHash(options.imageHash);
-        const sourceSize = image && await timed(() => image.getSizeAsync());
+        const sourceSize = observedSourceSize;
         if (!sourceSize || sourceSize.width !== node.width || sourceSize.height !== node.height) safety.reasons.push("intrinsic-dimensions-mismatch-or-unknown");
         else {
           autoBytes = await timed(() => image.getBytesAsync());
@@ -207,6 +220,8 @@ try {
     overrideEvidence(node, exportDiagnostics.renderInfo);
     exportDiagnostics.renderInfo.autoDecision = { ...safety, selected: effectiveMode };
   }
+  exportDiagnostics.renderInfo.sourceSize = observedSourceSize;
+  exportDiagnostics.renderInfo.sourceSizeEvidence = observedSourceSize ? "Figma-image-getSizeAsync" : "unknown";
 
   if (original || effectiveMode === "fill") {
     exportDiagnostics.method = "original-fill";
@@ -225,7 +240,7 @@ try {
       : null;
     if (!mimeType) return failed("DEVUP_ORIGINAL_IMAGE_CODEC_UNSUPPORTED");
     exportDiagnostics.renderInfo.originalMimeType = mimeType;
-    if (!original && mimeType !== { png: "image/png", jpg: "image/jpeg" }[options.format]) {
+    if (!original && options.format !== "webp" && mimeType !== { png: "image/png", jpg: "image/jpeg" }[options.format]) {
       return failed("DEVUP_ASSET_FILL_CODEC_MISMATCH", `Original fill codec is ${mimeType}, but ${options.format} was requested; choose the matching format or renderMode node. No transcoding was performed.`);
     }
     if (!original) return { ...failed(null), status: "exported", mimeType,
@@ -239,7 +254,8 @@ try {
     };
   }
 
-  const format = String(options.format || "").toUpperCase();
+  // WebP is encoded by the server from this exact PNG; Figma has no native WebP export.
+  const format = options.format === "webp" ? "PNG" : String(options.format || "").toUpperCase();
   if (!["PNG", "JPG", "SVG", "PDF"].includes(format)) {
     return failed("DEVUP_ASSET_FORMAT_UNSUPPORTED");
   }
@@ -326,7 +342,7 @@ try {
     };
   }
   if (hasFileWriter) {
-    figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${String(options.format).toLowerCase()}`, bytes);
+    figma.io.write(`devup-asset-${options.assetId.replace(/[^A-Za-z0-9_-]/g, "_")}.${format.toLowerCase()}`, bytes);
   }
   return {
     kind: "devupAssetExport",

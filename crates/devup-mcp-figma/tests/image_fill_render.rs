@@ -21,6 +21,8 @@ fn request(mode: AssetRenderMode) -> AssetRequest {
         format: AssetFormat::Png,
         scale: 1,
         render_mode: mode,
+        quality: None,
+        lossless: None,
     }
 }
 
@@ -158,6 +160,78 @@ fn compiled_raw_and_native_paths_measure_actual_bytes_and_diagnose_ratios() {
             }
         );
     }
+}
+
+#[test]
+fn compiled_node_and_explicit_fill_webp_finish_with_real_codec_and_truthful_scope() {
+    for mode in [
+        AssetRenderMode::Node,
+        AssetRenderMode::Fill,
+        AssetRenderMode::Auto,
+    ] {
+        let mut req = request(mode);
+        req.format = AssetFormat::Webp;
+        req.quality = Some(37);
+        req.lossless = Some(false);
+        let result = execute(&req);
+        let entry = decode(&req, &result);
+        let bytes = STANDARD.decode(entry.data_base64.unwrap()).unwrap();
+        assert_eq!(
+            image::guess_format(&bytes).unwrap(),
+            image::ImageFormat::WebP
+        );
+        assert_eq!(entry.mime_type.as_deref(), Some("image/webp"));
+        assert_eq!(entry.quality, Some(37));
+        assert_eq!(entry.lossless, Some(false));
+        let info = entry.render_info.unwrap();
+        assert_eq!(info["fidelity"], "approximate");
+        assert_ne!(info["fidelityScope"], "original-source-bytes");
+        assert_eq!(
+            info["renderedAs"],
+            if mode == AssetRenderMode::Fill {
+                "transcoded-fill"
+            } else {
+                "transcoded-node-render"
+            }
+        );
+        assert_eq!(
+            info["outputSize"]["width"],
+            if mode == AssetRenderMode::Fill {
+                20.0
+            } else {
+                4.0
+            }
+        );
+        if mode != AssetRenderMode::Fill {
+            assert_eq!(result["settings"]["format"], "PNG");
+        }
+    }
+    let mut req = request(AssetRenderMode::Fill);
+    req.format = AssetFormat::Webp;
+    let mut result = execute(&req);
+    result["data"]["status"] = json!("chunked");
+    result["data"]["cursor"] = json!({"nextOffset":0,"maxChunkBytes":12000});
+    assert!(
+        asset_export_from_result(&UpstreamResult { raw: result }, "fixture", None, &req).is_err(),
+        "fill WebP must not substitute native PNG fragments"
+    );
+    let mut automatic = request(AssetRenderMode::Auto);
+    automatic.format = AssetFormat::Webp;
+    let mut original = execute(&request(AssetRenderMode::Fill));
+    original["data"]["renderMode"] = json!("auto");
+    original["data"]["format"] = json!("webp");
+    original["data"]["exportDiagnostics"]["renderInfo"]["nodeSize"] =
+        json!({"width":20,"height":10,"aspectRatio":2});
+    original["data"]["exportDiagnostics"]["renderInfo"]["autoDecision"] =
+        json!({"eligible":true,"selected":"fill","reasons":[]});
+    let error = asset_export_from_result(
+        &UpstreamResult { raw: original },
+        "fixture",
+        None,
+        &automatic,
+    )
+    .unwrap_err();
+    assert!(error.message.contains("explicit renderMode fill"));
 }
 
 #[test]
@@ -302,6 +376,8 @@ fn selection_defaults_to_node_and_refuses_unsupported_fill_settings() {
     assert_eq!(default.render_mode, AssetRenderMode::Node);
     let fill = AssetSelection {
         render_mode: AssetRenderMode::Fill,
+        quality: None,
+        lossless: None,
         ..default
     };
     assert_eq!(

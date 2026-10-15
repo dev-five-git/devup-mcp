@@ -42,6 +42,7 @@ pub struct AssetExportStage {
 #[serde(rename_all = "lowercase")]
 pub enum AssetFormat {
     Png,
+    Webp,
     Jpg,
     Svg,
     Pdf,
@@ -51,6 +52,7 @@ impl AssetFormat {
     pub fn mime_type(self) -> &'static str {
         match self {
             Self::Png => "image/png",
+            Self::Webp => "image/webp",
             Self::Jpg => "image/jpeg",
             Self::Svg => "image/svg+xml",
             Self::Pdf => "application/pdf",
@@ -60,6 +62,7 @@ impl AssetFormat {
     pub fn extension(self) -> &'static str {
         match self {
             Self::Png => "png",
+            Self::Webp => "webp",
             Self::Jpg => "jpg",
             Self::Svg => "svg",
             Self::Pdf => "pdf",
@@ -82,6 +85,10 @@ pub enum AssetStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lossless: Option<bool>,
     #[serde(default)]
     pub render_mode: AssetRenderMode,
     pub asset_id: String,
@@ -95,6 +102,10 @@ pub struct AssetRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetSelection {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lossless: Option<bool>,
     #[serde(default)]
     pub render_mode: AssetRenderMode,
     pub asset_id: String,
@@ -105,6 +116,10 @@ pub struct AssetSelection {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetManifestEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lossless: Option<bool>,
     #[serde(default)]
     pub render_mode: AssetRenderMode,
     /// Observations and explicit unknowns; dimensions are measured from bytes.
@@ -209,6 +224,79 @@ pub fn discover_asset_manifest(snapshot: &Snapshot) -> AssetManifest {
         assets,
         diagnostics: Vec::new(),
     }
+}
+
+/// Full in-scope IMAGE census, including paints below flattened asset boundaries.
+pub fn discover_image_fill_assets(snapshot: &Snapshot) -> Vec<AssetManifestEntry> {
+    let mut pending = snapshot
+        .roots
+        .iter()
+        .rev()
+        .map(|id| (id.clone(), false))
+        .collect::<Vec<_>>();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut assets = Vec::new();
+    while let Some((id, ancestor_hidden)) = pending.pop() {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        let Some(node) = snapshot.nodes.get(&id) else {
+            continue;
+        };
+        let hidden = ancestor_hidden || asset_exclusion_reason(node).is_some();
+        for (index, paint) in fills(node)
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter(|(_, p)| fill_type(p) == Some("IMAGE"))
+        {
+            let mut asset = manifest_entry(
+                node,
+                AssetNode::Png {
+                    fill_index: index,
+                    image_hash: paint
+                        .get("imageHash")
+                        .or_else(|| paint.get("imageRef"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                },
+            );
+            if hidden
+                || !is_visible_fill(paint)
+                || paint["opacity"].as_f64().is_some_and(|n| n <= 0.0)
+            {
+                asset.status = AssetStatus::Failed;
+                asset.error_code = Some("DEVUP_ASSET_NODE_HIDDEN".into());
+                asset.error_detail = Some("The node, paint or an acquired ancestor is hidden, transparent or outside rendered bounds; no image was rendered.".into());
+            }
+            assets.push(asset);
+        }
+        pending.extend(
+            node.typed_view()
+                .child_ids()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .map(|id| (id.to_owned(), hidden)),
+        );
+    }
+    assets.sort_by(|a, b| a.asset_id.cmp(&b.asset_id));
+    crate::annotate_assets(snapshot, &mut assets);
+    assets
+}
+
+/// Paint census plus the native raster boundaries consumed by generated code.
+pub fn discover_web_ready_assets(snapshot: &Snapshot) -> Vec<AssetManifestEntry> {
+    let mut assets = discover_image_fill_assets(snapshot);
+    assets.extend(
+        discover_asset_manifest(snapshot)
+            .assets
+            .into_iter()
+            .filter(|a| a.source_kind == "image-node"),
+    );
+    assets.sort_by(|a, b| a.asset_id.cmp(&b.asset_id));
+    assets.dedup_by(|a, b| a.asset_id == b.asset_id);
+    assets
 }
 
 fn compute_asset_node(snapshot: &Snapshot, node: &RawNode, nested: bool) -> Option<AssetNode> {
@@ -486,6 +574,8 @@ fn manifest_entry(node: &RawNode, asset: AssetNode) -> AssetManifestEntry {
 
     AssetManifestEntry {
         render_mode: AssetRenderMode::Node,
+        quality: None,
+        lossless: None,
         render_info: None,
         suggested_filename: None,
         asset_id,
@@ -515,9 +605,13 @@ pub fn validate_asset_requests(
     if requests.len() > 16 {
         return Err(invalid("At most 16 assets can be exported at once."));
     }
-    let available = discover_asset_manifest(snapshot);
+    let mut available = discover_asset_manifest(snapshot);
+    available
+        .assets
+        .extend(discover_image_fill_assets(snapshot));
     let mut seen = std::collections::BTreeSet::new();
     for request in requests {
+        crate::validate_webp_options(request.format, request.quality, request.lossless)?;
         if request.scale == 0 || request.scale > 4 || !seen.insert(request.asset_id.as_str()) {
             return Err(invalid(
                 "asset request has an invalid scale or a duplicate ID.",
@@ -538,11 +632,14 @@ pub fn validate_asset_requests(
         }
         if request.render_mode == AssetRenderMode::Fill
             && (!request.field.starts_with("fills/")
-                || !matches!(request.format, AssetFormat::Png | AssetFormat::Jpg)
+                || !matches!(
+                    request.format,
+                    AssetFormat::Png | AssetFormat::Jpg | AssetFormat::Webp
+                )
                 || request.scale != 1)
         {
             return Err(invalid(
-                "renderMode fill requires an image-fill, png or jpg matching the original codec, and scale 1; original bytes are never resized or transcoded.",
+                "renderMode fill requires an image-fill, png or jpg matching the original codec, and scale 1; PNG/JPG preserve original bytes; explicit WebP transcodes PNG/JPEG source without resizing.",
             ));
         }
         // Reject what the manifest already knows cannot be exported, so the
@@ -564,7 +661,8 @@ pub fn resolve_asset_selections(
     if selections.len() > 16 {
         return Err(invalid("At most 16 assets can be exported at once."));
     }
-    let manifest = discover_asset_manifest(snapshot);
+    let mut manifest = discover_asset_manifest(snapshot);
+    manifest.assets.extend(discover_image_fill_assets(snapshot));
     let mut seen = std::collections::BTreeSet::new();
     let requests = selections
         .iter()
@@ -590,6 +688,8 @@ pub fn resolve_asset_selections(
                 format: selection.format,
                 scale: selection.scale,
                 render_mode: selection.render_mode,
+                quality: selection.quality,
+                lossless: selection.lossless,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -603,6 +703,7 @@ pub fn asset_export_from_result(
     version: Option<&str>,
     request: &AssetRequest,
 ) -> Result<AssetExportOutcome, DevupError> {
+    crate::validate_webp_options(request.format, request.quality, request.lossless)?;
     let descriptor = find_descriptor(&result.raw)
         .ok_or_else(|| invalid("asset descriptor not found in the Figma MCP response."))?;
     if descriptor.file_key != file_key
@@ -617,6 +718,22 @@ pub fn asset_export_from_result(
     {
         return Err(invalid(
             "asset descriptor target or version does not match the request.",
+        ));
+    }
+    if request.format == AssetFormat::Webp
+        && request.render_mode != AssetRenderMode::Fill
+        && descriptor
+            .export_diagnostics
+            .as_ref()
+            .and_then(|d| d.render_info.as_ref())
+            .is_some_and(|info| {
+                info["representation"]
+                    .as_str()
+                    .is_some_and(|r| r.starts_with("original-fill"))
+            })
+    {
+        return Err(invalid(
+            "Node/auto WebP requires a native PNG rendition. Original-fill WebP conversion requires explicit renderMode fill at scale 1; no native provenance was assigned.",
         ));
     }
     if (request.render_mode == AssetRenderMode::Fill
@@ -647,7 +764,7 @@ pub fn asset_export_from_result(
         // same bytes that were announced.
         let field = match request.format {
             AssetFormat::Svg => SVG_EXPORT_FIELD.to_owned(),
-            AssetFormat::Png => format!("{PNG_EXPORT_FIELD}@{}", request.scale),
+            AssetFormat::Png | AssetFormat::Webp => format!("{PNG_EXPORT_FIELD}@{}", request.scale),
             _ => {
                 return Err(invalid(
                     "only an SVG or PNG export is carried in fragments.",
@@ -667,6 +784,8 @@ pub fn asset_export_from_result(
         return Ok(AssetExportOutcome::Entry(consistent_entry(
             AssetManifestEntry {
                 render_mode: request.render_mode,
+                quality: request.quality,
+                lossless: request.lossless,
                 render_info: Some(crate::asset_render_info::measured_info(
                     request.render_mode,
                     request.format,
@@ -698,7 +817,20 @@ pub fn asset_export_from_result(
             },
         )));
     }
-    let payload = find_payload(&result.raw, request.format.mime_type()).ok_or_else(|| {
+    let payload = if request.format == AssetFormat::Webp {
+        find_payload(&result.raw, "image/png").or_else(|| {
+            (request.render_mode == AssetRenderMode::Fill)
+                .then(|| {
+                    ["image/jpeg", "image/gif", "image/webp"]
+                        .into_iter()
+                        .find_map(|mime| find_payload(&result.raw, mime))
+                })
+                .flatten()
+        })
+    } else {
+        find_payload(&result.raw, request.format.mime_type())
+    }
+    .ok_or_else(|| {
         // Which shapes the response *did* carry. Without this the failure is
         // indistinguishable between "no attachment came back", "it came back
         // under a different mime type" and "it came back in a field this
@@ -720,6 +852,9 @@ pub fn asset_export_from_result(
     })?;
     let (bytes, data) = match payload {
         AssetPayload::Base64(data) => {
+            if data.len() > MAX_ASSET_BYTES.div_ceil(3) * 4 {
+                return Err(invalid("asset export base64 exceeds the byte budget."));
+            }
             let bytes = STANDARD
                 .decode(data.as_bytes())
                 .map_err(|_| invalid("asset export binary base64 is invalid."))?;
@@ -742,12 +877,13 @@ pub fn asset_export_from_result(
             "asset export binary length or hash does not match.",
         ));
     }
-    if (request.render_mode == AssetRenderMode::Fill
-        || descriptor
-            .export_diagnostics
-            .as_ref()
-            .and_then(|d| d.render_info.as_ref())
-            .is_some_and(|i| i["representation"] == "original-fill"))
+    if request.format != AssetFormat::Webp
+        && (request.render_mode == AssetRenderMode::Fill
+            || descriptor
+                .export_diagnostics
+                .as_ref()
+                .and_then(|d| d.render_info.as_ref())
+                .is_some_and(|i| i["representation"] == "original-fill"))
         && image::guess_format(&bytes).ok()
             != Some(match request.format {
                 AssetFormat::Png => image::ImageFormat::Png,
@@ -789,37 +925,42 @@ pub fn asset_export_from_result(
         }
     }
     Ok(AssetExportOutcome::Entry(consistent_entry(
-        AssetManifestEntry {
-            render_mode: request.render_mode,
-            render_info: Some(crate::asset_render_info::measured_info(
-                request.render_mode,
-                request.format,
-                request.scale,
-                descriptor
-                    .export_diagnostics
-                    .as_ref()
-                    .and_then(|d| d.render_info.clone()),
-                Some(&bytes),
-            )),
-            suggested_filename: None,
-            asset_id: request.asset_id.clone(),
-            node_id: request.node_id.clone(),
-            field: request.field.clone(),
-            source_kind: source_kind.to_owned(),
-            image_hash: request.image_hash.clone(),
-            format: Some(request.format),
-            scale: Some(request.scale),
-            status: AssetStatus::Exported,
-            byte_length: Some(bytes.len()),
-            sha256: descriptor.sha256,
-            mime_type: Some(request.format.mime_type().to_owned()),
-            data_base64: Some(data),
-            output_path: None,
-            error_code: None,
-            error_detail: None,
-            export_diagnostics: descriptor.export_diagnostics,
-            path: None,
-        },
+        crate::webp::finish(
+            request,
+            AssetManifestEntry {
+                render_mode: request.render_mode,
+                quality: None,
+                lossless: None,
+                render_info: Some(crate::asset_render_info::measured_info(
+                    request.render_mode,
+                    request.format,
+                    request.scale,
+                    descriptor
+                        .export_diagnostics
+                        .as_ref()
+                        .and_then(|d| d.render_info.clone()),
+                    Some(&bytes),
+                )),
+                suggested_filename: None,
+                asset_id: request.asset_id.clone(),
+                node_id: request.node_id.clone(),
+                field: request.field.clone(),
+                source_kind: source_kind.to_owned(),
+                image_hash: request.image_hash.clone(),
+                format: Some(request.format),
+                scale: Some(request.scale),
+                status: AssetStatus::Exported,
+                byte_length: Some(bytes.len()),
+                sha256: descriptor.sha256,
+                mime_type: Some(request.format.mime_type().to_owned()),
+                data_base64: Some(data),
+                output_path: None,
+                error_code: None,
+                error_detail: None,
+                export_diagnostics: descriptor.export_diagnostics,
+                path: None,
+            },
+        )?,
     )))
 }
 
@@ -886,34 +1027,39 @@ pub fn exported_asset_from_bytes(
     if bytes.is_empty() || bytes.len() > MAX_ASSET_BYTES {
         return Err(invalid("asset export binary length is out of range."));
     }
-    Ok(AssetManifestEntry {
-        render_mode: request.render_mode,
-        render_info: Some(crate::asset_render_info::measured_info(
-            request.render_mode,
-            request.format,
-            request.scale,
-            None,
-            Some(bytes),
-        )),
-        suggested_filename: None,
-        asset_id: request.asset_id.clone(),
-        node_id: request.node_id.clone(),
-        field: request.field.clone(),
-        source_kind: source_kind_of(request).to_owned(),
-        image_hash: request.image_hash.clone(),
-        format: Some(request.format),
-        scale: Some(request.scale),
-        status: AssetStatus::Exported,
-        byte_length: Some(bytes.len()),
-        sha256: Some(sha256_hex(bytes)),
-        mime_type: Some(request.format.mime_type().to_owned()),
-        data_base64: Some(STANDARD.encode(bytes)),
-        output_path: None,
-        error_code: None,
-        error_detail: None,
-        export_diagnostics: None,
-        path: None,
-    })
+    crate::webp::finish(
+        request,
+        AssetManifestEntry {
+            render_mode: request.render_mode,
+            quality: None,
+            lossless: None,
+            render_info: Some(crate::asset_render_info::measured_info(
+                request.render_mode,
+                request.format,
+                request.scale,
+                None,
+                Some(bytes),
+            )),
+            suggested_filename: None,
+            asset_id: request.asset_id.clone(),
+            node_id: request.node_id.clone(),
+            field: request.field.clone(),
+            source_kind: source_kind_of(request).to_owned(),
+            image_hash: request.image_hash.clone(),
+            format: Some(request.format),
+            scale: Some(request.scale),
+            status: AssetStatus::Exported,
+            byte_length: Some(bytes.len()),
+            sha256: Some(sha256_hex(bytes)),
+            mime_type: Some(request.format.mime_type().to_owned()),
+            data_base64: Some(STANDARD.encode(bytes)),
+            output_path: None,
+            error_code: None,
+            error_detail: None,
+            export_diagnostics: None,
+            path: None,
+        },
+    )
 }
 
 #[derive(Debug, Clone, Deserialize)]

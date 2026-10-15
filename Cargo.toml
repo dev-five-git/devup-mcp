@@ -22,10 +22,12 @@ base64 = "0.23"
 cap-std = "4.0.3"
 dunce = "1.0.5"
 futures-util = "0.3"
+flate2 = "1"
 hmac = "0.13"
 keyring = "4.2"
 insta = { version = "1.48.0", features = ["glob", "json"] }
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+webp = { version = "=0.3.1", default-features = false }
 oxc_allocator = "=0.148.0"
 oxc_ast = "=0.148.0"
 oxc_ast_visit = "=0.148.0"

@@ -21,6 +21,8 @@ fn vector() -> Value {
 fn execute(node: Value, format: AssetFormat, mode: &str, writer: bool) -> (AssetRequest, Value) {
     let request = AssetRequest {
         render_mode: devup_mcp_figma::AssetRenderMode::Node,
+        quality: None,
+        lossless: None,
         asset_id: "I44:8533;10:973:node".into(),
         node_id: "I44:8533;10:973".into(),
         field: "node".into(),
