@@ -5,6 +5,221 @@ use serde_json::{Value, json};
 
 use super::{CodegenOptions, CodegenOutput, style};
 
+/// Report uncertainty using emitted elements, never source-image dimensions
+/// guessed from a Figma node's measured frame. Fixed CSS dimensions already
+/// reserve space and do not need invented HTML intrinsic width/height props.
+pub(super) fn image_layout_diagnostics(
+    snapshot: &Snapshot,
+    output: &CodegenOutput,
+) -> Vec<devup_mcp_figma::Diagnostic> {
+    use crate::provenance::attributes::{OwnedElement, owned_elements};
+    use devup_mcp_figma::{Diagnostic, DiagnosticSeverity, FidelityImpact};
+
+    let elements = owned_elements(output);
+    let sizing = |element: &OwnedElement| {
+        element
+            .attributes
+            .iter()
+            .filter(|(a, _)| {
+                matches!(
+                    a.name.as_str(),
+                    "w" | "h"
+                        | "boxSize"
+                        | "aspectRatio"
+                        | "minW"
+                        | "minH"
+                        | "maxW"
+                        | "maxH"
+                        | "flex"
+                        | "flexShrink"
+                        | "gridTemplateColumns"
+                        | "gridTemplateRows"
+                )
+            })
+            .map(|(a, _)| a.source.clone())
+            .collect::<Vec<_>>()
+    };
+    let mut diagnostics = Vec::new();
+    for element in &elements {
+        let Some(node) = element
+            .node_id
+            .as_ref()
+            .and_then(|id| snapshot.nodes.get(id))
+        else {
+            continue;
+        };
+        if element.tag == "Grid" {
+            for (columns, property, sizes, count) in [
+                (
+                    true,
+                    "gridTemplateColumns",
+                    "gridColumnSizes",
+                    "gridColumnCount",
+                ),
+                (false, "gridTemplateRows", "gridRowSizes", "gridRowCount"),
+            ] {
+                let template = super::layout::grid_template(node, columns);
+                if template.unverified.is_empty() {
+                    continue;
+                }
+                let generated = element
+                    .attributes
+                    .iter()
+                    .find(|(a, _)| a.name == property)
+                    .map(|(a, _)| &a.source);
+                diagnostics.push(Diagnostic {
+                    code: "DEVUP_CODEGEN_GRID_TRACK_SIZING_UNVERIFIED".into(),
+                    message: "Grid track sizing metadata is missing or ambiguous; review the emitted tracks and sizing policy.".into(),
+                    node_id: Some(node.id.clone()), property: Some(property.into()),
+                    severity: Some(DiagnosticSeverity::Warning),
+                    fidelity_impact: Some(FidelityImpact::Approximated),
+                    details: Some(json!({
+                        "classification":"grid-track-sizing", "reasonCodes":template.unverified,
+                        "originalValue":{"sizes":node.typed_view().value(sizes),"count":node.typed_view().value(count)},
+                        "generatedProperty":generated, "generatedSizing":sizing(element),
+                        "sizingPolicy":"Preserve valid explicit tracks; use auto for unknown/invalid tracks and a count-only equal-share fallback (auto for HUG). Omit unsupported declarations above the 4096-track codegen budget. No child pixel width is inferred.",
+                        "verification":{"state":"unverified","reasonCode":"source-track-sizing-incomplete"},
+                        "nextAction":"Collect explicit track sizes and child FIXED/FILL/HUG sizing. Compare computed card widths before accepting the fallback; no original card width is inferred.",
+                        "evidenceLimit":"Generated CSS policy and collected metadata only; browser layout was not measured."
+                    })),
+                    ..Diagnostic::default()
+                });
+            }
+        }
+        if element.tag != "Image" {
+            continue;
+        }
+        let fixed_axis = |prop: &str| {
+            element.attributes.iter().any(|(a, _)| {
+                (a.name == prop || a.name == "boxSize")
+                    && a.source
+                        .split_once("=\"")
+                        .and_then(|(_, v)| v.strip_suffix('"'))
+                        .and_then(|v| v.strip_suffix("px"))
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .is_some_and(|v| v.is_finite() && v >= 0.0)
+            })
+        };
+        if fixed_axis("w") && fixed_axis("h") {
+            continue;
+        }
+        let has_size = |prop: &str| {
+            element.attributes.iter().any(|(a, _)| {
+                (a.name == prop || a.name == "boxSize") && !a.source.ends_with("=\"auto\"")
+            })
+        };
+        let has_ratio = element
+            .attributes
+            .iter()
+            .any(|(a, _)| a.name == "aspectRatio");
+        let reserved_shape =
+            (has_size("w") && has_size("h")) || (has_ratio && (has_size("w") || has_size("h")));
+        let mut current = node;
+        let mut seen = BTreeSet::new();
+        while seen.insert(current.id.as_str()) {
+            let Some(parent) = current
+                .typed_view()
+                .string("parentId")
+                .and_then(|id| snapshot.nodes.get(id))
+                .or_else(|| {
+                    snapshot
+                        .nodes
+                        .values()
+                        .find(|p| p.typed_view().child_ids().any(|id| id == current.id))
+                })
+            else {
+                break;
+            };
+            // Absolute images do not contribute to a flex/grid track's
+            // min-content size. A hidden/component-folded ancestor is likewise
+            // outside this generated layout's observable contents.
+            if elements.iter().any(|e| {
+                e.node_id.as_deref() == Some(&current.id)
+                    && e.attributes
+                        .iter()
+                        .any(|(a, _)| a.source == "pos=\"absolute\"")
+            }) {
+                break;
+            }
+            let Some(parent_element) = elements
+                .iter()
+                .find(|e| e.node_id.as_deref() == Some(&parent.id))
+            else {
+                break;
+            };
+            // Component selection follows inferred layout. A raw source mode
+            // alone does not prove that a Box/component reference is CSS flex.
+            let mode = match parent_element.tag.as_str() {
+                "Grid" => Some("GRID"),
+                "Flex" => Some("HORIZONTAL"),
+                "VStack" => Some("VERTICAL"),
+                "Center"
+                    if parent_element
+                        .attributes
+                        .iter()
+                        .any(|(a, _)| a.source == "flexDir=\"column\"") =>
+                {
+                    Some("VERTICAL")
+                }
+                "Center" => Some("HORIZONTAL"),
+                _ => None,
+            };
+            let columns = parent_element
+                .attributes
+                .iter()
+                .find(|(a, _)| a.name == "gridTemplateColumns")
+                .map(|(a, _)| a.source.as_str());
+            let rows = parent_element
+                .attributes
+                .iter()
+                .find(|(a, _)| a.name == "gridTemplateRows")
+                .map(|(a, _)| a.source.as_str());
+            let content_sized = |css: Option<&str>| {
+                css.is_none_or(|css| {
+                    css.contains("fr") || css.contains("auto") || css.contains("fit-content")
+                })
+            };
+            let flexible_grid =
+                mode == Some("GRID") && (content_sized(columns) || content_sized(rows));
+            let bounded_columns = columns.is_some_and(|css| {
+                !css.contains("auto")
+                    && !css.contains("fit-content")
+                    && (!css.contains("fr") || css.contains("minmax(0,"))
+            });
+            if mode == Some("GRID") && bounded_columns && reserved_shape {
+                // Width/height or a source-supported ratio already reserve the
+                // image box here. No decoded image dimension determines it.
+                break;
+            }
+            if flexible_grid || matches!(mode, Some("HORIZONTAL" | "VERTICAL")) {
+                let view = node.typed_view();
+                diagnostics.push(Diagnostic {
+                    code: "DEVUP_CODEGEN_IMAGE_INTRINSIC_LAYOUT".into(),
+                    message: "Intrinsic image dimensions may affect content sizing or overflow in this flexible layout; compare computed card widths and heights.".into(),
+                    node_id: Some(node.id.clone()), property: Some("imageSizing".into()),
+                    severity: Some(DiagnosticSeverity::Warning),
+                    fidelity_impact: Some(FidelityImpact::Approximated),
+                    details: Some(json!({
+                        "classification":"intrinsic-image-layout",
+                        "nodeSize":{"width":view.number("width"),"height":view.number("height"),"horizontal":view.string("layoutSizingHorizontal"),"vertical":view.string("layoutSizingVertical")},
+                        "sourceImageSize":null,
+                        "sourceImageSizeReason":"The collected node dimensions describe the Figma frame, not decoded source-image pixels.",
+                        "generatedSizing":sizing(element),
+                        "layout":{"nodeId":parent.id,"mode":mode,"generatedSizing":sizing(parent_element),"zeroMinimumColumns":columns.is_some_and(|css| css.contains("minmax(0,"))},
+                        "verification":{"state":"unverified","reasonCode":"browser-intrinsic-layout-not-measured"},
+                        "nextAction":"Preserve explicit fixed dimensions or source-supported aspect ratio; measure rendered card sizes with the chosen assets. Zero-minimum fractional columns protect track allocation but do not establish image height or crop fidelity.",
+                        "evidenceLimit":"Potential CSS intrinsic-size dependency, not a measured cause or proof of unequal cards. HTML intrinsic dimensions are not inferred."
+                    })),
+                    ..Diagnostic::default()
+                });
+                break;
+            }
+            current = parent;
+        }
+    }
+    diagnostics
+}
+
 /// Describe the emitted root's placement separately from property coverage.
 /// The selected root's parent is never rendered by this component, even when
 /// that parent was collected as part of a larger snapshot.

@@ -944,37 +944,110 @@ fn child_shrinker(parent: &RawNode, dimension: &str) -> bool {
     }
 }
 
-/// A grid's tracks as CSS, from Figma's track sizes: a `FLEX` track is its
-/// share in `fr`, a `FIXED` one its pixels, a `HUG` one `fit-content(100%)`,
-/// as Figma's own documentation maps them. Tracks all alike fold to
-/// `repeat(n, …)`. The plugin writes `repeat(n, 1fr)` for every grid, which
-/// is right only while every track is one flexible share; without the sizes
-/// in the snapshot that is what this falls back to.
-fn grid_template(sizes: Option<&Value>, count: f64) -> String {
-    let tracks = sizes
-        .and_then(Value::as_array)
-        .map(|tracks| {
-            tracks
-                .iter()
-                .map(|track| {
-                    let value = track.get("value").and_then(Value::as_f64);
-                    match track.get("type").and_then(Value::as_str) {
-                        Some("FIXED") => px(value.unwrap_or(0.0)),
-                        Some("HUG") => "fit-content(100%)".to_owned(),
-                        _ => format!("{}fr", format_number(value.unwrap_or(1.0))),
-                    }
-                })
-                .collect::<Vec<_>>()
-        })
-        .filter(|tracks| !tracks.is_empty())
-        .unwrap_or_else(|| vec!["1fr".to_owned(); count.max(0.0) as usize]);
-    // `repeat(1, 1fr)` for one track too: that is the plugin's spelling, and
-    // the corpus holds it.
-    if !tracks.is_empty() && tracks.iter().all(|track| track == &tracks[0]) {
-        format!("repeat({}, {})", tracks.len(), tracks[0])
+pub(super) struct GridTemplate {
+    pub css: Option<String>,
+    pub unverified: Vec<&'static str>,
+}
+
+/// Preserve source tracks, including content sizing. A flexible column in a
+/// non-HUG grid has a zero minimum so replaced content cannot enlarge its share
+/// through CSS's automatic min-content minimum. Rows and HUG grids retain their
+/// content minimum. Count-only grids retain the equal-share fallback, explicitly
+/// diagnosed as a policy choice rather than a recovered source measurement.
+pub(super) fn grid_template(node: &RawNode, columns: bool) -> GridTemplate {
+    // A codegen resource budget, not a Figma limit: unsupported input must be
+    // diagnosed instead of allocating a huge list or emitting a clamped grid.
+    const MAX_TRACKS: usize = 4096;
+    let view = node.typed_view();
+    let (sizes, count, sizing) = if columns {
+        (
+            "gridColumnSizes",
+            "gridColumnCount",
+            "layoutSizingHorizontal",
+        )
     } else {
-        tracks.join(" ")
+        ("gridRowSizes", "gridRowCount", "layoutSizingVertical")
+    };
+    let hug = view.string(sizing) == Some("HUG");
+    let flexible = |value| {
+        let fraction = format!("{}fr", format_number(value));
+        if columns && !hug {
+            format!("minmax(0, {fraction})")
+        } else {
+            fraction
+        }
+    };
+    let mut unverified = Vec::new();
+    let count_value = view.value(count);
+    let count = view.number(count);
+    let sizes = view.value(sizes).and_then(Value::as_array);
+    if count.is_some_and(|count| count > MAX_TRACKS as f64) {
+        unverified.push("track-count-exceeds-codegen-budget");
     }
+    if sizes.is_some_and(|sizes| sizes.len() > MAX_TRACKS) {
+        unverified.push("track-list-exceeds-codegen-budget");
+    }
+    if !unverified.is_empty() {
+        return GridTemplate {
+            css: None,
+            unverified,
+        };
+    }
+    let valid_count = count.filter(|count| *count >= 1.0 && count.fract() == 0.0);
+    let tracks = if let Some(sizes) = sizes.filter(|sizes| !sizes.is_empty()) {
+        if count_value.is_some_and(|v| !v.is_null()) && valid_count != Some(sizes.len() as f64) {
+            unverified.push("track-count-mismatch");
+        }
+        sizes
+            .iter()
+            .map(|track| {
+                let value = track.get("value").and_then(Value::as_f64);
+                match track.get("type").and_then(Value::as_str) {
+                    Some("FIXED") if value.is_some_and(|v| v >= 0.0) => px(value.unwrap()),
+                    Some("HUG") => "fit-content(100%)".to_owned(),
+                    Some("AUTO") => "auto".to_owned(),
+                    Some("FLEX")
+                        if value.is_some_and(|v| v >= 0.0)
+                            || track.get("value").is_none_or(Value::is_null) =>
+                    {
+                        flexible(value.unwrap_or(1.0))
+                    }
+                    _ => {
+                        // Unknown track kinds or invalid fixed sizes are not
+                        // evidence for either a pixel size or a flexible share.
+                        unverified.push("unknown-or-invalid-track-size");
+                        "auto".to_owned()
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+    } else {
+        unverified.push("track-sizes-not-collected");
+        if valid_count.is_none() {
+            unverified.push("track-count-not-collected-or-invalid");
+        }
+        // Count-only input needs no allocation proportional to an untrusted
+        // track count, and an absent count must not emit an empty CSS value.
+        let css = valid_count.map(|count| {
+            let track = if hug {
+                "auto".to_owned()
+            } else {
+                flexible(1.0)
+            };
+            format!("repeat({}, {track})", format_number(count))
+        });
+        return GridTemplate { css, unverified };
+    };
+    unverified.sort_unstable();
+    unverified.dedup();
+    let css = if tracks.is_empty() {
+        None
+    } else if tracks.iter().all(|track| track == &tracks[0]) {
+        Some(format!("repeat({}, {})", tracks.len(), tracks[0]))
+    } else {
+        Some(tracks.join(" "))
+    };
+    GridTemplate { css, unverified }
 }
 
 /// Figma centers a lone in-flow child for SPACE_BETWEEN; CSS flexbox starts it.
@@ -1005,22 +1078,11 @@ fn push_auto_layout(snapshot: &Snapshot, node: &RawNode, component: &str, props:
         return;
     }
     if mode == Some("GRID") {
-        string_prop(
-            props,
-            "gridTemplateColumns",
-            grid_template(
-                view.value("gridColumnSizes"),
-                view.number("gridColumnCount").unwrap_or(0.0),
-            ),
-        );
-        string_prop(
-            props,
-            "gridTemplateRows",
-            grid_template(
-                view.value("gridRowSizes"),
-                view.number("gridRowCount").unwrap_or(0.0),
-            ),
-        );
+        for (columns, prop) in [(true, "gridTemplateColumns"), (false, "gridTemplateRows")] {
+            if let Some(css) = grid_template(node, columns).css {
+                string_prop(props, prop, css);
+            }
+        }
         let row = view.number("gridRowGap").unwrap_or(0.0);
         let column = view.number("gridColumnGap").unwrap_or(0.0);
         if row == column {

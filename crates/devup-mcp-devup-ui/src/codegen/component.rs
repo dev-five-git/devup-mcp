@@ -1320,6 +1320,9 @@ fn finalize_codegen_output(
     output.source_map.describe_properties(&output.tsx);
     output.source_map.describe_conversions(snapshot);
     crate::provenance::attributes::audit_properties(snapshot, &mut output, options, root_id);
+    output
+        .diagnostics
+        .extend(super::evidence::image_layout_diagnostics(snapshot, &output));
     output.fidelity_report = validate_fidelity(snapshot, root_id, &output)?;
     Ok(output)
 }
