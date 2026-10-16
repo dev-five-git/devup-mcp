@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use super::artifacts::ArtifactStore;
 use super::output::{OutputPolicy, OutputTransaction};
 
 pub(crate) const PLAN_KIND: &str = "devup-runtime-audit-plan";
@@ -37,6 +38,8 @@ const MAX_REPORT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SCREENSHOT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_SCREENSHOTS: usize = 400;
 const MAX_LISTED: usize = 50;
+// Keep complete per-width rows in the response without unbounded duplication.
+const MAX_DIMENSION_ROWS: usize = 100;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -52,6 +55,10 @@ pub struct RuntimeAuditInput {
     /// plan: where to write the plan JSON, under an allowed write root.
     #[serde(default)]
     pub output_path: Option<String>,
+    /// plan: emit the consumer Playwright runner and its pinned npm manifest
+    /// into this directory under an allowed root; requires outputPath.
+    #[serde(default)]
+    pub template_path: Option<String>,
     /// ingest: the plan JSON the executor ran.
     #[serde(default)]
     pub plan_path: Option<String>,
@@ -70,6 +77,8 @@ pub struct PlanInput {
     /// Origins the run may load from; every other request is blocked and
     /// recorded. Must include the baseUrl origin.
     pub allowed_origins: Vec<String>,
+    /// Defaults to 1440, 1100, 858 and 390 CSS-pixel widths at height 900.
+    #[serde(default = "default_viewports")]
     pub viewports: Vec<ViewportInput>,
     /// Visited in order in one isolated browser context per viewport.
     pub screens: Vec<ScreenInput>,
@@ -103,6 +112,19 @@ pub struct ViewportInput {
 
 fn default_scale() -> f64 {
     1.0
+}
+
+fn default_viewports() -> Vec<ViewportInput> {
+    [1440, 1100, 858, 390]
+        .into_iter()
+        .map(|width| ViewportInput {
+            width,
+            height: 900,
+            device_scale_factor: 1.0,
+            mobile: false,
+            touch: false,
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -185,7 +207,9 @@ pub struct CheckInput {
     /// shares its centre (center).
     /// spans: subject spans container's width less insetPx on each side.
     /// visible: subject renders with a non-empty box.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible"]))]
+    /// dimensions: compare the explicitly mapped element box in CSS pixels
+    /// with acquired Figma logical dimensions at each named viewport width.
+    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions"]))]
     pub kind: String,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
@@ -208,6 +232,19 @@ pub struct CheckInput {
     pub measure: Option<String>,
     #[serde(default)]
     pub label: Option<String>,
+    /// Explicit mappings only. Widths omitted here have no design reference;
+    /// intermediate widths are never interpolated or inferred from screenshots.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub figma_dimensions: Vec<DimensionReferenceInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct DimensionReferenceInput {
+    pub viewport_width: u32,
+    pub artifact_id: String,
+    pub node_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -353,9 +390,36 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
             )));
         }
     }
+    let mut viewports = std::collections::BTreeSet::new();
+    if plan
+        .viewports
+        .iter()
+        .any(|v| !viewports.insert((v.width, v.height, v.device_scale_factor.to_bits())))
+    {
+        return Err(invalid(
+            "Duplicate viewports would make report attribution ambiguous.",
+        ));
+    }
     if plan.screens.is_empty() || plan.screens.len() > MAX_SCREENS {
         return Err(invalid(format!(
             "screens must hold 1 to {MAX_SCREENS} entries."
+        )));
+    }
+    let dimension_rows = plan.viewports.len()
+        * plan
+            .screens
+            .iter()
+            .map(|screen| {
+                screen
+                    .checks
+                    .iter()
+                    .filter(|check| check.kind == "dimensions")
+                    .count()
+            })
+            .sum::<usize>();
+    if dimension_rows > MAX_DIMENSION_ROWS {
+        return Err(invalid(format!(
+            "A plan may contain at most {MAX_DIMENSION_ROWS} dimension rows (dimension checks x viewports); split the plan to keep every width row explicit."
         )));
     }
     if plan.viewports.len() * plan.screens.len() > MAX_SCREENSHOTS {
@@ -416,6 +480,15 @@ pub(crate) fn validate_plan(plan: &PlanInput) -> Result<(), DevupError> {
         }
         for check in &screen.checks {
             validate_check(check)?;
+            if check
+                .figma_dimensions
+                .iter()
+                .any(|r| !plan.viewports.iter().any(|v| v.width == r.viewport_width))
+            {
+                return Err(invalid(
+                    "figmaDimensions.viewportWidth must name a planned viewport width.",
+                ));
+            }
         }
         if let Some(figma) = &screen.figma {
             bounded_text("figma.nodeId", &figma.node_id)?;
@@ -451,6 +524,17 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
     match check.kind.as_str() {
         "no-horizontal-overflow" => needs(false, false)?,
         "visible" => needs(true, false)?,
+        "dimensions" => {
+            needs(true, false)?;
+            if check.tolerance_px.is_none()
+                || check.figma_dimensions.is_empty()
+                || !matches!(check.measure.as_deref(), None | Some("box"))
+            {
+                return Err(invalid(
+                    "A dimensions check needs tolerancePx, figmaDimensions and measure box.",
+                ));
+            }
+        }
         "contained" | "spans" => needs(true, true)?,
         "aligned" => {
             needs(true, true)?;
@@ -461,6 +545,21 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
             }
         }
         other => return Err(invalid(format!("Unknown check kind {other}."))),
+    }
+    if check.kind != "dimensions" && !check.figma_dimensions.is_empty() {
+        return Err(invalid(
+            "figmaDimensions is only valid for dimensions checks.",
+        ));
+    }
+    let mut widths = std::collections::BTreeSet::new();
+    for reference in &check.figma_dimensions {
+        bounded_text("figmaDimensions.artifactId", &reference.artifact_id)?;
+        bounded_text("figmaDimensions.nodeId", &reference.node_id)?;
+        if !widths.insert(reference.viewport_width) {
+            return Err(invalid(
+                "A dimensions check needs at most one explicit reference per width.",
+            ));
+        }
     }
     for (field, locator) in [("subject", &check.subject), ("container", &check.container)] {
         if let Some(locator) = locator {
@@ -486,6 +585,9 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
             ));
         }
     }
+    if check.tolerance_px.is_some_and(|value| value < 0.0) {
+        return Err(invalid("tolerancePx must be nonnegative."));
+    }
     if let Some(label) = &check.label {
         bounded_text("checks[].label", label)?;
     }
@@ -500,12 +602,98 @@ fn plan_id(plan: &PlanInput) -> Result<String, DevupError> {
     Ok(sha256(&bytes))
 }
 
-pub(crate) fn plan(
+#[cfg(test)]
+fn plan(
     input: PlanInput,
     policy: &OutputPolicy,
     output_path: Option<&str>,
 ) -> Result<Value, DevupError> {
+    write_plan(input, policy, output_path, None, Vec::new())
+}
+
+/// Resolve design dimensions from retained acquisitions, never caller numbers.
+/// Missing/expired artifacts remain explicit so they cannot become a passing check.
+async fn dimension_references(input: &PlanInput, artifacts: &ArtifactStore) -> Vec<Value> {
+    let mut references = Vec::new();
+    for screen in &input.screens {
+        for (index, check) in screen.checks.iter().enumerate() {
+            for reference in &check.figma_dimensions {
+                let mut value = json!({"screen": screen.id, "check": index,
+                    "viewportWidth": reference.viewport_width, "artifactId": reference.artifact_id,
+                    "nodeId": reference.node_id, "status": "unverified",
+                    "reason": "The retained acquisition is missing or expired; acquire the node again.",
+                    "mapping": "caller-declared", "units": "figma-logical-px"});
+                if let Some(artifact) = artifacts.get(&reference.artifact_id).await {
+                    value["artifactContentHash"] = json!(artifact.content_hash);
+                    value["staleness"] = json!("retained snapshot; not compared with live Figma");
+                    value["reason"] =
+                        json!("The acquired node has no verified logical width and height.");
+                    if let Some(node) = artifact.payload.snapshot.nodes.get(&reference.node_id) {
+                        let view = node.typed_view();
+                        let width = (!node.field_errors.contains_key("width"))
+                            .then(|| view.number("width"))
+                            .flatten()
+                            .or_else(|| {
+                                (!node.field_errors.contains_key("size"))
+                                    .then(|| view.value("size")?.get("x")?.as_f64())
+                                    .flatten()
+                            });
+                        let height = (!node.field_errors.contains_key("height"))
+                            .then(|| view.number("height"))
+                            .flatten()
+                            .or_else(|| {
+                                (!node.field_errors.contains_key("size"))
+                                    .then(|| view.value("size")?.get("y")?.as_f64())
+                                    .flatten()
+                            });
+                        if let (Some(width), Some(height)) = (width, height)
+                            && width.is_finite()
+                            && height.is_finite()
+                            && width >= 0.0
+                            && height >= 0.0
+                        {
+                            value["status"] = json!("acquired");
+                            value["width"] = json!(width);
+                            value["height"] = json!(height);
+                            value["reason"] = Value::Null;
+                            value["source"] = json!(
+                                "node logical width/height or size; no screenshot, zoom, DPR or bounding-box inference"
+                            );
+                        }
+                    }
+                }
+                references.push(value);
+            }
+        }
+    }
+    references
+}
+
+pub(crate) async fn create_plan(
+    input: PlanInput,
+    policy: &OutputPolicy,
+    output_path: Option<&str>,
+    template_path: Option<&str>,
+    artifacts: &ArtifactStore,
+) -> Result<Value, DevupError> {
     validate_plan(&input)?;
+    let references = dimension_references(&input, artifacts).await;
+    write_plan(input, policy, output_path, template_path, references)
+}
+
+fn write_plan(
+    input: PlanInput,
+    policy: &OutputPolicy,
+    output_path: Option<&str>,
+    template_path: Option<&str>,
+    dimension_references: Vec<Value>,
+) -> Result<Value, DevupError> {
+    validate_plan(&input)?;
+    if template_path.is_some() && output_path.is_none() {
+        return Err(invalid(
+            "templatePath requires outputPath for the bound plan JSON.",
+        ));
+    }
     let id = plan_id(&input)?;
     let checks = input.screens.iter().map(|s| s.checks.len()).sum::<usize>();
     let references = input
@@ -533,8 +721,11 @@ pub(crate) fn plan(
             "runs": input.viewports.len(),
             "screensPerRun": input.screens.len(),
             "checkItems": checks * input.viewports.len(),
+            "dimensionRows": input.viewports.len() * input.screens.iter().map(|s| s.checks.iter().filter(|c| c.kind == "dimensions").count()).sum::<usize>(),
         },
+        "limits": {"dimensionRows": MAX_DIMENSION_ROWS, "dimensionRowsOmitted": 0},
         "figmaReferences": references,
+        "dimensionReferences": dimension_references,
         "executor": {
             "package": "harness/runtime-audit",
             "install": "npm ci && npx playwright install chromium",
@@ -543,18 +734,55 @@ pub(crate) fn plan(
         },
     });
     let mut written = None;
+    let mut template_files = Vec::new();
+    let mut transaction = OutputTransaction::new();
+    if let Some(directory) = template_path {
+        transaction.refuse_existing();
+        for (name, bytes) in [
+            (
+                "run.mjs",
+                include_bytes!("../../../../harness/runtime-audit/run.mjs").as_slice(),
+            ),
+            (
+                "checks.mjs",
+                include_bytes!("../../../../harness/runtime-audit/checks.mjs").as_slice(),
+            ),
+            (
+                "package.json",
+                include_bytes!("../../../../harness/runtime-audit/package.json").as_slice(),
+            ),
+            (
+                "package-lock.json",
+                include_bytes!("../../../../harness/runtime-audit/package-lock.json").as_slice(),
+            ),
+        ] {
+            let requested = Path::new(directory).join(name);
+            let target = policy.resolve(&requested.to_string_lossy())?;
+            template_files.push(json!({"path": target.display_path().display().to_string(), "sha256": sha256(bytes)}));
+            transaction.stage(name, target, bytes)?;
+        }
+    }
     if let Some(path) = output_path {
         let target = policy.resolve(path)?;
         let display = target.display_path().display().to_string();
-        let mut transaction = OutputTransaction::new();
         let bytes = serde_json::to_vec_pretty(&document)
             .map_err(|error| invalid(format!("Cannot serialize the plan: {error}")))?;
+        if bytes.len() > MAX_PLAN_BYTES {
+            return Err(invalid(
+                "The bound plan exceeds the ingest size limit; split the plan.",
+            ));
+        }
         transaction.stage("plan", target, &bytes)?;
-        transaction.commit()?;
         written = Some(display);
     }
+    transaction.commit()?;
     let mut result = document;
     result["writtenTo"] = json!(written);
+    result["template"] = json!({"files": template_files, "executed": false,
+        "workingDirectory": template_path,
+        "commands": [ ["npm", "ci"], ["npx", "playwright", "install", "chromium"],
+            ["node", "run.mjs", "--plan", written.as_deref().unwrap_or("<saved plan.json>"), "--out", "report"] ],
+        "note": "Execute these argument arrays in the generated directory in your consumer project with its app running. The server executes nothing. The plan and report must remain under allowed roots for ingest."});
     result["nextAction"] = json!({
         "where": "the consumer project",
         "how": "Run the executor against this plan with the app served at baseUrl, then call devup_runtime_audit with action ingest, the plan path and the report.json it writes. Nothing here has run yet.",
@@ -583,10 +811,43 @@ fn rejected(reason: &str, details: Value) -> Value {
     })
 }
 
-pub(crate) fn ingest(
+#[cfg(test)]
+fn ingest(policy: &OutputPolicy, plan_path: &str, report_path: &str) -> Result<Value, DevupError> {
+    ingest_references(policy, plan_path, report_path, None)
+}
+
+pub(crate) async fn ingest_with_artifacts(
     policy: &OutputPolicy,
     plan_path: &str,
     report_path: &str,
+    artifacts: &ArtifactStore,
+) -> Result<Value, DevupError> {
+    let read_policy = policy.clone();
+    let read_path = plan_path.to_owned();
+    let (_, document, _) =
+        tokio::task::spawn_blocking(move || read_json(&read_policy, &read_path, MAX_PLAN_BYTES))
+            .await
+            .map_err(|_| invalid("The plan could not be read to the end."))??;
+    let references = match serde_json::from_value::<PlanInput>(document["plan"].clone()) {
+        Ok(plan) if validate_plan(&plan).is_ok() => dimension_references(&plan, artifacts).await,
+        Ok(_) => Vec::new(),
+        Err(_) => Vec::new(),
+    };
+    let policy = policy.clone();
+    let plan_path = plan_path.to_owned();
+    let report_path = report_path.to_owned();
+    tokio::task::spawn_blocking(move || {
+        ingest_references(&policy, &plan_path, &report_path, Some(&references))
+    })
+    .await
+    .map_err(|_| invalid("The report could not be read to the end."))?
+}
+
+fn ingest_references(
+    policy: &OutputPolicy,
+    plan_path: &str,
+    report_path: &str,
+    acquired: Option<&[Value]>,
 ) -> Result<Value, DevupError> {
     let (plan_bytes, plan_document, _) = read_json(policy, plan_path, MAX_PLAN_BYTES)?;
     if plan_document["kind"] != PLAN_KIND || plan_document["schemaVersion"] != SCHEMA_VERSION {
@@ -643,7 +904,25 @@ pub(crate) fn ingest(
     let mut integrity_problems = Vec::new();
     let mut environment_invalid = false;
     let mut visual_comparisons = Vec::new();
+    let mut dimension_rows = Vec::new();
     for viewport in &plan.viewports {
+        let matching_runs = report["runs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|run| {
+                run["viewport"]["width"] == viewport.width
+                    && run["viewport"]["height"] == viewport.height
+                    && run["viewport"]["deviceScaleFactor"].as_f64()
+                        == Some(viewport.device_scale_factor)
+            })
+            .count();
+        if matching_runs > 1 {
+            return Ok(rejected(
+                "ambiguous-report-items",
+                json!({"viewport": viewport}),
+            ));
+        }
         let run = report["runs"].as_array().into_iter().flatten().find(|run| {
             run["viewport"]["width"] == viewport.width
                 && run["viewport"]["height"] == viewport.height
@@ -666,6 +945,20 @@ pub(crate) fn ingest(
         let mut screenshot_issues = Vec::new();
         let mut drawn_width_shots = Vec::new();
         for screen in &plan.screens {
+            if run.is_some_and(|run| {
+                run["screens"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|s| s["id"] == screen.id)
+                    .count()
+                    > 1
+            }) {
+                return Ok(rejected(
+                    "ambiguous-report-items",
+                    json!({"screen": screen.id}),
+                ));
+            }
             let reported = run.and_then(|run| {
                 run["screens"]
                     .as_array()?
@@ -673,14 +966,52 @@ pub(crate) fn ingest(
                     .find(|candidate| candidate["id"] == screen.id.as_str())
             });
             for (index, check) in screen.checks.iter().enumerate() {
+                if reported.is_some_and(|s| {
+                    s["checks"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|item| item["index"] == index)
+                        .count()
+                        > 1
+                }) {
+                    return Ok(rejected(
+                        "ambiguous-report-items",
+                        json!({"screen": screen.id, "check": index}),
+                    ));
+                }
                 let item = reported.and_then(|screen| {
                     screen["checks"]
                         .as_array()?
                         .iter()
                         .find(|item| item["index"] == index)
                 });
-                let status = match item.and_then(|item| item["status"].as_str()) {
-                    Some(status @ ("pass" | "fail" | "inconclusive" | "skipped")) => status,
+                let dimension = (check.kind == "dimensions").then(|| {
+                    dimension_row(
+                        screen,
+                        index,
+                        check,
+                        viewport,
+                        item,
+                        &plan_document,
+                        acquired,
+                        plan_file_matches == Some(true),
+                        run.is_some()
+                            && environment_errors.is_empty()
+                            && reported.is_some_and(|s| s["status"] == "completed"),
+                    )
+                });
+                let status = match dimension
+                    .as_ref()
+                    .map(|row| &row["status"])
+                    .or_else(|| item.map(|item| &item["status"]))
+                    .and_then(Value::as_str)
+                {
+                    Some("pass") => "pass",
+                    Some("fail") => "fail",
+                    Some("inconclusive") => "inconclusive",
+                    Some("skipped") => "skipped",
+                    Some("not-run") => "not-run",
                     Some(_) => "inconclusive",
                     None => "not-run",
                 };
@@ -692,15 +1023,21 @@ pub(crate) fn ingest(
                         "check": index,
                         "kind": check.kind,
                         "label": check.label,
-                        "reason": item.map(|item| &item["reason"]),
-                        "measured": item.map(|item| &item["measured"]),
+                        "reason": dimension.as_ref().map(|row| &row["reason"]).or_else(|| item.map(|item| &item["reason"])),
+                        "measured": dimension.as_ref().map(|row| &row["domCssPx"]).or_else(|| item.map(|item| &item["measured"])),
                     }));
+                }
+                if let Some(row) = dimension {
+                    dimension_rows.push(row);
                 }
             }
             let Some(shot) = reported
                 .map(|screen| &screen["screenshot"])
                 .filter(|shot| shot.is_object())
             else {
+                screenshot_issues.push(
+                    json!({"screen": screen.id, "issue": "not-verified: screenshot missing"}),
+                );
                 continue;
             };
             if screenshot_budget == 0 {
@@ -797,6 +1134,14 @@ pub(crate) fn ingest(
         "runs": runs,
         "figmaReferences": figma,
         "visualComparisons": visual_comparisons,
+        "widthTable": plan.viewports.iter().map(|viewport| json!({
+            "width": viewport.width, "height": viewport.height,
+            "deviceScaleFactor": viewport.device_scale_factor,
+            "dimensions": dimension_rows.iter().filter(|row| row["viewport"] == json!(viewport)).collect::<Vec<_>>()
+        })).collect::<Vec<_>>(),
+        "toleranceExceedances": dimension_rows.iter().filter(|row| row["status"] == "fail").collect::<Vec<_>>(),
+        "dimensionCoverage": {"plannedRows": dimension_rows.len(), "returnedRows": dimension_rows.len(),
+            "omittedRows": 0, "limit": MAX_DIMENSION_ROWS},
         "executor": report["executor"],
         "environment": report["environment"],
         "evidence": {
@@ -805,15 +1150,120 @@ pub(crate) fn ingest(
                 "the report's binding to that plan",
                 "every count above, recomputed from the reported items",
                 "each screenshot's SHA-256, byte length, PNG decoding and width",
+                "dimension arithmetic and per-check tolerance filtering from reported CSS geometry; available retained Figma reference dimensions are rechecked",
             ],
             "executorDeclared": [
-                "element geometry and each check's outcome",
+                "element geometry, locator counts, visibility and non-dimension check outcomes",
                 "page, console and network errors",
                 "timing, browser and environment versions",
             ],
             "notJudged": "Whether the screens look right to a person. Layout checks measure the relations the plan names and nothing else.",
         },
     }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dimension_row(
+    screen: &ScreenInput,
+    index: usize,
+    check: &CheckInput,
+    viewport: &ViewportInput,
+    item: Option<&Value>,
+    document: &Value,
+    acquired: Option<&[Value]>,
+    hash_bound: bool,
+    environment_valid: bool,
+) -> Value {
+    let matches = |reference: &&Value| {
+        reference["screen"] == screen.id
+            && reference["check"] == index
+            && reference["viewportWidth"] == viewport.width
+    };
+    let reference = document["dimensionReferences"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(matches);
+    let verified = acquired
+        .and_then(|refs| refs.iter().find(matches))
+        .filter(|fresh| {
+            fresh["status"] == "acquired" && reference.is_some_and(|saved| *fresh == saved)
+        });
+    let measured = item.map(|item| &item["measured"]);
+    // Report files are untrusted: expose only bounded identity and numeric
+    // geometry, rather than echoing arbitrary objects attached to a check.
+    let mapping = check
+        .figma_dimensions
+        .iter()
+        .find(|r| r.viewport_width == viewport.width);
+    let reference_summary = mapping.map(|mapping| {
+        json!({
+            "artifactId": mapping.artifact_id, "nodeId": mapping.node_id,
+            "status": if verified.is_some() { "acquired" } else { "unverified" },
+            "width": reference.and_then(|r| r["width"].as_f64()),
+            "height": reference.and_then(|r| r["height"].as_f64()),
+            "units": "figma-logical-px",
+            "artifactContentHash": verified.and_then(|r| r["artifactContentHash"].as_str()),
+            "staleness": "retained snapshot; not compared with live Figma",
+        })
+    });
+    let dom = measured.map(|m| {
+        json!({"x": m["subject"]["x"].as_f64(), "y": m["subject"]["y"].as_f64(),
+        "width": m["subject"]["width"].as_f64(), "height": m["subject"]["height"].as_f64()})
+    });
+    let mut row = json!({"screen": screen.id, "check": index, "label": check.label,
+        "viewport": viewport, "subject": check.subject, "mapping": "caller-declared",
+        "reference": reference_summary, "referenceVerifiedAgainstRetainedAcquisition": verified.is_some(),
+        "domCssPx": dom, "domEvidence": "executor-declared",
+        "tolerancePx": check.tolerance_px, "deltaPx": null, "status": "inconclusive",
+        "reason": "Design reference or reported CSS geometry is unverified."});
+    let declared_status = item.and_then(|item| item["status"].as_str());
+    if declared_status.is_none() {
+        row["status"] = json!("not-run");
+        row["reason"] = json!("No measurement was reported for this planned check.");
+    } else if declared_status == Some("skipped") {
+        row["status"] = json!("skipped");
+        row["reason"] = json!("The executor skipped this measurement.");
+    } else if reference.is_none() {
+        row["reason"] = json!(
+            "No acquired Figma dimensions were explicitly mapped at this width; no interpolation was applied."
+        );
+    } else if verified.is_none() {
+        row["reason"] = json!(
+            "The saved reference could not be matched to the retained acquisition; acquire and plan again."
+        );
+    } else if !hash_bound || !environment_valid {
+        row["reason"] =
+            json!("The plan file hash, screen completion or runtime environment is unverified.");
+    } else if matches!(declared_status, Some("pass" | "fail")) {
+        let m = measured.unwrap();
+        if m["units"] == "css-px" && m["subjectCount"] == 1 && m["subjectVisible"] == true {
+            if let (Some(width), Some(height)) = (
+                m["subject"]["width"].as_f64(),
+                m["subject"]["height"].as_f64(),
+            ) && width.is_finite()
+                && height.is_finite()
+                && width >= 0.0
+                && height >= 0.0
+            {
+                let expected = verified.unwrap();
+                let dw = width - expected["width"].as_f64().unwrap();
+                let dh = height - expected["height"].as_f64().unwrap();
+                let tolerance = check.tolerance_px.unwrap();
+                row["deltaPx"] = json!({"width": dw, "height": dh});
+                row["status"] = json!(if dw.abs() <= tolerance && dh.abs() <= tolerance {
+                    "pass"
+                } else {
+                    "fail"
+                });
+                row["reason"] = json!(
+                    "Compared acquired logical dimensions with declared DOM CSS pixels without DPR or screenshot scaling."
+                );
+                row["executorOutcomeMatches"] = json!(row["status"] == item.unwrap()["status"]);
+            }
+        }
+    }
+    row
 }
 
 enum Integrity {
@@ -972,6 +1422,256 @@ fn visual_comparison(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn dimension_fixture() -> (ArtifactStore, String) {
+        use devup_mcp_figma::{CollectedPayload, CollectionRequest, CollectionScope, FigmaTarget};
+        let store = ArtifactStore::default();
+        let target = FigmaTarget {
+            file_key: "synthetic".into(),
+            node_id: Some("target".into()),
+            branch_key: None,
+        };
+        let request = CollectionRequest::new(target.clone(), CollectionScope::Node);
+        let payload: CollectedPayload = serde_json::from_value(json!({
+            "target": target, "scope": "node", "metadata": {},
+            "snapshot": {"fileKey": "synthetic", "version": "1", "roots": ["target"],
+                "nodes": {"target": {"id": "target", "type": "FRAME", "fields": {"width": 100, "height": 80}},
+                    "bounds-only": {"id": "bounds-only", "type": "FRAME", "fields": {"absoluteBoundingBox": {"width": 100, "height": 80}}},
+                    "errored": {"id": "errored", "type": "FRAME", "fields": {"width": 100, "height": 80}, "fieldErrors": {"width": "unavailable"}}}, "diagnostics": []},
+            "variables": null, "styles": null, "completeness": "resolved-values-only", "sourceVersion": "1"
+        })).unwrap();
+        let artifact = store
+            .get_or_acquire(
+                super::super::artifacts::ArtifactRequestKey::from_collection(&request),
+                false,
+                || async { Ok(payload) },
+            )
+            .await
+            .unwrap();
+        (store, artifact.artifact_id)
+    }
+
+    fn dimensions_plan(artifact: &str) -> PlanInput {
+        let widths = [1440, 1100, 858, 390];
+        let mappings = widths
+            .iter()
+            .map(
+                |width| json!({"viewportWidth": width, "artifactId": artifact, "nodeId": "target"}),
+            )
+            .collect::<Vec<_>>();
+        serde_json::from_value(json!({
+            "baseUrl": "http://127.0.0.1:4173", "allowedOrigins": ["http://127.0.0.1:4173"],
+            "viewports": widths.iter().map(|width| json!({"width": width, "height": 100, "deviceScaleFactor": 2})).collect::<Vec<_>>(),
+            "screens": [{"id": "dimensions", "routePath": "/", "checks": [
+                {"kind": "dimensions", "subject": {"testId": "target"}, "tolerancePx": 0.5, "figmaDimensions": mappings},
+                {"kind": "dimensions", "subject": {"testId": "target"}, "tolerancePx": 0.49, "figmaDimensions": mappings}
+            ]}]
+        })).unwrap()
+    }
+
+    #[tokio::test]
+    async fn acquired_dimensions_are_rechecked_and_tolerances_recomputed_at_all_widths() {
+        let (dir, policy) = root();
+        let (store, artifact) = dimension_fixture().await;
+        let planned = create_plan(
+            dimensions_plan(&artifact),
+            &policy,
+            Some("plan.json"),
+            Some("runner"),
+            &store,
+        )
+        .await
+        .unwrap();
+        assert_eq!(planned["template"]["files"].as_array().unwrap().len(), 4);
+        assert_eq!(planned["template"]["executed"], false);
+        assert_eq!(
+            std::fs::read(dir.join("runner/run.mjs")).unwrap(),
+            include_bytes!("../../../../harness/runtime-audit/run.mjs")
+        );
+        let plan_bytes = std::fs::read(dir.join("plan.json")).unwrap();
+        let mut report = json!({"schemaVersion": 1, "kind": REPORT_KIND, "planId": planned["planId"],
+            "planSha256": sha256(&plan_bytes), "status": "completed", "runs": []});
+        for width in [1440_u32, 1100, 858, 390] {
+            let bytes = png(width * 2, 200);
+            let name = format!("{width}.png");
+            std::fs::write(dir.join(&name), &bytes).unwrap();
+            report["runs"].as_array_mut().unwrap().push(json!({
+                "viewport": {"width": width, "height": 100, "deviceScaleFactor": 2}, "environmentErrors": [],
+                "screens": [{"id": "dimensions", "status": "completed",
+                    "checks": (0..2).map(|index| json!({"index": index, "status": "pass", "measured": {
+                        "units": "css-px", "subjectCount": 1, "subjectVisible": true,
+                        "subject": {"x": 0, "y": 0, "width": 100.5, "height": 80, "extra": "untrusted-subject-extension"}}})).collect::<Vec<_>>(),
+                    "screenshot": {"path": name, "sha256": sha256(&bytes), "bytes": bytes.len()}}]
+            }));
+        }
+        let write = |value: &Value| {
+            std::fs::write(dir.join("report.json"), serde_json::to_vec(value).unwrap()).unwrap()
+        };
+        write(&report);
+        let result = ingest_with_artifacts(&policy, "plan.json", "report.json", &store)
+            .await
+            .unwrap();
+        assert_eq!(result["verdict"], "fail", "{result}");
+        assert_eq!(result["summary"]["pass"], 4);
+        assert_eq!(result["summary"]["fail"], 4);
+        assert!(!result.to_string().contains("untrusted-subject-extension"));
+        assert_eq!(result["toleranceExceedances"].as_array().unwrap().len(), 4);
+        for row in result["widthTable"].as_array().unwrap() {
+            assert_eq!(row["dimensions"][0]["deltaPx"]["width"], 0.5);
+            assert_eq!(
+                row["dimensions"][0]["referenceVerifiedAgainstRetainedAcquisition"],
+                true
+            );
+            assert_eq!(row["dimensions"][1]["executorOutcomeMatches"], false);
+        }
+
+        let mut ambiguous = report.clone();
+        let repeated = ambiguous["runs"][0]["screens"][0]["checks"][0].clone();
+        ambiguous["runs"][0]["screens"][0]["checks"]
+            .as_array_mut()
+            .unwrap()
+            .push(repeated);
+        write(&ambiguous);
+        assert_eq!(
+            ingest_with_artifacts(&policy, "plan.json", "report.json", &store)
+                .await
+                .unwrap()["reason"],
+            "ambiguous-report-items"
+        );
+
+        let mut missing = report.clone();
+        missing["runs"].as_array_mut().unwrap().pop();
+        missing["runs"][0]["screens"][0]["checks"][0]["status"] = json!("skipped");
+        write(&missing);
+        let result = ingest_with_artifacts(&policy, "plan.json", "report.json", &store)
+            .await
+            .unwrap();
+        assert_eq!(result["verdict"], "inconclusive");
+        assert_eq!(result["summary"]["notRun"], 2);
+        assert_eq!(result["summary"]["skipped"], 1);
+        assert_eq!(
+            result["widthTable"][3]["dimensions"][0]["status"],
+            "not-run"
+        );
+
+        write(&report);
+        let empty_store = ArtifactStore::default();
+        let result = ingest_with_artifacts(&policy, "plan.json", "report.json", &empty_store)
+            .await
+            .unwrap();
+        assert_eq!(result["summary"]["inconclusive"], 8);
+        assert_eq!(result["toleranceExceedances"], json!([]));
+        assert_eq!(
+            result["widthTable"][0]["dimensions"][0]["referenceVerifiedAgainstRetainedAcquisition"],
+            false
+        );
+
+        for (field, value) in [
+            ("width", json!(100.5)),
+            ("height", json!(80.5)),
+            ("status", json!("caller-asserted")),
+            ("artifactContentHash", json!("forged")),
+        ] {
+            let mut forged = planned.clone();
+            forged["dimensionReferences"][0][field] = value;
+            let forged_bytes = serde_json::to_vec(&forged).unwrap();
+            std::fs::write(dir.join("plan.json"), &forged_bytes).unwrap();
+            let mut rebound = report.clone();
+            rebound["planSha256"] = json!(sha256(&forged_bytes));
+            write(&rebound);
+            let result = ingest_with_artifacts(&policy, "plan.json", "report.json", &store)
+                .await
+                .unwrap();
+            assert_eq!(
+                result["widthTable"][0]["dimensions"][0]["status"], "inconclusive",
+                "{field}"
+            );
+        }
+
+        std::fs::write(dir.join("plan.json"), &plan_bytes).unwrap();
+        write(&report);
+        std::fs::write(dir.join("1440.png"), png(2880, 201)).unwrap();
+        assert_eq!(
+            ingest_with_artifacts(&policy, "plan.json", "report.json", &store)
+                .await
+                .unwrap()["reason"],
+            "artifact-changed"
+        );
+        drop(policy);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn dimension_references_and_template_outputs_refuse_unverified_or_unsafe_inputs() {
+        let (dir, policy) = root();
+        let (store, artifact) = dimension_fixture().await;
+        let input = dimensions_plan(&artifact);
+        let mut oversized = input.clone();
+        oversized.screens[0].checks =
+            vec![input.screens[0].checks[0].clone(); MAX_DIMENSION_ROWS / 4 + 1];
+        assert!(validate_plan(&oversized).is_err());
+        let mut defaults = serde_json::to_value(&input).unwrap();
+        defaults.as_object_mut().unwrap().remove("viewports");
+        assert_eq!(
+            serde_json::from_value::<PlanInput>(defaults)
+                .unwrap()
+                .viewports
+                .iter()
+                .map(|v| v.width)
+                .collect::<Vec<_>>(),
+            vec![1440, 1100, 858, 390]
+        );
+        for node_id in ["bounds-only", "errored", "absent"] {
+            let mut missing = input.clone();
+            missing.screens[0].checks[0].figma_dimensions[0].node_id = node_id.into();
+            let value = create_plan(missing, &policy, None, None, &store)
+                .await
+                .unwrap();
+            assert_eq!(
+                value["dimensionReferences"][0]["status"], "unverified",
+                "{node_id}"
+            );
+        }
+        for tolerance in [-0.1, 10000.1] {
+            let mut invalid = input.clone();
+            invalid.screens[0].checks[0].tolerance_px = Some(tolerance);
+            assert!(validate_plan(&invalid).is_err());
+        }
+        let mut duplicate = input.clone();
+        let mapping = duplicate.screens[0].checks[0].figma_dimensions[0].clone();
+        duplicate.screens[0].checks[0]
+            .figma_dimensions
+            .push(mapping);
+        assert!(validate_plan(&duplicate).is_err());
+        for (output, template) in [
+            (Some("safe.json"), Some("../escape")),
+            (Some("../escape.json"), Some("safe")),
+            (None, Some("safe")),
+        ] {
+            assert!(
+                create_plan(input.clone(), &policy, output, template, &store)
+                    .await
+                    .is_err()
+            );
+            assert!(!dir.join("safe.json").exists());
+            assert!(!dir.join("safe/run.mjs").exists());
+        }
+        std::fs::create_dir_all(dir.join("existing")).unwrap();
+        std::fs::write(dir.join("existing/checks.mjs"), b"keep").unwrap();
+        assert!(
+            create_plan(input, &policy, Some("safe.json"), Some("existing"), &store)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            std::fs::read(dir.join("existing/checks.mjs")).unwrap(),
+            b"keep"
+        );
+        assert!(!dir.join("safe.json").exists());
+        assert!(!dir.join("existing/run.mjs").exists());
+        drop(policy);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     fn plan_input() -> PlanInput {
         serde_json::from_value(json!({

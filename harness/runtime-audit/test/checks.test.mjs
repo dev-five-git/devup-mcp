@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluateCheck, summarize } from '../checks.mjs';
+import { evaluateCheck, evaluateDimensions, summarize } from '../checks.mjs';
+import { validateDimensionsPlan } from '../run.mjs';
 
 const page = { viewportWidth: 360, scrollWidth: 360, maxRight: 340, overflowHidden: false };
 const box = (x, y, width, height) => ({ x, y, width, height });
@@ -51,4 +52,29 @@ test('a locator that finds nothing, or more than one thing, is inconclusive rath
 test('the summary is recomputed from the items', () => {
   const runs = [{ screens: [{ checks: [{ status: 'pass' }, { status: 'fail' }] }, { checks: [{ status: 'skipped' }] }] }];
   assert.deepEqual(summarize(runs), { pass: 1, fail: 1, inconclusive: 0, skipped: 1 });
+});
+
+test('dimensions use raw CSS geometry, inclusive per-check tolerance and explicit references', () => {
+  const check = { kind: 'dimensions', tolerancePx: 0.25 };
+  const measured = { subjectCount: 1, subjectVisible: true, subject: box(0, 0, 100.25, 80) };
+  const reference = { status: 'acquired', width: 100, height: 80 };
+  assert.equal(evaluateDimensions(check, measured, reference).status, 'pass');
+  assert.equal(evaluateDimensions({ ...check, tolerancePx: 0.249 }, measured, reference).status, 'fail');
+  assert.equal(evaluateDimensions(check, measured, null).status, 'inconclusive');
+  for (const subjectCount of [0, 2]) assert.equal(evaluateDimensions(check, { ...measured, subjectCount }, reference).status, 'inconclusive');
+  assert.equal(evaluateDimensions(check, { ...measured, subjectVisible: false }, reference).status, 'inconclusive');
+  for (const tolerancePx of [-1, NaN, Infinity, 10001]) assert.throws(() => evaluateDimensions({ ...check, tolerancePx }, measured, reference), /tolerance/);
+});
+
+test('dimension runner refuses inferred values, duplicate mappings and invalid tolerances before browser launch', () => {
+  const mapping = { viewportWidth: 390, artifactId: 'fixture', nodeId: 'target' };
+  const check = { kind: 'dimensions', subject: { testId: 'target' }, tolerancePx: 0, figmaDimensions: [mapping] };
+  const plan = (entry) => ({ viewports: [{ width: 390 }], screens: [{ checks: [entry] }] });
+  validateDimensionsPlan(plan(check));
+  for (const entry of [
+    { ...check, tolerancePx: -1 }, { ...check, measure: 'painted-mask' },
+    { ...check, figmaDimensions: [mapping, mapping] },
+    { ...check, figmaDimensions: [{ ...mapping, width: 100 }] },
+    { ...check, figmaDimensions: [{ ...mapping, viewportWidth: 858 }] },
+  ]) assert.throws(() => validateDimensionsPlan(plan(entry)));
 });
