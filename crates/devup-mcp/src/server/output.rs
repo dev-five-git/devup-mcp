@@ -681,11 +681,7 @@ fn unique_sibling(target: &Path, kind: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs, io,
-        path::PathBuf,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::{fs, io, path::PathBuf};
 
     use super::{CommitHook, OutputPolicy, OutputTransaction};
 
@@ -718,13 +714,57 @@ mod tests {
     }
 
     fn unique_root() -> anyhow::Result<PathBuf> {
-        let path = std::env::temp_dir().join(format!(
-            "devup-mcp-transaction-rollback-{}-{}",
-            std::process::id(),
-            SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
-        ));
-        fs::create_dir_all(&path)?;
-        Ok(path)
+        // Clock precision can make concurrent fixtures share a timestamp.
+        // Reserve each root exclusively instead of reusing an existing directory.
+        for _ in 0..32 {
+            let path = std::env::temp_dir().join(format!(
+                "devup-mcp-transaction-rollback-{}-{:032x}",
+                std::process::id(),
+                rand::random::<u128>()
+            ));
+            match fs::create_dir(&path) {
+                Ok(()) => return Ok(path),
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "No exclusive fixture root available",
+        )
+        .into())
+    }
+
+    #[test]
+    fn concurrent_fixture_roots_remain_distinct() -> anyhow::Result<()> {
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(16));
+        let workers = (0..16)
+            .map(|_| {
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    (0..32)
+                        .map(|_| {
+                            barrier.wait();
+                            unique_root()
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut roots = std::collections::BTreeSet::new();
+        for worker in workers {
+            for root in worker.join().expect("fixture allocator worker panicked") {
+                assert!(
+                    roots.insert(root?),
+                    "concurrent fixtures reused a directory"
+                );
+            }
+        }
+        assert_eq!(roots.len(), 512);
+        for root in roots {
+            fs::remove_dir(root)?;
+        }
+        Ok(())
     }
 
     #[test]
