@@ -1,7 +1,7 @@
 {
   "changes": {
-    "crates/devup-mcp/Cargo.toml": "Patch",
-    "crates/devup-mcp-figma/Cargo.toml": "Patch",
+    "crates/devup-mcp/Cargo.toml": "Minor",
+    "crates/devup-mcp-figma/Cargo.toml": "Minor",
     "crates/devup-mcp-devup-ui/Cargo.toml": "Patch"
   },
   "note": "Add bounded layout measurements and export selection, refresh Bridge selection evidence, and improve responsive, image-layer and runtime dimension review with explicit evidence limits.",
