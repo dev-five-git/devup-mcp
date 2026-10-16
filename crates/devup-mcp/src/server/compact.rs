@@ -140,6 +140,10 @@ pub fn layout(node: &devup_mcp_figma::RawNode) -> Value {
 }
 
 pub fn node_summaries(snapshot: &Snapshot, roots: &[String]) -> Value {
+    node_summaries_bounded(snapshot, roots, 100_000)
+}
+
+fn node_summaries_bounded(snapshot: &Snapshot, roots: &[String], scan_limit: usize) -> Value {
     let mut queue = roots
         .iter()
         .map(|id| (id.as_str(), 0))
@@ -151,7 +155,7 @@ pub fn node_summaries(snapshot: &Snapshot, roots: &[String]) -> Value {
         if !seen.insert(id) {
             continue;
         }
-        if seen.len() > 100_000 {
+        if seen.len() > scan_limit {
             break;
         }
         let Some(node) = snapshot.nodes.get(id) else {
@@ -165,7 +169,7 @@ pub fn node_summaries(snapshot: &Snapshot, roots: &[String]) -> Value {
             "type":node.node_type,"parentId":view.string("parentId"),"depth":depth,"childCount":children.len(),"layout":layout(node)}));
     }
     json!({"nodes":nodes,"scope":"captured selected roots and descendants","roots":roots,
-        "scanTruncated":!queue.is_empty(),"missingCapturedNodes":missing.len(),
+        "scanTruncated":seen.len()>scan_limit || !queue.is_empty(),"missingCapturedNodes":missing.len(),
         "evidenceLimit":"Only captured fields are summarized; null is unavailable, never zero. No live selection or rendered implementation is verified."})
 }
 
@@ -388,6 +392,29 @@ pub fn outline_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_last_node_past_the_scan_cap_still_marks_partial_outline_data() {
+        let snapshot: Snapshot =
+            serde_json::from_value(json!({"fileKey":"Synthetic","roots":["1:1"],"nodes":{
+            "1:1":{"id":"1:1","type":"FRAME","fields":{"childrenIds":["1:2"]}},
+            "1:2":{"id":"1:2","type":"FRAME","fields":{"childrenIds":["1:3"]}},
+            "1:3":{"id":"1:3","type":"TEXT","fields":{}}
+        },"diagnostics":[]}))
+            .unwrap();
+        let summary = node_summaries_bounded(&snapshot, &snapshot.roots, 2);
+        assert_eq!(summary["nodes"].as_array().unwrap().len(), 2);
+        assert_eq!(summary["scanTruncated"], true);
+        assert_eq!(
+            outline(&summary, &ResponseSelection::default())["pagination"]["complete"],
+            false
+        );
+        let complete = node_summaries_bounded(&snapshot, &snapshot.roots, 3);
+        assert_eq!(complete["scanTruncated"], false);
+        assert_eq!(
+            outline(&complete, &ResponseSelection::default())["pagination"]["complete"],
+            true
+        );
+    }
     #[test]
     fn grammar_refuses_execution_recursion_and_overruns() {
         for path in [
