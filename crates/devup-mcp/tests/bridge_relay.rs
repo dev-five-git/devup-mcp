@@ -163,6 +163,9 @@ fn script_answer(script: &str) -> Result<Value, &'static str> {
         "extra": {}, "fieldErrors": {}
     });
     match script {
+        "bridgeContext" => Ok(
+            json!({"kind":"devup-bridge-context","currentPage":{"id":"0:1","name":"Page 1"},"selection":[{"id":"1:2","name":"Synthetic Frame","type":"FRAME"}],"selectionCount":1,"observedAt":1}),
+        ),
         "pageCatalog" => Ok(json!({
             "fileKey": "", "version": null, "rootIds": ["0:1"], "nodes": [page], "diagnostics": []
         })),

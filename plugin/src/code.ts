@@ -48,6 +48,10 @@ interface NodeRef {
  * 선택이 바뀔 때마다 보내므로 늦게 도착해도 최신이다.
  */
 interface Context {
+  zoom: number | null
+  observedAt: number
+  lastKnownSelection: NodeRef[] | null
+  lastKnownPage: NodeRef | null
   currentPage: NodeRef
   selection: NodeRef[]
   selectionCount: number
@@ -116,14 +120,28 @@ let decodes = 0
  */
 const SELECTION_LIMIT = 20
 
+const selectionHistory = globalThis as unknown as {
+  __devupLastSelection?: NodeRef[]
+  __devupLastSelectionPage?: NodeRef
+}
+
 function context(): Context {
   const page = figma.currentPage
   const selection = page.selection
+  if (selection.length > 0) {
+    selectionHistory.__devupLastSelection = selection.slice(0, SELECTION_LIMIT)
+      .map((node) => ({ id: node.id, name: node.name.slice(0, 256), type: node.type }))
+    selectionHistory.__devupLastSelectionPage = { id: page.id, name: page.name.slice(0, 256) }
+  }
   return {
-    currentPage: { id: page.id, name: page.name },
+    zoom: Number.isFinite(figma.viewport?.zoom) ? figma.viewport.zoom : null,
+    observedAt: Date.now(),
+    lastKnownSelection: selectionHistory.__devupLastSelection ?? null,
+    lastKnownPage: selectionHistory.__devupLastSelectionPage ?? null,
+    currentPage: { id: page.id, name: page.name.slice(0, 256) },
     selection: selection
       .slice(0, SELECTION_LIMIT)
-      .map((node) => ({ id: node.id, name: node.name, type: node.type })),
+      .map((node) => ({ id: node.id, name: node.name.slice(0, 256), type: node.type })),
     selectionCount: selection.length,
   }
 }
@@ -166,6 +184,8 @@ async function runJob(job: JobMessage): Promise<ResultMessage> {
     }
   }
   try {
+    // Refresh history even when the selection event has not been delivered.
+    if (job.script === 'bridgeContext') context()
     const data = await script(fillParams(job.params))
     return { kind: 'devup-result', requestId: job.requestId, data }
   } catch (error) {

@@ -1237,30 +1237,32 @@ fn dimension_row(
             json!("The plan file hash, screen completion or runtime environment is unverified.");
     } else if matches!(declared_status, Some("pass" | "fail")) {
         let m = measured.unwrap();
-        if m["units"] == "css-px" && m["subjectCount"] == 1 && m["subjectVisible"] == true {
-            if let (Some(width), Some(height)) = (
+        if m["units"] == "css-px"
+            && m["subjectCount"] == 1
+            && m["subjectVisible"] == true
+            && let (Some(width), Some(height)) = (
                 m["subject"]["width"].as_f64(),
                 m["subject"]["height"].as_f64(),
-            ) && width.is_finite()
-                && height.is_finite()
-                && width >= 0.0
-                && height >= 0.0
-            {
-                let expected = verified.unwrap();
-                let dw = width - expected["width"].as_f64().unwrap();
-                let dh = height - expected["height"].as_f64().unwrap();
-                let tolerance = check.tolerance_px.unwrap();
-                row["deltaPx"] = json!({"width": dw, "height": dh});
-                row["status"] = json!(if dw.abs() <= tolerance && dh.abs() <= tolerance {
-                    "pass"
-                } else {
-                    "fail"
-                });
-                row["reason"] = json!(
-                    "Compared acquired logical dimensions with declared DOM CSS pixels without DPR or screenshot scaling."
-                );
-                row["executorOutcomeMatches"] = json!(row["status"] == item.unwrap()["status"]);
-            }
+            )
+            && width.is_finite()
+            && height.is_finite()
+            && width >= 0.0
+            && height >= 0.0
+        {
+            let expected = verified.unwrap();
+            let dw = width - expected["width"].as_f64().unwrap();
+            let dh = height - expected["height"].as_f64().unwrap();
+            let tolerance = check.tolerance_px.unwrap();
+            row["deltaPx"] = json!({"width": dw, "height": dh});
+            row["status"] = json!(if dw.abs() <= tolerance && dh.abs() <= tolerance {
+                "pass"
+            } else {
+                "fail"
+            });
+            row["reason"] = json!(
+                "Compared acquired logical dimensions with declared DOM CSS pixels without DPR or screenshot scaling."
+            );
+            row["executorOutcomeMatches"] = json!(row["status"] == item.unwrap()["status"]);
         }
     }
     row

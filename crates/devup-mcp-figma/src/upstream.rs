@@ -161,6 +161,8 @@ fn is_read_only_tool_name(name: &str) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinScript {
+    MeasureNodes,
+    BridgeContext,
     NodeSnapshot,
     FastSnapshotEnvelope,
     FastThemeEnvelope,
@@ -181,6 +183,8 @@ impl BuiltinScript {
         let default_root_ids = [node_id.to_owned()];
         let node_id = serde_json::to_string(node_id).expect("node id serializes");
         let source = match self {
+            Self::MeasureNodes => include_str!("scripts/measure_nodes.js"),
+            Self::BridgeContext => include_str!("scripts/bridge_context.js"),
             Self::NodeSnapshot => include_str!("scripts/snapshot.js"),
             Self::FastSnapshotEnvelope => include_str!("scripts/fast_snapshot.js"),
             Self::FastThemeEnvelope => include_str!("scripts/fast_theme.js"),
@@ -414,6 +418,18 @@ pub enum ReadToolCall {
 }
 
 impl ReadToolCall {
+    /// Fixed, bounded node-list read. No descendants, resources or image bytes.
+    pub fn measure_nodes(file_key: impl Into<String>, node_ids: Vec<String>) -> Self {
+        Self::Snapshot {
+            file_key: file_key.into(),
+            node_id: String::new(),
+            script: BuiltinScript::MeasureNodes,
+            resources: None,
+            snapshot: None,
+            root_ids: Some(node_ids),
+        }
+    }
+
     pub fn metadata(file_key: impl Into<String>, node_id: Option<&str>) -> Self {
         Self::Metadata {
             file_key: file_key.into(),
@@ -868,6 +884,19 @@ pub trait FigmaUpstream: Send + Sync {
         None
     }
 
+    /// Refresh only through the attached plugin. Never use remote selection or
+    /// silently promote the last delivered event to current evidence.
+    async fn refresh_bridge_context(
+        &self,
+        _file_key: &str,
+    ) -> Result<crate::PluginContext, DevupError> {
+        Err(DevupError::new(
+            crate::ErrorCode::DevupFigmaDirectUnavailable,
+            "The attached plugin cannot refresh its current selection.",
+            false,
+        ))
+    }
+
     /// 이 읽기가 Figma 가 세는 경로로 가는지 — 분당 한도에 맞춰 늦춰야 하는지.
     ///
     /// 플러그인이 답하는 읽기는 한도를 쓰지 않는다. 그런데도 모든 읽기를 한도의
@@ -999,6 +1028,8 @@ impl BuiltinScript {
     /// 돌려주며 아는 이름을 함께 알려 준다.
     pub fn plugin_name(self) -> &'static str {
         match self {
+            Self::MeasureNodes => "measureNodes",
+            Self::BridgeContext => "bridgeContext",
             Self::NodeSnapshot => "snapshot",
             // 두 변형이 같은 원본을 쓴다. 나뉘는 곳은 넘기는 rootIds 뿐이다.
             Self::FastSnapshotEnvelope | Self::MultiRootSnapshotEnvelope => "fastSnapshot",

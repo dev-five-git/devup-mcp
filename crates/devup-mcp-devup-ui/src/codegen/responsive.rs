@@ -302,6 +302,23 @@ pub fn is_breakpoint_name(name: &str) -> bool {
     rank_of(name).is_some()
 }
 
+/// Explicit width suffixes can describe one named screen. No fuzzy matching.
+pub fn family_name(name: &str) -> String {
+    let name = name.trim().to_ascii_lowercase();
+    if is_breakpoint_name(&name) {
+        return "@breakpoint-labels".into();
+    }
+    for suffix in ["desktop", "tablet", "mobile"] {
+        let trimmed = name.trim_end_matches(')');
+        if let Some(base) = trimmed.strip_suffix(suffix)
+            && base.ends_with([' ', '-', '/', '('])
+        {
+            return base.trim_end_matches([' ', '-', '/', '(']).to_owned();
+        }
+    }
+    name
+}
+
 /// Whether roots with these names and widths could be a breakpoint family.
 ///
 /// The question [`breakpoints`] answers, asked without a snapshot, so it can
@@ -319,6 +336,24 @@ pub fn is_breakpoint_name(name: &str) -> bool {
 /// a change to either rule that forgets the other fails there rather than in
 /// a 77-second export.
 pub fn breakpoint_family_is_possible(frames: &[(&str, f64)]) -> bool {
+    if frames.len() < 2
+        || frames
+            .iter()
+            .any(|(_, w)| !w.is_finite() || *w <= 0.0 || *w > f64::from(u32::MAX))
+    {
+        return false;
+    }
+    let mut slots = BTreeSet::new();
+    for (_, width) in frames {
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "validated finite positive pixel width"
+        )]
+        if !slots.insert(slot_of_width(*width as u32)) {
+            return false;
+        }
+    }
     let mut ranks: Vec<usize> = Vec::new();
     for (name, _width) in frames {
         let Some(rank) = rank_of(name) else {
@@ -329,7 +364,7 @@ pub fn breakpoint_family_is_possible(frames: &[(&str, f64)]) -> bool {
         }
         ranks.push(rank);
     }
-    if ranks.len() >= 2 {
+    if ranks.len() == frames.len() {
         return true;
     }
     width_family_is_possible(frames)
@@ -345,7 +380,7 @@ fn width_family_is_possible(frames: &[(&str, f64)]) -> bool {
     let mut shared_name: Option<String> = None;
     let mut slots: Vec<usize> = Vec::new();
     for (name, width) in frames {
-        let name = name.trim().to_ascii_lowercase();
+        let name = family_name(name);
         if *shared_name.get_or_insert_with(|| name.clone()) != name {
             return false;
         }
@@ -381,6 +416,17 @@ fn width_family_is_possible(frames: &[(&str, f64)]) -> bool {
 /// Empty unless there are at least two: one width is a screen, not a screen
 /// that changes, and there is nothing to line up.
 pub fn breakpoints(snapshot: &Snapshot) -> Vec<Breakpoint> {
+    let frames = snapshot
+        .roots
+        .iter()
+        .filter_map(|id| {
+            let view = snapshot.nodes.get(id)?.typed_view();
+            Some((view.name()?, view.number("width")?))
+        })
+        .collect::<Vec<_>>();
+    if frames.len() != snapshot.roots.len() || !breakpoint_family_is_possible(&frames) {
+        return Vec::new();
+    }
     let mut found: Vec<Breakpoint> = Vec::new();
     for id in &snapshot.roots {
         let Some(node) = snapshot.nodes.get(id) else {
@@ -438,7 +484,7 @@ fn breakpoints_by_width(snapshot: &Snapshot) -> Vec<Breakpoint> {
         let (Some(name), Some(width)) = (view.name(), view.number("width")) else {
             return Vec::new();
         };
-        let name = name.trim().to_ascii_lowercase();
+        let name = family_name(name);
         if *shared_name.get_or_insert_with(|| name.clone()) != name {
             return Vec::new();
         }

@@ -33,6 +33,8 @@
 //! in `themeNotes`, avoiding repeated, impossible advice (D11).
 
 use std::collections::BTreeSet;
+#[path = "ui_validate/blur_layers.rs"]
+mod blur_layers;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
@@ -178,6 +180,7 @@ fn validate_source(
     violations.extend(visitor.violations);
     let checked_tokens = visitor.checked_tokens;
     let attributes = crate::provenance::attributes::generated_attributes(tsx);
+    violations.extend(blur_layers::check(tsx, &attributes));
     let elements = crate::provenance::attributes::opening_elements(tsx);
     for violation in &mut violations {
         let [start, end] = violation.byte_range;

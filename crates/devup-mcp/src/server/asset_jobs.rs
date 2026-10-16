@@ -583,6 +583,7 @@ mod tests {
             asset_output_paths: Default::default(),
             asset_public_root: None,
             fields: vec![],
+            response_selection: Default::default(),
             delivery: super::super::delivery::DeliveryMode::Auto,
             width_policy: None,
         };

@@ -324,6 +324,15 @@ fn design_source(source: &str) -> Design {
 async fn design(input: &FeatureTraceInput, artifacts: &ArtifactStore) -> Design {
     if supplied(&input.artifact_id) {
         if let Some(artifact) = artifacts.get(input.artifact_id.as_deref().unwrap()).await {
+            if artifact.capabilities.kind == super::artifacts::ArtifactKind::Measurement {
+                return Design {
+                    evidence: json!({"source":"measurement-only-artifact","artifactId":artifact.artifact_id,"state":"unverified","capabilities":artifact.capabilities}),
+                    diagnostics: vec![
+                        json!({"reason":"Measurement receipts contain logical dimensions only; design structure, component bindings and code were not acquired. Export a design snapshot for feature tracing."}),
+                    ],
+                    ..Design::default()
+                };
+            }
             let node = input.figma_node_id.as_deref().or(artifact
                 .payload
                 .target

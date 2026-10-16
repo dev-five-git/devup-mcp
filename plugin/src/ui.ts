@@ -14,6 +14,10 @@ interface NodeRef {
 
 /** 보고 있는 페이지와 선택. 메인 스레드가 바뀔 때마다 보낸다. */
 interface Context {
+  zoom: number | null
+  observedAt: number
+  lastKnownSelection: NodeRef[] | null
+  lastKnownPage: NodeRef | null
   currentPage: NodeRef
   selection: NodeRef[]
   selectionCount: number
@@ -101,6 +105,11 @@ function connect() {
         currentPage: bridgeStatus?.currentPage ?? null,
         selection: bridgeStatus?.selection ?? [],
         selectionCount: bridgeStatus?.selectionCount ?? 0,
+        zoom: bridgeStatus?.zoom ?? null,
+        uiDevicePixelRatio: window.devicePixelRatio,
+        observedAt: bridgeStatus?.observedAt,
+        lastKnownSelection: bridgeStatus?.lastKnownSelection,
+        lastKnownPage: bridgeStatus?.lastKnownPage,
         inView: inView(),
       }),
     )
@@ -181,6 +190,11 @@ function sendContext() {
       currentPage: bridgeStatus.currentPage,
       selection: bridgeStatus.selection,
       selectionCount: bridgeStatus.selectionCount,
+      zoom: bridgeStatus.zoom,
+      uiDevicePixelRatio: window.devicePixelRatio,
+      observedAt: bridgeStatus.observedAt,
+      lastKnownSelection: bridgeStatus.lastKnownSelection,
+      lastKnownPage: bridgeStatus.lastKnownPage,
       inView: inView(),
     }),
   )
@@ -220,6 +234,10 @@ window.onmessage = (event: MessageEvent) => {
       currentPage: context.currentPage,
       selection: context.selection,
       selectionCount: context.selectionCount,
+      zoom: context.zoom,
+      observedAt: context.observedAt,
+      lastKnownSelection: context.lastKnownSelection,
+      lastKnownPage: context.lastKnownPage,
     }
     sendContext()
     return
@@ -227,6 +245,8 @@ window.onmessage = (event: MessageEvent) => {
 
   if (msg.kind === 'devup-result') {
     const result = msg as ResultMessage
+    const data = result.data as { kind?: string; uiDevicePixelRatio?: number } | undefined
+    if (data?.kind === 'devup-bridge-context') data.uiDevicePixelRatio = window.devicePixelRatio
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(result))
       served += 1

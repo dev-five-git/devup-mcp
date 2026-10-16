@@ -244,6 +244,37 @@ function containsCompleteParentChain(result, nodeId, ancestorId) {
   return false;
 }
 
+test("a PAGE anchor captures nested screen candidates without traversing DOCUMENT or applying heading geometry", async () => {
+  const screen=sceneNode({id:"nested-screen",type:"FRAME",width:390,height:844,children:[Object.assign(sceneNode({id:"copy",type:"TEXT"}),{characters:"Featured catalog"})]});
+  screen.x=5000;screen.absoluteBoundingBox.x=5000;
+  const wrapper=sceneNode({id:"nested-wrapper",children:[screen]});
+  const section=sceneNode({id:"page-section",type:"SECTION",children:[wrapper]});
+  const page=pageWith(section);
+  const result=await executeExplore(page,page);
+  assert.equal(containsCompleteParentChain(result,"nested-screen",page.id),true);
+  assert.equal(result.nodes.some(node=>node.type==="DOCUMENT"),false);
+  assert.equal(result.nodes.find(node=>node.id==="nested-screen").fields.textPreview,"Featured catalog");
+  assert.equal(result.nodes[0].fields.projectionTruncated,false);
+  assert.ok(JSON.stringify(result).length<=14000);
+});
+
+test("a PAGE anchor retains the bounded descendant visit and truncation contracts", async () => {
+  const visited=new Set();
+  const groups=Array.from({length:1000},(_,i)=>sceneNode({id:`page-group-${i}`,onChildrenRead:id=>visited.add(id)}));
+  const page=pageWith(sceneNode({id:"page-section",type:"SECTION",children:groups}));
+  const result=await executeExplore(page,page);
+  assert.ok(visited.size<=160);
+  assert.equal(result.nodes[0].fields.projectionTruncated,true);
+});
+
+test("a PAGE projection with multibyte names fits the direct UTF-8 text budget", async () => {
+  const frames=Array.from({length:60},(_,i)=>sceneNode({id:`unicode-frame-${i}`,type:"FRAME",name:"화면".repeat(120),width:390,height:844}));
+  const page=pageWith(sceneNode({id:"unicode-section",type:"SECTION",children:frames}));
+  const result=await executeExplore(page,page);
+  assert.ok(Buffer.byteLength(JSON.stringify(result),'utf8')<=19*1024);
+  assert.equal(result.nodes[0].fields.projectionTruncated,true);
+});
+
 test("a screen below two wrappers retains its complete SECTION parent chain", async () => {
   const screen = sceneNode({ id: "screen", type: "FRAME", width: 360, height: 740 });
   const wrapper2 = sceneNode({ id: "wrapper-2", children: [screen] });

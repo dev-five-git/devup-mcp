@@ -1,6 +1,7 @@
 pub mod artifacts;
 mod asset_jobs;
 mod call_cache;
+mod compact;
 pub mod delivery;
 mod design_drift;
 mod diagnostics;
@@ -10,6 +11,7 @@ mod feedback_interactions_tests;
 mod field_select;
 mod guide;
 mod interactions;
+mod measurement;
 mod navigation;
 pub mod operation;
 pub mod output;
@@ -23,6 +25,8 @@ pub mod resources;
 mod result_contract;
 mod review;
 mod runtime_audit;
+mod screenshot_observations;
+mod section_checklist;
 pub mod self_update;
 mod skills;
 mod stack_diff;
@@ -861,8 +865,8 @@ impl DevupServer {
         let attached = bridge
             .as_ref()
             .map_or(&[][..], |bridge| bridge.attached_files.as_slice());
-        let file = match attached {
-            [file] => file,
+        let mut file = match attached {
+            [file] => file.clone(),
             [] => {
                 let direct_available = self.services.auth.status().await? == AuthStatus::Connected;
                 return Err(DevupError::with_details(
@@ -916,6 +920,26 @@ impl DevupServer {
         if target.node_id.is_some() || unnamed == Unnamed::File {
             return Ok(target);
         }
+        let last_delivered = file.context.clone();
+        let refreshed = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            self.services
+                .upstream
+                .refresh_bridge_context(&file.target_key),
+        )
+        .await;
+        match refreshed {
+            Ok(Ok(context)) => file.context = context,
+            _ => {
+                let mut unnamed_file = file.clone();
+                unnamed_file.context.selection = None;
+                let mut error = selection_refusal(&file,
+                    "Current Bridge selection could not be refreshed. Last-known context is diagnostic only; no node was exported.".into(),name_the_node(&unnamed_file,retry));
+                error.details["selectionFreshness"] = json!({"state":"refresh-failed","current":null,"lastKnown":last_delivered,
+                    "nextStep":"Reload an up-to-date Bridge plugin or pass an explicit node link; the last-known node is never selected automatically."});
+                return Err(error);
+            }
+        }
         let context = &file.context;
         match (context.single_selection(), unnamed) {
             (Some(node), Unnamed::SelectedSection)
@@ -932,7 +956,7 @@ impl DevupServer {
                     "Select the Section in Figma and repeat the call, or export one frame per call: a single frameId and no url, once for each frame."
                 );
                 Err(selection_refusal(
-                    file,
+                    &file,
                     format!(
                         "frameIds and allScreens without url choose screens inside the Section \
                          selected in Figma, and the selection is a {}.",
@@ -950,27 +974,102 @@ impl DevupServer {
             {
                 Ok(target)
             }
-            (None, _) => Err(selection_refusal(
-                file,
-                match &context.selection {
-                    None => "No url or node was given, and the attached Devup Bridge plugin does \
+            (None, _) => {
+                let mut error = selection_refusal(
+                    &file,
+                    match &context.selection {
+                        None => {
+                            "No url or node was given, and the attached Devup Bridge plugin does \
                              not report the Figma selection - it predates this devup-mcp. Re-run \
                              Devup Bridge from this devup-mcp's plugin/manifest.json, or name the \
                              node."
-                        .to_owned(),
-                    Some(selection) if selection.is_empty() => {
-                        "No url or node was given and nothing is selected in Figma. Select the \
+                                .to_owned()
+                        }
+                        Some(selection) if selection.is_empty() => {
+                            "No url or node was given and nothing is selected in Figma. Select the \
                          node in Figma, or name it."
-                            .to_owned()
-                    }
-                    Some(selection) => format!(
-                        "No url or node was given and {} nodes are selected in Figma. Select \
+                                .to_owned()
+                        }
+                        Some(selection) => format!(
+                            "No url or node was given and {} nodes are selected in Figma. Select \
                          exactly one, or name the one you mean.",
-                        context.selection_count.unwrap_or(selection.len())
-                    ),
-                },
-                name_the_node(file, retry),
-            )),
+                            context.selection_count.unwrap_or(selection.len())
+                        ),
+                    },
+                    name_the_node(&file, retry),
+                );
+                error.details["selectionFreshness"] =
+                    json!({"state":"current","current":file.context,"lastKnown":last_delivered});
+                if context.selection.as_ref().is_some_and(Vec::is_empty)
+                    && let Some(page) = &context.current_page
+                {
+                    let observations = retry["arguments"]
+                        .get("screenshotObservations")
+                        .filter(|v| !v.is_null())
+                        .and_then(|v| {
+                            serde_json::from_value::<
+                                    screenshot_observations::ScreenshotObservations,
+                                >(v.clone())
+                                .ok()
+                        });
+                    let anchor = FigmaTarget {
+                        node_id: Some(page.id.clone()),
+                        ..target.clone()
+                    };
+                    error.details["exploreSuggestion"] = json!({"tool":"devup_figma_explore","arguments":{"url":anchor.link(Some(&page.id)),"limit":10},
+                            "basis":"current-page-context","screenshotMatch":"unverified","evidenceLimit":"No screenshot was inspected. Candidates use actual Figma page structure and geometry only."});
+                    if let Some(hints) = &observations {
+                        error.details["exploreSuggestion"]["arguments"]["screenshotObservations"] =
+                            json!(hints);
+                        error.details["exploreSuggestion"]["basis"] =
+                            json!("caller-observations-and-current-page-evidence");
+                    }
+                    let call = ReadToolCall::explore_snapshot(
+                        &target.file_key,
+                        &page.id,
+                        ExploreReadOptions {
+                            projection_limit: EXPLORE_PROJECTION_LIMIT,
+                            text_preview_limit: if observations.is_some() { 160 } else { 0 },
+                        },
+                    );
+                    if let Ok(Ok(read)) = tokio::time::timeout(
+                        std::time::Duration::from_secs(3),
+                        self.services.upstream.call_read_tool(call),
+                    )
+                    .await
+                        && let Ok(chunk) = devup_mcp_figma::snapshot_chunk_from_result(&read)
+                        && let Ok(snapshot) = devup_mcp_figma::merge_chunks(vec![chunk])
+                        && let Ok(candidates) = devup_mcp_figma::explore_snapshot(
+                            &snapshot,
+                            &anchor,
+                            &devup_mcp_figma::ExploreOptions {
+                                limit: MATCH_CEILING,
+                            },
+                        )
+                    {
+                        error.details["exploreSuggestion"]["candidates"] =
+                            json!(candidates.candidates);
+                        error.details["exploreSuggestion"]["projectionTruncated"] =
+                            json!(candidates.truncated);
+                        screenshot_observations::rank(
+                            &mut error.details["exploreSuggestion"],
+                            observations.as_ref(),
+                        );
+                        let found = error.details["exploreSuggestion"]["candidates"]
+                            .as_array()
+                            .map_or(0, Vec::len);
+                        error.details["exploreSuggestion"]["foundCandidates"] = json!(found);
+                        error.details["exploreSuggestion"]["candidatesTruncated"] =
+                            json!(found > 10);
+                        if let Some(candidates) =
+                            error.details["exploreSuggestion"]["candidates"].as_array_mut()
+                        {
+                            candidates.truncate(10);
+                        }
+                    }
+                }
+                Err(error)
+            }
         }
     }
 }
@@ -1028,6 +1127,9 @@ fn selection_refusal(
                 "currentPage": file.context.current_page,
                 "selection": file.context.selection,
                 "selectionCount": file.context.selection_count,
+                "lastKnownSelection":file.context.last_known_selection,
+                "lastKnownPage":file.context.last_known_page,
+                "observedAt":file.context.observed_at,
             },
             "nextAction": call,
         }),
@@ -1241,6 +1343,17 @@ fn apply_explore_limit(mut response: Value, limit: usize) -> Value {
 
 #[tool_router]
 impl DevupServer {
+    #[tool(description = "Read only width, height, padding, gap, layoutMode and alignment for 1..100 explicit Figma nodeIds, including instance descendants. Uses one fixed node-list script: no tree walk, resources, assets, screenshot or code generation. Dimensions are Figma logical units for comparison with DOM CSS logical dimensions. Optional calibration uses caller-declared screen pixels and known node dimensions; zoom and plugin UI devicePixelRatio are diagnostic and never prove capture scale.", output_schema = permissive_object_output_schema())]
+    async fn devup_figma_measure(
+        &self,
+        Parameters(input): Parameters<tools::FigmaMeasureInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        measurement::run(self, input)
+            .await
+            .map(tool_result)
+            .map_err(to_mcp_error)
+    }
+
     #[tool(
         description = "Report which agent skills the code devup-mcp emits depends on and whether this workspace has them, then install the ones devup-mcp carries (action: status | install). \
                        The TSX devup_figma_export returns is devup-ui code, and an agent that has never seen devup-ui does not know its components are compile-time placeholders, that $token means devup.json, or that a style prop takes a responsive array - it guesses, and this server cannot see the guesses. \
@@ -1431,7 +1544,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export. \
+        description = "Explore screen candidates spatially related to a linked Figma node to locate the right screen before devup_figma_export. Optional screenshotObservations (bounded labels/aspectRatio declared by the caller) rank real candidates using captured text and geometry; no screenshot pixels or visual matching are verified, and observations never auto-export a target. \
                        `limit` is the number of candidates returned and nothing else - it never changes how much of the design is read, so raising it can only lengthen the answer. \
                        `truncation` reports the two cuts apart: `candidates` means limit cut the list and raising it returns the rest, `projection` means the collected snapshot was itself incomplete and no limit will bring those screens back. \
                        `includeTextPreview` uses a separate budget; turning it on or off does not change candidate count, IDs, or `truncation.projection`. \
@@ -1442,11 +1555,14 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<FigmaExploreInput>,
     ) -> Result<CallToolResult, ErrorData> {
+        if let Some(hints) = &input.screenshot_observations {
+            hints.validate().map_err(to_mcp_error)?;
+        }
         let target = self
             .bind_to_bridge(
                 parse_link(input.url.as_deref()).map_err(to_mcp_error)?,
                 Unnamed::Selection,
-                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit } }),
+                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit,"screenshotObservations":input.screenshot_observations } }),
             )
             .await
             .map_err(to_mcp_error)?;
@@ -1476,7 +1592,13 @@ impl DevupServer {
             // one anchor's projection can be reused for a neighbour's, since
             // every explore of a file now reads the same amount.
             projection_limit: EXPLORE_PROJECTION_LIMIT,
-            text_preview_limit: if input.include_text_preview { 160 } else { 0 },
+            text_preview_limit: if input.include_text_preview
+                || input.screenshot_observations.is_some()
+            {
+                160
+            } else {
+                0
+            },
         });
         let result = self
             .start_operation(
@@ -1493,11 +1615,13 @@ impl DevupServer {
             )
             .await
             .map_err(to_mcp_error)?;
+        let mut result = result;
+        screenshot_observations::rank(&mut result, input.screenshot_observations.as_ref());
         Ok(tool_result(apply_explore_limit(result, input.limit)))
     }
 
     #[tool(
-        description = "Export a small Figma selection; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
                        The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
                        This output is the design, already read. Do not rewrite it from a screenshot or from `get_design_context` - pictures and visual reasoning verify, they do not author. Do not read the node tree and write devup-ui by hand, and do not infer layout from coordinates. Never guess a colour, spacing, radius or typography value: if a value did not come back, say so and stop, because an invented one is indistinguishable from a real one in the code and is the single failure this server exists to prevent. A failed call is a fact to report, not something to route around. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
@@ -1673,6 +1797,10 @@ impl DevupServer {
             }
         }
         validate_outputs(&input.outputs, input.debug).map_err(to_mcp_error)?;
+        input.response_selection.validate().map_err(to_mcp_error)?;
+        if let Some(hints) = &input.screenshot_observations {
+            hints.validate().map_err(to_mcp_error)?;
+        }
         design_drift::validate_request(
             &input.outputs,
             input.previous_design_fingerprints.as_deref(),
@@ -1864,6 +1992,7 @@ impl DevupServer {
                             asset_output_paths,
                             asset_public_root: asset_public_root.clone(),
                             fields: input.fields.clone(),
+                            response_selection: input.response_selection.clone(),
                             delivery,
                             width_policy: width_policy.clone(),
                         },
@@ -1912,6 +2041,7 @@ impl DevupServer {
                     asset_output_paths,
                     asset_public_root: asset_public_root.clone(),
                     fields: input.fields.clone(),
+                    response_selection: input.response_selection.clone(),
                     delivery,
                     width_policy: width_policy.clone(),
                 },
@@ -1956,6 +2086,9 @@ impl DevupServer {
         };
         let mut retry =
             json!({ "tool": "devup_figma_export", "arguments": { "outputs": input.outputs } });
+        if let Some(hints) = &input.screenshot_observations {
+            retry["arguments"]["screenshotObservations"] = json!(hints);
+        }
         if !frame_ids.is_empty() {
             retry["arguments"]["frameIds"] = json!(frame_ids);
         }
@@ -2015,6 +2148,7 @@ impl DevupServer {
             asset_output_paths,
             asset_public_root: asset_public_root.clone(),
             fields: input.fields.clone(),
+            response_selection: input.response_selection.clone(),
             delivery,
             width_policy: width_policy.clone(),
         };
@@ -2297,7 +2431,7 @@ impl DevupServer {
 
     #[tool(
         description = "Plan, then verify, a browser run of generated screens at several viewport widths that the consumer project executes (action: plan | ingest). This server never launches a browser or runs a command. \
-                       plan validates a declarative plan - baseUrl and allowedOrigins, viewports, screens by routePath or by steps that find elements by role and accessible name, testId or text, and geometry checks (no-horizontal-overflow, contained, aligned, spans, visible) - gives it a content id, and writes it under an allowed root with outputPath. Unknown fields, shell strings, other origins and URLs carrying credentials are refused. \
+                       Optional templatePath transactionally writes the fixed Playwright runner and package files alongside outputPath. Dimension checks bind explicit Figma artifactId/nodeId references to CSS logical DOM sizes at viewports (default 1440/1100/858/390); width tables disclose missing references and report tolerance exceedances only, never multiplying zoom or DPR. plan validates a declarative plan - baseUrl and allowedOrigins, viewports, screens by routePath or by steps that find elements by role and accessible name, testId or text, and geometry checks (no-horizontal-overflow, contained, aligned, spans, visible) - gives it a content id, and writes it under an allowed root with outputPath. Unknown fields, shell strings, other origins and URLs carrying credentials are refused. \
                        The consumer runs harness/runtime-audit against it in fresh isolated browser contexts. ingest reads the plan and the report.json it wrote, rejects a report not bound to that plan by id and file hash, recomputes every count from the items, verifies each screenshot's SHA-256, length and decoded width, and separates what it verified from what the executor only declared. A missing item is not-run, never a pass; a viewport with an environment error makes the verdict inconclusive. A visual original exists only at the widths a screen's Figma frame was drawn at.",
         output_schema = permissive_object_output_schema()
     )]
@@ -2317,19 +2451,27 @@ impl DevupServer {
                 let plan = input
                     .plan
                     .ok_or_else(|| invalid("action plan needs plan."))?;
-                runtime_audit::plan(plan, &self.output_policy, input.output_path.as_deref())
+                runtime_audit::create_plan(
+                    plan,
+                    &self.output_policy,
+                    input.output_path.as_deref(),
+                    input.template_path.as_deref(),
+                    &self.artifacts,
+                )
+                .await
             }
             "ingest" => {
                 let (Some(plan_path), Some(report_path)) = (input.plan_path, input.report_path)
                 else {
                     return Err(invalid("action ingest needs planPath and reportPath."));
                 };
-                let policy = self.output_policy.clone();
-                tokio::task::spawn_blocking(move || {
-                    runtime_audit::ingest(&policy, &plan_path, &report_path)
-                })
+                runtime_audit::ingest_with_artifacts(
+                    &self.output_policy,
+                    &plan_path,
+                    &report_path,
+                    &self.artifacts,
+                )
                 .await
-                .map_err(|_| invalid("The report could not be read to the end."))?
             }
             _ => return Err(invalid("action must be plan or ingest.")),
         }
@@ -2902,6 +3044,10 @@ fn to_mcp_error(mut error: DevupError) -> ErrorData {
             error.details["nextAction"]["arguments"] = arguments;
         }
     }
+    if error.details["recoveryArguments"]["nodeIds"].is_array() {
+        error.details["nextAction"] = json!({"tool":"devup_figma_measure","arguments":error.details["recoveryArguments"],
+            "how":"Repeat the explicit measured node list; a measurement receipt never recovers by exporting the current selection."});
+    }
     let mcp_code = if validation::is_caller_mistake(&error) {
         McpErrorCode::INVALID_PARAMS
     } else {
@@ -3263,6 +3409,7 @@ mod section_retry_tests {
             asset_output_paths: Default::default(),
             asset_public_root: None,
             fields: vec![],
+            response_selection: Default::default(),
             delivery: DeliveryMode::Auto,
             width_policy: None,
         }

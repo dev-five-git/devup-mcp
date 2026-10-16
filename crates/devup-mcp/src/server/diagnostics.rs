@@ -597,6 +597,10 @@ fn attached_file(file: &AttachedFile) -> Value {
         "currentPage": file.context.current_page,
         "selection": file.context.selection,
         "selectionCount": file.context.selection_count,
+        "zoom":file.context.zoom,"uiDevicePixelRatio":file.context.ui_device_pixel_ratio,
+        "contextFreshness":"last-delivered-event","observedAt":file.context.observed_at,
+        "lastKnownSelection":file.context.last_known_selection,"lastKnownPage":file.context.last_known_page,
+        "displayContextEvidenceLimit":"Zoom is Figma viewport zoom; DPR belongs to the plugin UI iframe and does not verify screenshot capture scale.",
     });
     if let Some(in_view) = file.context.in_view {
         entry["inView"] = json!(in_view);
@@ -823,6 +827,7 @@ mod tests {
                 selection: selected.map(|count| (1..=count).map(node).collect()),
                 selection_count: selected,
                 in_view: Some(false),
+                ..Default::default()
             },
         }
     }
