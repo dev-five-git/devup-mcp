@@ -330,9 +330,14 @@ pub fn render_viewport_component(input: &Value) -> Option<String> {
         props.push((key.as_str(), prop, boolean));
     }
     let (_, prop, boolean) = props.first()?;
-    let asset_components = children
+    // A mask fills the shape with one colour, so only icons painted in one
+    // flat colour throughout may become one; anything else keeps its pixels.
+    let mask_color = children
         .iter()
-        .all(|child| child.get("isAsset").and_then(Value::as_bool) == Some(true));
+        .all(|child| child.get("isAsset").and_then(Value::as_bool) == Some(true))
+        .then(|| single_solid_color(children))
+        .flatten();
+    let asset_components = mask_color.is_some();
     let component = if asset_components { "Box" } else { "Image" };
     let mut variants = Vec::new();
     for child in children {
@@ -356,18 +361,9 @@ pub fn render_viewport_component(input: &Value) -> Option<String> {
     } else {
         prop.clone()
     };
-    let extra = if asset_components {
-        let paint = children
-            .first()?
-            .get("children")?
-            .as_array()?
-            .first()?
-            .get("fills")?
-            .as_array()?
-            .first()?;
+    let extra = if let Some(color) = mask_color {
         format!(
-            "      bg=\"{}\"\n      maskImage={{{{\n{variant_lines}\n      }}[{index}]}}\n      maskPos=\"center\"\n      maskRepeat=\"no-repeat\"\n      maskSize=\"contain\"",
-            color_hex(paint)?
+            "      bg=\"{color}\"\n      maskImage={{{{\n{variant_lines}\n      }}[{index}]}}\n      maskPos=\"center\"\n      maskRepeat=\"no-repeat\"\n      maskSize=\"contain\""
         )
     } else {
         format!("      src={{{{\n{variant_lines}\n      }}[{index}]}}")
@@ -563,6 +559,43 @@ fn normalize_prop_name(value: &str) -> String {
 /// Takes the whole paint because Figma splits a translucent solid across
 /// `color.a` and the paint's own `opacity`; the effective alpha is the product.
 /// Reading `color` alone drops `opacity` and renders the fill opaque.
+/// The one flat colour every visible fill and stroke under `nodes` shares,
+/// or `None` when there is no paint, a paint is not `SOLID`, or two differ.
+fn single_solid_color(nodes: &[Value]) -> Option<String> {
+    let mut color = None;
+    let mut pending = nodes.iter().collect::<Vec<_>>();
+    while let Some(node) = pending.pop() {
+        for field in ["fills", "strokes"] {
+            for paint in node
+                .get(field)
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if paint.get("visible").and_then(Value::as_bool) == Some(false) {
+                    continue;
+                }
+                if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
+                    return None;
+                }
+                let hex = color_hex(paint)?;
+                match &color {
+                    None => color = Some(hex),
+                    Some(current) if *current != hex => return None,
+                    Some(_) => {}
+                }
+            }
+        }
+        pending.extend(
+            node.get("children")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten(),
+        );
+    }
+    color
+}
+
 fn color_hex(paint: &Value) -> Option<String> {
     let color = paint.get("color")?;
     let channel =
