@@ -1,0 +1,7 @@
+{
+  "changes": {
+    "crates/devup-mcp/Cargo.toml": "Minor"
+  },
+  "note": "Add devup_screen_plan (draft, confirm, status) so every Figma screen is mapped to an evidence-backed URL and confirmed in one batch of question-tool questions before pages are written, gate page-writing exports on a confirmed plan, report URL x width runtime status, and ship the devup-implementation-plan skill.",
+  "date": "2026-10-17T00:00:00+09:00"
+}

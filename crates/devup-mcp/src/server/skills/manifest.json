@@ -61,6 +61,24 @@
       "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devfive-frontend"
     },
     {
+      "name": "devup-implementation-plan",
+      "origin": "own",
+      "title": "Screen plan first, confirm once, then implement",
+      "description": "The order a Figma design becomes pages in: list the screens, draft a screen-to-URL plan with devup_screen_plan, ask every open question in one question-tool call, confirm, implement URL by URL, run the runtime audit, and finish with a URL x width status table.",
+      "usedFor": "Without it an agent handed a Figma Section picks URLs itself and writes pages straight away, so nobody can tell afterwards which screen became which URL or whether each one works at every width. It also keeps the questions in one structured batch instead of a trickle of prose confirmations.",
+      "repo": "dev-five-git/devup-mcp",
+      "path": "crates/devup-mcp/src/server/skills/devup-implementation-plan",
+      "documents": [
+        {
+          "path": "SKILL.md",
+          "bytes": 5813,
+          "sha256": "aa1b1eb05c50381c9afcfac4a985763670fd949c43eab9028858ec2731659633"
+        }
+      ],
+      "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
+      "latestUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan"
+    },
+    {
       "name": "changepacks",
       "origin": "embedded",
       "title": "changepacks conventions",

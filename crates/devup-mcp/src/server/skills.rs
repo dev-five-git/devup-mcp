@@ -27,7 +27,8 @@
 //! each one pins the commit it copied and `scripts/refresh-skills.mjs` is how
 //! that copy is moved forward.
 //!
-//! `own` skills are written here, in this repository - devfive-frontend. There
+//! `own` skills are written here, in this repository - devfive-frontend and
+//! devup-implementation-plan. There
 //! is no upstream to vendor from and nothing for the refresh script to compare
 //! against, so they pin no commit; this repository's own history is their
 //! provenance. They are otherwise installed exactly like an embedded skill,
@@ -135,6 +136,13 @@ const EMBEDDED: &[(&str, Documents)] = &[
                 include_str!("skills/devfive-frontend/references/theme-colors.md"),
             ),
         ],
+    ),
+    (
+        "devup-implementation-plan",
+        &[(
+            "SKILL.md",
+            include_str!("skills/devup-implementation-plan/SKILL.md"),
+        )],
     ),
     (
         "changepacks",

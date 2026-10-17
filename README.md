@@ -6,7 +6,7 @@ Rust-native MCP server that reads Figma designs and generates DevupUI artifacts.
 
 ## 도구
 
-Figma 쪽 4개, 프로젝트 쪽 6개, 스킬 1개, 모두 11개입니다.
+Figma 쪽 5개, 프로젝트 쪽 7개, 스킬 1개, 모두 13개입니다.
 
 - `devup_figma_export`: Figma를 한 번 수집해 요청한 `outputs`만 투영합니다. TSX가 산출물이고, `componentTsx`·`responsiveTsx`·`devup.json`·source map·asset manifest·reference PNG를 같은 수집에서 함께 얻거나, `cache.artifactId`로 재수집 없이 추가 투영할 수 있습니다. raw snapshot·raw payload는 구현이 아니라 진단에 쓰는 것이라 `debug: true`로만 열립니다.
 - `devup_figma_search`: page, section, frame, component를 이름으로 탐색. URL에 `node-id`가 있으면 **그 노드와 그 아래로 범위를 좁히고**, 없으면 파일 전체를 검색합니다. 둘 중 무엇을 했는지는 응답의 `scope`가 알려줍니다
@@ -19,6 +19,7 @@ Figma 쪽 4개, 프로젝트 쪽 6개, 스킬 1개, 모두 11개입니다.
 - `devup_visual_compare`: 소비자가 만든 `actual.png`를 reference PNG 하나와 비교. **스스로 렌더하지 않고 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 경로는 allowlist 안이어야 합니다. 기본 threshold는 0.005(0.5%). renderer 환경 manifest가 없거나 불완전하거나 유효하지 않으면 `visual.passed`가 true여도 판정은 `inconclusive`입니다
 - `devup_feature_trace`: 명시적 anchor(`routePath`, `figmaNodeId`/`artifactId`, `operationId` 또는 `apiPath`+`method`, `componentPath`, `tableName`)에서 출발해 화면→API→라우트→모델→컬럼 슬라이스와 acceptance matrix를 읽어냄. **요구사항 산문만 주면 거절합니다.** 각 hop은 근거가 있거나 `UNVERIFIED`로 표시되고, 생성 산출물 소유권·UI 재사용 순위·잘림 상한을 함께 보고합니다
 - `devup_runtime_audit`: 생성한 화면을 여러 viewport 폭에서 재 볼 **브라우저 실행 계획**을 검증해 쓰고(`plan`), 소비자 프로젝트의 실행기(`harness/runtime-audit`)가 쓴 보고서를 그 계획에 묶어 검증합니다(`ingest`). **서버는 브라우저를 띄우지도 명령을 실행하지도 않습니다** — 계획은 선언형 데이터뿐이고, 계획 id와 파일 해시에 묶이지 않은 보고서는 거절하며 모든 개수를 항목에서 다시 셉니다
+- `devup_screen_plan`: 페이지를 쓰기 **전에** Figma 화면마다 어느 URL이 될지 계획하고(`draft`), 열린 결정을 질문 도구 한 번 호출로 모두 물은 뒤 확정하고(`confirm`), 확정된 계획을 실제 라우트와 runtime audit 보고서에 대조해 URL × 폭 표로 보고(`status`). 라우트는 근거(기존 페이지, 기존 href에 묶인 nav 라벨, `navigationTargets`)로만 제안하고 나머지는 `UNVERIFIED` 질문이 됩니다
 
 `devup_figma_to_ui`와 `devup_figma_to_json`은 각각 `devup_figma_export`에 `outputs: ["tsx"]`, `outputs: ["devupJson"]`을 넘긴 것과 같아서 제거했습니다. 도구가 셋이면 모든 클라이언트가 세 개의 스키마를 컨텍스트에 싣고도 어느 것을 부를지 매번 판단해야 했습니다.
 
@@ -1046,6 +1047,16 @@ snapshot에 없는 목적지(legacy 경로, 다중 루트 요청)는 조용히 �
 `ingest`는 그린 폭에서 찍혀 검증된 스크린샷마다 **바로 부를 수 있는 `devup_visual_compare` 호출**을 `visualComparisons[]`로 돌려줍니다. audit이 아는 것 — 스크린샷 경로(`actual`·`actualPng`), viewport, 실행기가 신고한 브라우저 버전(`renderer`), OS·locale·timezone, 그 run에 환경 오류가 있었는지(`environmentStatus`) — 은 채워져 있고, 소비자만 말할 수 있는 것(reference의 `artifactId`, `tsxResource`, `themePath`, `assetDirectory`, `devupUiVersion`, `fontManifest`)은 `consumerMustAdd`가 이름으로 댑니다. 그대로 불러도 `inconclusive`가 될 사정 — scale 1이 아닌 캡처, viewport보다 긴 페이지의 full-page 캡처, 환경 오류 — 은 `blockers`가 미리 말합니다. 예전에는 audit 스크린샷을 비교기에 넣으면 이 항목들이 비어 언제나 `inconclusive`였습니다.
 
 360·768·1200·1440 폭 × 화면 2개 × 검사 8개 계획에서 `plan`은 4.5 ms(structured content 9.2 KB), 스크린샷 8장을 확인하는 `ingest`는 18.9 ms(12.5 KB)였습니다. 중단된 실행 이어가기(resume), 부수효과가 있는 단계, 데모 녹화·TTS·자막, 인계 패키지는 구현하지 않았습니다.
+
+### `devup_screen_plan` — 화면 계획 먼저, 확인은 한 번, 구현은 그 다음
+
+"이 디자인을 구현해줘"를 받은 에이전트가 곧바로 페이지를 쓰면, 어느 Figma 화면이 어느 URL이 됐는지 사용자는 끝내 모릅니다. 그래서 순서를 고정합니다.
+
+1. `draft` — Section/frame 링크(또는 브리지 선택, 또는 앞선 `devup_figma_explore`의 `screens`)와 `projectRoot`를 받아, 여러 폭으로 그린 프레임을 한 화면으로 묶고, 화면마다 `proposedRoute`·`routeEvidence`·`existingFile`·`sharedParts`·`openDecisions`를 담은 `.devup/screen-plan.json`과 같은 내용의 `.devup/screen-plan.md`를 씁니다. 근거 없는 라우트는 `proposedRoute: null`, `routeEvidence: "UNVERIFIED"`이고 질문이 됩니다. 응답의 `questions`는 질문 도구(OpenCode `question`, Claude Code `AskUserQuestion`)에 그대로 넣는 모양 — `id`, 30자 이하 `header`, `question`, 추천을 맨 앞에 두고 " (Recommended)"를 붙인 `options[{label, description}]`, `multiple` — 이고, `askInstruction`이 함께 옵니다.
+2. `confirm` — 질문 id별 답을 **한 번에** 받습니다. 하나라도 빠지면 빠진 id를 이름으로 대며 거절하고, 아무것도 바꾸지 않습니다.
+3. `status` — 확정된 계획을 `devup_project_context scope:"routes"`의 실제 페이지와, 선택적으로 `devup_runtime_audit`의 plan/report에 대조합니다. URL마다 구현 여부와 폭별 `pass`·`fail`(가로 넘침, 페이지 오류 등 이유)·`not-run`을 내고, 요약 한 줄(`7 URLs: 5 implemented, 3 verified at all widths, /about overflows at 390`)과 `URL | Figma screen | file | status | widths verified | screenshots` 표를 줍니다. audit 항목이 없는 폭은 `not-run`이지 `pass`가 아닙니다.
+
+`devup_figma_export`는 `projectRoot`가 있고 페이지를 쓰는 호출(`pageScaffold` write, `app/` 아래 `outputPaths`, `outputPaths`가 있는 여러 프레임·`allScreens`)인데 그 프레임을 덮는 확정 계획이 없으면 쓰지 않고 `status: "plan_required"`와 `devup_screen_plan draft`로 가는 `nextAction`을 돌려줍니다. 컴포넌트 하나, 쓰지 않는 미리보기는 막지 않습니다. 확정 계획이 있으면 `pageScaffold.route`는 계획에서 가져오고, 다른 라우트를 넘기면 `routeMismatch`로 거절합니다. 전체 흐름은 `devup_skills`로 설치하는 `devup-implementation-plan` 스킬에 있습니다.
 
 ## 읽기 전용·개인정보 보호
 
