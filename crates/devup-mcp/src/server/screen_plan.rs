@@ -9,11 +9,15 @@
 //! which anyone could have noticed.
 //!
 //! So the order is fixed. `draft` maps every screen to a route from evidence
-//! only - an existing App Router page, a nav label already bound to an href,
-//! or an explicit `navigationTargets` entry - and turns everything it cannot
-//! decide into one batch of questions shaped for the runtime's question tool.
-//! `confirm` takes every answer at once and refuses to proceed with any
-//! missing. `status` reads the confirmed plan against the routes on disk and a
+//! only - an existing page built from the frame, a nav label already bound to
+//! an href, an explicit `navigationTargets` entry or the project's config -
+//! and turns everything it cannot decide into questions shaped for the
+//! runtime's question tool, split into rounds that are all asked up front, back
+//! to back. A guess from a layer name is never silent: it is marked
+//! `name-match` and put to the user in the same rounds. `confirm` takes every
+//! answer that applies at once and refuses to proceed with any missing. After
+//! it nothing is asked: implementation records what it decided alone with
+//! `assume`. `status` reads the confirmed plan against the routes on disk and a
 //! runtime audit report, one row per URL and width, where a width nobody ran is
 //! `not-run` and never `pass`.
 //!
@@ -40,13 +44,20 @@ const SCHEMA_VERSION: u64 = 1;
 /// it from the same place, so the two cannot disagree about which plan holds.
 pub(super) const PLAN_FILE: &str = ".devup/screen-plan.json";
 const PLAN_MARKDOWN: &str = ".devup/screen-plan.md";
-pub(super) const ASK_INSTRUCTION: &str = "Ask all of these in ONE call to your question tool; do not ask in prose; do not implement before confirm.";
+pub(super) const ASK_INSTRUCTION: &str = "Ask every round in questionRounds now, before implementing, in consecutive question-tool calls with no other work in between; skip a question whose `when` was not met; never ask in prose. Then confirm. After confirm never ask the user anything: take the recommended or most conservative option and record it with action assume.";
+/// What implementation does instead of asking. Someone may have walked away
+/// from the keyboard three hours ago; a question then stops all the work.
+pub(super) const IMPLEMENT_INSTRUCTION: &str = "Implement URL by URL without asking the user anything. devup_figma_export with projectRoot takes each page's route from this plan. Anything new: take the recommended or most conservative option, record it with devup_screen_plan action assume, and keep going. Then run devup_runtime_audit at every width and devup_screen_plan action status.";
+/// The optional project file whose entries count as evidence.
+pub(super) const CONFIG_FILE: &str = ".devup/screen-plan.config.json";
 /// The question tools this is shaped for cut headers short. OpenCode's has no
 /// hard limit; 30 characters stays readable in all of them.
 pub(super) const HEADER_LIMIT: usize = 30;
 /// Claude Code's AskUserQuestion takes two to four options and adds its own
 /// "Other" for a custom answer. Four is the most every runtime accepts.
 const MAX_OPTIONS: usize = 4;
+/// AskUserQuestion also takes at most four questions per call.
+pub(super) const MAX_QUESTIONS_PER_ROUND: usize = 4;
 const RECOMMENDED: &str = " (Recommended)";
 const MAX_SCREENS: usize = 100;
 const MAX_PLAN_BYTES: usize = 2 * 1024 * 1024;
@@ -85,7 +96,9 @@ const ROOT_WORDS: &[&str] = &["home", "main", "index", "landing", "메인", "홈
 pub struct ScreenPlanInput {
     /// draft: map screens to routes and return every open question.
     /// confirm: apply all answers at once. status: URL x width report.
-    #[schemars(extend("enum" = ["draft", "confirm", "status"]))]
+    /// assume: after confirm, record a decision implementation made without
+    /// asking.
+    #[schemars(extend("enum" = ["draft", "confirm", "status", "assume"]))]
     pub action: String,
     /// The Next App Router project. The plan is written to
     /// <projectRoot>/.devup/screen-plan.json and .md, under an allowed root.
@@ -121,6 +134,70 @@ pub struct ScreenPlanInput {
     /// draft: re-read Figma instead of reusing a cached exploration.
     #[serde(default)]
     pub refresh: bool,
+    /// assume: what was decided during implementation without asking.
+    #[serde(default)]
+    pub assumptions: Vec<AssumptionInput>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schemars(extend("additionalProperties" = json!({"not": {}})))]
+pub struct AssumptionInput {
+    /// What it is about, e.g. a frame id or a URL.
+    pub about: String,
+    /// The option taken: the plan's recommended one or the most conservative.
+    pub decision: String,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// `.devup/screen-plan.config.json`: how this project's designers name
+/// things. Each entry present counts as evidence and replaces the question
+/// it would otherwise take.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct PlanConfig {
+    /// Replaces the built-in modal words (modal, popup, dialog, ...).
+    #[serde(default)]
+    pub modal_keywords: Option<Vec<String>>,
+    /// Layer name -> route.
+    #[serde(default)]
+    pub route_aliases: BTreeMap<String, String>,
+    /// responsive | separate | ask (the default).
+    #[serde(default)]
+    pub width_grouping: Option<String>,
+}
+
+fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
+    let path = Path::new(project_root).join(CONFIG_FILE);
+    let Ok(bytes) = std::fs::read(&path) else {
+        return Ok(None);
+    };
+    let mut config: PlanConfig = serde_json::from_slice(&bytes).map_err(|error| {
+        invalid(format!(
+            "{} is not a valid screen plan config: {error}",
+            path.display()
+        ))
+    })?;
+    if let Some(mode) = config.width_grouping.as_deref()
+        && !matches!(mode, "responsive" | "separate" | "ask")
+    {
+        return Err(invalid(format!(
+            "{}: widthGrouping must be responsive, separate or ask, not {mode:?}.",
+            path.display()
+        )));
+    }
+    for (alias, route) in &mut config.route_aliases {
+        *route = normalize_route(route)
+            .filter(|route| valid_route(route))
+            .ok_or_else(|| {
+                invalid(format!(
+                    "{}: routeAliases[{alias:?}] = {route:?} is not an app route.",
+                    path.display()
+                ))
+            })?;
+    }
+    Ok(Some(config))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -148,6 +225,13 @@ pub struct PlanScreenInput {
     pub width: f64,
     #[serde(default)]
     pub height: Option<f64>,
+    /// The Figma Section (or other parent) the frame sits in, by id or name.
+    /// devup_figma_explore fills it from the frame's parent.
+    #[serde(default)]
+    pub section: Option<String>,
+    /// The section's layer name, when `section` is an id.
+    #[serde(default)]
+    pub section_name: Option<String>,
     /// Shared part names the caller saw in this screen, e.g. Header, Footer.
     #[serde(default)]
     pub parts: Vec<String>,
@@ -206,6 +290,30 @@ pub(super) struct ProjectEvidence {
     /// `src/app` or `app`, whichever the existing pages use.
     pub app_dir: String,
     pub inventory_note: Option<String>,
+    /// Figma node id -> (route, file) for every `data-figma-node-id` already
+    /// in one route's sources: that page was built from that frame.
+    pub figma_nodes: BTreeMap<String, (String, String)>,
+    pub config: PlanConfig,
+    /// The config file, when one was read.
+    pub config_file: Option<String>,
+}
+
+/// The `data-figma-node-id="..."` values in one source file.
+fn figma_node_ids(source: &str) -> Vec<String> {
+    let mut ids = Vec::new();
+    let mut rest = source;
+    while let Some(start) = rest.find("data-figma-node-id=") {
+        rest = &rest[start + "data-figma-node-id=".len()..];
+        let Some(quote) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') else {
+            continue;
+        };
+        rest = &rest[1..];
+        if let Some(end) = rest.find(quote) {
+            ids.push(rest[..end].to_owned());
+            rest = &rest[end..];
+        }
+    }
+    ids
 }
 
 /// Reads routes, layout components and static links through the same
@@ -213,8 +321,11 @@ pub(super) struct ProjectEvidence {
 /// parser `devup_ui_validate` uses on each scanned file.
 pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEvidence, DevupError> {
     let inventory = super::project_context::run("ui", Some(project_root), None).await?;
+    let config = read_config(project_root)?;
     let mut evidence = ProjectEvidence {
         app_dir: "src/app".into(),
+        config_file: config.is_some().then(|| CONFIG_FILE.to_owned()),
+        config: config.unwrap_or_default(),
         ..ProjectEvidence::default()
     };
     if inventory["found"] != true {
@@ -231,14 +342,23 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
     }
     let root = PathBuf::from(text(&inventory["projectRoot"]));
     let mut sources = BTreeSet::new();
+    let mut owner = BTreeMap::<String, BTreeSet<String>>::new();
     for route in array(&inventory["routes"]) {
-        evidence.routes.push((
-            text(&route["route"]).to_owned(),
-            text(&route["page"]).to_owned(),
-        ));
+        let path = text(&route["route"]).to_owned();
+        evidence
+            .routes
+            .push((path.clone(), text(&route["page"]).to_owned()));
         sources.insert(text(&route["page"]).to_owned());
+        owner
+            .entry(text(&route["page"]).to_owned())
+            .or_default()
+            .insert(path.clone());
         for component in array(&route["components"]) {
             sources.insert(text(component).to_owned());
+            owner
+                .entry(text(component).to_owned())
+                .or_default()
+                .insert(path.clone());
         }
     }
     if evidence
@@ -282,6 +402,18 @@ pub(super) async fn project_evidence(project_root: &str) -> Result<ProjectEviden
         let Ok(source) = std::fs::read_to_string(&path) else {
             continue;
         };
+        // A frame id in exactly one route's files says that route was built
+        // from it; in several, it is a shared part and says nothing.
+        if let Some(routes) = owner.get(relative).filter(|routes| routes.len() == 1) {
+            for id in figma_node_ids(&source) {
+                evidence.figma_nodes.entry(id).or_insert_with(|| {
+                    (
+                        routes.iter().next().cloned().unwrap_or_default(),
+                        relative.clone(),
+                    )
+                });
+            }
+        }
         for element in array(&super::navigation::source_evidence(&source)["elements"]) {
             if element["isLink"] == true
                 && let Some(href) = element["href"].as_str()
@@ -342,11 +474,6 @@ fn compact(value: &str) -> String {
         .chars()
         .filter(|c| c.is_alphanumeric())
         .collect()
-}
-
-fn is_modal(name: &str) -> bool {
-    let lowered = name.to_lowercase();
-    MODAL_WORDS.iter().any(|word| lowered.contains(word))
 }
 
 /// The same rule `pageScaffold.route` is held to, so a confirmed route is one
@@ -453,6 +580,13 @@ fn ask_shape(questions: &[Value]) -> Vec<Value> {
             if let Some(object) = shaped.as_object_mut() {
                 object.remove("resolve");
                 object.remove("kind");
+                if let Some(conditions) = object.get_mut("when").and_then(Value::as_array_mut) {
+                    for condition in conditions {
+                        if let Some(condition) = condition.as_object_mut() {
+                            condition.remove("action");
+                        }
+                    }
+                }
             }
             shaped
         })
@@ -465,6 +599,27 @@ struct Frame {
     name: String,
     width: f64,
     height: Option<f64>,
+    section: Option<String>,
+    section_name: Option<String>,
+}
+
+impl Frame {
+    fn json(&self) -> Value {
+        json!({"nodeId": self.node_id, "name": self.name, "width": self.width, "height": self.height,
+            "section": self.section, "sectionName": self.section_name})
+    }
+}
+
+/// How the frames of one name are turned into pages.
+#[derive(Debug, Clone, PartialEq)]
+enum Grouping {
+    /// Decided: one page, from a single frame, project config, or evidence.
+    Fixed(&'static str),
+    /// Asked per group; the recommendation follows the evidence.
+    Ask {
+        recommend_single: bool,
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -473,6 +628,7 @@ struct DraftScreen {
     words: Vec<String>,
     parts: Vec<String>,
     links: Vec<PlanLinkInput>,
+    grouping: Grouping,
 }
 
 impl DraftScreen {
@@ -483,21 +639,59 @@ impl DraftScreen {
         &self.frames[0].name
     }
     fn widths(&self) -> Vec<u32> {
-        let mut widths = self
-            .frames
-            .iter()
-            .map(|frame| frame.width.round().max(0.0) as u32)
-            .collect::<Vec<_>>();
-        widths.sort_unstable_by(|a, b| b.cmp(a));
-        widths.dedup();
-        widths
+        widths_of(&self.frames)
     }
 }
 
-/// Frames that share a base name and could be one screen at several widths
-/// become one screen, widest first. The rule is the one `responsiveTsx` is
-/// refused by, so a group here is a group the export can merge.
-fn group_screens(screens: &[PlanScreenInput]) -> Vec<DraftScreen> {
+fn widths_of(frames: &[Frame]) -> Vec<u32> {
+    let mut widths = frames
+        .iter()
+        .map(|frame| frame.width.round().max(0.0) as u32)
+        .collect::<Vec<_>>();
+    widths.sort_unstable_by(|a, b| b.cmp(a));
+    widths.dedup();
+    widths
+}
+
+fn width_list(widths: &[u32]) -> String {
+    widths
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// Whether every section name says only which device it is for, e.g. `PC`
+/// and `Mobile`: a designer splitting one page by device, not two pages.
+fn device_sections(frames: &[Frame]) -> bool {
+    frames.iter().all(|frame| {
+        frame.section_name.as_deref().is_some_and(|name| {
+            let lowered = name.to_lowercase();
+            let words = lowered
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|word| !word.is_empty())
+                .collect::<Vec<_>>();
+            !words.is_empty()
+                && words.iter().all(|word| {
+                    DEVICE_WORDS.contains(word) || word.chars().all(|c| c.is_ascii_digit())
+                })
+        })
+    })
+}
+
+/// Frames that share a base name are candidates for one page. Whether they
+/// are one is not assumed: designers differ, so a group that could go either
+/// way is asked about on its own, with the recommendation the evidence gives.
+///
+/// - several widths in one section that can merge into one responsive tree:
+///   one responsive page is recommended;
+/// - the same name in different sections: separate pages are recommended,
+///   unless the sections are named only for devices (`PC`, `Mobile`);
+/// - the same name at the same width in one section is several screens, not a
+///   width family, and is not grouped at all.
+///
+/// `widthGrouping` in the project config decides instead of asking.
+fn group_screens(screens: &[PlanScreenInput], config: &PlanConfig) -> Vec<DraftScreen> {
     let mut order = Vec::<String>::new();
     let mut groups = BTreeMap::<String, Vec<&PlanScreenInput>>::new();
     for screen in screens {
@@ -507,106 +701,151 @@ fn group_screens(screens: &[PlanScreenInput]) -> Vec<DraftScreen> {
         }
         groups.entry(key).or_default().push(screen);
     }
+    let make = |members: &[&PlanScreenInput], grouping: Grouping| {
+        let mut frames = members
+            .iter()
+            .map(|screen| Frame {
+                node_id: screen.node_id.clone(),
+                name: screen.name.clone(),
+                width: screen.width,
+                height: screen.height,
+                section: screen.section.clone(),
+                section_name: screen.section_name.clone(),
+            })
+            .collect::<Vec<_>>();
+        frames.sort_by(|a, b| b.width.total_cmp(&a.width));
+        let mut parts = Vec::<String>::new();
+        let mut links = Vec::new();
+        for screen in members {
+            for part in &screen.parts {
+                if !parts.contains(part) {
+                    parts.push(part.clone());
+                }
+            }
+            links.extend(screen.links.iter().cloned());
+        }
+        DraftScreen {
+            frames,
+            words: base_words(&members[0].name),
+            parts,
+            links,
+            grouping,
+        }
+    };
     let mut result = Vec::new();
     for key in order {
         let members = &groups[&key];
+        if members.len() == 1 {
+            result.push(make(members, Grouping::Fixed("single-frame")));
+            continue;
+        }
         // Asked of the base name, not the layer name: `Main - 1440` and
         // `Main - 390` are one name across two widths once the width is gone.
         let named = members
             .iter()
             .map(|screen| (key.as_str(), screen.width))
             .collect::<Vec<_>>();
-        let family = members.len() > 1
-            && devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(&named);
-        let make = |members: Vec<&PlanScreenInput>| {
-            let mut frames = members
-                .iter()
-                .map(|screen| Frame {
-                    node_id: screen.node_id.clone(),
-                    name: screen.name.clone(),
-                    width: screen.width,
-                    height: screen.height,
-                })
-                .collect::<Vec<_>>();
-            frames.sort_by(|a, b| b.width.total_cmp(&a.width));
-            let mut parts = Vec::<String>::new();
-            let mut links = Vec::new();
-            for screen in &members {
-                for part in &screen.parts {
-                    if !parts.contains(part) {
-                        parts.push(part.clone());
-                    }
-                }
-                links.extend(screen.links.iter().cloned());
-            }
-            DraftScreen {
-                frames,
-                words: base_words(&members[0].name),
-                parts,
-                links,
-            }
-        };
-        if family {
-            result.push(make(members.clone()));
-        } else {
+        let family = devup_mcp_devup_ui::codegen::responsive::breakpoint_family_is_possible(&named);
+        let sections = members
+            .iter()
+            .map(|screen| screen.section.as_deref())
+            .collect::<BTreeSet<_>>();
+        let same_section = sections.len() == 1;
+        if same_section && !family {
             for member in members {
-                result.push(make(vec![member]));
+                result.push(make(&[member], Grouping::Fixed("single-frame")));
+            }
+            continue;
+        }
+        match config.width_grouping.as_deref() {
+            Some("responsive") if family => {
+                result.push(make(members, Grouping::Fixed("config:widthGrouping")));
+            }
+            Some("separate") => {
+                for member in members {
+                    result.push(make(&[member], Grouping::Fixed("config:widthGrouping")));
+                }
+            }
+            _ => {
+                let probe = make(members, Grouping::Fixed(""));
+                let by_device = device_sections(&probe.frames);
+                let recommend_single = family && (same_section || by_device);
+                let reason = if same_section {
+                    "drawn at several widths in one section with matching names".to_owned()
+                } else if recommend_single {
+                    "split across sections named only for devices".to_owned()
+                } else {
+                    format!("the same name in {} different sections", sections.len())
+                };
+                result.push(make(
+                    members,
+                    Grouping::Ask {
+                        recommend_single,
+                        reason,
+                    },
+                ));
             }
         }
     }
     result
 }
 
-/// Every route the evidence supports for one screen, each with where it came
-/// from. Several different routes are a conflict and are asked, not picked.
-fn route_evidence(
-    screen: &DraftScreen,
+/// One route the evidence names, what kind of evidence it is, and where.
+#[derive(Debug, Clone)]
+struct RouteHit {
+    route: String,
+    kind: &'static str,
+    detail: String,
+}
+
+/// `name-match` is the only kind that is a guess: a layer name compared with
+/// a route segment. Every other kind is something the project or the caller
+/// already says.
+const NAME_MATCH: &str = "name-match";
+
+/// Every route the evidence supports for these frames.
+fn route_hits(
+    frames: &[Frame],
+    words: &[String],
     targets: &BTreeMap<String, String>,
     evidence: &ProjectEvidence,
-) -> (Vec<(String, String)>, Vec<String>) {
-    let mut notes = Vec::new();
-    let explicit = screen
-        .frames
-        .iter()
-        .filter_map(|frame| {
-            let target = targets.get(&frame.node_id)?;
+    notes: &mut Vec<String>,
+) -> Vec<RouteHit> {
+    let mut hits = Vec::new();
+    for frame in frames {
+        if let Some(target) = targets.get(&frame.node_id) {
             match normalize_route(target) {
-                Some(route) => Some((route, format!("navigationTargets[{}]", frame.node_id))),
-                None => {
-                    notes.push(format!(
-                        "navigationTargets[{}] = {target:?} is not an app route and was not used.",
-                        frame.node_id
-                    ));
-                    None
-                }
+                Some(route) => hits.push(RouteHit {
+                    route,
+                    kind: "navigationTargets",
+                    detail: format!("navigationTargets[{}]", frame.node_id),
+                }),
+                None => notes.push(format!(
+                    "navigationTargets[{}] = {target:?} is not an app route and was not used.",
+                    frame.node_id
+                )),
             }
-        })
-        .collect::<Vec<_>>();
-    if !explicit.is_empty() {
-        return (explicit, notes);
-    }
-    let mut found = Vec::new();
-    let screen_slug = slug(&screen.words);
-    let is_root = screen
-        .words
-        .iter()
-        .any(|word| ROOT_WORDS.contains(&word.as_str()));
-    for (route, page) in &evidence.routes {
-        // The last segment only: `/news/[id]` is a detail page, and a screen
-        // named News is the list, not that page.
-        let last = route
-            .trim_matches('/')
-            .rsplit('/')
-            .next()
-            .unwrap_or_default();
-        if (!screen_slug.is_empty() && last == screen_slug) || (route == "/" && is_root) {
-            found.push((route.clone(), format!("existing-route: {page}")));
+        }
+        if let Some((route, file)) = evidence.figma_nodes.get(&frame.node_id) {
+            hits.push(RouteHit {
+                route: route.clone(),
+                kind: "figma-node",
+                detail: format!("data-figma-node-id=\"{}\" in {file}", frame.node_id),
+            });
+        }
+        for (alias, route) in &evidence.config.route_aliases {
+            if alias == &frame.name || compact(alias) == compact(&words.join("")) {
+                hits.push(RouteHit {
+                    route: route.clone(),
+                    kind: "config",
+                    detail: format!("{CONFIG_FILE} routeAliases[{alias:?}]"),
+                });
+            }
         }
     }
-    let name = compact(&screen.words.join(""));
+    let name = compact(&words.join(""));
     for (label, href, location) in &evidence.nav_links {
-        let label_key = compact(label);
-        if label_key.is_empty() || label_key != name {
+        if compact(label).is_empty() || compact(label) != name {
             continue;
         }
         if let Some((route, _)) = evidence
@@ -614,13 +853,43 @@ fn route_evidence(
             .iter()
             .find(|(route, _)| super::navigation::matches_route(route, href))
         {
-            found.push((
-                route.clone(),
-                format!("nav-label: {label:?} -> {href} ({location})"),
-            ));
+            hits.push(RouteHit {
+                route: route.clone(),
+                kind: "nav-label",
+                detail: format!("nav-label: {label:?} -> {href} ({location})"),
+            });
         }
     }
-    (found, notes)
+    if hits.is_empty() {
+        let screen_slug = slug(words);
+        let is_root = words.iter().any(|word| ROOT_WORDS.contains(&word.as_str()));
+        for (route, page) in &evidence.routes {
+            // The last segment only: `/news/[id]` is a detail page, and a
+            // screen named News is the list, not that page.
+            let last = route
+                .trim_matches('/')
+                .rsplit('/')
+                .next()
+                .unwrap_or_default();
+            if (!screen_slug.is_empty() && last == screen_slug) || (route == "/" && is_root) {
+                hits.push(RouteHit {
+                    route: route.clone(),
+                    kind: NAME_MATCH,
+                    detail: format!("layer name matches the existing route {route} ({page})"),
+                });
+            }
+        }
+    }
+    hits
+}
+
+/// The route the hits agree on, if they agree.
+fn agreed(hits: &[RouteHit]) -> Option<&RouteHit> {
+    let distinct = hits
+        .iter()
+        .map(|hit| hit.route.as_str())
+        .collect::<BTreeSet<_>>();
+    (distinct.len() == 1).then(|| &hits[0])
 }
 
 fn existing_page<'a>(route: &str, evidence: &'a ProjectEvidence) -> Option<&'a str> {
@@ -639,6 +908,17 @@ fn planned_page(route: &str, app_dir: &str) -> String {
         format!("{app_dir}/{route}/page.tsx")
     }
 }
+
+/// A condition on another question's answer: this question is asked only
+/// when that one resolved to `action`. The caller sees the label.
+fn when(question: &str, label: &str, action: Value) -> Value {
+    json!({"question": question, "answer": label, "action": action})
+}
+
+const SINGLE: &str = "One responsive page";
+const SEPARATE: &str = "Separate pages";
+const ACCEPT_ALL: &str = "Accept all";
+const REVIEW: &str = "Review individually";
 
 /// Builds the draft plan. Pure: every input is passed in, so the rules are
 /// tested without Figma or a project on disk.
@@ -659,38 +939,59 @@ pub(super) fn draft_plan(
             "draft plans at most {MAX_SCREENS} screens; link one Section at a time."
         )));
     }
-    let drafts = group_screens(screens);
-    let mut rows = Vec::new();
-    let mut questions = Vec::new();
-    let mut route_owner = BTreeMap::<String, Vec<usize>>::new();
-    let mut resolved_routes = Vec::new();
-    for (index, screen) in drafts.iter().enumerate() {
-        let (found, evidence_notes) = route_evidence(screen, targets, evidence);
-        let distinct = found
-            .iter()
-            .map(|(route, _)| route.clone())
-            .collect::<BTreeSet<_>>();
-        let proposed = (distinct.len() == 1).then(|| found[0].0.clone());
-        if let Some(route) = &proposed {
-            route_owner.entry(route.clone()).or_default().push(index);
-        }
-        resolved_routes.push((proposed, found, evidence_notes));
-    }
+    let drafts = group_screens(screens, &evidence.config);
+    let mut screen_notes = vec![Vec::new(); drafts.len()];
+    let mut decided = drafts
+        .iter()
+        .enumerate()
+        .map(|(index, screen)| {
+            let hits = route_hits(
+                &screen.frames,
+                &screen.words,
+                targets,
+                evidence,
+                &mut screen_notes[index],
+            );
+            let proposed = agreed(&hits).map(|hit| (hit.route.clone(), hit.kind));
+            (hits, proposed)
+        })
+        .collect::<Vec<_>>();
     // Two screens on one URL is a decision, not a fact: neither keeps it unasked.
-    for owners in route_owner.values().filter(|owners| owners.len() > 1) {
-        for index in owners {
-            let entry = &mut resolved_routes[*index];
-            if let Some(route) = entry.0.take() {
-                entry.2.push(format!(
-                    "{route} is also the evidence-backed route of another screen in this plan."
+    let mut owners = BTreeMap::<String, Vec<usize>>::new();
+    for (index, (_, proposed)) in decided.iter().enumerate() {
+        if let Some((route, _)) = proposed {
+            owners.entry(route.clone()).or_default().push(index);
+        }
+    }
+    for indices in owners.values().filter(|indices| indices.len() > 1) {
+        for index in indices {
+            if let Some((route, _)) = decided[*index].1.take() {
+                screen_notes[*index].push(format!(
+                    "{route} is also the route of another screen in this plan."
                 ));
             }
         }
     }
-    let claimed = resolved_routes
+    let claimed = decided
         .iter()
-        .filter_map(|(route, _, _)| route.clone())
+        .filter_map(|(_, proposed)| proposed.as_ref().map(|(route, _)| route.clone()))
         .collect::<BTreeSet<_>>();
+    let modal_words = evidence
+        .config
+        .modal_keywords
+        .clone()
+        .unwrap_or_else(|| MODAL_WORDS.iter().map(|word| (*word).to_owned()).collect());
+    let kind_evidence = if evidence.config.modal_keywords.is_some() {
+        "config"
+    } else {
+        NAME_MATCH
+    };
+    let is_modal = |name: &str| {
+        let lowered = name.to_lowercase();
+        modal_words
+            .iter()
+            .any(|word| lowered.contains(&word.to_lowercase()))
+    };
     let page_screens = drafts
         .iter()
         .enumerate()
@@ -707,44 +1008,200 @@ pub(super) fn draft_plan(
                 .map(move |frame| (frame.node_id.clone(), index))
         })
         .collect::<BTreeMap<_, _>>();
+    let route_choice = |route: &str, why: &str, extra: Value| {
+        let description = match existing_page(route, evidence) {
+            Some(page) => format!("{why} Exists at {page}; the screen is merged into it."),
+            None => format!(
+                "{why} New page at {}.",
+                planned_page(route, &evidence.app_dir)
+            ),
+        };
+        let mut action = json!({"route": route});
+        if let (Some(object), Some(extra)) = (action.as_object_mut(), extra.as_object()) {
+            object.extend(extra.clone());
+        }
+        choice(route, description, action)
+    };
+    let unclaimed_for = |words: &[String], exclude: &BTreeSet<String>| {
+        let mut unclaimed = evidence
+            .routes
+            .iter()
+            .filter(|(route, _)| !claimed.contains(route) && !exclude.contains(route))
+            .map(|(route, _)| {
+                let score = route
+                    .trim_matches('/')
+                    .split(['/', '-'])
+                    .filter(|segment| words.iter().any(|word| word == segment))
+                    .count();
+                (score, route.clone())
+            })
+            .collect::<Vec<_>>();
+        unclaimed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        unclaimed
+    };
+    let mut questions = Vec::new();
+    let mut rows = Vec::new();
+    let mut heuristics = Vec::new();
     let mut part_screens = BTreeMap::<String, Vec<String>>::new();
-    let mut grouped = Vec::new();
     for (index, screen) in drafts.iter().enumerate() {
-        let (proposed, found, evidence_notes) = &resolved_routes[index];
+        let (hits, proposed) = &decided[index];
         let modal = is_modal(screen.name());
         let id = screen.id().to_owned();
         let name = screen.name().to_owned();
         let widths = screen.widths();
         let mut decisions = Vec::new();
-        let candidates = found
+        let candidates = hits
             .iter()
-            .map(|(route, _)| route.clone())
+            .map(|hit| hit.route.clone())
             .collect::<BTreeSet<_>>();
         let screen_slug = slug(&screen.words);
         let new_route = (!screen_slug.is_empty()).then(|| format!("/{screen_slug}"));
-        let similar = |route: &str| {
-            route
-                .trim_matches('/')
-                .split(['/', '-'])
-                .filter(|segment| screen.words.iter().any(|word| word == segment))
-                .count()
+        // Questions about this screen as one page apply only if the group is
+        // one page; when that is still being asked, they carry the condition.
+        let group_id = format!("group:{id}");
+        let single_when = match &screen.grouping {
+            Grouping::Ask { .. } => vec![when(&group_id, SINGLE, json!({"group": "single"}))],
+            Grouping::Fixed(_) => Vec::new(),
         };
-        let mut unclaimed = evidence
-            .routes
-            .iter()
-            .filter(|(route, _)| !claimed.contains(route) && !candidates.contains(route))
-            .map(|(route, page)| (similar(route), route.clone(), page.clone()))
-            .collect::<Vec<_>>();
-        unclaimed.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-        let route_choice = |route: &str, why: &str| {
-            let description = match existing_page(route, evidence) {
-                Some(page) => format!("{why} Exists at {page}; the screen is merged into it."),
-                None => format!(
-                    "{why} New page at {}.",
-                    planned_page(route, &evidence.app_dir)
+        let push = |questions: &mut Vec<Value>, mut question: Value, extra: &[Value]| {
+            let conditions = single_when.iter().chain(extra).cloned().collect::<Vec<_>>();
+            if !conditions.is_empty() {
+                question["when"] = json!(conditions);
+            }
+            questions.push(question);
+        };
+        if let Grouping::Ask {
+            recommend_single,
+            reason,
+        } = &screen.grouping
+        {
+            decisions.push("one-page-or-separate");
+            let single = choice(
+                SINGLE,
+                "One URL; the widths become devup-ui responsive arrays (responsiveTsx).",
+                json!({"group": "single"}),
+            );
+            let separate = choice(
+                SEPARATE,
+                "Each frame is its own page and gets its own route, asked next.",
+                json!({"group": "separate"}),
+            );
+            let frames = screen
+                .frames
+                .iter()
+                .map(|frame| {
+                    format!(
+                        "{} ({}, {}px{})",
+                        frame.name,
+                        frame.node_id,
+                        frame.width.round(),
+                        frame
+                            .section_name
+                            .as_deref()
+                            .or(frame.section.as_deref())
+                            .map(|section| format!(", section {section}"))
+                            .unwrap_or_default()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            questions.push(question(
+                group_id.clone(),
+                header("Pages", &name),
+                format!(
+                    "These frames share the name \"{name}\" and are {reason}: {frames}. One responsive page, or separate pages? A custom answer may list one route per frame, e.g. \"/a, /b\"."
                 ),
-            };
-            choice(route, description, json!({"route": route}))
+                if *recommend_single {
+                    vec![single, separate]
+                } else {
+                    vec![separate, single]
+                },
+                "group",
+            ));
+            for frame in &screen.frames {
+                let mut frame_notes = Vec::new();
+                let frame_hits = route_hits(
+                    std::slice::from_ref(frame),
+                    &screen.words,
+                    targets,
+                    evidence,
+                    &mut frame_notes,
+                );
+                let mut choices = Vec::new();
+                for hit in frame_hits.iter().filter(|hit| hit.kind != NAME_MATCH) {
+                    choices.push(route_choice(
+                        &hit.route,
+                        &format!("From {}.", hit.detail),
+                        json!({}),
+                    ));
+                }
+                for hit in frame_hits.iter().filter(|hit| hit.kind == NAME_MATCH) {
+                    choices.push(route_choice(
+                        &hit.route,
+                        "Inferred from the layer name; only one frame can take it.",
+                        json!({}),
+                    ));
+                }
+                let section_slug = frame
+                    .section_name
+                    .as_deref()
+                    .map(|section| slug(&base_words(section)))
+                    .unwrap_or_default();
+                if !section_slug.is_empty() && !screen_slug.is_empty() {
+                    choices.push(route_choice(
+                        &format!("/{section_slug}/{screen_slug}"),
+                        "Named after its Figma section and layer.",
+                        json!({}),
+                    ));
+                }
+                for (_, route) in unclaimed_for(&screen.words, &candidates)
+                    .iter()
+                    .filter(|(score, _)| *score > 0)
+                {
+                    choices.push(route_choice(
+                        route,
+                        "Existing route with a similar name.",
+                        json!({}),
+                    ));
+                }
+                choices.truncate(MAX_OPTIONS - 1);
+                choices.push(choice(
+                    SKIP,
+                    "Leave this frame out of this build.",
+                    json!({"skip": true}),
+                ));
+                if choices.len() < 2 {
+                    choices.push(choice(
+                        NOT_A_PAGE,
+                        "It is a section or state of another screen; it gets no URL.",
+                        json!({"notPage": true}),
+                    ));
+                }
+                let mut asked = question(
+                    format!("split-route:{}", frame.node_id),
+                    header("Route", &format!("{} {}", frame.name, frame.width.round())),
+                    format!(
+                        "As a separate page, which URL should \"{}\" ({}, {}px) be served at?",
+                        frame.name,
+                        frame.node_id,
+                        frame.width.round()
+                    ),
+                    choices,
+                    "route",
+                );
+                asked["when"] = json!([when(&group_id, SEPARATE, json!({"group": "separate"}))]);
+                questions.push(asked);
+            }
+        }
+        let route_evidence = match proposed {
+            Some((_, kind)) if *kind == NAME_MATCH => json!(NAME_MATCH),
+            Some(_) => json!(
+                hits.iter()
+                    .map(|hit| hit.detail.clone())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
+            None => json!("UNVERIFIED"),
         };
         if modal {
             decisions.push("modal-or-route");
@@ -779,14 +1236,21 @@ pub(super) fn draft_plan(
                 .collect::<Vec<_>>();
             let own_route = proposed
                 .as_ref()
-                .map(|route| route_choice(route, "Its own URL, from route evidence."))
+                .map(|(route, _)| route_choice(route, "A page with its own URL.", json!({})))
                 .or_else(|| {
-                    new_route
-                        .as_ref()
-                        .map(|route| route_choice(route, "Its own URL, named after the layer."))
+                    new_route.as_ref().map(|route| {
+                        route_choice(
+                            route,
+                            "A page with its own URL, named after the layer.",
+                            json!({}),
+                        )
+                    })
                 });
             let mut choices = Vec::new();
-            if proposed.is_some() {
+            if proposed
+                .as_ref()
+                .is_some_and(|(_, kind)| *kind != NAME_MATCH)
+            {
                 choices.extend(own_route);
                 choices.extend(state_choices);
             } else {
@@ -798,15 +1262,70 @@ pub(super) fn draft_plan(
                 "Leave it out of this build.",
                 json!({"skip": true}),
             ));
-            questions.push(question(
-                format!("modal:{id}"),
-                header("Modal", &name),
-                format!(
-                    "\"{name}\" ({id}) looks like a modal or overlay. Is it a state of another screen, or a page with its own URL?"
+            let why = if kind_evidence == NAME_MATCH {
+                "Its layer name suggests a modal or overlay (name-match)"
+            } else {
+                "Its layer name matches the project's modalKeywords"
+            };
+            push(
+                &mut questions,
+                question(
+                    format!("modal:{id}"),
+                    header("Modal", &name),
+                    format!(
+                        "\"{name}\" ({id}): {why}. Is it a state of another screen, or a page with its own URL?"
+                    ),
+                    choices,
+                    "modal",
                 ),
-                choices,
-                "modal",
+                &[],
+            );
+            if kind_evidence == NAME_MATCH {
+                heuristics.push(json!({"screen": id, "name": name, "decision": "kind: modal", "evidence": NAME_MATCH, "askedIn": format!("modal:{id}")}));
+            }
+        } else if let Some((route, NAME_MATCH)) = proposed {
+            decisions.push("route-from-name-match");
+            heuristics.push(json!({"screen": id, "name": name, "decision": format!("route: {route}"), "evidence": NAME_MATCH, "askedIn": format!("review:{id}")}));
+            let mut choices = vec![
+                route_choice(
+                    route,
+                    "Keep the inferred route.",
+                    json!({"collision": "merge"}),
+                ),
+                choice(
+                    format!("Overwrite {route}"),
+                    "Keep the inferred route, but replace the existing page file outright.",
+                    json!({"route": route, "collision": "overwrite"}),
+                ),
+            ];
+            if let Some(alternative) = new_route
+                .as_ref()
+                .filter(|candidate| *candidate != route && !claimed.contains(*candidate))
+            {
+                choices.push(route_choice(
+                    alternative,
+                    "Named after the layer.",
+                    json!({}),
+                ));
+            }
+            choices.push(choice(
+                SKIP,
+                "Leave it out of this build.",
+                json!({"skip": true}),
             ));
+            push(
+                &mut questions,
+                question(
+                    format!("review:{id}"),
+                    header("Check route", &name),
+                    format!(
+                        "\"{name}\" ({id}) was matched to {route} by its layer name only. Keep it?"
+                    ),
+                    choices,
+                    "route",
+                ),
+                &[when("heuristics", REVIEW, json!({"heuristics": "review"}))],
+            );
         } else if proposed.is_none() {
             decisions.push(if candidates.len() > 1 {
                 "conflicting-route-evidence"
@@ -815,18 +1334,28 @@ pub(super) fn draft_plan(
             });
             let mut choices = Vec::new();
             for route in &candidates {
-                choices.push(route_choice(route, "Named by conflicting evidence."));
+                choices.push(route_choice(
+                    route,
+                    "Named by conflicting evidence.",
+                    json!({}),
+                ));
             }
-            for (_, route, _) in unclaimed.iter().filter(|(score, _, _)| *score > 0) {
-                choices.push(route_choice(route, "Existing route with a similar name."));
+            let unclaimed = unclaimed_for(&screen.words, &candidates);
+            for (_, route) in unclaimed.iter().filter(|(score, _)| *score > 0) {
+                choices.push(route_choice(
+                    route,
+                    "Existing route with a similar name.",
+                    json!({}),
+                ));
             }
             if let Some(route) = new_route.as_ref().filter(|route| !claimed.contains(*route)) {
-                choices.push(route_choice(route, "Named after the layer."));
+                choices.push(route_choice(route, "Named after the layer.", json!({})));
             }
-            for (_, route, _) in unclaimed.iter().filter(|(score, _, _)| *score == 0).take(1) {
+            for (_, route) in unclaimed.iter().filter(|(score, _)| *score == 0).take(1) {
                 choices.push(route_choice(
                     route,
                     "Existing route not claimed by another screen.",
+                    json!({}),
                 ));
             }
             choices.truncate(MAX_OPTIONS - 1);
@@ -848,79 +1377,93 @@ pub(super) fn draft_plan(
                     candidates.iter().cloned().collect::<Vec<_>>().join(", ")
                 )
             } else {
-                "No existing route, nav link or navigationTargets entry names it.".to_owned()
+                "No existing page, nav link, navigationTargets entry or routeAliases entry names it."
+                    .to_owned()
             };
-            questions.push(question(
-                format!("route:{id}"),
-                header("Route", &name),
-                format!(
-                    "Which URL should the Figma screen \"{name}\" ({id}, drawn at {}) be served at? {reason}",
-                    widths.iter().map(u32::to_string).collect::<Vec<_>>().join("/")
+            push(
+                &mut questions,
+                question(
+                    format!("route:{id}"),
+                    header("Route", &name),
+                    format!(
+                        "Which URL should the Figma screen \"{name}\" ({id}, drawn at {}) be served at? {reason}",
+                        width_list(&widths)
+                    ),
+                    choices,
+                    "route",
                 ),
-                choices,
-                "route",
-            ));
+                &[],
+            );
         }
-        let existing = proposed
-            .as_deref()
-            .and_then(|route| existing_page(route, evidence));
-        if !modal && let (Some(route), Some(page)) = (proposed, existing) {
+        let route = proposed.as_ref().map(|(route, _)| route.as_str());
+        let existing = route.and_then(|route| existing_page(route, evidence));
+        let name_matched = proposed
+            .as_ref()
+            .is_some_and(|(_, kind)| *kind == NAME_MATCH);
+        if !modal
+            && !name_matched
+            && let (Some(route), Some(page)) = (route, existing)
+        {
             decisions.push("collides-with-existing-page");
-            questions.push(question(
-                format!("collision:{id}"),
-                header("Existing page", route),
-                format!(
-                    "{route} already has a page ({page}). What should building \"{name}\" ({id}) do to it?"
+            push(
+                &mut questions,
+                question(
+                    format!("collision:{id}"),
+                    header("Existing page", route),
+                    format!(
+                        "{route} already has a page ({page}). What should building \"{name}\" ({id}) do to it?"
+                    ),
+                    vec![
+                        choice(
+                            "Merge into the existing page",
+                            "Keep the page file and its data wiring; replace its markup with the screen.",
+                            json!({"collision": "merge"}),
+                        ),
+                        choice(
+                            "Overwrite the existing page",
+                            "Replace the page file outright; existing wiring is lost.",
+                            json!({"collision": "overwrite"}),
+                        ),
+                        choice(
+                            SKIP,
+                            "Leave the existing page as it is.",
+                            json!({"collision": "skip"}),
+                        ),
+                    ],
+                    "collision",
                 ),
-                vec![
-                    choice(
-                        "Merge into the existing page",
-                        "Keep the page file and its data wiring; replace its markup with the screen.",
-                        json!({"collision": "merge"}),
-                    ),
-                    choice(
-                        "Overwrite the existing page",
-                        "Replace the page file outright; existing wiring is lost.",
-                        json!({"collision": "overwrite"}),
-                    ),
-                    choice(SKIP, "Leave the existing page as it is.", json!({"collision": "skip"})),
-                ],
-                "collision",
-            ));
+                &[],
+            );
         }
-        if let Some(route) = proposed.as_ref().filter(|route| route.contains('[')) {
+        if let Some(route) = route.filter(|route| route.contains('[')) {
             decisions.push("dynamic-segment");
-            questions.push(question(
-                format!("dynamic:{id}"),
-                header("Dynamic route", route),
-                format!(
-                    "{route} has a dynamic segment. Where does \"{name}\" get the record it shows?"
+            push(
+                &mut questions,
+                question(
+                    format!("dynamic:{id}"),
+                    header("Dynamic route", route),
+                    format!(
+                        "{route} has a dynamic segment. Where does \"{name}\" get the record it shows?"
+                    ),
+                    vec![
+                        choice(
+                            "Sample data from the design",
+                            "Render the Figma content as fixture data for one id; wire real data later.",
+                            json!({"data": "sample"}),
+                        ),
+                        choice(
+                            "Wire to the API now",
+                            "Fetch the record by the segment value; needs the endpoint from devup_project_context scope api.",
+                            json!({"data": "api"}),
+                        ),
+                    ],
+                    "dynamic",
                 ),
-                vec![
-                    choice(
-                        "Sample data from the design",
-                        "Render the Figma content as fixture data for one id; wire real data later.",
-                        json!({"data": "sample"}),
-                    ),
-                    choice(
-                        "Wire to the API now",
-                        "Fetch the record by the segment value; needs the endpoint from devup_project_context scope api.",
-                        json!({"data": "api"}),
-                    ),
-                ],
-                "dynamic",
-            ));
+                &[],
+            );
         }
         if widths.len() > 1 {
             decisions.push("several-widths");
-            grouped.push(format!(
-                "{name} ({})",
-                widths
-                    .iter()
-                    .map(u32::to_string)
-                    .collect::<Vec<_>>()
-                    .join("/")
-            ));
         }
         let mut links = Vec::new();
         for (link_index, link) in screen.links.iter().enumerate() {
@@ -991,39 +1534,53 @@ pub(super) fn draft_plan(
             "id": id,
             "name": name,
             "kind": if modal { "modal" } else { "page" },
-            "frames": screen.frames.iter().map(|frame| json!({"nodeId": frame.node_id, "name": frame.name, "width": frame.width, "height": frame.height})).collect::<Vec<_>>(),
+            "kindEvidence": if modal { json!(kind_evidence) } else { Value::Null },
+            "frames": screen.frames.iter().map(Frame::json).collect::<Vec<_>>(),
             "drawnWidths": widths,
-            "proposedRoute": proposed,
-            "routeEvidence": if proposed.is_some() { json!(found.iter().map(|(_, why)| why.clone()).collect::<Vec<_>>().join("; ")) } else { json!("UNVERIFIED") },
+            "grouping": match &screen.grouping {
+                Grouping::Fixed(evidence) => json!({"mode": "decided", "evidence": evidence}),
+                Grouping::Ask { recommend_single, reason } => json!({"mode": "ask", "question": group_id,
+                    "recommended": if *recommend_single { "single" } else { "separate" }, "reason": reason}),
+            },
+            "proposedRoute": route,
+            "routeEvidence": route_evidence,
             "routeCandidates": candidates,
             "existingFile": existing,
             "sharedParts": shared,
             "links": links,
             "openDecisions": decisions,
-            "notes": evidence_notes,
+            "notes": screen_notes[index],
         }));
     }
-    if !grouped.is_empty() {
+    let route_heuristics = heuristics
+        .iter()
+        .filter(|item| text(&item["askedIn"]).starts_with("review:"))
+        .collect::<Vec<_>>();
+    if !route_heuristics.is_empty() {
+        let listed = route_heuristics
+            .iter()
+            .map(|item| format!("{} -> {}", text(&item["name"]), text(&item["decision"])))
+            .collect::<Vec<_>>()
+            .join(", ");
         questions.push(question(
-            "responsive".into(),
-            "Widths: one URL or several".into(),
+            "heuristics".into(),
+            "Inferred from layer names".into(),
             format!(
-                "These screens are drawn at several widths: {}. Should each be one responsive route, or a separate route per width?",
-                grouped.join(", ")
+                "These were inferred from layer names only: {listed}. Accept all (merged into the existing pages), or review each one?"
             ),
             vec![
                 choice(
-                    "One responsive route",
-                    "Each screen keeps one URL; its widths become devup-ui responsive arrays (responsiveTsx).",
-                    json!({"responsive": "single"}),
+                    ACCEPT_ALL,
+                    "Use every inferred route; existing pages are merged into, not overwritten.",
+                    json!({"heuristics": "accept"}),
                 ),
                 choice(
-                    "Separate route per width",
-                    "The widest frame keeps the URL; each narrower width gets <route>/<width>.",
-                    json!({"responsive": "separate"}),
+                    REVIEW,
+                    "Ask one question per inferred route, in the next round.",
+                    json!({"heuristics": "review"}),
                 ),
             ],
-            "responsive",
+            "heuristics",
         ));
     }
     for (part, owners) in part_screens.iter().filter(|(part, owners)| {
@@ -1069,11 +1626,56 @@ pub(super) fn draft_plan(
         "notes": notes,
         "appDir": evidence.app_dir,
         "inventoryNote": evidence.inventory_note,
+        "config": evidence.config_file,
         "screens": body["screens"],
+        "heuristics": heuristics,
         "questions": body["questions"],
         "answers": {},
         "routes": [],
+        "assumptions": [],
     }))
+}
+
+/// How deep a question sits behind the answers it depends on. A question is
+/// asked in a round after every question it depends on.
+fn depth(question: &Value, questions: &[Value]) -> usize {
+    array(&question["when"])
+        .iter()
+        .filter_map(|condition| {
+            questions
+                .iter()
+                .find(|other| other["id"] == condition["question"])
+        })
+        .map(|parent| depth(parent, questions) + 1)
+        .max()
+        .unwrap_or(0)
+}
+
+/// The questions split into rounds a question tool takes in one call each:
+/// at most four questions of at most four options, every question exactly
+/// once, and a conditional question always in a later round than the one it
+/// depends on.
+pub(super) fn question_rounds(questions: &[Value]) -> Vec<Value> {
+    let mut by_depth = BTreeMap::<usize, Vec<&Value>>::new();
+    for question in questions {
+        by_depth
+            .entry(depth(question, questions))
+            .or_default()
+            .push(question);
+    }
+    let mut rounds = Vec::new();
+    for level in by_depth.values() {
+        for chunk in level.chunks(MAX_QUESTIONS_PER_ROUND) {
+            let shaped = ask_shape(
+                &chunk
+                    .iter()
+                    .map(|question| (*question).clone())
+                    .collect::<Vec<_>>(),
+            );
+            rounds.push(json!({"round": rounds.len() + 1, "questions": shaped}));
+        }
+    }
+    rounds
 }
 
 fn plan_path(project_root: &str, relative: &str) -> String {
@@ -1167,6 +1769,7 @@ pub(super) async fn draft(
         .map(|previous| previous["planId"].clone());
     let written = write_plan(policy, root, &plan)?;
     let questions = ask_shape(array(&plan["questions"]));
+    let rounds = question_rounds(array(&plan["questions"]));
     let unverified = array(&plan["screens"])
         .iter()
         .filter(|screen| screen["routeEvidence"] == "UNVERIFIED")
@@ -1175,9 +1778,12 @@ pub(super) async fn draft(
         "status": "draft",
         "planId": plan["planId"],
         "screens": screen_table(&plan),
+        "questionRounds": rounds,
         "questions": questions,
         "questionCount": questions.len(),
         "askInstruction": ASK_INSTRUCTION,
+        "heuristics": plan["heuristics"],
+        "config": plan["config"],
         "unverifiedRoutes": unverified,
         "inventoryNote": plan["inventoryNote"],
         "writtenTo": written,
@@ -1186,7 +1792,7 @@ pub(super) async fn draft(
             json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": {}},
                 "how": "Nothing is open. Show the user the screens table, then confirm with empty answers."})
         } else {
-            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": "<question id -> chosen label>"},
+            json!({"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"], "answers": "<question id -> chosen label, for every question that applies>"},
                 "how": ASK_INSTRUCTION})
         },
     }))
@@ -1218,15 +1824,40 @@ fn resolve_answer(
     {
         return Ok((found["action"].clone(), None));
     }
+    let route_of = |value: &str| normalize_route(value).filter(|route| valid_route(route));
     match text(&question["kind"]) {
-        "route" | "modal" => normalize_route(label)
-            .filter(|route| valid_route(route))
+        "route" | "modal" => route_of(label)
             .map(|route| (json!({"route": route}), Some(label.to_owned())))
             .ok_or_else(|| {
                 invalid(format!(
                     "{id}: a custom answer must be an app route such as /about, not {label:?}."
                 ))
             }),
+        // One route is one page at that URL; one route per frame, in frame
+        // order, is separate pages at those URLs.
+        "group" => {
+            let routes = label
+                .split([',', ';', '\n'])
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+                .map(|part| route_of(part.rsplit('=').next().unwrap_or(part).trim()))
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "{id}: a custom answer must be one route, or one route per frame such as \"/a, /b\"; not {label:?}."
+                    ))
+                })?;
+            match routes.as_slice() {
+                [route] => Ok((
+                    json!({"group": "single", "route": route}),
+                    Some(label.to_owned()),
+                )),
+                _ => Ok((
+                    json!({"group": "separate", "routes": routes}),
+                    Some(label.to_owned()),
+                )),
+            }
+        }
         "link" => Ok((
             json!({"link": normalize_route(label)}),
             Some(label.to_owned()),
@@ -1241,7 +1872,15 @@ fn resolve_answer(
     }
 }
 
-/// `confirm`: every question answered, in one call, or nothing changes.
+/// Whether a question has to be answered, given the answers before it.
+fn required(question: &Value, actions: &BTreeMap<String, Value>) -> bool {
+    array(&question["when"])
+        .iter()
+        .all(|condition| actions.get(text(&condition["question"])) == Some(&condition["action"]))
+}
+
+/// `confirm`: every question that applies answered, in one call, or nothing
+/// changes.
 pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
     let root = require_root(input)?;
     let mut plan = read_plan(root)?.ok_or_else(|| {
@@ -1259,27 +1898,47 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             json!({"planId": plan_id, "currentPlanId": plan["planId"]}),
         ));
     }
-    let questions = array(&plan["questions"]).to_vec();
+    let mut questions = array(&plan["questions"]).to_vec();
+    let ordered = questions.clone();
+    questions.sort_by_key(|question| depth(question, &ordered));
     let known = questions
         .iter()
         .map(|question| text(&question["id"]).to_owned())
         .collect::<BTreeSet<_>>();
-    let missing = known
-        .iter()
-        .filter(|id| !input.answers.contains_key(*id))
-        .cloned()
-        .collect::<Vec<_>>();
     let unknown = input
         .answers
         .keys()
         .filter(|id| !known.contains(*id))
         .cloned()
         .collect::<Vec<_>>();
+    let mut actions = BTreeMap::new();
+    let mut custom = Vec::new();
+    let mut missing = Vec::new();
+    for question in &questions {
+        let id = text(&question["id"]).to_owned();
+        if !required(question, &actions) {
+            continue;
+        }
+        let Some(answer) = input.answers.get(&id) else {
+            missing.push(id);
+            continue;
+        };
+        let (action, note) = resolve_answer(question, answer)?;
+        if let Some(note) = note {
+            custom.push(json!({"question": id, "answer": note}));
+        }
+        actions.insert(id, action);
+    }
     if !missing.is_empty() || !unknown.is_empty() {
+        let pending = questions
+            .iter()
+            .filter(|question| missing.iter().any(|id| question["id"] == id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
         return Err(DevupError::with_details(
             ErrorCode::DevupInvalidInput,
             format!(
-                "confirm needs an answer to every question in one call. Missing: {}.",
+                "confirm needs an answer to every question that applies. Missing: {}.",
                 if missing.is_empty() {
                     "none".to_owned()
                 } else {
@@ -1288,105 +1947,101 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             ),
             false,
             json!({"missing": missing, "unknown": unknown, "askInstruction": ASK_INSTRUCTION,
-                "questions": ask_shape(&questions).into_iter().filter(|question| missing.iter().any(|id| question["id"] == id.as_str())).collect::<Vec<_>>()}),
+                "questionRounds": question_rounds(&pending)}),
         ));
     }
-    let mut actions = BTreeMap::new();
-    let mut custom = Vec::new();
-    for question in &questions {
-        let id = text(&question["id"]).to_owned();
-        let (action, note) = resolve_answer(question, &input.answers[&id])?;
-        if let Some(note) = note {
-            custom.push(json!({"question": id, "answer": note}));
-        }
-        actions.insert(id, action);
-    }
-    let separate = actions
-        .get("responsive")
-        .is_some_and(|action| action["responsive"] == "separate");
+    let accepted = actions
+        .get("heuristics")
+        .is_none_or(|action| action["heuristics"] == "accept");
     let app_dir = text(&plan["appDir"]).to_owned();
     let mut routes = Vec::new();
     let mut screen_routes = BTreeMap::new();
     let screens = array(&plan["screens"]).to_vec();
     for screen in &screens {
         let id = text(&screen["id"]).to_owned();
-        let placed = actions
-            .get(&format!("route:{id}"))
-            .or_else(|| actions.get(&format!("modal:{id}")));
-        let (implementation, route, host) = match placed {
-            Some(action) if action["skip"] == true => ("skip", None, None),
-            Some(action) if action["notPage"] == true => ("not-a-page", None, None),
-            Some(action) if action["state"].is_string() => {
-                ("state", None, Some(text(&action["state"]).to_owned()))
-            }
-            Some(action) => ("page", action["route"].as_str().map(str::to_owned), None),
-            None => (
-                "page",
-                screen["proposedRoute"].as_str().map(str::to_owned),
-                None,
-            ),
-        };
-        let collision = actions
-            .get(&format!("collision:{id}"))
-            .map(|action| text(&action["collision"]).to_owned());
-        let (implementation, route) = match collision.as_deref() {
-            Some("skip") => ("skip", None),
-            _ => (implementation, route),
-        };
-        if implementation == "page" && route.is_none() {
-            return Err(invalid(format!(
-                "{id} has no route after the answers; answer route:{id} with a route."
-            )));
-        }
+        let frames = array(&screen["frames"]).to_vec();
+        let group = actions.get(&format!("group:{id}"));
+        let separate = group.is_some_and(|action| action["group"] == "separate");
         let data = actions
             .get(&format!("dynamic:{id}"))
             .map(|action| action["data"].clone());
-        let frames = array(&screen["frames"]).to_vec();
-        let split = separate && implementation == "page" && frames.len() > 1;
-        let groups = if split {
-            frames
-                .iter()
-                .map(|frame| vec![frame.clone()])
-                .collect::<Vec<_>>()
+        // Each placement is (frames, implementation, route, host, collision).
+        let mut placements = Vec::new();
+        if separate {
+            let explicit = group.and_then(|action| action["routes"].as_array());
+            if explicit.is_some_and(|routes| routes.len() != frames.len()) {
+                return Err(invalid(format!(
+                    "group:{id}: list exactly one route per frame ({} frames).",
+                    frames.len()
+                )));
+            }
+            for (index, frame) in frames.iter().enumerate() {
+                let node = text(&frame["nodeId"]);
+                let action = explicit
+                    .map(|routes| json!({"route": routes[index]}))
+                    .or_else(|| actions.get(&format!("split-route:{node}")).cloned())
+                    .unwrap_or(Value::Null);
+                placements.push((vec![frame.clone()], action, None));
+            }
         } else {
-            vec![frames.clone()]
-        };
-        for (index, group) in groups.into_iter().enumerate() {
-            let url = route.as_ref().map(|route| {
-                if index == 0 {
-                    route.clone()
-                } else {
-                    format!(
-                        "{}/{}",
-                        route.trim_end_matches('/'),
-                        group[0]["width"]
-                            .as_f64()
-                            .map_or(0, |width| width.round() as i64)
-                    )
+            let placed = group
+                .filter(|action| action["route"].is_string())
+                .or_else(|| actions.get(&format!("route:{id}")))
+                .or_else(|| actions.get(&format!("modal:{id}")))
+                .or_else(|| actions.get(&format!("review:{id}")))
+                .cloned();
+            let action = match placed {
+                Some(action) => action,
+                None if screen["routeEvidence"] == NAME_MATCH && accepted => {
+                    json!({"route": screen["proposedRoute"], "collision": "merge", "acceptedHeuristic": true})
                 }
-            });
-            if let Some(url) = &url {
+                None => json!({"route": screen["proposedRoute"]}),
+            };
+            let collision = actions
+                .get(&format!("collision:{id}"))
+                .map(|action| text(&action["collision"]).to_owned());
+            placements.push((frames.clone(), action, collision));
+        }
+        for (group_frames, action, collision) in placements {
+            let collision = collision.or_else(|| action["collision"].as_str().map(str::to_owned));
+            let (implementation, route, host) =
+                if action["skip"] == true || collision.as_deref() == Some("skip") {
+                    ("skip", None, None)
+                } else if action["notPage"] == true {
+                    ("not-a-page", None, None)
+                } else if let Some(host) = action["state"].as_str() {
+                    ("state", None, Some(host.to_owned()))
+                } else {
+                    ("page", action["route"].as_str().map(str::to_owned), None)
+                };
+            let first = text(&group_frames[0]["nodeId"]).to_owned();
+            if implementation == "page" && route.is_none() {
+                return Err(invalid(format!(
+                    "{first} has no route after the answers; answer its route question with a route."
+                )));
+            }
+            if let Some(url) = &route {
                 screen_routes
                     .entry(id.clone())
                     .or_insert_with(|| url.clone());
             }
-            let existing = url.as_deref().and_then(|url| {
+            let existing = route.as_deref().and_then(|url| {
                 (screen["proposedRoute"] == url && !screen["existingFile"].is_null())
                     .then(|| screen["existingFile"].clone())
             });
             routes.push(json!({
-                "url": url,
-                "screen": id,
-                "name": screen["name"],
-                "nodeIds": group.iter().map(|frame| frame["nodeId"].clone()).collect::<Vec<_>>(),
-                "drawnWidths": group.iter().filter_map(|frame| frame["width"].as_f64()).map(|width| width.round() as i64).collect::<Vec<_>>(),
+                "url": route,
+                "screen": if separate { first.clone() } else { id.clone() },
+                "name": group_frames[0]["name"],
+                "nodeIds": group_frames.iter().map(|frame| frame["nodeId"].clone()).collect::<Vec<_>>(),
+                "drawnWidths": group_frames.iter().filter_map(|frame| frame["width"].as_f64()).map(|width| width.round() as i64).collect::<Vec<_>>(),
                 "implementation": implementation,
                 "hostScreen": host,
-                "file": existing.clone().unwrap_or_else(|| url.as_deref().map_or(Value::Null, |url| json!(planned_page(url, &app_dir)))),
+                "file": existing.clone().unwrap_or_else(|| route.as_deref().map_or(Value::Null, |url| json!(planned_page(url, &app_dir)))),
                 "fileExists": existing.is_some(),
                 "collisionPolicy": collision,
                 "data": data,
-                "routeEvidence": screen["routeEvidence"],
+                "routeEvidence": if action["acceptedHeuristic"] == true { json!("name-match (accepted)") } else { screen["routeEvidence"].clone() },
             }));
         }
     }
@@ -1427,6 +2082,7 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
     }
     plan["answers"] = json!(input.answers);
     plan["customAnswers"] = json!(custom);
+    plan["heuristicsAccepted"] = json!(accepted);
     plan["layout"] = json!(
         actions
             .iter()
@@ -1434,10 +2090,12 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             .map(|(id, action)| (id.clone(), action["layout"].clone()))
             .collect::<BTreeMap<_, _>>()
     );
-    plan["responsive"] = json!(if separate { "separate" } else { "single" });
     plan["routes"] = json!(routes);
     plan["status"] = json!("confirmed");
     plan["confirmedAt"] = json!(now());
+    if !plan["assumptions"].is_array() {
+        plan["assumptions"] = json!([]);
+    }
     let written = write_plan(policy, root, &plan)?;
     Ok(json!({
         "status": "confirmed",
@@ -1445,8 +2103,46 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         "routes": routes,
         "markdownTable": route_markdown(&routes),
         "customAnswers": custom,
+        "rule": IMPLEMENT_INSTRUCTION,
         "writtenTo": written,
-        "nextAction": {"how": "Implement URL by URL. devup_figma_export with projectRoot now takes each page's route from this plan; run devup_runtime_audit at every width, then devup_screen_plan action status."},
+        "nextAction": {"how": IMPLEMENT_INSTRUCTION},
+    }))
+}
+
+/// `assume`: what implementation decided without asking, appended to the
+/// confirmed plan so status and the final report carry it.
+pub(super) fn assume(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<Value, DevupError> {
+    let root = require_root(input)?;
+    let mut plan = read_plan(root)?.ok_or_else(|| {
+        invalid("No screen plan exists in this project; run devup_screen_plan action draft first.")
+    })?;
+    if plan["status"] != "confirmed" {
+        return Err(invalid(
+            "Assumptions belong to implementation, after confirm. Before confirm, put the decision to the user in the question rounds instead.",
+        ));
+    }
+    if input.assumptions.is_empty() {
+        return Err(invalid("action assume needs assumptions."));
+    }
+    let recorded_at = now();
+    let mut list = array(&plan["assumptions"]).to_vec();
+    for assumption in &input.assumptions {
+        if assumption.about.trim().is_empty() || assumption.decision.trim().is_empty() {
+            return Err(invalid("Every assumption needs about and decision."));
+        }
+        list.push(
+            json!({"about": assumption.about, "decision": assumption.decision,
+            "reason": assumption.reason, "recordedAt": recorded_at}),
+        );
+    }
+    plan["assumptions"] = json!(list);
+    let written = write_plan(policy, root, &plan)?;
+    Ok(json!({
+        "status": "confirmed",
+        "planId": plan["planId"],
+        "assumptions": plan["assumptions"],
+        "writtenTo": written,
+        "how": "Keep implementing. Every assumption appears in status and must be in your final report.",
     }))
 }
 
@@ -1557,6 +2253,21 @@ fn markdown(plan: &Value) -> String {
         out.push_str("\n## Confirmed routes\n\n");
         out.push_str(&route_markdown(routes));
     }
+    let assumptions = array(&plan["assumptions"]);
+    if !assumptions.is_empty() {
+        out.push_str("\n## Assumptions made during implementation\n\n");
+        for assumption in assumptions {
+            out.push_str(&format!(
+                "- {}: {}{}\n",
+                text(&assumption["about"]),
+                text(&assumption["decision"]),
+                assumption["reason"]
+                    .as_str()
+                    .map(|reason| format!(" ({reason})"))
+                    .unwrap_or_default()
+            ));
+        }
+    }
     out
 }
 
@@ -1590,6 +2301,7 @@ pub(super) async fn status(
         return Ok(json!({
             "status": "not-confirmed",
             "planId": plan["planId"],
+            "questionRounds": question_rounds(array(&plan["questions"])),
             "questions": ask_shape(array(&plan["questions"])),
             "askInstruction": ASK_INSTRUCTION,
             "nextAction": {"tool": "devup_screen_plan", "arguments": {"action": "confirm", "projectRoot": root, "planId": plan["planId"]}, "how": ASK_INSTRUCTION},
@@ -1756,6 +2468,14 @@ pub(super) fn status_report(
     if !audited {
         summary.push_str("; no runtime audit report, so every width is not-run");
     }
+    let assumptions = array(&plan["assumptions"]);
+    if !assumptions.is_empty() {
+        summary.push_str(&format!(
+            "; {} assumption{} made during implementation",
+            assumptions.len(),
+            if assumptions.len() == 1 { "" } else { "s" }
+        ));
+    }
     let mut table = String::from(
         "| URL | Figma screen | file | status | widths verified | screenshots |\n|---|---|---|---|---|---|\n",
     );
@@ -1810,7 +2530,22 @@ pub(super) fn status_report(
         "states": states,
         "widths": widths,
         "audit": audit.map(|audit| json!({"verdict": audit["verdict"], "planId": audit["planId"], "reason": audit["reason"]})),
-        "markdownTable": table,
+        "markdownTable": if assumptions.is_empty() {
+            table
+        } else {
+            format!(
+                "{table}
+Assumptions made during implementation:
+{}",
+                assumptions
+                    .iter()
+                    .map(|assumption| format!("- {}: {}", text(&assumption["about"]), text(&assumption["decision"])))
+                    .collect::<Vec<_>>()
+                    .join("
+    ")
+            )
+        },
+        "assumptions": assumptions,
         "inventoryNote": evidence.inventory_note,
         "rule": "A width without a runtime audit item is not-run, never pass. Implemented means an App Router page exists for the URL, not that it renders.",
     })
@@ -1858,7 +2593,7 @@ fn plan_required(request: &ExportRequest<'_>, reason: &str, details: Value) -> G
         "written": false,
         "planRequired": {"reason": reason, "details": details},
         "nextAction": {"tool": "devup_screen_plan", "arguments": arguments,
-            "how": "Draft the screen plan, ask every question in ONE question-tool call, confirm, then repeat this export. Nothing was collected or written."},
+            "how": "Draft the screen plan, ask every round of its questions back to back before implementing, confirm, then repeat this export. Nothing was collected or written."},
     }))
 }
 
@@ -1939,11 +2674,18 @@ pub(super) fn export_gate(request: &ExportRequest<'_>) -> Result<Gate, DevupErro
         if !gated {
             return Ok(Gate::Open);
         }
-        return Ok(plan_required(
-            request,
-            "The confirmed screen plan does not place these frames on a page.",
-            json!({"uncoveredFrames": uncovered, "planId": plan["planId"]}),
-        ));
+        // The plan is confirmed, so this is implementation: nobody is asked
+        // now. The conservative option is to leave the frame unbuilt.
+        return Ok(Gate::Blocked(json!({
+            "status": "plan_required",
+            "written": false,
+            "planRequired": {"reason": "The confirmed screen plan does not place these frames on a page.",
+                "details": {"uncoveredFrames": uncovered, "planId": plan["planId"]}},
+            "nextAction": {"tool": "devup_screen_plan",
+                "arguments": {"action": "assume", "projectRoot": request.project_root,
+                    "assumptions": [{"about": uncovered.join(", "), "decision": "Not built: outside the confirmed screen plan."}]},
+                "how": "Do not ask the user during implementation. Leave these frames unbuilt, record that with action assume, keep going, and list it in the final report."},
+        })));
     }
     let Some(requested) = request.scaffold_route else {
         return Ok(Gate::Open);

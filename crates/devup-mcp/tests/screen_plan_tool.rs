@@ -104,22 +104,42 @@ async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyho
     )
     .await?;
     assert!(!failed, "{draft}");
-    assert_eq!(
-        draft["askInstruction"],
-        "Ask all of these in ONE call to your question tool; do not ask in prose; do not implement before confirm."
+    let instruction = draft["askInstruction"].as_str().unwrap();
+    assert!(instruction.contains("before implementing"), "{instruction}");
+    assert!(
+        instruction.contains("After confirm never ask"),
+        "{instruction}"
     );
-    let ids = draft["questions"]
+    // Rounds go back to back before any work: what does not depend on an
+    // answer first, then what does.
+    let rounds = draft["questionRounds"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|question| question["id"].as_str().unwrap().to_owned())
+        .map(|round| {
+            round["questions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|question| question["id"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        })
         .collect::<Vec<_>>();
     assert_eq!(
-        ids,
-        ["collision:1:2", "collision:1:4", "route:1:5", "responsive"],
+        rounds,
+        [
+            vec!["group:1:2", "route:1:5", "heuristics"],
+            vec![
+                "split-route:1:2",
+                "split-route:1:3",
+                "review:1:2",
+                "review:1:4"
+            ],
+        ],
         "{draft}"
     );
     assert_eq!(draft["screens"][0]["proposedRoute"], "/");
+    assert_eq!(draft["screens"][0]["routeEvidence"], "name-match");
     assert_eq!(draft["screens"][0]["drawnWidths"], json!([1440, 390]));
     assert_eq!(draft["screens"][2]["routeEvidence"], "UNVERIFIED");
     let plan_id = draft["planId"].as_str().unwrap().to_owned();
@@ -134,9 +154,10 @@ async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyho
     assert!(failed);
     let refusal = refused.to_string();
     assert!(
-        refusal.contains("collision:1:4") && refusal.contains("responsive"),
+        refusal.contains("group:1:2") && refusal.contains("heuristics"),
         "{refusal}"
     );
+    assert!(!refusal.contains("split-route"), "{refusal}");
 
     let (failed, gated) = call(
         &root,
@@ -154,9 +175,8 @@ async fn draft_asks_everything_at_once_and_confirm_needs_every_answer() -> anyho
         "devup_screen_plan",
         json!({"action": "confirm", "projectRoot": root_text, "planId": plan_id,
             "answers": {"route:1:5": "/pricing (Recommended)",
-                "collision:1:2": "Merge into the existing page (Recommended)",
-                "collision:1:4": "Merge into the existing page (Recommended)",
-                "responsive": "One responsive route (Recommended)"}}),
+                "group:1:2": "One responsive page (Recommended)",
+                "heuristics": "Accept all (Recommended)"}}),
     )
     .await?;
     assert!(!failed, "{confirmed}");

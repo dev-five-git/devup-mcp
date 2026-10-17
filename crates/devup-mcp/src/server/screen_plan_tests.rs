@@ -79,8 +79,27 @@ fn evidence() -> ProjectEvidence {
         )],
         layout_parts: vec!["Header".into()],
         app_dir: "src/app".into(),
-        inventory_note: None,
+        ..ProjectEvidence::default()
     }
+}
+
+fn sectioned(node_id: &str, name: &str, width: f64, section: &str) -> PlanScreenInput {
+    PlanScreenInput {
+        section: Some(format!("section-{section}")),
+        section_name: Some(section.into()),
+        ..screen(node_id, name, width)
+    }
+}
+
+fn find<'a>(plan: &'a Value, id: &str) -> &'a Value {
+    array(&plan["questions"])
+        .iter()
+        .find(|question| question["id"] == id)
+        .unwrap_or_else(|| panic!("{id} is asked: {}", plan["questions"]))
+}
+
+fn first_label(question: &Value) -> &str {
+    text(&question["options"][0]["label"])
 }
 
 fn question_ids(plan: &Value) -> Vec<String> {
@@ -148,7 +167,17 @@ fn an_evidence_backed_route_is_proposed_without_a_route_question() {
     assert_eq!(rows[1]["proposedRoute"], "/company");
     assert!(text(&rows[1]["routeEvidence"]).starts_with("nav-label"));
     assert_eq!(rows[2]["proposedRoute"], "/");
+    // Home -> / is a guess from the layer name, so it is shown and put to
+    // the user in one compact question rather than decided silently.
+    assert_eq!(rows[2]["routeEvidence"], NAME_MATCH);
+    assert_eq!(plan["heuristics"][0]["screen"], "2:3");
     let ids = question_ids(&plan);
+    assert!(ids.contains(&"heuristics".to_owned()), "{ids:?}");
+    assert!(ids.contains(&"review:2:3".to_owned()), "{ids:?}");
+    assert_eq!(
+        first_label(find(&plan, "heuristics")),
+        "Accept all (Recommended)"
+    );
     assert!(
         !ids.iter()
             .any(|id| id == "route:2:1" || id.ends_with(":2:1")),
@@ -184,7 +213,7 @@ fn two_screens_on_one_evidence_route_are_both_asked() {
 }
 
 #[test]
-fn widths_of_one_screen_are_grouped_and_modals_asked_as_state_or_route() {
+fn widths_in_one_section_recommend_one_page_and_modals_are_asked() {
     let plan = draft_plan(
         &[
             screen("4:1", "Main - 1440", 1440.0),
@@ -201,13 +230,19 @@ fn widths_of_one_screen_are_grouped_and_modals_asked_as_state_or_route() {
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["drawnWidths"], json!([1440, 390]));
     assert_eq!(rows[0]["proposedRoute"], "/");
-    let ids = question_ids(&plan);
-    assert!(ids.contains(&"responsive".to_owned()));
-    let modal = array(&plan["questions"])
-        .iter()
-        .find(|question| question["id"] == "modal:4:3")
-        .expect("a modal is asked");
-    assert!(text(&modal["options"][0]["label"]).starts_with("State on Main"));
+    assert_eq!(rows[0]["grouping"]["recommended"], "single");
+    let group = find(&plan, "group:4:1");
+    assert_eq!(first_label(group), "One responsive page (Recommended)");
+    // Separate pages need their own routes, asked in the same up-front batch
+    // and only if separate is chosen. No URL is made up for the 390 frame.
+    let split = find(&plan, "split-route:4:2");
+    assert_eq!(split["when"][0]["question"], "group:4:1");
+    assert_eq!(split["when"][0]["answer"], "Separate pages");
+    assert!(!plan.to_string().contains("/390"));
+    let modal = find(&plan, "modal:4:3");
+    assert!(first_label(modal).starts_with("State on Main"));
+    assert_eq!(rows[1]["kindEvidence"], NAME_MATCH);
+    assert!(text(&modal["question"]).contains("name-match"));
 }
 
 /// Every question must be accepted as-is by a structured question tool.
@@ -222,7 +257,10 @@ fn every_question_has_the_question_tool_shape() {
     linked.parts = vec!["Footer".into()];
     let mut other = screen("5:2", "News", 1440.0);
     other.parts = vec!["Footer".into()];
-    let targets = BTreeMap::from([("5:3".to_owned(), "/news/[id]".to_owned())]);
+    let targets = BTreeMap::from([
+        ("5:3".to_owned(), "/news/[id]".to_owned()),
+        ("5:7".to_owned(), "/".to_owned()),
+    ]);
     let plan = draft_plan(
         &[
             linked,
@@ -231,6 +269,7 @@ fn every_question_has_the_question_tool_shape() {
             screen("5:4", "공지 팝업", 400.0),
             screen("5:5", "Company - 1440", 1440.0),
             screen("5:6", "Company - 390", 390.0),
+            screen("5:7", "Landing", 1440.0),
         ],
         &targets,
         &evidence(),
@@ -250,7 +289,10 @@ fn every_question_has_the_question_tool_shape() {
         "layout:",
         "dynamic:",
         "modal:",
-        "responsive",
+        "group:",
+        "split-route:",
+        "heuristics",
+        "review:",
         "collision:",
     ] {
         assert!(
@@ -287,7 +329,162 @@ fn every_question_has_the_question_tool_shape() {
                 .iter()
                 .all(|option| !text(&option["description"]).is_empty())
         );
+        for condition in array(&question["when"]) {
+            assert!(condition.get("action").is_none(), "{question}");
+            assert!(ids.contains(text(&condition["question"])), "{question}");
+        }
     }
+    assert_rounds_cover(&plan);
+}
+
+/// Every question in exactly one round, rounds within the tool's limits, and
+/// a conditional question always after the question it depends on.
+fn assert_rounds_cover(plan: &Value) {
+    let questions = array(&plan["questions"]);
+    let rounds = question_rounds(questions);
+    let mut seen = Vec::new();
+    let mut round_of = BTreeMap::new();
+    for (index, round) in rounds.iter().enumerate() {
+        assert_eq!(round["round"], index + 1);
+        let asked = array(&round["questions"]);
+        assert!(
+            (1..=MAX_QUESTIONS_PER_ROUND).contains(&asked.len()),
+            "{round}"
+        );
+        for question in asked {
+            assert!(array(&question["options"]).len() <= MAX_OPTIONS);
+            let id = text(&question["id"]).to_owned();
+            round_of.insert(id.clone(), index);
+            seen.push(id);
+        }
+    }
+    let mut expected = questions
+        .iter()
+        .map(|question| text(&question["id"]).to_owned())
+        .collect::<Vec<_>>();
+    let mut got = seen.clone();
+    expected.sort();
+    got.sort();
+    assert_eq!(got, expected, "every question exactly once");
+    for question in questions {
+        for condition in array(&question["when"]) {
+            assert!(
+                round_of[text(&condition["question"])] < round_of[text(&question["id"])],
+                "{} must come after {}",
+                question["id"],
+                condition["question"]
+            );
+        }
+    }
+}
+
+#[test]
+fn rounds_split_many_questions_into_fours() {
+    let screens = (0..11)
+        .map(|index| screen(&format!("8:{index}"), &format!("Page{index}"), 1440.0))
+        .collect::<Vec<_>>();
+    let plan = draft_plan(&screens, &BTreeMap::new(), &evidence(), json!({}), None).unwrap();
+    let rounds = question_rounds(array(&plan["questions"]));
+    assert_eq!(rounds.len(), 3);
+    assert_rounds_cover(&plan);
+}
+
+/// Designers differ: the same name in two sections is recommended as two
+/// pages, and in sections named only for devices as one.
+#[test]
+fn sections_drive_the_recommendation_for_each_group() {
+    let plan = draft_plan(
+        &[
+            sectioned("9:1", "About", 1440.0, "Company"),
+            sectioned("9:2", "About", 390.0, "Recruit"),
+            sectioned("9:3", "Pricing", 1440.0, "PC"),
+            sectioned("9:4", "Pricing", 390.0, "Mobile"),
+        ],
+        &BTreeMap::new(),
+        &evidence(),
+        json!({}),
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        first_label(find(&plan, "group:9:1")),
+        "Separate pages (Recommended)"
+    );
+    assert_eq!(
+        first_label(find(&plan, "group:9:3")),
+        "One responsive page (Recommended)"
+    );
+    let split = find(&plan, "split-route:9:2");
+    assert!(
+        array(&split["options"])
+            .iter()
+            .any(|option| text(&option["label"]).starts_with("/recruit/about")),
+        "{split}"
+    );
+    assert_rounds_cover(&plan);
+}
+
+#[test]
+fn project_config_counts_as_evidence_and_suppresses_its_questions() {
+    let mut evidence = evidence();
+    evidence.config = PlanConfig {
+        modal_keywords: Some(vec!["sheet".into()]),
+        route_aliases: BTreeMap::from([("요금제".to_owned(), "/pricing".to_owned())]),
+        width_grouping: Some("responsive".into()),
+    };
+    let plan = draft_plan(
+        &[
+            screen("10:1", "요금제 - 1440", 1440.0),
+            screen("10:2", "요금제 - 390", 390.0),
+            screen("10:3", "Share sheet", 400.0),
+            screen("10:4", "Login popup", 400.0),
+        ],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    let rows = array(&plan["screens"]);
+    assert_eq!(rows[0]["drawnWidths"], json!([1440, 390]));
+    assert_eq!(rows[0]["grouping"]["evidence"], "config:widthGrouping");
+    assert_eq!(rows[0]["proposedRoute"], "/pricing");
+    assert!(text(&rows[0]["routeEvidence"]).contains("routeAliases"));
+    assert_eq!(rows[1]["kind"], "modal");
+    assert_eq!(rows[1]["kindEvidence"], "config");
+    // The project's keywords replace the built-in ones.
+    assert_eq!(rows[2]["kind"], "page");
+    let ids = question_ids(&plan);
+    assert!(
+        !ids.iter().any(|id| id.starts_with("group:")
+            || id.starts_with("route:10:1")
+            || id == "heuristics"),
+        "{ids:?}"
+    );
+}
+
+#[test]
+fn a_frame_id_already_in_a_page_is_evidence() {
+    let mut evidence = evidence();
+    evidence.figma_nodes.insert(
+        "11:1".into(),
+        ("/company".into(), "src/app/company/page.tsx".into()),
+    );
+    let plan = draft_plan(
+        &[screen("11:1", "Intro", 1440.0)],
+        &BTreeMap::new(),
+        &evidence,
+        json!({}),
+        None,
+    )
+    .unwrap();
+    assert_eq!(plan["screens"][0]["proposedRoute"], "/company");
+    assert!(text(&plan["screens"][0]["routeEvidence"]).contains("data-figma-node-id"));
+    assert_eq!(question_ids(&plan), ["collision:11:1"]);
+    assert_eq!(
+        figma_node_ids("<Box data-figma-node-id=\"1:2\" /><Text data-figma-node-id='3:4' />"),
+        ["1:2", "3:4"]
+    );
 }
 
 #[tokio::test]
@@ -528,4 +725,170 @@ async fn project_evidence_reads_routes_layout_parts_and_nav_links() {
         "{:?}",
         evidence.nav_links
     );
+}
+
+fn answers(pairs: &[(&str, &str)]) -> BTreeMap<String, AnswerInput> {
+    pairs
+        .iter()
+        .map(|(id, answer)| ((*id).to_owned(), AnswerInput::One((*answer).to_owned())))
+        .collect()
+}
+
+async fn drafted(fixture: &Fixture, screens: &[PlanScreenInput]) -> ScreenPlanInput {
+    let plan = draft(
+        &input(fixture, "draft"),
+        screens,
+        json!({}),
+        &fixture.policy(),
+    )
+    .await
+    .unwrap();
+    let mut confirm_input = input(fixture, "confirm");
+    confirm_input.plan_id = plan["planId"].as_str().map(str::to_owned);
+    confirm_input
+}
+
+fn main_widths() -> [PlanScreenInput; 2] {
+    [
+        screen("12:1", "Main - 1440", 1440.0),
+        screen("12:2", "Main - 390", 390.0),
+    ]
+}
+
+/// Separate pages bring their own route questions; the answers decide the
+/// URLs, and nothing is derived from a width.
+#[tokio::test]
+async fn separate_pages_need_a_route_per_frame_and_get_exactly_those() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &main_widths()).await;
+    confirm_input.answers = answers(&[
+        ("group:12:1", "Separate pages"),
+        ("split-route:12:1", "/"),
+        ("heuristics", "Accept all (Recommended)"),
+    ]);
+    let error = confirm(&confirm_input, &fixture.policy()).unwrap_err();
+    assert_eq!(error.details["missing"], json!(["split-route:12:2"]));
+    assert!(error.details["questionRounds"][0]["questions"][0]["id"] == "split-route:12:2");
+
+    confirm_input
+        .answers
+        .insert("split-route:12:2".into(), AnswerInput::One("/m".into()));
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    let urls = array(&confirmed["routes"])
+        .iter()
+        .map(|row| (row["url"].clone(), row["nodeIds"].clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        urls,
+        [
+            (json!("/"), json!(["12:1"])),
+            (json!("/m"), json!(["12:2"]))
+        ]
+    );
+}
+
+#[tokio::test]
+async fn one_responsive_page_skips_the_split_routes_and_accepts_the_inferred_route() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &main_widths()).await;
+    confirm_input.answers = answers(&[
+        ("group:12:1", "One responsive page (Recommended)"),
+        ("heuristics", "Accept all (Recommended)"),
+    ]);
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    let route = &confirmed["routes"][0];
+    assert_eq!(route["url"], "/");
+    assert_eq!(route["nodeIds"], json!(["12:1", "12:2"]));
+    assert_eq!(route["collisionPolicy"], "merge");
+    assert_eq!(route["routeEvidence"], "name-match (accepted)");
+}
+
+#[tokio::test]
+async fn reviewing_heuristics_asks_each_one_in_the_same_batch() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &main_widths()).await;
+    confirm_input.answers = answers(&[
+        ("group:12:1", "One responsive page (Recommended)"),
+        ("heuristics", "Review individually"),
+    ]);
+    let error = confirm(&confirm_input, &fixture.policy()).unwrap_err();
+    assert_eq!(error.details["missing"], json!(["review:12:1"]));
+    confirm_input
+        .answers
+        .insert("review:12:1".into(), AnswerInput::One("/home".into()));
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    assert_eq!(confirmed["routes"][0]["url"], "/home");
+}
+
+#[tokio::test]
+async fn a_custom_group_answer_can_name_one_route_per_frame() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &main_widths()).await;
+    confirm_input.answers = answers(&[
+        ("group:12:1", "/desktop, /mobile"),
+        ("heuristics", "Accept all (Recommended)"),
+    ]);
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    let urls = array(&confirmed["routes"])
+        .iter()
+        .map(|row| row["url"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(urls, [json!("/desktop"), json!("/mobile")]);
+}
+
+/// After confirm nothing is asked: what implementation decides on its own is
+/// recorded, and status and the final table carry it.
+#[tokio::test]
+async fn assumptions_are_recorded_after_confirm_and_reported_by_status() {
+    let fixture = Fixture::new();
+    let mut confirm_input = drafted(&fixture, &[screen("13:1", "Pricing", 1440.0)]).await;
+    let mut assume_input = input(&fixture, "assume");
+    assume_input.assumptions = vec![AssumptionInput {
+        about: "13:9".into(),
+        decision: "Not built: outside the confirmed screen plan.".into(),
+        reason: Some("found during implementation".into()),
+    }];
+    let early = assume(&assume_input, &fixture.policy()).unwrap_err();
+    assert!(early.message.contains("after confirm"));
+
+    confirm_input.answers = answers(&[("route:13:1", "/pricing (Recommended)")]);
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    assert!(text(&confirmed["rule"]).contains("without asking"));
+    let recorded = assume(&assume_input, &fixture.policy()).unwrap();
+    assert_eq!(recorded["assumptions"][0]["about"], "13:9");
+
+    let plan = read_plan(fixture.root()).unwrap().unwrap();
+    let report = status_report(&plan, &evidence(), None);
+    assert_eq!(
+        report["assumptions"][0]["decision"],
+        "Not built: outside the confirmed screen plan."
+    );
+    assert!(text(&report["summary"]).ends_with("; 1 assumption made during implementation"));
+    assert!(text(&report["markdownTable"]).contains("- 13:9: Not built"));
+    let markdown = std::fs::read_to_string(fixture.0.join(".devup/screen-plan.md")).unwrap();
+    assert!(markdown.contains("## Assumptions made during implementation"));
+
+    let mut uncovered = export(&fixture, &["13:9"]);
+    uncovered.scaffold_write = true;
+    uncovered.scaffold_route = Some("/x");
+    let Gate::Blocked(response) = export_gate(&uncovered).unwrap() else {
+        panic!("a frame outside the confirmed plan is not written");
+    };
+    assert_eq!(response["nextAction"]["arguments"]["action"], "assume");
+    assert!(text(&response["nextAction"]["how"]).contains("Do not ask the user"));
+}
+
+#[tokio::test]
+async fn an_invalid_config_is_refused_rather_than_ignored() {
+    let fixture = Fixture::new();
+    fixture.write(CONFIG_FILE, r#"{"widthGrouping": "sometimes"}"#);
+    let error = project_evidence(fixture.root()).await.unwrap_err();
+    assert!(error.message.contains("widthGrouping"));
+    fixture.write(
+        CONFIG_FILE,
+        r#"{"routeAliases": {"메인": "/"}, "widthGrouping": "ask"}"#,
+    );
+    let evidence = project_evidence(fixture.root()).await.unwrap();
+    assert_eq!(evidence.config_file.as_deref(), Some(CONFIG_FILE));
+    assert_eq!(evidence.config.route_aliases["메인"], "/");
 }
