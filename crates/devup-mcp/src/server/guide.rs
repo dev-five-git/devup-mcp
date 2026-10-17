@@ -39,6 +39,8 @@ pub const INSTRUCTIONS: &str = concat!(
     "run devup_ui_validate and report wired/tested counts before functional completion.\n",
     "2b. The tsx is devup-ui code. Call devup_skills before writing it: it reports the conventions this ",
     "workspace lacks and installs the ones it carries.\n",
+    "2c. Several pages: devup_screen_plan first; ask ALL its questions in ONE question-tool call, not prose ",
+    "(skill devup-implementation-plan).\n",
     "3. Request only outputs you will read. Before your second call, resources/read \"devup://guide/usage\" ",
     "for output sizing, verification boundaries, SECTION batching, assets and delivery."
 );
@@ -245,10 +247,13 @@ mod tests {
     /// The ceiling moved once, for rule 1a: the connection order has to be
     /// read before the first Figma call, because an agent that met a plugin
     /// attached and a `disconnected` direct path asked its user to log in.
+    /// It moved again for rule 2c: the screen plan has to come before the
+    /// first page is written, and an agent that has not read the guide yet
+    /// is exactly the one that writes pages straight away.
     #[test]
     fn instructions_are_far_smaller_than_the_guidance_they_point_at() {
         assert!(
-            INSTRUCTIONS.len() < 1_400,
+            INSTRUCTIONS.len() < 1_500,
             "instructions grew back to {} bytes; the per-session cost is the thing being fixed",
             INSTRUCTIONS.len()
         );

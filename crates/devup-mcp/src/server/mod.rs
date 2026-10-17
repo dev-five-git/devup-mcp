@@ -25,6 +25,7 @@ pub mod resources;
 mod result_contract;
 mod review;
 mod runtime_audit;
+mod screen_plan;
 mod screenshot_observations;
 mod section_checklist;
 pub mod self_update;
@@ -831,6 +832,130 @@ impl DevupServer {
     }
 
     /// Both paths to Figma as they stand right now.
+    /// `devup_figma_explore` without the tool envelope, so `devup_screen_plan`
+    /// lists screens through the same read rather than a second one.
+    async fn explore(&self, input: FigmaExploreInput) -> Result<Value, DevupError> {
+        if let Some(hints) = &input.screenshot_observations {
+            hints.validate()?;
+        }
+        let target = self
+            .bind_to_bridge(
+                parse_link(input.url.as_deref())?,
+                Unnamed::Selection,
+                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit,"screenshotObservations":input.screenshot_observations } }),
+            )
+            .await
+            ?;
+        target.node_id.as_ref().ok_or_else(|| {
+            DevupError::new(
+                ErrorCode::DevupFigmaNodeNotFound,
+                "Exploring neighboring Figma screens requires a node-id.",
+                false,
+            )
+        })?;
+        if !(1..=MATCH_CEILING).contains(&input.limit) {
+            return Err(DevupError::new(
+                ErrorCode::DevupFigmaResponseTooLarge,
+                "The explore limit must be between 1 and 100 inclusive.",
+                false,
+            ));
+        }
+        let requested_target = target.clone();
+        let mut request = CollectionRequest::new(target, CollectionScope::Node);
+        request.resource_scope = ResourceScope::None;
+        request.explore = Some(ExploreReadOptions {
+            // Fixed, not derived from `limit`. Derived, it made `limit` two
+            // things at once - how many screens come back, and how much of the
+            // page the collection script is allowed to walk - and the second
+            // one is why limit 33 could answer with fewer screens than limit
+            // 30. Asking for the script's own ceiling every time also means
+            // one anchor's projection can be reused for a neighbour's, since
+            // every explore of a file now reads the same amount.
+            projection_limit: EXPLORE_PROJECTION_LIMIT,
+            text_preview_limit: if input.include_text_preview
+                || input.screenshot_observations.is_some()
+            {
+                160
+            } else {
+                0
+            },
+        });
+        let result = self
+            .start_operation(
+                PendingOperation::Explore {
+                    // The projection ranks up to the ceiling and `limit` cuts
+                    // the ranked list afterwards, in `apply_explore_limit`, so
+                    // that what was found and what was returned are both known
+                    // and can be reported apart.
+                    limit: MATCH_CEILING,
+                    target: requested_target,
+                },
+                request,
+                input.refresh,
+            )
+            .await?;
+        let mut result = result;
+        screenshot_observations::rank(&mut result, input.screenshot_observations.as_ref());
+        Ok(apply_explore_limit(result, input.limit))
+    }
+
+    /// The screens `devup_screen_plan draft` plans: the caller's list from an
+    /// earlier explore, or one explore of the linked Section or selection.
+    async fn plan_screens(
+        &self,
+        input: &screen_plan::ScreenPlanInput,
+    ) -> Result<(Vec<screen_plan::PlanScreenInput>, Value), DevupError> {
+        if !input.screens.is_empty() {
+            return Ok((
+                input.screens.clone(),
+                json!({"from": "caller", "url": input.url,
+                    "nodeId": input.url.as_deref().and_then(|url| FigmaTarget::parse(url).ok()).and_then(|target| target.node_id)}),
+            ));
+        }
+        let explored = self
+            .explore(FigmaExploreInput {
+                screenshot_observations: None,
+                url: input.url.clone(),
+                limit: MATCH_CEILING,
+                include_text_preview: false,
+                refresh: input.refresh,
+            })
+            .await?;
+        let candidates = explored["candidates"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let screens_only = candidates
+            .iter()
+            .any(|candidate| candidate["node"]["kind"] == "screen");
+        let screens = candidates
+            .iter()
+            .map(|candidate| &candidate["node"])
+            .filter(|node| !screens_only || node["kind"] == "screen")
+            .filter_map(|node| {
+                Some(screen_plan::PlanScreenInput {
+                    node_id: node["nodeId"].as_str()?.to_owned(),
+                    name: node["name"].as_str().unwrap_or_default().to_owned(),
+                    width: node["bounds"]["width"].as_f64()?,
+                    height: node["bounds"]["height"].as_f64(),
+                    parts: Vec::new(),
+                    links: Vec::new(),
+                })
+            })
+            .collect();
+        Ok((
+            screens,
+            json!({
+                "from": "devup_figma_explore",
+                "url": input.url,
+                "nodeId": explored["anchor"]["nodeId"],
+                "targetKind": explored["targetKind"],
+                "fileKey": explored["source"]["fileKey"],
+                "truncation": explored["truncation"],
+            }),
+        ))
+    }
+
     async fn connection_report(&self) -> Result<Value, DevupError> {
         let status = self.services.auth.status().await?;
         let direct = self.services.auth.direct_path_snapshot().await?;
@@ -1555,73 +1680,14 @@ impl DevupServer {
         &self,
         Parameters(input): Parameters<FigmaExploreInput>,
     ) -> Result<CallToolResult, ErrorData> {
-        if let Some(hints) = &input.screenshot_observations {
-            hints.validate().map_err(to_mcp_error)?;
-        }
-        let target = self
-            .bind_to_bridge(
-                parse_link(input.url.as_deref()).map_err(to_mcp_error)?,
-                Unnamed::Selection,
-                &json!({ "tool": "devup_figma_explore", "arguments": { "limit": input.limit,"screenshotObservations":input.screenshot_observations } }),
-            )
+        self.explore(input)
             .await
-            .map_err(to_mcp_error)?;
-        target.node_id.as_ref().ok_or_else(|| {
-            to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaNodeNotFound,
-                "Exploring neighboring Figma screens requires a node-id.",
-                false,
-            ))
-        })?;
-        if !(1..=MATCH_CEILING).contains(&input.limit) {
-            return Err(to_mcp_error(DevupError::new(
-                ErrorCode::DevupFigmaResponseTooLarge,
-                "The explore limit must be between 1 and 100 inclusive.",
-                false,
-            )));
-        }
-        let requested_target = target.clone();
-        let mut request = CollectionRequest::new(target, CollectionScope::Node);
-        request.resource_scope = ResourceScope::None;
-        request.explore = Some(ExploreReadOptions {
-            // Fixed, not derived from `limit`. Derived, it made `limit` two
-            // things at once - how many screens come back, and how much of the
-            // page the collection script is allowed to walk - and the second
-            // one is why limit 33 could answer with fewer screens than limit
-            // 30. Asking for the script's own ceiling every time also means
-            // one anchor's projection can be reused for a neighbour's, since
-            // every explore of a file now reads the same amount.
-            projection_limit: EXPLORE_PROJECTION_LIMIT,
-            text_preview_limit: if input.include_text_preview
-                || input.screenshot_observations.is_some()
-            {
-                160
-            } else {
-                0
-            },
-        });
-        let result = self
-            .start_operation(
-                PendingOperation::Explore {
-                    // The projection ranks up to the ceiling and `limit` cuts
-                    // the ranked list afterwards, in `apply_explore_limit`, so
-                    // that what was found and what was returned are both known
-                    // and can be reported apart.
-                    limit: MATCH_CEILING,
-                    target: requested_target,
-                },
-                request,
-                input.refresh,
-            )
-            .await
-            .map_err(to_mcp_error)?;
-        let mut result = result;
-        screenshot_observations::rank(&mut result, input.screenshot_observations.as_ref());
-        Ok(tool_result(apply_explore_limit(result, input.limit)))
+            .map(tool_result)
+            .map_err(to_mcp_error)
     }
 
     #[tool(
-        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. \
+        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. Building pages: with projectRoot, a page write (pageScaffold write, outputPaths under app/, or several frames with outputPaths) needs a confirmed devup_screen_plan and otherwise answers plan_required; pageScaffold then takes its route from the plan (skill devup-implementation-plan). \
                        The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
                        This output is the design, already read. Do not rewrite it from a screenshot or from `get_design_context` - pictures and visual reasoning verify, they do not author. Do not read the node tree and write devup-ui by hand, and do not infer layout from coordinates. Never guess a colour, spacing, radius or typography value: if a value did not come back, say so and stop, because an invented one is indistinguishable from a real one in the code and is the single failure this server exists to prevent. A failed call is a fact to report, not something to route around. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
@@ -1644,6 +1710,49 @@ impl DevupServer {
             for output in ["assetManifest", "imageAudit"] {
                 if !input.outputs.iter().any(|o| o == output) {
                     input.outputs.push(output.into());
+                }
+            }
+        }
+        // Before anything is validated or collected: a page write without a
+        // confirmed screen plan is answered with the plan to make, and a
+        // pageScaffold route comes from the plan when one covers the frame.
+        if workflow.job_id.is_none()
+            && let Some(project_root) = input.project_root.clone()
+        {
+            let mut frames = input.frame_ids.clone();
+            if frames.is_empty() {
+                let node = match (&input.url, &input.artifact_id) {
+                    (Some(url), _) => FigmaTarget::parse(url).ok().and_then(|t| t.node_id),
+                    (None, Some(id)) => self
+                        .artifacts
+                        .get(id)
+                        .await
+                        .and_then(|artifact| artifact.payload.target.node_id.clone()),
+                    _ => None,
+                };
+                frames.extend(node);
+            }
+            let request = screen_plan::ExportRequest {
+                project_root: &project_root,
+                url: input.url.as_deref(),
+                frames,
+                all_screens: input.all_screens,
+                scaffold_write: input.page_scaffold.as_ref().is_some_and(|s| s.write),
+                scaffold_route: input.page_scaffold.as_ref().map(|s| s.route.as_str()),
+                output_paths: input
+                    .output_paths
+                    .iter()
+                    .filter(|(key, _)| !key.ends_with("pageScaffold"))
+                    .map(|(_, path)| path.as_str())
+                    .collect(),
+            };
+            match screen_plan::export_gate(&request).map_err(to_mcp_error)? {
+                screen_plan::Gate::Open => {}
+                screen_plan::Gate::Blocked(response) => return Ok(tool_result(response)),
+                screen_plan::Gate::Route(route) => {
+                    if let Some(scaffold) = input.page_scaffold.as_mut() {
+                        scaffold.route = route;
+                    }
                 }
             }
         }
@@ -2474,6 +2583,30 @@ impl DevupServer {
                 .await
             }
             _ => return Err(invalid("action must be plan or ingest.")),
+        }
+        .map_err(to_mcp_error)?;
+        Ok(tool_result(result))
+    }
+    #[tool(
+        description = "Plan which Figma screen becomes which URL before any page is written, confirm it once, then report it URL by width (action: draft | confirm | status).                        draft reads the linked Section or frame (or the Bridge selection, or `screens` from an earlier devup_figma_explore), groups frames drawn at several widths, and proposes a route only from evidence: an existing App Router page, a nav link label bound to an existing href, or a navigationTargets entry. Anything else is proposedRoute null, routeEvidence UNVERIFIED, and a question. It writes .devup/screen-plan.json and .md and returns `questions`, already shaped for your question tool (id, header <= 30 chars, question, options[{label, description}] recommended first, multiple, custom answers allowed).                        Ask ALL of them in ONE call to your runtime's question tool (`question` in OpenCode, `AskUserQuestion` in Claude Code) - never one at a time and never as prose - and do not implement before confirm.                        confirm takes every answer keyed by question id and refuses the call, naming the missing ids, if any is unanswered. status compares the confirmed plan with the routes on disk and an optional devup_runtime_audit plan/report: per URL, implemented yes/no and per-width pass, fail with reason, or not-run - a width without an audit item is never pass. The devup-implementation-plan skill (devup_skills) carries the whole workflow.",
+        output_schema = permissive_object_output_schema()
+    )]
+    async fn devup_screen_plan(
+        &self,
+        Parameters(input): Parameters<screen_plan::ScreenPlanInput>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = match input.action.as_str() {
+            "draft" => {
+                let (screens, source) = self.plan_screens(&input).await.map_err(to_mcp_error)?;
+                screen_plan::draft(&input, &screens, source, &self.output_policy).await
+            }
+            "confirm" => screen_plan::confirm(&input, &self.output_policy),
+            "status" => screen_plan::status(&input, &self.output_policy, &self.artifacts).await,
+            other => Err(DevupError::new(
+                ErrorCode::DevupInvalidInput,
+                format!("action must be draft, confirm or status, not {other}."),
+                false,
+            )),
         }
         .map_err(to_mcp_error)?;
         Ok(tool_result(result))
