@@ -27,3 +27,7 @@
 /docs/
 /feedback.txt
 /devup-mcp-feedback/
+
+# Installed by `npm ci` in harness/runtime-audit (and plugin/) to run the
+# executor locally; never part of the tree.
+node_modules/

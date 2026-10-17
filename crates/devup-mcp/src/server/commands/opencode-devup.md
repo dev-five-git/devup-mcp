@@ -20,10 +20,10 @@ and the devup-implementation-plan skill for its rules:
    in one call. Never in prose, never during implementation.
 6. `devup_screen_plan` confirm with every answer that applies.
 7. Latest first, without asking: at the repository root run
-   `bunx @dependency-check-updates/cli -d -u --rm` (-d: every manifest below
-   the root, so apps/* too; -u: apply as one recoverable batch; --rm: remove
-   lockfiles and installed directories next to each manifest, Cargo.lock and
-   target/ included), then `bun install`, build, lint and typecheck; fix code
+   `bunx @dependency-check-updates/cli -d -u --rm` - it updates every
+   manifest in the repository, every bun workspace and Cargo.toml included,
+   and --rm removes the lockfiles and installed directories so everything
+   resolves fresh - then `bun install`, build, lint and typecheck; fix code
    to the new APIs, pin only when no fix exists, and record it with
    `devup_screen_plan` assume (dependencyUpdate). Check current docs before
    using any library API.
@@ -34,7 +34,9 @@ and the devup-implementation-plan skill for its rules:
    transitions by the plan's mechanism, metadata with openGraph, lang, alt
    text, image sizes, a not-found page. Validate with `devup_ui_validate`
    and projectRoot. Record anything new with `devup_screen_plan` assume.
-9. `devup_runtime_audit` plan at 1440, 1100, 858 and 390, run it, ingest.
+9. `devup_runtime_audit` plan at 1440, 1100, 858 and 390 with one
+   view-transition check (follow a link between two routes), run it, ingest.
+   A failed view-transition check is a bug to fix.
 10. `devup_screen_plan` status with the audit plan and report.
 11. Pass the submission checklist: every URL implemented, `bun run build`,
     `bun run lint`, `bunx oxlint --deny-warnings`, `bun tsc --noEmit` in each

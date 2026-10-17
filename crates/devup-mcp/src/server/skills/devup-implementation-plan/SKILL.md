@@ -79,6 +79,17 @@ So the order is fixed, and none of it is optional.
   starts from `dev-five-git/service-template` (a default, not a question); one
   on the `next` CLI is asked once, up front, whether to migrate to vinext -
   never migrated silently.
+- **Pick the app by meaning, not by name order.** In a repository with
+  several apps, `apps/admin` is the admin console and a Figma design for a
+  public site is almost never for it. The plan decides from the app's name
+  (`front`, `web`, `site`, `www`, `landing`, `home` for the public site;
+  `admin`, `dashboard`, `console`, `backoffice`, `cms`, `manager`, `관리자` for
+  the console), its routes (sign-in, dashboard) and the frames' own names
+  (Home, About, 회사소개 vs Admin, 관리자, 회원관리, 대시보드). When the
+  evidence points one way it takes that app without asking and records why in
+  `defaults`; a file with both maps each screen to its app (the route table's
+  `app` column) and asks only about screens of unclear side; only frames that
+  say nothing either way are asked once, recommending the public app.
 - **Never invent a route.** A route comes from an existing page built from the
   frame, a nav link already bound to an href, an explicit `navigationTargets`
   entry, the project's `routeAliases`, or the user's answer. A route inferred
@@ -141,40 +152,36 @@ recipe each element got.
 
 ### View transitions
 
-On by default where the stack supports them, as progressive enhancement -
-browsers without support simply navigate. The plan reads the Next.js and React
-versions (package-lock.json first, then package.json) and records the
-mechanism in `defaults`:
+Always on. DevFive runs the latest versions - the dependency step comes
+first - and the latest Next App Router and React support React's
+`<ViewTransition>` on vinext and on the `next` CLI alike, so no version is
+checked. View Transitions are a web standard: browsers without them simply
+navigate.
 
-- **Next 16+ with React 19.3+**: `import { ViewTransition } from 'react'`, no
-  `next.config` flag; wrap each page's content in its `page.tsx` (not the
-  layout, which persists across navigations).
-- **Next 15.2+ with an older React**: `experimental.viewTransition: true` and
-  `unstable_ViewTransition`. The Next.js docs mark it experimental; record an
-  assumption.
-- **vinext (the default stack)**, after the dependency step: vinext 1.0+ with
-  React 19.3+ (react-dom / react-server-dom-webpack count) uses `import {
-  ViewTransition } from 'react'` in each `page.tsx`, with `experimental: {
-  viewTransition: true }` in `vinext({ nextConfig })` as vinext's own example
-  does. `vinext check` still labels that import partial, so the runtime audit
-  confirms the cross-fade animates. Status decides again from the versions
-  installed then. Below those versions: skipped until the update.
-- The `next` CLI, in existing projects only:
-- **No Next.js** (whole-document navigations): `@view-transition { navigation:
-  auto; }` with a `::view-transition-old/new(root)` cross-fade.
-- **Older Next, or a version the project does not name**: skipped, with the
-  reason. App Router navigations stay in one document, where the CSS rule does
-  nothing.
+- `import { ViewTransition } from 'react'`, wrapping each page's content in
+  its `page.tsx` (not the layout, which persists across navigations).
+- A short cross-fade (about 250ms), no big slides, `animation-duration: 0s`
+  under `prefers-reduced-motion`, and `::view-transition { pointer-events:
+  none }`.
+- Name shared elements only where the same element is on both pages - a page
+  title, a hero image, a card image and its detail page: a static name as the
+  devup-ui `viewTransitionName` prop, a per-record name on `<ViewTransition
+  name>` (devup-ui extracts style props at build time, so a runtime name
+  cannot be a style prop).
+- **Verify it, do not doubt it.** The runtime audit plan gets one
+  `view-transition` check: on a screen with a link to another route, `{"kind":
+  "view-transition", "subject": <that link>}`. The executor follows the link
+  and passes only when a view transition ran (`document.startViewTransition`
+  called, or a cross-document `pagereveal` carrying one). A failure is a bug to
+  fix and re-run, not an assumption. `experimental.viewTransition` goes into
+  the next config only if that check fails without it (vinext's own example
+  sets it).
 
-Always a short cross-fade (about 250ms), no big slides, `animation-duration: 0s`
-under `prefers-reduced-motion`, and `::view-transition { pointer-events: none }`.
-Name shared elements only where the same element is on both pages - a page
-title, a hero image, a card image and its detail page: a static name as the
-devup-ui `viewTransitionName` prop, a per-record name on `<ViewTransition
-name>` (devup-ui extracts style props at build time, so a runtime name cannot
-be a style prop). If the project already animates pages with its own library
-(framer-motion, next-view-transitions, ...), the plan asks instead. The "motion
-beyond hover" question is about scroll reveal only.
+Skipped only when `.devup/screen-plan.config.json` opts out
+(`viewTransitions: false`), or `updateDependencies: false` leaves the project
+on a React older than 19.3. If the project already animates pages with its own
+library (framer-motion, next-view-transitions, ...), the plan asks instead.
+The "motion beyond hover" question is about scroll reveal only.
 
 **Asked, in the same up-front rounds** - only what needs a file or a fact:
 the favicon and the share image (offered from existing files and Figma logo
@@ -219,14 +226,12 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    that applies. A refusal names the missing ids and returns them as rounds:
    ask those right away, still before any implementation.
 5. **Latest first, before implementing, without asking.**
-   a. At the repository root (the workspace root for bun workspaces), run
-      `bunx @dependency-check-updates/cli -d -u --rm`. `-d` scans every
-      manifest below the root recursively, which is how the `apps/*`
-      workspaces are reached; `-u` applies the updates as one recoverable
-      batch (`--recover rollback` restores the originals); `--rm` removes the
-      lockfiles and installed directories next to each manifest - `bun.lock`
-      and `node_modules/`, and for a `Cargo.toml` also `Cargo.lock` and
-      `target/` - so the next install resolves everything fresh.
+   a. At the repository root, run `bunx @dependency-check-updates/cli -d -u
+      --rm`. It updates every manifest in the repository to the latest
+      versions - every bun workspace and every Cargo.toml - in one recoverable
+      batch (`--recover rollback` restores the originals), and `--rm` removes
+      each lockfile and installed directory (`bun.lock`, `node_modules/`,
+      `Cargo.lock`, `target/`) so the next install resolves everything fresh.
    b. `bun install`, then build, lint and typecheck. If the update breaks
       something, fix the code to the new APIs. Pin a version back only when
       no fix exists, and record the pin with its reason.
@@ -249,8 +254,9 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    it is never built, and no assumption changes that.
 7. **Run the runtime audit.** `devup_runtime_audit` `plan` with every confirmed
    URL as a screen (`routePath`) at the default widths (1440, 1100, 858, 390),
-   each with a `no-horizontal-overflow` check; run the executor in the
-   project, then `ingest` the report.
+   each with a `no-horizontal-overflow` check, and one `view-transition` check
+   following a link between two routes; run the executor in the project, then
+   `ingest` the report.
 8. **Read the status.** Call `devup_screen_plan` with `action: "status"`,
    `projectRoot`, `auditPlanPath` and `auditReportPath`. A width without an
    audit item is `not-run`, never `pass`.
@@ -266,7 +272,7 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
      Windows - there, run `bun test` and `cargo test`;
    - `devup_ui_validate` reports no errors;
    - the runtime audit at every width shows no page error and no horizontal
-     overflow;
+     overflow, and its view-transition check passes;
    - the site completeness block is filled;
    - the final table `URL | Figma screen | file | status | widths verified |
      screenshots` is there, with the assumptions, the design fixes requested and
@@ -340,6 +346,6 @@ evidence and replaces the question it would otherwise take:
 - `includeKeywords` forces names containing them back in.
 - `favicon`, `ogImage` (a path, or `figma:<nodeId>`), `siteName`, `siteUrl`
   and `motion` (`none` | `reveal`) pre-answer the site questions.
-- `framework` (`vinext` | `next`) answers the migrate-to-vinext question, and
+- `framework` (`vinext` | `next`) answers the migrate-to-vinext question,
   `updateDependencies: false` skips the dependency step for a project that
-  forbids it.
+  forbids it, and `viewTransitions: false` opts out of view transitions.

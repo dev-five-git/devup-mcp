@@ -228,8 +228,8 @@ drawn width.
 Hover plus a transition is not a finished interaction. Each interactive
 element gets its role's recipe - button, link, card, nav item, icon button,
 input, disclosure - with pressed, focus, current-page, expanded, disabled and
-loading states where they apply, and view transitions between pages where the
-project's Next.js and React support them. Restraint is a rule, not a taste: at
+loading states where they apply, and view transitions between pages - always
+on, and proved by the runtime audit's view-transition check. Restraint is a rule, not a taste: at
 most two properties per state, 150-250ms, existing tokens only, scale 0.97 to
 1.05, nothing infinite, everything off under `_motionReduce`. The table is in
 the devup-implementation-plan skill; `devup_screen_plan` records it in

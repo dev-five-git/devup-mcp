@@ -71,8 +71,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 20903,
-          "sha256": "9c9066ea3413c7ff929ed678147efda6e9ead4fe39a06a71ab840b13664cc0c2"
+          "bytes": 21454,
+          "sha256": "326018983631b36e5da35e75770b9565a8f7a8d56afe69d956287b53e25cdcf1"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -89,8 +89,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 5965,
-          "sha256": "31e69adb4219b8e9af96d8dc368c1f7d436602da22f7d169d475e1e9d905e960"
+          "bytes": 6152,
+          "sha256": "3ff9b9e4676905004f3d3e80f952e5d72b713daadcb02ec6b4ae00fb8572c6e7"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

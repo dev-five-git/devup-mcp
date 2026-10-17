@@ -29,7 +29,9 @@ the full rules; these are the steps.
 3. **Project context.** `devup_project_context` with `scope: "theme"` (the
    tokens the code must use) and `scope: "routes"` (the pages that exist, and
    `frameworks`: which app runs on vinext or next). No app yet: the plan
-   starts from `dev-five-git/service-template`.
+   starts from `dev-five-git/service-template`. With several apps the plan
+   picks the one the frames are for by meaning - the public site for
+   marketing screens, `apps/admin` only for admin screens.
 4. **Screen plan.** `devup_screen_plan` with `action: "draft"`, `projectRoot`,
    the link, the notes and `extraQuestions` - every question you would
    otherwise have to guess at any point in the job (form target, contact
@@ -44,14 +46,12 @@ the full rules; these are the steps.
 6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId` and
    every answer that applies.
 7. **Latest first, before implementing, without asking.**
-    a. At the repository root (the workspace root for bun workspaces), run
-       `bunx @dependency-check-updates/cli -d -u --rm`. `-d` scans every
-       manifest below the root recursively, which is how the `apps/*`
-       workspaces are reached; `-u` applies the updates as one recoverable
-       batch (`--recover rollback` restores the originals); `--rm` removes the
-       lockfiles and installed directories next to each manifest - `bun.lock`
-       and `node_modules/`, and for a `Cargo.toml` also `Cargo.lock` and
-       `target/` - so the next install resolves everything fresh.
+    a. At the repository root, run `bunx @dependency-check-updates/cli -d -u
+       --rm`. It updates every manifest in the repository to the latest
+       versions - every bun workspace and every Cargo.toml - in one recoverable
+       batch (`--recover rollback` restores the originals), and `--rm` removes
+       each lockfile and installed directory (`bun.lock`, `node_modules/`,
+       `Cargo.lock`, `target/`) so the next install resolves everything fresh.
     b. `bun install`, then build, lint and typecheck. If the update breaks
        something, fix the code to the new APIs. Pin a version back only when
        no fix exists, and record the pin with its reason.
@@ -72,7 +72,9 @@ the full rules; these are the steps.
    take the recommended or most conservative option and record it with
    `action: "assume"`.
 9. **Runtime audit.** `devup_runtime_audit` `plan` with every confirmed URL at
-   1440, 1100, 858 and 390, run the executor in the project, then `ingest`.
+   1440, 1100, 858 and 390 and one `view-transition` check (follow a link
+   between two routes; it fails when no transition ran - a bug to fix), run
+   the executor in the project, then `ingest`.
 10. **Status.** `devup_screen_plan` with `action: "status"`, `auditPlanPath`
    and `auditReportPath`.
 11. **Submission checklist.** Before reporting done, every item holds - fix
@@ -87,7 +89,7 @@ the full rules; these are the steps.
       Windows - there, run `bun test` and `cargo test`;
     - `devup_ui_validate` reports no errors;
     - the runtime audit at every width shows no page error and no horizontal
-      overflow;
+      overflow, and its view-transition check passes;
     - the site completeness block is filled;
     - the final table `URL | Figma screen | file | status | widths verified |
       screenshots` is there, with the assumptions, the design fixes requested and
