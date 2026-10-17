@@ -155,6 +155,12 @@ A `maskImage` or `Image` src is built from the layer name. Rename the file to
 fit the project. If the asset varies per usage, lift it into a prop instead of
 hardcoding it.
 
+`maskImage` + `bg` is emitted only for an icon painted in one flat colour; a
+multi-colour icon (gradient, several colours, an image) stays `<Image src>`.
+Never turn an `<Image>` icon into a mask or recolour it by hand: a mask keeps
+only the shape and fills it with one colour. `devup_ui_validate` with
+`projectRoot` warns `multicolor-mask` when one does.
+
 ## 11. A referenced asset must actually exist
 
 A fixed asset such as an icon must be exported, never referenced by a path that
@@ -192,7 +198,9 @@ assetManifest/imageAudit and `asset-css-map.json`, schedules sorted batches of a
 most six and retains hidden, missing-source, failed and limit dispositions.
 Use assetPublicRoot for written `.webp` files and mapped code, or resources for
 reusable bytes. Custom assetRequests remain separate. Poll exportJob; resume
-paused work or cancel with jobAction. Accepted results/checkpoints live in this
+paused work or cancel with jobAction. Polls return compact asset rows; add
+`responseFields` (e.g. `exportJob.assets`) to a poll for full rows. `assetJob`
+only references `exportJob`. Accepted results/checkpoints live in this
 server process for the reported retention period. Scheduling is bounded to4096
 sources and128 MiB retained asset bytes; remaining IDs carry explicit failures
 and can be retried in smaller scopes. Read completeness and failures before use.

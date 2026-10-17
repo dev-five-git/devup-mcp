@@ -21,6 +21,23 @@ const RESULT_RETENTION: Duration = Duration::from_secs(5 * 60);
 const MAX_JOBS: usize = 8;
 const MAX_COMPLETED_JOBS: usize = 16;
 
+/// What a compact asset row keeps: enough to see progress, verify bytes and
+/// find the file, without the per-asset diagnostics.
+const COMPACT_ASSET_FIELDS: &[&str] = &[
+    "assetId",
+    "status",
+    "byteLength",
+    "sha256",
+    "errorCode",
+    "errorDetail",
+    "acquisitionState",
+    "outputPath",
+    "requestedOutputPath",
+    "fileState",
+    "fileStateReason",
+    "suggestedFilename",
+];
+
 #[derive(Clone, Default)]
 pub(super) struct AssetJobs(Arc<Mutex<BTreeMap<String, Arc<AssetJob>>>>);
 
@@ -388,7 +405,17 @@ impl AssetJob {
         state.finished = Some(Instant::now());
     }
 
+    #[cfg(test)]
     fn response(&self) -> Result<Value, DevupError> {
+        self.response_with(false)
+    }
+
+    /// The job as a poll reports it. Without `full`, one compact row per
+    /// asset: the full rows (`exportDiagnostics`, `renderInfo`, ...) repeated
+    /// tens of kilobytes on every poll of a running job. A poll that selects
+    /// with responseFields reads them, and a completed job's asset manifest
+    /// carries them too.
+    fn response_with(&self, full: bool) -> Result<Value, DevupError> {
         let state = self.state.lock().unwrap();
         let mut calls = state.calls.clone();
         for call in &mut calls {
@@ -414,6 +441,27 @@ impl AssetJob {
                     } else {
                         "pending"
                     });
+                    // Bytes are held until the whole job is projected, so an
+                    // exported asset reads `pending` until then; say so.
+                    if asset["fileState"] == "pending" {
+                        asset["fileStateReason"] = json!(if asset["status"] == "exported" {
+                            "Acquired and held in memory. Files are written together in the projection-and-write stage, after the last asset of this job is acquired."
+                        } else {
+                            "Not acquired yet."
+                        });
+                    }
+                }
+                if !full {
+                    return COMPACT_ASSET_FIELDS
+                        .iter()
+                        .filter_map(|field| {
+                            asset
+                                .get(*field)
+                                .filter(|value| !value.is_null())
+                                .map(|value| ((*field).to_owned(), value.clone()))
+                        })
+                        .collect::<serde_json::Map<_, _>>()
+                        .into();
                 }
                 if state.assets.len() > 32 {
                     asset["renderInfoSummary"] = json!({"representation":asset["renderInfo"]["representation"],"outputSize":asset["renderInfo"]["outputSize"],"fidelity":asset["renderInfo"]["fidelity"],"compression":asset["renderInfo"]["compression"]});
@@ -445,7 +493,7 @@ impl AssetJob {
         } else {
             json!({"tool":"devup_figma_export","arguments":{"jobId":self.id,"jobAction":if state.state=="paused" {"resume"} else {"status"}}})
         };
-        let job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
+        let mut job = json!({"jobId":self.id,"budget":self.budget,"state":state.state,"stage":state.stage,"assets":assets,
             "assetProgress":{"total":state.assets.len(),"exported":state.assets.iter().filter(|a|a["status"]=="exported").count(),"failed":state.assets.iter().filter(|a|a["status"]=="failed").count(),
                 "pending":state.assets.iter().filter(|a|a["status"]=="pending").count(),"maxAssetsPerBatch":6,"maxRetainedAssetBytes":devup_mcp_figma::MAX_COLLECTED_ASSET_BYTES,
                 "observations":if state.assets.len()>32 {"summarized; full observations in completed manifest/audit resources"}else{"full"}},
@@ -455,6 +503,18 @@ impl AssetJob {
             "assetTimeoutMs":devup_mcp_figma::asset_timeout().as_millis() as u64,
             "nextActionReason":if terminal && next_action.is_null() { Some("This job has finished; status polling repeats the retained result. No corrective action is available.") } else { None },
             "nextAction":next_action});
+        if full {
+            job["assetRows"] = json!("full");
+        } else {
+            job["assetRows"] = json!("compact");
+            job["assetDetail"] = json!({
+                "how": "Rows carry identity, status, bytes and file state only. Poll with responseFields to read full rows (exportDiagnostics, renderInfo); a completed job also carries them in its assetManifest.",
+                "arguments": {"jobId": self.id, "jobAction": "status", "responseFields": ["exportJob.assets"]},
+            });
+        }
+        // `assetJob` is a compatibility name for this same object. Repeating
+        // the body doubled every poll, so the alias now points at it.
+        let alias = json!({"aliasOf": "exportJob", "jobId": self.id, "state": state.state});
         // Preserve the existing error contract for code-only upstream refusals,
         // while returning the retained job ID needed to resume the pending read.
         if state.state == "paused"
@@ -475,18 +535,20 @@ impl AssetJob {
                 if !error.details.is_object() {
                     error.details = json!({});
                 }
-                error.details["exportJob"] = job.clone();
-                error.details["assetJob"] = job;
+                error.details["exportJob"] = job;
+                error.details["assetJob"] = alias;
                 return Err(error);
             }
             None => json!({"status":if state.state=="paused" {"paused"} else {"in_progress"}}),
         };
-        value["exportJob"] = job.clone();
-        value["assetJob"] = job;
+        value["exportJob"] = job;
+        value["assetJob"] = alias;
         Ok(value)
     }
 
-    pub(super) async fn wait_briefly(&self) -> Result<Value, DevupError> {
+    /// Waits up to a second for a running job, then answers it; `full` keeps
+    /// every per-asset field, for a poll that selects from them.
+    pub(super) async fn wait_briefly(&self, full: bool) -> Result<Value, DevupError> {
         let deadline = Instant::now() + Duration::from_secs(1);
         while Instant::now() < deadline {
             if self.state.lock().unwrap().state != "running" {
@@ -494,7 +556,7 @@ impl AssetJob {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        self.response()
+        self.response_with(full)
     }
 }
 
@@ -534,7 +596,7 @@ impl DevupServer {
                 worker.finish(result);
             });
         }
-        job.wait_briefly().await
+        job.wait_briefly(false).await
     }
 }
 
@@ -639,9 +701,9 @@ mod tests {
         let (cached_preset, _) = jobs.acquire(&operation, &request, false).unwrap();
         cached_preset.captured(&[serde_json::from_value(json!({"assetId":"cached:fills:0","nodeId":"cached","field":"fills/0","sourceKind":"image-fill",
             "format":"webp","scale":1,"quality":80,"lossless":false,"status":"failed","errorCode":"DEVUP_ASSET_NODE_HIDDEN"})).unwrap()]);
-        let cached = cached_preset.response().unwrap();
-        assert_eq!(cached["assetJob"]["assets"].as_array().unwrap().len(), 1);
-        assert_eq!(cached["assetJob"]["assets"][0]["quality"], 80);
+        let cached = cached_preset.response_with(true).unwrap();
+        assert_eq!(cached["exportJob"]["assets"].as_array().unwrap().len(), 1);
+        assert_eq!(cached["exportJob"]["assets"][0]["quality"], 80);
         cached_preset.state.lock().unwrap().state = "paused";
         cached_preset.resume();
         assert_eq!(cached_preset.state.lock().unwrap().state, "running");
@@ -652,8 +714,9 @@ mod tests {
             false,
         )));
         let cancelled = cached_preset.response().unwrap_err();
+        assert_eq!(cancelled.details["exportJob"]["state"], "cancelled");
         assert_eq!(cancelled.details["assetJob"]["state"], "cancelled");
-        assert!(cancelled.details["assetJob"]["nextAction"].is_null());
+        assert!(cancelled.details["exportJob"]["nextAction"].is_null());
         assert_eq!(
             automatic.state.lock().unwrap().assets[0]["renderMode"],
             "auto"
@@ -664,13 +727,13 @@ mod tests {
             "renderMode":"fill","renderInfo":{"outputSize":{"width":32,"height":16}},
             "suggestedFilename":"gallery-picture-fill.png"}]}}]}),
         ));
-        let progress = fill.response().unwrap();
+        let progress = fill.response_with(true).unwrap();
         assert_eq!(
-            progress["assetJob"]["assets"][0]["renderInfo"]["outputSize"]["width"],
+            progress["exportJob"]["assets"][0]["renderInfo"]["outputSize"]["width"],
             32
         );
         assert_eq!(
-            progress["assetJob"]["assets"][0]["suggestedFilename"],
+            progress["exportJob"]["assets"][0]["suggestedFilename"],
             "gallery-picture-fill.png"
         );
     }
@@ -723,16 +786,16 @@ mod tests {
             )));
             let error = job.response().unwrap_err();
             assert_eq!(error.details["exportJob"]["nextAction"], next);
-            assert_eq!(error.details["assetJob"]["nextAction"], next);
-            assert_eq!(error.details["assetJob"]["assets"][0]["status"], "failed");
+            assert_eq!(error.details["assetJob"]["aliasOf"], "exportJob");
+            assert_eq!(error.details["exportJob"]["assets"][0]["status"], "failed");
             assert_eq!(
-                error.details["assetJob"]["assets"][0]["acquisitionState"],
+                error.details["exportJob"]["assets"][0]["acquisitionState"],
                 "not-attempted"
             );
-            assert_eq!(error.details["assetJob"]["assetProgress"]["pending"], 0);
-            assert_eq!(error.details["assetJob"]["assetProgress"]["failed"], 1);
+            assert_eq!(error.details["exportJob"]["assetProgress"]["pending"], 0);
+            assert_eq!(error.details["exportJob"]["assetProgress"]["failed"], 1);
             assert_eq!(
-                error.details["assetJob"]["assetProgress"]["maxRetainedAssetBytes"],
+                error.details["exportJob"]["assetProgress"]["maxRetainedAssetBytes"],
                 devup_mcp_figma::MAX_COLLECTED_ASSET_BYTES
             );
             if !correction {
@@ -785,11 +848,77 @@ mod tests {
             json!({"outputPaths":{"asset:a":path_text,"asset:b":path_text}}),
         ));
         let response = job.response().unwrap();
-        assert_eq!(response["assetJob"]["assets"][0]["fileState"], "written");
+        assert_eq!(response["exportJob"]["assets"][0]["fileState"], "written");
         assert_eq!(
-            response["assetJob"]["assets"][1]["fileState"],
+            response["exportJob"]["assets"][1]["fileState"],
             "not-written"
         );
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn polls_answer_compact_rows_and_reference_the_alias() {
+        let job = AssetJob {
+            id: "compact".into(),
+            key: "compact".into(),
+            budget: json!({}),
+            started: Instant::now(),
+            resume: Notify::new(),
+            cancellation: Notify::new(),
+            cancelled: std::sync::atomic::AtomicBool::new(false),
+            paths: BTreeMap::from([
+                ("a".into(), "/out/a.svg".into()),
+                ("b".into(), "/out/b.svg".into()),
+            ]),
+            state: Mutex::new(JobState {
+                state: "running",
+                stage: "asset-export",
+                calls: vec![],
+                completed_calls: 1,
+                error: None,
+                result: None,
+                finished: None,
+                assets: vec![
+                    json!({"assetId":"a","status":"exported","byteLength":10,"sha256":"0".repeat(64),
+                        "exportDiagnostics":{"large":"x".repeat(4096)},"renderInfo":{"large":"y".repeat(4096)}}),
+                    json!({"assetId":"b","status":"pending"}),
+                ],
+            }),
+        };
+
+        let compact = job.response().unwrap();
+        let rows = compact["exportJob"]["assets"].as_array().unwrap();
+        assert_eq!(compact["exportJob"]["assetRows"], "compact");
+        assert!(rows[0].get("exportDiagnostics").is_none(), "{compact}");
+        assert!(rows[0].get("renderInfo").is_none(), "{compact}");
+        assert_eq!(rows[0]["sha256"], "0".repeat(64));
+        assert_eq!(rows[0]["requestedOutputPath"], "/out/a.svg");
+        // Exported but not yet written: the state says why.
+        assert_eq!(rows[0]["fileState"], "pending");
+        assert!(
+            rows[0]["fileStateReason"]
+                .as_str()
+                .unwrap()
+                .contains("projection-and-write")
+        );
+        assert_eq!(rows[1]["fileStateReason"], "Not acquired yet.");
+        assert_eq!(
+            compact["exportJob"]["assetDetail"]["arguments"]["responseFields"],
+            json!(["exportJob.assets"])
+        );
+        // The alias names the job; it no longer repeats it.
+        assert_eq!(
+            compact["assetJob"],
+            json!({"aliasOf":"exportJob","jobId":"compact","state":"running"})
+        );
+        assert!(
+            serde_json::to_vec(&compact).unwrap().len() < 4096,
+            "{compact}"
+        );
+
+        let full = job.response_with(true).unwrap();
+        assert_eq!(full["exportJob"]["assetRows"], "full");
+        assert!(full["exportJob"]["assets"][0]["renderInfo"].is_object());
+        assert!(full["exportJob"].get("assetDetail").is_none());
     }
 }

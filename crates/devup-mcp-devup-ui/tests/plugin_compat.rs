@@ -124,3 +124,47 @@ fn responsive_provider_covers_sections_variants_and_pure_code_first() {
     assert!(merged.contains("__variantProp"));
     assert!(merged.contains("\"size\""));
 }
+
+#[test]
+fn viewport_icons_mask_only_when_painted_in_one_colour() {
+    let viewport = |second_fill: serde_json::Value| {
+        json!({
+            "type": "COMPONENT_SET",
+            "name": "Icon",
+            "componentPropertyDefinitions": {
+                "viewport": {"type": "VARIANT", "variantOptions": ["mobile", "desktop"]}
+            },
+            "children": [
+                {
+                    "name": "mobile", "isAsset": true,
+                    "variantProperties": {"viewport": "mobile"},
+                    "children": [
+                        {"type": "VECTOR", "fills": [{"type": "SOLID", "color": {"r": 0.0, "g": 0.0, "b": 0.0}}]},
+                        {"type": "VECTOR", "fills": [second_fill]}
+                    ]
+                },
+                {
+                    "name": "desktop", "isAsset": true,
+                    "variantProperties": {"viewport": "desktop"},
+                    "children": [
+                        {"type": "VECTOR", "fills": [{"type": "SOLID", "color": {"r": 0.0, "g": 0.0, "b": 0.0}}]}
+                    ]
+                }
+            ]
+        })
+    };
+
+    let one = render_viewport_component(&viewport(
+        json!({"type": "SOLID", "color": {"r": 0.0, "g": 0.0, "b": 0.0}}),
+    ))
+    .expect("viewport output");
+    assert!(one.contains("bg=\"#000000\""), "{one}");
+    assert!(one.contains("maskImage="), "{one}");
+
+    let gradient = render_viewport_component(&viewport(
+        json!({"type": "GRADIENT_LINEAR", "gradientStops": []}),
+    ))
+    .expect("viewport output");
+    assert!(gradient.contains("src="), "{gradient}");
+    assert!(!gradient.contains("maskImage"), "{gradient}");
+}

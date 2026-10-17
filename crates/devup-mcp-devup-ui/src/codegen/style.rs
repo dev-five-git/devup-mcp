@@ -202,6 +202,11 @@ fn svg_asset_kind(snapshot: &Snapshot, node: &RawNode, nested: bool) -> AssetKin
 /// on nothing, `False` one whose paints disagree, and only a `Color` makes a
 /// mask. The two non-answers are not the same: a `Null` child leaves a
 /// running colour alone, a `False` one spoils it.
+///
+/// A paint that is not one flat colour (a gradient, an image, a solid with
+/// no readable colour) is `False`, not `Null`. A mask keeps only the shape
+/// and fills it with one colour, so letting such a paint stay neutral merged
+/// a gradient face and a solid outline into one solid blob.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum SameColor {
     Null,
@@ -209,11 +214,15 @@ enum SameColor {
     Color(String),
 }
 
-/// The plugin's `mergeSameColor`.
+/// The plugin's `mergeSameColor`, except that a `Null` (a subtree with no
+/// paint) is neutral wherever it falls. Taken literally, a `Null` after the
+/// first colour spoiled it while one before was skipped, so the order of the
+/// layers decided whether an icon became a mask.
 fn merge_same_color(current: SameColor, next: SameColor) -> SameColor {
     match (current, next) {
         (_, SameColor::False) => SameColor::False,
         (SameColor::Null, next) => next,
+        (current, SameColor::Null) => current,
         (current, next) if current == next => current,
         _ => SameColor::False,
     }
@@ -223,11 +232,19 @@ fn merge_same_color(current: SameColor, next: SameColor) -> SameColor {
 enum OwnColor {
     /// No visible paint at all.
     None,
-    /// A paint that is not a flat colour.
-    Null,
-    /// Two flat colours that differ.
+    /// Two flat colours that differ, or a paint that is not a flat colour.
     False,
     Color(String),
+}
+
+impl OwnColor {
+    fn same_color(self) -> SameColor {
+        match self {
+            Self::None => SameColor::Null,
+            Self::False => SameColor::False,
+            Self::Color(color) => SameColor::Color(color),
+        }
+    }
 }
 
 fn own_same_color(
@@ -236,7 +253,6 @@ fn own_same_color(
 ) -> OwnColor {
     let view = node.typed_view();
     let mut target: Option<String> = None;
-    let mut has_paints = false;
     for field in ["fills", "strokes"] {
         let Some(paints) = view.value(field).and_then(Value::as_array) else {
             continue;
@@ -245,12 +261,11 @@ fn own_same_color(
             if paint.get("visible").and_then(Value::as_bool) != Some(true) {
                 continue;
             }
-            has_paints = true;
             if paint.get("type").and_then(Value::as_str) != Some("SOLID") {
-                return OwnColor::Null;
+                return OwnColor::False;
             }
             let Some(color) = paint_string(paint, variable_tokens) else {
-                return OwnColor::Null;
+                return OwnColor::False;
             };
             match &target {
                 None => target = Some(color),
@@ -259,13 +274,7 @@ fn own_same_color(
             }
         }
     }
-    if !has_paints {
-        return OwnColor::None;
-    }
-    match target {
-        Some(color) => OwnColor::Color(color),
-        None => OwnColor::Null,
-    }
+    target.map_or(OwnColor::None, OwnColor::Color)
 }
 
 /// A solid paint as the plugin's `solidToString` spells it: the variable it
@@ -308,10 +317,7 @@ fn same_color(
     variable_tokens: Option<&std::collections::BTreeMap<String, String>>,
 ) -> SameColor {
     let view = node.typed_view();
-    let own = || match own_same_color(node, variable_tokens) {
-        OwnColor::Color(color) => SameColor::Color(color),
-        _ => SameColor::Null,
-    };
+    let own = || own_same_color(node, variable_tokens).same_color();
     if matches!(view.node_type(), "TEXT" | "COMPONENT_SET")
         || view
             .value("inferredAutoLayout")
@@ -365,7 +371,8 @@ fn same_color(
                     && fill_type(fill) == Some("IMAGE")
                     && fill.get("scaleMode").and_then(Value::as_str) != Some("TILE")
             }) {
-                return SameColor::Null;
+                // A picture inside an icon has colours a mask cannot keep.
+                return SameColor::False;
             }
             if node_fills.iter().all(|fill| {
                 fill.get("visible").and_then(Value::as_bool) == Some(true)
@@ -373,11 +380,7 @@ fn same_color(
             }) {
                 return if nested { own() } else { SameColor::Null };
             }
-            return match own_same_color(node, variable_tokens) {
-                OwnColor::Color(color) => SameColor::Color(color),
-                OwnColor::False => SameColor::False,
-                _ => SameColor::Null,
-            };
+            return own();
         }
         if nested
             && node_fills.is_some_and(|fills| {
@@ -409,10 +412,8 @@ fn same_color(
     }
 
     let mut same = match own_same_color(node, variable_tokens) {
-        OwnColor::Null => return SameColor::Null,
         OwnColor::False => return SameColor::False,
-        OwnColor::Color(color) => SameColor::Color(color),
-        OwnColor::None => SameColor::Null,
+        own => own.same_color(),
     };
     for child in child_ids
         .into_iter()

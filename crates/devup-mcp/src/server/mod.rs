@@ -11,6 +11,7 @@ mod feedback_interactions_tests;
 mod field_select;
 mod guide;
 mod interactions;
+mod mask_guard;
 mod measurement;
 mod navigation;
 pub mod operation;
@@ -1691,7 +1692,7 @@ impl DevupServer {
     }
 
     #[tool(
-        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. Asked to build pages or a site from Figma, follow the devup-implementation-plan workflow (/devup) even if not asked: it plans the URLs and adds hover/focus states, transitions and metadata. Building pages: with projectRoot, a page write (pageScaffold write, outputPaths under app/, or several frames with outputPaths) needs a confirmed devup_screen_plan and otherwise answers plan_required; pageScaffold then takes its route from the plan. Ask the plan's questions up front only; after confirm never ask the user, record assumptions instead. Excluded and design-fix frames are refused (skill devup-implementation-plan). \
+        description = "Export a small Figma selection. outputs:[outline] returns a bounded captured tree with logical layout metrics and responseOffset/responseLimit pagination. responseFields or path use a validated field/index/exact-name-or-id grammar (e.g. nodes[name=\"Cards\"].layout), retaining node identity and linking full omitted evidence as resources. For only explicit node dimensions, prefer devup_figma_measure, which bypasses snapshot collection and code generation; the Figma-to-code entry point. url is optional while exactly one Devup Bridge plugin is attached (devup_figma_auth status shows what is attached): omitted, or given as figma-bridge://current, the export reads the file that plugin has open and the node selected in Figma; frameIds without url name frames in it - one id is that frame, several are screens of the selected Section. Never invent a Figma file key to fill url. Asset requests: recommend 1–3 per call, maximum 6; split larger assetRequests before calling. All fresh exports return exportJob (assetJob compatibility alias) within a one-second initial wait when collection is still running, with per-call frame/root IDs, pagination and elapsed time. Slow asset calls also retain per-asset progress. Poll with jobId; use jobAction=resume when paused. Polls return compact asset rows (status, bytes, sha256, fileState); responseFields on a poll selects from its reply, e.g. exportJob.assets for full rows; assetJob only references exportJob. Generated code uses maskImage only for single-colour icons; multi-colour icons stay <Image>. Never convert an <Image> icon to a mask or recolour it by hand. Jobs retain accepted reads/bytes across client timeouts for 30 minutes in this server process, not across restart. Identical arguments recover a lost job reply. Completed results are retained for 5 minutes. Recommend 1–3 frames per call; allow at most 6 frames and 12 frame-times-output units. Budget roughly 5–20 seconds per frame-output unit (15–60 seconds per frame for three outputs) as a planning heuristic, not a guarantee: paging, complexity and throttling can exceed it and clients commonly time out at 300 seconds. Oversized selections are refused before screen collection; split frameIds into one-frame calls when isolating latency, or poll jobId. Partial per-frame projection failures retain successful frame outputs. projectionIssues always explains reported approximations, unclassified layout loss and missing generated-property provenance, even without includeDiagnostics. mappingComplete=false identifies mapping gaps; mapping-incomplete is not value loss and cannot be exact. projectionEvidence includes source fields and calculations for generated attributes. outputPathResults lists supported keys and diagnostics; frame file keys are frame:<nodeId>:<tsx|componentTsx|sourceMap>, while outputPaths reports actual committed writes. Resource responses offer nextAction.tool/arguments for same-artifact body comparison and sizeEstimate with explicit unmeasured wire overhead; coupled asset/path arguments remain together. quality.assets grades binary collection; assetSummary.description explains collection state. Merge saved batch responses offline with devup-mcp --merge-asset-batches batch1.json batch2.json for cumulative collection, unrequested, failed and conflict counts. SECTION links use two stages: receive selection_required, then run nextAction.example to export a selected screen. Asked to build pages or a site from Figma, follow the devup-implementation-plan workflow (/devup) even if not asked: it plans the URLs and adds hover/focus states, transitions and metadata. Building pages: with projectRoot, a page write (pageScaffold write, outputPaths under app/, or several frames with outputPaths) needs a confirmed devup_screen_plan and otherwise answers plan_required; pageScaffold then takes its route from the plan. Ask the plan's questions up front only; after confirm never ask the user, record assumptions instead. Excluded and design-fix frames are refused (skill devup-implementation-plan). \
                        The `tsx` this returns is devup-ui code, not plain React: its components are compile-time placeholders, `$token` names an entry in the project's devup.json, and a style prop takes a responsive array. Call devup_skills before you write or edit it - it reports which of those conventions this workspace is missing and installs them where your runtime loads skills from. An agent that skips this does not know it is guessing, and this server cannot see the guesses; the gap is repeated as `skillGap` on the response that carries the code. \
                        This output is the design, already read. Do not rewrite it from a screenshot or from `get_design_context` - pictures and visual reasoning verify, they do not author. Do not read the node tree and write devup-ui by hand, and do not infer layout from coordinates. Never guess a colour, spacing, radius or typography value: if a value did not come back, say so and stop, because an invented one is indistinguishable from a real one in the code and is the single failure this server exists to prevent. A failed call is a fact to report, not something to route around. \
                        Ask only for what you will read: `tsx` is the deliverable, and the response always carries `status`, `quality`, `cache.artifactId`, `collection` and `source` beside it. \
@@ -1809,21 +1810,29 @@ impl DevupServer {
             // their TSX. Checking it only on the synchronous returns left
             // every real export unchecked.
             let project_root = input.project_root.clone();
-            return job
-                .wait_briefly()
+            // responseFields on a poll selects from this reply; without them
+            // the reply carries compact per-asset rows.
+            let selection = &input.response_selection;
+            selection.validate().map_err(to_mcp_error)?;
+            let result = job
+                .wait_briefly(selection.active())
                 .await
-                .map(|result| {
-                    tool_result(with_project_checks(
-                        result,
-                        project_root.as_deref(),
-                        &skills::Lookup::new(
-                            project_root.as_deref(),
-                            self.output_policy.primary_root(),
-                            self.client_name(),
-                        ),
-                    ))
-                })
-                .map_err(to_mcp_error);
+                .map_err(to_mcp_error)?;
+            let result = with_project_checks(
+                result,
+                project_root.as_deref(),
+                &skills::Lookup::new(
+                    project_root.as_deref(),
+                    self.output_policy.primary_root(),
+                    self.client_name(),
+                ),
+            );
+            if selection.active() {
+                return compact::pick(&result, selection)
+                    .map(tool_result)
+                    .map_err(to_mcp_error);
+            }
+            return Ok(tool_result(result));
         }
         if workflow.job_action.is_some() {
             return Err(to_mcp_error(DevupError::new(
@@ -2327,7 +2336,7 @@ impl DevupServer {
 
     #[tool(
         description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
-                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. `themeNotes` summarizes each encountered empty token category once. \
+                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. With projectRoot, a maskImage whose public SVG paints more than one colour warns `multicolor-mask` (use <Image src>). `themeNotes` summarizes each encountered empty token category once. \
                        Site completeness: an interactive element (as=a/button, Link, button, onClick) with no _hover or _focusVisible is a warning (interactive-states), a _hover with no transition is info (hover-transition), a page or layout with no metadata export is a warning (page-metadata, files mode), and with projectRoot an app with no icon or favicon is a warning (app-icon). Navigation rules also report unmapped action candidates/accessibility warnings, missing static App Router href errors when projectRoot inventory is complete, and literal active-state info. Dynamic hrefs/custom routing and incomplete bundles remain unverified. Optional renderedHtml reports captured anchor counts separately from source coverage; neither proves runtime behavior. `checkedTokens` counts references and `availableTokenCount` counts definitions; they are not a ratio.",
         output_schema = permissive_object_output_schema()
     )]
@@ -2407,7 +2416,7 @@ impl DevupServer {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_else(|| vec![("", input.tsx.as_str())]);
-        for (name, tsx) in sources {
+        for &(name, tsx) in &sources {
             for diagnostic in
                 devup_mcp_devup_ui::codegen::validate_asset_effects(tsx, &input.asset_policies)
             {
@@ -2424,6 +2433,12 @@ impl DevupServer {
                 }
             }
         }
+        // A mask flattens its SVG to one colour, which only the file shows.
+        let masks = mask_guard::violations(&sources, input.project_root.as_deref());
+        if input.strict && !masks.is_empty() {
+            report.ok = false;
+        }
+        report.violations.extend(masks);
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three
@@ -2685,6 +2700,9 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
     let mut rules = devup_mcp_devup_ui::ui_validate::rule_names()
         .into_iter()
         .collect::<Vec<_>>();
+    if input.project_root.is_some() {
+        rules.push(mask_guard::RULE);
+    }
     if input.files.is_some() {
         rules.extend([
             "file-placement",
