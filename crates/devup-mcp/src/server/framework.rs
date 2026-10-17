@@ -26,12 +26,14 @@ pub(super) struct App {
     pub evidence: Vec<String>,
     /// `src/app` or `app` under `dir`, when either exists.
     pub app_router: Option<String>,
+    /// The `name` in its package.json.
+    pub name: Option<String>,
 }
 
 impl App {
     pub fn json(&self) -> Value {
-        json!({"dir": self.dir, "framework": self.framework, "evidence": self.evidence,
-            "appRouter": self.app_router})
+        json!({"dir": self.dir, "name": self.name, "framework": self.framework,
+            "evidence": self.evidence, "appRouter": self.app_router})
     }
 
     /// `dir` joined with a relative path, without a leading `./`.
@@ -149,6 +151,7 @@ fn classify(root: &Path, dir: &str) -> App {
         framework,
         evidence,
         app_router,
+        name: package["name"].as_str().map(str::to_owned),
     }
 }
 

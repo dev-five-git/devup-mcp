@@ -305,6 +305,9 @@ pub(super) struct PlanConfig {
     /// vinext | next: pre-answers the migrate-to-vinext question.
     #[serde(default)]
     pub framework: Option<String>,
+    /// false opts the project out of view transitions.
+    #[serde(default)]
+    pub view_transitions: Option<bool>,
 }
 
 fn read_config(project_root: &str) -> Result<Option<PlanConfig>, DevupError> {
@@ -1616,11 +1619,11 @@ fn version_triple(value: &str) -> Option<(u64, u64, u64)> {
 }
 
 /// The dependency step every job starts with, word for word as the skills
-/// give it. `-d` scans every manifest under the root recursively (that is how
-/// workspace apps are reached), `-u` applies the updates as one recoverable
-/// batch, and `--rm` removes the lockfiles and installed directories next to
-/// each manifest - for a Cargo.toml too, which means Cargo.lock and target/ -
-/// so the next install resolves everything fresh.
+/// give it. It updates every manifest in the repository - every bun
+/// workspace and every Cargo.toml - to the latest versions: `-d` finds them
+/// all, `-u` applies the updates as one recoverable batch, and `--rm` removes
+/// the lockfiles and installed directories next to each (Cargo.lock and
+/// target/ included) so the next install resolves everything fresh.
 pub(super) const UPDATE_STEP: &str = "bunx @dependency-check-updates/cli -d -u --rm";
 
 /// The documents the view-transition decision rests on. Read when it was
@@ -1635,9 +1638,9 @@ pub(super) const UPDATE_STEP: &str = "bunx @dependency-check-updates/cli -d -u -
 ///   vinext's own example imports `ViewTransition` from 'react' and sets
 ///   `experimental.viewTransition: true` in its next config.
 /// - <https://github.com/cloudflare/vinext/blob/main/packages/vinext/src/check.ts>:
-///   `vinext check` still labels that import "partial (passthrough fallback,
-///   won't animate)" whatever the React version; the runtime audit is where
-///   that is settled.
+///   `vinext check` labels that import "partial (passthrough fallback)"
+///   whatever the React version; the runtime audit's view-transition check is
+///   what settles whether it animates.
 /// - https://github.com/cloudflare/vinext#readme - peer dependency react ^19.3.1.
 const VIEW_TRANSITION_DOCS: &[&str] = &[
     "https://nextjs.org/docs/app/guides/view-transitions",
@@ -1647,64 +1650,44 @@ const VIEW_TRANSITION_DOCS: &[&str] = &[
     "https://github.com/cloudflare/vinext/blob/main/packages/vinext/src/check.ts",
 ];
 
-fn vinext_transition(evidence: &ProjectEvidence, common: &str, why: String) -> Value {
-    json!({"item": "view-transitions", "mechanism": "react-view-transition (vinext)",
-        "decision": format!("import {{ ViewTransition }} from 'react', wrapping each page's content in its page.tsx, with experimental: {{ viewTransition: true }} in vinext({{ nextConfig }}) as vinext's own example does; {common}. vinext check still labels this import partial (a passthrough shim), so the runtime audit confirms the cross-fade animates in Chromium; if it does not, pages still navigate normally - record that as an assumption."),
-        "evidence": why, "app": evidence.app_root(), "docs": VIEW_TRANSITION_DOCS})
-}
-
-/// The view-transition default for the latest stack: vinext with React
-/// 19.3+, decided from the versions installed after the dependency update -
-/// status decides again from what is installed then. The `next` CLI path is
-/// a fallback for existing projects that do not run on vinext.
+/// The view-transition default: always on. DevFive runs the latest versions
+/// (the dependency step comes first), and the latest Next App Router and
+/// React support `<ViewTransition>` on vinext and on the `next` CLI alike, so
+/// no version is checked. Whether it really animates is not taken on trust
+/// either way: the runtime audit's `view-transition` check follows a link and
+/// fails when no transition ran. The only "skipped" results are a project
+/// that opts out (`viewTransitions: false`) and one that forbids the update
+/// (`updateDependencies: false`) while its installed React predates 19.3.
 fn view_transition_default(evidence: &ProjectEvidence) -> Value {
-    let common = "a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion; browsers without support navigate normally";
-    if is_new_project(evidence) {
-        return vinext_transition(
-            evidence,
-            common,
-            "new project from dev-five-git/service-template, which runs vinext 1.0 with React 19.3 - after the update step, newer".into(),
-        );
-    }
-    let migrating = evidence.config.framework.as_deref() == Some("vinext");
-    if evidence.framework() != "vinext" && !migrating {
-        let mut fallback = next_cli_view_transition(evidence);
-        fallback["docs"] = json!(VIEW_TRANSITION_DOCS);
-        return fallback;
-    }
-    let version = |slot: &Option<(String, String)>| {
-        slot.as_ref()
-            .map_or(("not installed".to_owned(), None), |(text, _)| {
-                (text.clone(), version_triple(text))
-            })
+    let skipped = |why: String| {
+        json!({"item": "view-transitions", "mechanism": "skipped",
+            "decision": "No view transitions.", "evidence": why, "docs": VIEW_TRANSITION_DOCS})
     };
-    // The highest React the app declares: `react` may be a bare `^19` while
-    // react-dom and react-server-dom-webpack pin the release it runs.
-    let (react_text, react) = std::iter::once(version(&evidence.react_version))
-        .chain(
-            evidence
-                .react_peers
-                .iter()
-                .map(|(text, _)| (text.clone(), version_triple(text))),
-        )
-        .max_by_key(|(_, triple)| *triple)
-        .unwrap_or(("not installed".to_owned(), None));
-    let (vinext_text, vinext) = version(&evidence.vinext_version);
-    if react.is_some_and(|react| react >= (19, 3, 0))
-        && vinext.is_some_and(|vinext| vinext >= (1, 0, 0))
-    {
-        return vinext_transition(
-            evidence,
-            common,
-            format!(
-                "vinext {vinext_text} with react {react_text}: React 19.3 exports ViewTransition, and Next's view-transitions suite passes under vinext"
-            ),
-        );
+    if evidence.config.view_transitions == Some(false) {
+        return skipped(format!("viewTransitions: false in {CONFIG_FILE}"));
     }
-    json!({"item": "view-transitions", "mechanism": "skipped",
-        "decision": "No view transitions yet: the update step brings vinext and React up, and status decides again from the installed versions.".to_owned(),
-        "evidence": format!("vinext {vinext_text} with react {react_text}: needs vinext 1.0+ and React 19.3+"),
-        "docs": VIEW_TRANSITION_DOCS})
+    if evidence.config.update_dependencies == Some(false) {
+        let react = std::iter::once(&evidence.react_version)
+            .flatten()
+            .chain(evidence.react_peers.iter())
+            .filter_map(|(text, _)| version_triple(text))
+            .max();
+        if react.is_none_or(|react| react < (19, 3, 0)) {
+            return skipped(format!(
+                "updateDependencies: false in {CONFIG_FILE} keeps React below 19.3, which has no ViewTransition"
+            ));
+        }
+    }
+    let runner = if evidence.framework() == "next"
+        && evidence.config.framework.as_deref() != Some("vinext")
+    {
+        "the next CLI"
+    } else {
+        "vinext"
+    };
+    json!({"item": "view-transitions", "mechanism": "react-view-transition",
+        "decision": "import { ViewTransition } from 'react', wrapping each page's content in its page.tsx (not the layout, which persists): a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion. Verify it with a runtime-audit view-transition check (follow a link between two routes; it fails when no transition ran) - a failure is a bug to fix. experimental.viewTransition is added to the next config only if that check fails without it (vinext's own example sets it).",
+        "evidence": format!("runs on {runner} at the latest versions"), "app": evidence.app_root(), "docs": VIEW_TRANSITION_DOCS})
 }
 
 /// No app, no routes and no framework: a project still to be created.
@@ -1735,48 +1718,310 @@ fn stack_defaults(evidence: &ProjectEvidence) -> Vec<Value> {
             "evidence": format!("updateDependencies: false in {CONFIG_FILE}")})
     } else {
         json!({"item": "dependencies", "mechanism": "update",
-            "decision": format!("Before implementing, at the repository root: {UPDATE_STEP} (-d scans every manifest below the root, so workspace apps are included; -u applies the updates as one recoverable batch; --rm removes the lockfiles and installed directories next to each manifest - Cargo.lock and target/ too - so everything resolves fresh), then bun install, build, lint and typecheck. Fix code to new APIs; pin back only when no fix exists, and record the pin as an assumption. Record the outcome with devup_screen_plan assume (dependencyUpdate)."),
+            "decision": format!("Before implementing, at the repository root: {UPDATE_STEP}, which updates every manifest in the repository - every bun workspace and every Cargo.toml - to the latest versions (-d finds them all, -u applies the updates as one recoverable batch, --rm removes each lockfile and installed directory, Cargo.lock and target/ included, so everything resolves fresh); then bun install, build, lint and typecheck. Fix code to new APIs; pin back only when no fix exists, and record the pin as an assumption. Record the outcome with devup_screen_plan assume (dependencyUpdate)."),
             "evidence": "DevFive works on the latest versions; API knowledge from memory is assumed stale"})
     });
     defaults
 }
 
-/// The questions about the stack itself: which app, migrating off the
-/// `next` CLI, and for a new project its name and parts.
-fn stack_questions(evidence: &ProjectEvidence) -> Vec<Value> {
+/// Words that mark an app, or a screen, as the public site or the admin
+/// console. An app named `admin` is the admin console; a Figma design for a
+/// public site is almost never for it.
+const PUBLIC_APP_WORDS: &[&str] = &[
+    "front", "web", "site", "www", "landing", "home", "public", "client",
+];
+const ADMIN_WORDS: &[&str] = &[
+    "admin",
+    "dashboard",
+    "console",
+    "backoffice",
+    "back office",
+    "cms",
+    "manager",
+    "관리자",
+    "어드민",
+    "대시보드",
+    "회원관리",
+];
+/// Screen names a public site has and an admin console does not.
+const PUBLIC_SCREEN_WORDS: &[&str] = &[
+    "home",
+    "main",
+    "landing",
+    "about",
+    "company",
+    "service",
+    "services",
+    "contact",
+    "portfolio",
+    "pricing",
+    "blog",
+    "news",
+    "faq",
+    "gnb",
+    "메인",
+    "홈",
+    "회사소개",
+    "서비스",
+    "문의",
+    "포트폴리오",
+    "소개",
+];
+/// Routes that say an app is a console: a sign-in gate and a dashboard.
+const ADMIN_ROUTE_SEGMENTS: &[&str] = &["signin", "sign-in", "login", "dashboard", "admin"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Public,
+    Admin,
+    Unclear,
+}
+
+fn words_side(names: &[&str], public: &[&str]) -> (usize, usize) {
+    let admin = names
+        .iter()
+        .filter(|name| ADMIN_WORDS.iter().any(|word| keyword_in(name, word)))
+        .count();
+    let public = names
+        .iter()
+        .filter(|name| public.iter().any(|word| keyword_in(name, word)))
+        .count();
+    (public, admin)
+}
+
+/// Which side an app serves, and the evidence: its directory and package
+/// name, then its routes.
+fn app_side(app: &super::framework::App, evidence: &ProjectEvidence) -> (Side, Vec<String>) {
+    let base = app.dir.rsplit('/').next().unwrap_or(&app.dir).to_owned();
+    let mut names = vec![base.as_str()];
+    if let Some(name) = &app.name {
+        names.push(name.as_str());
+    }
+    let (mut public, mut admin) = words_side(&names, PUBLIC_APP_WORDS);
+    let mut why = Vec::new();
+    if public > 0 {
+        why.push(format!("{} is named like the public site", app.dir));
+    }
+    if admin > 0 {
+        why.push(format!("{} is named like an admin console", app.dir));
+    }
+    let console_routes = evidence
+        .routes
+        .iter()
+        .filter(|(_, page)| page.starts_with(&format!("{}/", app.dir)))
+        .filter(|(route, _)| {
+            route
+                .trim_matches('/')
+                .split('/')
+                .any(|segment| ADMIN_ROUTE_SEGMENTS.contains(&segment))
+        })
+        .map(|(route, _)| route.clone())
+        .collect::<Vec<_>>();
+    if !console_routes.is_empty() {
+        admin += 1;
+        why.push(format!(
+            "{} has console routes ({})",
+            app.dir,
+            console_routes.join(", ")
+        ));
+    }
+    if public == admin {
+        public = 0;
+        admin = 0;
+    }
+    let side = match public.cmp(&admin) {
+        std::cmp::Ordering::Greater => Side::Public,
+        std::cmp::Ordering::Less => Side::Admin,
+        std::cmp::Ordering::Equal => Side::Unclear,
+    };
+    (side, why)
+}
+
+/// Which side one Figma frame belongs to, from its own name and its
+/// section's. Admin markers win: a "관리자 - 메인" frame is the console's.
+fn screen_side(screen: &PlanScreenInput) -> Side {
+    let mut names = vec![screen.name.as_str()];
+    names.extend(screen.section_name.as_deref());
+    names.extend(screen.breadcrumb.iter().map(String::as_str));
+    match words_side(&names, PUBLIC_SCREEN_WORDS) {
+        (_, admin) if admin > 0 => Side::Admin,
+        (public, _) if public > 0 => Side::Public,
+        _ => Side::Unclear,
+    }
+}
+
+fn app_action(app: &super::framework::App) -> Value {
+    json!({"app": {"dir": app.dir, "appDir": app.path(app.app_router.as_deref().unwrap_or("src/app"))}})
+}
+
+/// Which app each screen is built in, by meaning rather than by name order.
+///
+/// With one app, or a projectRoot that is an app, there is nothing to pick.
+/// Otherwise the screens' own names decide: all public screens go to the
+/// public app and all admin screens to the admin app without a question; a
+/// file with both maps each screen to its side and asks only about screens
+/// whose side is unclear; a file whose screens say nothing either way is the
+/// one genuinely ambiguous case, asked once - recommending the public app,
+/// never whichever comes first alphabetically.
+///
+/// Returns the app per screen (by node id), the questions, and the default
+/// that records the evidence.
+fn assign_apps(
+    evidence: &ProjectEvidence,
+    screens: &[PlanScreenInput],
+) -> (
+    BTreeMap<String, super::framework::App>,
+    Vec<Value>,
+    Option<Value>,
+) {
+    let mut assigned = BTreeMap::new();
+    if evidence.target_app.is_some() || evidence.apps.len() < 2 {
+        return (assigned, Vec::new(), None);
+    }
+    let sides = evidence
+        .apps
+        .iter()
+        .map(|app| (app, app_side(app, evidence)))
+        .collect::<Vec<_>>();
+    let public_app = sides
+        .iter()
+        .find(|(_, (side, _))| *side == Side::Public)
+        .or_else(|| sides.iter().find(|(_, (side, _))| *side != Side::Admin))
+        .map(|(app, _)| (*app).clone())
+        .unwrap_or_else(|| evidence.apps[0].clone());
+    let admin_app = sides
+        .iter()
+        .find(|(_, (side, _))| *side == Side::Admin)
+        .map(|(app, _)| (*app).clone());
+    let app_evidence = sides
+        .iter()
+        .flat_map(|(_, (_, why))| why.clone())
+        .collect::<Vec<_>>();
+    let screen_sides = screens
+        .iter()
+        .map(|screen| (screen, screen_side(screen)))
+        .collect::<Vec<_>>();
+    let admin_screens = screen_sides
+        .iter()
+        .filter(|(_, side)| *side == Side::Admin)
+        .count();
+    let public_screens = screen_sides
+        .iter()
+        .filter(|(_, side)| *side == Side::Public)
+        .count();
     let mut questions = Vec::new();
-    if evidence.target_app.is_none() && evidence.apps.len() > 1 {
-        let choices = evidence
-            .apps
+    let options = || {
+        let mut ordered = vec![public_app.clone()];
+        ordered.extend(
+            evidence
+                .apps
+                .iter()
+                .filter(|app| app.dir != public_app.dir)
+                .cloned(),
+        );
+        ordered
             .iter()
             .take(MAX_OPTIONS)
             .map(|app| {
+                let side = sides
+                    .iter()
+                    .find(|(candidate, _)| candidate.dir == app.dir)
+                    .map(|(_, (side, _))| *side);
                 choice(
                     app.dir.as_str(),
-                    format!("{} app; {}", app.framework, app.evidence.join("; ")),
-                    json!({"app": {"dir": app.dir, "appDir": app.path(app.app_router.as_deref().unwrap_or("src/app"))}}),
+                    format!(
+                        "{} - {} app{}",
+                        match side {
+                            Some(Side::Public) => "the public site",
+                            Some(Side::Admin) => "the admin console",
+                            _ => "an app",
+                        },
+                        app.framework,
+                        app.name
+                            .as_deref()
+                            .map(|name| format!(" ({name})"))
+                            .unwrap_or_default()
+                    ),
+                    app_action(app),
                 )
             })
-            .collect::<Vec<_>>();
-        let mut asked = question(
-            "site:app".into(),
-            "Which app".into(),
-            format!(
-                "This repository has {} apps ({}). Which one does this design build? A custom answer is its directory.",
-                evidence.apps.len(),
-                evidence
-                    .apps
-                    .iter()
-                    .map(|app| app.dir.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            choices,
-            "site",
-        );
-        asked["field"] = json!("app");
-        questions.push(asked);
-    }
+            .collect::<Vec<_>>()
+    };
+    let decision = match (admin_screens, public_screens, &admin_app) {
+        (0, 0, _) => {
+            let mut asked = question(
+                "site:app".into(),
+                "Which app".into(),
+                format!(
+                    "This repository has {} apps ({}), and the frames' names say nothing about which one they are for. Which app does this design build? A custom answer is its directory.",
+                    evidence.apps.len(),
+                    evidence
+                        .apps
+                        .iter()
+                        .map(|app| app.dir.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                options(),
+                "site",
+            );
+            asked["field"] = json!("app");
+            questions.push(asked);
+            for (screen, _) in &screen_sides {
+                assigned.insert(screen.node_id.clone(), public_app.clone());
+            }
+            json!({"item": "target-app", "mechanism": "asked", "question": "site:app",
+                "decision": format!("Asked; {} is recommended as the public app.", public_app.dir), "evidence": app_evidence})
+        }
+        (admin, public, Some(admin_app)) if admin > 0 && public > 0 => {
+            for (screen, side) in &screen_sides {
+                let app = if *side == Side::Admin {
+                    admin_app.clone()
+                } else {
+                    public_app.clone()
+                };
+                assigned.insert(screen.node_id.clone(), app);
+                if *side == Side::Unclear {
+                    let mut asked = question(
+                        format!("app:{}", screen.node_id),
+                        header("App", &screen.name),
+                        format!(
+                            "This file has public and admin screens. Which app is \"{}\" ({}) for?",
+                            screen.name, screen.node_id
+                        ),
+                        options(),
+                        "site",
+                    );
+                    asked["field"] = json!("app");
+                    questions.push(asked);
+                }
+            }
+            json!({"item": "target-app", "mechanism": "per-screen",
+                "decision": format!("Admin screens go to {}, public screens to {}; screens of unclear side are asked.", admin_app.dir, public_app.dir),
+                "evidence": app_evidence})
+        }
+        (admin, 0, Some(admin_app)) if admin > 0 => {
+            for (screen, _) in &screen_sides {
+                assigned.insert(screen.node_id.clone(), admin_app.clone());
+            }
+            json!({"item": "target-app", "mechanism": "decided", "decision": admin_app.dir,
+                "evidence": ([app_evidence, vec![format!("{admin} of {} frames are named for the admin console", screens.len())]].concat())})
+        }
+        _ => {
+            for (screen, _) in &screen_sides {
+                assigned.insert(screen.node_id.clone(), public_app.clone());
+            }
+            json!({"item": "target-app", "mechanism": "decided", "decision": public_app.dir,
+                "evidence": ([app_evidence, vec![format!("{public_screens} of {} frames are public-site screens and none is named for an admin console", screens.len())]].concat())})
+        }
+    };
+    (assigned, questions, Some(decision))
+}
+
+/// The questions about the stack itself: migrating off the `next` CLI, and
+/// for a new project its name and parts. Which app is [`assign_apps`]'s.
+fn stack_questions(evidence: &ProjectEvidence) -> Vec<Value> {
+    let mut questions = Vec::new();
     if evidence.framework() == "next" && evidence.config.framework.is_none() {
         let app = evidence.target_app.as_ref();
         let mut asked = question(
@@ -1839,76 +2084,6 @@ fn stack_questions(evidence: &ProjectEvidence) -> Vec<Value> {
         questions.push(parts);
     }
     questions
-}
-
-/// The `next` CLI fallback: which mechanism this project's Next.js and
-/// React support, or why there is none. Decided from the versions the
-/// project declares, against the current Next.js view-transitions guide
-/// (App Router, `import { ViewTransition } from 'react'`, React 19.3) and the
-/// Next 15 `experimental.viewTransition` flag that preceded it.
-fn next_cli_view_transition(evidence: &ProjectEvidence) -> Value {
-    let item = |mechanism: &str, decision: String, why: String| json!({"item": "view-transitions", "mechanism": mechanism, "decision": decision, "evidence": why});
-    let common = "a short cross-fade of about 250ms, no big slides; shared elements (page title, hero image, a card image on its detail page) named only where the same element is on both pages - a static name as the devup-ui viewTransitionName prop, a per-record name on <ViewTransition name>; `::view-transition { pointer-events: none }`; animation-duration 0s under prefers-reduced-motion; browsers without support navigate normally";
-    let Some((next_text, next_from)) = &evidence.next_version else {
-        if !evidence.routes.is_empty() {
-            return item(
-                "skipped",
-                "No view transitions until the Next.js version is known.".into(),
-                "App Router pages exist but package.json declares no next version".into(),
-            );
-        }
-        return item(
-            "css-cross-document",
-            format!("@view-transition {{ navigation: auto; }} with a ::view-transition-old/new(root) cross-fade, for full page loads; {common}."),
-            "no Next.js in package.json: navigations load whole documents, which is where the CSS rule applies".into(),
-        );
-    };
-    let Some(next) = version_triple(next_text) else {
-        return item(
-            "skipped",
-            "No view transitions until the Next.js version is known.".into(),
-            format!(
-                "next is {next_text:?} in {next_from}, which names no version; resolve it and redraft"
-            ),
-        );
-    };
-    let react = evidence
-        .react_version
-        .as_ref()
-        .and_then(|(text, _)| version_triple(text));
-    let react_text = evidence
-        .react_version
-        .as_ref()
-        .map_or("not declared".to_owned(), |(text, _)| text.clone());
-    if next.0 >= 16 && react.is_some_and(|react| react >= (19, 3, 0)) {
-        return item(
-            "react-view-transition",
-            format!(
-                "import {{ ViewTransition }} from 'react' - no next.config flag - wrapping each page's content in page.tsx (not the layout, which persists); {common}."
-            ),
-            format!(
-                "next {next_text} and react {react_text}: the App Router supports React's ViewTransition with no configuration"
-            ),
-        );
-    }
-    if next >= (15, 2, 0) {
-        return item(
-            "react-unstable-view-transition",
-            format!(
-                "experimental.viewTransition: true in next.config and import {{ unstable_ViewTransition as ViewTransition }} from 'react', wrapping each page's content; {common}. Record it as an assumption: the Next.js docs mark this flag experimental."
-            ),
-            format!(
-                "next {next_text} with react {react_text}: only the experimental flag is available; Next 16 with React 19.3 needs none"
-            ),
-        );
-    }
-    item(
-        "skipped",
-        "No view transitions.".into(),
-        format!(
-            "next {next_text} predates view-transition support, and its App Router navigations stay in one document, where the CSS @view-transition rule does not apply"
-        ),
-    )
 }
 
 /// What the agent fills in by itself, without a question. Recorded in the
@@ -2334,7 +2509,7 @@ fn site_completeness(plan: &Value, evidence: &ProjectEvidence) -> Vec<Value> {
         _ if declined => json!({"item": "view-transitions", "state": "not-applicable",
             "detail": "skipped: the user kept the project's own page motion"}),
         _ if transitions => json!({"item": "view-transitions", "state": "filled",
-            "detail": format!("enabled ({mechanism})")}),
+            "detail": format!("enabled ({mechanism}); the runtime audit's view-transition check proves it runs")}),
         _ => json!({"item": "view-transitions", "state": "missing",
             "detail": format!("planned ({mechanism}) but not in the sources yet")}),
     });
@@ -2889,10 +3064,42 @@ pub(super) fn draft_plan_with(
     for asked in extra_questions(extra)? {
         questions.push(with_when(asked, &base_when));
     }
+    let (screen_apps, app_questions, app_default) = assign_apps(evidence, &kept);
+    for asked in app_questions {
+        questions.push(with_when(asked, &base_when));
+    }
+    // One app for the whole plan: its routes are the only route evidence.
+    let chosen = screen_apps
+        .values()
+        .map(|app| app.dir.clone())
+        .collect::<BTreeSet<_>>();
+    let scoped;
+    let evidence = match (chosen.len(), screen_apps.values().next()) {
+        (1, Some(app))
+            if app_default
+                .as_ref()
+                .is_some_and(|item| item["mechanism"] == "decided") =>
+        {
+            let mut narrowed = evidence.clone();
+            narrowed
+                .routes
+                .retain(|(_, page)| page.starts_with(&format!("{}/", app.dir)));
+            narrowed.app_dir = app.path(app.app_router.as_deref().unwrap_or("src/app"));
+            narrowed.target_app = Some(app.clone());
+            scoped = narrowed;
+            &scoped
+        }
+        _ => evidence,
+    };
     for asked in stack_questions(evidence) {
         questions.push(with_when(asked, &base_when));
     }
-    let defaults = [stack_defaults(evidence), site_defaults(evidence, &kept)].concat();
+    let defaults = [
+        app_default.into_iter().collect::<Vec<_>>(),
+        stack_defaults(evidence),
+        site_defaults(evidence, &kept),
+    ]
+    .concat();
     let cover = kept
         .first()
         .map(|screen| (screen.node_id.clone(), screen.name.clone()));
@@ -3595,6 +3802,8 @@ pub(super) fn draft_plan_with(
             "kindEvidence": if modal { json!(kind_evidence) } else { Value::Null },
             "frames": screen.frames.iter().map(Frame::json).collect::<Vec<_>>(),
             "drawnWidths": widths,
+            "app": screen_apps.get(screen.id()).map(|app| app.dir.clone()),
+            "appDir": screen_apps.get(screen.id()).map(|app| app.path(app.app_router.as_deref().unwrap_or("src/app"))),
             "groupingQuestion": screen.grouping_question(),
             "structureQuestions": screen.structure,
             "grouping": match &screen.grouping {
@@ -4148,6 +4357,21 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
         if nothing_here || fixed(&deciding) {
             continue;
         }
+        let chosen_app = actions
+            .get(&format!("app:{id}"))
+            .or_else(|| actions.get("site:app"))
+            .map(|action| action["app"].clone());
+        let screen_app = chosen_app
+            .as_ref()
+            .and_then(|app| app["dir"].as_str())
+            .or(screen["app"].as_str())
+            .map(str::to_owned);
+        let screen_app_dir = chosen_app
+            .as_ref()
+            .and_then(|app| app["appDir"].as_str())
+            .or(screen["appDir"].as_str())
+            .unwrap_or(&app_dir)
+            .to_owned();
         let group = screen["groupingQuestion"]
             .as_str()
             .and_then(|question| actions.get(question));
@@ -4228,7 +4452,8 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
                 "drawnWidths": group_frames.iter().filter_map(|frame| frame["width"].as_f64()).map(|width| width.round() as i64).collect::<Vec<_>>(),
                 "implementation": implementation,
                 "hostScreen": host,
-                "file": existing.clone().unwrap_or_else(|| route.as_deref().map_or(Value::Null, |url| json!(planned_page(url, &app_dir)))),
+                "app": screen_app,
+                "file": existing.clone().unwrap_or_else(|| route.as_deref().map_or(Value::Null, |url| json!(planned_page(url, &screen_app_dir)))),
                 "fileExists": existing.is_some(),
                 "collisionPolicy": collision,
                 "data": data,
@@ -4269,10 +4494,14 @@ pub(super) fn confirm(input: &ScreenPlanInput, policy: &OutputPolicy) -> Result<
             }
         }
     }
-    let mut seen = BTreeMap::<String, String>::new();
+    // One URL per app: the public site and the console may both have `/`.
+    let mut seen = BTreeMap::<(String, String), String>::new();
     for row in &routes {
         if let Some(url) = row["url"].as_str()
-            && let Some(other) = seen.insert(url.to_owned(), text(&row["screen"]).to_owned())
+            && let Some(other) = seen.insert(
+                (text(&row["app"]).to_owned(), url.to_owned()),
+                text(&row["screen"]).to_owned(),
+            )
             && other != text(&row["screen"])
         {
             return Err(invalid(format!(
@@ -4462,7 +4691,7 @@ fn cell(value: &Value) -> String {
 
 fn route_markdown(routes: &[Value]) -> String {
     let mut out = String::from(
-        "| URL | Figma screen | nodeIds | widths | file | implementation |\n|---|---|---|---|---|---|\n",
+        "| URL | Figma screen | nodeIds | widths | file | implementation | app |\n|---|---|---|---|---|---|---|\n",
     );
     for row in routes {
         let url = if row["implementation"] == "state" {
@@ -4471,12 +4700,13 @@ fn route_markdown(routes: &[Value]) -> String {
             cell(&row["url"])
         };
         out.push_str(&format!(
-            "| {url} | {} | {} | {} | {} | {} |\n",
+            "| {url} | {} | {} | {} | {} | {} | {} |\n",
             cell(&row["name"]),
             cell(&row["nodeIds"]),
             cell(&row["drawnWidths"]),
             cell(&row["file"]),
             cell(&row["implementation"]),
+            cell(&row["app"]),
         ));
     }
     out

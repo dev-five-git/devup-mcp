@@ -1390,10 +1390,11 @@ async fn status_reports_site_completeness() {
         item("interaction-roles")["detail"],
         "nav items 0/2 hover+focus+aria-current"
     );
-    // App Router pages but no next in package.json: skipped, and said why.
-    assert_eq!(item("view-transitions")["state"], "not-applicable");
-    assert!(
-        text(&item("view-transitions")["detail"]).starts_with("skipped: App Router pages exist")
+    // Always planned; missing until the sources carry it.
+    assert_eq!(item("view-transitions")["state"], "missing");
+    assert_eq!(
+        item("view-transitions")["detail"],
+        "planned (react-view-transition) but not in the sources yet"
     );
     assert_eq!(item("site-name")["state"], "filled");
     let table = text(&report["markdownTable"]);
@@ -1458,51 +1459,66 @@ async fn transition_default(fixture: &Fixture) -> Value {
         .expect("a view-transitions default")
 }
 
-/// The mechanism follows the versions the project declares, never a guess:
-/// Next 16 with React 19.3 needs no flag, Next 15.2+ only has the
-/// experimental one, older App Routers get none, and an existing page-motion
-/// library turns the default into a question.
+/// View transitions are always on: the dependency step brings every project
+/// to the latest Next and React, so no version is checked. Only an explicit
+/// opt-out, or a project that forbids the update while on an old React,
+/// skips them; an existing page-motion library makes them a question.
 #[tokio::test]
-async fn view_transitions_follow_the_project_versions() {
-    let supported = with_package(
+async fn view_transitions_are_always_on_unless_the_project_opts_out() {
+    for package in [
         r#"{"dependencies": {"next": "^16.1.0", "react": "19.3.0"}}"#,
-        None,
-    );
-    let chosen = transition_default(&supported).await;
-    assert_eq!(chosen["mechanism"], "react-view-transition");
-    assert!(text(&chosen["decision"]).contains("import { ViewTransition } from 'react'"));
-    assert!(text(&chosen["decision"]).contains("prefers-reduced-motion"));
-
-    let experimental = with_package(
         r#"{"dependencies": {"next": "15.3.0", "react": "19.1.0"}}"#,
-        None,
-    );
-    let chosen = transition_default(&experimental).await;
-    assert_eq!(chosen["mechanism"], "react-unstable-view-transition");
-    assert!(text(&chosen["decision"]).contains("experimental.viewTransition: true"));
-
-    let old = with_package(
         r#"{"dependencies": {"next": "^14.2.0", "react": "^18.3.0"}}"#,
+        r#"{"dependencies": {"next": "latest"}}"#,
+    ] {
+        let fixture = with_package(package, None);
+        let chosen = transition_default(&fixture).await;
+        assert_eq!(
+            chosen["mechanism"], "react-view-transition",
+            "{package}: {chosen}"
+        );
+        assert!(text(&chosen["decision"]).contains("import { ViewTransition } from 'react'"));
+        assert!(text(&chosen["decision"]).contains("prefers-reduced-motion"));
+        assert!(text(&chosen["decision"]).contains("view-transition check"));
+        assert!(!array(&chosen["docs"]).is_empty());
+    }
+
+    let opted_out = with_package(
+        r#"{"dependencies": {"next": "16.1.0", "react": "19.3.0"}}"#,
         None,
     );
-    let chosen = transition_default(&old).await;
+    opted_out.write(
+        CONFIG_FILE,
+        &SITE_CONFIG.replace('}', r#", "viewTransitions": false}"#),
+    );
+    let chosen = transition_default(&opted_out).await;
     assert_eq!(chosen["mechanism"], "skipped");
-    assert!(text(&chosen["evidence"]).contains("one document"));
+    assert!(text(&chosen["evidence"]).contains("viewTransitions: false"));
 
-    // The lockfile's installed version wins over the declared range.
-    let locked = with_package(
-        r#"{"dependencies": {"next": "latest", "react": "latest"}}"#,
-        Some(
-            r#"{"packages": {"node_modules/next": {"version": "16.2.1"}, "node_modules/react": {"version": "19.3.2"}}}"#,
-        ),
+    let frozen_old = with_package(
+        r#"{"dependencies": {"next": "14.2.0", "react": "18.3.1"}}"#,
+        None,
+    );
+    frozen_old.write(
+        CONFIG_FILE,
+        &SITE_CONFIG.replace('}', r#", "updateDependencies": false}"#),
     );
     assert_eq!(
-        transition_default(&locked).await["mechanism"],
+        transition_default(&frozen_old).await["mechanism"],
+        "skipped"
+    );
+    let frozen_new = with_package(
+        r#"{"dependencies": {"next": "16.1.0", "react": "19.3.0"}}"#,
+        None,
+    );
+    frozen_new.write(
+        CONFIG_FILE,
+        &SITE_CONFIG.replace('}', r#", "updateDependencies": false}"#),
+    );
+    assert_eq!(
+        transition_default(&frozen_new).await["mechanism"],
         "react-view-transition"
     );
-
-    let unknown = with_package(r#"{"dependencies": {"next": "latest"}}"#, None);
-    assert_eq!(transition_default(&unknown).await["mechanism"], "skipped");
 
     let animated = with_package(
         r#"{"dependencies": {"next": "16.1.0", "react": "19.3.0", "framer-motion": "^11.0.0"}}"#,
@@ -1708,15 +1724,8 @@ async fn a_service_template_project_is_vinext_with_view_transitions_enabled() {
     let (evidence, plan) = plan_for(front.to_str().unwrap()).await;
     assert_eq!(evidence.framework(), "vinext");
     let chosen = default_item(&plan, "view-transitions");
-    assert_eq!(
-        chosen["mechanism"], "react-view-transition (vinext)",
-        "{chosen}"
-    );
-    assert!(
-        text(&chosen["evidence"]).contains("react-dom 19.3.0")
-            || text(&chosen["evidence"]).contains("19.3.0"),
-        "{chosen}"
-    );
+    assert_eq!(chosen["mechanism"], "react-view-transition", "{chosen}");
+    assert!(text(&chosen["evidence"]).contains("vinext"), "{chosen}");
     assert!(
         array(&chosen["docs"])
             .iter()
@@ -1727,11 +1736,9 @@ async fn a_service_template_project_is_vinext_with_view_transitions_enabled() {
     let (evidence, plan) = plan_for(fixture.root()).await;
     assert_eq!(evidence.apps.len(), 2);
     assert!(evidence.target_app.is_none());
-    let which = find(&plan, "site:app");
-    assert_eq!(
-        labels(which)[..2],
-        ["apps/admin (Recommended)", "apps/front"]
-    );
+    // "Home" is a public-site screen: apps/front, without asking.
+    assert_eq!(default_item(&plan, "target-app")["decision"], "apps/front");
+    assert!(!question_ids(&plan).contains(&"site:app".to_owned()));
 
     let routes = super::super::project_context::run("routes", Some(fixture.root()), None)
         .await
@@ -1793,7 +1800,7 @@ async fn a_new_project_starts_from_the_template() {
     );
     assert_eq!(
         default_item(&plan, "view-transitions")["mechanism"],
-        "react-view-transition (vinext)"
+        "react-view-transition"
     );
     let ids = question_ids(&plan);
     assert!(
@@ -1873,4 +1880,160 @@ fn bun_lock_versions_are_read() {
     assert_eq!(bun_locked(lock, "react").as_deref(), Some("19.3.1"));
     assert_eq!(bun_locked(lock, "vinext").as_deref(), Some("1.0.2"));
     assert_eq!(bun_locked(lock, "next"), None);
+}
+
+async fn plan_screens_at(root: &str, screens: &[PlanScreenInput]) -> Value {
+    let evidence = project_evidence(root).await.unwrap();
+    draft_plan(screens, &BTreeMap::new(), &evidence, json!({}), None).unwrap()
+}
+
+fn rows_app(plan: &Value) -> Vec<(String, String)> {
+    array(&plan["screens"])
+        .iter()
+        .map(|row| (text(&row["id"]).to_owned(), text(&row["app"]).to_owned()))
+        .collect()
+}
+
+/// apps/front and apps/admin: the app is picked by what the frames are, not
+/// by name order. Marketing frames build the public site without a question.
+#[tokio::test]
+async fn marketing_frames_go_to_the_public_app_without_a_question() {
+    let fixture = template_fixture();
+    let plan = plan_screens_at(
+        fixture.root(),
+        &[
+            screen("60:1", "Main", 1440.0),
+            screen("60:2", "회사소개", 1440.0),
+            screen("60:3", "Contact", 1440.0),
+        ],
+    )
+    .await;
+    assert!(
+        !question_ids(&plan)
+            .iter()
+            .any(|id| id.starts_with("site:app") || id.starts_with("app:")),
+        "{:?}",
+        question_ids(&plan)
+    );
+    let chosen = default_item(&plan, "target-app");
+    assert_eq!(chosen["decision"], "apps/front");
+    assert_eq!(chosen["mechanism"], "decided");
+    assert!(
+        chosen["evidence"]
+            .to_string()
+            .contains("named like the public site"),
+        "{chosen}"
+    );
+    assert!(rows_app(&plan).iter().all(|(_, app)| app == "apps/front"));
+    assert_eq!(plan["appDir"], "apps/front/src/app");
+}
+
+#[tokio::test]
+async fn admin_frames_go_to_the_admin_app() {
+    let fixture = template_fixture();
+    let plan = plan_screens_at(
+        fixture.root(),
+        &[
+            screen("61:1", "Admin - 회원관리", 1440.0),
+            screen("61:2", "Admin - 상품 목록", 1440.0),
+        ],
+    )
+    .await;
+    assert_eq!(default_item(&plan, "target-app")["decision"], "apps/admin");
+    assert!(rows_app(&plan).iter().all(|(_, app)| app == "apps/admin"));
+    assert!(
+        !question_ids(&plan)
+            .iter()
+            .any(|id| id.starts_with("site:app"))
+    );
+}
+
+/// A file with both maps each screen to its side and asks only about the
+/// screens whose side is unclear; confirm writes each route in its own app.
+#[tokio::test]
+async fn a_mixed_file_maps_each_screen_and_asks_only_the_unclear() {
+    let fixture = template_fixture();
+    let screens = [
+        screen("62:1", "Home", 1440.0),
+        screen("62:2", "관리자 - 대시보드", 1440.0),
+        screen("62:3", "Settings", 1440.0),
+    ];
+    let plan = plan_screens_at(fixture.root(), &screens).await;
+    assert_eq!(default_item(&plan, "target-app")["mechanism"], "per-screen");
+    let apps = rows_app(&plan).into_iter().collect::<BTreeMap<_, _>>();
+    assert_eq!(apps["62:1"], "apps/front");
+    assert_eq!(apps["62:2"], "apps/admin");
+    let unclear = find(&plan, "app:62:3");
+    assert_eq!(first_label(unclear), "apps/front (Recommended)");
+    assert!(
+        !question_ids(&plan)
+            .iter()
+            .any(|id| id == "app:62:1" || id == "app:62:2")
+    );
+}
+
+/// Frames that say nothing either way: asked once, recommending the public
+/// app - never the alphabetically first one.
+#[tokio::test]
+async fn ambiguous_frames_are_asked_recommending_the_public_app() {
+    let fixture = template_fixture();
+    let screens = [
+        screen("63:1", "Frame 12", 1440.0),
+        screen("63:2", "Frame 13", 1440.0),
+    ];
+    let plan = plan_screens_at(fixture.root(), &screens).await;
+    let which = find(&plan, "site:app");
+    assert_eq!(
+        labels(which)[..2],
+        ["apps/front (Recommended)", "apps/admin"]
+    );
+    assert!(text(&which["options"][0]["description"]).contains("public site"));
+
+    let draft_input = ScreenPlanInput {
+        action: "draft".into(),
+        project_root: Some(fixture.root().into()),
+        ..ScreenPlanInput::default()
+    };
+    let drafted = draft(&draft_input, &screens, json!({}), &fixture.policy())
+        .await
+        .unwrap();
+    let mut confirm_input = input(&fixture, "confirm");
+    confirm_input.plan_id = drafted["planId"].as_str().map(str::to_owned);
+    let mut pairs = vec![("site:app", "apps/admin")];
+    for question in array(&drafted["questions"]) {
+        let id = text(&question["id"]);
+        if id.starts_with("route:") {
+            pairs.push((
+                id,
+                if id.ends_with("63:1") {
+                    "/members"
+                } else {
+                    "/orders"
+                },
+            ));
+        }
+    }
+    let owned = pairs
+        .iter()
+        .map(|(id, answer)| (id.to_string(), answer.to_string()))
+        .collect::<Vec<_>>();
+    confirm_input.answers = answers(
+        &owned
+            .iter()
+            .map(|(id, answer)| (id.as_str(), answer.as_str()))
+            .collect::<Vec<_>>(),
+    );
+    let confirmed = confirm(&confirm_input, &fixture.policy()).unwrap();
+    let files = array(&confirmed["routes"])
+        .iter()
+        .map(|row| (text(&row["app"]).to_owned(), text(&row["file"]).to_owned()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        files[0],
+        (
+            "apps/admin".to_owned(),
+            "apps/admin/src/app/members/page.tsx".to_owned()
+        ),
+        "{files:?}"
+    );
 }
