@@ -234,6 +234,18 @@ most two properties per state, 150-250ms, existing tokens only, scale 0.97 to
 1.05, nothing infinite, everything off under `_motionReduce`. The table is in
 the devup-implementation-plan skill; `devup_screen_plan` records it in
 `defaults` and `devup_ui_validate` reports both too little and too much.
+
+## 15. The latest stack, and vinext
+
+DevFive builds on Next App Router run by vinext on Vite, in bun workspaces,
+on the latest versions. An app with a `vinext` dependency, `vinext` scripts or
+a `vite.config` importing vinext is an App Router app with no `next`
+dependency; `devup_project_context` reports `frameworks` per app. Before
+implementing, the workflow runs `bunx @dependency-check-updates/cli -d -u --rm`
+at the repository root, then `bun install`, build, lint and typecheck, and
+checks current docs before using a library API - API knowledge from memory is
+assumed stale. A new project starts from `dev-five-git/service-template`; one
+on the `next` CLI is asked once whether to migrate.
 "#;
 
 #[cfg(test)]

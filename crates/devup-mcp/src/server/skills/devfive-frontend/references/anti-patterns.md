@@ -5,7 +5,7 @@
 | Wrong | Right | Why |
 |-------|-------|-----|
 | `bun -F front dev` | `cd apps/front && bun dev` | Prevent zombie processes |
-| `reactCompiler: false` | `reactCompiler: true` | React Compiler required |
+| React Compiler off | `vinext({ react: { compiler: true } })` (or `reactCompiler: true` on the `next` CLI) | React Compiler required |
 | metadata without `openGraph` | Include `openGraph: {...}` | OpenGraph required |
 | `<Image>` without alt | `<Image alt="...">` | Accessibility required |
 | Button without `_hover`, `_active` | Add interactive states | UX required |

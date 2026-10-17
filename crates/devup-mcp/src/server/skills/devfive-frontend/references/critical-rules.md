@@ -2,16 +2,18 @@
 
 ## 1. React Compiler
 
-Next.js projects **must** enable React Compiler:
+Every app **must** enable React Compiler. With vinext (the default) it is a
+vinext option, with `oxc-transform-react` installed; vinext does not read
+`reactCompiler` from a Next config, and `babel-plugin-react-compiler` is not
+used:
 
 ```ts
-// next.config.ts
-const nextConfig = {
-  experimental: {
-    reactCompiler: true,  // Required!
-  },
-}
+// apps/front/vite.config.ts
+vinext({ nextConfig: { output: 'standalone' }, react: { compiler: true } })
 ```
+
+On the `next` CLI (existing projects only) it is `reactCompiler: true` in
+`next.config.ts`.
 
 ## 2. SEO Metadata
 

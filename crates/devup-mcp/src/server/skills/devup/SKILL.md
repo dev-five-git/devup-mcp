@@ -27,7 +27,9 @@ the full rules; these are the steps.
    if anything is missing or outdated, `action: "install"`, then load the
    installed skills (devup-ui, devfive-frontend, devup-implementation-plan).
 3. **Project context.** `devup_project_context` with `scope: "theme"` (the
-   tokens the code must use) and `scope: "routes"` (the pages that exist).
+   tokens the code must use) and `scope: "routes"` (the pages that exist, and
+   `frameworks`: which app runs on vinext or next). No app yet: the plan
+   starts from `dev-five-git/service-template`.
 4. **Screen plan.** `devup_screen_plan` with `action: "draft"`, `projectRoot`,
    the link, the notes and `extraQuestions` - every question you would
    otherwise have to guess at any point in the job (form target, contact
@@ -41,7 +43,24 @@ the full rules; these are the steps.
    back to back. Never in prose, never one decision at a time, never later.
 6. **Confirm.** `devup_screen_plan` with `action: "confirm"`, the `planId` and
    every answer that applies.
-7. **Implement URL by URL without asking anything.** `devup_figma_export` with
+7. **Latest first, before implementing, without asking.**
+    a. At the repository root (the workspace root for bun workspaces), run
+       `bunx @dependency-check-updates/cli -d -u --rm`. `-d` scans every
+       manifest below the root recursively, which is how the `apps/*`
+       workspaces are reached; `-u` applies the updates as one recoverable
+       batch (`--recover rollback` restores the originals); `--rm` removes the
+       lockfiles and installed directories next to each manifest - `bun.lock`
+       and `node_modules/`, and for a `Cargo.toml` also `Cargo.lock` and
+       `target/` - so the next install resolves everything fresh.
+    b. `bun install`, then build, lint and typecheck. If the update breaks
+       something, fix the code to the new APIs. Pin a version back only when
+       no fix exists, and record the pin with its reason.
+    c. Before using a library API, check its current docs (context7 or the
+       library's site), not memory: what you remember is assumed stale.
+    Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
+    { bumped, pins }`); status shows it as the dependencies line. Skip only
+    when `.devup/screen-plan.config.json` says `updateDependencies: false`.
+8. **Implement URL by URL without asking anything.** `devup_figma_export` with
    `projectRoot` and each screen's `frameIds`; `pageScaffold` takes its route
    from the plan. Add the plan's `defaults` as you go: each interactive
    element's role recipe (hover, pressed, focus ring, current page, expanded,
@@ -52,16 +71,20 @@ the full rules; these are the steps.
    `devup_ui_validate` with `projectRoot` on what you wrote. Anything new:
    take the recommended or most conservative option and record it with
    `action: "assume"`.
-8. **Runtime audit.** `devup_runtime_audit` `plan` with every confirmed URL at
+9. **Runtime audit.** `devup_runtime_audit` `plan` with every confirmed URL at
    1440, 1100, 858 and 390, run the executor in the project, then `ingest`.
-9. **Status.** `devup_screen_plan` with `action: "status"`, `auditPlanPath`
+10. **Status.** `devup_screen_plan` with `action: "status"`, `auditPlanPath`
    and `auditReportPath`.
-10. **Submission checklist.** Before reporting done, every item holds - fix
+11. **Submission checklist.** Before reporting done, every item holds - fix
     and re-run until it does, without stopping to ask:
 
     - every confirmed URL is implemented;
-    - the build passes (`next build` or the project's build script);
-    - lint and typecheck pass;
+    - the build passes: `bun run build` (`vinext build` for every app);
+    - lint and typecheck pass: `bun run lint` (its prelint runs cargo clippy, fmt
+      and check, then oxlint), `bunx oxlint --deny-warnings`, and `bun tsc
+      --noEmit` inside each app you changed (TS 7); `bun test` passes. `bun run
+      test` also runs `cargo tarpaulin` afterwards, which does not work on
+      Windows - there, run `bun test` and `cargo test`;
     - `devup_ui_validate` reports no errors;
     - the runtime audit at every width shows no page error and no horizontal
       overflow;
@@ -69,7 +92,7 @@ the full rules; these are the steps.
     - the final table `URL | Figma screen | file | status | widths verified |
       screenshots` is there, with the assumptions, the design fixes requested and
       the excluded frames.
-11. **Final table.** End with the status `markdownTable` and `summary`: URL |
+12. **Final table.** End with the status `markdownTable` and `summary`: URL |
     Figma screen | file | status | widths verified | screenshots, then site
     completeness, design fixes requested, excluded frames, the defaults filled
     in and every assumption.

@@ -1,7 +1,8 @@
 ---
 name: devfive-frontend
 description: |
-  DevFive frontend project coding conventions and architecture patterns for Next.js App Router projects.
+  DevFive frontend project coding conventions and architecture patterns for Next App Router
+  projects, run by vinext on Vite by default (dev-five-git/service-template).
   
   TRIGGER WHEN:
   - Working on DevFive frontend projects (puzzle-fit, girok-space, etc.)
@@ -92,14 +93,17 @@ use `Get-ChildItem`/`Select-String` and `Select-Object -First` instead of assumi
 
 | Category | Technology |
 |----------|------------|
-| Framework | Next.js (App Router) 16+ |
+| Framework | Next App Router, run by **vinext** on Vite by default (`vinext dev/build/start`); the `next` CLI only in existing projects |
+| Starting point | `dev-five-git/service-template` (bun workspaces `apps/*`) |
+| Dependencies | **Latest first**: `bunx @dependency-check-updates/cli -d -u --rm` at the repo root, `bun install`, then build/lint/typecheck. Check current docs before using an API; memory is stale |
+| TypeScript | TS 7 in apps (`@typescript/native`); the root `typescript` is a TS 6 alias for lint tooling |
 | UI Library | React 19+ |
 | Styling | @devup-ui/react, @devup-ui/components |
 | API Client | @devup-api/fetch, @devup-api/react-query |
 | Forms | react-hook-form 7+ |
 | State | Zustand (when needed) |
 | Animation | framer-motion 12+ |
-| Linting | eslint-plugin-devup |
+| Linting | oxlint with `eslint-plugin-devup/oxlint-config` |
 | Package Manager | **bun** (default) |
 
 ## Identify the Framework Before You Write Anything
@@ -112,14 +116,14 @@ and no `next.config.ts`. Read `package.json`, not the config filename:
 
 ```jsonc
 // apps/front/package.json -> this is a Next App Router project
-{ "dependencies": { "vinext": "1.0.0-beta.9" } }
+{ "dependencies": { "vinext": "1.0.0" } }
 ```
 
 ```ts
 // apps/front/vite.config.ts -> still App Router. Both plugins belong here.
 plugins: [
   DevupUI(),
-  vinext({ nextConfig: { output: 'export', trailingSlash: true } }),
+  vinext({ nextConfig: { output: 'standalone' }, react: { compiler: true } }),
 ]
 ```
 
@@ -388,8 +392,15 @@ export function Card() {
 ### Required Verification
 
 ```bash
-bun tsc --noEmit && bun run lint:fix && bun run lint
+bun run lint                  # cargo clippy/fmt/check (prelint), then oxlint
+bunx oxlint --deny-warnings   # warnings count: keep them at 0
+bun tsc --noEmit              # inside the app you changed (TS 7)
+bun test
+bun run build                 # vinext build for every app
 ```
+
+`bun run test` also runs `cargo tarpaulin` (posttest), which does not work on
+Windows; there, run `bun test` and `cargo test` instead.
 
 ### Dev Server
 
@@ -569,23 +580,18 @@ export function LoginForm() {
 }
 ```
 
-## ESLint Configuration
+## Lint Configuration
 
-```js
-// eslint.config.mjs
-import { configs } from 'eslint-plugin-devup'
-
-export default [
-  { ignores: ['node_modules/**/*', '.next/**/*'] },
-  ...configs.recommended,
-]
+```ts
+// oxlint.config.ts - oxlint with eslint-plugin-devup, React Compiler rules included
+export { default } from 'eslint-plugin-devup/oxlint-config'
 ```
 
 ## Quick Rules Summary
 
 | Rule | Requirement |
 |------|-------------|
-| React Compiler | `reactCompiler: true` in next.config.ts |
+| React Compiler | vinext: `vinext({ react: { compiler: true } })` + `oxc-transform-react` (vinext ignores `reactCompiler`; no `babel-plugin-react-compiler`). `next` CLI: `reactCompiler: true` |
 | SEO | `metadata` with `openGraph` required |
 | Image alt | Always required |
 | Interactive states | `_hover`, `_active`, `cursor`, `transition` |

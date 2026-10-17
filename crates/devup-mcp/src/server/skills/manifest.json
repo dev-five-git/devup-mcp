@@ -33,18 +33,18 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 23164,
-          "sha256": "e86558e78bbd7259e0fe2d281a087c42e84da7795f6b4316ae2bc73d8422508a"
+          "bytes": 24217,
+          "sha256": "8607c0b4816702f2f1634d8a1638a94bf69a1fad7a665325c375d632d3ab360f"
         },
         {
           "path": "references/critical-rules.md",
-          "bytes": 56896,
-          "sha256": "068b0e51d7044c8a83049346b30da529d21e1175ab363b25e4b7ceb359087465"
+          "bytes": 57175,
+          "sha256": "3b7694f5db108407e0b4e3736cc3018b4c72951596eb1e4feab3123a3a4d3549"
         },
         {
           "path": "references/anti-patterns.md",
-          "bytes": 11958,
-          "sha256": "a9952bde6b7652bfeab3cea3160402a14c3793df919b837fc4783091ef56740f"
+          "bytes": 12017,
+          "sha256": "d25adca53b74a5119b5f6e3d4d66f78c02c0771e76b2361a441c1d3a0ec5865a"
         },
         {
           "path": "references/common-patterns.md",
@@ -71,8 +71,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 18228,
-          "sha256": "c4d2b0c18302b1c986700f985bd860645eb4e56b9a2236840059716b27dd5fac"
+          "bytes": 20903,
+          "sha256": "9c9066ea3413c7ff929ed678147efda6e9ead4fe39a06a71ab840b13664cc0c2"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup-implementation-plan",
@@ -89,8 +89,8 @@
       "documents": [
         {
           "path": "SKILL.md",
-          "bytes": 4267,
-          "sha256": "ea035c1634f04eab5de8d03ff94884647217347e0624771b116c9818720f1b8e"
+          "bytes": 5965,
+          "sha256": "31e69adb4219b8e9af96d8dc368c1f7d436602da22f7d169d475e1e9d905e960"
         }
       ],
       "sourceUrl": "https://github.com/dev-five-git/devup-mcp/blob/HEAD/crates/devup-mcp/src/server/skills/devup",

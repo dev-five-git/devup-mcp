@@ -74,6 +74,11 @@ So the order is fixed, and none of it is optional.
   answers "The Figma structure is wrong: I will fix it", those frames are left
   out, listed under "Design fixes requested" with what to move or rename, and
   the rest of the work goes on without waiting.
+- **The stack is DevFive's default.** Next App Router run by vinext, bun
+  workspaces, devup-ui, oxlint, the latest versions. A project with no app
+  starts from `dev-five-git/service-template` (a default, not a question); one
+  on the `next` CLI is asked once, up front, whether to migrate to vinext -
+  never migrated silently.
 - **Never invent a route.** A route comes from an existing page built from the
   frame, a nav link already bound to an href, an explicit `navigationTargets`
   entry, the project's `routeAliases`, or the user's answer. A route inferred
@@ -147,6 +152,14 @@ mechanism in `defaults`:
 - **Next 15.2+ with an older React**: `experimental.viewTransition: true` and
   `unstable_ViewTransition`. The Next.js docs mark it experimental; record an
   assumption.
+- **vinext (the default stack)**, after the dependency step: vinext 1.0+ with
+  React 19.3+ (react-dom / react-server-dom-webpack count) uses `import {
+  ViewTransition } from 'react'` in each `page.tsx`, with `experimental: {
+  viewTransition: true }` in `vinext({ nextConfig })` as vinext's own example
+  does. `vinext check` still labels that import partial, so the runtime audit
+  confirms the cross-fade animates. Status decides again from the versions
+  installed then. Below those versions: skipped until the update.
+- The `next` CLI, in existing projects only:
 - **No Next.js** (whole-document navigations): `@view-transition { navigation:
   auto; }` with a `::view-transition-old/new(root)` cross-fade.
 - **Older Next, or a version the project does not name**: skipped, with the
@@ -205,7 +218,24 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    without " (Recommended)", or the user's custom text) for every question
    that applies. A refusal names the missing ids and returns them as rounds:
    ask those right away, still before any implementation.
-5. **Implement URL by URL, without asking.** For each confirmed route, call
+5. **Latest first, before implementing, without asking.**
+   a. At the repository root (the workspace root for bun workspaces), run
+      `bunx @dependency-check-updates/cli -d -u --rm`. `-d` scans every
+      manifest below the root recursively, which is how the `apps/*`
+      workspaces are reached; `-u` applies the updates as one recoverable
+      batch (`--recover rollback` restores the originals); `--rm` removes the
+      lockfiles and installed directories next to each manifest - `bun.lock`
+      and `node_modules/`, and for a `Cargo.toml` also `Cargo.lock` and
+      `target/` - so the next install resolves everything fresh.
+   b. `bun install`, then build, lint and typecheck. If the update breaks
+      something, fix the code to the new APIs. Pin a version back only when
+      no fix exists, and record the pin with its reason.
+   c. Before using a library API, check its current docs (context7 or the
+      library's site), not memory: what you remember is assumed stale.
+   Record the outcome with `devup_screen_plan` `assume` (`dependencyUpdate:
+   { bumped, pins }`); status shows it as the dependencies line. Skip only
+   when `.devup/screen-plan.config.json` says `updateDependencies: false`.
+6. **Implement URL by URL, without asking.** For each confirmed route, call
    `devup_figma_export` with `projectRoot` and that screen's `frameIds`. With
    `pageScaffold`, omit `route`: the export takes it from the plan and refuses
    a different one. Add the plan's `defaults` (states, transition, reduced
@@ -217,19 +247,23 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    answers `plan_required` and writes nothing: leave it unbuilt and record an
    assumption - do not ask. An excluded or design-fix frame answers `refused`:
    it is never built, and no assumption changes that.
-6. **Run the runtime audit.** `devup_runtime_audit` `plan` with every confirmed
+7. **Run the runtime audit.** `devup_runtime_audit` `plan` with every confirmed
    URL as a screen (`routePath`) at the default widths (1440, 1100, 858, 390),
    each with a `no-horizontal-overflow` check; run the executor in the
    project, then `ingest` the report.
-7. **Read the status.** Call `devup_screen_plan` with `action: "status"`,
+8. **Read the status.** Call `devup_screen_plan` with `action: "status"`,
    `projectRoot`, `auditPlanPath` and `auditReportPath`. A width without an
    audit item is `not-run`, never `pass`.
-8. **Pass the submission checklist.** Before reporting done, every item
+9. **Pass the submission checklist.** Before reporting done, every item
    holds - fix and re-run until it does, without stopping to ask:
 
    - every confirmed URL is implemented;
-   - the build passes (`next build` or the project's build script);
-   - lint and typecheck pass;
+   - the build passes: `bun run build` (`vinext build` for every app);
+   - lint and typecheck pass: `bun run lint` (its prelint runs cargo clippy, fmt
+     and check, then oxlint), `bunx oxlint --deny-warnings`, and `bun tsc
+     --noEmit` inside each app you changed (TS 7); `bun test` passes. `bun run
+     test` also runs `cargo tarpaulin` afterwards, which does not work on
+     Windows - there, run `bun test` and `cargo test`;
    - `devup_ui_validate` reports no errors;
    - the runtime audit at every width shows no page error and no horizontal
      overflow;
@@ -237,7 +271,7 @@ including a "view transitions: enabled (mechanism) / skipped (reason)" line.
    - the final table `URL | Figma screen | file | status | widths verified |
      screenshots` is there, with the assumptions, the design fixes requested and
      the excluded frames.
-9. **Finish with the table.** End your reply with the `markdownTable` from
+10. **Finish with the table.** End your reply with the `markdownTable` from
    status - `URL | Figma screen | file | status | widths verified |
    screenshots`, followed by the site completeness block, the defaults filled
    in, the design fixes requested, the excluded frames and the assumptions
@@ -288,7 +322,9 @@ evidence and replaces the question it would otherwise take:
   "ogImage": "public/og.png",
   "siteName": "Prime",
   "siteUrl": "https://prime.example",
-  "motion": "none"
+  "motion": "none",
+  "framework": "vinext",
+  "updateDependencies": true
 }
 ```
 
@@ -304,3 +340,6 @@ evidence and replaces the question it would otherwise take:
 - `includeKeywords` forces names containing them back in.
 - `favicon`, `ogImage` (a path, or `figma:<nodeId>`), `siteName`, `siteUrl`
   and `motion` (`none` | `reveal`) pre-answer the site questions.
+- `framework` (`vinext` | `next`) answers the migrate-to-vinext question, and
+  `updateDependencies: false` skips the dependency step for a project that
+  forbids it.
