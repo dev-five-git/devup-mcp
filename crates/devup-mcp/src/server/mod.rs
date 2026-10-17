@@ -11,6 +11,7 @@ mod feedback_interactions_tests;
 mod field_select;
 mod guide;
 mod interactions;
+mod mask_guard;
 mod measurement;
 mod navigation;
 pub mod operation;
@@ -2214,7 +2215,7 @@ impl DevupServer {
 
     #[tool(
         description = "Validate DevupUI TSX against a project's real devup.json: unknown $token references, hardcoded colors/lengths, unknown props on Box/Flex/Text/Center/Grid/Image, and non-static values inside css()/globalCss()/keyframes() calls. \
-                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. `themeNotes` summarizes each encountered empty token category once. \
+                       `ok` is decided by severity, not by count: errors fail, and `strict: true` also fails warnings. Hardcoded values with exact matching tokens are warnings with token advice; unmatched values are info without token advice and never fail strict mode. `okReason` distinguishes clean, clean-unverified-tokens, info-only, warnings-only, warnings-and-info, strict-warnings, and error-violations; `clean-unverified-tokens` means no violation was found but no devup.json was resolved, so the $token references this code makes were never checked. Supplying neither tsx nor files is rejected rather than answered `clean`. Structural rules (file-placement, one-component-per-file, client-boundary, inline-style, react-query-states) run only in `files` bundle mode; framework-required default exports (page, layout, loading, error, not-found, template, and the metadata conventions) are exempt from file-placement. With projectRoot, a maskImage whose public SVG paints more than one colour warns `multicolor-mask` (use <Image src>). `themeNotes` summarizes each encountered empty token category once. \
                        Navigation rules also report unmapped action candidates/accessibility warnings, missing static App Router href errors when projectRoot inventory is complete, and literal active-state info. Dynamic hrefs/custom routing and incomplete bundles remain unverified. Optional renderedHtml reports captured anchor counts separately from source coverage; neither proves runtime behavior. `checkedTokens` counts references and `availableTokenCount` counts definitions; they are not a ratio.",
         output_schema = permissive_object_output_schema()
     )]
@@ -2271,7 +2272,7 @@ impl DevupServer {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_else(|| vec![("", input.tsx.as_str())]);
-        for (name, tsx) in sources {
+        for &(name, tsx) in &sources {
             for diagnostic in
                 devup_mcp_devup_ui::codegen::validate_asset_effects(tsx, &input.asset_policies)
             {
@@ -2288,6 +2289,12 @@ impl DevupServer {
                 }
             }
         }
+        // A mask flattens its SVG to one colour, which only the file shows.
+        let masks = mask_guard::violations(&sources, input.project_root.as_deref());
+        if input.strict && !masks.is_empty() {
+            report.ok = false;
+        }
+        report.violations.extend(masks);
         // These keys are assembled here rather than serialized from
         // `UiValidation`, so anything the struct's own documentation
         // explains reaches nobody unless it is answered here too. Three
@@ -2515,6 +2522,9 @@ fn attach_layout_and_source_links(result: &mut Value, input: &UiValidateInput) {
     let mut rules = devup_mcp_devup_ui::ui_validate::rule_names()
         .into_iter()
         .collect::<Vec<_>>();
+    if input.project_root.is_some() {
+        rules.push(mask_guard::RULE);
+    }
     if input.files.is_some() {
         rules.extend([
             "file-placement",

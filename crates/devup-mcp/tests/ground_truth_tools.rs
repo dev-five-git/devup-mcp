@@ -598,3 +598,80 @@ async fn ui_validate_blur_only_and_double_effect_warnings_are_complementary() ->
     assert_eq!(result["ok"], false);
     Ok(())
 }
+
+#[tokio::test]
+async fn ui_validate_warns_when_a_mask_would_flatten_a_multicolor_svg() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!(
+        "mask-guard-mcp-{}-{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    std::fs::create_dir_all(root.join("public/icons"))?;
+    std::fs::write(root.join("package.json"), "{}")?;
+    std::fs::write(
+        root.join("public/icons/find.svg"),
+        r##"<svg fill="none"><path d="M0 0" fill="url(#g)"/><path d="M1 1" fill="#552AFF"/>
+<defs><linearGradient id="g"><stop stop-color="#F4F3FF"/></linearGradient>
+<clipPath id="c"><rect width="64" height="64" fill="white"/></clipPath></defs></svg>"##,
+    )?;
+    std::fs::write(
+        root.join("public/icons/arrow.svg"),
+        r##"<svg fill="none"><path d="M0 0" fill="#552AFF"/>
+<defs><clipPath id="c"><rect width="64" height="64" fill="white"/></clipPath></defs></svg>"##,
+    )?;
+    let project_root = root.to_string_lossy().into_owned();
+    let masks = |tsx: &str, strict: bool| {
+        call_tool(
+            "devup_ui_validate",
+            json!({"tsx": tsx, "projectRoot": project_root, "strict": strict}),
+        )
+    };
+
+    let result = masks(
+        r##"<Box bg="#552AFFBF" boxSize="64px" maskImage="url(/icons/find.svg)" maskSize="contain" />"##,
+        true,
+    )
+    .await?
+    .structured_content
+    .unwrap();
+    let warning = result["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["rule"] == "multicolor-mask")
+        .unwrap_or_else(|| panic!("{result}"));
+    assert_eq!(warning["severity"], "warning");
+    assert_eq!(warning["file"], "public/icons/find.svg");
+    assert!(
+        warning["suggestion"]
+            .as_str()
+            .is_some_and(|s| s.contains("<Image src=\"/icons/find.svg\"")),
+        "{warning}"
+    );
+    assert_eq!(result["ok"], false);
+    assert!(
+        result["verificationScope"]["static"]["rules"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("multicolor-mask"))
+    );
+
+    // One colour (the clip rect's white does not count) is what a mask is for.
+    let result = masks(
+        r##"<Box bg="#552AFF" boxSize="24px" maskImage="url(/icons/arrow.svg)" />"##,
+        true,
+    )
+    .await?
+    .structured_content
+    .unwrap();
+    assert!(
+        !result["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["rule"] == "multicolor-mask"),
+        "{result}"
+    );
+    std::fs::remove_dir_all(&root)?;
+    Ok(())
+}
