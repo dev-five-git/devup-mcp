@@ -15,7 +15,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { evaluateCheck, evaluateDimensions, summarize } from './checks.mjs';
+import { evaluateCheck, evaluateDimensions, evaluateViewTransition, summarize } from './checks.mjs';
 
 const PLAN_KIND = 'devup-runtime-audit-plan';
 const REPORT_KIND = 'devup-runtime-audit-report';
@@ -126,6 +126,50 @@ async function measureBox(page, target, measure = 'box') {
   return { count, box: box ?? { x: 0, y: 0, width: 0, height: 0 }, visible };
 }
 
+// Counts the view transitions a navigation runs. A same-document one goes
+// through document.startViewTransition, which React's <ViewTransition> calls;
+// a cross-document one (the CSS @view-transition rule) arrives as a pagereveal
+// event carrying a viewTransition. The count survives a document change in
+// sessionStorage, which is per tab and origin.
+const VIEW_TRANSITION_PROBE = () => {
+  const key = '__devupViewTransitions';
+  const bump = () => sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) || 0) + 1));
+  window.addEventListener('pagereveal', (event) => {
+    if (event.viewTransition) bump();
+  });
+  if (typeof document.startViewTransition === 'function' && !document.startViewTransition.__devup) {
+    const original = document.startViewTransition;
+    const counted = function startViewTransition(...args) {
+      bump();
+      return original.apply(this, args);
+    };
+    counted.__devup = true;
+    document.startViewTransition = counted;
+  }
+};
+
+async function observeViewTransition(page, check, timeout) {
+  const target = locate(page, check.subject);
+  const subjectCount = await target.count();
+  if (subjectCount !== 1) return { subjectCount };
+  const supported = await page.evaluate(() => typeof document.startViewTransition === 'function');
+  const read = () => page.evaluate(() => Number(sessionStorage.getItem('__devupViewTransitions') || 0));
+  const before = await read();
+  const from = new URL(page.url()).pathname;
+  await target.click({ timeout });
+  const navigated = await page
+    .waitForURL((url) => url.pathname !== from, { timeout })
+    .then(() => true, () => false);
+  let calls = 0;
+  if (supported && navigated) {
+    calls = await page
+      .waitForFunction((start) => Number(sessionStorage.getItem('__devupViewTransitions') || 0) > start, before, { timeout: 2000 })
+      .then(read, read)
+      .then((now) => now - before);
+  }
+  return { subjectCount, supported, navigated, calls, from, to: new URL(page.url()).pathname };
+}
+
 async function pageMetrics(page) {
   return page.evaluate(() => {
     const viewportWidth = window.innerWidth;
@@ -207,6 +251,7 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
     blocked.push(url);
     return route.abort('blockedbyclient');
   });
+  await context.addInitScript(VIEW_TRANSITION_PROBE);
   const page = await context.newPage();
   page.on('pageerror', (error) => environmentErrors.push({ kind: 'page-error', message: String(error?.message ?? error) }));
   page.on('console', (message) => {
@@ -278,6 +323,9 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
         environmentErrors.push({ kind: 'font-missing', message: `${family} is not loaded` });
       }
       for (const [index, check] of screen.checks.entries()) {
+        // A view-transition check navigates away, so it runs after every
+        // other check and the screenshot have seen this screen.
+        if (check.kind === 'view-transition') continue;
         const subject = await measureBox(page, check.subject, check.measure);
         const container = await measureBox(page, check.container);
         const result = subject.error
@@ -301,6 +349,17 @@ async function runViewport(browser, plan, viewport, out, deadline, references) {
       });
       await writeFile(join(out, name), bytes);
       record.screenshot = { path: name, sha256: sha256(bytes), bytes: bytes.length };
+      for (const [index, check] of screen.checks.entries()) {
+        if (check.kind !== 'view-transition') continue;
+        const observed = await observeViewTransition(page, check, stepTimeout).catch((error) => ({
+          subjectCount: 1, supported: true, navigated: false, calls: 0, error: String(error?.message ?? error),
+        }));
+        const result = observed.error
+          ? { status: 'inconclusive', reason: `the subject could not be followed: ${observed.error.split('\n')[0]}`, measured: {} }
+          : evaluateViewTransition(observed);
+        record.checks.push({ index, kind: check.kind, label: check.label, ...result });
+      }
+      record.checks.sort((a, b) => a.index - b.index);
     }
   } finally {
     run.finishedAt = new Date().toISOString();

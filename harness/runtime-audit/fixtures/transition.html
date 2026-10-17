@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>transition</title></head>
+<body>
+<!-- A same-document navigation the way React's <ViewTransition> does it:
+     the DOM update runs inside document.startViewTransition. -->
+<main id="screen"><h1>First</h1><a data-testid="go" href="/transition.html">Next</a></main>
+<script>
+document.querySelector('[data-testid="go"]').addEventListener('click', (event) => {
+  event.preventDefault();
+  document.startViewTransition(() => {
+    history.pushState({}, '', '/moved.html');
+    document.querySelector('h1').textContent = 'Second';
+  });
+});
+</script>
+</body>
+</html>

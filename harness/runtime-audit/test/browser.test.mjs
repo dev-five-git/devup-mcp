@@ -219,3 +219,40 @@ test('dimensions across 1440/1100/858/390 retain CSS pixels at DPR 2 and filter 
     await rm(out, { recursive: true, force: true });
   }
 });
+
+test('a view-transition check sees same-document and cross-document transitions, and their absence', async () => {
+  const server = await serve();
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const out = await mkdtemp(join(tmpdir(), 'devup-runtime-audit-vt-'));
+  try {
+    const planPath = join(out, 'plan.json');
+    const check = { kind: 'view-transition', label: 'next', subject: { testId: 'go' } };
+    await writeFile(planPath, JSON.stringify({
+      schemaVersion: 1,
+      kind: 'devup-runtime-audit-plan',
+      planId: 'browser-vt',
+      plan: {
+        baseUrl,
+        allowedOrigins: [baseUrl],
+        viewports: [{ width: 1200, height: 800, deviceScaleFactor: 1 }],
+        screens: [
+          { id: 'same', routePath: '/transition.html', checks: [{ kind: 'no-horizontal-overflow', label: 'page' }, check] },
+          { id: 'cross', routePath: '/crossdoc.html', checks: [check] },
+          { id: 'plain', routePath: '/plain.html', checks: [check] },
+        ],
+        locale: null,
+        timezone: null,
+        readiness: null,
+        stepTimeoutMs: null,
+      },
+    }));
+    const report = await runPlan({ plan: planPath, out, maxMinutes: 5 });
+    const [same, cross, plain] = report.runs[0].screens;
+    assert.deepEqual(same.checks.map((item) => [item.index, item.status]), [[0, 'pass'], [1, 'pass']], JSON.stringify(same, null, 2));
+    assert.equal(cross.checks[0].status, 'pass', JSON.stringify(cross, null, 2));
+    assert.equal(plain.checks[0].status, 'fail', JSON.stringify(plain, null, 2));
+  } finally {
+    server.close();
+    await rm(out, { recursive: true, force: true });
+  }
+});

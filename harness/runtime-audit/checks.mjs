@@ -142,6 +142,32 @@ export function evaluateDimensions(check, measured, reference) {
 }
 
 /** Counts recomputed from items, never taken from a declaration. */
+/**
+ * A view-transition check: following the subject link from one route to
+ * another must run a view transition. View Transitions are a web standard, so
+ * a navigation that runs none is a bug to fix, not a browser to blame.
+ *
+ * @param {object} observed  { subjectCount, supported, navigated, calls, from, to }
+ *   calls counts document.startViewTransition calls (same-document, what
+ *   React's <ViewTransition> uses) plus pagereveal events that carried a
+ *   view transition (cross-document, the CSS @view-transition rule).
+ */
+export function evaluateViewTransition(observed) {
+  const subjectProblem = missing('subject', observed.subjectCount);
+  if (subjectProblem) return { status: 'inconclusive', reason: subjectProblem, measured: {} };
+  const measured = { from: observed.from, to: observed.to, supported: observed.supported, calls: observed.calls };
+  if (!observed.supported) {
+    return { status: 'inconclusive', reason: 'this browser has no document.startViewTransition, so nothing can be judged', measured };
+  }
+  if (!observed.navigated) {
+    return { status: 'inconclusive', reason: 'following the subject did not change the URL', measured };
+  }
+  if (observed.calls > 0) {
+    return { status: 'pass', reason: `a view transition ran navigating from ${observed.from} to ${observed.to}`, measured };
+  }
+  return { status: 'fail', reason: `navigating from ${observed.from} to ${observed.to} ran no view transition`, measured };
+}
+
 export function summarize(runs) {
   const summary = { pass: 0, fail: 0, inconclusive: 0, skipped: 0 };
   for (const run of runs) {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { evaluateCheck, evaluateDimensions, summarize } from '../checks.mjs';
+import { evaluateCheck, evaluateDimensions, evaluateViewTransition, summarize } from '../checks.mjs';
 import { validateDimensionsPlan } from '../run.mjs';
 
 const page = { viewportWidth: 360, scrollWidth: 360, maxRight: 340, overflowHidden: false };
@@ -77,4 +77,14 @@ test('dimension runner refuses inferred values, duplicate mappings and invalid t
     { ...check, figmaDimensions: [{ ...mapping, width: 100 }] },
     { ...check, figmaDimensions: [{ ...mapping, viewportWidth: 858 }] },
   ]) assert.throws(() => validateDimensionsPlan(plan(entry)));
+});
+
+test('a view-transition check passes only when following the link ran one', () => {
+  const observed = { subjectCount: 1, supported: true, navigated: true, calls: 1, from: '/a', to: '/b' };
+  assert.equal(evaluateViewTransition(observed).status, 'pass');
+  assert.equal(evaluateViewTransition({ ...observed, calls: 0 }).status, 'fail');
+  assert.match(evaluateViewTransition({ ...observed, calls: 0 }).reason, /ran no view transition/);
+  assert.equal(evaluateViewTransition({ ...observed, navigated: false }).status, 'inconclusive');
+  assert.equal(evaluateViewTransition({ ...observed, supported: false }).status, 'inconclusive');
+  assert.equal(evaluateViewTransition({ subjectCount: 0 }).status, 'inconclusive');
 });

@@ -209,7 +209,12 @@ pub struct CheckInput {
     /// visible: subject renders with a non-empty box.
     /// dimensions: compare the explicitly mapped element box in CSS pixels
     /// with acquired Figma logical dimensions at each named viewport width.
-    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions"]))]
+    /// view-transition: follow the subject link to another route and confirm
+    /// a view transition ran (document.startViewTransition, or a
+    /// cross-document pagereveal transition). It navigates away, so the
+    /// executor runs it after the screen's other checks and screenshot; the
+    /// next screen should start from its own routePath.
+    #[schemars(extend("enum" = ["no-horizontal-overflow", "contained", "aligned", "spans", "visible", "dimensions", "view-transition"]))]
     pub kind: String,
     #[serde(default)]
     pub subject: Option<LocatorInput>,
@@ -523,7 +528,7 @@ fn validate_check(check: &CheckInput) -> Result<(), DevupError> {
     };
     match check.kind.as_str() {
         "no-horizontal-overflow" => needs(false, false)?,
-        "visible" => needs(true, false)?,
+        "visible" | "view-transition" => needs(true, false)?,
         "dimensions" => {
             needs(true, false)?;
             if check.tolerance_px.is_none()
@@ -1224,6 +1229,7 @@ fn screen_row(
         .filter(|(status, _, _)| *status == "fail")
         .map(|(_, kind, reason)| match *kind {
             "no-horizontal-overflow" => format!("horizontal overflow: {reason}"),
+            "view-transition" => format!("view transition: {reason}"),
             kind => format!("{kind}: {reason}"),
         })
         .collect::<Vec<_>>();
@@ -1862,6 +1868,27 @@ mod tests {
         .unwrap();
         let bytes = std::fs::read(dir.join("plan.json")).unwrap();
         (document["planId"].as_str().unwrap().to_owned(), bytes)
+    }
+
+    #[test]
+    fn a_view_transition_check_needs_the_link_to_follow() {
+        let mut plan = plan_input();
+        plan.screens[0].checks.push(
+            serde_json::from_value(json!({"kind": "view-transition", "subject": {"testId": "go"}}))
+                .unwrap(),
+        );
+        assert!(validate_plan(&plan).is_ok());
+        plan.screens[0]
+            .checks
+            .push(serde_json::from_value(json!({"kind": "view-transition"})).unwrap());
+        let error = validate_plan(&plan).unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("view-transition check takes a subject"),
+            "{}",
+            error.message
+        );
     }
 
     #[test]
